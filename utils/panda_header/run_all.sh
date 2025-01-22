@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ROOT=$(realpath ~/workspace/qemu)
+ROOT=$(realpath ../../qemu)
 BUILD=$(realpath $ROOT/build)
 PANDARE_AUTOGEN_DIR=$(realpath ../../include)
 
