@@ -1,0 +1,738 @@
+#include <stdint.h>
+#include <stdbool.h>
+#include "../syscalls2_info.h"
+#define MAX_SYSCALL_NO 6439
+#define MAX_SYSCALL_GENERIC_NO 6000
+#define MAX_SYSCALL_ARGS 6
+
+#if !defined(__clang__) && __GNUC__ < 5
+#if 0
+	The system call arguments array has variable size.
+	This prevents initializing the whole syscall_info statically.
+	To solve this, we declare static variables for the arguments
+	array of all system calls and assign those instead.
+	***This solution may be gcc-specific!***
+
+	See: https://stackoverflow.com/a/24640918
+#endif
+#warning This file may require gcc-5 or later to be compiled.
+#endif
+
+static syscall_argtype_t argt_6000[] = {SYSCALL_ARG_U32, SYSCALL_ARG_BUF_PTR, SYSCALL_ARG_U32};
+static uint8_t argsz_6000[] = {sizeof(uint32_t), sizeof(uint32_t), sizeof(uint32_t)};
+static const char* const argn_6000[] = {"fd", "buf", "count", 0};
+static const char* const argtn_6000[] = {"n/a", "n/a", "n/a", 0};
+/* skipping non generic system call sys_write: [6001] */
+/* skipping non generic system call sys_open: [6002] */
+/* skipping non generic system call sys_close: [6003] */
+/* skipping non generic system call sys_newstat: [6004] */
+/* skipping non generic system call sys_newfstat: [6005] */
+/* skipping non generic system call sys_newlstat: [6006] */
+/* skipping non generic system call sys_poll: [6007] */
+/* skipping non generic system call sys_lseek: [6008] */
+/* skipping non generic system call sys_old_mmap: [6009] */
+/* skipping non generic system call sys_mprotect: [6010] */
+/* skipping non generic system call sys_munmap: [6011] */
+/* skipping non generic system call sys_brk: [6012] */
+/* skipping non generic system call sys_rt_sigaction: [6013] */
+/* skipping non generic system call sys_rt_sigprocmask: [6014] */
+/* skipping non generic system call sys_ioctl: [6015] */
+/* skipping non generic system call sys_pread64: [6016] */
+/* skipping non generic system call sys_pwrite64: [6017] */
+/* skipping non generic system call sys_readv: [6018] */
+/* skipping non generic system call sys_writev: [6019] */
+/* skipping non generic system call sys_access: [6020] */
+/* skipping non generic system call sys_pipe: [6021] */
+/* skipping non generic system call sys_select: [6022] */
+/* skipping non generic system call sys_sched_yield: [6023] */
+/* skipping non generic system call sys_mremap: [6024] */
+/* skipping non generic system call sys_msync: [6025] */
+/* skipping non generic system call sys_mincore: [6026] */
+/* skipping non generic system call sys_madvise: [6027] */
+/* skipping non generic system call sys_shmget: [6028] */
+/* skipping non generic system call sys_shmat: [6029] */
+/* skipping non generic system call sys_old_shmctl: [6030] */
+/* skipping non generic system call sys_dup: [6031] */
+/* skipping non generic system call sys_dup2: [6032] */
+/* skipping non generic system call sys_pause: [6033] */
+/* skipping non generic system call sys_nanosleep_time32: [6034] */
+/* skipping non generic system call sys_getitimer: [6035] */
+/* skipping non generic system call sys_setitimer: [6036] */
+/* skipping non generic system call sys_alarm: [6037] */
+/* skipping non generic system call sys_getpid: [6038] */
+/* skipping non generic system call sys_sendfile: [6039] */
+/* skipping non generic system call sys_socket: [6040] */
+/* skipping non generic system call sys_connect: [6041] */
+/* skipping non generic system call sys_accept: [6042] */
+/* skipping non generic system call sys_sendto: [6043] */
+/* skipping non generic system call sys_recvfrom: [6044] */
+/* skipping non generic system call sys_sendmsg: [6045] */
+/* skipping non generic system call sys_recvmsg: [6046] */
+/* skipping non generic system call sys_shutdown: [6047] */
+/* skipping non generic system call sys_bind: [6048] */
+/* skipping non generic system call sys_listen: [6049] */
+/* skipping non generic system call sys_getsockname: [6050] */
+/* skipping non generic system call sys_getpeername: [6051] */
+/* skipping non generic system call sys_socketpair: [6052] */
+/* skipping non generic system call sys_setsockopt: [6053] */
+/* skipping non generic system call sys_getsockopt: [6054] */
+/* skipping non generic system call sys_clone: [6055] */
+/* skipping non generic system call sys_fork: [6056] */
+/* skipping non generic system call sys_execve: [6057] */
+/* skipping non generic system call sys_exit: [6058] */
+/* skipping non generic system call sys_wait4: [6059] */
+/* skipping non generic system call sys_kill: [6060] */
+/* skipping non generic system call sys_newuname: [6061] */
+/* skipping non generic system call sys_semget: [6062] */
+/* skipping non generic system call sys_semop: [6063] */
+/* skipping non generic system call sys_semctl: [6064] */
+/* skipping non generic system call sys_shmdt: [6065] */
+/* skipping non generic system call sys_msgget: [6066] */
+/* skipping non generic system call sys_msgsnd: [6067] */
+/* skipping non generic system call sys_msgrcv: [6068] */
+/* skipping non generic system call sys_old_msgctl: [6069] */
+/* skipping non generic system call sys_fcntl: [6070] */
+/* skipping non generic system call sys_flock: [6071] */
+/* skipping non generic system call sys_fsync: [6072] */
+/* skipping non generic system call sys_fdatasync: [6073] */
+/* skipping non generic system call sys_truncate: [6074] */
+/* skipping non generic system call sys_ftruncate: [6075] */
+/* skipping non generic system call sys_getdents: [6076] */
+/* skipping non generic system call sys_getcwd: [6077] */
+/* skipping non generic system call sys_chdir: [6078] */
+/* skipping non generic system call sys_fchdir: [6079] */
+/* skipping non generic system call sys_rename: [6080] */
+/* skipping non generic system call sys_mkdir: [6081] */
+/* skipping non generic system call sys_rmdir: [6082] */
+/* skipping non generic system call sys_creat: [6083] */
+/* skipping non generic system call sys_link: [6084] */
+/* skipping non generic system call sys_unlink: [6085] */
+/* skipping non generic system call sys_symlink: [6086] */
+/* skipping non generic system call sys_readlink: [6087] */
+/* skipping non generic system call sys_chmod: [6088] */
+/* skipping non generic system call sys_fchmod: [6089] */
+/* skipping non generic system call sys_chown: [6090] */
+/* skipping non generic system call sys_fchown: [6091] */
+/* skipping non generic system call sys_lchown: [6092] */
+/* skipping non generic system call sys_umask: [6093] */
+/* skipping non generic system call sys_gettimeofday: [6094] */
+/* skipping non generic system call sys_getrlimit: [6095] */
+/* skipping non generic system call sys_getrusage: [6096] */
+/* skipping non generic system call sys_sysinfo: [6097] */
+/* skipping non generic system call sys_times: [6098] */
+/* skipping non generic system call sys_ptrace: [6099] */
+/* skipping non generic system call sys_getuid: [6100] */
+/* skipping non generic system call sys_syslog: [6101] */
+/* skipping non generic system call sys_getgid: [6102] */
+/* skipping non generic system call sys_setuid: [6103] */
+/* skipping non generic system call sys_setgid: [6104] */
+/* skipping non generic system call sys_geteuid: [6105] */
+/* skipping non generic system call sys_getegid: [6106] */
+/* skipping non generic system call sys_setpgid: [6107] */
+/* skipping non generic system call sys_getppid: [6108] */
+/* skipping non generic system call sys_getpgrp: [6109] */
+/* skipping non generic system call sys_setsid: [6110] */
+/* skipping non generic system call sys_setreuid: [6111] */
+/* skipping non generic system call sys_setregid: [6112] */
+/* skipping non generic system call sys_getgroups: [6113] */
+/* skipping non generic system call sys_setgroups: [6114] */
+/* skipping non generic system call sys_setresuid: [6115] */
+/* skipping non generic system call sys_getresuid: [6116] */
+/* skipping non generic system call sys_setresgid: [6117] */
+/* skipping non generic system call sys_getresgid: [6118] */
+/* skipping non generic system call sys_getpgid: [6119] */
+/* skipping non generic system call sys_setfsuid: [6120] */
+/* skipping non generic system call sys_setfsgid: [6121] */
+/* skipping non generic system call sys_getsid: [6122] */
+/* skipping non generic system call sys_capget: [6123] */
+/* skipping non generic system call sys_capset: [6124] */
+/* skipping non generic system call sys_rt_sigpending: [6125] */
+/* skipping non generic system call sys_io_getevents_time32: [6126, 6202] */
+/* skipping non generic system call sys_rt_sigqueueinfo: [6127] */
+/* skipping non generic system call sys_rt_sigsuspend: [6128] */
+/* skipping non generic system call sys_sigaltstack: [6129] */
+/* skipping non generic system call sys_utime32: [6130] */
+/* skipping non generic system call sys_mknod: [6131] */
+/* skipping non generic system call sys_personality: [6132] */
+/* skipping non generic system call sys_ustat: [6133] */
+/* skipping non generic system call sys_statfs: [6134] */
+/* skipping non generic system call sys_fstatfs: [6135] */
+/* skipping non generic system call sys_sysfs: [6136] */
+/* skipping non generic system call sys_getpriority: [6137] */
+/* skipping non generic system call sys_setpriority: [6138] */
+/* skipping non generic system call sys_sched_setparam: [6139] */
+/* skipping non generic system call sys_sched_getparam: [6140] */
+/* skipping non generic system call sys_sched_setscheduler: [6141] */
+/* skipping non generic system call sys_sched_getscheduler: [6142] */
+/* skipping non generic system call sys_sched_get_priority_max: [6143] */
+/* skipping non generic system call sys_sched_get_priority_min: [6144] */
+/* skipping non generic system call sys_sched_rr_get_interval_time32: [6145] */
+/* skipping non generic system call sys_mlock: [6146] */
+/* skipping non generic system call sys_munlock: [6147] */
+/* skipping non generic system call sys_mlockall: [6148] */
+/* skipping non generic system call sys_munlockall: [6149] */
+/* skipping non generic system call sys_vhangup: [6150] */
+/* skipping non generic system call sys_pivot_root: [6151] */
+/* skipping non generic system call sys_sysctl: [6152] */
+/* skipping non generic system call sys_prctl: [6153] */
+/* skipping non generic system call sys_adjtimex_time32: [6154] */
+/* skipping non generic system call sys_setrlimit: [6155] */
+/* skipping non generic system call sys_chroot: [6156] */
+/* skipping non generic system call sys_sync: [6157] */
+/* skipping non generic system call sys_acct: [6158] */
+/* skipping non generic system call sys_settimeofday: [6159] */
+/* skipping non generic system call sys_mount: [6160] */
+/* skipping non generic system call sys_umount: [6161] */
+/* skipping non generic system call sys_swapon: [6162] */
+/* skipping non generic system call sys_swapoff: [6163] */
+/* skipping non generic system call sys_reboot: [6164] */
+/* skipping non generic system call sys_sethostname: [6165] */
+/* skipping non generic system call sys_setdomainname: [6166] */
+/* skipping non generic system call sys_ni_syscall: [6167, 6170, 6171, 6173, 6174, 6175, 6176, 6177, 6193, 6240, 6281] */
+/* skipping non generic system call sys_init_module: [6168] */
+/* skipping non generic system call sys_delete_module: [6169] */
+/* skipping non generic system call sys_quotactl: [6172] */
+/* skipping non generic system call sys_gettid: [6178] */
+/* skipping non generic system call sys_readahead: [6179] */
+/* skipping non generic system call sys_setxattr: [6180] */
+/* skipping non generic system call sys_lsetxattr: [6181] */
+/* skipping non generic system call sys_fsetxattr: [6182] */
+/* skipping non generic system call sys_getxattr: [6183] */
+/* skipping non generic system call sys_lgetxattr: [6184] */
+/* skipping non generic system call sys_fgetxattr: [6185] */
+/* skipping non generic system call sys_listxattr: [6186] */
+/* skipping non generic system call sys_llistxattr: [6187] */
+/* skipping non generic system call sys_flistxattr: [6188] */
+/* skipping non generic system call sys_removexattr: [6189] */
+/* skipping non generic system call sys_lremovexattr: [6190] */
+/* skipping non generic system call sys_fremovexattr: [6191] */
+/* skipping non generic system call sys_tkill: [6192] */
+/* skipping non generic system call sys_futex_time32: [6194] */
+/* skipping non generic system call sys_sched_setaffinity: [6195] */
+/* skipping non generic system call sys_sched_getaffinity: [6196] */
+/* skipping non generic system call sys_io_setup: [6200] */
+/* skipping non generic system call sys_io_destroy: [6201] */
+/* skipping non generic system call sys_io_submit: [6203] */
+/* skipping non generic system call sys_io_cancel: [6204] */
+/* skipping non generic system call sys_exit_group: [6205] */
+/* skipping non generic system call sys_lookup_dcookie: [6206] */
+/* skipping non generic system call sys_epoll_create: [6207] */
+/* skipping non generic system call sys_epoll_ctl: [6208] */
+/* skipping non generic system call sys_epoll_wait: [6209] */
+/* skipping non generic system call sys_remap_file_pages: [6210] */
+/* skipping non generic system call sys_sigreturn: [6211] */
+/* skipping non generic system call sys_fcntl64: [6212] */
+/* skipping non generic system call sys_set_tid_address: [6213] */
+/* skipping non generic system call sys_restart_syscall: [6214] */
+/* skipping non generic system call sys_semtimedop_time32: [6215] */
+/* skipping non generic system call sys_fadvise64_64: [6216] */
+/* skipping non generic system call sys_statfs64: [6217] */
+/* skipping non generic system call sys_fstatfs64: [6218] */
+/* skipping non generic system call sys_sendfile64: [6219] */
+/* skipping non generic system call sys_timerfd_create: [6220, 6284] */
+/* skipping non generic system call sys_timer_settime32: [6221] */
+/* skipping non generic system call sys_timer_gettime32: [6222] */
+/* skipping non generic system call sys_timer_getoverrun: [6223] */
+/* skipping non generic system call sys_timer_delete: [6224] */
+/* skipping non generic system call sys_clock_settime32: [6225] */
+/* skipping non generic system call sys_clock_gettime32: [6226] */
+/* skipping non generic system call sys_clock_getres_time32: [6227] */
+/* skipping non generic system call sys_clock_nanosleep_time32: [6228] */
+/* skipping non generic system call sys_tgkill: [6229] */
+/* skipping non generic system call sys_utimes_time32: [6230] */
+/* skipping non generic system call sys_mbind: [6231] */
+/* skipping non generic system call sys_get_mempolicy: [6232] */
+/* skipping non generic system call sys_set_mempolicy: [6233] */
+/* skipping non generic system call sys_mq_open: [6234] */
+/* skipping non generic system call sys_mq_unlink: [6235] */
+/* skipping non generic system call sys_mq_timedsend_time32: [6236] */
+/* skipping non generic system call sys_mq_timedreceive_time32: [6237] */
+/* skipping non generic system call sys_mq_notify: [6238] */
+/* skipping non generic system call sys_mq_getsetattr: [6239] */
+/* skipping non generic system call sys_waitid: [6241] */
+/* skipping non generic system call sys_add_key: [6243] */
+/* skipping non generic system call sys_request_key: [6244] */
+/* skipping non generic system call sys_keyctl: [6245] */
+/* skipping non generic system call sys_inotify_init: [6247] */
+/* skipping non generic system call sys_inotify_add_watch: [6248] */
+/* skipping non generic system call sys_inotify_rm_watch: [6249] */
+/* skipping non generic system call sys_migrate_pages: [6250] */
+/* skipping non generic system call sys_openat: [6251] */
+/* skipping non generic system call sys_mkdirat: [6252] */
+/* skipping non generic system call sys_mknodat: [6253] */
+/* skipping non generic system call sys_fchownat: [6254] */
+/* skipping non generic system call sys_futimesat_time32: [6255] */
+/* skipping non generic system call sys_newfstatat: [6256] */
+/* skipping non generic system call sys_unlinkat: [6257] */
+/* skipping non generic system call sys_renameat: [6258] */
+/* skipping non generic system call sys_linkat: [6259] */
+/* skipping non generic system call sys_symlinkat: [6260] */
+/* skipping non generic system call sys_readlinkat: [6261] */
+/* skipping non generic system call sys_fchmodat: [6262] */
+/* skipping non generic system call sys_faccessat: [6263] */
+/* skipping non generic system call sys_io_pgetevents_time32: [6264] */
+/* skipping non generic system call sys_pselect6_time32: [6265] */
+/* skipping non generic system call sys_unshare: [6266] */
+/* skipping non generic system call sys_splice: [6267] */
+/* skipping non generic system call sys_sync_file_range: [6268] */
+/* skipping non generic system call sys_tee: [6269] */
+/* skipping non generic system call sys_vmsplice: [6270] */
+/* skipping non generic system call sys_move_pages: [6271] */
+/* skipping non generic system call sys_get_robust_list: [6272] */
+/* skipping non generic system call sys_set_robust_list: [6273] */
+/* skipping non generic system call sys_kexec_load: [6274] */
+/* skipping non generic system call sys_getcpu: [6275] */
+/* skipping non generic system call sys_epoll_pwait: [6276] */
+/* skipping non generic system call sys_ioprio_set: [6277] */
+/* skipping non generic system call sys_ioprio_get: [6278] */
+/* skipping non generic system call sys_utimensat_time32: [6279] */
+/* skipping non generic system call sys_signalfd: [6280] */
+/* skipping non generic system call sys_eventfd: [6282] */
+/* skipping non generic system call sys_fallocate: [6283] */
+/* skipping non generic system call sys_timerfd_gettime32: [6285] */
+/* skipping non generic system call sys_timerfd_settime32: [6286] */
+/* skipping non generic system call sys_signalfd4: [6287] */
+/* skipping non generic system call sys_eventfd2: [6288] */
+/* skipping non generic system call sys_epoll_create1: [6289] */
+/* skipping non generic system call sys_dup3: [6290] */
+/* skipping non generic system call sys_pipe2: [6291] */
+/* skipping non generic system call sys_inotify_init1: [6292] */
+/* skipping non generic system call sys_preadv: [6293] */
+/* skipping non generic system call sys_pwritev: [6294] */
+/* skipping non generic system call sys_rt_tgsigqueueinfo: [6295] */
+/* skipping non generic system call sys_perf_event_open: [6296] */
+/* skipping non generic system call sys_accept4: [6297] */
+/* skipping non generic system call sys_ppoll_time32: [6298] */
+/* skipping non generic system call sys_getdents64: [6299] */
+/* skipping non generic system call sys_fanotify_init: [6300] */
+/* skipping non generic system call sys_fanotify_mark: [6301] */
+/* skipping non generic system call sys_prlimit64: [6302] */
+/* skipping non generic system call sys_name_to_handle_at: [6303] */
+/* skipping non generic system call sys_open_by_handle_at: [6304] */
+/* skipping non generic system call sys_clock_adjtime32: [6305] */
+/* skipping non generic system call sys_syncfs: [6306] */
+/* skipping non generic system call sys_sendmmsg: [6307] */
+/* skipping non generic system call sys_setns: [6308] */
+/* skipping non generic system call sys_process_vm_readv: [6309] */
+/* skipping non generic system call sys_process_vm_writev: [6310] */
+/* skipping non generic system call sys_kcmp: [6311] */
+/* skipping non generic system call sys_finit_module: [6312] */
+/* skipping non generic system call sys_sched_setattr: [6313] */
+/* skipping non generic system call sys_sched_getattr: [6314] */
+/* skipping non generic system call sys_renameat2: [6315] */
+/* skipping non generic system call sys_seccomp: [6316] */
+/* skipping non generic system call sys_getrandom: [6317] */
+/* skipping non generic system call sys_memfd_create: [6318] */
+/* skipping non generic system call sys_bpf: [6319] */
+/* skipping non generic system call sys_execveat: [6320] */
+/* skipping non generic system call sys_userfaultfd: [6321] */
+/* skipping non generic system call sys_membarrier: [6322] */
+/* skipping non generic system call sys_mlock2: [6323] */
+/* skipping non generic system call sys_copy_file_range: [6324] */
+/* skipping non generic system call sys_preadv2: [6325] */
+/* skipping non generic system call sys_pwritev2: [6326] */
+/* skipping non generic system call sys_pkey_mprotect: [6327] */
+/* skipping non generic system call sys_pkey_alloc: [6328] */
+/* skipping non generic system call sys_pkey_free: [6329] */
+/* skipping non generic system call sys_statx: [6330] */
+/* skipping non generic system call sys_rseq: [6331] */
+/* skipping non generic system call sys_io_pgetevents: [6332, 6416] */
+/* skipping non generic system call sys_clock_gettime: [6403] */
+/* skipping non generic system call sys_clock_settime: [6404] */
+/* skipping non generic system call sys_clock_adjtime: [6405] */
+/* skipping non generic system call sys_clock_getres: [6406] */
+/* skipping non generic system call sys_clock_nanosleep: [6407] */
+/* skipping non generic system call sys_timer_gettime: [6408] */
+/* skipping non generic system call sys_timer_settime: [6409] */
+/* skipping non generic system call sys_timerfd_gettime: [6410] */
+/* skipping non generic system call sys_timerfd_settime: [6411] */
+/* skipping non generic system call sys_utimensat: [6412] */
+/* skipping non generic system call sys_mq_timedsend: [6418] */
+/* skipping non generic system call sys_mq_timedreceive: [6419] */
+/* skipping non generic system call sys_semtimedop: [6420] */
+/* skipping non generic system call sys_futex: [6422] */
+/* skipping non generic system call sys_sched_rr_get_interval: [6423] */
+/* skipping non generic system call sys_pidfd_send_signal: [6424] */
+/* skipping non generic system call sys_io_uring_setup: [6425] */
+/* skipping non generic system call sys_io_uring_enter: [6426] */
+/* skipping non generic system call sys_io_uring_register: [6427] */
+/* skipping non generic system call sys_open_tree: [6428] */
+/* skipping non generic system call sys_move_mount: [6429] */
+/* skipping non generic system call sys_fsopen: [6430] */
+/* skipping non generic system call sys_fsconfig: [6431] */
+/* skipping non generic system call sys_fsmount: [6432] */
+/* skipping non generic system call sys_fspick: [6433] */
+/* skipping non generic system call sys_pidfd_open: [6434] */
+/* skipping non generic system call sys_clone3: [6435] */
+/* skipping non generic system call sys_openat2: [6437] */
+/* skipping non generic system call sys_pidfd_getfd: [6438] */
+/* skipping non generic system call sys_faccessat2: [6439] */
+
+
+syscall_info_t __syscall_info_a[] = {
+	/* note that uninitialized values will be zeroed-out */
+	[6000] = {
+		.no = 6000,
+		.name = "sys_read",
+		.nargs = 3,
+		.argt = argt_6000,
+		.argsz = argsz_6000,
+		.argn = argn_6000,
+		.argtn = argtn_6000,
+		.noreturn = false
+	},
+	/* skipping non generic system call sys_write: [6001] */
+	/* skipping non generic system call sys_open: [6002] */
+	/* skipping non generic system call sys_close: [6003] */
+	/* skipping non generic system call sys_newstat: [6004] */
+	/* skipping non generic system call sys_newfstat: [6005] */
+	/* skipping non generic system call sys_newlstat: [6006] */
+	/* skipping non generic system call sys_poll: [6007] */
+	/* skipping non generic system call sys_lseek: [6008] */
+	/* skipping non generic system call sys_old_mmap: [6009] */
+	/* skipping non generic system call sys_mprotect: [6010] */
+	/* skipping non generic system call sys_munmap: [6011] */
+	/* skipping non generic system call sys_brk: [6012] */
+	/* skipping non generic system call sys_rt_sigaction: [6013] */
+	/* skipping non generic system call sys_rt_sigprocmask: [6014] */
+	/* skipping non generic system call sys_ioctl: [6015] */
+	/* skipping non generic system call sys_pread64: [6016] */
+	/* skipping non generic system call sys_pwrite64: [6017] */
+	/* skipping non generic system call sys_readv: [6018] */
+	/* skipping non generic system call sys_writev: [6019] */
+	/* skipping non generic system call sys_access: [6020] */
+	/* skipping non generic system call sys_pipe: [6021] */
+	/* skipping non generic system call sys_select: [6022] */
+	/* skipping non generic system call sys_sched_yield: [6023] */
+	/* skipping non generic system call sys_mremap: [6024] */
+	/* skipping non generic system call sys_msync: [6025] */
+	/* skipping non generic system call sys_mincore: [6026] */
+	/* skipping non generic system call sys_madvise: [6027] */
+	/* skipping non generic system call sys_shmget: [6028] */
+	/* skipping non generic system call sys_shmat: [6029] */
+	/* skipping non generic system call sys_old_shmctl: [6030] */
+	/* skipping non generic system call sys_dup: [6031] */
+	/* skipping non generic system call sys_dup2: [6032] */
+	/* skipping non generic system call sys_pause: [6033] */
+	/* skipping non generic system call sys_nanosleep_time32: [6034] */
+	/* skipping non generic system call sys_getitimer: [6035] */
+	/* skipping non generic system call sys_setitimer: [6036] */
+	/* skipping non generic system call sys_alarm: [6037] */
+	/* skipping non generic system call sys_getpid: [6038] */
+	/* skipping non generic system call sys_sendfile: [6039] */
+	/* skipping non generic system call sys_socket: [6040] */
+	/* skipping non generic system call sys_connect: [6041] */
+	/* skipping non generic system call sys_accept: [6042] */
+	/* skipping non generic system call sys_sendto: [6043] */
+	/* skipping non generic system call sys_recvfrom: [6044] */
+	/* skipping non generic system call sys_sendmsg: [6045] */
+	/* skipping non generic system call sys_recvmsg: [6046] */
+	/* skipping non generic system call sys_shutdown: [6047] */
+	/* skipping non generic system call sys_bind: [6048] */
+	/* skipping non generic system call sys_listen: [6049] */
+	/* skipping non generic system call sys_getsockname: [6050] */
+	/* skipping non generic system call sys_getpeername: [6051] */
+	/* skipping non generic system call sys_socketpair: [6052] */
+	/* skipping non generic system call sys_setsockopt: [6053] */
+	/* skipping non generic system call sys_getsockopt: [6054] */
+	/* skipping non generic system call sys_clone: [6055] */
+	/* skipping non generic system call sys_fork: [6056] */
+	/* skipping non generic system call sys_execve: [6057] */
+	/* skipping non generic system call sys_exit: [6058] */
+	/* skipping non generic system call sys_wait4: [6059] */
+	/* skipping non generic system call sys_kill: [6060] */
+	/* skipping non generic system call sys_newuname: [6061] */
+	/* skipping non generic system call sys_semget: [6062] */
+	/* skipping non generic system call sys_semop: [6063] */
+	/* skipping non generic system call sys_semctl: [6064] */
+	/* skipping non generic system call sys_shmdt: [6065] */
+	/* skipping non generic system call sys_msgget: [6066] */
+	/* skipping non generic system call sys_msgsnd: [6067] */
+	/* skipping non generic system call sys_msgrcv: [6068] */
+	/* skipping non generic system call sys_old_msgctl: [6069] */
+	/* skipping non generic system call sys_fcntl: [6070] */
+	/* skipping non generic system call sys_flock: [6071] */
+	/* skipping non generic system call sys_fsync: [6072] */
+	/* skipping non generic system call sys_fdatasync: [6073] */
+	/* skipping non generic system call sys_truncate: [6074] */
+	/* skipping non generic system call sys_ftruncate: [6075] */
+	/* skipping non generic system call sys_getdents: [6076] */
+	/* skipping non generic system call sys_getcwd: [6077] */
+	/* skipping non generic system call sys_chdir: [6078] */
+	/* skipping non generic system call sys_fchdir: [6079] */
+	/* skipping non generic system call sys_rename: [6080] */
+	/* skipping non generic system call sys_mkdir: [6081] */
+	/* skipping non generic system call sys_rmdir: [6082] */
+	/* skipping non generic system call sys_creat: [6083] */
+	/* skipping non generic system call sys_link: [6084] */
+	/* skipping non generic system call sys_unlink: [6085] */
+	/* skipping non generic system call sys_symlink: [6086] */
+	/* skipping non generic system call sys_readlink: [6087] */
+	/* skipping non generic system call sys_chmod: [6088] */
+	/* skipping non generic system call sys_fchmod: [6089] */
+	/* skipping non generic system call sys_chown: [6090] */
+	/* skipping non generic system call sys_fchown: [6091] */
+	/* skipping non generic system call sys_lchown: [6092] */
+	/* skipping non generic system call sys_umask: [6093] */
+	/* skipping non generic system call sys_gettimeofday: [6094] */
+	/* skipping non generic system call sys_getrlimit: [6095] */
+	/* skipping non generic system call sys_getrusage: [6096] */
+	/* skipping non generic system call sys_sysinfo: [6097] */
+	/* skipping non generic system call sys_times: [6098] */
+	/* skipping non generic system call sys_ptrace: [6099] */
+	/* skipping non generic system call sys_getuid: [6100] */
+	/* skipping non generic system call sys_syslog: [6101] */
+	/* skipping non generic system call sys_getgid: [6102] */
+	/* skipping non generic system call sys_setuid: [6103] */
+	/* skipping non generic system call sys_setgid: [6104] */
+	/* skipping non generic system call sys_geteuid: [6105] */
+	/* skipping non generic system call sys_getegid: [6106] */
+	/* skipping non generic system call sys_setpgid: [6107] */
+	/* skipping non generic system call sys_getppid: [6108] */
+	/* skipping non generic system call sys_getpgrp: [6109] */
+	/* skipping non generic system call sys_setsid: [6110] */
+	/* skipping non generic system call sys_setreuid: [6111] */
+	/* skipping non generic system call sys_setregid: [6112] */
+	/* skipping non generic system call sys_getgroups: [6113] */
+	/* skipping non generic system call sys_setgroups: [6114] */
+	/* skipping non generic system call sys_setresuid: [6115] */
+	/* skipping non generic system call sys_getresuid: [6116] */
+	/* skipping non generic system call sys_setresgid: [6117] */
+	/* skipping non generic system call sys_getresgid: [6118] */
+	/* skipping non generic system call sys_getpgid: [6119] */
+	/* skipping non generic system call sys_setfsuid: [6120] */
+	/* skipping non generic system call sys_setfsgid: [6121] */
+	/* skipping non generic system call sys_getsid: [6122] */
+	/* skipping non generic system call sys_capget: [6123] */
+	/* skipping non generic system call sys_capset: [6124] */
+	/* skipping non generic system call sys_rt_sigpending: [6125] */
+	/* skipping non generic system call sys_io_getevents_time32: [6126, 6202] */
+	/* skipping non generic system call sys_rt_sigqueueinfo: [6127] */
+	/* skipping non generic system call sys_rt_sigsuspend: [6128] */
+	/* skipping non generic system call sys_sigaltstack: [6129] */
+	/* skipping non generic system call sys_utime32: [6130] */
+	/* skipping non generic system call sys_mknod: [6131] */
+	/* skipping non generic system call sys_personality: [6132] */
+	/* skipping non generic system call sys_ustat: [6133] */
+	/* skipping non generic system call sys_statfs: [6134] */
+	/* skipping non generic system call sys_fstatfs: [6135] */
+	/* skipping non generic system call sys_sysfs: [6136] */
+	/* skipping non generic system call sys_getpriority: [6137] */
+	/* skipping non generic system call sys_setpriority: [6138] */
+	/* skipping non generic system call sys_sched_setparam: [6139] */
+	/* skipping non generic system call sys_sched_getparam: [6140] */
+	/* skipping non generic system call sys_sched_setscheduler: [6141] */
+	/* skipping non generic system call sys_sched_getscheduler: [6142] */
+	/* skipping non generic system call sys_sched_get_priority_max: [6143] */
+	/* skipping non generic system call sys_sched_get_priority_min: [6144] */
+	/* skipping non generic system call sys_sched_rr_get_interval_time32: [6145] */
+	/* skipping non generic system call sys_mlock: [6146] */
+	/* skipping non generic system call sys_munlock: [6147] */
+	/* skipping non generic system call sys_mlockall: [6148] */
+	/* skipping non generic system call sys_munlockall: [6149] */
+	/* skipping non generic system call sys_vhangup: [6150] */
+	/* skipping non generic system call sys_pivot_root: [6151] */
+	/* skipping non generic system call sys_sysctl: [6152] */
+	/* skipping non generic system call sys_prctl: [6153] */
+	/* skipping non generic system call sys_adjtimex_time32: [6154] */
+	/* skipping non generic system call sys_setrlimit: [6155] */
+	/* skipping non generic system call sys_chroot: [6156] */
+	/* skipping non generic system call sys_sync: [6157] */
+	/* skipping non generic system call sys_acct: [6158] */
+	/* skipping non generic system call sys_settimeofday: [6159] */
+	/* skipping non generic system call sys_mount: [6160] */
+	/* skipping non generic system call sys_umount: [6161] */
+	/* skipping non generic system call sys_swapon: [6162] */
+	/* skipping non generic system call sys_swapoff: [6163] */
+	/* skipping non generic system call sys_reboot: [6164] */
+	/* skipping non generic system call sys_sethostname: [6165] */
+	/* skipping non generic system call sys_setdomainname: [6166] */
+	/* skipping non generic system call sys_ni_syscall: [6167, 6170, 6171, 6173, 6174, 6175, 6176, 6177, 6193, 6240, 6281] */
+	/* skipping non generic system call sys_init_module: [6168] */
+	/* skipping non generic system call sys_delete_module: [6169] */
+	/* skipping non generic system call sys_quotactl: [6172] */
+	/* skipping non generic system call sys_gettid: [6178] */
+	/* skipping non generic system call sys_readahead: [6179] */
+	/* skipping non generic system call sys_setxattr: [6180] */
+	/* skipping non generic system call sys_lsetxattr: [6181] */
+	/* skipping non generic system call sys_fsetxattr: [6182] */
+	/* skipping non generic system call sys_getxattr: [6183] */
+	/* skipping non generic system call sys_lgetxattr: [6184] */
+	/* skipping non generic system call sys_fgetxattr: [6185] */
+	/* skipping non generic system call sys_listxattr: [6186] */
+	/* skipping non generic system call sys_llistxattr: [6187] */
+	/* skipping non generic system call sys_flistxattr: [6188] */
+	/* skipping non generic system call sys_removexattr: [6189] */
+	/* skipping non generic system call sys_lremovexattr: [6190] */
+	/* skipping non generic system call sys_fremovexattr: [6191] */
+	/* skipping non generic system call sys_tkill: [6192] */
+	/* skipping non generic system call sys_futex_time32: [6194] */
+	/* skipping non generic system call sys_sched_setaffinity: [6195] */
+	/* skipping non generic system call sys_sched_getaffinity: [6196] */
+	/* skipping non generic system call sys_io_setup: [6200] */
+	/* skipping non generic system call sys_io_destroy: [6201] */
+	/* skipping non generic system call sys_io_submit: [6203] */
+	/* skipping non generic system call sys_io_cancel: [6204] */
+	/* skipping non generic system call sys_exit_group: [6205] */
+	/* skipping non generic system call sys_lookup_dcookie: [6206] */
+	/* skipping non generic system call sys_epoll_create: [6207] */
+	/* skipping non generic system call sys_epoll_ctl: [6208] */
+	/* skipping non generic system call sys_epoll_wait: [6209] */
+	/* skipping non generic system call sys_remap_file_pages: [6210] */
+	/* skipping non generic system call sys_sigreturn: [6211] */
+	/* skipping non generic system call sys_fcntl64: [6212] */
+	/* skipping non generic system call sys_set_tid_address: [6213] */
+	/* skipping non generic system call sys_restart_syscall: [6214] */
+	/* skipping non generic system call sys_semtimedop_time32: [6215] */
+	/* skipping non generic system call sys_fadvise64_64: [6216] */
+	/* skipping non generic system call sys_statfs64: [6217] */
+	/* skipping non generic system call sys_fstatfs64: [6218] */
+	/* skipping non generic system call sys_sendfile64: [6219] */
+	/* skipping non generic system call sys_timerfd_create: [6220, 6284] */
+	/* skipping non generic system call sys_timer_settime32: [6221] */
+	/* skipping non generic system call sys_timer_gettime32: [6222] */
+	/* skipping non generic system call sys_timer_getoverrun: [6223] */
+	/* skipping non generic system call sys_timer_delete: [6224] */
+	/* skipping non generic system call sys_clock_settime32: [6225] */
+	/* skipping non generic system call sys_clock_gettime32: [6226] */
+	/* skipping non generic system call sys_clock_getres_time32: [6227] */
+	/* skipping non generic system call sys_clock_nanosleep_time32: [6228] */
+	/* skipping non generic system call sys_tgkill: [6229] */
+	/* skipping non generic system call sys_utimes_time32: [6230] */
+	/* skipping non generic system call sys_mbind: [6231] */
+	/* skipping non generic system call sys_get_mempolicy: [6232] */
+	/* skipping non generic system call sys_set_mempolicy: [6233] */
+	/* skipping non generic system call sys_mq_open: [6234] */
+	/* skipping non generic system call sys_mq_unlink: [6235] */
+	/* skipping non generic system call sys_mq_timedsend_time32: [6236] */
+	/* skipping non generic system call sys_mq_timedreceive_time32: [6237] */
+	/* skipping non generic system call sys_mq_notify: [6238] */
+	/* skipping non generic system call sys_mq_getsetattr: [6239] */
+	/* skipping non generic system call sys_waitid: [6241] */
+	/* skipping non generic system call sys_add_key: [6243] */
+	/* skipping non generic system call sys_request_key: [6244] */
+	/* skipping non generic system call sys_keyctl: [6245] */
+	/* skipping non generic system call sys_inotify_init: [6247] */
+	/* skipping non generic system call sys_inotify_add_watch: [6248] */
+	/* skipping non generic system call sys_inotify_rm_watch: [6249] */
+	/* skipping non generic system call sys_migrate_pages: [6250] */
+	/* skipping non generic system call sys_openat: [6251] */
+	/* skipping non generic system call sys_mkdirat: [6252] */
+	/* skipping non generic system call sys_mknodat: [6253] */
+	/* skipping non generic system call sys_fchownat: [6254] */
+	/* skipping non generic system call sys_futimesat_time32: [6255] */
+	/* skipping non generic system call sys_newfstatat: [6256] */
+	/* skipping non generic system call sys_unlinkat: [6257] */
+	/* skipping non generic system call sys_renameat: [6258] */
+	/* skipping non generic system call sys_linkat: [6259] */
+	/* skipping non generic system call sys_symlinkat: [6260] */
+	/* skipping non generic system call sys_readlinkat: [6261] */
+	/* skipping non generic system call sys_fchmodat: [6262] */
+	/* skipping non generic system call sys_faccessat: [6263] */
+	/* skipping non generic system call sys_io_pgetevents_time32: [6264] */
+	/* skipping non generic system call sys_pselect6_time32: [6265] */
+	/* skipping non generic system call sys_unshare: [6266] */
+	/* skipping non generic system call sys_splice: [6267] */
+	/* skipping non generic system call sys_sync_file_range: [6268] */
+	/* skipping non generic system call sys_tee: [6269] */
+	/* skipping non generic system call sys_vmsplice: [6270] */
+	/* skipping non generic system call sys_move_pages: [6271] */
+	/* skipping non generic system call sys_get_robust_list: [6272] */
+	/* skipping non generic system call sys_set_robust_list: [6273] */
+	/* skipping non generic system call sys_kexec_load: [6274] */
+	/* skipping non generic system call sys_getcpu: [6275] */
+	/* skipping non generic system call sys_epoll_pwait: [6276] */
+	/* skipping non generic system call sys_ioprio_set: [6277] */
+	/* skipping non generic system call sys_ioprio_get: [6278] */
+	/* skipping non generic system call sys_utimensat_time32: [6279] */
+	/* skipping non generic system call sys_signalfd: [6280] */
+	/* skipping non generic system call sys_eventfd: [6282] */
+	/* skipping non generic system call sys_fallocate: [6283] */
+	/* skipping non generic system call sys_timerfd_gettime32: [6285] */
+	/* skipping non generic system call sys_timerfd_settime32: [6286] */
+	/* skipping non generic system call sys_signalfd4: [6287] */
+	/* skipping non generic system call sys_eventfd2: [6288] */
+	/* skipping non generic system call sys_epoll_create1: [6289] */
+	/* skipping non generic system call sys_dup3: [6290] */
+	/* skipping non generic system call sys_pipe2: [6291] */
+	/* skipping non generic system call sys_inotify_init1: [6292] */
+	/* skipping non generic system call sys_preadv: [6293] */
+	/* skipping non generic system call sys_pwritev: [6294] */
+	/* skipping non generic system call sys_rt_tgsigqueueinfo: [6295] */
+	/* skipping non generic system call sys_perf_event_open: [6296] */
+	/* skipping non generic system call sys_accept4: [6297] */
+	/* skipping non generic system call sys_ppoll_time32: [6298] */
+	/* skipping non generic system call sys_getdents64: [6299] */
+	/* skipping non generic system call sys_fanotify_init: [6300] */
+	/* skipping non generic system call sys_fanotify_mark: [6301] */
+	/* skipping non generic system call sys_prlimit64: [6302] */
+	/* skipping non generic system call sys_name_to_handle_at: [6303] */
+	/* skipping non generic system call sys_open_by_handle_at: [6304] */
+	/* skipping non generic system call sys_clock_adjtime32: [6305] */
+	/* skipping non generic system call sys_syncfs: [6306] */
+	/* skipping non generic system call sys_sendmmsg: [6307] */
+	/* skipping non generic system call sys_setns: [6308] */
+	/* skipping non generic system call sys_process_vm_readv: [6309] */
+	/* skipping non generic system call sys_process_vm_writev: [6310] */
+	/* skipping non generic system call sys_kcmp: [6311] */
+	/* skipping non generic system call sys_finit_module: [6312] */
+	/* skipping non generic system call sys_sched_setattr: [6313] */
+	/* skipping non generic system call sys_sched_getattr: [6314] */
+	/* skipping non generic system call sys_renameat2: [6315] */
+	/* skipping non generic system call sys_seccomp: [6316] */
+	/* skipping non generic system call sys_getrandom: [6317] */
+	/* skipping non generic system call sys_memfd_create: [6318] */
+	/* skipping non generic system call sys_bpf: [6319] */
+	/* skipping non generic system call sys_execveat: [6320] */
+	/* skipping non generic system call sys_userfaultfd: [6321] */
+	/* skipping non generic system call sys_membarrier: [6322] */
+	/* skipping non generic system call sys_mlock2: [6323] */
+	/* skipping non generic system call sys_copy_file_range: [6324] */
+	/* skipping non generic system call sys_preadv2: [6325] */
+	/* skipping non generic system call sys_pwritev2: [6326] */
+	/* skipping non generic system call sys_pkey_mprotect: [6327] */
+	/* skipping non generic system call sys_pkey_alloc: [6328] */
+	/* skipping non generic system call sys_pkey_free: [6329] */
+	/* skipping non generic system call sys_statx: [6330] */
+	/* skipping non generic system call sys_rseq: [6331] */
+	/* skipping non generic system call sys_io_pgetevents: [6332, 6416] */
+	/* skipping non generic system call sys_clock_gettime: [6403] */
+	/* skipping non generic system call sys_clock_settime: [6404] */
+	/* skipping non generic system call sys_clock_adjtime: [6405] */
+	/* skipping non generic system call sys_clock_getres: [6406] */
+	/* skipping non generic system call sys_clock_nanosleep: [6407] */
+	/* skipping non generic system call sys_timer_gettime: [6408] */
+	/* skipping non generic system call sys_timer_settime: [6409] */
+	/* skipping non generic system call sys_timerfd_gettime: [6410] */
+	/* skipping non generic system call sys_timerfd_settime: [6411] */
+	/* skipping non generic system call sys_utimensat: [6412] */
+	/* skipping non generic system call sys_mq_timedsend: [6418] */
+	/* skipping non generic system call sys_mq_timedreceive: [6419] */
+	/* skipping non generic system call sys_semtimedop: [6420] */
+	/* skipping non generic system call sys_futex: [6422] */
+	/* skipping non generic system call sys_sched_rr_get_interval: [6423] */
+	/* skipping non generic system call sys_pidfd_send_signal: [6424] */
+	/* skipping non generic system call sys_io_uring_setup: [6425] */
+	/* skipping non generic system call sys_io_uring_enter: [6426] */
+	/* skipping non generic system call sys_io_uring_register: [6427] */
+	/* skipping non generic system call sys_open_tree: [6428] */
+	/* skipping non generic system call sys_move_mount: [6429] */
+	/* skipping non generic system call sys_fsopen: [6430] */
+	/* skipping non generic system call sys_fsconfig: [6431] */
+	/* skipping non generic system call sys_fsmount: [6432] */
+	/* skipping non generic system call sys_fspick: [6433] */
+	/* skipping non generic system call sys_pidfd_open: [6434] */
+	/* skipping non generic system call sys_clone3: [6435] */
+	/* skipping non generic system call sys_openat2: [6437] */
+	/* skipping non generic system call sys_pidfd_getfd: [6438] */
+	/* skipping non generic system call sys_faccessat2: [6439] */
+	
+};
+
+syscall_meta_t __syscall_meta = {
+	.max = MAX_SYSCALL_NO,
+	.max_generic = MAX_SYSCALL_GENERIC_NO,
+	.max_args = MAX_SYSCALL_ARGS
+};
+
+/* vim: set tabstop=4 softtabstop=4 noexpandtab ft=c: */
