@@ -17,8 +17,11 @@ PANDAENDCOMMENT */
 
 #include "panda.h"
 
+
+extern "C" {
 bool init_plugin(void *);
 void uninit_plugin(void *);
+}
 
 void before_block_exec(CPUState* cpu, TranslationBlock* tb);
 
