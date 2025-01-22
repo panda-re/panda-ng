@@ -77,7 +77,12 @@ def generate_code(functions, module, includes):
          */
         #include <dlfcn.h>
         #include "panda.h"
-    """).format(module.upper())
+        """).format(module.upper())
+    code += """
+        #ifdef __cplusplus
+        extern "C" {
+        #endif
+    """
 
     # convert function specs to maps
     fn_keys = ['rtype', 'name', 'args_with_types', 'args_list']
@@ -127,9 +132,13 @@ def generate_code(functions, module, includes):
         #undef API_PLUGIN_NAME
         #undef IMPORT_PPP
         #endif
-
-        #endif
     """).format(module, ppp_imports)
+    code +="""
+        #ifdef __cplusplus
+        }
+        #endif
+        #endif
+    """
 
     return code
 
