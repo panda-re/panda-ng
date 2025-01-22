@@ -4,6 +4,7 @@ import gdb
 import re
 import tree_sitter_c as tsc
 from tree_sitter import Language, Parser
+import functools
 
 root = "../../qemu"
 C_LANGUAGE = Language(tsc.language())
@@ -43,6 +44,7 @@ def remove_functions(code):
 			newcode.append(codelines[line])
 	return "\n".join(newcode)
 
+@functools.cache
 def gdb_resolve_issue(code):
 	cmd = code.decode(errors="ignore").replace('\n',' ')
 	print(f"cmd={cmd}")
@@ -101,6 +103,8 @@ def arch_to_generic(arch):
 		return "mips"
 	elif arch == "aarch64":
 		return "arm"
+	elif arch == "ppc64":
+		return "ppc"
 	return arch
 
 def preprocess(arch, source): #,fake_sysroot=True):
@@ -176,9 +180,10 @@ def compile_target(arch, target):
 	#include "panda/panda_qemu_plugin_helpers.h"
 	"""
 	
+	c_cpp_source = preprocess(arch, source)
 	handle_python(arch, source)
-	handle_c(arch, source)
-	handle_cpp(arch, source)
+	handle_c(arch, c_cpp_source)
+	handle_cpp(arch, c_cpp_source)
 
 def remove_hash_lines(total):
 	return "\n".join([x for x in total.split("\n") if x and not x.startswith("#")])
@@ -194,20 +199,21 @@ def remove_break_header(total):
 	return total
 
 def handle_c(arch, total):
-	total = preprocess(arch, total)
+	# total = preprocess(arch, total)
 	total = remove_break_header(total)
 	with open(f"panda_c_{arch}.h","w") as f:
 		total = remove_functions(remove_hash_lines(total))
 		f.write(total)
 
 def handle_cpp(arch, total):
-	total = preprocess(arch, total)
+	# total = preprocess(arch, total)
 	total = remove_break_header(total)
 	with open(f"panda_cpp_{arch}.h","w") as f:
 		total = remove_functions(remove_hash_lines(total))
 		total = total.replace("*class;", "*_class;")
 		total = total.replace("void aarch64_set_svcr(CPUARMState *env, uint64_t new, uint64_t mask);", "void aarch64_set_svcr(CPUARMState *env, uint64_t _new, uint64_t mask);")
 		total = total.replace("*typename", "*_typename")
+		total = total.replace("vaddr vaddr;", "vaddr _vaddr;")
 		f.write(total)
 
 def handle_python(arch, total):
