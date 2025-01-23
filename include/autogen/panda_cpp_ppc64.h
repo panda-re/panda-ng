@@ -1,6 +1,5 @@
        
        
-       
 typedef __int128_t Int128;
 typedef __int128_t __attribute__((aligned(16))) Int128Aligned;
 typedef union {
@@ -657,7 +656,7 @@ struct ObjectClass
 };
 struct Object
 {
-    ObjectClass *class;
+    ObjectClass *_class;
     ObjectFree *free;
     GHashTable *properties;
     uint32_t ref;
@@ -690,13 +689,13 @@ struct InterfaceClass
     Type interface_type;
 };
 Object *object_new_with_class(ObjectClass *klass);
-Object *object_new(const char *typename);
-Object *object_new_with_props(const char *typename,
+Object *object_new(const char *_typename);
+Object *object_new_with_props(const char *_typename,
                               Object *parent,
                               const char *id,
                               Error **errp,
                               ...) __attribute__((__sentinel__));
-Object *object_new_with_propv(const char *typename,
+Object *object_new_with_propv(const char *_typename,
                               Object *parent,
                               const char *id,
                               Error **errp,
@@ -715,7 +714,7 @@ _Bool
     object_set_props(Object *obj, Error **errp, ...) __attribute__((__sentinel__));
 _Bool 
     object_set_propv(Object *obj, Error **errp, va_list vargs);
-void object_initialize(void *obj, size_t size, const char *typename);
+void object_initialize(void *obj, size_t size, const char *_typename);
 _Bool 
     object_initialize_child_with_props(Object *parentobj,
                              const char *propname,
@@ -729,8 +728,8 @@ _Bool
 void object_initialize_child_internal(Object *parent, const char *propname,
                                       void *child, size_t size,
                                       const char *type);
-Object *object_dynamic_cast(Object *obj, const char *typename);
-Object *object_dynamic_cast_assert(Object *obj, const char *typename,
+Object *object_dynamic_cast(Object *obj, const char *_typename);
+Object *object_dynamic_cast_assert(Object *obj, const char *_typename,
                                    const char *file, int line, const char *func);
 ObjectClass *object_get_class(Object *obj);
 const char *object_get_typename(const Object *obj);
@@ -743,17 +742,17 @@ void object_set_properties_from_keyval(Object *obj, const QDict *qdict,
                                       _Bool 
                                            from_json, Error **errp);
 ObjectClass *object_class_dynamic_cast_assert(ObjectClass *klass,
-                                              const char *typename,
+                                              const char *_typename,
                                               const char *file, int line,
                                               const char *func);
 ObjectClass *object_class_dynamic_cast(ObjectClass *klass,
-                                       const char *typename);
+                                       const char *_typename);
 ObjectClass *object_class_get_parent(ObjectClass *klass);
 const char *object_class_get_name(ObjectClass *klass);
 _Bool 
     object_class_is_abstract(ObjectClass *klass);
-ObjectClass *object_class_by_name(const char *typename);
-ObjectClass *module_object_class_by_name(const char *typename);
+ObjectClass *object_class_by_name(const char *_typename);
+ObjectClass *module_object_class_by_name(const char *_typename);
 void object_class_foreach(void (*fn)(ObjectClass *klass, void *opaque),
                           const char *implements_type, 
                                                       _Bool 
@@ -846,7 +845,7 @@ _Bool
 uint64_t object_property_get_uint(Object *obj, const char *name,
                                   Error **errp);
 int object_property_get_enum(Object *obj, const char *name,
-                             const char *typename, Error **errp);
+                             const char *_typename, Error **errp);
 _Bool 
     object_property_set(Object *obj, const char *name, Visitor *v,
                          Error **errp);
@@ -868,11 +867,11 @@ char *object_get_canonical_path(const Object *obj);
 Object *object_resolve_path(const char *path, 
                                              _Bool 
                                                   *ambiguous);
-Object *object_resolve_path_type(const char *path, const char *typename,
+Object *object_resolve_path_type(const char *path, const char *_typename,
                                  
                                 _Bool 
                                      *ambiguous);
-Object *object_resolve_type_unambiguous(const char *typename, Error **errp);
+Object *object_resolve_type_unambiguous(const char *_typename, Error **errp);
 Object *object_resolve_path_at(Object *parent, const char *path);
 Object *object_resolve_path_component(Object *parent, const char *part);
 ObjectProperty *object_property_try_add_child(Object *obj, const char *name,
@@ -921,13 +920,13 @@ ObjectProperty *object_class_property_add_bool(ObjectClass *klass,
                                                          _Bool
                                                              , Error **));
 ObjectProperty *object_property_add_enum(Object *obj, const char *name,
-                              const char *typename,
+                              const char *_typename,
                               const QEnumLookup *lookup,
                               int (*get)(Object *, Error **),
                               void (*set)(Object *, int, Error **));
 ObjectProperty *object_class_property_add_enum(ObjectClass *klass,
                                     const char *name,
-                                    const char *typename,
+                                    const char *_typename,
                                     const QEnumLookup *lookup,
                                     int (*get)(Object *, Error **),
                                     void (*set)(Object *, int, Error **));
@@ -1275,9 +1274,9 @@ BusState *qdev_get_parent_bus(const DeviceState *dev);
 DeviceState *qdev_find_recursive(BusState *bus, const char *id);
 typedef int (qbus_walkerfn)(BusState *bus, void *opaque);
 typedef int (qdev_walkerfn)(DeviceState *dev, void *opaque);
-void qbus_init(void *bus, size_t size, const char *typename,
+void qbus_init(void *bus, size_t size, const char *_typename,
                DeviceState *parent, const char *name);
-BusState *qbus_new(const char *typename, DeviceState *parent, const char *name);
+BusState *qbus_new(const char *_typename, DeviceState *parent, const char *name);
 _Bool 
     qbus_realize(BusState *bus, Error **errp);
 void qbus_unrealize(BusState *bus);
@@ -1542,7 +1541,7 @@ typedef struct CPUBreakpoint {
     union { struct CPUBreakpoint *tqe_next; QTailQLink tqe_circ; } entry;
 } CPUBreakpoint;
 typedef struct CPUWatchpoint {
-    vaddr vaddr;
+    vaddr _vaddr;
     vaddr len;
     vaddr hitaddr;
     MemTxAttrs hitattrs;
@@ -2759,7 +2758,7 @@ struct SysemuCPUOps;
 struct CPUClass {
     DeviceClass parent_class;
     ObjectClass *(*class_by_name)(const char *cpu_model);
-    void (*parse_features)(const char *typename, char *str, Error **errp);
+    void (*parse_features)(const char *_typename, char *str, Error **errp);
     
    _Bool 
         (*has_work)(CPUState *cpu);
@@ -2995,9 +2994,9 @@ _Bool
 void cpu_list_add(CPUState *cpu);
 void cpu_list_remove(CPUState *cpu);
 void cpu_reset(CPUState *cpu);
-ObjectClass *cpu_class_by_name(const char *typename, const char *cpu_model);
-char *cpu_model_from_type(const char *typename);
-CPUState *cpu_create(const char *typename);
+ObjectClass *cpu_class_by_name(const char *_typename, const char *cpu_model);
+char *cpu_model_from_type(const char *_typename);
+CPUState *cpu_create(const char *_typename);
 const char *parse_cpu_option(const char *cpu_option);
 _Bool 
     qemu_cpu_is_self(CPUState *cpu);
@@ -3947,7 +3946,800 @@ int plugin_num_vcpus(void);
 struct qemu_plugin_scoreboard *plugin_scoreboard_new(size_t element_size);
 void plugin_scoreboard_free(struct qemu_plugin_scoreboard *score);
        
-typedef struct ArchCPU MIPSCPU; typedef struct ArchCPU ArchCPU; typedef struct MIPSCPUClass MIPSCPUClass; typedef ArchCPU *ArchCPU_autoptr; typedef GList *ArchCPU_listautoptr; typedef GSList *ArchCPU_slistautoptr; typedef GQueue *ArchCPU_queueautoptr;
+typedef uint16_t float16;
+typedef uint32_t float32;
+typedef uint64_t float64;
+typedef struct {
+    uint64_t low;
+    uint16_t high;
+} floatx80;
+typedef struct {
+    uint64_t low, high;
+} float128;
+typedef uint16_t bfloat16;
+typedef enum __attribute__((__packed__)) {
+    float_round_nearest_even = 0,
+    float_round_down = 1,
+    float_round_up = 2,
+    float_round_to_zero = 3,
+    float_round_ties_away = 4,
+    float_round_to_odd = 5,
+    float_round_to_odd_inf = 6,
+    float_round_nearest_even_max = 7,
+} FloatRoundMode;
+enum {
+    float_flag_invalid = 0x0001,
+    float_flag_divbyzero = 0x0002,
+    float_flag_overflow = 0x0004,
+    float_flag_underflow = 0x0008,
+    float_flag_inexact = 0x0010,
+    float_flag_input_denormal = 0x0020,
+    float_flag_output_denormal = 0x0040,
+    float_flag_invalid_isi = 0x0080,
+    float_flag_invalid_imz = 0x0100,
+    float_flag_invalid_idi = 0x0200,
+    float_flag_invalid_zdz = 0x0400,
+    float_flag_invalid_sqrt = 0x0800,
+    float_flag_invalid_cvti = 0x1000,
+    float_flag_invalid_snan = 0x2000,
+};
+typedef enum __attribute__((__packed__)) {
+    floatx80_precision_x,
+    floatx80_precision_d,
+    floatx80_precision_s,
+} FloatX80RoundPrec;
+typedef enum __attribute__((__packed__)) {
+    float_2nan_prop_none = 0,
+    float_2nan_prop_s_ab,
+    float_2nan_prop_s_ba,
+    float_2nan_prop_ab,
+    float_2nan_prop_ba,
+    float_2nan_prop_x87,
+} Float2NaNPropRule;
+enum { R_3NAN_1ST_SHIFT = (0)}; enum { R_3NAN_1ST_LENGTH = (2)}; enum { R_3NAN_1ST_MASK = (((~0ULL) >> (64 - (2))) << (0))};
+enum { R_3NAN_2ND_SHIFT = (2)}; enum { R_3NAN_2ND_LENGTH = (2)}; enum { R_3NAN_2ND_MASK = (((~0ULL) >> (64 - (2))) << (2))};
+enum { R_3NAN_3RD_SHIFT = (4)}; enum { R_3NAN_3RD_LENGTH = (2)}; enum { R_3NAN_3RD_MASK = (((~0ULL) >> (64 - (2))) << (4))};
+enum { R_3NAN_SNAN_SHIFT = (6)}; enum { R_3NAN_SNAN_LENGTH = (1)}; enum { R_3NAN_SNAN_MASK = (((~0ULL) >> (64 - (1))) << (6))};
+typedef enum __attribute__((__packed__)) {
+    float_3nan_prop_none = 0,
+    float_3nan_prop_abc = ((0 << R_3NAN_1ST_SHIFT) | (1 << R_3NAN_2ND_SHIFT) | (2 << R_3NAN_3RD_SHIFT)),
+    float_3nan_prop_acb = ((0 << R_3NAN_1ST_SHIFT) | (2 << R_3NAN_2ND_SHIFT) | (1 << R_3NAN_3RD_SHIFT)),
+    float_3nan_prop_bac = ((1 << R_3NAN_1ST_SHIFT) | (0 << R_3NAN_2ND_SHIFT) | (2 << R_3NAN_3RD_SHIFT)),
+    float_3nan_prop_bca = ((1 << R_3NAN_1ST_SHIFT) | (2 << R_3NAN_2ND_SHIFT) | (0 << R_3NAN_3RD_SHIFT)),
+    float_3nan_prop_cab = ((2 << R_3NAN_1ST_SHIFT) | (0 << R_3NAN_2ND_SHIFT) | (1 << R_3NAN_3RD_SHIFT)),
+    float_3nan_prop_cba = ((2 << R_3NAN_1ST_SHIFT) | (1 << R_3NAN_2ND_SHIFT) | (0 << R_3NAN_3RD_SHIFT)),
+    float_3nan_prop_s_abc = float_3nan_prop_abc | R_3NAN_SNAN_MASK,
+    float_3nan_prop_s_acb = float_3nan_prop_acb | R_3NAN_SNAN_MASK,
+    float_3nan_prop_s_bac = float_3nan_prop_bac | R_3NAN_SNAN_MASK,
+    float_3nan_prop_s_bca = float_3nan_prop_bca | R_3NAN_SNAN_MASK,
+    float_3nan_prop_s_cab = float_3nan_prop_cab | R_3NAN_SNAN_MASK,
+    float_3nan_prop_s_cba = float_3nan_prop_cba | R_3NAN_SNAN_MASK,
+} Float3NaNPropRule;
+typedef enum __attribute__((__packed__)) {
+    float_infzeronan_none = 0,
+    float_infzeronan_dnan_never,
+    float_infzeronan_dnan_always,
+    float_infzeronan_dnan_if_qnan,
+} FloatInfZeroNaNRule;
+typedef struct float_status {
+    uint16_t float_exception_flags;
+    FloatRoundMode float_rounding_mode;
+    FloatX80RoundPrec floatx80_rounding_precision;
+    Float2NaNPropRule float_2nan_prop_rule;
+    Float3NaNPropRule float_3nan_prop_rule;
+    FloatInfZeroNaNRule float_infzeronan_rule;
+    
+   _Bool 
+        tininess_before_rounding;
+    
+   _Bool 
+        flush_to_zero;
+    
+   _Bool 
+        flush_inputs_to_zero;
+    
+   _Bool 
+        default_nan_mode;
+    uint8_t default_nan_pattern;
+    
+   _Bool 
+        snan_bit_is_one;
+    
+   _Bool 
+        no_signaling_nans;
+    
+   _Bool 
+        rebias_overflow;
+    
+   _Bool 
+        rebias_underflow;
+} float_status;
+typedef union {
+    float32 f;
+    uint32_t l;
+} CPU_FloatU;
+typedef union {
+    float64 d;
+    struct {
+        uint32_t lower;
+        uint32_t upper;
+    } l;
+    uint64_t ll;
+} CPU_DoubleU;
+typedef union {
+     floatx80 d;
+     struct {
+         uint64_t lower;
+         uint16_t upper;
+     } l;
+} CPU_LDoubleU;
+typedef union {
+    float128 q;
+    struct {
+        uint32_t lowest;
+        uint32_t lower;
+        uint32_t upper;
+        uint32_t upmost;
+    } l;
+    struct {
+        uint64_t lower;
+        uint64_t upper;
+    } ll;
+} CPU_QuadU;
+typedef struct GDBFeature {
+    const char *xmlname;
+    const char *xml;
+    const char *name;
+    const char * const *regs;
+    int num_regs;
+} GDBFeature;
+typedef struct GDBFeatureBuilder {
+    GDBFeature *feature;
+    GPtrArray *xml;
+    GPtrArray *regs;
+    int base_reg;
+} GDBFeatureBuilder;
+typedef int (*gdb_get_reg_cb)(CPUState *cpu, GByteArray *buf, int reg);
+typedef int (*gdb_set_reg_cb)(CPUState *cpu, uint8_t *buf, int reg);
+void gdb_init_cpu(CPUState *cpu);
+void gdb_register_coprocessor(CPUState *cpu,
+                              gdb_get_reg_cb get_reg, gdb_set_reg_cb set_reg,
+                              const GDBFeature *feature, int g_pos);
+void gdb_unregister_coprocessor_all(CPUState *cpu);
+_Bool 
+    gdbserver_start(const char *port_or_device, Error **errp);
+void gdb_feature_builder_init(GDBFeatureBuilder *builder, GDBFeature *feature,
+                              const char *name, const char *xmlname,
+                              int base_reg);
+void __attribute__((__format__ (gnu_printf, 2, 3)))
+gdb_feature_builder_append_tag(const GDBFeatureBuilder *builder,
+                               const char *format, ...);
+void gdb_feature_builder_append_reg(const GDBFeatureBuilder *builder,
+                                    const char *name,
+                                    int bitsize,
+                                    int regnum,
+                                    const char *type,
+                                    const char *group);
+void gdb_feature_builder_end(const GDBFeatureBuilder *builder);
+const GDBFeature *gdb_find_static_feature(const char *xmlname);
+int gdb_read_register(CPUState *cpu, GByteArray *buf, int reg);
+typedef struct {
+    int gdb_reg;
+    const char *name;
+    const char *feature_name;
+} GDBRegDesc;
+GArray *gdb_get_register_list(CPUState *cpu);
+void gdb_set_stop_cpu(CPUState *cpu);
+extern const GDBFeature gdb_static_features[];
+typedef struct ArchCPU PowerPCCPU; typedef struct ArchCPU ArchCPU; typedef struct PowerPCCPUClass PowerPCCPUClass; typedef ArchCPU *ArchCPU_autoptr; typedef GList *ArchCPU_listautoptr; typedef GSList *ArchCPU_slistautoptr; typedef GQueue *ArchCPU_queueautoptr;
+typedef struct PPCTimebase {
+    uint64_t guest_timebase;
+    int64_t time_of_the_day_ns;
+    
+   _Bool 
+        runstate_paused;
+} PPCTimebase;
+extern const VMStateDescription vmstate_ppc_timebase;
+void cpu_ppc_clock_vm_state_change(void *opaque, 
+                                                _Bool 
+                                                     running,
+                                   RunState state);
+enum {
+    POWERPC_EXCP_NONE = -1,
+    POWERPC_EXCP_CRITICAL = 0,
+    POWERPC_EXCP_MCHECK = 1,
+    POWERPC_EXCP_DSI = 2,
+    POWERPC_EXCP_ISI = 3,
+    POWERPC_EXCP_EXTERNAL = 4,
+    POWERPC_EXCP_ALIGN = 5,
+    POWERPC_EXCP_PROGRAM = 6,
+    POWERPC_EXCP_FPU = 7,
+    POWERPC_EXCP_SYSCALL = 8,
+    POWERPC_EXCP_APU = 9,
+    POWERPC_EXCP_DECR = 10,
+    POWERPC_EXCP_FIT = 11,
+    POWERPC_EXCP_WDT = 12,
+    POWERPC_EXCP_DTLB = 13,
+    POWERPC_EXCP_ITLB = 14,
+    POWERPC_EXCP_DEBUG = 15,
+    POWERPC_EXCP_SPEU = 32,
+    POWERPC_EXCP_EFPDI = 33,
+    POWERPC_EXCP_EFPRI = 34,
+    POWERPC_EXCP_EPERFM = 35,
+    POWERPC_EXCP_DOORI = 36,
+    POWERPC_EXCP_DOORCI = 37,
+    POWERPC_EXCP_GDOORI = 38,
+    POWERPC_EXCP_GDOORCI = 39,
+    POWERPC_EXCP_HYPPRIV = 41,
+    POWERPC_EXCP_RESET = 64,
+    POWERPC_EXCP_DSEG = 65,
+    POWERPC_EXCP_ISEG = 66,
+    POWERPC_EXCP_HDECR = 67,
+    POWERPC_EXCP_TRACE = 68,
+    POWERPC_EXCP_HDSI = 69,
+    POWERPC_EXCP_HISI = 70,
+    POWERPC_EXCP_HDSEG = 71,
+    POWERPC_EXCP_HISEG = 72,
+    POWERPC_EXCP_VPU = 73,
+    POWERPC_EXCP_PIT = 74,
+    POWERPC_EXCP_EMUL = 77,
+    POWERPC_EXCP_IFTLB = 78,
+    POWERPC_EXCP_DLTLB = 79,
+    POWERPC_EXCP_DSTLB = 80,
+    POWERPC_EXCP_FPA = 81,
+    POWERPC_EXCP_DABR = 82,
+    POWERPC_EXCP_IABR = 83,
+    POWERPC_EXCP_SMI = 84,
+    POWERPC_EXCP_PERFM = 85,
+    POWERPC_EXCP_THERM = 86,
+    POWERPC_EXCP_VPUA = 87,
+    POWERPC_EXCP_SOFTP = 88,
+    POWERPC_EXCP_MAINT = 89,
+    POWERPC_EXCP_MEXTBR = 90,
+    POWERPC_EXCP_NMEXTBR = 91,
+    POWERPC_EXCP_ITLBE = 92,
+    POWERPC_EXCP_DTLBE = 93,
+    POWERPC_EXCP_VSXU = 94,
+    POWERPC_EXCP_FU = 95,
+    POWERPC_EXCP_HV_EMU = 96,
+    POWERPC_EXCP_HV_MAINT = 97,
+    POWERPC_EXCP_HV_FU = 98,
+    POWERPC_EXCP_SDOOR = 99,
+    POWERPC_EXCP_SDOOR_HV = 100,
+    POWERPC_EXCP_HVIRT = 101,
+    POWERPC_EXCP_SYSCALL_VECTORED = 102,
+    POWERPC_EXCP_PERFM_EBB = 103,
+    POWERPC_EXCP_EXTERNAL_EBB = 104,
+    POWERPC_EXCP_NB = 105,
+    POWERPC_EXCP_SYSCALL_USER = 0x203,
+};
+enum {
+    POWERPC_EXCP_ALIGN_FP = 0x01,
+    POWERPC_EXCP_ALIGN_LST = 0x02,
+    POWERPC_EXCP_ALIGN_LE = 0x03,
+    POWERPC_EXCP_ALIGN_PROT = 0x04,
+    POWERPC_EXCP_ALIGN_BAT = 0x05,
+    POWERPC_EXCP_ALIGN_CACHE = 0x06,
+    POWERPC_EXCP_ALIGN_INSN = 0x07,
+    POWERPC_EXCP_FP = 0x10,
+    POWERPC_EXCP_FP_OX = 0x01,
+    POWERPC_EXCP_FP_UX = 0x02,
+    POWERPC_EXCP_FP_ZX = 0x03,
+    POWERPC_EXCP_FP_XX = 0x04,
+    POWERPC_EXCP_FP_VXSNAN = 0x05,
+    POWERPC_EXCP_FP_VXISI = 0x06,
+    POWERPC_EXCP_FP_VXIDI = 0x07,
+    POWERPC_EXCP_FP_VXZDZ = 0x08,
+    POWERPC_EXCP_FP_VXIMZ = 0x09,
+    POWERPC_EXCP_FP_VXVC = 0x0A,
+    POWERPC_EXCP_FP_VXSOFT = 0x0B,
+    POWERPC_EXCP_FP_VXSQRT = 0x0C,
+    POWERPC_EXCP_FP_VXCVI = 0x0D,
+    POWERPC_EXCP_INVAL = 0x20,
+    POWERPC_EXCP_INVAL_INVAL = 0x01,
+    POWERPC_EXCP_INVAL_LSWX = 0x02,
+    POWERPC_EXCP_INVAL_SPR = 0x03,
+    POWERPC_EXCP_INVAL_FP = 0x04,
+    POWERPC_EXCP_PRIV = 0x30,
+    POWERPC_EXCP_PRIV_OPC = 0x01,
+    POWERPC_EXCP_PRIV_REG = 0x02,
+    POWERPC_EXCP_TRAP = 0x40,
+};
+typedef enum powerpc_excp_t {
+    POWERPC_EXCP_UNKNOWN = 0,
+    POWERPC_EXCP_STD,
+    POWERPC_EXCP_40x,
+    POWERPC_EXCP_6xx,
+    POWERPC_EXCP_7xx,
+    POWERPC_EXCP_74xx,
+    POWERPC_EXCP_BOOKE,
+    POWERPC_EXCP_970,
+    POWERPC_EXCP_POWER7,
+    POWERPC_EXCP_POWER8,
+    POWERPC_EXCP_POWER9,
+    POWERPC_EXCP_POWER10,
+    POWERPC_EXCP_POWER11,
+} powerpc_excp_t;
+typedef enum powerpc_mmu_t {
+    POWERPC_MMU_UNKNOWN = 0x00000000,
+    POWERPC_MMU_32B = 0x00000001,
+    POWERPC_MMU_SOFT_6xx = 0x00000002,
+    POWERPC_MMU_SOFT_74xx = 0x00000003,
+    POWERPC_MMU_SOFT_4xx = 0x00000004,
+    POWERPC_MMU_REAL = 0x00000006,
+    POWERPC_MMU_MPC8xx = 0x00000007,
+    POWERPC_MMU_BOOKE = 0x00000008,
+    POWERPC_MMU_BOOKE206 = 0x00000009,
+    POWERPC_MMU_64B = 0x00010000 | 0x00000001,
+    POWERPC_MMU_2_03 = 0x00010000 | 0x00000002,
+    POWERPC_MMU_2_06 = 0x00010000 | 0x00000003,
+    POWERPC_MMU_2_07 = 0x00010000 | 0x00000004,
+    POWERPC_MMU_3_00 = 0x00010000 | 0x00000005,
+} powerpc_mmu_t;
+typedef enum powerpc_input_t {
+    PPC_FLAGS_INPUT_UNKNOWN = 0,
+    PPC_FLAGS_INPUT_6xx,
+    PPC_FLAGS_INPUT_BookE,
+    PPC_FLAGS_INPUT_405,
+    PPC_FLAGS_INPUT_970,
+    PPC_FLAGS_INPUT_POWER7,
+    PPC_FLAGS_INPUT_POWER9,
+    PPC_FLAGS_INPUT_RCPU,
+} powerpc_input_t;
+typedef struct opc_handler_t opc_handler_t;
+typedef struct DisasContext DisasContext;
+typedef struct ppc_dcr_t ppc_dcr_t;
+typedef struct ppc_spr_t ppc_spr_t;
+typedef struct ppc_tb_t ppc_tb_t;
+typedef union ppc_tlb_t ppc_tlb_t;
+typedef struct ppc_hash_pte64 ppc_hash_pte64_t;
+typedef struct PPCHash64Options PPCHash64Options;
+typedef struct CPUArchState CPUPPCState;
+struct ppc_spr_t {
+    const char *name;
+    target_ulong default_value;
+    unsigned int gdb_id;
+    void (*uea_read)(DisasContext *ctx, int gpr_num, int spr_num);
+    void (*uea_write)(DisasContext *ctx, int spr_num, int gpr_num);
+    void (*oea_read)(DisasContext *ctx, int gpr_num, int spr_num);
+    void (*oea_write)(DisasContext *ctx, int spr_num, int gpr_num);
+    void (*hea_read)(DisasContext *ctx, int gpr_num, int spr_num);
+    void (*hea_write)(DisasContext *ctx, int spr_num, int gpr_num);
+};
+typedef union _ppc_vsr_t {
+    uint8_t u8[16];
+    uint16_t u16[8];
+    uint32_t u32[4];
+    uint64_t u64[2];
+    int8_t s8[16];
+    int16_t s16[8];
+    int32_t s32[4];
+    int64_t s64[2];
+    float16 f16[8];
+    float32 f32[4];
+    float64 f64[2];
+    float128 f128;
+    __uint128_t u128;
+    Int128 s128;
+} ppc_vsr_t;
+typedef ppc_vsr_t ppc_avr_t;
+typedef ppc_vsr_t ppc_fprp_t;
+typedef ppc_vsr_t ppc_acc_t;
+typedef struct ppc6xx_tlb_t ppc6xx_tlb_t;
+struct ppc6xx_tlb_t {
+    target_ulong pte0;
+    target_ulong pte1;
+    target_ulong EPN;
+};
+typedef struct ppcemb_tlb_t ppcemb_tlb_t;
+struct ppcemb_tlb_t {
+    uint64_t RPN;
+    target_ulong EPN;
+    target_ulong PID;
+    target_ulong size;
+    uint32_t prot;
+    uint32_t attr;
+};
+typedef struct ppcmas_tlb_t {
+     uint32_t mas8;
+     uint32_t mas1;
+     uint64_t mas2;
+     uint64_t mas7_3;
+} ppcmas_tlb_t;
+union ppc_tlb_t {
+    ppc6xx_tlb_t *tlb6;
+    ppcemb_tlb_t *tlbe;
+    ppcmas_tlb_t *tlbm;
+};
+typedef struct PPCHash64SegmentPageSizes PPCHash64SegmentPageSizes;
+typedef struct ppc_slb_t ppc_slb_t;
+struct ppc_slb_t {
+    uint64_t esid;
+    uint64_t vsid;
+    const PPCHash64SegmentPageSizes *sps;
+};
+typedef struct ppc_v3_pate_t {
+    uint64_t dw0;
+    uint64_t dw1;
+} ppc_v3_pate_t;
+typedef enum {
+    PMU_EVENT_INVALID = 0,
+    PMU_EVENT_INACTIVE,
+    PMU_EVENT_CYCLES,
+    PMU_EVENT_INSTRUCTIONS,
+    PMU_EVENT_INSN_RUN_LATCH,
+} PMUEventType;
+enum { R_MSR_SF_SHIFT = ((63 - (0)))}; enum { R_MSR_SF_LENGTH = (1)}; enum { R_MSR_SF_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (0))))};
+enum { R_MSR_TAG_SHIFT = ((63 - (1)))}; enum { R_MSR_TAG_LENGTH = (1)}; enum { R_MSR_TAG_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (1))))};
+enum { R_MSR_ISF_SHIFT = ((63 - (2)))}; enum { R_MSR_ISF_LENGTH = (1)}; enum { R_MSR_ISF_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (2))))};
+enum { R_MSR_HV_SHIFT = ((63 - (3)))}; enum { R_MSR_HV_LENGTH = (1)}; enum { R_MSR_HV_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (3))))};
+enum { R_MSR_TS0_SHIFT = ((63 - (29)))}; enum { R_MSR_TS0_LENGTH = (1)}; enum { R_MSR_TS0_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (29))))};
+enum { R_MSR_TS1_SHIFT = ((63 - (30)))}; enum { R_MSR_TS1_LENGTH = (1)}; enum { R_MSR_TS1_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (30))))};
+enum { R_MSR_TS_SHIFT = ((63 - (29)))}; enum { R_MSR_TS_LENGTH = (2)}; enum { R_MSR_TS_MASK = (((~0ULL) >> (64 - (2))) << ((63 - (29))))};
+enum { R_MSR_TM_SHIFT = ((63 - (31)))}; enum { R_MSR_TM_LENGTH = (1)}; enum { R_MSR_TM_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (31))))};
+enum { R_MSR_CM_SHIFT = ((63 - (32)))}; enum { R_MSR_CM_LENGTH = (1)}; enum { R_MSR_CM_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (32))))};
+enum { R_MSR_ICM_SHIFT = ((63 - (33)))}; enum { R_MSR_ICM_LENGTH = (1)}; enum { R_MSR_ICM_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (33))))};
+enum { R_MSR_GS_SHIFT = ((63 - (35)))}; enum { R_MSR_GS_LENGTH = (1)}; enum { R_MSR_GS_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (35))))};
+enum { R_MSR_UCLE_SHIFT = ((63 - (37)))}; enum { R_MSR_UCLE_LENGTH = (1)}; enum { R_MSR_UCLE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (37))))};
+enum { R_MSR_VR_SHIFT = ((63 - (38)))}; enum { R_MSR_VR_LENGTH = (1)}; enum { R_MSR_VR_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (38))))};
+enum { R_MSR_SPE_SHIFT = ((63 - (38)))}; enum { R_MSR_SPE_LENGTH = (1)}; enum { R_MSR_SPE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (38))))};
+enum { R_MSR_VSX_SHIFT = ((63 - (40)))}; enum { R_MSR_VSX_LENGTH = (1)}; enum { R_MSR_VSX_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (40))))};
+enum { R_MSR_S_SHIFT = ((63 - (41)))}; enum { R_MSR_S_LENGTH = (1)}; enum { R_MSR_S_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (41))))};
+enum { R_MSR_KEY_SHIFT = ((63 - (44)))}; enum { R_MSR_KEY_LENGTH = (1)}; enum { R_MSR_KEY_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (44))))};
+enum { R_MSR_POW_SHIFT = ((63 - (45)))}; enum { R_MSR_POW_LENGTH = (1)}; enum { R_MSR_POW_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (45))))};
+enum { R_MSR_WE_SHIFT = ((63 - (45)))}; enum { R_MSR_WE_LENGTH = (1)}; enum { R_MSR_WE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (45))))};
+enum { R_MSR_TGPR_SHIFT = ((63 - (46)))}; enum { R_MSR_TGPR_LENGTH = (1)}; enum { R_MSR_TGPR_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (46))))};
+enum { R_MSR_CE_SHIFT = ((63 - (46)))}; enum { R_MSR_CE_LENGTH = (1)}; enum { R_MSR_CE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (46))))};
+enum { R_MSR_ILE_SHIFT = ((63 - (47)))}; enum { R_MSR_ILE_LENGTH = (1)}; enum { R_MSR_ILE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (47))))};
+enum { R_MSR_EE_SHIFT = ((63 - (48)))}; enum { R_MSR_EE_LENGTH = (1)}; enum { R_MSR_EE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (48))))};
+enum { R_MSR_PR_SHIFT = ((63 - (49)))}; enum { R_MSR_PR_LENGTH = (1)}; enum { R_MSR_PR_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (49))))};
+enum { R_MSR_FP_SHIFT = ((63 - (50)))}; enum { R_MSR_FP_LENGTH = (1)}; enum { R_MSR_FP_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (50))))};
+enum { R_MSR_ME_SHIFT = ((63 - (51)))}; enum { R_MSR_ME_LENGTH = (1)}; enum { R_MSR_ME_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (51))))};
+enum { R_MSR_FE0_SHIFT = ((63 - (52)))}; enum { R_MSR_FE0_LENGTH = (1)}; enum { R_MSR_FE0_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (52))))};
+enum { R_MSR_SE_SHIFT = ((63 - (53)))}; enum { R_MSR_SE_LENGTH = (1)}; enum { R_MSR_SE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (53))))};
+enum { R_MSR_DWE_SHIFT = ((63 - (53)))}; enum { R_MSR_DWE_LENGTH = (1)}; enum { R_MSR_DWE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (53))))};
+enum { R_MSR_UBLE_SHIFT = ((63 - (53)))}; enum { R_MSR_UBLE_LENGTH = (1)}; enum { R_MSR_UBLE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (53))))};
+enum { R_MSR_BE_SHIFT = ((63 - (54)))}; enum { R_MSR_BE_LENGTH = (1)}; enum { R_MSR_BE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (54))))};
+enum { R_MSR_DE_SHIFT = ((63 - (54)))}; enum { R_MSR_DE_LENGTH = (1)}; enum { R_MSR_DE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (54))))};
+enum { R_MSR_FE1_SHIFT = ((63 - (55)))}; enum { R_MSR_FE1_LENGTH = (1)}; enum { R_MSR_FE1_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (55))))};
+enum { R_MSR_AL_SHIFT = ((63 - (56)))}; enum { R_MSR_AL_LENGTH = (1)}; enum { R_MSR_AL_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (56))))};
+enum { R_MSR_EP_SHIFT = ((63 - (57)))}; enum { R_MSR_EP_LENGTH = (1)}; enum { R_MSR_EP_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (57))))};
+enum { R_MSR_IR_SHIFT = ((63 - (58)))}; enum { R_MSR_IR_LENGTH = (1)}; enum { R_MSR_IR_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (58))))};
+enum { R_MSR_DR_SHIFT = ((63 - (59)))}; enum { R_MSR_DR_LENGTH = (1)}; enum { R_MSR_DR_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (59))))};
+enum { R_MSR_IS_SHIFT = ((63 - (58)))}; enum { R_MSR_IS_LENGTH = (1)}; enum { R_MSR_IS_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (58))))};
+enum { R_MSR_DS_SHIFT = ((63 - (59)))}; enum { R_MSR_DS_LENGTH = (1)}; enum { R_MSR_DS_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (59))))};
+enum { R_MSR_PE_SHIFT = ((63 - (60)))}; enum { R_MSR_PE_LENGTH = (1)}; enum { R_MSR_PE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (60))))};
+enum { R_MSR_PX_SHIFT = ((63 - (61)))}; enum { R_MSR_PX_LENGTH = (1)}; enum { R_MSR_PX_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (61))))};
+enum { R_MSR_PMM_SHIFT = ((63 - (61)))}; enum { R_MSR_PMM_LENGTH = (1)}; enum { R_MSR_PMM_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (61))))};
+enum { R_MSR_RI_SHIFT = ((63 - (62)))}; enum { R_MSR_RI_LENGTH = (1)}; enum { R_MSR_RI_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (62))))};
+enum { R_MSR_LE_SHIFT = ((63 - (63)))}; enum { R_MSR_LE_LENGTH = (1)}; enum { R_MSR_LE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (63))))};
+enum {
+    POWERPC_FLAG_NONE = 0x00000000,
+    POWERPC_FLAG_SPE = 0x00000001,
+    POWERPC_FLAG_VRE = 0x00000002,
+    POWERPC_FLAG_TGPR = 0x00000004,
+    POWERPC_FLAG_CE = 0x00000008,
+    POWERPC_FLAG_SE = 0x00000010,
+    POWERPC_FLAG_DWE = 0x00000020,
+    POWERPC_FLAG_UBLE = 0x00000040,
+    POWERPC_FLAG_BE = 0x00000080,
+    POWERPC_FLAG_DE = 0x00000100,
+    POWERPC_FLAG_PX = 0x00000200,
+    POWERPC_FLAG_PMM = 0x00000400,
+    POWERPC_FLAG_BUS_CLK = 0x00020000,
+    POWERPC_FLAG_CFAR = 0x00040000,
+    POWERPC_FLAG_VSX = 0x00080000,
+    POWERPC_FLAG_TM = 0x00100000,
+    POWERPC_FLAG_SCV = 0x00200000,
+    POWERPC_FLAG_SMT = 0x00400000,
+    POWERPC_FLAG_SMT_1LPAR = 0x00800000,
+    POWERPC_FLAG_BHRB = 0x01000000,
+};
+enum {
+    HFLAGS_LE = 0,
+    HFLAGS_HV = 1,
+    HFLAGS_64 = 2,
+    HFLAGS_GTSE = 3,
+    HFLAGS_DR = 4,
+    HFLAGS_HR = 5,
+    HFLAGS_SPE = 6,
+    HFLAGS_TM = 8,
+    HFLAGS_BE = 9,
+    HFLAGS_SE = 10,
+    HFLAGS_FP = 13,
+    HFLAGS_PR = 14,
+    HFLAGS_PMCC0 = 15,
+    HFLAGS_PMCC1 = 16,
+    HFLAGS_PMCJCE = 17,
+    HFLAGS_PMC_OTHER = 18,
+    HFLAGS_INSN_CNT = 19,
+    HFLAGS_BHRB_ENABLE = 20,
+    HFLAGS_VSX = 23,
+    HFLAGS_VR = 25,
+    HFLAGS_IMMU_IDX = 26,
+    HFLAGS_DMMU_IDX = 29,
+};
+enum { R_FPSCR_FI_SHIFT = ((63 - (46)))}; enum { R_FPSCR_FI_LENGTH = (1)}; enum { R_FPSCR_FI_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (46))))};
+struct ppc_radix_page_info {
+    uint32_t count;
+    uint32_t entries[8];
+};
+enum { R_DEXCR_PNH_SBHE_SHIFT = ((63 - (0)))}; enum { R_DEXCR_PNH_SBHE_LENGTH = (1)}; enum { R_DEXCR_PNH_SBHE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (0))))}; enum { R_DEXCR_PRO_SBHE_SHIFT = ((63 - (0 + 32)))}; enum { R_DEXCR_PRO_SBHE_LENGTH = (1)}; enum { R_DEXCR_PRO_SBHE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (0 + 32))))}; enum { R_HDEXCR_HNU_SBHE_SHIFT = ((63 - (0)))}; enum { R_HDEXCR_HNU_SBHE_LENGTH = (1)}; enum { R_HDEXCR_HNU_SBHE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (0))))}; enum { R_HDEXCR_ENF_SBHE_SHIFT = ((63 - (0 + 32)))}; enum { R_HDEXCR_ENF_SBHE_LENGTH = (1)}; enum { R_HDEXCR_ENF_SBHE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (0 + 32))))};
+enum { R_DEXCR_PNH_IBRTPD_SHIFT = ((63 - (1)))}; enum { R_DEXCR_PNH_IBRTPD_LENGTH = (1)}; enum { R_DEXCR_PNH_IBRTPD_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (1))))}; enum { R_DEXCR_PRO_IBRTPD_SHIFT = ((63 - (1 + 32)))}; enum { R_DEXCR_PRO_IBRTPD_LENGTH = (1)}; enum { R_DEXCR_PRO_IBRTPD_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (1 + 32))))}; enum { R_HDEXCR_HNU_IBRTPD_SHIFT = ((63 - (1)))}; enum { R_HDEXCR_HNU_IBRTPD_LENGTH = (1)}; enum { R_HDEXCR_HNU_IBRTPD_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (1))))}; enum { R_HDEXCR_ENF_IBRTPD_SHIFT = ((63 - (1 + 32)))}; enum { R_HDEXCR_ENF_IBRTPD_LENGTH = (1)}; enum { R_HDEXCR_ENF_IBRTPD_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (1 + 32))))};
+enum { R_DEXCR_PNH_SRAPD_SHIFT = ((63 - (4)))}; enum { R_DEXCR_PNH_SRAPD_LENGTH = (1)}; enum { R_DEXCR_PNH_SRAPD_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (4))))}; enum { R_DEXCR_PRO_SRAPD_SHIFT = ((63 - (4 + 32)))}; enum { R_DEXCR_PRO_SRAPD_LENGTH = (1)}; enum { R_DEXCR_PRO_SRAPD_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (4 + 32))))}; enum { R_HDEXCR_HNU_SRAPD_SHIFT = ((63 - (4)))}; enum { R_HDEXCR_HNU_SRAPD_LENGTH = (1)}; enum { R_HDEXCR_HNU_SRAPD_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (4))))}; enum { R_HDEXCR_ENF_SRAPD_SHIFT = ((63 - (4 + 32)))}; enum { R_HDEXCR_ENF_SRAPD_LENGTH = (1)}; enum { R_HDEXCR_ENF_SRAPD_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (4 + 32))))};
+enum { R_DEXCR_PNH_NPHIE_SHIFT = ((63 - (5)))}; enum { R_DEXCR_PNH_NPHIE_LENGTH = (1)}; enum { R_DEXCR_PNH_NPHIE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (5))))}; enum { R_DEXCR_PRO_NPHIE_SHIFT = ((63 - (5 + 32)))}; enum { R_DEXCR_PRO_NPHIE_LENGTH = (1)}; enum { R_DEXCR_PRO_NPHIE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (5 + 32))))}; enum { R_HDEXCR_HNU_NPHIE_SHIFT = ((63 - (5)))}; enum { R_HDEXCR_HNU_NPHIE_LENGTH = (1)}; enum { R_HDEXCR_HNU_NPHIE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (5))))}; enum { R_HDEXCR_ENF_NPHIE_SHIFT = ((63 - (5 + 32)))}; enum { R_HDEXCR_ENF_NPHIE_LENGTH = (1)}; enum { R_HDEXCR_ENF_NPHIE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (5 + 32))))};
+enum { R_DEXCR_PNH_PHIE_SHIFT = ((63 - (6)))}; enum { R_DEXCR_PNH_PHIE_LENGTH = (1)}; enum { R_DEXCR_PNH_PHIE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (6))))}; enum { R_DEXCR_PRO_PHIE_SHIFT = ((63 - (6 + 32)))}; enum { R_DEXCR_PRO_PHIE_LENGTH = (1)}; enum { R_DEXCR_PRO_PHIE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (6 + 32))))}; enum { R_HDEXCR_HNU_PHIE_SHIFT = ((63 - (6)))}; enum { R_HDEXCR_HNU_PHIE_LENGTH = (1)}; enum { R_HDEXCR_HNU_PHIE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (6))))}; enum { R_HDEXCR_ENF_PHIE_SHIFT = ((63 - (6 + 32)))}; enum { R_HDEXCR_ENF_PHIE_LENGTH = (1)}; enum { R_HDEXCR_ENF_PHIE_MASK = (((~0ULL) >> (64 - (1))) << ((63 - (6 + 32))))};
+struct CPUArchState {
+    target_ulong gpr[32];
+    target_ulong gprh[32];
+    target_ulong lr;
+    target_ulong ctr;
+    uint32_t crf[8];
+    target_ulong cfar;
+    target_ulong xer;
+    target_ulong so;
+    target_ulong ov;
+    target_ulong ca;
+    target_ulong ov32;
+    target_ulong ca32;
+    target_ulong reserve_addr;
+    target_ulong reserve_length;
+    target_ulong reserve_val;
+    target_ulong reserve_val2;
+    target_ulong msr;
+    target_ulong tgpr[4];
+    target_ulong nip;
+    int access_type;
+    
+   _Bool 
+        has_smt_siblings;
+    int core_index;
+    int chip_index;
+    ppc_slb_t slb[64];
+    struct CPUBreakpoint *ciabr_breakpoint;
+    struct CPUWatchpoint *dawr0_watchpoint;
+    target_ulong sr[32];
+    uint32_t nb_BATs;
+    target_ulong DBAT[2][8];
+    target_ulong IBAT[2][8];
+    int32_t nb_tlb;
+    int tlb_per_way;
+    int nb_ways;
+    int last_way;
+    int nb_pids;
+    int tlb_type;
+    ppc_tlb_t tlb;
+    uint32_t tlb_need_flush;
+    target_ulong spr[1024];
+    ppc_spr_t spr_cb[1024];
+    uint8_t pmc_ins_cnt;
+    uint8_t pmc_cyc_cnt;
+    uint32_t vscr;
+    ppc_vsr_t vsr[64] __attribute__((aligned(16)));
+    ppc_vsr_t vscr_sat __attribute__((aligned(16)));
+    uint64_t spe_acc;
+    uint32_t spe_fscr;
+    float_status vec_status;
+    float_status fp_status;
+    target_ulong fpscr;
+    ppc_tb_t *tb_env;
+    ppc_dcr_t *dcr_env;
+    int dcache_line_size;
+    int icache_line_size;
+    target_ulong bhrb_num_entries;
+    intptr_t bhrb_base;
+    target_ulong bhrb_filter;
+    target_ulong bhrb_offset;
+    target_ulong bhrb_offset_mask;
+    uint64_t bhrb[(1 << (5))];
+    target_ulong msr_mask;
+    powerpc_mmu_t mmu_model;
+    powerpc_excp_t excp_model;
+    powerpc_input_t bus_model;
+    int bfd_mach;
+    uint32_t flags;
+    uint64_t insns_flags;
+    uint64_t insns_flags2;
+    int error_code;
+    uint32_t pending_interrupts;
+    uint64_t excp_stats[POWERPC_EXCP_NB];
+    uint32_t irq_input_state;
+    target_ulong excp_vectors[POWERPC_EXCP_NB];
+    target_ulong excp_prefix;
+    target_ulong ivor_mask;
+    target_ulong ivpr_mask;
+    target_ulong hreset_vector;
+    hwaddr mpic_iack;
+    
+   _Bool 
+        mpic_proxy;
+    
+   _Bool 
+        has_hv_mode;
+    
+   _Bool 
+        resume_as_sreset;
+    
+   _Bool 
+        quiesced;
+    uint32_t hflags;
+    target_ulong hflags_compat_nmsr;
+    int (*check_pow)(CPUPPCState *env);
+    int (*check_attn)(CPUPPCState *env);
+    void *load_info;
+    uint8_t fit_period[4];
+    uint8_t wdt_period[4];
+    target_ulong tm_gpr[32];
+    ppc_avr_t tm_vsr[64];
+    uint64_t tm_cr;
+    uint64_t tm_lr;
+    uint64_t tm_ctr;
+    uint64_t tm_fpscr;
+    uint64_t tm_amr;
+    uint64_t tm_ppr;
+    uint64_t tm_vrsave;
+    uint32_t tm_vscr;
+    uint64_t tm_dscr;
+    uint64_t tm_tar;
+    QEMUTimer *pmu_cyc_overflow_timers[6];
+    uint64_t pmu_base_time;
+};
+typedef struct PPCVirtualHypervisor PPCVirtualHypervisor;
+typedef struct PPCVirtualHypervisorClass PPCVirtualHypervisorClass;
+struct ArchCPU {
+    CPUState parent_obj;
+    CPUPPCState env;
+    int vcpu_id;
+    uint32_t compat_pvr;
+    PPCVirtualHypervisor *vhyp;
+    PPCVirtualHypervisorClass *vhyp_class;
+    void *machine_data;
+    int32_t node_id;
+    PPCHash64Options *hash64_opts;
+    opc_handler_t *opcodes[0x40];
+};
+struct PowerPCCPUClass {
+    CPUClass parent_class;
+    DeviceRealize parent_realize;
+    DeviceUnrealize parent_unrealize;
+    ResettablePhases parent_phases;
+    void (*parent_parse_features)(const char *type, char *str, Error **errp);
+    uint32_t pvr;
+    uint32_t spapr_logical_pvr;
+    
+   _Bool 
+        (*pvr_match)(struct PowerPCCPUClass *pcc, uint32_t pvr, 
+                                                                _Bool 
+                                                                     best);
+    uint64_t pcr_mask;
+    uint64_t pcr_supported;
+    uint32_t svr;
+    uint64_t insns_flags;
+    uint64_t insns_flags2;
+    uint64_t msr_mask;
+    uint64_t lpcr_mask;
+    uint64_t lpcr_pm;
+    powerpc_mmu_t mmu_model;
+    powerpc_excp_t excp_model;
+    powerpc_input_t bus_model;
+    uint32_t flags;
+    int bfd_mach;
+    uint32_t l1_dcache_size, l1_icache_size;
+    GDBFeature gdb_spr;
+    const PPCHash64Options *hash64_opts;
+    struct ppc_radix_page_info *radix_page_info;
+    uint32_t lrg_decr_bits;
+    int n_host_threads;
+    void (*init_proc)(CPUPPCState *env);
+    int (*check_pow)(CPUPPCState *env);
+    int (*check_attn)(CPUPPCState *env);
+};
+ObjectClass *ppc_cpu_class_by_name(const char *name);
+PowerPCCPUClass *ppc_cpu_class_by_pvr(uint32_t pvr);
+PowerPCCPUClass *ppc_cpu_class_by_pvr_mask(uint32_t pvr);
+PowerPCCPUClass *ppc_cpu_get_family_class(PowerPCCPUClass *pcc);
+struct PPCVirtualHypervisorClass {
+    InterfaceClass parent;
+    
+   _Bool 
+        (*cpu_in_nested)(PowerPCCPU *cpu);
+    void (*deliver_hv_excp)(PowerPCCPU *cpu, int excp);
+    void (*hypercall)(PPCVirtualHypervisor *vhyp, PowerPCCPU *cpu);
+    hwaddr (*hpt_mask)(PPCVirtualHypervisor *vhyp);
+    const ppc_hash_pte64_t *(*map_hptes)(PPCVirtualHypervisor *vhyp,
+                                         hwaddr ptex, int n);
+    void (*unmap_hptes)(PPCVirtualHypervisor *vhyp,
+                        const ppc_hash_pte64_t *hptes,
+                        hwaddr ptex, int n);
+    void (*hpte_set_c)(PPCVirtualHypervisor *vhyp, hwaddr ptex, uint64_t pte1);
+    void (*hpte_set_r)(PPCVirtualHypervisor *vhyp, hwaddr ptex, uint64_t pte1);
+    
+   _Bool 
+        (*get_pate)(PPCVirtualHypervisor *vhyp, PowerPCCPU *cpu,
+                     target_ulong lpid, ppc_v3_pate_t *entry);
+    target_ulong (*encode_hpt_for_kvm_pr)(PPCVirtualHypervisor *vhyp);
+    void (*cpu_exec_enter)(PPCVirtualHypervisor *vhyp, PowerPCCPU *cpu);
+    void (*cpu_exec_exit)(PPCVirtualHypervisor *vhyp, PowerPCCPU *cpu);
+};
+void ppc_cpu_dump_state(CPUState *cpu, FILE *f, int flags);
+int ppc_cpu_gdb_read_register(CPUState *cpu, GByteArray *buf, int reg);
+int ppc_cpu_gdb_read_register_apple(CPUState *cpu, GByteArray *buf, int reg);
+int ppc_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
+int ppc_cpu_gdb_write_register_apple(CPUState *cpu, uint8_t *buf, int reg);
+hwaddr ppc_cpu_get_phys_page_debug(CPUState *cpu, vaddr addr);
+int ppc64_cpu_write_elf64_note(WriteCoreDumpFunction f, CPUState *cs,
+                               int cpuid, DumpState *s);
+int ppc32_cpu_write_elf32_note(WriteCoreDumpFunction f, CPUState *cs,
+                               int cpuid, DumpState *s);
+void ppc_maybe_interrupt(CPUPPCState *env);
+void ppc_cpu_do_interrupt(CPUState *cpu);
+_Bool 
+    ppc_cpu_exec_interrupt(CPUState *cpu, int int_req);
+void ppc_cpu_do_system_reset(CPUState *cs);
+void ppc_cpu_do_fwnmi_machine_check(CPUState *cs, target_ulong vector);
+extern const VMStateDescription vmstate_ppc_cpu;
+void ppc_translate_init(void);
+void ppc_translate_code(CPUState *cs, TranslationBlock *tb,
+                        int *max_insns, vaddr pc, void *host_pc);
+void ppc_store_sdr1(CPUPPCState *env, target_ulong value);
+void ppc_store_lpcr(PowerPCCPU *cpu, target_ulong val);
+void ppc_update_ciabr(CPUPPCState *env);
+void ppc_store_ciabr(CPUPPCState *env, target_ulong value);
+void ppc_update_daw0(CPUPPCState *env);
+void ppc_store_dawr0(CPUPPCState *env, target_ulong value);
+void ppc_store_dawrx0(CPUPPCState *env, uint32_t value);
+void ppc_store_msr(CPUPPCState *env, target_ulong value);
+void ppc_cpu_list(void);
+uint64_t cpu_ppc_load_tbl(CPUPPCState *env);
+uint32_t cpu_ppc_load_tbu(CPUPPCState *env);
+void cpu_ppc_store_tbu(CPUPPCState *env, uint32_t value);
+void cpu_ppc_store_tbl(CPUPPCState *env, uint32_t value);
+uint64_t cpu_ppc_load_atbl(CPUPPCState *env);
+uint32_t cpu_ppc_load_atbu(CPUPPCState *env);
+void cpu_ppc_store_atbl(CPUPPCState *env, uint32_t value);
+void cpu_ppc_store_atbu(CPUPPCState *env, uint32_t value);
+void cpu_ppc_increase_tb_by_offset(CPUPPCState *env, int64_t offset);
+void cpu_ppc_decrease_tb_by_offset(CPUPPCState *env, int64_t offset);
+uint64_t cpu_ppc_load_vtb(CPUPPCState *env);
+void cpu_ppc_store_vtb(CPUPPCState *env, uint64_t value);
+_Bool 
+    ppc_decr_clear_on_delivery(CPUPPCState *env);
+target_ulong cpu_ppc_load_decr(CPUPPCState *env);
+void cpu_ppc_store_decr(CPUPPCState *env, target_ulong value);
+target_ulong cpu_ppc_load_hdecr(CPUPPCState *env);
+void cpu_ppc_store_hdecr(CPUPPCState *env, target_ulong value);
+void cpu_ppc_store_tbu40(CPUPPCState *env, uint64_t value);
+uint64_t cpu_ppc_load_purr(CPUPPCState *env);
+void cpu_ppc_store_purr(CPUPPCState *env, uint64_t value);
+target_ulong load_40x_pit(CPUPPCState *env);
+void store_40x_pit(CPUPPCState *env, target_ulong val);
+void store_40x_dbcr0(CPUPPCState *env, uint32_t val);
+void store_40x_sler(CPUPPCState *env, uint32_t val);
+void store_40x_tcr(CPUPPCState *env, target_ulong val);
+void store_40x_tsr(CPUPPCState *env, target_ulong val);
+void store_booke_tcr(CPUPPCState *env, target_ulong val);
+void store_booke_tsr(CPUPPCState *env, target_ulong val);
+void ppc_tlb_invalidate_all(CPUPPCState *env);
+void ppc_tlb_invalidate_one(CPUPPCState *env, target_ulong addr);
+void cpu_ppc_set_vhyp(PowerPCCPU *cpu, PPCVirtualHypervisor *vhyp);
+void cpu_ppc_set_1lpar(PowerPCCPU *cpu);
+void ppc_store_fpscr(CPUPPCState *env, target_ulong val);
+void helper_hfscr_facility_check(CPUPPCState *env, uint32_t bit,
+                                 const char *caller, uint32_t cause);
+int ppc_dcr_read(ppc_dcr_t *dcr_env, int dcrn, uint32_t *valp);
+int ppc_dcr_write(ppc_dcr_t *dcr_env, int dcrn, uint32_t val);
+_Bool 
+    ppc_check_compat(PowerPCCPU *cpu, uint32_t compat_pvr,
+                      uint32_t min_compat_pvr, uint32_t max_compat_pvr);
+_Bool 
+    ppc_type_check_compat(const char *cputype, uint32_t compat_pvr,
+                           uint32_t min_compat_pvr, uint32_t max_compat_pvr);
+int ppc_set_compat(PowerPCCPU *cpu, uint32_t compat_pvr, Error **errp);
+int ppc_set_compat_all(uint32_t compat_pvr, Error **errp);
+int ppc_init_compat_all(uint32_t compat_pvr, Error **errp);
+int ppc_compat_max_vthreads(PowerPCCPU *cpu);
+void ppc_compat_add_property(Object *obj, const char *name,
+                             uint32_t *compat_pvr, const char *basedesc);
 typedef struct RAMBlockNotifier RAMBlockNotifier;
 typedef struct {
     struct rcu_head rcu;
@@ -4743,346 +5535,6 @@ _Bool
     ram_block_discard_is_disabled(void);
 _Bool 
     ram_block_discard_is_required(void);
-typedef uint16_t float16;
-typedef uint32_t float32;
-typedef uint64_t float64;
-typedef struct {
-    uint64_t low;
-    uint16_t high;
-} floatx80;
-typedef struct {
-    uint64_t low, high;
-} float128;
-typedef uint16_t bfloat16;
-typedef enum __attribute__((__packed__)) {
-    float_round_nearest_even = 0,
-    float_round_down = 1,
-    float_round_up = 2,
-    float_round_to_zero = 3,
-    float_round_ties_away = 4,
-    float_round_to_odd = 5,
-    float_round_to_odd_inf = 6,
-    float_round_nearest_even_max = 7,
-} FloatRoundMode;
-enum {
-    float_flag_invalid = 0x0001,
-    float_flag_divbyzero = 0x0002,
-    float_flag_overflow = 0x0004,
-    float_flag_underflow = 0x0008,
-    float_flag_inexact = 0x0010,
-    float_flag_input_denormal = 0x0020,
-    float_flag_output_denormal = 0x0040,
-    float_flag_invalid_isi = 0x0080,
-    float_flag_invalid_imz = 0x0100,
-    float_flag_invalid_idi = 0x0200,
-    float_flag_invalid_zdz = 0x0400,
-    float_flag_invalid_sqrt = 0x0800,
-    float_flag_invalid_cvti = 0x1000,
-    float_flag_invalid_snan = 0x2000,
-};
-typedef enum __attribute__((__packed__)) {
-    floatx80_precision_x,
-    floatx80_precision_d,
-    floatx80_precision_s,
-} FloatX80RoundPrec;
-typedef enum __attribute__((__packed__)) {
-    float_2nan_prop_none = 0,
-    float_2nan_prop_s_ab,
-    float_2nan_prop_s_ba,
-    float_2nan_prop_ab,
-    float_2nan_prop_ba,
-    float_2nan_prop_x87,
-} Float2NaNPropRule;
-enum { R_3NAN_1ST_SHIFT = (0)}; enum { R_3NAN_1ST_LENGTH = (2)}; enum { R_3NAN_1ST_MASK = (((~0ULL) >> (64 - (2))) << (0))};
-enum { R_3NAN_2ND_SHIFT = (2)}; enum { R_3NAN_2ND_LENGTH = (2)}; enum { R_3NAN_2ND_MASK = (((~0ULL) >> (64 - (2))) << (2))};
-enum { R_3NAN_3RD_SHIFT = (4)}; enum { R_3NAN_3RD_LENGTH = (2)}; enum { R_3NAN_3RD_MASK = (((~0ULL) >> (64 - (2))) << (4))};
-enum { R_3NAN_SNAN_SHIFT = (6)}; enum { R_3NAN_SNAN_LENGTH = (1)}; enum { R_3NAN_SNAN_MASK = (((~0ULL) >> (64 - (1))) << (6))};
-typedef enum __attribute__((__packed__)) {
-    float_3nan_prop_none = 0,
-    float_3nan_prop_abc = ((0 << R_3NAN_1ST_SHIFT) | (1 << R_3NAN_2ND_SHIFT) | (2 << R_3NAN_3RD_SHIFT)),
-    float_3nan_prop_acb = ((0 << R_3NAN_1ST_SHIFT) | (2 << R_3NAN_2ND_SHIFT) | (1 << R_3NAN_3RD_SHIFT)),
-    float_3nan_prop_bac = ((1 << R_3NAN_1ST_SHIFT) | (0 << R_3NAN_2ND_SHIFT) | (2 << R_3NAN_3RD_SHIFT)),
-    float_3nan_prop_bca = ((1 << R_3NAN_1ST_SHIFT) | (2 << R_3NAN_2ND_SHIFT) | (0 << R_3NAN_3RD_SHIFT)),
-    float_3nan_prop_cab = ((2 << R_3NAN_1ST_SHIFT) | (0 << R_3NAN_2ND_SHIFT) | (1 << R_3NAN_3RD_SHIFT)),
-    float_3nan_prop_cba = ((2 << R_3NAN_1ST_SHIFT) | (1 << R_3NAN_2ND_SHIFT) | (0 << R_3NAN_3RD_SHIFT)),
-    float_3nan_prop_s_abc = float_3nan_prop_abc | R_3NAN_SNAN_MASK,
-    float_3nan_prop_s_acb = float_3nan_prop_acb | R_3NAN_SNAN_MASK,
-    float_3nan_prop_s_bac = float_3nan_prop_bac | R_3NAN_SNAN_MASK,
-    float_3nan_prop_s_bca = float_3nan_prop_bca | R_3NAN_SNAN_MASK,
-    float_3nan_prop_s_cab = float_3nan_prop_cab | R_3NAN_SNAN_MASK,
-    float_3nan_prop_s_cba = float_3nan_prop_cba | R_3NAN_SNAN_MASK,
-} Float3NaNPropRule;
-typedef enum __attribute__((__packed__)) {
-    float_infzeronan_none = 0,
-    float_infzeronan_dnan_never,
-    float_infzeronan_dnan_always,
-    float_infzeronan_dnan_if_qnan,
-} FloatInfZeroNaNRule;
-typedef struct float_status {
-    uint16_t float_exception_flags;
-    FloatRoundMode float_rounding_mode;
-    FloatX80RoundPrec floatx80_rounding_precision;
-    Float2NaNPropRule float_2nan_prop_rule;
-    Float3NaNPropRule float_3nan_prop_rule;
-    FloatInfZeroNaNRule float_infzeronan_rule;
-    
-   _Bool 
-        tininess_before_rounding;
-    
-   _Bool 
-        flush_to_zero;
-    
-   _Bool 
-        flush_inputs_to_zero;
-    
-   _Bool 
-        default_nan_mode;
-    uint8_t default_nan_pattern;
-    
-   _Bool 
-        snan_bit_is_one;
-    
-   _Bool 
-        no_signaling_nans;
-    
-   _Bool 
-        rebias_overflow;
-    
-   _Bool 
-        rebias_underflow;
-} float_status;
-typedef struct Clock Clock; typedef Clock *Clock_autoptr; typedef GList *Clock_listautoptr; typedef GSList *Clock_slistautoptr; typedef GQueue *Clock_queueautoptr;
-typedef enum ClockEvent {
-    ClockUpdate = 1,
-    ClockPreUpdate = 2,
-} ClockEvent;
-typedef void ClockCallback(void *opaque, ClockEvent event);
-struct Clock {
-    Object parent_obj;
-    uint64_t period;
-    char *canonical_path;
-    ClockCallback *callback;
-    void *callback_opaque;
-    unsigned int callback_events;
-    uint32_t multiplier;
-    uint32_t divider;
-    Clock *source;
-    struct { struct Clock *lh_first; } children;
-    struct { struct Clock *le_next; struct Clock **le_prev; } sibling;
-};
-extern const VMStateDescription vmstate_clock;
-void clock_setup_canonical_path(Clock *clk);
-Clock *clock_new(Object *parent, const char *name);
-void clock_set_callback(Clock *clk, ClockCallback *cb,
-                        void *opaque, unsigned int events);
-void clock_set_source(Clock *clk, Clock *src);
-_Bool 
-    clock_set(Clock *clk, uint64_t value);
-void clock_propagate(Clock *clk);
-char *clock_display_freq(Clock *clk);
-_Bool 
-    clock_set_mul_div(Clock *clk, uint32_t multiplier, uint32_t divider);
-typedef struct CPUMIPSTLBContext CPUMIPSTLBContext;
-typedef union wr_t wr_t;
-union wr_t {
-    int8_t b[(128) / 8];
-    int16_t h[(128) / 16];
-    int32_t w[(128) / 32];
-    int64_t d[(128) / 64];
-};
-typedef union fpr_t fpr_t;
-union fpr_t {
-    float64 fd;
-    float32 fs[2];
-    uint64_t d;
-    uint32_t w[2];
-    wr_t wr;
-};
-typedef struct CPUMIPSFPUContext CPUMIPSFPUContext;
-struct CPUMIPSFPUContext {
-    fpr_t fpr[32];
-    float_status fp_status;
-    uint32_t fcr0;
-    uint32_t fcr31_rw_bitmask;
-    uint32_t fcr31;
-};
-typedef struct CPUMIPSMVPContext CPUMIPSMVPContext;
-struct CPUMIPSMVPContext {
-    int32_t CP0_MVPControl;
-    int32_t CP0_MVPConf0;
-    int32_t CP0_MVPConf1;
-};
-typedef struct mips_def_t mips_def_t;
-typedef struct TCState TCState;
-struct TCState {
-    target_ulong gpr[32];
-    uint64_t gpr_hi[32];
-    target_ulong PC;
-    target_ulong HI[4];
-    target_ulong LO[4];
-    target_ulong ACX[4];
-    target_ulong DSPControl;
-    int32_t CP0_TCStatus;
-    int32_t CP0_TCBind;
-    target_ulong CP0_TCHalt;
-    target_ulong CP0_TCContext;
-    target_ulong CP0_TCSchedule;
-    target_ulong CP0_TCScheFBack;
-    int32_t CP0_Debug_tcstatus;
-    target_ulong CP0_UserLocal;
-    int32_t msacsr;
-    float_status msa_fp_status;
-    target_ulong mxu_gpr[16 - 1];
-    target_ulong mxu_cr;
-};
-struct MIPSITUState;
-typedef struct CPUArchState {
-    TCState active_tc;
-    CPUMIPSFPUContext active_fpu;
-    uint32_t current_tc;
-    uint32_t SEGBITS;
-    uint32_t PABITS;
-    target_ulong SEGMask;
-    uint64_t PAMask;
-    int32_t msair;
-    int32_t CP0_Index;
-    int32_t CP0_VPControl;
-    int32_t CP0_Random;
-    int32_t CP0_VPEControl;
-    int32_t CP0_VPEConf0;
-    int32_t CP0_VPEConf1;
-    target_ulong CP0_YQMask;
-    target_ulong CP0_VPESchedule;
-    target_ulong CP0_VPEScheFBack;
-    int32_t CP0_VPEOpt;
-    uint64_t CP0_EntryLo0;
-    uint64_t CP0_EntryLo1;
-    int32_t CP0_GlobalNumber;
-    target_ulong CP0_Context;
-    int32_t CP0_MemoryMapID;
-    int32_t CP0_PageMask;
-    int32_t CP0_PageGrain_rw_bitmask;
-    int32_t CP0_PageGrain;
-    target_ulong CP0_SegCtl0;
-    target_ulong CP0_SegCtl1;
-    target_ulong CP0_SegCtl2;
-    target_ulong CP0_PWBase;
-    target_ulong CP0_PWField;
-    target_ulong CP0_PWSize;
-    int32_t CP0_Wired;
-    int32_t CP0_PWCtl;
-    int32_t CP0_SRSConf0_rw_bitmask;
-    int32_t CP0_SRSConf0;
-    int32_t CP0_SRSConf1_rw_bitmask;
-    int32_t CP0_SRSConf1;
-    int32_t CP0_SRSConf2_rw_bitmask;
-    int32_t CP0_SRSConf2;
-    int32_t CP0_SRSConf3_rw_bitmask;
-    int32_t CP0_SRSConf3;
-    int32_t CP0_SRSConf4_rw_bitmask;
-    int32_t CP0_SRSConf4;
-    int32_t CP0_HWREna;
-    target_ulong CP0_BadVAddr;
-    uint32_t CP0_BadInstr;
-    uint32_t CP0_BadInstrP;
-    uint32_t CP0_BadInstrX;
-    int32_t CP0_Count;
-    target_ulong CP0_EntryHi;
-    target_ulong CP0_EntryHi_ASID_mask;
-    int32_t CP0_Compare;
-    int32_t CP0_Status;
-    int32_t CP0_IntCtl;
-    int32_t CP0_SRSCtl;
-    int32_t CP0_SRSMap;
-    int32_t CP0_Cause;
-    target_ulong CP0_EPC;
-    int32_t CP0_PRid;
-    target_ulong CP0_EBase;
-    target_ulong CP0_EBaseWG_rw_bitmask;
-    target_ulong CP0_CMGCRBase;
-    int32_t CP0_Config0;
-    int32_t CP0_Config1;
-    int32_t CP0_Config2;
-    int32_t CP0_Config3;
-    int32_t CP0_Config4;
-    int32_t CP0_Config4_rw_bitmask;
-    int32_t CP0_Config5;
-    int32_t CP0_Config5_rw_bitmask;
-    int32_t CP0_Config6;
-    int32_t CP0_Config6_rw_bitmask;
-    int32_t CP0_Config7;
-    int64_t CP0_Config7_rw_bitmask;
-    uint64_t CP0_LLAddr;
-    uint64_t CP0_MAAR[16];
-    int32_t CP0_MAARI;
-    target_ulong lladdr;
-    target_ulong llval;
-    uint64_t llval_wp;
-    uint32_t llnewval_wp;
-    uint64_t CP0_LLAddr_rw_bitmask;
-    int CP0_LLAddr_shift;
-    target_ulong CP0_WatchLo[8];
-    uint64_t CP0_WatchHi[8];
-    target_ulong CP0_XContext;
-    int32_t CP0_Framemask;
-    int32_t CP0_Debug;
-    target_ulong CP0_DEPC;
-    int32_t CP0_Performance0;
-    int32_t CP0_ErrCtl;
-    uint64_t CP0_TagLo;
-    int32_t CP0_DataLo;
-    int32_t CP0_TagHi;
-    int32_t CP0_DataHi;
-    target_ulong CP0_ErrorEPC;
-    int32_t CP0_DESAVE;
-    target_ulong CP0_KScratch[6];
-    uint32_t lcsr_cpucfg1;
-    uint32_t lcsr_cpucfg2;
-    TCState tcs[16];
-    CPUMIPSFPUContext fpus[1];
-    int error_code;
-    uint32_t hflags;
-    target_ulong btarget;
-    target_ulong bcond;
-    int SYNCI_Step;
-    int CCRes;
-    uint32_t CP0_Status_rw_bitmask;
-    uint32_t CP0_TCStatus_rw_bitmask;
-    uint64_t insn_flags;
-    struct {} end_reset_fields;
-    CPUMIPSMVPContext *mvp;
-    CPUMIPSTLBContext *tlb;
-    qemu_irq irq[8];
-    MemoryRegion *itc_tag;
-    struct {
-        AddressSpace as;
-        MemoryRegion mr;
-    } iocsr;
-    const mips_def_t *cpu_model;
-    QEMUTimer *timer;
-    Clock *count_clock;
-    target_ulong exception_base;
-} CPUMIPSState;
-struct ArchCPU {
-    CPUState parent_obj;
-    CPUMIPSState env;
-    Clock *clock;
-    Clock *count_div;
-    
-   _Bool 
-        is_big_endian;
-};
-struct MIPSCPUClass {
-    CPUClass parent_class;
-    DeviceRealize parent_realize;
-    ResettablePhases parent_phases;
-    const struct mips_def_t *cpu_def;
-    
-   _Bool 
-        no_data_aborts;
-};
-void cpu_wrdsp(uint32_t rs, uint32_t mask_num, CPUMIPSState *env);
-uint32_t cpu_rddsp(uint32_t mask_num, CPUMIPSState *env);
 _Bool 
     target_words_bigendian(void);
 uint16_t address_space_lduw(AddressSpace *as,
@@ -5113,17 +5565,6 @@ void address_space_stl_cached_slow(MemoryRegionCache *cache,
     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
 void address_space_stq_cached_slow(MemoryRegionCache *cache,
     hwaddr addr, uint64_t val, MemTxAttrs attrs, MemTxResult *result);
-typedef struct {
-    
-   _Bool 
-        decided;
-    int bits;
-    uint64_t mask;
-} TargetPageBits;
-_Bool 
-    set_preferred_target_page_bits(int bits);
-void finalize_target_page_bits(void);
-extern const TargetPageBits target_page;
 CPUArchState *cpu_copy(CPUArchState *env);
 _Static_assert(!(((1 << (12 - 1)) | (1 << (12 - 2)) | (1 << (12 - 3)) | (1 << (12 - 5)) | (1 << (12 - 4))) & ((1 << 0) | (1 << 1) | (1 << 2))), "not expecting: " "TLB_FLAGS_MASK & TLB_SLOW_FLAGS_MASK");
 _Static_assert(!(
@@ -5141,67 +5582,252 @@ env
 ) 
 != sizeof(CPUState)), "not expecting: " "offsetof(ArchCPU, env) != sizeof(CPUState)");
 enum {
-    EXCP_NONE = -1,
-    EXCP_RESET = 0,
-    EXCP_SRESET,
-    EXCP_DSS,
-    EXCP_DINT,
-    EXCP_DDBL,
-    EXCP_DDBS,
-    EXCP_NMI,
-    EXCP_MCHECK,
-    EXCP_EXT_INTERRUPT,
-    EXCP_DFWATCH,
-    EXCP_DIB,
-    EXCP_IWATCH,
-    EXCP_AdEL,
-    EXCP_AdES,
-    EXCP_TLBF,
-    EXCP_IBE,
-    EXCP_DBp,
-    EXCP_SYSCALL,
-    EXCP_BREAK,
-    EXCP_CpU,
-    EXCP_RI,
-    EXCP_OVERFLOW,
-    EXCP_TRAP,
-    EXCP_FPE,
-    EXCP_DWATCH,
-    EXCP_LTLBL,
-    EXCP_TLBL,
-    EXCP_TLBS,
-    EXCP_DBE,
-    EXCP_THREAD,
-    EXCP_MDMX,
-    EXCP_C2E,
-    EXCP_CACHE,
-    EXCP_DSPDIS,
-    EXCP_MSADIS,
-    EXCP_MSAFPE,
-    EXCP_TLBXI,
-    EXCP_TLBRI,
-    EXCP_SEMIHOST,
-    EXCP_LAST = EXCP_SEMIHOST,
+    PPC_NONE = 0x0000000000000000ULL,
+    PPC_INSNS_BASE = 0x0000000000000001ULL,
+    PPC_64B = 0x0000000000000020ULL,
+    PPC_64BX = 0x0000000000000040ULL,
+    PPC_64H = 0x0000000000000080ULL,
+    PPC_WAIT = 0x0000000000000100ULL,
+    PPC_MFTB = 0x0000000000000200ULL,
+    PPC_ISEL = 0x0000000000000800ULL,
+    PPC_POPCNTB = 0x0000000000001000ULL,
+    PPC_STRING = 0x0000000000002000ULL,
+    PPC_CILDST = 0x0000000000004000ULL,
+    PPC_FLOAT = 0x0000000000010000ULL,
+    PPC_FLOAT_EXT = 0x0000000000020000ULL,
+    PPC_FLOAT_FSQRT = 0x0000000000040000ULL,
+    PPC_FLOAT_FRES = 0x0000000000080000ULL,
+    PPC_FLOAT_FRSQRTE = 0x0000000000100000ULL,
+    PPC_FLOAT_FRSQRTES = 0x0000000000200000ULL,
+    PPC_FLOAT_FSEL = 0x0000000000400000ULL,
+    PPC_FLOAT_STFIWX = 0x0000000000800000ULL,
+    PPC_ALTIVEC = 0x0000000001000000ULL,
+    PPC_SPE = 0x0000000002000000ULL,
+    PPC_SPE_SINGLE = 0x0000000004000000ULL,
+    PPC_SPE_DOUBLE = 0x0000000008000000ULL,
+    PPC_MEM_TLBIA = 0x0000000010000000ULL,
+    PPC_MEM_TLBIE = 0x0000000020000000ULL,
+    PPC_MEM_TLBSYNC = 0x0000000040000000ULL,
+    PPC_MEM_SYNC = 0x0000000080000000ULL,
+    PPC_MEM_EIEIO = 0x0000000100000000ULL,
+    PPC_CACHE = 0x0000000200000000ULL,
+    PPC_CACHE_ICBI = 0x0000000400000000ULL,
+    PPC_CACHE_DCBZ = 0x0000000800000000ULL,
+    PPC_CACHE_DCBA = 0x0000002000000000ULL,
+    PPC_CACHE_LOCK = 0x0000004000000000ULL,
+    PPC_EXTERN = 0x0000010000000000ULL,
+    PPC_SEGMENT = 0x0000020000000000ULL,
+    PPC_6xx_TLB = 0x0000040000000000ULL,
+    PPC_40x_TLB = 0x0000100000000000ULL,
+    PPC_SEGMENT_64B = 0x0000200000000000ULL,
+    PPC_SLBI = 0x0000400000000000ULL,
+    PPC_WRTEE = 0x0001000000000000ULL,
+    PPC_40x_EXCP = 0x0002000000000000ULL,
+    PPC_405_MAC = 0x0004000000000000ULL,
+    PPC_440_SPEC = 0x0008000000000000ULL,
+    PPC_BOOKE = 0x0010000000000000ULL,
+    PPC_MFAPIDI = 0x0020000000000000ULL,
+    PPC_TLBIVA = 0x0040000000000000ULL,
+    PPC_TLBIVAX = 0x0080000000000000ULL,
+    PPC_4xx_COMMON = 0x0100000000000000ULL,
+    PPC_40x_ICBT = 0x0200000000000000ULL,
+    PPC_RFMCI = 0x0400000000000000ULL,
+    PPC_RFDI = 0x0800000000000000ULL,
+    PPC_DCR = 0x1000000000000000ULL,
+    PPC_DCRX = 0x2000000000000000ULL,
+    PPC_POPCNTWD = 0x8000000000000000ULL,
+    PPC2_BOOKE206 = 0x0000000000000001ULL,
+    PPC2_VSX = 0x0000000000000002ULL,
+    PPC2_DFP = 0x0000000000000004ULL,
+    PPC2_PRCNTL = 0x0000000000000008ULL,
+    PPC2_DBRX = 0x0000000000000010ULL,
+    PPC2_ISA205 = 0x0000000000000020ULL,
+    PPC2_VSX207 = 0x0000000000000040ULL,
+    PPC2_PERM_ISA206 = 0x0000000000000080ULL,
+    PPC2_DIVE_ISA206 = 0x0000000000000100ULL,
+    PPC2_ATOMIC_ISA206 = 0x0000000000000200ULL,
+    PPC2_FP_CVT_ISA206 = 0x0000000000000400ULL,
+    PPC2_FP_TST_ISA206 = 0x0000000000000800ULL,
+    PPC2_BCTAR_ISA207 = 0x0000000000001000ULL,
+    PPC2_LSQ_ISA207 = 0x0000000000002000ULL,
+    PPC2_ALTIVEC_207 = 0x0000000000004000ULL,
+    PPC2_ISA207S = 0x0000000000008000ULL,
+    PPC2_FP_CVT_S64 = 0x0000000000010000ULL,
+    PPC2_TM = 0x0000000000020000ULL,
+    PPC2_PM_ISA206 = 0x0000000000040000ULL,
+    PPC2_ISA300 = 0x0000000000080000ULL,
+    PPC2_ISA310 = 0x0000000000100000ULL,
+    PPC2_MEM_LWSYNC = 0x0000000000200000ULL,
+    PPC2_BCDA_ISA206 = 0x0000000000400000ULL,
 };
-_Bool 
-    cpu_type_supports_cps_smp(const char *cpu_type);
-_Bool 
-    cpu_supports_isa(const CPUMIPSState *env, uint64_t isa_mask);
-_Bool 
-    cpu_type_supports_isa(const char *cpu_type, uint64_t isa);
-void cpu_set_exception_base(int vp_index, target_ulong address);
-uint64_t cpu_mips_kseg0_to_phys(void *opaque, uint64_t addr);
-uint64_t cpu_mips_phys_to_kseg0(void *opaque, uint64_t addr);
-uint64_t cpu_mips_kseg1_to_phys(void *opaque, uint64_t addr);
-uint64_t cpu_mips_phys_to_kseg1(void *opaque, uint64_t addr);
-void cpu_mips_soft_irq(CPUMIPSState *env, int irq, int level);
-void cpu_mips_irq_init_cpu(MIPSCPU *cpu);
-void cpu_mips_clock_init(MIPSCPU *cpu);
-target_ulong exception_resume_pc(CPUMIPSState *env);
-MIPSCPU *mips_cpu_create_with_clock(const char *cpu_type, Clock *cpu_refclk,
-                                    
-                                   _Bool 
-                                        is_big_endian);
+enum {
+    ACCESS_CODE = 0x10,
+    ACCESS_INT = 0x20,
+    ACCESS_FLOAT = 0x30,
+    ACCESS_RES = 0x40,
+    ACCESS_EXT = 0x50,
+    ACCESS_CACHE = 0x60,
+};
+enum {
+    PPC6xx_INPUT_HRESET = 0,
+    PPC6xx_INPUT_SRESET = 1,
+    PPC6xx_INPUT_CKSTP_IN = 2,
+    PPC6xx_INPUT_MCP = 3,
+    PPC6xx_INPUT_SMI = 4,
+    PPC6xx_INPUT_INT = 5,
+    PPC6xx_INPUT_TBEN = 6,
+    PPC6xx_INPUT_WAKEUP = 7,
+    PPC6xx_INPUT_NB,
+};
+enum {
+    PPCBookE_INPUT_HRESET = 0,
+    PPCBookE_INPUT_SRESET = 1,
+    PPCBookE_INPUT_CKSTP_IN = 2,
+    PPCBookE_INPUT_MCP = 3,
+    PPCBookE_INPUT_SMI = 4,
+    PPCBookE_INPUT_INT = 5,
+    PPCBookE_INPUT_CINT = 6,
+    PPCBookE_INPUT_NB,
+};
+enum {
+    PPCE500_INPUT_RESET_CORE = 0,
+    PPCE500_INPUT_MCK = 1,
+    PPCE500_INPUT_CINT = 3,
+    PPCE500_INPUT_INT = 4,
+    PPCE500_INPUT_DEBUG = 6,
+    PPCE500_INPUT_NB,
+};
+enum {
+    PPC40x_INPUT_RESET_CORE = 0,
+    PPC40x_INPUT_RESET_CHIP = 1,
+    PPC40x_INPUT_RESET_SYS = 2,
+    PPC40x_INPUT_CINT = 3,
+    PPC40x_INPUT_INT = 4,
+    PPC40x_INPUT_HALT = 5,
+    PPC40x_INPUT_DEBUG = 6,
+    PPC40x_INPUT_NB,
+};
+enum {
+    PPCRCPU_INPUT_PORESET = 0,
+    PPCRCPU_INPUT_HRESET = 1,
+    PPCRCPU_INPUT_SRESET = 2,
+    PPCRCPU_INPUT_IRQ0 = 3,
+    PPCRCPU_INPUT_IRQ1 = 4,
+    PPCRCPU_INPUT_IRQ2 = 5,
+    PPCRCPU_INPUT_IRQ3 = 6,
+    PPCRCPU_INPUT_IRQ4 = 7,
+    PPCRCPU_INPUT_IRQ5 = 8,
+    PPCRCPU_INPUT_IRQ6 = 9,
+    PPCRCPU_INPUT_IRQ7 = 10,
+    PPCRCPU_INPUT_NB,
+};
+enum {
+    PPC970_INPUT_HRESET = 0,
+    PPC970_INPUT_SRESET = 1,
+    PPC970_INPUT_CKSTP = 2,
+    PPC970_INPUT_TBEN = 3,
+    PPC970_INPUT_MCP = 4,
+    PPC970_INPUT_INT = 5,
+    PPC970_INPUT_THINT = 6,
+    PPC970_INPUT_NB,
+};
+enum {
+    POWER7_INPUT_INT = 0,
+    POWER7_INPUT_NB,
+};
+enum {
+    POWER9_INPUT_INT = 0,
+    POWER9_INPUT_HINT = 1,
+    POWER9_INPUT_NB,
+};
+enum {
+    PPC_INTERRUPT_RESET = 0x00001,
+    PPC_INTERRUPT_WAKEUP = 0x00002,
+    PPC_INTERRUPT_MCK = 0x00004,
+    PPC_INTERRUPT_EXT = 0x00008,
+    PPC_INTERRUPT_SMI = 0x00010,
+    PPC_INTERRUPT_CEXT = 0x00020,
+    PPC_INTERRUPT_DEBUG = 0x00040,
+    PPC_INTERRUPT_THERM = 0x00080,
+    PPC_INTERRUPT_DECR = 0x00100,
+    PPC_INTERRUPT_HDECR = 0x00200,
+    PPC_INTERRUPT_PIT = 0x00400,
+    PPC_INTERRUPT_FIT = 0x00800,
+    PPC_INTERRUPT_WDT = 0x01000,
+    PPC_INTERRUPT_CDOORBELL = 0x02000,
+    PPC_INTERRUPT_DOORBELL = 0x04000,
+    PPC_INTERRUPT_PERFM = 0x08000,
+    PPC_INTERRUPT_HMI = 0x10000,
+    PPC_INTERRUPT_HDOORBELL = 0x20000,
+    PPC_INTERRUPT_HVIRT = 0x40000,
+    PPC_INTERRUPT_EBB = 0x80000,
+};
+enum {
+    PCR_COMPAT_2_05 = (0x8000000000000000ULL >> (62)),
+    PCR_COMPAT_2_06 = (0x8000000000000000ULL >> (61)),
+    PCR_COMPAT_2_07 = (0x8000000000000000ULL >> (60)),
+    PCR_COMPAT_3_00 = (0x8000000000000000ULL >> (59)),
+    PCR_COMPAT_3_10 = (0x8000000000000000ULL >> (58)),
+    PCR_VEC_DIS = (0x8000000000000000ULL >> (0)),
+    PCR_VSX_DIS = (0x8000000000000000ULL >> (1)),
+    PCR_TM_DIS = (0x8000000000000000ULL >> (2)),
+};
+enum {
+    HMER_MALFUNCTION_ALERT = (0x8000000000000000ULL >> (0)),
+    HMER_PROC_RECV_DONE = (0x8000000000000000ULL >> (2)),
+    HMER_PROC_RECV_ERROR_MASKED = (0x8000000000000000ULL >> (3)),
+    HMER_TFAC_ERROR = (0x8000000000000000ULL >> (4)),
+    HMER_TFMR_PARITY_ERROR = (0x8000000000000000ULL >> (5)),
+    HMER_XSCOM_FAIL = (0x8000000000000000ULL >> (8)),
+    HMER_XSCOM_DONE = (0x8000000000000000ULL >> (9)),
+    HMER_PROC_RECV_AGAIN = (0x8000000000000000ULL >> (11)),
+    HMER_WARN_RISE = (0x8000000000000000ULL >> (14)),
+    HMER_WARN_FALL = (0x8000000000000000ULL >> (15)),
+    HMER_SCOM_FIR_HMI = (0x8000000000000000ULL >> (16)),
+    HMER_TRIG_FIR_HMI = (0x8000000000000000ULL >> (17)),
+    HMER_HYP_RESOURCE_ERR = (0x8000000000000000ULL >> (20)),
+    HMER_XSCOM_STATUS_MASK = (((0x8000000000000000ULL >> (21)) - (0x8000000000000000ULL >> (23))) | (0x8000000000000000ULL >> (21))),
+};
+enum {
+    TFMR_CONTROL_MASK = (((0x8000000000000000ULL >> (0)) - (0x8000000000000000ULL >> (24))) | (0x8000000000000000ULL >> (0))),
+    TFMR_MASK_HMI = (0x8000000000000000ULL >> (10)),
+    TFMR_TB_ECLIPZ = (0x8000000000000000ULL >> (14)),
+    TFMR_LOAD_TOD_MOD = (0x8000000000000000ULL >> (16)),
+    TFMR_MOVE_CHIP_TOD_TO_TB = (0x8000000000000000ULL >> (18)),
+    TFMR_CLEAR_TB_ERRORS = (0x8000000000000000ULL >> (24)),
+    TFMR_STATUS_MASK = (((0x8000000000000000ULL >> (25)) - (0x8000000000000000ULL >> (63))) | (0x8000000000000000ULL >> (25))),
+    TFMR_TBST_ENCODED = (((0x8000000000000000ULL >> (28)) - (0x8000000000000000ULL >> (31))) | (0x8000000000000000ULL >> (28))),
+    TFMR_TBST_LAST = (((0x8000000000000000ULL >> (32)) - (0x8000000000000000ULL >> (35))) | (0x8000000000000000ULL >> (32))),
+    TFMR_TB_ENABLED = (0x8000000000000000ULL >> (40)),
+    TFMR_TB_VALID = (0x8000000000000000ULL >> (41)),
+    TFMR_TB_SYNC_OCCURED = (0x8000000000000000ULL >> (42)),
+    TFMR_FIRMWARE_CONTROL_ERROR = (0x8000000000000000ULL >> (46)),
+};
+enum {
+    TBST_RESET = 0x0,
+    TBST_SEND_TOD_MOD = 0x1,
+    TBST_NOT_SET = 0x2,
+    TBST_SYNC_WAIT = 0x6,
+    TBST_GET_TOD = 0x7,
+    TBST_TB_RUNNING = 0x8,
+    TBST_TB_ERROR = 0x9,
+};
+target_ulong cpu_read_xer(const CPUPPCState *env);
+void cpu_write_xer(CPUPPCState *env, target_ulong xer);
+__attribute__ ((__noreturn__)) void raise_exception(CPUPPCState *env, uint32_t exception);
+__attribute__ ((__noreturn__)) void raise_exception_ra(CPUPPCState *env, uint32_t exception,
+                                   uintptr_t raddr);
+__attribute__ ((__noreturn__)) void raise_exception_err(CPUPPCState *env, uint32_t exception,
+                                    uint32_t error_code);
+__attribute__ ((__noreturn__)) void raise_exception_err_ra(CPUPPCState *env, uint32_t exception,
+                                       uint32_t error_code, uintptr_t raddr);
+void raise_ebb_perfm_exception(CPUPPCState *env);
+void dump_mmu(CPUPPCState *env);
+void ppc_maybe_bswap_register(CPUPPCState *env, uint8_t *mem_buf, int len);
+void ppc_store_vscr(CPUPPCState *env, uint32_t vscr);
+uint32_t ppc_get_vscr(CPUPPCState *env);
+void ppc_set_cr(CPUPPCState *env, uint64_t cr);
+uint64_t ppc_get_cr(const CPUPPCState *env);
 typedef target_ulong target_ptr_t;
 typedef int32_t target_pid_t;
        
@@ -5673,35 +6299,9 @@ extern
 target_ulong panda_current_asid(CPUState *env);
 target_ulong panda_current_pc(CPUState *cpu);
 Int128 panda_find_max_ram_address(void);
-int panda_physical_memory_rw(hwaddr addr, uint8_t *buf, int len, 
-                                                                _Bool 
-                                                                     is_write);
-int panda_physical_memory_read(hwaddr addr, uint8_t *buf, int len);
-int panda_physical_memory_write(hwaddr addr, uint8_t *buf, int len);
-hwaddr panda_virt_to_phys(CPUState * env, target_ulong addr);
 _Bool 
-    enter_priv(CPUState * cpu);
-void exit_priv(CPUState * cpu);
-int panda_virtual_memory_rw(CPUState * cpu, target_ulong addr,
-                            uint8_t * buf, int len, 
-                                                   _Bool 
-                                                        is_write);
-int panda_virtual_memory_read(CPUState * env, target_ulong addr,
-                              uint8_t * buf, int len);
-int panda_virtual_memory_write(CPUState * env, target_ulong addr,
-                               uint8_t * buf, int len);
-void *panda_map_virt_to_host(CPUState * env, target_ulong addr, int len);
-_Bool 
-    panda_in_kernel_mode(const CPUState *cpu);
-_Bool 
-    panda_in_kernel(const CPUState *cpu);
-_Bool 
-    address_in_kernel_code_linux(target_ulong addr);
-_Bool 
-    panda_in_kernel_code_linux(CPUState * cpu);
-target_ulong panda_current_ksp(CPUState * cpu);
-target_ulong panda_current_sp(const CPUState *cpu);
-target_ulong panda_get_retval(const CPUState *cpu);
+    enter_priv(CPUState* cpu);
+void exit_priv(CPUState* cpu);
 typedef enum {
     TCG_MO_LD_LD = 0x01,
     TCG_MO_ST_LD = 0x02,
@@ -6420,6 +7020,7 @@ CPUState* get_cpu(void);
 unsigned long garray_len(GArray *list);
 CPUArchState *panda_cpu_env(CPUState *cpu);
 void panda_cleanup_record(void);
+//void (*panda_external_signal_handler)(int, siginfo_t*,void*);
 CPUState *panda_current_cpu(int index);
 CPUState *panda_cpu_in_translate(void);
 TranslationBlock *panda_get_tb(struct qemu_plugin_tb *tb);

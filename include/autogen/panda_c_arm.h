@@ -1,5 +1,6 @@
        
        
+       
 typedef __int128_t Int128;
 typedef __int128_t __attribute__((aligned(16))) Int128Aligned;
 typedef union {
@@ -1232,7 +1233,9 @@ void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
 HotplugHandler *qdev_get_bus_hotplug_handler(DeviceState *dev);
 HotplugHandler *qdev_get_machine_hotplug_handler(DeviceState *dev);
 _Bool 
-    qdev_hotplug_allowed(DeviceState *dev, Error **errp);
+    qdev_hotplug_allowed(DeviceState *dev, BusState *bus, Error **errp);
+_Bool 
+    qdev_hotunplug_allowed(DeviceState *dev, Error **errp);
 HotplugHandler *qdev_get_hotplug_handler(DeviceState *dev);
 void qdev_unplug(DeviceState *dev, Error **errp);
 int qdev_sync_config(DeviceState *dev, Error **errp);
@@ -1539,7 +1542,7 @@ typedef struct CPUBreakpoint {
     union { struct CPUBreakpoint *tqe_next; QTailQLink tqe_circ; } entry;
 } CPUBreakpoint;
 typedef struct CPUWatchpoint {
-    vaddr vaddr_;
+    vaddr vaddr;
     vaddr len;
     vaddr hitaddr;
     MemTxAttrs hitattrs;
@@ -2860,7 +2863,6 @@ struct qemu_work_item;
 struct CPUState {
     DeviceState parent_obj;
     CPUClass *cc;
-    int nr_cores;
     int nr_threads;
     struct QemuThread *thread;
     int thread_id;
@@ -4161,7 +4163,8 @@ void gdb_register_coprocessor(CPUState *cpu,
                               gdb_get_reg_cb get_reg, gdb_set_reg_cb set_reg,
                               const GDBFeature *feature, int g_pos);
 void gdb_unregister_coprocessor_all(CPUState *cpu);
-int gdbserver_start(const char *port_or_device);
+_Bool 
+    gdbserver_start(const char *port_or_device, Error **errp);
 void gdb_feature_builder_init(GDBFeatureBuilder *builder, GDBFeature *feature,
                               const char *name, const char *xmlname,
                               int base_reg);
@@ -5295,7 +5298,7 @@ enum { R_GPCCR_L0GPTSZ_SHIFT = (20)}; enum { R_GPCCR_L0GPTSZ_LENGTH = (4)}; enum
 enum { R_MFAR_FPA_SHIFT = (12)}; enum { R_MFAR_FPA_LENGTH = (40)}; enum { R_MFAR_FPA_MASK = (((~0ULL) >> (64 - (40))) << (12))};
 enum { R_MFAR_NSE_SHIFT = (62)}; enum { R_MFAR_NSE_LENGTH = (1)}; enum { R_MFAR_NSE_MASK = (((~0ULL) >> (64 - (1))) << (62))};
 enum { R_MFAR_NS_SHIFT = (63)}; enum { R_MFAR_NS_LENGTH = (1)}; enum { R_MFAR_NS_MASK = (((~0ULL) >> (64 - (1))) << (63))};
-_Static_assert(!(((sizeof(((ARMCPU *)0)->ccsidr) / sizeof((((ARMCPU *)0)->ccsidr)[0])) + (sizeof(char[(!(!__builtin_types_compatible_p(typeof(((ARMCPU *)0)->ccsidr), typeof(&(((ARMCPU *)0)->ccsidr)[0])))) ? -1 : 1]) - sizeof(char[(!(!__builtin_types_compatible_p(typeof(((ARMCPU *)0)->ccsidr), typeof(&(((ARMCPU *)0)->ccsidr)[0])))) ? -1 : 1]))) <= R_V7M_CSSELR_INDEX_MASK), "not expecting: " "ARRAY_SIZE(((ARMCPU *)0)->ccsidr) <= R_V7M_CSSELR_INDEX_MASK");
+_Static_assert(!(((sizeof(((ARMCPU *)0)->ccsidr) / sizeof((((ARMCPU *)0)->ccsidr)[0])) + (sizeof(struct { int:(!(!__builtin_types_compatible_p(typeof(((ARMCPU *)0)->ccsidr), typeof(&(((ARMCPU *)0)->ccsidr)[0])))) ? -1 : 1; }) - sizeof(struct { int:(!(!__builtin_types_compatible_p(typeof(((ARMCPU *)0)->ccsidr), typeof(&(((ARMCPU *)0)->ccsidr)[0])))) ? -1 : 1; }))) <= R_V7M_CSSELR_INDEX_MASK), "not expecting: " "ARRAY_SIZE(((ARMCPU *)0)->ccsidr) <= R_V7M_CSSELR_INDEX_MASK");
 enum arm_features {
     ARM_FEATURE_AUXCR,
     ARM_FEATURE_XSCALE,
@@ -5696,9 +5699,6 @@ struct MemoryRegion {
     
    _Bool 
         enabled;
-    
-   _Bool 
-        warning_printed;
     uint8_t vga_logging_count;
     MemoryRegion *alias;
     hwaddr alias_offset;
@@ -6808,9 +6808,35 @@ extern
 target_ulong panda_current_asid(CPUState *env);
 target_ulong panda_current_pc(CPUState *cpu);
 Int128 panda_find_max_ram_address(void);
+int panda_physical_memory_rw(hwaddr addr, uint8_t *buf, int len, 
+                                                                _Bool 
+                                                                     is_write);
+int panda_physical_memory_read(hwaddr addr, uint8_t *buf, int len);
+int panda_physical_memory_write(hwaddr addr, uint8_t *buf, int len);
+hwaddr panda_virt_to_phys(CPUState * env, target_ulong addr);
 _Bool 
-    enter_priv(CPUState* cpu);
-void exit_priv(CPUState* cpu);
+    enter_priv(CPUState * cpu);
+void exit_priv(CPUState * cpu);
+int panda_virtual_memory_rw(CPUState * cpu, target_ulong addr,
+                            uint8_t * buf, int len, 
+                                                   _Bool 
+                                                        is_write);
+int panda_virtual_memory_read(CPUState * env, target_ulong addr,
+                              uint8_t * buf, int len);
+int panda_virtual_memory_write(CPUState * env, target_ulong addr,
+                               uint8_t * buf, int len);
+void *panda_map_virt_to_host(CPUState * env, target_ulong addr, int len);
+_Bool 
+    panda_in_kernel_mode(const CPUState *cpu);
+_Bool 
+    panda_in_kernel(const CPUState *cpu);
+_Bool 
+    address_in_kernel_code_linux(target_ulong addr);
+_Bool 
+    panda_in_kernel_code_linux(CPUState * cpu);
+target_ulong panda_current_ksp(CPUState * cpu);
+target_ulong panda_current_sp(const CPUState *cpu);
+target_ulong panda_get_retval(const CPUState *cpu);
 typedef enum {
     TCG_MO_LD_LD = 0x01,
     TCG_MO_ST_LD = 0x02,
@@ -6821,8 +6847,6 @@ typedef enum {
     TCG_BAR_STRL = 0x20,
     TCG_BAR_SC = 0x30,
 } TCGBar;
-extern unsigned cpuinfo;
-unsigned cpuinfo_init(void);
 typedef enum {
     TCG_REG_EAX = 0,
     TCG_REG_ECX,
@@ -7289,7 +7313,6 @@ enum {
     TCG_OPF_BB_END = 0x02,
     TCG_OPF_CALL_CLOBBER = 0x04,
     TCG_OPF_SIDE_EFFECTS = 0x08,
-    TCG_OPF_64BIT = 0x10,
     TCG_OPF_NOT_PRESENT = 0x20,
     TCG_OPF_VECTOR = 0x40,
     TCG_OPF_COND_BRANCH = 0x80
@@ -7298,16 +7321,13 @@ typedef struct TCGOpDef {
     const char *name;
     uint8_t nb_oargs, nb_iargs, nb_cargs, nb_args;
     uint8_t flags;
-    TCGArgConstraint *args_ct;
 } TCGOpDef;
-extern TCGOpDef tcg_op_defs[];
+extern const TCGOpDef tcg_op_defs[];
 extern const size_t tcg_op_defs_max;
-typedef struct TCGTargetOpDef {
-    TCGOpcode op;
-    const char *args_ct_str[16];
-} TCGTargetOpDef;
 _Bool 
-    tcg_op_supported(TCGOpcode op);
+    tcg_op_supported(TCGOpcode op, TCGType type, unsigned flags);
+_Bool 
+    tcg_op_deposit_valid(TCGType type, unsigned ofs, unsigned len);
 void tcg_gen_call0(void *func, TCGHelperInfo *, TCGTemp *ret);
 void tcg_gen_call1(void *func, TCGHelperInfo *, TCGTemp *ret, TCGTemp *);
 void tcg_gen_call2(void *func, TCGHelperInfo *, TCGTemp *ret,
@@ -7326,10 +7346,6 @@ void tcg_gen_call7(void *func, TCGHelperInfo *, TCGTemp *ret,
                    TCGTemp *, TCGTemp *, TCGTemp *);
 TCGOp *tcg_emit_op(TCGOpcode opc, unsigned nargs);
 void tcg_op_remove(TCGContext *s, TCGOp *op);
-TCGOp *tcg_op_insert_before(TCGContext *s, TCGOp *op,
-                            TCGOpcode opc, unsigned nargs);
-TCGOp *tcg_op_insert_after(TCGContext *s, TCGOp *op,
-                           TCGOpcode opc, unsigned nargs);
 void tcg_remove_ops_after(TCGOp *op);
 void tcg_optimize(TCGContext *s);
 TCGLabel *gen_new_label(void);
@@ -7539,7 +7555,6 @@ CPUState* get_cpu(void);
 unsigned long garray_len(GArray *list);
 CPUArchState *panda_cpu_env(CPUState *cpu);
 void panda_cleanup_record(void);
-void (*panda_external_signal_handler)(int, siginfo_t*,void*);
 CPUState *panda_current_cpu(int index);
 CPUState *panda_cpu_in_translate(void);
 TranslationBlock *panda_get_tb(struct qemu_plugin_tb *tb);

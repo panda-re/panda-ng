@@ -11644,7 +11644,9 @@ void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
 HotplugHandler *qdev_get_bus_hotplug_handler(DeviceState *dev);
 HotplugHandler *qdev_get_machine_hotplug_handler(DeviceState *dev);
 _Bool 
-    qdev_hotplug_allowed(DeviceState *dev, Error **errp);
+    qdev_hotplug_allowed(DeviceState *dev, BusState *bus, Error **errp);
+_Bool 
+    qdev_hotunplug_allowed(DeviceState *dev, Error **errp);
 HotplugHandler *qdev_get_hotplug_handler(DeviceState *dev);
 void qdev_unplug(DeviceState *dev, Error **errp);
 int qdev_sync_config(DeviceState *dev, Error **errp);
@@ -11951,7 +11953,7 @@ typedef struct CPUBreakpoint {
     union { struct CPUBreakpoint *tqe_next; QTailQLink tqe_circ; } entry;
 } CPUBreakpoint;
 typedef struct CPUWatchpoint {
-    vaddr vaddr_;
+    vaddr vaddr;
     vaddr len;
     vaddr hitaddr;
     MemTxAttrs hitattrs;
@@ -13272,7 +13274,6 @@ struct qemu_work_item;
 struct CPUState {
     DeviceState parent_obj;
     CPUClass *cc;
-    int nr_cores;
     int nr_threads;
     struct QemuThread *thread;
     int thread_id;
@@ -14510,7 +14511,8 @@ void gdb_register_coprocessor(CPUState *cpu,
                               gdb_get_reg_cb get_reg, gdb_set_reg_cb set_reg,
                               const GDBFeature *feature, int g_pos);
 void gdb_unregister_coprocessor_all(CPUState *cpu);
-int gdbserver_start(const char *port_or_device);
+_Bool 
+    gdbserver_start(const char *port_or_device, Error **errp);
 void gdb_feature_builder_init(GDBFeatureBuilder *builder, GDBFeature *feature,
                               const char *name, const char *xmlname,
                               int base_reg);
@@ -15398,9 +15400,6 @@ struct MemoryRegion {
     
    _Bool 
         enabled;
-    
-   _Bool 
-        warning_printed;
     uint8_t vga_logging_count;
     MemoryRegion *alias;
     hwaddr alias_offset;
@@ -16662,8 +16661,6 @@ typedef enum {
     TCG_BAR_STRL = 0x20,
     TCG_BAR_SC = 0x30,
 } TCGBar;
-extern unsigned cpuinfo;
-unsigned cpuinfo_init(void);
 typedef enum {
     TCG_REG_EAX = 0,
     TCG_REG_ECX,
@@ -17130,7 +17127,6 @@ enum {
     TCG_OPF_BB_END = 0x02,
     TCG_OPF_CALL_CLOBBER = 0x04,
     TCG_OPF_SIDE_EFFECTS = 0x08,
-    TCG_OPF_64BIT = 0x10,
     TCG_OPF_NOT_PRESENT = 0x20,
     TCG_OPF_VECTOR = 0x40,
     TCG_OPF_COND_BRANCH = 0x80
@@ -17139,16 +17135,13 @@ typedef struct TCGOpDef {
     const char *name;
     uint8_t nb_oargs, nb_iargs, nb_cargs, nb_args;
     uint8_t flags;
-    TCGArgConstraint *args_ct;
 } TCGOpDef;
-extern TCGOpDef tcg_op_defs[];
+extern const TCGOpDef tcg_op_defs[];
 extern const size_t tcg_op_defs_max;
-typedef struct TCGTargetOpDef {
-    TCGOpcode op;
-    const char *args_ct_str[16];
-} TCGTargetOpDef;
 _Bool 
-    tcg_op_supported(TCGOpcode op);
+    tcg_op_supported(TCGOpcode op, TCGType type, unsigned flags);
+_Bool 
+    tcg_op_deposit_valid(TCGType type, unsigned ofs, unsigned len);
 void tcg_gen_call0(void *func, TCGHelperInfo *, TCGTemp *ret);
 void tcg_gen_call1(void *func, TCGHelperInfo *, TCGTemp *ret, TCGTemp *);
 void tcg_gen_call2(void *func, TCGHelperInfo *, TCGTemp *ret,
@@ -17167,10 +17160,6 @@ void tcg_gen_call7(void *func, TCGHelperInfo *, TCGTemp *ret,
                    TCGTemp *, TCGTemp *, TCGTemp *);
 TCGOp *tcg_emit_op(TCGOpcode opc, unsigned nargs);
 void tcg_op_remove(TCGContext *s, TCGOp *op);
-TCGOp *tcg_op_insert_before(TCGContext *s, TCGOp *op,
-                            TCGOpcode opc, unsigned nargs);
-TCGOp *tcg_op_insert_after(TCGContext *s, TCGOp *op,
-                           TCGOpcode opc, unsigned nargs);
 void tcg_remove_ops_after(TCGOp *op);
 void tcg_optimize(TCGContext *s);
 TCGLabel *gen_new_label(void);
@@ -17380,7 +17369,7 @@ CPUState* get_cpu(void);
 unsigned long garray_len(GArray *list);
 CPUArchState *panda_cpu_env(CPUState *cpu);
 void panda_cleanup_record(void);
-void (*panda_external_signal_handler)(int, siginfo_t*,void*);
+//void (*panda_external_signal_handler)(int, siginfo_t*,void*);
 CPUState *panda_current_cpu(int index);
 CPUState *panda_cpu_in_translate(void);
 TranslationBlock *panda_get_tb(struct qemu_plugin_tb *tb);
@@ -17389,3 +17378,59 @@ int panda_get_memcb_status(void);
 target_ulong get_id(CPUState *cpu);
 _Bool 
     id_is_initialized(void);
+struct hook;
+struct symbol;
+typedef 
+       _Bool 
+            (*hook_func_t)(CPUState *, TranslationBlock *, struct hook* h);
+typedef 
+       _Bool 
+            (*dynamic_symbol_hook_func_t)(CPUState *, TranslationBlock *, struct hook* h);
+typedef union hooks_panda_cb {
+    void (*before_tcg_codegen)(CPUState *env, TranslationBlock *tb, struct hook*);
+    void (*before_block_translate)(CPUState *env, target_ptr_t pc, struct hook*);
+    void (*block_translate)(CPUState *env, struct qemu_plugin_tb *tb, struct hook*);
+    void (*after_block_translate)(CPUState *env, TranslationBlock *tb, struct hook*);
+    
+   _Bool 
+        (*before_block_exec_invalidate_opt)(CPUState *env, TranslationBlock *tb, struct hook*);
+    void (*before_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
+    void (*after_block_exec)(CPUState *env, TranslationBlock *tb, uint8_t exitCode, struct hook*);
+    void (*start_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
+    void (*end_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
+} hooks_panda_cb;
+enum kernel_mode{
+    MODE_ANY,
+    MODE_KERNEL_ONLY,
+    MODE_USER_ONLY,
+};
+typedef struct hook {
+    uint64_t addr;
+    uint64_t asid;
+    panda_cb_type type;
+    hooks_panda_cb cb;
+    enum kernel_mode km;
+    
+   _Bool 
+        enabled;
+    void* context;
+} hook;
+struct symbol_hook {
+    char name[256];
+    uint64_t offset;
+    
+   _Bool 
+        hook_offset;
+    char section[256];
+    panda_cb_type type;
+    hooks_panda_cb cb;
+};
+void add_hook(struct hook* h);
+void enable_hooking();
+void disable_hooking();
+void add_symbol_hook(struct symbol_hook* h);
+struct dynamic_symbol_hook {
+    char library_name[256];
+    char symbol[256];
+    dynamic_symbol_hook_func_t cb;
+};

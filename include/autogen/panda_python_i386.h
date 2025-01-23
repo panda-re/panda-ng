@@ -10413,6 +10413,7 @@ gchar* g_module_build_path (const gchar *directory,
  int breakheader();
        
        
+       
 typedef int Int128;
 typedef int Int128Aligned;
 typedef union {
@@ -11644,7 +11645,9 @@ void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
 HotplugHandler *qdev_get_bus_hotplug_handler(DeviceState *dev);
 HotplugHandler *qdev_get_machine_hotplug_handler(DeviceState *dev);
 _Bool 
-    qdev_hotplug_allowed(DeviceState *dev, Error **errp);
+    qdev_hotplug_allowed(DeviceState *dev, BusState *bus, Error **errp);
+_Bool 
+    qdev_hotunplug_allowed(DeviceState *dev, Error **errp);
 HotplugHandler *qdev_get_hotplug_handler(DeviceState *dev);
 void qdev_unplug(DeviceState *dev, Error **errp);
 int qdev_sync_config(DeviceState *dev, Error **errp);
@@ -11951,7 +11954,7 @@ typedef struct CPUBreakpoint {
     union { struct CPUBreakpoint *tqe_next; QTailQLink tqe_circ; } entry;
 } CPUBreakpoint;
 typedef struct CPUWatchpoint {
-    vaddr vaddr_;
+    vaddr vaddr;
     vaddr len;
     vaddr hitaddr;
     MemTxAttrs hitattrs;
@@ -13272,7 +13275,6 @@ struct qemu_work_item;
 struct CPUState {
     DeviceState parent_obj;
     CPUClass *cc;
-    int nr_cores;
     int nr_threads;
     struct QemuThread *thread;
     int thread_id;
@@ -14646,6 +14648,42 @@ int qemu_poll_ns(GPollFD *fds, guint nfds, int64_t timeout);
 void init_clocks(QEMUTimerListNotifyCB *notify_cb);
 extern int64_t clock_start;
 extern int use_rt_clock;
+struct kvm_steal_time {
+ uint64_t steal;
+ uint32_t version;
+ uint32_t flags;
+ uint8_t preempted;
+ uint8_t uint8_t_pad[3];
+ uint32_t pad[11];
+};
+struct kvm_clock_pairing {
+ int64_t sec;
+ int64_t nsec;
+ uint64_t tsc;
+ uint32_t flags;
+ uint32_t pad[9];
+};
+struct kvm_mmu_op_header {
+ uint32_t op;
+ uint32_t pad;
+};
+struct kvm_mmu_op_write_pte {
+ struct kvm_mmu_op_header header;
+ uint64_t pte_phys;
+ uint64_t pte_val;
+};
+struct kvm_mmu_op_flush_tlb {
+ struct kvm_mmu_op_header header;
+};
+struct kvm_mmu_op_release_pt {
+ struct kvm_mmu_op_header header;
+ uint64_t pt_phys;
+};
+struct kvm_vcpu_pv_apf_data {
+ uint32_t flags;
+ uint32_t token;
+ uint8_t pad[56];
+};
 enum {
     R_EAX = 0,
     R_ECX = 1,
@@ -14997,7 +15035,7 @@ typedef struct CPUArchState {
     BNDCSReg bndcs_regs;
     uint64_t msr_bndcfgs;
     uint64_t efer;
-    uint8_t start_init_save[0];
+    struct {} start_init_save;
     unsigned int fpstt;
     uint16_t fpus;
     uint16_t fpuc;
@@ -15046,7 +15084,7 @@ typedef struct CPUArchState {
     uint64_t spec_ctrl;
     uint64_t amd_tsc_scale_msr;
     uint64_t virt_ssbd;
-    uint8_t end_init_save[0];
+    struct {} end_init_save;
     uint64_t system_time_msr;
     uint64_t wall_clock_msr;
     uint64_t steal_time_msr;
@@ -15113,7 +15151,7 @@ typedef struct CPUArchState {
     uintptr_t retaddr;
     uint64_t msr_rapl_power_unit;
     uint64_t msr_pkg_energy_status;
-    uint8_t end_reset_fields[0];
+    struct {} end_reset_fields;
     uint32_t cpuid_level_func7;
     uint32_t cpuid_min_level_func7;
     uint32_t cpuid_min_level, cpuid_min_xlevel, cpuid_min_xlevel2;
@@ -15180,13 +15218,9 @@ typedef struct CPUArchState {
     uint64_t xss;
     uint32_t umwait;
     TPRAccess tpr_access_type;
-    unsigned nr_dies;
-    unsigned nr_modules;
+    X86CPUTopoInfo topo_info;
     unsigned long avail_cpu_topo[1];
 } CPUX86State;
-;
-;
-;
 struct kvm_msrs;
 struct ArchCPU {
     CPUState parent_obj;
@@ -15360,6 +15394,7 @@ void fpu_check_raise_ferr_irq(CPUX86State *s);
 void cpu_set_ignne(void);
 void cpu_clear_ignne(void);
 void cpu_sync_bndcs_hflags(CPUX86State *env);
+uint64_t cpu_x86_get_msr_core_thread_count(X86CPU *cpu);
 int cpu_x86_get_descr_debug(CPUX86State *env, unsigned int selector,
                             target_ulong *base, unsigned int *limit,
                             unsigned int *flags);
@@ -15686,9 +15721,6 @@ struct MemoryRegion {
     
    _Bool 
         enabled;
-    
-   _Bool 
-        warning_printed;
     uint8_t vga_logging_count;
     MemoryRegion *alias;
     hwaddr alias_offset;
@@ -16847,9 +16879,35 @@ extern
 target_ulong panda_current_asid(CPUState *env);
 target_ulong panda_current_pc(CPUState *cpu);
 Int128 panda_find_max_ram_address(void);
+int panda_physical_memory_rw(hwaddr addr, uint8_t *buf, int len, 
+                                                                _Bool 
+                                                                     is_write);
+int panda_physical_memory_read(hwaddr addr, uint8_t *buf, int len);
+int panda_physical_memory_write(hwaddr addr, uint8_t *buf, int len);
+hwaddr panda_virt_to_phys(CPUState * env, target_ulong addr);
 _Bool 
-    enter_priv(CPUState* cpu);
-void exit_priv(CPUState* cpu);
+    enter_priv(CPUState * cpu);
+void exit_priv(CPUState * cpu);
+int panda_virtual_memory_rw(CPUState * cpu, target_ulong addr,
+                            uint8_t * buf, int len, 
+                                                   _Bool 
+                                                        is_write);
+int panda_virtual_memory_read(CPUState * env, target_ulong addr,
+                              uint8_t * buf, int len);
+int panda_virtual_memory_write(CPUState * env, target_ulong addr,
+                               uint8_t * buf, int len);
+void *panda_map_virt_to_host(CPUState * env, target_ulong addr, int len);
+_Bool 
+    panda_in_kernel_mode(const CPUState *cpu);
+_Bool 
+    panda_in_kernel(const CPUState *cpu);
+_Bool 
+    address_in_kernel_code_linux(target_ulong addr);
+_Bool 
+    panda_in_kernel_code_linux(CPUState * cpu);
+target_ulong panda_current_ksp(CPUState * cpu);
+target_ulong panda_current_sp(const CPUState *cpu);
+target_ulong panda_get_retval(const CPUState *cpu);
 typedef enum {
     TCG_MO_LD_LD = 0x01,
     TCG_MO_ST_LD = 0x02,
@@ -16860,8 +16918,6 @@ typedef enum {
     TCG_BAR_STRL = 0x20,
     TCG_BAR_SC = 0x30,
 } TCGBar;
-extern unsigned cpuinfo;
-unsigned cpuinfo_init(void);
 typedef enum {
     TCG_REG_EAX = 0,
     TCG_REG_ECX,
@@ -17328,7 +17384,6 @@ enum {
     TCG_OPF_BB_END = 0x02,
     TCG_OPF_CALL_CLOBBER = 0x04,
     TCG_OPF_SIDE_EFFECTS = 0x08,
-    TCG_OPF_64BIT = 0x10,
     TCG_OPF_NOT_PRESENT = 0x20,
     TCG_OPF_VECTOR = 0x40,
     TCG_OPF_COND_BRANCH = 0x80
@@ -17337,16 +17392,13 @@ typedef struct TCGOpDef {
     const char *name;
     uint8_t nb_oargs, nb_iargs, nb_cargs, nb_args;
     uint8_t flags;
-    TCGArgConstraint *args_ct;
 } TCGOpDef;
-extern TCGOpDef tcg_op_defs[];
+extern const TCGOpDef tcg_op_defs[];
 extern const size_t tcg_op_defs_max;
-typedef struct TCGTargetOpDef {
-    TCGOpcode op;
-    const char *args_ct_str[16];
-} TCGTargetOpDef;
 _Bool 
-    tcg_op_supported(TCGOpcode op);
+    tcg_op_supported(TCGOpcode op, TCGType type, unsigned flags);
+_Bool 
+    tcg_op_deposit_valid(TCGType type, unsigned ofs, unsigned len);
 void tcg_gen_call0(void *func, TCGHelperInfo *, TCGTemp *ret);
 void tcg_gen_call1(void *func, TCGHelperInfo *, TCGTemp *ret, TCGTemp *);
 void tcg_gen_call2(void *func, TCGHelperInfo *, TCGTemp *ret,
@@ -17365,10 +17417,6 @@ void tcg_gen_call7(void *func, TCGHelperInfo *, TCGTemp *ret,
                    TCGTemp *, TCGTemp *, TCGTemp *);
 TCGOp *tcg_emit_op(TCGOpcode opc, unsigned nargs);
 void tcg_op_remove(TCGContext *s, TCGOp *op);
-TCGOp *tcg_op_insert_before(TCGContext *s, TCGOp *op,
-                            TCGOpcode opc, unsigned nargs);
-TCGOp *tcg_op_insert_after(TCGContext *s, TCGOp *op,
-                           TCGOpcode opc, unsigned nargs);
 void tcg_remove_ops_after(TCGOp *op);
 void tcg_optimize(TCGContext *s);
 TCGLabel *gen_new_label(void);
@@ -17578,7 +17626,6 @@ CPUState* get_cpu(void);
 unsigned long garray_len(GArray *list);
 CPUArchState *panda_cpu_env(CPUState *cpu);
 void panda_cleanup_record(void);
-void (*panda_external_signal_handler)(int, siginfo_t*,void*);
 CPUState *panda_current_cpu(int index);
 CPUState *panda_cpu_in_translate(void);
 TranslationBlock *panda_get_tb(struct qemu_plugin_tb *tb);
@@ -17587,3 +17634,7788 @@ int panda_get_memcb_status(void);
 target_ulong get_id(CPUState *cpu);
 _Bool 
     id_is_initialized(void);
+struct hook;
+struct symbol;
+typedef 
+       _Bool 
+            (*hook_func_t)(CPUState *, TranslationBlock *, struct hook* h);
+typedef 
+       _Bool 
+            (*dynamic_symbol_hook_func_t)(CPUState *, TranslationBlock *, struct hook* h);
+typedef union hooks_panda_cb {
+    void (*before_tcg_codegen)(CPUState *env, TranslationBlock *tb, struct hook*);
+    void (*before_block_translate)(CPUState *env, target_ptr_t pc, struct hook*);
+    void (*block_translate)(CPUState *env, struct qemu_plugin_tb *tb, struct hook*);
+    void (*after_block_translate)(CPUState *env, TranslationBlock *tb, struct hook*);
+    
+   _Bool 
+        (*before_block_exec_invalidate_opt)(CPUState *env, TranslationBlock *tb, struct hook*);
+    void (*before_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
+    void (*after_block_exec)(CPUState *env, TranslationBlock *tb, uint8_t exitCode, struct hook*);
+    void (*start_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
+    void (*end_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
+} hooks_panda_cb;
+enum kernel_mode{
+    MODE_ANY,
+    MODE_KERNEL_ONLY,
+    MODE_USER_ONLY,
+};
+typedef struct hook {
+    uint64_t addr;
+    uint64_t asid;
+    panda_cb_type type;
+    hooks_panda_cb cb;
+    enum kernel_mode km;
+    
+   _Bool 
+        enabled;
+    void* context;
+} hook;
+struct symbol_hook {
+    char name[256];
+    uint64_t offset;
+    
+   _Bool 
+        hook_offset;
+    char section[256];
+    panda_cb_type type;
+    hooks_panda_cb cb;
+};
+void add_hook(struct hook* h);
+void enable_hooking();
+void disable_hooking();
+void add_symbol_hook(struct symbol_hook* h);
+struct dynamic_symbol_hook {
+    char library_name[256];
+    char symbol[256];
+    dynamic_symbol_hook_func_t cb;
+};
+       
+typedef struct {
+    uint32_t max;
+    uint32_t max_generic;
+    uint32_t max_args;
+} syscall_meta_t;
+typedef enum {
+    SYSCALL_ARG_U64 = 0x00,
+    SYSCALL_ARG_U32,
+    SYSCALL_ARG_U16,
+    SYSCALL_ARG_S64 = 0x10,
+    SYSCALL_ARG_S32,
+    SYSCALL_ARG_S16,
+    SYSCALL_ARG_BUF_PTR = 0x20,
+    SYSCALL_ARG_STRUCT_PTR,
+    SYSCALL_ARG_STR_PTR,
+    SYSCALL_ARG_STRUCT = 0x30,
+    SYSCALL_ARG_ARR
+} syscall_argtype_t;
+typedef struct {
+    int no;
+    const char *name;
+    int nargs;
+    syscall_argtype_t *argt;
+    uint8_t *argsz;
+    const char* const *argn;
+    const char* const *argtn;
+    
+   _Bool 
+        noreturn;
+} syscall_info_t;
+    typedef char gchar;
+    void load_syscall_info(const gchar *arch, syscall_info_t **syscall_info, syscall_meta_t **syscall_meta);
+       
+       
+struct syscall_ctx {
+    int no;
+    target_ptr_t asid;
+    target_ptr_t retaddr;
+    uint8_t args[17]
+                [8];
+    
+   _Bool 
+        double_return;
+    int profile;
+};
+typedef struct syscall_ctx syscall_ctx_t;
+target_long get_return_val(CPUState *env, int profile);
+target_ptr_t mask_retaddr_to_pc(target_ptr_t retaddr, syscall_ctx_t *);
+target_ptr_t calc_retaddr(CPUState *env, syscall_ctx_t*, target_ptr_t pc);
+uint32_t get_32(CPUState *env, syscall_ctx_t*, uint32_t argnum);
+int32_t get_s32(CPUState *env, syscall_ctx_t*, uint32_t argnum);
+uint64_t get_64(CPUState *env, syscall_ctx_t*, uint32_t argnum);
+int64_t get_s64(CPUState *env, syscall_ctx_t*, uint32_t argnum);
+uint32_t get_return_32(CPUState *env, syscall_ctx_t*, uint32_t argnum);
+int32_t get_return_s32(CPUState *env, syscall_ctx_t*, uint32_t argnum);
+uint64_t get_return_64(CPUState *env, syscall_ctx_t*, uint32_t argnum);
+int64_t get_return_s64(CPUState *env, syscall_ctx_t*, uint32_t argnum);
+void sysinfo_load_profile(int profile, syscall_info_t **syscall_info, syscall_meta_t **syscall_meta);
+typedef void (*on_NtAcceptConnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ConnectionRequest, uint32_t AcceptConnection, uint32_t ServerView, uint32_t ClientView); typedef void (*on_NtAcceptConnectPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ConnectionRequest, uint32_t AcceptConnection, uint32_t ServerView, uint32_t ClientView);;
+typedef void (*on_NtAcceptConnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ConnectionRequest, uint32_t AcceptConnection, uint32_t ServerView, uint32_t ClientView); typedef void (*on_NtAcceptConnectPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ConnectionRequest, uint32_t AcceptConnection, uint32_t ServerView, uint32_t ClientView);;
+typedef void (*on_NtAccessCheck_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus); typedef void (*on_NtAccessCheck_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus);;
+typedef void (*on_NtAccessCheck_return_t)(CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus); typedef void (*on_NtAccessCheck_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus);;
+typedef void (*on_NtAccessCheckAndAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t DesiredAccess, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose); typedef void (*on_NtAccessCheckAndAuditAlarm_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t DesiredAccess, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);;
+typedef void (*on_NtAccessCheckAndAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t DesiredAccess, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose); typedef void (*on_NtAccessCheckAndAuditAlarm_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t DesiredAccess, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);;
+typedef void (*on_NtAccessCheckByType_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus); typedef void (*on_NtAccessCheckByType_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus);;
+typedef void (*on_NtAccessCheckByType_return_t)(CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus); typedef void (*on_NtAccessCheckByType_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus);;
+typedef void (*on_NtAccessCheckByTypeAndAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose); typedef void (*on_NtAccessCheckByTypeAndAuditAlarm_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);;
+typedef void (*on_NtAccessCheckByTypeAndAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose); typedef void (*on_NtAccessCheckByTypeAndAuditAlarm_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);;
+typedef void (*on_NtAccessCheckByTypeResultList_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus); typedef void (*on_NtAccessCheckByTypeResultList_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus);;
+typedef void (*on_NtAccessCheckByTypeResultList_return_t)(CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus); typedef void (*on_NtAccessCheckByTypeResultList_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus);;
+typedef void (*on_NtAccessCheckByTypeResultListAndAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose); typedef void (*on_NtAccessCheckByTypeResultListAndAuditAlarm_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);;
+typedef void (*on_NtAccessCheckByTypeResultListAndAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose); typedef void (*on_NtAccessCheckByTypeResultListAndAuditAlarm_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);;
+typedef void (*on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ClientToken, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose); typedef void (*on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ClientToken, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);;
+typedef void (*on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ClientToken, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose); typedef void (*on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ClientToken, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);;
+typedef void (*on_NtAddAtom_enter_t)(CPUState* cpu, target_ulong pc, uint32_t AtomName, uint32_t Length, uint32_t Atom); typedef void (*on_NtAddAtom_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t AtomName, uint32_t Length, uint32_t Atom);;
+typedef void (*on_NtAddAtom_return_t)(CPUState* cpu, target_ulong pc, uint32_t AtomName, uint32_t Length, uint32_t Atom); typedef void (*on_NtAddAtom_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t AtomName, uint32_t Length, uint32_t Atom);;
+typedef void (*on_NtAddBootEntry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t BootEntry, uint32_t Id); typedef void (*on_NtAddBootEntry_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t BootEntry, uint32_t Id);;
+typedef void (*on_NtAddBootEntry_return_t)(CPUState* cpu, target_ulong pc, uint32_t BootEntry, uint32_t Id); typedef void (*on_NtAddBootEntry_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t BootEntry, uint32_t Id);;
+typedef void (*on_NtAddDriverEntry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DriverEntry, uint32_t Id); typedef void (*on_NtAddDriverEntry_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DriverEntry, uint32_t Id);;
+typedef void (*on_NtAddDriverEntry_return_t)(CPUState* cpu, target_ulong pc, uint32_t DriverEntry, uint32_t Id); typedef void (*on_NtAddDriverEntry_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DriverEntry, uint32_t Id);;
+typedef void (*on_NtAdjustGroupsToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t ResetToDefault, uint32_t NewState, uint32_t BufferLength, uint32_t PreviousState, uint32_t ReturnLength); typedef void (*on_NtAdjustGroupsToken_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t ResetToDefault, uint32_t NewState, uint32_t BufferLength, uint32_t PreviousState, uint32_t ReturnLength);;
+typedef void (*on_NtAdjustGroupsToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t ResetToDefault, uint32_t NewState, uint32_t BufferLength, uint32_t PreviousState, uint32_t ReturnLength); typedef void (*on_NtAdjustGroupsToken_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t ResetToDefault, uint32_t NewState, uint32_t BufferLength, uint32_t PreviousState, uint32_t ReturnLength);;
+typedef void (*on_NtAdjustPrivilegesToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t DisableAllPrivileges, uint32_t NewState, uint32_t BufferLength, uint32_t PreviousState, uint32_t ReturnLength); typedef void (*on_NtAdjustPrivilegesToken_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t DisableAllPrivileges, uint32_t NewState, uint32_t BufferLength, uint32_t PreviousState, uint32_t ReturnLength);;
+typedef void (*on_NtAdjustPrivilegesToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t DisableAllPrivileges, uint32_t NewState, uint32_t BufferLength, uint32_t PreviousState, uint32_t ReturnLength); typedef void (*on_NtAdjustPrivilegesToken_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t DisableAllPrivileges, uint32_t NewState, uint32_t BufferLength, uint32_t PreviousState, uint32_t ReturnLength);;
+typedef void (*on_NtAlertResumeThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount); typedef void (*on_NtAlertResumeThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount);;
+typedef void (*on_NtAlertResumeThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount); typedef void (*on_NtAlertResumeThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount);;
+typedef void (*on_NtAlertThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle); typedef void (*on_NtAlertThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle);;
+typedef void (*on_NtAlertThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle); typedef void (*on_NtAlertThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle);;
+typedef void (*on_NtAllocateLocallyUniqueId_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Luid); typedef void (*on_NtAllocateLocallyUniqueId_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Luid);;
+typedef void (*on_NtAllocateLocallyUniqueId_return_t)(CPUState* cpu, target_ulong pc, uint32_t Luid); typedef void (*on_NtAllocateLocallyUniqueId_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Luid);;
+typedef void (*on_NtAllocateReserveObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MemoryReserveHandle, uint32_t ObjectAttributes, uint32_t Type); typedef void (*on_NtAllocateReserveObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MemoryReserveHandle, uint32_t ObjectAttributes, uint32_t Type);;
+typedef void (*on_NtAllocateReserveObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t MemoryReserveHandle, uint32_t ObjectAttributes, uint32_t Type); typedef void (*on_NtAllocateReserveObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MemoryReserveHandle, uint32_t ObjectAttributes, uint32_t Type);;
+typedef void (*on_NtAllocateUserPhysicalPages_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t NumberOfPages, uint32_t UserPfnArray); typedef void (*on_NtAllocateUserPhysicalPages_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t NumberOfPages, uint32_t UserPfnArray);;
+typedef void (*on_NtAllocateUserPhysicalPages_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t NumberOfPages, uint32_t UserPfnArray); typedef void (*on_NtAllocateUserPhysicalPages_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t NumberOfPages, uint32_t UserPfnArray);;
+typedef void (*on_NtAllocateUuids_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Time, uint32_t Range, uint32_t Sequence, uint32_t Seed); typedef void (*on_NtAllocateUuids_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Time, uint32_t Range, uint32_t Sequence, uint32_t Seed);;
+typedef void (*on_NtAllocateUuids_return_t)(CPUState* cpu, target_ulong pc, uint32_t Time, uint32_t Range, uint32_t Sequence, uint32_t Seed); typedef void (*on_NtAllocateUuids_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Time, uint32_t Range, uint32_t Sequence, uint32_t Seed);;
+typedef void (*on_NtAllocateVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t ZeroBits, uint32_t RegionSize, uint32_t AllocationType, uint32_t Protect); typedef void (*on_NtAllocateVirtualMemory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t ZeroBits, uint32_t RegionSize, uint32_t AllocationType, uint32_t Protect);;
+typedef void (*on_NtAllocateVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t ZeroBits, uint32_t RegionSize, uint32_t AllocationType, uint32_t Protect); typedef void (*on_NtAllocateVirtualMemory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t ZeroBits, uint32_t RegionSize, uint32_t AllocationType, uint32_t Protect);;
+typedef void (*on_NtAlpcAcceptConnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ConnectionPortHandle, uint32_t Flags, uint32_t ObjectAttributes, uint32_t PortAttributes, uint32_t PortContext, uint32_t ConnectionRequest, uint32_t ConnectionMessageAttributes, uint32_t AcceptConnection); typedef void (*on_NtAlpcAcceptConnectPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ConnectionPortHandle, uint32_t Flags, uint32_t ObjectAttributes, uint32_t PortAttributes, uint32_t PortContext, uint32_t ConnectionRequest, uint32_t ConnectionMessageAttributes, uint32_t AcceptConnection);;
+typedef void (*on_NtAlpcAcceptConnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ConnectionPortHandle, uint32_t Flags, uint32_t ObjectAttributes, uint32_t PortAttributes, uint32_t PortContext, uint32_t ConnectionRequest, uint32_t ConnectionMessageAttributes, uint32_t AcceptConnection); typedef void (*on_NtAlpcAcceptConnectPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ConnectionPortHandle, uint32_t Flags, uint32_t ObjectAttributes, uint32_t PortAttributes, uint32_t PortContext, uint32_t ConnectionRequest, uint32_t ConnectionMessageAttributes, uint32_t AcceptConnection);;
+typedef void (*on_NtAlpcCancelMessage_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t MessageContext); typedef void (*on_NtAlpcCancelMessage_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t MessageContext);;
+typedef void (*on_NtAlpcCancelMessage_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t MessageContext); typedef void (*on_NtAlpcCancelMessage_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t MessageContext);;
+typedef void (*on_NtAlpcConnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t ObjectAttributes, uint32_t PortAttributes, uint32_t Flags, uint32_t RequiredServerSid, uint32_t ConnectionMessage, uint32_t BufferLength, uint32_t OutMessageAttributes, uint32_t InMessageAttributes, uint32_t Timeout); typedef void (*on_NtAlpcConnectPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t ObjectAttributes, uint32_t PortAttributes, uint32_t Flags, uint32_t RequiredServerSid, uint32_t ConnectionMessage, uint32_t BufferLength, uint32_t OutMessageAttributes, uint32_t InMessageAttributes, uint32_t Timeout);;
+typedef void (*on_NtAlpcConnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t ObjectAttributes, uint32_t PortAttributes, uint32_t Flags, uint32_t RequiredServerSid, uint32_t ConnectionMessage, uint32_t BufferLength, uint32_t OutMessageAttributes, uint32_t InMessageAttributes, uint32_t Timeout); typedef void (*on_NtAlpcConnectPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t ObjectAttributes, uint32_t PortAttributes, uint32_t Flags, uint32_t RequiredServerSid, uint32_t ConnectionMessage, uint32_t BufferLength, uint32_t OutMessageAttributes, uint32_t InMessageAttributes, uint32_t Timeout);;
+typedef void (*on_NtAlpcCreatePort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t PortAttributes); typedef void (*on_NtAlpcCreatePort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t PortAttributes);;
+typedef void (*on_NtAlpcCreatePort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t PortAttributes); typedef void (*on_NtAlpcCreatePort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t PortAttributes);;
+typedef void (*on_NtAlpcCreatePortSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SectionHandle, uint32_t SectionSize, uint32_t AlpcSectionHandle, uint32_t ActualSectionSize); typedef void (*on_NtAlpcCreatePortSection_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SectionHandle, uint32_t SectionSize, uint32_t AlpcSectionHandle, uint32_t ActualSectionSize);;
+typedef void (*on_NtAlpcCreatePortSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SectionHandle, uint32_t SectionSize, uint32_t AlpcSectionHandle, uint32_t ActualSectionSize); typedef void (*on_NtAlpcCreatePortSection_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SectionHandle, uint32_t SectionSize, uint32_t AlpcSectionHandle, uint32_t ActualSectionSize);;
+typedef void (*on_NtAlpcCreateResourceReserve_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t MessageSize, uint32_t ResourceId); typedef void (*on_NtAlpcCreateResourceReserve_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t MessageSize, uint32_t ResourceId);;
+typedef void (*on_NtAlpcCreateResourceReserve_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t MessageSize, uint32_t ResourceId); typedef void (*on_NtAlpcCreateResourceReserve_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t MessageSize, uint32_t ResourceId);;
+typedef void (*on_NtAlpcCreateSectionView_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ViewAttributes); typedef void (*on_NtAlpcCreateSectionView_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ViewAttributes);;
+typedef void (*on_NtAlpcCreateSectionView_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ViewAttributes); typedef void (*on_NtAlpcCreateSectionView_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ViewAttributes);;
+typedef void (*on_NtAlpcCreateSecurityContext_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SecurityAttribute); typedef void (*on_NtAlpcCreateSecurityContext_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SecurityAttribute);;
+typedef void (*on_NtAlpcCreateSecurityContext_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SecurityAttribute); typedef void (*on_NtAlpcCreateSecurityContext_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SecurityAttribute);;
+typedef void (*on_NtAlpcDeletePortSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SectionHandle); typedef void (*on_NtAlpcDeletePortSection_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SectionHandle);;
+typedef void (*on_NtAlpcDeletePortSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SectionHandle); typedef void (*on_NtAlpcDeletePortSection_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SectionHandle);;
+typedef void (*on_NtAlpcDeleteResourceReserve_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ResourceId); typedef void (*on_NtAlpcDeleteResourceReserve_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ResourceId);;
+typedef void (*on_NtAlpcDeleteResourceReserve_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ResourceId); typedef void (*on_NtAlpcDeleteResourceReserve_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ResourceId);;
+typedef void (*on_NtAlpcDeleteSectionView_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ViewBase); typedef void (*on_NtAlpcDeleteSectionView_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ViewBase);;
+typedef void (*on_NtAlpcDeleteSectionView_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ViewBase); typedef void (*on_NtAlpcDeleteSectionView_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ViewBase);;
+typedef void (*on_NtAlpcDeleteSecurityContext_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ContextHandle); typedef void (*on_NtAlpcDeleteSecurityContext_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ContextHandle);;
+typedef void (*on_NtAlpcDeleteSecurityContext_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ContextHandle); typedef void (*on_NtAlpcDeleteSecurityContext_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ContextHandle);;
+typedef void (*on_NtAlpcDisconnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags); typedef void (*on_NtAlpcDisconnectPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags);;
+typedef void (*on_NtAlpcDisconnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags); typedef void (*on_NtAlpcDisconnectPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags);;
+typedef void (*on_NtAlpcImpersonateClientOfPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortMessage, uint32_t Reserved); typedef void (*on_NtAlpcImpersonateClientOfPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortMessage, uint32_t Reserved);;
+typedef void (*on_NtAlpcImpersonateClientOfPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortMessage, uint32_t Reserved); typedef void (*on_NtAlpcImpersonateClientOfPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortMessage, uint32_t Reserved);;
+typedef void (*on_NtAlpcOpenSenderProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t PortHandle, uint32_t PortMessage, uint32_t Flags, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtAlpcOpenSenderProcess_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t PortHandle, uint32_t PortMessage, uint32_t Flags, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtAlpcOpenSenderProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t PortHandle, uint32_t PortMessage, uint32_t Flags, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtAlpcOpenSenderProcess_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t PortHandle, uint32_t PortMessage, uint32_t Flags, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtAlpcOpenSenderThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PortHandle, uint32_t PortMessage, uint32_t Flags, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtAlpcOpenSenderThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PortHandle, uint32_t PortMessage, uint32_t Flags, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtAlpcOpenSenderThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PortHandle, uint32_t PortMessage, uint32_t Flags, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtAlpcOpenSenderThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PortHandle, uint32_t PortMessage, uint32_t Flags, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtAlpcQueryInformation_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length, uint32_t ReturnLength); typedef void (*on_NtAlpcQueryInformation_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length, uint32_t ReturnLength);;
+typedef void (*on_NtAlpcQueryInformation_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length, uint32_t ReturnLength); typedef void (*on_NtAlpcQueryInformation_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length, uint32_t ReturnLength);;
+typedef void (*on_NtAlpcQueryInformationMessage_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortMessage, uint32_t MessageInformationClass, uint32_t MessageInformation, uint32_t Length, uint32_t ReturnLength); typedef void (*on_NtAlpcQueryInformationMessage_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortMessage, uint32_t MessageInformationClass, uint32_t MessageInformation, uint32_t Length, uint32_t ReturnLength);;
+typedef void (*on_NtAlpcQueryInformationMessage_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortMessage, uint32_t MessageInformationClass, uint32_t MessageInformation, uint32_t Length, uint32_t ReturnLength); typedef void (*on_NtAlpcQueryInformationMessage_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortMessage, uint32_t MessageInformationClass, uint32_t MessageInformation, uint32_t Length, uint32_t ReturnLength);;
+typedef void (*on_NtAlpcRevokeSecurityContext_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ContextHandle); typedef void (*on_NtAlpcRevokeSecurityContext_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ContextHandle);;
+typedef void (*on_NtAlpcRevokeSecurityContext_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ContextHandle); typedef void (*on_NtAlpcRevokeSecurityContext_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ContextHandle);;
+typedef void (*on_NtAlpcSendWaitReceivePort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SendMessage, uint32_t SendMessageAttributes, uint32_t ReceiveMessage, uint32_t BufferLength, uint32_t ReceiveMessageAttributes, uint32_t Timeout); typedef void (*on_NtAlpcSendWaitReceivePort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SendMessage, uint32_t SendMessageAttributes, uint32_t ReceiveMessage, uint32_t BufferLength, uint32_t ReceiveMessageAttributes, uint32_t Timeout);;
+typedef void (*on_NtAlpcSendWaitReceivePort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SendMessage, uint32_t SendMessageAttributes, uint32_t ReceiveMessage, uint32_t BufferLength, uint32_t ReceiveMessageAttributes, uint32_t Timeout); typedef void (*on_NtAlpcSendWaitReceivePort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SendMessage, uint32_t SendMessageAttributes, uint32_t ReceiveMessage, uint32_t BufferLength, uint32_t ReceiveMessageAttributes, uint32_t Timeout);;
+typedef void (*on_NtAlpcSetInformation_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length); typedef void (*on_NtAlpcSetInformation_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length);;
+typedef void (*on_NtAlpcSetInformation_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length); typedef void (*on_NtAlpcSetInformation_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length);;
+typedef void (*on_NtApphelpCacheControl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t type, uint32_t buf); typedef void (*on_NtApphelpCacheControl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t type, uint32_t buf);;
+typedef void (*on_NtApphelpCacheControl_return_t)(CPUState* cpu, target_ulong pc, uint32_t type, uint32_t buf); typedef void (*on_NtApphelpCacheControl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t type, uint32_t buf);;
+typedef void (*on_NtAreMappedFilesTheSame_enter_t)(CPUState* cpu, target_ulong pc, uint32_t File1MappedAsAnImage, uint32_t File2MappedAsFile); typedef void (*on_NtAreMappedFilesTheSame_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t File1MappedAsAnImage, uint32_t File2MappedAsFile);;
+typedef void (*on_NtAreMappedFilesTheSame_return_t)(CPUState* cpu, target_ulong pc, uint32_t File1MappedAsAnImage, uint32_t File2MappedAsFile); typedef void (*on_NtAreMappedFilesTheSame_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t File1MappedAsAnImage, uint32_t File2MappedAsFile);;
+typedef void (*on_NtAssignProcessToJobObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t ProcessHandle); typedef void (*on_NtAssignProcessToJobObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t ProcessHandle);;
+typedef void (*on_NtAssignProcessToJobObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t ProcessHandle); typedef void (*on_NtAssignProcessToJobObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t ProcessHandle);;
+typedef void (*on_NtCallbackReturn_enter_t)(CPUState* cpu, target_ulong pc, uint32_t OutputBuffer, uint32_t OutputLength, uint32_t Status); typedef void (*on_NtCallbackReturn_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t OutputBuffer, uint32_t OutputLength, uint32_t Status);;
+typedef void (*on_NtCallbackReturn_return_t)(CPUState* cpu, target_ulong pc, uint32_t OutputBuffer, uint32_t OutputLength, uint32_t Status); typedef void (*on_NtCallbackReturn_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t OutputBuffer, uint32_t OutputLength, uint32_t Status);;
+typedef void (*on_NtCancelIoFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock); typedef void (*on_NtCancelIoFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock);;
+typedef void (*on_NtCancelIoFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock); typedef void (*on_NtCancelIoFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock);;
+typedef void (*on_NtCancelIoFileEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoRequestToCancel, uint32_t IoStatusBlock); typedef void (*on_NtCancelIoFileEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoRequestToCancel, uint32_t IoStatusBlock);;
+typedef void (*on_NtCancelIoFileEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoRequestToCancel, uint32_t IoStatusBlock); typedef void (*on_NtCancelIoFileEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoRequestToCancel, uint32_t IoStatusBlock);;
+typedef void (*on_NtCancelSynchronousIoFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t IoRequestToCancel, uint32_t IoStatusBlock); typedef void (*on_NtCancelSynchronousIoFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t IoRequestToCancel, uint32_t IoStatusBlock);;
+typedef void (*on_NtCancelSynchronousIoFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t IoRequestToCancel, uint32_t IoStatusBlock); typedef void (*on_NtCancelSynchronousIoFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t IoRequestToCancel, uint32_t IoStatusBlock);;
+typedef void (*on_NtCancelTimer_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t CurrentState); typedef void (*on_NtCancelTimer_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t CurrentState);;
+typedef void (*on_NtCancelTimer_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t CurrentState); typedef void (*on_NtCancelTimer_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t CurrentState);;
+typedef void (*on_NtClearEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle); typedef void (*on_NtClearEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle);;
+typedef void (*on_NtClearEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle); typedef void (*on_NtClearEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle);;
+typedef void (*on_NtClose_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle); typedef void (*on_NtClose_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle);;
+typedef void (*on_NtClose_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle); typedef void (*on_NtClose_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle);;
+typedef void (*on_NtCloseObjectAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t GenerateOnClose); typedef void (*on_NtCloseObjectAuditAlarm_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t GenerateOnClose);;
+typedef void (*on_NtCloseObjectAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t GenerateOnClose); typedef void (*on_NtCloseObjectAuditAlarm_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t GenerateOnClose);;
+typedef void (*on_NtCommitComplete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtCommitComplete_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtCommitComplete_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtCommitComplete_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtCommitEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtCommitEnlistment_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtCommitEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtCommitEnlistment_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtCommitTransaction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t Wait); typedef void (*on_NtCommitTransaction_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t Wait);;
+typedef void (*on_NtCommitTransaction_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t Wait); typedef void (*on_NtCommitTransaction_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t Wait);;
+typedef void (*on_NtCompactKeys_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t KeyArray); typedef void (*on_NtCompactKeys_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t KeyArray);;
+typedef void (*on_NtCompactKeys_return_t)(CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t KeyArray); typedef void (*on_NtCompactKeys_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t KeyArray);;
+typedef void (*on_NtCompareTokens_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FirstTokenHandle, uint32_t SecondTokenHandle, uint32_t Equal); typedef void (*on_NtCompareTokens_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FirstTokenHandle, uint32_t SecondTokenHandle, uint32_t Equal);;
+typedef void (*on_NtCompareTokens_return_t)(CPUState* cpu, target_ulong pc, uint32_t FirstTokenHandle, uint32_t SecondTokenHandle, uint32_t Equal); typedef void (*on_NtCompareTokens_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FirstTokenHandle, uint32_t SecondTokenHandle, uint32_t Equal);;
+typedef void (*on_NtCompleteConnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle); typedef void (*on_NtCompleteConnectPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle);;
+typedef void (*on_NtCompleteConnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle); typedef void (*on_NtCompleteConnectPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle);;
+typedef void (*on_NtCompressKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Key); typedef void (*on_NtCompressKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Key);;
+typedef void (*on_NtCompressKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t Key); typedef void (*on_NtCompressKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Key);;
+typedef void (*on_NtConnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t SecurityQos, uint32_t ClientView, uint32_t ServerView, uint32_t MaxMessageLength, uint32_t ConnectionInformation, uint32_t ConnectionInformationLength); typedef void (*on_NtConnectPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t SecurityQos, uint32_t ClientView, uint32_t ServerView, uint32_t MaxMessageLength, uint32_t ConnectionInformation, uint32_t ConnectionInformationLength);;
+typedef void (*on_NtConnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t SecurityQos, uint32_t ClientView, uint32_t ServerView, uint32_t MaxMessageLength, uint32_t ConnectionInformation, uint32_t ConnectionInformationLength); typedef void (*on_NtConnectPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t SecurityQos, uint32_t ClientView, uint32_t ServerView, uint32_t MaxMessageLength, uint32_t ConnectionInformation, uint32_t ConnectionInformationLength);;
+typedef void (*on_NtContinue_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ContextRecord, uint32_t TestAlert); typedef void (*on_NtContinue_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ContextRecord, uint32_t TestAlert);;
+typedef void (*on_NtContinue_return_t)(CPUState* cpu, target_ulong pc, uint32_t ContextRecord, uint32_t TestAlert); typedef void (*on_NtContinue_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ContextRecord, uint32_t TestAlert);;
+typedef void (*on_NtCreateDebugObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Flags); typedef void (*on_NtCreateDebugObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Flags);;
+typedef void (*on_NtCreateDebugObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Flags); typedef void (*on_NtCreateDebugObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Flags);;
+typedef void (*on_NtCreateDirectoryObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtCreateDirectoryObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtCreateDirectoryObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtCreateDirectoryObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtCreateEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t DesiredAccess, uint32_t ResourceManagerHandle, uint32_t TransactionHandle, uint32_t ObjectAttributes, uint32_t CreateOptions, uint32_t NotificationMask, uint32_t EnlistmentKey); typedef void (*on_NtCreateEnlistment_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t DesiredAccess, uint32_t ResourceManagerHandle, uint32_t TransactionHandle, uint32_t ObjectAttributes, uint32_t CreateOptions, uint32_t NotificationMask, uint32_t EnlistmentKey);;
+typedef void (*on_NtCreateEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t DesiredAccess, uint32_t ResourceManagerHandle, uint32_t TransactionHandle, uint32_t ObjectAttributes, uint32_t CreateOptions, uint32_t NotificationMask, uint32_t EnlistmentKey); typedef void (*on_NtCreateEnlistment_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t DesiredAccess, uint32_t ResourceManagerHandle, uint32_t TransactionHandle, uint32_t ObjectAttributes, uint32_t CreateOptions, uint32_t NotificationMask, uint32_t EnlistmentKey);;
+typedef void (*on_NtCreateEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t EventType, uint32_t InitialState); typedef void (*on_NtCreateEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t EventType, uint32_t InitialState);;
+typedef void (*on_NtCreateEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t EventType, uint32_t InitialState); typedef void (*on_NtCreateEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t EventType, uint32_t InitialState);;
+typedef void (*on_NtCreateEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtCreateEventPair_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtCreateEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtCreateEventPair_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtCreateFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t AllocationSize, uint32_t FileAttributes, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, uint32_t EaBuffer, uint32_t EaLength); typedef void (*on_NtCreateFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t AllocationSize, uint32_t FileAttributes, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, uint32_t EaBuffer, uint32_t EaLength);;
+typedef void (*on_NtCreateFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t AllocationSize, uint32_t FileAttributes, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, uint32_t EaBuffer, uint32_t EaLength); typedef void (*on_NtCreateFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t AllocationSize, uint32_t FileAttributes, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, uint32_t EaBuffer, uint32_t EaLength);;
+typedef void (*on_NtCreateIoCompletion_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Count); typedef void (*on_NtCreateIoCompletion_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Count);;
+typedef void (*on_NtCreateIoCompletion_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Count); typedef void (*on_NtCreateIoCompletion_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Count);;
+typedef void (*on_NtCreateJobObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtCreateJobObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtCreateJobObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtCreateJobObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtCreateJobSet_enter_t)(CPUState* cpu, target_ulong pc, uint32_t NumJob, uint32_t UserJobSet, uint32_t Flags); typedef void (*on_NtCreateJobSet_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t NumJob, uint32_t UserJobSet, uint32_t Flags);;
+typedef void (*on_NtCreateJobSet_return_t)(CPUState* cpu, target_ulong pc, uint32_t NumJob, uint32_t UserJobSet, uint32_t Flags); typedef void (*on_NtCreateJobSet_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t NumJob, uint32_t UserJobSet, uint32_t Flags);;
+typedef void (*on_NtCreateKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TitleIndex, uint32_t Class, uint32_t CreateOptions, uint32_t Disposition); typedef void (*on_NtCreateKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TitleIndex, uint32_t Class, uint32_t CreateOptions, uint32_t Disposition);;
+typedef void (*on_NtCreateKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TitleIndex, uint32_t Class, uint32_t CreateOptions, uint32_t Disposition); typedef void (*on_NtCreateKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TitleIndex, uint32_t Class, uint32_t CreateOptions, uint32_t Disposition);;
+typedef void (*on_NtCreateKeyedEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Flags); typedef void (*on_NtCreateKeyedEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Flags);;
+typedef void (*on_NtCreateKeyedEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Flags); typedef void (*on_NtCreateKeyedEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Flags);;
+typedef void (*on_NtCreateKeyTransacted_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TitleIndex, uint32_t Class, uint32_t CreateOptions, uint32_t TransactionHandle, uint32_t Disposition); typedef void (*on_NtCreateKeyTransacted_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TitleIndex, uint32_t Class, uint32_t CreateOptions, uint32_t TransactionHandle, uint32_t Disposition);;
+typedef void (*on_NtCreateKeyTransacted_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TitleIndex, uint32_t Class, uint32_t CreateOptions, uint32_t TransactionHandle, uint32_t Disposition); typedef void (*on_NtCreateKeyTransacted_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TitleIndex, uint32_t Class, uint32_t CreateOptions, uint32_t TransactionHandle, uint32_t Disposition);;
+typedef void (*on_NtCreateMailslotFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t CreateOptions, uint32_t MailslotQuota, uint32_t MaximumMessageSize, uint32_t ReadTimeout); typedef void (*on_NtCreateMailslotFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t CreateOptions, uint32_t MailslotQuota, uint32_t MaximumMessageSize, uint32_t ReadTimeout);;
+typedef void (*on_NtCreateMailslotFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t CreateOptions, uint32_t MailslotQuota, uint32_t MaximumMessageSize, uint32_t ReadTimeout); typedef void (*on_NtCreateMailslotFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t CreateOptions, uint32_t MailslotQuota, uint32_t MaximumMessageSize, uint32_t ReadTimeout);;
+typedef void (*on_NtCreateMutant_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t InitialOwner); typedef void (*on_NtCreateMutant_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t InitialOwner);;
+typedef void (*on_NtCreateMutant_return_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t InitialOwner); typedef void (*on_NtCreateMutant_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t InitialOwner);;
+typedef void (*on_NtCreateNamedPipeFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, uint32_t NamedPipeType, uint32_t ReadMode, uint32_t CompletionMode, uint32_t MaximumInstances, uint32_t InboundQuota, uint32_t OutboundQuota, uint32_t DefaultTimeout); typedef void (*on_NtCreateNamedPipeFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, uint32_t NamedPipeType, uint32_t ReadMode, uint32_t CompletionMode, uint32_t MaximumInstances, uint32_t InboundQuota, uint32_t OutboundQuota, uint32_t DefaultTimeout);;
+typedef void (*on_NtCreateNamedPipeFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, uint32_t NamedPipeType, uint32_t ReadMode, uint32_t CompletionMode, uint32_t MaximumInstances, uint32_t InboundQuota, uint32_t OutboundQuota, uint32_t DefaultTimeout); typedef void (*on_NtCreateNamedPipeFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, uint32_t NamedPipeType, uint32_t ReadMode, uint32_t CompletionMode, uint32_t MaximumInstances, uint32_t InboundQuota, uint32_t OutboundQuota, uint32_t DefaultTimeout);;
+typedef void (*on_NtCreatePagingFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PageFileName, uint32_t MinimumSize, uint32_t MaximumSize, uint32_t Priority); typedef void (*on_NtCreatePagingFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PageFileName, uint32_t MinimumSize, uint32_t MaximumSize, uint32_t Priority);;
+typedef void (*on_NtCreatePagingFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t PageFileName, uint32_t MinimumSize, uint32_t MaximumSize, uint32_t Priority); typedef void (*on_NtCreatePagingFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PageFileName, uint32_t MinimumSize, uint32_t MaximumSize, uint32_t Priority);;
+typedef void (*on_NtCreatePort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t MaxConnectionInfoLength, uint32_t MaxMessageLength, uint32_t MaxPoolUsage); typedef void (*on_NtCreatePort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t MaxConnectionInfoLength, uint32_t MaxMessageLength, uint32_t MaxPoolUsage);;
+typedef void (*on_NtCreatePort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t MaxConnectionInfoLength, uint32_t MaxMessageLength, uint32_t MaxPoolUsage); typedef void (*on_NtCreatePort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t MaxConnectionInfoLength, uint32_t MaxMessageLength, uint32_t MaxPoolUsage);;
+typedef void (*on_NtCreatePrivateNamespace_enter_t)(CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t BoundaryDescriptor); typedef void (*on_NtCreatePrivateNamespace_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t BoundaryDescriptor);;
+typedef void (*on_NtCreatePrivateNamespace_return_t)(CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t BoundaryDescriptor); typedef void (*on_NtCreatePrivateNamespace_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t BoundaryDescriptor);;
+typedef void (*on_NtCreateProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ParentProcess, uint32_t InheritObjectTable, uint32_t SectionHandle, uint32_t DebugPort, uint32_t ExceptionPort); typedef void (*on_NtCreateProcess_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ParentProcess, uint32_t InheritObjectTable, uint32_t SectionHandle, uint32_t DebugPort, uint32_t ExceptionPort);;
+typedef void (*on_NtCreateProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ParentProcess, uint32_t InheritObjectTable, uint32_t SectionHandle, uint32_t DebugPort, uint32_t ExceptionPort); typedef void (*on_NtCreateProcess_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ParentProcess, uint32_t InheritObjectTable, uint32_t SectionHandle, uint32_t DebugPort, uint32_t ExceptionPort);;
+typedef void (*on_NtCreateProcessEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ParentProcess, uint32_t Flags, uint32_t SectionHandle, uint32_t DebugPort, uint32_t ExceptionPort, uint32_t JobMemberLevel); typedef void (*on_NtCreateProcessEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ParentProcess, uint32_t Flags, uint32_t SectionHandle, uint32_t DebugPort, uint32_t ExceptionPort, uint32_t JobMemberLevel);;
+typedef void (*on_NtCreateProcessEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ParentProcess, uint32_t Flags, uint32_t SectionHandle, uint32_t DebugPort, uint32_t ExceptionPort, uint32_t JobMemberLevel); typedef void (*on_NtCreateProcessEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ParentProcess, uint32_t Flags, uint32_t SectionHandle, uint32_t DebugPort, uint32_t ExceptionPort, uint32_t JobMemberLevel);;
+typedef void (*on_NtCreateProfile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle, uint32_t Process, uint32_t RangeBase, uint32_t RangeSize, uint32_t BucketSize, uint32_t Buffer, uint32_t BufferSize, uint32_t ProfileSource, uint32_t Affinity); typedef void (*on_NtCreateProfile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProfileHandle, uint32_t Process, uint32_t RangeBase, uint32_t RangeSize, uint32_t BucketSize, uint32_t Buffer, uint32_t BufferSize, uint32_t ProfileSource, uint32_t Affinity);;
+typedef void (*on_NtCreateProfile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle, uint32_t Process, uint32_t RangeBase, uint32_t RangeSize, uint32_t BucketSize, uint32_t Buffer, uint32_t BufferSize, uint32_t ProfileSource, uint32_t Affinity); typedef void (*on_NtCreateProfile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProfileHandle, uint32_t Process, uint32_t RangeBase, uint32_t RangeSize, uint32_t BucketSize, uint32_t Buffer, uint32_t BufferSize, uint32_t ProfileSource, uint32_t Affinity);;
+typedef void (*on_NtCreateProfileEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle, uint32_t Process, uint32_t ProfileBase, uint32_t ProfileSize, uint32_t BucketSize, uint32_t Buffer, uint32_t BufferSize, uint32_t ProfileSource, uint32_t GroupAffinityCount, uint32_t GroupAffinity); typedef void (*on_NtCreateProfileEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProfileHandle, uint32_t Process, uint32_t ProfileBase, uint32_t ProfileSize, uint32_t BucketSize, uint32_t Buffer, uint32_t BufferSize, uint32_t ProfileSource, uint32_t GroupAffinityCount, uint32_t GroupAffinity);;
+typedef void (*on_NtCreateProfileEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle, uint32_t Process, uint32_t ProfileBase, uint32_t ProfileSize, uint32_t BucketSize, uint32_t Buffer, uint32_t BufferSize, uint32_t ProfileSource, uint32_t GroupAffinityCount, uint32_t GroupAffinity); typedef void (*on_NtCreateProfileEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProfileHandle, uint32_t Process, uint32_t ProfileBase, uint32_t ProfileSize, uint32_t BucketSize, uint32_t Buffer, uint32_t BufferSize, uint32_t ProfileSource, uint32_t GroupAffinityCount, uint32_t GroupAffinity);;
+typedef void (*on_NtCreateResourceManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t DesiredAccess, uint32_t TmHandle, uint32_t RmGuid, uint32_t ObjectAttributes, uint32_t CreateOptions, uint32_t Description); typedef void (*on_NtCreateResourceManager_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t DesiredAccess, uint32_t TmHandle, uint32_t RmGuid, uint32_t ObjectAttributes, uint32_t CreateOptions, uint32_t Description);;
+typedef void (*on_NtCreateResourceManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t DesiredAccess, uint32_t TmHandle, uint32_t RmGuid, uint32_t ObjectAttributes, uint32_t CreateOptions, uint32_t Description); typedef void (*on_NtCreateResourceManager_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t DesiredAccess, uint32_t TmHandle, uint32_t RmGuid, uint32_t ObjectAttributes, uint32_t CreateOptions, uint32_t Description);;
+typedef void (*on_NtCreateSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t MaximumSize, uint32_t SectionPageProtection, uint32_t AllocationAttributes, uint32_t FileHandle); typedef void (*on_NtCreateSection_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t MaximumSize, uint32_t SectionPageProtection, uint32_t AllocationAttributes, uint32_t FileHandle);;
+typedef void (*on_NtCreateSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t MaximumSize, uint32_t SectionPageProtection, uint32_t AllocationAttributes, uint32_t FileHandle); typedef void (*on_NtCreateSection_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t MaximumSize, uint32_t SectionPageProtection, uint32_t AllocationAttributes, uint32_t FileHandle);;
+typedef void (*on_NtCreateSemaphore_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, int32_t InitialCount, int32_t MaximumCount); typedef void (*on_NtCreateSemaphore_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, int32_t InitialCount, int32_t MaximumCount);;
+typedef void (*on_NtCreateSemaphore_return_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, int32_t InitialCount, int32_t MaximumCount); typedef void (*on_NtCreateSemaphore_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, int32_t InitialCount, int32_t MaximumCount);;
+typedef void (*on_NtCreateSymbolicLinkObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LinkTarget); typedef void (*on_NtCreateSymbolicLinkObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LinkTarget);;
+typedef void (*on_NtCreateSymbolicLinkObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LinkTarget); typedef void (*on_NtCreateSymbolicLinkObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LinkTarget);;
+typedef void (*on_NtCreateThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ProcessHandle, uint32_t ClientId, uint32_t ThreadContext, uint32_t InitialTeb, uint32_t CreateSuspended); typedef void (*on_NtCreateThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ProcessHandle, uint32_t ClientId, uint32_t ThreadContext, uint32_t InitialTeb, uint32_t CreateSuspended);;
+typedef void (*on_NtCreateThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ProcessHandle, uint32_t ClientId, uint32_t ThreadContext, uint32_t InitialTeb, uint32_t CreateSuspended); typedef void (*on_NtCreateThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ProcessHandle, uint32_t ClientId, uint32_t ThreadContext, uint32_t InitialTeb, uint32_t CreateSuspended);;
+typedef void (*on_NtCreateThreadEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ProcessHandle, uint32_t StartRoutine, uint32_t Argument, uint32_t CreateFlags, uint32_t ZeroBits, uint32_t StackSize, uint32_t MaximumStackSize, uint32_t AttributeList); typedef void (*on_NtCreateThreadEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ProcessHandle, uint32_t StartRoutine, uint32_t Argument, uint32_t CreateFlags, uint32_t ZeroBits, uint32_t StackSize, uint32_t MaximumStackSize, uint32_t AttributeList);;
+typedef void (*on_NtCreateThreadEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ProcessHandle, uint32_t StartRoutine, uint32_t Argument, uint32_t CreateFlags, uint32_t ZeroBits, uint32_t StackSize, uint32_t MaximumStackSize, uint32_t AttributeList); typedef void (*on_NtCreateThreadEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ProcessHandle, uint32_t StartRoutine, uint32_t Argument, uint32_t CreateFlags, uint32_t ZeroBits, uint32_t StackSize, uint32_t MaximumStackSize, uint32_t AttributeList);;
+typedef void (*on_NtCreateTimer_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TimerType); typedef void (*on_NtCreateTimer_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TimerType);;
+typedef void (*on_NtCreateTimer_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TimerType); typedef void (*on_NtCreateTimer_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TimerType);;
+typedef void (*on_NtCreateToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TokenType, uint32_t AuthenticationId, uint32_t ExpirationTime, uint32_t User, uint32_t Groups, uint32_t Privileges, uint32_t Owner, uint32_t PrimaryGroup, uint32_t DefaultDacl, uint32_t TokenSource); typedef void (*on_NtCreateToken_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TokenType, uint32_t AuthenticationId, uint32_t ExpirationTime, uint32_t User, uint32_t Groups, uint32_t Privileges, uint32_t Owner, uint32_t PrimaryGroup, uint32_t DefaultDacl, uint32_t TokenSource);;
+typedef void (*on_NtCreateToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TokenType, uint32_t AuthenticationId, uint32_t ExpirationTime, uint32_t User, uint32_t Groups, uint32_t Privileges, uint32_t Owner, uint32_t PrimaryGroup, uint32_t DefaultDacl, uint32_t TokenSource); typedef void (*on_NtCreateToken_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TokenType, uint32_t AuthenticationId, uint32_t ExpirationTime, uint32_t User, uint32_t Groups, uint32_t Privileges, uint32_t Owner, uint32_t PrimaryGroup, uint32_t DefaultDacl, uint32_t TokenSource);;
+typedef void (*on_NtCreateTransaction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Uow, uint32_t TmHandle, uint32_t CreateOptions, uint32_t IsolationLevel, uint32_t IsolationFlags, uint32_t Timeout, uint32_t Description); typedef void (*on_NtCreateTransaction_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Uow, uint32_t TmHandle, uint32_t CreateOptions, uint32_t IsolationLevel, uint32_t IsolationFlags, uint32_t Timeout, uint32_t Description);;
+typedef void (*on_NtCreateTransaction_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Uow, uint32_t TmHandle, uint32_t CreateOptions, uint32_t IsolationLevel, uint32_t IsolationFlags, uint32_t Timeout, uint32_t Description); typedef void (*on_NtCreateTransaction_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Uow, uint32_t TmHandle, uint32_t CreateOptions, uint32_t IsolationLevel, uint32_t IsolationFlags, uint32_t Timeout, uint32_t Description);;
+typedef void (*on_NtCreateTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LogFileName, uint32_t CreateOptions, uint32_t CommitStrength); typedef void (*on_NtCreateTransactionManager_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LogFileName, uint32_t CreateOptions, uint32_t CommitStrength);;
+typedef void (*on_NtCreateTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LogFileName, uint32_t CreateOptions, uint32_t CommitStrength); typedef void (*on_NtCreateTransactionManager_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LogFileName, uint32_t CreateOptions, uint32_t CommitStrength);;
+typedef void (*on_NtCreateUserProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ThreadHandle, uint32_t ProcessDesiredAccess, uint32_t ThreadDesiredAccess, uint32_t ProcessObjectAttributes, uint32_t ThreadObjectAttributes, uint32_t ProcessFlags, uint32_t ThreadFlags, uint32_t ProcessParameters, uint32_t CreateInfo, uint32_t AttributeList); typedef void (*on_NtCreateUserProcess_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ThreadHandle, uint32_t ProcessDesiredAccess, uint32_t ThreadDesiredAccess, uint32_t ProcessObjectAttributes, uint32_t ThreadObjectAttributes, uint32_t ProcessFlags, uint32_t ThreadFlags, uint32_t ProcessParameters, uint32_t CreateInfo, uint32_t AttributeList);;
+typedef void (*on_NtCreateUserProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ThreadHandle, uint32_t ProcessDesiredAccess, uint32_t ThreadDesiredAccess, uint32_t ProcessObjectAttributes, uint32_t ThreadObjectAttributes, uint32_t ProcessFlags, uint32_t ThreadFlags, uint32_t ProcessParameters, uint32_t CreateInfo, uint32_t AttributeList); typedef void (*on_NtCreateUserProcess_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ThreadHandle, uint32_t ProcessDesiredAccess, uint32_t ThreadDesiredAccess, uint32_t ProcessObjectAttributes, uint32_t ThreadObjectAttributes, uint32_t ProcessFlags, uint32_t ThreadFlags, uint32_t ProcessParameters, uint32_t CreateInfo, uint32_t AttributeList);;
+typedef void (*on_NtCreateWaitablePort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t MaxConnectionInfoLength, uint32_t MaxMessageLength, uint32_t MaxPoolUsage); typedef void (*on_NtCreateWaitablePort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t MaxConnectionInfoLength, uint32_t MaxMessageLength, uint32_t MaxPoolUsage);;
+typedef void (*on_NtCreateWaitablePort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t MaxConnectionInfoLength, uint32_t MaxMessageLength, uint32_t MaxPoolUsage); typedef void (*on_NtCreateWaitablePort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t MaxConnectionInfoLength, uint32_t MaxMessageLength, uint32_t MaxPoolUsage);;
+typedef void (*on_NtCreateWorkerFactory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandleReturn, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t CompletionPortHandle, uint32_t WorkerProcessHandle, uint32_t StartRoutine, uint32_t StartParameter, uint32_t MaxThreadCount, uint32_t StackReserve, uint32_t StackCommit); typedef void (*on_NtCreateWorkerFactory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandleReturn, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t CompletionPortHandle, uint32_t WorkerProcessHandle, uint32_t StartRoutine, uint32_t StartParameter, uint32_t MaxThreadCount, uint32_t StackReserve, uint32_t StackCommit);;
+typedef void (*on_NtCreateWorkerFactory_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandleReturn, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t CompletionPortHandle, uint32_t WorkerProcessHandle, uint32_t StartRoutine, uint32_t StartParameter, uint32_t MaxThreadCount, uint32_t StackReserve, uint32_t StackCommit); typedef void (*on_NtCreateWorkerFactory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandleReturn, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t CompletionPortHandle, uint32_t WorkerProcessHandle, uint32_t StartRoutine, uint32_t StartParameter, uint32_t MaxThreadCount, uint32_t StackReserve, uint32_t StackCommit);;
+typedef void (*on_NtDebugActiveProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DebugObjectHandle); typedef void (*on_NtDebugActiveProcess_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DebugObjectHandle);;
+typedef void (*on_NtDebugActiveProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DebugObjectHandle); typedef void (*on_NtDebugActiveProcess_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DebugObjectHandle);;
+typedef void (*on_NtDebugContinue_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t ClientId, uint32_t ContinueStatus); typedef void (*on_NtDebugContinue_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t ClientId, uint32_t ContinueStatus);;
+typedef void (*on_NtDebugContinue_return_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t ClientId, uint32_t ContinueStatus); typedef void (*on_NtDebugContinue_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t ClientId, uint32_t ContinueStatus);;
+typedef void (*on_NtDelayExecution_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Alertable, uint32_t DelayInterval); typedef void (*on_NtDelayExecution_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Alertable, uint32_t DelayInterval);;
+typedef void (*on_NtDelayExecution_return_t)(CPUState* cpu, target_ulong pc, uint32_t Alertable, uint32_t DelayInterval); typedef void (*on_NtDelayExecution_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Alertable, uint32_t DelayInterval);;
+typedef void (*on_NtDeleteAtom_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Atom); typedef void (*on_NtDeleteAtom_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Atom);;
+typedef void (*on_NtDeleteAtom_return_t)(CPUState* cpu, target_ulong pc, uint32_t Atom); typedef void (*on_NtDeleteAtom_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Atom);;
+typedef void (*on_NtDeleteBootEntry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Id); typedef void (*on_NtDeleteBootEntry_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Id);;
+typedef void (*on_NtDeleteBootEntry_return_t)(CPUState* cpu, target_ulong pc, uint32_t Id); typedef void (*on_NtDeleteBootEntry_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Id);;
+typedef void (*on_NtDeleteDriverEntry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Id); typedef void (*on_NtDeleteDriverEntry_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Id);;
+typedef void (*on_NtDeleteDriverEntry_return_t)(CPUState* cpu, target_ulong pc, uint32_t Id); typedef void (*on_NtDeleteDriverEntry_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Id);;
+typedef void (*on_NtDeleteFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes); typedef void (*on_NtDeleteFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes);;
+typedef void (*on_NtDeleteFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes); typedef void (*on_NtDeleteFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes);;
+typedef void (*on_NtDeleteKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle); typedef void (*on_NtDeleteKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle);;
+typedef void (*on_NtDeleteKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle); typedef void (*on_NtDeleteKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle);;
+typedef void (*on_NtDeleteObjectAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t GenerateOnClose); typedef void (*on_NtDeleteObjectAuditAlarm_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t GenerateOnClose);;
+typedef void (*on_NtDeleteObjectAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t GenerateOnClose); typedef void (*on_NtDeleteObjectAuditAlarm_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t GenerateOnClose);;
+typedef void (*on_NtDeletePrivateNamespace_enter_t)(CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle); typedef void (*on_NtDeletePrivateNamespace_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle);;
+typedef void (*on_NtDeletePrivateNamespace_return_t)(CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle); typedef void (*on_NtDeletePrivateNamespace_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle);;
+typedef void (*on_NtDeleteValueKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName); typedef void (*on_NtDeleteValueKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName);;
+typedef void (*on_NtDeleteValueKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName); typedef void (*on_NtDeleteValueKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName);;
+typedef void (*on_NtDeviceIoControlFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t IoControlCode, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength); typedef void (*on_NtDeviceIoControlFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t IoControlCode, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength);;
+typedef void (*on_NtDeviceIoControlFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t IoControlCode, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength); typedef void (*on_NtDeviceIoControlFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t IoControlCode, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength);;
+typedef void (*on_NtDisableLastKnownGood_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtDisableLastKnownGood_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtDisableLastKnownGood_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtDisableLastKnownGood_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtDisplayString_enter_t)(CPUState* cpu, target_ulong pc, uint32_t String); typedef void (*on_NtDisplayString_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t String);;
+typedef void (*on_NtDisplayString_return_t)(CPUState* cpu, target_ulong pc, uint32_t String); typedef void (*on_NtDisplayString_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t String);;
+typedef void (*on_NtDrawText_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Text); typedef void (*on_NtDrawText_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Text);;
+typedef void (*on_NtDrawText_return_t)(CPUState* cpu, target_ulong pc, uint32_t Text); typedef void (*on_NtDrawText_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Text);;
+typedef void (*on_NtDuplicateObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SourceProcessHandle, uint32_t SourceHandle, uint32_t TargetProcessHandle, uint32_t TargetHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Options); typedef void (*on_NtDuplicateObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SourceProcessHandle, uint32_t SourceHandle, uint32_t TargetProcessHandle, uint32_t TargetHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Options);;
+typedef void (*on_NtDuplicateObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t SourceProcessHandle, uint32_t SourceHandle, uint32_t TargetProcessHandle, uint32_t TargetHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Options); typedef void (*on_NtDuplicateObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SourceProcessHandle, uint32_t SourceHandle, uint32_t TargetProcessHandle, uint32_t TargetHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Options);;
+typedef void (*on_NtDuplicateToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ExistingTokenHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t EffectiveOnly, uint32_t TokenType, uint32_t NewTokenHandle); typedef void (*on_NtDuplicateToken_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ExistingTokenHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t EffectiveOnly, uint32_t TokenType, uint32_t NewTokenHandle);;
+typedef void (*on_NtDuplicateToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t ExistingTokenHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t EffectiveOnly, uint32_t TokenType, uint32_t NewTokenHandle); typedef void (*on_NtDuplicateToken_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ExistingTokenHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t EffectiveOnly, uint32_t TokenType, uint32_t NewTokenHandle);;
+typedef void (*on_NtEnableLastKnownGood_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtEnableLastKnownGood_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtEnableLastKnownGood_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtEnableLastKnownGood_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtEnumerateBootEntries_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Buffer, uint32_t BufferLength); typedef void (*on_NtEnumerateBootEntries_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Buffer, uint32_t BufferLength);;
+typedef void (*on_NtEnumerateBootEntries_return_t)(CPUState* cpu, target_ulong pc, uint32_t Buffer, uint32_t BufferLength); typedef void (*on_NtEnumerateBootEntries_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Buffer, uint32_t BufferLength);;
+typedef void (*on_NtEnumerateDriverEntries_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Buffer, uint32_t BufferLength); typedef void (*on_NtEnumerateDriverEntries_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Buffer, uint32_t BufferLength);;
+typedef void (*on_NtEnumerateDriverEntries_return_t)(CPUState* cpu, target_ulong pc, uint32_t Buffer, uint32_t BufferLength); typedef void (*on_NtEnumerateDriverEntries_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Buffer, uint32_t BufferLength);;
+typedef void (*on_NtEnumerateKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Index, uint32_t KeyInformationClass, uint32_t KeyInformation, uint32_t Length, uint32_t ResultLength); typedef void (*on_NtEnumerateKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Index, uint32_t KeyInformationClass, uint32_t KeyInformation, uint32_t Length, uint32_t ResultLength);;
+typedef void (*on_NtEnumerateKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Index, uint32_t KeyInformationClass, uint32_t KeyInformation, uint32_t Length, uint32_t ResultLength); typedef void (*on_NtEnumerateKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Index, uint32_t KeyInformationClass, uint32_t KeyInformation, uint32_t Length, uint32_t ResultLength);;
+typedef void (*on_NtEnumerateSystemEnvironmentValuesEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t InformationClass, uint32_t Buffer, uint32_t BufferLength); typedef void (*on_NtEnumerateSystemEnvironmentValuesEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t InformationClass, uint32_t Buffer, uint32_t BufferLength);;
+typedef void (*on_NtEnumerateSystemEnvironmentValuesEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t InformationClass, uint32_t Buffer, uint32_t BufferLength); typedef void (*on_NtEnumerateSystemEnvironmentValuesEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t InformationClass, uint32_t Buffer, uint32_t BufferLength);;
+typedef void (*on_NtEnumerateTransactionObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t RootObjectHandle, uint32_t QueryType, uint32_t ObjectCursor, uint32_t ObjectCursorLength, uint32_t ReturnLength); typedef void (*on_NtEnumerateTransactionObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t RootObjectHandle, uint32_t QueryType, uint32_t ObjectCursor, uint32_t ObjectCursorLength, uint32_t ReturnLength);;
+typedef void (*on_NtEnumerateTransactionObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t RootObjectHandle, uint32_t QueryType, uint32_t ObjectCursor, uint32_t ObjectCursorLength, uint32_t ReturnLength); typedef void (*on_NtEnumerateTransactionObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t RootObjectHandle, uint32_t QueryType, uint32_t ObjectCursor, uint32_t ObjectCursorLength, uint32_t ReturnLength);;
+typedef void (*on_NtEnumerateValueKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Index, uint32_t KeyValueInformationClass, uint32_t KeyValueInformation, uint32_t Length, uint32_t ResultLength); typedef void (*on_NtEnumerateValueKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Index, uint32_t KeyValueInformationClass, uint32_t KeyValueInformation, uint32_t Length, uint32_t ResultLength);;
+typedef void (*on_NtEnumerateValueKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Index, uint32_t KeyValueInformationClass, uint32_t KeyValueInformation, uint32_t Length, uint32_t ResultLength); typedef void (*on_NtEnumerateValueKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Index, uint32_t KeyValueInformationClass, uint32_t KeyValueInformation, uint32_t Length, uint32_t ResultLength);;
+typedef void (*on_NtExtendSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t NewSectionSize); typedef void (*on_NtExtendSection_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t NewSectionSize);;
+typedef void (*on_NtExtendSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t NewSectionSize); typedef void (*on_NtExtendSection_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t NewSectionSize);;
+typedef void (*on_NtFilterToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ExistingTokenHandle, uint32_t Flags, uint32_t SidsToDisable, uint32_t PrivilegesToDelete, uint32_t RestrictedSids, uint32_t NewTokenHandle); typedef void (*on_NtFilterToken_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ExistingTokenHandle, uint32_t Flags, uint32_t SidsToDisable, uint32_t PrivilegesToDelete, uint32_t RestrictedSids, uint32_t NewTokenHandle);;
+typedef void (*on_NtFilterToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t ExistingTokenHandle, uint32_t Flags, uint32_t SidsToDisable, uint32_t PrivilegesToDelete, uint32_t RestrictedSids, uint32_t NewTokenHandle); typedef void (*on_NtFilterToken_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ExistingTokenHandle, uint32_t Flags, uint32_t SidsToDisable, uint32_t PrivilegesToDelete, uint32_t RestrictedSids, uint32_t NewTokenHandle);;
+typedef void (*on_NtFindAtom_enter_t)(CPUState* cpu, target_ulong pc, uint32_t AtomName, uint32_t Length, uint32_t Atom); typedef void (*on_NtFindAtom_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t AtomName, uint32_t Length, uint32_t Atom);;
+typedef void (*on_NtFindAtom_return_t)(CPUState* cpu, target_ulong pc, uint32_t AtomName, uint32_t Length, uint32_t Atom); typedef void (*on_NtFindAtom_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t AtomName, uint32_t Length, uint32_t Atom);;
+typedef void (*on_NtFlushBuffersFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock); typedef void (*on_NtFlushBuffersFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock);;
+typedef void (*on_NtFlushBuffersFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock); typedef void (*on_NtFlushBuffersFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock);;
+typedef void (*on_NtFlushInstallUILanguage_enter_t)(CPUState* cpu, target_ulong pc, uint32_t InstallUILanguage, uint32_t SetComittedFlag); typedef void (*on_NtFlushInstallUILanguage_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t InstallUILanguage, uint32_t SetComittedFlag);;
+typedef void (*on_NtFlushInstallUILanguage_return_t)(CPUState* cpu, target_ulong pc, uint32_t InstallUILanguage, uint32_t SetComittedFlag); typedef void (*on_NtFlushInstallUILanguage_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t InstallUILanguage, uint32_t SetComittedFlag);;
+typedef void (*on_NtFlushInstructionCache_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Length); typedef void (*on_NtFlushInstructionCache_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Length);;
+typedef void (*on_NtFlushInstructionCache_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Length); typedef void (*on_NtFlushInstructionCache_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Length);;
+typedef void (*on_NtFlushKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle); typedef void (*on_NtFlushKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle);;
+typedef void (*on_NtFlushKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle); typedef void (*on_NtFlushKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle);;
+typedef void (*on_NtFlushProcessWriteBuffers_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtFlushProcessWriteBuffers_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtFlushProcessWriteBuffers_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtFlushProcessWriteBuffers_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtFlushVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t IoStatus); typedef void (*on_NtFlushVirtualMemory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t IoStatus);;
+typedef void (*on_NtFlushVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t IoStatus); typedef void (*on_NtFlushVirtualMemory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t IoStatus);;
+typedef void (*on_NtFlushWriteBuffer_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtFlushWriteBuffer_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtFlushWriteBuffer_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtFlushWriteBuffer_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtFreeUserPhysicalPages_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t NumberOfPages, uint32_t UserPfnArray); typedef void (*on_NtFreeUserPhysicalPages_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t NumberOfPages, uint32_t UserPfnArray);;
+typedef void (*on_NtFreeUserPhysicalPages_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t NumberOfPages, uint32_t UserPfnArray); typedef void (*on_NtFreeUserPhysicalPages_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t NumberOfPages, uint32_t UserPfnArray);;
+typedef void (*on_NtFreeVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t FreeType); typedef void (*on_NtFreeVirtualMemory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t FreeType);;
+typedef void (*on_NtFreeVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t FreeType); typedef void (*on_NtFreeVirtualMemory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t FreeType);;
+typedef void (*on_NtFreezeRegistry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimeOutInSeconds); typedef void (*on_NtFreezeRegistry_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimeOutInSeconds);;
+typedef void (*on_NtFreezeRegistry_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimeOutInSeconds); typedef void (*on_NtFreezeRegistry_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimeOutInSeconds);;
+typedef void (*on_NtFreezeTransactions_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FreezeTimeout, uint32_t ThawTimeout); typedef void (*on_NtFreezeTransactions_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FreezeTimeout, uint32_t ThawTimeout);;
+typedef void (*on_NtFreezeTransactions_return_t)(CPUState* cpu, target_ulong pc, uint32_t FreezeTimeout, uint32_t ThawTimeout); typedef void (*on_NtFreezeTransactions_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FreezeTimeout, uint32_t ThawTimeout);;
+typedef void (*on_NtFsControlFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t IoControlCode, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength); typedef void (*on_NtFsControlFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t IoControlCode, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength);;
+typedef void (*on_NtFsControlFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t IoControlCode, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength); typedef void (*on_NtFsControlFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t IoControlCode, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength);;
+typedef void (*on_NtGetContextThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadContext); typedef void (*on_NtGetContextThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadContext);;
+typedef void (*on_NtGetContextThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadContext); typedef void (*on_NtGetContextThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadContext);;
+typedef void (*on_NtGetCurrentProcessorNumber_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtGetCurrentProcessorNumber_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtGetCurrentProcessorNumber_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtGetCurrentProcessorNumber_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtGetDevicePowerState_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Device, uint32_t State); typedef void (*on_NtGetDevicePowerState_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Device, uint32_t State);;
+typedef void (*on_NtGetDevicePowerState_return_t)(CPUState* cpu, target_ulong pc, uint32_t Device, uint32_t State); typedef void (*on_NtGetDevicePowerState_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Device, uint32_t State);;
+typedef void (*on_NtGetMUIRegistryInfo_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Flags, uint32_t DataSize, uint32_t Data); typedef void (*on_NtGetMUIRegistryInfo_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Flags, uint32_t DataSize, uint32_t Data);;
+typedef void (*on_NtGetMUIRegistryInfo_return_t)(CPUState* cpu, target_ulong pc, uint32_t Flags, uint32_t DataSize, uint32_t Data); typedef void (*on_NtGetMUIRegistryInfo_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Flags, uint32_t DataSize, uint32_t Data);;
+typedef void (*on_NtGetNextProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Flags, uint32_t NewProcessHandle); typedef void (*on_NtGetNextProcess_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Flags, uint32_t NewProcessHandle);;
+typedef void (*on_NtGetNextProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Flags, uint32_t NewProcessHandle); typedef void (*on_NtGetNextProcess_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Flags, uint32_t NewProcessHandle);;
+typedef void (*on_NtGetNextThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Flags, uint32_t NewThreadHandle); typedef void (*on_NtGetNextThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Flags, uint32_t NewThreadHandle);;
+typedef void (*on_NtGetNextThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Flags, uint32_t NewThreadHandle); typedef void (*on_NtGetNextThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Flags, uint32_t NewThreadHandle);;
+typedef void (*on_NtGetNlsSectionPtr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SectionType, uint32_t SectionData, uint32_t ContextData, uint32_t SectionPointer, uint32_t SectionSize); typedef void (*on_NtGetNlsSectionPtr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SectionType, uint32_t SectionData, uint32_t ContextData, uint32_t SectionPointer, uint32_t SectionSize);;
+typedef void (*on_NtGetNlsSectionPtr_return_t)(CPUState* cpu, target_ulong pc, uint32_t SectionType, uint32_t SectionData, uint32_t ContextData, uint32_t SectionPointer, uint32_t SectionSize); typedef void (*on_NtGetNlsSectionPtr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SectionType, uint32_t SectionData, uint32_t ContextData, uint32_t SectionPointer, uint32_t SectionSize);;
+typedef void (*on_NtGetNotificationResourceManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t TransactionNotification, uint32_t NotificationLength, uint32_t Timeout, uint32_t ReturnLength, uint32_t Asynchronous, uint32_t AsynchronousContext); typedef void (*on_NtGetNotificationResourceManager_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t TransactionNotification, uint32_t NotificationLength, uint32_t Timeout, uint32_t ReturnLength, uint32_t Asynchronous, uint32_t AsynchronousContext);;
+typedef void (*on_NtGetNotificationResourceManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t TransactionNotification, uint32_t NotificationLength, uint32_t Timeout, uint32_t ReturnLength, uint32_t Asynchronous, uint32_t AsynchronousContext); typedef void (*on_NtGetNotificationResourceManager_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t TransactionNotification, uint32_t NotificationLength, uint32_t Timeout, uint32_t ReturnLength, uint32_t Asynchronous, uint32_t AsynchronousContext);;
+typedef void (*on_NtGetPlugPlayEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t Context, uint32_t EventBlock, uint32_t EventBufferSize); typedef void (*on_NtGetPlugPlayEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t Context, uint32_t EventBlock, uint32_t EventBufferSize);;
+typedef void (*on_NtGetPlugPlayEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t Context, uint32_t EventBlock, uint32_t EventBufferSize); typedef void (*on_NtGetPlugPlayEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t Context, uint32_t EventBlock, uint32_t EventBufferSize);;
+typedef void (*on_NtGetWriteWatch_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t Flags, uint32_t BaseAddress, uint32_t RegionSize, uint32_t UserAddressArray, uint32_t EntriesInUserAddressArray, uint32_t Granularity); typedef void (*on_NtGetWriteWatch_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t Flags, uint32_t BaseAddress, uint32_t RegionSize, uint32_t UserAddressArray, uint32_t EntriesInUserAddressArray, uint32_t Granularity);;
+typedef void (*on_NtGetWriteWatch_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t Flags, uint32_t BaseAddress, uint32_t RegionSize, uint32_t UserAddressArray, uint32_t EntriesInUserAddressArray, uint32_t Granularity); typedef void (*on_NtGetWriteWatch_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t Flags, uint32_t BaseAddress, uint32_t RegionSize, uint32_t UserAddressArray, uint32_t EntriesInUserAddressArray, uint32_t Granularity);;
+typedef void (*on_NtImpersonateAnonymousToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle); typedef void (*on_NtImpersonateAnonymousToken_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle);;
+typedef void (*on_NtImpersonateAnonymousToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle); typedef void (*on_NtImpersonateAnonymousToken_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle);;
+typedef void (*on_NtImpersonateClientOfPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message); typedef void (*on_NtImpersonateClientOfPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message);;
+typedef void (*on_NtImpersonateClientOfPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message); typedef void (*on_NtImpersonateClientOfPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message);;
+typedef void (*on_NtImpersonateThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ServerThreadHandle, uint32_t ClientThreadHandle, uint32_t SecurityQos); typedef void (*on_NtImpersonateThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ServerThreadHandle, uint32_t ClientThreadHandle, uint32_t SecurityQos);;
+typedef void (*on_NtImpersonateThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ServerThreadHandle, uint32_t ClientThreadHandle, uint32_t SecurityQos); typedef void (*on_NtImpersonateThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ServerThreadHandle, uint32_t ClientThreadHandle, uint32_t SecurityQos);;
+typedef void (*on_NtInitializeNlsFiles_enter_t)(CPUState* cpu, target_ulong pc, uint32_t BaseAddress, uint32_t DefaultLocaleId, uint32_t DefaultCasingTableSize); typedef void (*on_NtInitializeNlsFiles_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t BaseAddress, uint32_t DefaultLocaleId, uint32_t DefaultCasingTableSize);;
+typedef void (*on_NtInitializeNlsFiles_return_t)(CPUState* cpu, target_ulong pc, uint32_t BaseAddress, uint32_t DefaultLocaleId, uint32_t DefaultCasingTableSize); typedef void (*on_NtInitializeNlsFiles_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t BaseAddress, uint32_t DefaultLocaleId, uint32_t DefaultCasingTableSize);;
+typedef void (*on_NtInitializeRegistry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t BootCondition); typedef void (*on_NtInitializeRegistry_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t BootCondition);;
+typedef void (*on_NtInitializeRegistry_return_t)(CPUState* cpu, target_ulong pc, uint32_t BootCondition); typedef void (*on_NtInitializeRegistry_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t BootCondition);;
+typedef void (*on_NtInitiatePowerAction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemAction, uint32_t MinSystemState, uint32_t Flags, uint32_t Asynchronous); typedef void (*on_NtInitiatePowerAction_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemAction, uint32_t MinSystemState, uint32_t Flags, uint32_t Asynchronous);;
+typedef void (*on_NtInitiatePowerAction_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemAction, uint32_t MinSystemState, uint32_t Flags, uint32_t Asynchronous); typedef void (*on_NtInitiatePowerAction_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemAction, uint32_t MinSystemState, uint32_t Flags, uint32_t Asynchronous);;
+typedef void (*on_NtIsProcessInJob_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t JobHandle); typedef void (*on_NtIsProcessInJob_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t JobHandle);;
+typedef void (*on_NtIsProcessInJob_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t JobHandle); typedef void (*on_NtIsProcessInJob_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t JobHandle);;
+typedef void (*on_NtIsSystemResumeAutomatic_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtIsSystemResumeAutomatic_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtIsSystemResumeAutomatic_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtIsSystemResumeAutomatic_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtIsUILanguageComitted_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtIsUILanguageComitted_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtIsUILanguageComitted_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtIsUILanguageComitted_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtListenPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ConnectionRequest); typedef void (*on_NtListenPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ConnectionRequest);;
+typedef void (*on_NtListenPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ConnectionRequest); typedef void (*on_NtListenPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ConnectionRequest);;
+typedef void (*on_NtLoadDriver_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DriverServiceName); typedef void (*on_NtLoadDriver_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DriverServiceName);;
+typedef void (*on_NtLoadDriver_return_t)(CPUState* cpu, target_ulong pc, uint32_t DriverServiceName); typedef void (*on_NtLoadDriver_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DriverServiceName);;
+typedef void (*on_NtLoadKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile); typedef void (*on_NtLoadKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile);;
+typedef void (*on_NtLoadKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile); typedef void (*on_NtLoadKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile);;
+typedef void (*on_NtLoadKey2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile, uint32_t Flags); typedef void (*on_NtLoadKey2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile, uint32_t Flags);;
+typedef void (*on_NtLoadKey2_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile, uint32_t Flags); typedef void (*on_NtLoadKey2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile, uint32_t Flags);;
+typedef void (*on_NtLoadKeyEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile, uint32_t Flags, uint32_t TrustClassKey); typedef void (*on_NtLoadKeyEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile, uint32_t Flags, uint32_t TrustClassKey);;
+typedef void (*on_NtLoadKeyEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile, uint32_t Flags, uint32_t TrustClassKey); typedef void (*on_NtLoadKeyEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile, uint32_t Flags, uint32_t TrustClassKey);;
+typedef void (*on_NtLockFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t ByteOffset, uint32_t Length, uint32_t Key, uint32_t FailImmediately, uint32_t ExclusiveLock); typedef void (*on_NtLockFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t ByteOffset, uint32_t Length, uint32_t Key, uint32_t FailImmediately, uint32_t ExclusiveLock);;
+typedef void (*on_NtLockFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t ByteOffset, uint32_t Length, uint32_t Key, uint32_t FailImmediately, uint32_t ExclusiveLock); typedef void (*on_NtLockFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t ByteOffset, uint32_t Length, uint32_t Key, uint32_t FailImmediately, uint32_t ExclusiveLock);;
+typedef void (*on_NtLockProductActivationKeys_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pPrivateVer, uint32_t pSafeMode); typedef void (*on_NtLockProductActivationKeys_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pPrivateVer, uint32_t pSafeMode);;
+typedef void (*on_NtLockProductActivationKeys_return_t)(CPUState* cpu, target_ulong pc, uint32_t pPrivateVer, uint32_t pSafeMode); typedef void (*on_NtLockProductActivationKeys_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pPrivateVer, uint32_t pSafeMode);;
+typedef void (*on_NtLockRegistryKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle); typedef void (*on_NtLockRegistryKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle);;
+typedef void (*on_NtLockRegistryKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle); typedef void (*on_NtLockRegistryKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle);;
+typedef void (*on_NtLockVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t MapType); typedef void (*on_NtLockVirtualMemory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t MapType);;
+typedef void (*on_NtLockVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t MapType); typedef void (*on_NtLockVirtualMemory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t MapType);;
+typedef void (*on_NtMakePermanentObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle); typedef void (*on_NtMakePermanentObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle);;
+typedef void (*on_NtMakePermanentObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle); typedef void (*on_NtMakePermanentObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle);;
+typedef void (*on_NtMakeTemporaryObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle); typedef void (*on_NtMakeTemporaryObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle);;
+typedef void (*on_NtMakeTemporaryObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle); typedef void (*on_NtMakeTemporaryObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle);;
+typedef void (*on_NtMapCMFModule_enter_t)(CPUState* cpu, target_ulong pc, uint32_t What, uint32_t Index, uint32_t CacheIndexOut, uint32_t CacheFlagsOut, uint32_t ViewSizeOut, uint32_t BaseAddress); typedef void (*on_NtMapCMFModule_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t What, uint32_t Index, uint32_t CacheIndexOut, uint32_t CacheFlagsOut, uint32_t ViewSizeOut, uint32_t BaseAddress);;
+typedef void (*on_NtMapCMFModule_return_t)(CPUState* cpu, target_ulong pc, uint32_t What, uint32_t Index, uint32_t CacheIndexOut, uint32_t CacheFlagsOut, uint32_t ViewSizeOut, uint32_t BaseAddress); typedef void (*on_NtMapCMFModule_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t What, uint32_t Index, uint32_t CacheIndexOut, uint32_t CacheFlagsOut, uint32_t ViewSizeOut, uint32_t BaseAddress);;
+typedef void (*on_NtMapUserPhysicalPages_enter_t)(CPUState* cpu, target_ulong pc, uint32_t VirtualAddress, uint32_t NumberOfPages, uint32_t UserPfnArray); typedef void (*on_NtMapUserPhysicalPages_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t VirtualAddress, uint32_t NumberOfPages, uint32_t UserPfnArray);;
+typedef void (*on_NtMapUserPhysicalPages_return_t)(CPUState* cpu, target_ulong pc, uint32_t VirtualAddress, uint32_t NumberOfPages, uint32_t UserPfnArray); typedef void (*on_NtMapUserPhysicalPages_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t VirtualAddress, uint32_t NumberOfPages, uint32_t UserPfnArray);;
+typedef void (*on_NtMapUserPhysicalPagesScatter_enter_t)(CPUState* cpu, target_ulong pc, uint32_t VirtualAddresses, uint32_t NumberOfPages, uint32_t UserPfnArray); typedef void (*on_NtMapUserPhysicalPagesScatter_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t VirtualAddresses, uint32_t NumberOfPages, uint32_t UserPfnArray);;
+typedef void (*on_NtMapUserPhysicalPagesScatter_return_t)(CPUState* cpu, target_ulong pc, uint32_t VirtualAddresses, uint32_t NumberOfPages, uint32_t UserPfnArray); typedef void (*on_NtMapUserPhysicalPagesScatter_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t VirtualAddresses, uint32_t NumberOfPages, uint32_t UserPfnArray);;
+typedef void (*on_NtMapViewOfSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t ZeroBits, uint32_t CommitSize, uint32_t SectionOffset, uint32_t ViewSize, uint32_t InheritDisposition, uint32_t AllocationType, uint32_t Win32Protect); typedef void (*on_NtMapViewOfSection_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t ZeroBits, uint32_t CommitSize, uint32_t SectionOffset, uint32_t ViewSize, uint32_t InheritDisposition, uint32_t AllocationType, uint32_t Win32Protect);;
+typedef void (*on_NtMapViewOfSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t ZeroBits, uint32_t CommitSize, uint32_t SectionOffset, uint32_t ViewSize, uint32_t InheritDisposition, uint32_t AllocationType, uint32_t Win32Protect); typedef void (*on_NtMapViewOfSection_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t ZeroBits, uint32_t CommitSize, uint32_t SectionOffset, uint32_t ViewSize, uint32_t InheritDisposition, uint32_t AllocationType, uint32_t Win32Protect);;
+typedef void (*on_NtModifyBootEntry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t BootEntry); typedef void (*on_NtModifyBootEntry_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t BootEntry);;
+typedef void (*on_NtModifyBootEntry_return_t)(CPUState* cpu, target_ulong pc, uint32_t BootEntry); typedef void (*on_NtModifyBootEntry_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t BootEntry);;
+typedef void (*on_NtModifyDriverEntry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DriverEntry); typedef void (*on_NtModifyDriverEntry_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DriverEntry);;
+typedef void (*on_NtModifyDriverEntry_return_t)(CPUState* cpu, target_ulong pc, uint32_t DriverEntry); typedef void (*on_NtModifyDriverEntry_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DriverEntry);;
+typedef void (*on_NtNotifyChangeDirectoryFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t CompletionFilter, uint32_t WatchTree); typedef void (*on_NtNotifyChangeDirectoryFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t CompletionFilter, uint32_t WatchTree);;
+typedef void (*on_NtNotifyChangeDirectoryFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t CompletionFilter, uint32_t WatchTree); typedef void (*on_NtNotifyChangeDirectoryFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t CompletionFilter, uint32_t WatchTree);;
+typedef void (*on_NtNotifyChangeKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t CompletionFilter, uint32_t WatchTree, uint32_t Buffer, uint32_t BufferSize, uint32_t Asynchronous); typedef void (*on_NtNotifyChangeKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t CompletionFilter, uint32_t WatchTree, uint32_t Buffer, uint32_t BufferSize, uint32_t Asynchronous);;
+typedef void (*on_NtNotifyChangeKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t CompletionFilter, uint32_t WatchTree, uint32_t Buffer, uint32_t BufferSize, uint32_t Asynchronous); typedef void (*on_NtNotifyChangeKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t CompletionFilter, uint32_t WatchTree, uint32_t Buffer, uint32_t BufferSize, uint32_t Asynchronous);;
+typedef void (*on_NtNotifyChangeMultipleKeys_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MasterKeyHandle, uint32_t Count, uint32_t SlaveObjects, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t CompletionFilter, uint32_t WatchTree, uint32_t Buffer, uint32_t BufferSize, uint32_t Asynchronous); typedef void (*on_NtNotifyChangeMultipleKeys_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MasterKeyHandle, uint32_t Count, uint32_t SlaveObjects, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t CompletionFilter, uint32_t WatchTree, uint32_t Buffer, uint32_t BufferSize, uint32_t Asynchronous);;
+typedef void (*on_NtNotifyChangeMultipleKeys_return_t)(CPUState* cpu, target_ulong pc, uint32_t MasterKeyHandle, uint32_t Count, uint32_t SlaveObjects, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t CompletionFilter, uint32_t WatchTree, uint32_t Buffer, uint32_t BufferSize, uint32_t Asynchronous); typedef void (*on_NtNotifyChangeMultipleKeys_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MasterKeyHandle, uint32_t Count, uint32_t SlaveObjects, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t CompletionFilter, uint32_t WatchTree, uint32_t Buffer, uint32_t BufferSize, uint32_t Asynchronous);;
+typedef void (*on_NtNotifyChangeSession_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Session, uint32_t IoStateSequence, uint32_t Reserved, uint32_t Action, uint32_t IoState, uint32_t IoState2, uint32_t Buffer, uint32_t BufferSize); typedef void (*on_NtNotifyChangeSession_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Session, uint32_t IoStateSequence, uint32_t Reserved, uint32_t Action, uint32_t IoState, uint32_t IoState2, uint32_t Buffer, uint32_t BufferSize);;
+typedef void (*on_NtNotifyChangeSession_return_t)(CPUState* cpu, target_ulong pc, uint32_t Session, uint32_t IoStateSequence, uint32_t Reserved, uint32_t Action, uint32_t IoState, uint32_t IoState2, uint32_t Buffer, uint32_t BufferSize); typedef void (*on_NtNotifyChangeSession_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Session, uint32_t IoStateSequence, uint32_t Reserved, uint32_t Action, uint32_t IoState, uint32_t IoState2, uint32_t Buffer, uint32_t BufferSize);;
+typedef void (*on_NtOpenDirectoryObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenDirectoryObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenDirectoryObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenDirectoryObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t DesiredAccess, uint32_t ResourceManagerHandle, uint32_t EnlistmentGuid, uint32_t ObjectAttributes); typedef void (*on_NtOpenEnlistment_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t DesiredAccess, uint32_t ResourceManagerHandle, uint32_t EnlistmentGuid, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t DesiredAccess, uint32_t ResourceManagerHandle, uint32_t EnlistmentGuid, uint32_t ObjectAttributes); typedef void (*on_NtOpenEnlistment_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t DesiredAccess, uint32_t ResourceManagerHandle, uint32_t EnlistmentGuid, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenEventPair_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenEventPair_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t ShareAccess, uint32_t OpenOptions); typedef void (*on_NtOpenFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t ShareAccess, uint32_t OpenOptions);;
+typedef void (*on_NtOpenFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t ShareAccess, uint32_t OpenOptions); typedef void (*on_NtOpenFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t ShareAccess, uint32_t OpenOptions);;
+typedef void (*on_NtOpenIoCompletion_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenIoCompletion_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenIoCompletion_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenIoCompletion_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenJobObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenJobObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenJobObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenJobObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenKeyedEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenKeyedEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenKeyedEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenKeyedEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenKeyEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t OpenOptions); typedef void (*on_NtOpenKeyEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t OpenOptions);;
+typedef void (*on_NtOpenKeyEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t OpenOptions); typedef void (*on_NtOpenKeyEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t OpenOptions);;
+typedef void (*on_NtOpenKeyTransacted_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TransactionHandle); typedef void (*on_NtOpenKeyTransacted_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TransactionHandle);;
+typedef void (*on_NtOpenKeyTransacted_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TransactionHandle); typedef void (*on_NtOpenKeyTransacted_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TransactionHandle);;
+typedef void (*on_NtOpenKeyTransactedEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t OpenOptions, uint32_t TransactionHandle); typedef void (*on_NtOpenKeyTransactedEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t OpenOptions, uint32_t TransactionHandle);;
+typedef void (*on_NtOpenKeyTransactedEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t OpenOptions, uint32_t TransactionHandle); typedef void (*on_NtOpenKeyTransactedEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t OpenOptions, uint32_t TransactionHandle);;
+typedef void (*on_NtOpenMutant_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenMutant_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenMutant_return_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenMutant_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenObjectAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t GrantedAccess, uint32_t Privileges, uint32_t ObjectCreation, uint32_t AccessGranted, uint32_t GenerateOnClose); typedef void (*on_NtOpenObjectAuditAlarm_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t GrantedAccess, uint32_t Privileges, uint32_t ObjectCreation, uint32_t AccessGranted, uint32_t GenerateOnClose);;
+typedef void (*on_NtOpenObjectAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t GrantedAccess, uint32_t Privileges, uint32_t ObjectCreation, uint32_t AccessGranted, uint32_t GenerateOnClose); typedef void (*on_NtOpenObjectAuditAlarm_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t GrantedAccess, uint32_t Privileges, uint32_t ObjectCreation, uint32_t AccessGranted, uint32_t GenerateOnClose);;
+typedef void (*on_NtOpenPrivateNamespace_enter_t)(CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t BoundaryDescriptor); typedef void (*on_NtOpenPrivateNamespace_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t BoundaryDescriptor);;
+typedef void (*on_NtOpenPrivateNamespace_return_t)(CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t BoundaryDescriptor); typedef void (*on_NtOpenPrivateNamespace_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t BoundaryDescriptor);;
+typedef void (*on_NtOpenProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ClientId); typedef void (*on_NtOpenProcess_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ClientId);;
+typedef void (*on_NtOpenProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ClientId); typedef void (*on_NtOpenProcess_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ClientId);;
+typedef void (*on_NtOpenProcessToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t TokenHandle); typedef void (*on_NtOpenProcessToken_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t TokenHandle);;
+typedef void (*on_NtOpenProcessToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t TokenHandle); typedef void (*on_NtOpenProcessToken_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t TokenHandle);;
+typedef void (*on_NtOpenProcessTokenEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t TokenHandle); typedef void (*on_NtOpenProcessTokenEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t TokenHandle);;
+typedef void (*on_NtOpenProcessTokenEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t TokenHandle); typedef void (*on_NtOpenProcessTokenEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t TokenHandle);;
+typedef void (*on_NtOpenResourceManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t DesiredAccess, uint32_t TmHandle, uint32_t ResourceManagerGuid, uint32_t ObjectAttributes); typedef void (*on_NtOpenResourceManager_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t DesiredAccess, uint32_t TmHandle, uint32_t ResourceManagerGuid, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenResourceManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t DesiredAccess, uint32_t TmHandle, uint32_t ResourceManagerGuid, uint32_t ObjectAttributes); typedef void (*on_NtOpenResourceManager_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t DesiredAccess, uint32_t TmHandle, uint32_t ResourceManagerGuid, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenSection_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenSection_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenSemaphore_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenSemaphore_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenSemaphore_return_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenSemaphore_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenSession_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SessionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenSession_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SessionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenSession_return_t)(CPUState* cpu, target_ulong pc, uint32_t SessionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenSession_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SessionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenSymbolicLinkObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenSymbolicLinkObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenSymbolicLinkObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenSymbolicLinkObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ClientId); typedef void (*on_NtOpenThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ClientId);;
+typedef void (*on_NtOpenThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ClientId); typedef void (*on_NtOpenThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ClientId);;
+typedef void (*on_NtOpenThreadToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t OpenAsSelf, uint32_t TokenHandle); typedef void (*on_NtOpenThreadToken_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t OpenAsSelf, uint32_t TokenHandle);;
+typedef void (*on_NtOpenThreadToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t OpenAsSelf, uint32_t TokenHandle); typedef void (*on_NtOpenThreadToken_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t OpenAsSelf, uint32_t TokenHandle);;
+typedef void (*on_NtOpenThreadTokenEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t OpenAsSelf, uint32_t HandleAttributes, uint32_t TokenHandle); typedef void (*on_NtOpenThreadTokenEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t OpenAsSelf, uint32_t HandleAttributes, uint32_t TokenHandle);;
+typedef void (*on_NtOpenThreadTokenEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t OpenAsSelf, uint32_t HandleAttributes, uint32_t TokenHandle); typedef void (*on_NtOpenThreadTokenEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t OpenAsSelf, uint32_t HandleAttributes, uint32_t TokenHandle);;
+typedef void (*on_NtOpenTimer_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenTimer_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenTimer_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes); typedef void (*on_NtOpenTimer_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);;
+typedef void (*on_NtOpenTransaction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Uow, uint32_t TmHandle); typedef void (*on_NtOpenTransaction_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Uow, uint32_t TmHandle);;
+typedef void (*on_NtOpenTransaction_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Uow, uint32_t TmHandle); typedef void (*on_NtOpenTransaction_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Uow, uint32_t TmHandle);;
+typedef void (*on_NtOpenTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LogFileName, uint32_t TmIdentity, uint32_t OpenOptions); typedef void (*on_NtOpenTransactionManager_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LogFileName, uint32_t TmIdentity, uint32_t OpenOptions);;
+typedef void (*on_NtOpenTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LogFileName, uint32_t TmIdentity, uint32_t OpenOptions); typedef void (*on_NtOpenTransactionManager_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LogFileName, uint32_t TmIdentity, uint32_t OpenOptions);;
+typedef void (*on_NtPlugPlayControl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PnPControlClass, uint32_t PnPControlData, uint32_t PnPControlDataLength); typedef void (*on_NtPlugPlayControl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PnPControlClass, uint32_t PnPControlData, uint32_t PnPControlDataLength);;
+typedef void (*on_NtPlugPlayControl_return_t)(CPUState* cpu, target_ulong pc, uint32_t PnPControlClass, uint32_t PnPControlData, uint32_t PnPControlDataLength); typedef void (*on_NtPlugPlayControl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PnPControlClass, uint32_t PnPControlData, uint32_t PnPControlDataLength);;
+typedef void (*on_NtPowerInformation_enter_t)(CPUState* cpu, target_ulong pc, uint32_t InformationLevel, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength); typedef void (*on_NtPowerInformation_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t InformationLevel, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength);;
+typedef void (*on_NtPowerInformation_return_t)(CPUState* cpu, target_ulong pc, uint32_t InformationLevel, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength); typedef void (*on_NtPowerInformation_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t InformationLevel, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength);;
+typedef void (*on_NtPrepareComplete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtPrepareComplete_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtPrepareComplete_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtPrepareComplete_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtPrepareEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtPrepareEnlistment_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtPrepareEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtPrepareEnlistment_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtPrePrepareComplete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtPrePrepareComplete_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtPrePrepareComplete_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtPrePrepareComplete_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtPrePrepareEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtPrePrepareEnlistment_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtPrePrepareEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtPrePrepareEnlistment_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtPrivilegeCheck_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ClientToken, uint32_t RequiredPrivileges, uint32_t Result); typedef void (*on_NtPrivilegeCheck_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ClientToken, uint32_t RequiredPrivileges, uint32_t Result);;
+typedef void (*on_NtPrivilegeCheck_return_t)(CPUState* cpu, target_ulong pc, uint32_t ClientToken, uint32_t RequiredPrivileges, uint32_t Result); typedef void (*on_NtPrivilegeCheck_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ClientToken, uint32_t RequiredPrivileges, uint32_t Result);;
+typedef void (*on_NtPrivilegedServiceAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t ServiceName, uint32_t ClientToken, uint32_t Privileges, uint32_t AccessGranted); typedef void (*on_NtPrivilegedServiceAuditAlarm_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t ServiceName, uint32_t ClientToken, uint32_t Privileges, uint32_t AccessGranted);;
+typedef void (*on_NtPrivilegedServiceAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t ServiceName, uint32_t ClientToken, uint32_t Privileges, uint32_t AccessGranted); typedef void (*on_NtPrivilegedServiceAuditAlarm_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t ServiceName, uint32_t ClientToken, uint32_t Privileges, uint32_t AccessGranted);;
+typedef void (*on_NtPrivilegeObjectAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t Privileges, uint32_t AccessGranted); typedef void (*on_NtPrivilegeObjectAuditAlarm_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t Privileges, uint32_t AccessGranted);;
+typedef void (*on_NtPrivilegeObjectAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t Privileges, uint32_t AccessGranted); typedef void (*on_NtPrivilegeObjectAuditAlarm_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t Privileges, uint32_t AccessGranted);;
+typedef void (*on_NtPropagationComplete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t RequestCookie, uint32_t BufferLength, uint32_t Buffer); typedef void (*on_NtPropagationComplete_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t RequestCookie, uint32_t BufferLength, uint32_t Buffer);;
+typedef void (*on_NtPropagationComplete_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t RequestCookie, uint32_t BufferLength, uint32_t Buffer); typedef void (*on_NtPropagationComplete_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t RequestCookie, uint32_t BufferLength, uint32_t Buffer);;
+typedef void (*on_NtPropagationFailed_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t RequestCookie, uint32_t PropStatus); typedef void (*on_NtPropagationFailed_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t RequestCookie, uint32_t PropStatus);;
+typedef void (*on_NtPropagationFailed_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t RequestCookie, uint32_t PropStatus); typedef void (*on_NtPropagationFailed_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t RequestCookie, uint32_t PropStatus);;
+typedef void (*on_NtProtectVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t NewProtectWin32, uint32_t OldProtect); typedef void (*on_NtProtectVirtualMemory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t NewProtectWin32, uint32_t OldProtect);;
+typedef void (*on_NtProtectVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t NewProtectWin32, uint32_t OldProtect); typedef void (*on_NtProtectVirtualMemory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t NewProtectWin32, uint32_t OldProtect);;
+typedef void (*on_NtPulseEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState); typedef void (*on_NtPulseEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState);;
+typedef void (*on_NtPulseEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState); typedef void (*on_NtPulseEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState);;
+typedef void (*on_NtQueryAttributesFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes, uint32_t FileInformation); typedef void (*on_NtQueryAttributesFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes, uint32_t FileInformation);;
+typedef void (*on_NtQueryAttributesFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes, uint32_t FileInformation); typedef void (*on_NtQueryAttributesFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes, uint32_t FileInformation);;
+typedef void (*on_NtQueryBootEntryOrder_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count); typedef void (*on_NtQueryBootEntryOrder_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);;
+typedef void (*on_NtQueryBootEntryOrder_return_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count); typedef void (*on_NtQueryBootEntryOrder_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);;
+typedef void (*on_NtQueryBootOptions_enter_t)(CPUState* cpu, target_ulong pc, uint32_t BootOptions, uint32_t BootOptionsLength); typedef void (*on_NtQueryBootOptions_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t BootOptions, uint32_t BootOptionsLength);;
+typedef void (*on_NtQueryBootOptions_return_t)(CPUState* cpu, target_ulong pc, uint32_t BootOptions, uint32_t BootOptionsLength); typedef void (*on_NtQueryBootOptions_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t BootOptions, uint32_t BootOptionsLength);;
+typedef void (*on_NtQueryDebugFilterState_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ComponentId, uint32_t Level); typedef void (*on_NtQueryDebugFilterState_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ComponentId, uint32_t Level);;
+typedef void (*on_NtQueryDebugFilterState_return_t)(CPUState* cpu, target_ulong pc, uint32_t ComponentId, uint32_t Level); typedef void (*on_NtQueryDebugFilterState_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ComponentId, uint32_t Level);;
+typedef void (*on_NtQueryDefaultLocale_enter_t)(CPUState* cpu, target_ulong pc, uint32_t UserProfile, uint32_t DefaultLocaleId); typedef void (*on_NtQueryDefaultLocale_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t UserProfile, uint32_t DefaultLocaleId);;
+typedef void (*on_NtQueryDefaultLocale_return_t)(CPUState* cpu, target_ulong pc, uint32_t UserProfile, uint32_t DefaultLocaleId); typedef void (*on_NtQueryDefaultLocale_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t UserProfile, uint32_t DefaultLocaleId);;
+typedef void (*on_NtQueryDefaultUILanguage_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DefaultUILanguageId); typedef void (*on_NtQueryDefaultUILanguage_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DefaultUILanguageId);;
+typedef void (*on_NtQueryDefaultUILanguage_return_t)(CPUState* cpu, target_ulong pc, uint32_t DefaultUILanguageId); typedef void (*on_NtQueryDefaultUILanguage_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DefaultUILanguageId);;
+typedef void (*on_NtQueryDirectoryFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass, uint32_t ReturnSingleEntry, uint32_t FileName, uint32_t RestartScan); typedef void (*on_NtQueryDirectoryFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass, uint32_t ReturnSingleEntry, uint32_t FileName, uint32_t RestartScan);;
+typedef void (*on_NtQueryDirectoryFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass, uint32_t ReturnSingleEntry, uint32_t FileName, uint32_t RestartScan); typedef void (*on_NtQueryDirectoryFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass, uint32_t ReturnSingleEntry, uint32_t FileName, uint32_t RestartScan);;
+typedef void (*on_NtQueryDirectoryObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t RestartScan, uint32_t Context, uint32_t ReturnLength); typedef void (*on_NtQueryDirectoryObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t RestartScan, uint32_t Context, uint32_t ReturnLength);;
+typedef void (*on_NtQueryDirectoryObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t RestartScan, uint32_t Context, uint32_t ReturnLength); typedef void (*on_NtQueryDirectoryObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t RestartScan, uint32_t Context, uint32_t ReturnLength);;
+typedef void (*on_NtQueryDriverEntryOrder_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count); typedef void (*on_NtQueryDriverEntryOrder_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);;
+typedef void (*on_NtQueryDriverEntryOrder_return_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count); typedef void (*on_NtQueryDriverEntryOrder_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);;
+typedef void (*on_NtQueryEaFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t EaList, uint32_t EaListLength, uint32_t EaIndex, uint32_t RestartScan); typedef void (*on_NtQueryEaFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t EaList, uint32_t EaListLength, uint32_t EaIndex, uint32_t RestartScan);;
+typedef void (*on_NtQueryEaFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t EaList, uint32_t EaListLength, uint32_t EaIndex, uint32_t RestartScan); typedef void (*on_NtQueryEaFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t EaList, uint32_t EaListLength, uint32_t EaIndex, uint32_t RestartScan);;
+typedef void (*on_NtQueryEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t EventInformationClass, uint32_t EventInformation, uint32_t EventInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t EventInformationClass, uint32_t EventInformation, uint32_t EventInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t EventInformationClass, uint32_t EventInformation, uint32_t EventInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t EventInformationClass, uint32_t EventInformation, uint32_t EventInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryFullAttributesFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes, uint32_t FileInformation); typedef void (*on_NtQueryFullAttributesFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes, uint32_t FileInformation);;
+typedef void (*on_NtQueryFullAttributesFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes, uint32_t FileInformation); typedef void (*on_NtQueryFullAttributesFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes, uint32_t FileInformation);;
+typedef void (*on_NtQueryInformationAtom_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Atom, uint32_t InformationClass, uint32_t AtomInformation, uint32_t AtomInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationAtom_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Atom, uint32_t InformationClass, uint32_t AtomInformation, uint32_t AtomInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationAtom_return_t)(CPUState* cpu, target_ulong pc, uint32_t Atom, uint32_t InformationClass, uint32_t AtomInformation, uint32_t AtomInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationAtom_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Atom, uint32_t InformationClass, uint32_t AtomInformation, uint32_t AtomInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentInformationClass, uint32_t EnlistmentInformation, uint32_t EnlistmentInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationEnlistment_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentInformationClass, uint32_t EnlistmentInformation, uint32_t EnlistmentInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentInformationClass, uint32_t EnlistmentInformation, uint32_t EnlistmentInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationEnlistment_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentInformationClass, uint32_t EnlistmentInformation, uint32_t EnlistmentInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass); typedef void (*on_NtQueryInformationFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass);;
+typedef void (*on_NtQueryInformationFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass); typedef void (*on_NtQueryInformationFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass);;
+typedef void (*on_NtQueryInformationJobObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t JobObjectInformationClass, uint32_t JobObjectInformation, uint32_t JobObjectInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationJobObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t JobObjectInformationClass, uint32_t JobObjectInformation, uint32_t JobObjectInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationJobObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t JobObjectInformationClass, uint32_t JobObjectInformation, uint32_t JobObjectInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationJobObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t JobObjectInformationClass, uint32_t JobObjectInformation, uint32_t JobObjectInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length, uint32_t ReturnLength); typedef void (*on_NtQueryInformationPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length, uint32_t ReturnLength); typedef void (*on_NtQueryInformationPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ProcessInformationClass, uint32_t ProcessInformation, uint32_t ProcessInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationProcess_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ProcessInformationClass, uint32_t ProcessInformation, uint32_t ProcessInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ProcessInformationClass, uint32_t ProcessInformation, uint32_t ProcessInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationProcess_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ProcessInformationClass, uint32_t ProcessInformation, uint32_t ProcessInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationResourceManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t ResourceManagerInformationClass, uint32_t ResourceManagerInformation, uint32_t ResourceManagerInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationResourceManager_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t ResourceManagerInformationClass, uint32_t ResourceManagerInformation, uint32_t ResourceManagerInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationResourceManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t ResourceManagerInformationClass, uint32_t ResourceManagerInformation, uint32_t ResourceManagerInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationResourceManager_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t ResourceManagerInformationClass, uint32_t ResourceManagerInformation, uint32_t ResourceManagerInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadInformationClass, uint32_t ThreadInformation, uint32_t ThreadInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadInformationClass, uint32_t ThreadInformation, uint32_t ThreadInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadInformationClass, uint32_t ThreadInformation, uint32_t ThreadInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadInformationClass, uint32_t ThreadInformation, uint32_t ThreadInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t TokenInformationClass, uint32_t TokenInformation, uint32_t TokenInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationToken_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t TokenInformationClass, uint32_t TokenInformation, uint32_t TokenInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t TokenInformationClass, uint32_t TokenInformation, uint32_t TokenInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationToken_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t TokenInformationClass, uint32_t TokenInformation, uint32_t TokenInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationTransaction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t TransactionInformationClass, uint32_t TransactionInformation, uint32_t TransactionInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationTransaction_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t TransactionInformationClass, uint32_t TransactionInformation, uint32_t TransactionInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationTransaction_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t TransactionInformationClass, uint32_t TransactionInformation, uint32_t TransactionInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationTransaction_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t TransactionInformationClass, uint32_t TransactionInformation, uint32_t TransactionInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle, uint32_t TransactionManagerInformationClass, uint32_t TransactionManagerInformation, uint32_t TransactionManagerInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationTransactionManager_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle, uint32_t TransactionManagerInformationClass, uint32_t TransactionManagerInformation, uint32_t TransactionManagerInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle, uint32_t TransactionManagerInformationClass, uint32_t TransactionManagerInformation, uint32_t TransactionManagerInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationTransactionManager_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle, uint32_t TransactionManagerInformationClass, uint32_t TransactionManagerInformation, uint32_t TransactionManagerInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationWorkerFactory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t WorkerFactoryInformationClass, uint32_t WorkerFactoryInformation, uint32_t WorkerFactoryInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationWorkerFactory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t WorkerFactoryInformationClass, uint32_t WorkerFactoryInformation, uint32_t WorkerFactoryInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInformationWorkerFactory_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t WorkerFactoryInformationClass, uint32_t WorkerFactoryInformation, uint32_t WorkerFactoryInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryInformationWorkerFactory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t WorkerFactoryInformationClass, uint32_t WorkerFactoryInformation, uint32_t WorkerFactoryInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryInstallUILanguage_enter_t)(CPUState* cpu, target_ulong pc, uint32_t InstallUILanguageId); typedef void (*on_NtQueryInstallUILanguage_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t InstallUILanguageId);;
+typedef void (*on_NtQueryInstallUILanguage_return_t)(CPUState* cpu, target_ulong pc, uint32_t InstallUILanguageId); typedef void (*on_NtQueryInstallUILanguage_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t InstallUILanguageId);;
+typedef void (*on_NtQueryIntervalProfile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileSource, uint32_t Interval); typedef void (*on_NtQueryIntervalProfile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProfileSource, uint32_t Interval);;
+typedef void (*on_NtQueryIntervalProfile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileSource, uint32_t Interval); typedef void (*on_NtQueryIntervalProfile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProfileSource, uint32_t Interval);;
+typedef void (*on_NtQueryIoCompletion_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionInformationClass, uint32_t IoCompletionInformation, uint32_t IoCompletionInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryIoCompletion_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionInformationClass, uint32_t IoCompletionInformation, uint32_t IoCompletionInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryIoCompletion_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionInformationClass, uint32_t IoCompletionInformation, uint32_t IoCompletionInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryIoCompletion_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionInformationClass, uint32_t IoCompletionInformation, uint32_t IoCompletionInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t KeyInformationClass, uint32_t KeyInformation, uint32_t Length, uint32_t ResultLength); typedef void (*on_NtQueryKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t KeyInformationClass, uint32_t KeyInformation, uint32_t Length, uint32_t ResultLength);;
+typedef void (*on_NtQueryKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t KeyInformationClass, uint32_t KeyInformation, uint32_t Length, uint32_t ResultLength); typedef void (*on_NtQueryKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t KeyInformationClass, uint32_t KeyInformation, uint32_t Length, uint32_t ResultLength);;
+typedef void (*on_NtQueryLicenseValue_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Name, uint32_t Type, uint32_t Buffer, uint32_t Length, uint32_t ReturnedLength); typedef void (*on_NtQueryLicenseValue_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Name, uint32_t Type, uint32_t Buffer, uint32_t Length, uint32_t ReturnedLength);;
+typedef void (*on_NtQueryLicenseValue_return_t)(CPUState* cpu, target_ulong pc, uint32_t Name, uint32_t Type, uint32_t Buffer, uint32_t Length, uint32_t ReturnedLength); typedef void (*on_NtQueryLicenseValue_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Name, uint32_t Type, uint32_t Buffer, uint32_t Length, uint32_t ReturnedLength);;
+typedef void (*on_NtQueryMultipleValueKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueEntries, uint32_t EntryCount, uint32_t ValueBuffer, uint32_t BufferLength, uint32_t RequiredBufferLength); typedef void (*on_NtQueryMultipleValueKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueEntries, uint32_t EntryCount, uint32_t ValueBuffer, uint32_t BufferLength, uint32_t RequiredBufferLength);;
+typedef void (*on_NtQueryMultipleValueKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueEntries, uint32_t EntryCount, uint32_t ValueBuffer, uint32_t BufferLength, uint32_t RequiredBufferLength); typedef void (*on_NtQueryMultipleValueKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueEntries, uint32_t EntryCount, uint32_t ValueBuffer, uint32_t BufferLength, uint32_t RequiredBufferLength);;
+typedef void (*on_NtQueryMutant_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t MutantInformationClass, uint32_t MutantInformation, uint32_t MutantInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryMutant_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t MutantInformationClass, uint32_t MutantInformation, uint32_t MutantInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryMutant_return_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t MutantInformationClass, uint32_t MutantInformation, uint32_t MutantInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryMutant_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t MutantInformationClass, uint32_t MutantInformation, uint32_t MutantInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t ObjectInformationClass, uint32_t ObjectInformation, uint32_t ObjectInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t ObjectInformationClass, uint32_t ObjectInformation, uint32_t ObjectInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t ObjectInformationClass, uint32_t ObjectInformation, uint32_t ObjectInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t ObjectInformationClass, uint32_t ObjectInformation, uint32_t ObjectInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryOpenSubKeys_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t HandleCount); typedef void (*on_NtQueryOpenSubKeys_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t HandleCount);;
+typedef void (*on_NtQueryOpenSubKeys_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t HandleCount); typedef void (*on_NtQueryOpenSubKeys_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t HandleCount);;
+typedef void (*on_NtQueryOpenSubKeysEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t BufferLength, uint32_t Buffer, uint32_t RequiredSize); typedef void (*on_NtQueryOpenSubKeysEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t BufferLength, uint32_t Buffer, uint32_t RequiredSize);;
+typedef void (*on_NtQueryOpenSubKeysEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t BufferLength, uint32_t Buffer, uint32_t RequiredSize); typedef void (*on_NtQueryOpenSubKeysEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t BufferLength, uint32_t Buffer, uint32_t RequiredSize);;
+typedef void (*on_NtQueryPerformanceCounter_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PerformanceCounter, uint32_t PerformanceFrequency); typedef void (*on_NtQueryPerformanceCounter_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PerformanceCounter, uint32_t PerformanceFrequency);;
+typedef void (*on_NtQueryPerformanceCounter_return_t)(CPUState* cpu, target_ulong pc, uint32_t PerformanceCounter, uint32_t PerformanceFrequency); typedef void (*on_NtQueryPerformanceCounter_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PerformanceCounter, uint32_t PerformanceFrequency);;
+typedef void (*on_NtQueryPortInformationProcess_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtQueryPortInformationProcess_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtQueryPortInformationProcess_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtQueryPortInformationProcess_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtQueryQuotaInformationFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t SidList, uint32_t SidListLength, uint32_t StartSid, uint32_t RestartScan); typedef void (*on_NtQueryQuotaInformationFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t SidList, uint32_t SidListLength, uint32_t StartSid, uint32_t RestartScan);;
+typedef void (*on_NtQueryQuotaInformationFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t SidList, uint32_t SidListLength, uint32_t StartSid, uint32_t RestartScan); typedef void (*on_NtQueryQuotaInformationFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t SidList, uint32_t SidListLength, uint32_t StartSid, uint32_t RestartScan);;
+typedef void (*on_NtQuerySection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t SectionInformationClass, uint32_t SectionInformation, uint32_t SectionInformationLength, uint32_t ReturnLength); typedef void (*on_NtQuerySection_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t SectionInformationClass, uint32_t SectionInformation, uint32_t SectionInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQuerySection_return_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t SectionInformationClass, uint32_t SectionInformation, uint32_t SectionInformationLength, uint32_t ReturnLength); typedef void (*on_NtQuerySection_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t SectionInformationClass, uint32_t SectionInformation, uint32_t SectionInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQuerySecurityAttributesToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t Attributes, uint32_t NumberOfAttributes, uint32_t Buffer, uint32_t Length, uint32_t ReturnLength); typedef void (*on_NtQuerySecurityAttributesToken_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t Attributes, uint32_t NumberOfAttributes, uint32_t Buffer, uint32_t Length, uint32_t ReturnLength);;
+typedef void (*on_NtQuerySecurityAttributesToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t Attributes, uint32_t NumberOfAttributes, uint32_t Buffer, uint32_t Length, uint32_t ReturnLength); typedef void (*on_NtQuerySecurityAttributesToken_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t Attributes, uint32_t NumberOfAttributes, uint32_t Buffer, uint32_t Length, uint32_t ReturnLength);;
+typedef void (*on_NtQuerySecurityObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t SecurityInformation, uint32_t SecurityDescriptor, uint32_t Length, uint32_t LengthNeeded); typedef void (*on_NtQuerySecurityObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t SecurityInformation, uint32_t SecurityDescriptor, uint32_t Length, uint32_t LengthNeeded);;
+typedef void (*on_NtQuerySecurityObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t SecurityInformation, uint32_t SecurityDescriptor, uint32_t Length, uint32_t LengthNeeded); typedef void (*on_NtQuerySecurityObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t SecurityInformation, uint32_t SecurityDescriptor, uint32_t Length, uint32_t LengthNeeded);;
+typedef void (*on_NtQuerySemaphore_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t SemaphoreInformationClass, uint32_t SemaphoreInformation, uint32_t SemaphoreInformationLength, uint32_t ReturnLength); typedef void (*on_NtQuerySemaphore_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t SemaphoreInformationClass, uint32_t SemaphoreInformation, uint32_t SemaphoreInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQuerySemaphore_return_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t SemaphoreInformationClass, uint32_t SemaphoreInformation, uint32_t SemaphoreInformationLength, uint32_t ReturnLength); typedef void (*on_NtQuerySemaphore_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t SemaphoreInformationClass, uint32_t SemaphoreInformation, uint32_t SemaphoreInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQuerySymbolicLinkObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t LinkTarget, uint32_t ReturnedLength); typedef void (*on_NtQuerySymbolicLinkObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t LinkTarget, uint32_t ReturnedLength);;
+typedef void (*on_NtQuerySymbolicLinkObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t LinkTarget, uint32_t ReturnedLength); typedef void (*on_NtQuerySymbolicLinkObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t LinkTarget, uint32_t ReturnedLength);;
+typedef void (*on_NtQuerySystemEnvironmentValue_enter_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VariableValue, uint32_t ValueLength, uint32_t ReturnLength); typedef void (*on_NtQuerySystemEnvironmentValue_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VariableValue, uint32_t ValueLength, uint32_t ReturnLength);;
+typedef void (*on_NtQuerySystemEnvironmentValue_return_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VariableValue, uint32_t ValueLength, uint32_t ReturnLength); typedef void (*on_NtQuerySystemEnvironmentValue_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VariableValue, uint32_t ValueLength, uint32_t ReturnLength);;
+typedef void (*on_NtQuerySystemEnvironmentValueEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VendorGuid, uint32_t Value, uint32_t ValueLength, uint32_t Attributes); typedef void (*on_NtQuerySystemEnvironmentValueEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VendorGuid, uint32_t Value, uint32_t ValueLength, uint32_t Attributes);;
+typedef void (*on_NtQuerySystemEnvironmentValueEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VendorGuid, uint32_t Value, uint32_t ValueLength, uint32_t Attributes); typedef void (*on_NtQuerySystemEnvironmentValueEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VendorGuid, uint32_t Value, uint32_t ValueLength, uint32_t Attributes);;
+typedef void (*on_NtQuerySystemInformation_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t SystemInformation, uint32_t SystemInformationLength, uint32_t ReturnLength); typedef void (*on_NtQuerySystemInformation_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t SystemInformation, uint32_t SystemInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQuerySystemInformation_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t SystemInformation, uint32_t SystemInformationLength, uint32_t ReturnLength); typedef void (*on_NtQuerySystemInformation_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t SystemInformation, uint32_t SystemInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQuerySystemInformationEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t QueryInformation, uint32_t QueryInformationLength, uint32_t SystemInformation, uint32_t SystemInformationLength, uint32_t ReturnLength); typedef void (*on_NtQuerySystemInformationEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t QueryInformation, uint32_t QueryInformationLength, uint32_t SystemInformation, uint32_t SystemInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQuerySystemInformationEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t QueryInformation, uint32_t QueryInformationLength, uint32_t SystemInformation, uint32_t SystemInformationLength, uint32_t ReturnLength); typedef void (*on_NtQuerySystemInformationEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t QueryInformation, uint32_t QueryInformationLength, uint32_t SystemInformation, uint32_t SystemInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQuerySystemTime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemTime); typedef void (*on_NtQuerySystemTime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemTime);;
+typedef void (*on_NtQuerySystemTime_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemTime); typedef void (*on_NtQuerySystemTime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemTime);;
+typedef void (*on_NtQueryTimer_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t TimerInformationClass, uint32_t TimerInformation, uint32_t TimerInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryTimer_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t TimerInformationClass, uint32_t TimerInformation, uint32_t TimerInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryTimer_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t TimerInformationClass, uint32_t TimerInformation, uint32_t TimerInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryTimer_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t TimerInformationClass, uint32_t TimerInformation, uint32_t TimerInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryTimerResolution_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MaximumTime, uint32_t MinimumTime, uint32_t CurrentTime); typedef void (*on_NtQueryTimerResolution_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MaximumTime, uint32_t MinimumTime, uint32_t CurrentTime);;
+typedef void (*on_NtQueryTimerResolution_return_t)(CPUState* cpu, target_ulong pc, uint32_t MaximumTime, uint32_t MinimumTime, uint32_t CurrentTime); typedef void (*on_NtQueryTimerResolution_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MaximumTime, uint32_t MinimumTime, uint32_t CurrentTime);;
+typedef void (*on_NtQueryValueKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName, uint32_t KeyValueInformationClass, uint32_t KeyValueInformation, uint32_t Length, uint32_t ResultLength); typedef void (*on_NtQueryValueKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName, uint32_t KeyValueInformationClass, uint32_t KeyValueInformation, uint32_t Length, uint32_t ResultLength);;
+typedef void (*on_NtQueryValueKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName, uint32_t KeyValueInformationClass, uint32_t KeyValueInformation, uint32_t Length, uint32_t ResultLength); typedef void (*on_NtQueryValueKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName, uint32_t KeyValueInformationClass, uint32_t KeyValueInformation, uint32_t Length, uint32_t ResultLength);;
+typedef void (*on_NtQueryVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t MemoryInformationClass, uint32_t MemoryInformation, uint32_t MemoryInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryVirtualMemory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t MemoryInformationClass, uint32_t MemoryInformation, uint32_t MemoryInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t MemoryInformationClass, uint32_t MemoryInformation, uint32_t MemoryInformationLength, uint32_t ReturnLength); typedef void (*on_NtQueryVirtualMemory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t MemoryInformationClass, uint32_t MemoryInformation, uint32_t MemoryInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtQueryVolumeInformationFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FsInformation, uint32_t Length, uint32_t FsInformationClass); typedef void (*on_NtQueryVolumeInformationFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FsInformation, uint32_t Length, uint32_t FsInformationClass);;
+typedef void (*on_NtQueryVolumeInformationFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FsInformation, uint32_t Length, uint32_t FsInformationClass); typedef void (*on_NtQueryVolumeInformationFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FsInformation, uint32_t Length, uint32_t FsInformationClass);;
+typedef void (*on_NtQueueApcThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ApcRoutine, uint32_t ApcArgument1, uint32_t ApcArgument2, uint32_t ApcArgument3); typedef void (*on_NtQueueApcThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ApcRoutine, uint32_t ApcArgument1, uint32_t ApcArgument2, uint32_t ApcArgument3);;
+typedef void (*on_NtQueueApcThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ApcRoutine, uint32_t ApcArgument1, uint32_t ApcArgument2, uint32_t ApcArgument3); typedef void (*on_NtQueueApcThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ApcRoutine, uint32_t ApcArgument1, uint32_t ApcArgument2, uint32_t ApcArgument3);;
+typedef void (*on_NtQueueApcThreadEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t UserApcReserveHandle, uint32_t ApcRoutine, uint32_t ApcArgument1, uint32_t ApcArgument2, uint32_t ApcArgument3); typedef void (*on_NtQueueApcThreadEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t UserApcReserveHandle, uint32_t ApcRoutine, uint32_t ApcArgument1, uint32_t ApcArgument2, uint32_t ApcArgument3);;
+typedef void (*on_NtQueueApcThreadEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t UserApcReserveHandle, uint32_t ApcRoutine, uint32_t ApcArgument1, uint32_t ApcArgument2, uint32_t ApcArgument3); typedef void (*on_NtQueueApcThreadEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t UserApcReserveHandle, uint32_t ApcRoutine, uint32_t ApcArgument1, uint32_t ApcArgument2, uint32_t ApcArgument3);;
+typedef void (*on_NtRaiseException_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ExceptionRecord, uint32_t ContextRecord, uint32_t FirstChance); typedef void (*on_NtRaiseException_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ExceptionRecord, uint32_t ContextRecord, uint32_t FirstChance);;
+typedef void (*on_NtRaiseException_return_t)(CPUState* cpu, target_ulong pc, uint32_t ExceptionRecord, uint32_t ContextRecord, uint32_t FirstChance); typedef void (*on_NtRaiseException_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ExceptionRecord, uint32_t ContextRecord, uint32_t FirstChance);;
+typedef void (*on_NtRaiseHardError_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ErrorStatus, uint32_t NumberOfParameters, uint32_t UnicodeStringParameterMask, uint32_t Parameters, uint32_t ValidResponseOptions, uint32_t Response); typedef void (*on_NtRaiseHardError_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ErrorStatus, uint32_t NumberOfParameters, uint32_t UnicodeStringParameterMask, uint32_t Parameters, uint32_t ValidResponseOptions, uint32_t Response);;
+typedef void (*on_NtRaiseHardError_return_t)(CPUState* cpu, target_ulong pc, uint32_t ErrorStatus, uint32_t NumberOfParameters, uint32_t UnicodeStringParameterMask, uint32_t Parameters, uint32_t ValidResponseOptions, uint32_t Response); typedef void (*on_NtRaiseHardError_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ErrorStatus, uint32_t NumberOfParameters, uint32_t UnicodeStringParameterMask, uint32_t Parameters, uint32_t ValidResponseOptions, uint32_t Response);;
+typedef void (*on_NtReadFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ByteOffset, uint32_t Key); typedef void (*on_NtReadFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ByteOffset, uint32_t Key);;
+typedef void (*on_NtReadFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ByteOffset, uint32_t Key); typedef void (*on_NtReadFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ByteOffset, uint32_t Key);;
+typedef void (*on_NtReadFileScatter_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t SegmentArray, uint32_t Length, uint32_t ByteOffset, uint32_t Key); typedef void (*on_NtReadFileScatter_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t SegmentArray, uint32_t Length, uint32_t ByteOffset, uint32_t Key);;
+typedef void (*on_NtReadFileScatter_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t SegmentArray, uint32_t Length, uint32_t ByteOffset, uint32_t Key); typedef void (*on_NtReadFileScatter_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t SegmentArray, uint32_t Length, uint32_t ByteOffset, uint32_t Key);;
+typedef void (*on_NtReadOnlyEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtReadOnlyEnlistment_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtReadOnlyEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtReadOnlyEnlistment_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtReadRequestData_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message, uint32_t DataEntryIndex, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesRead); typedef void (*on_NtReadRequestData_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message, uint32_t DataEntryIndex, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesRead);;
+typedef void (*on_NtReadRequestData_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message, uint32_t DataEntryIndex, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesRead); typedef void (*on_NtReadRequestData_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message, uint32_t DataEntryIndex, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesRead);;
+typedef void (*on_NtReadVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesRead); typedef void (*on_NtReadVirtualMemory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesRead);;
+typedef void (*on_NtReadVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesRead); typedef void (*on_NtReadVirtualMemory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesRead);;
+typedef void (*on_NtRecoverEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentKey); typedef void (*on_NtRecoverEnlistment_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentKey);;
+typedef void (*on_NtRecoverEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentKey); typedef void (*on_NtRecoverEnlistment_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentKey);;
+typedef void (*on_NtRecoverResourceManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle); typedef void (*on_NtRecoverResourceManager_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle);;
+typedef void (*on_NtRecoverResourceManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle); typedef void (*on_NtRecoverResourceManager_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle);;
+typedef void (*on_NtRecoverTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle); typedef void (*on_NtRecoverTransactionManager_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle);;
+typedef void (*on_NtRecoverTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle); typedef void (*on_NtRecoverTransactionManager_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle);;
+typedef void (*on_NtRegisterProtocolAddressInformation_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManager, uint32_t ProtocolId, uint32_t ProtocolInformationSize, uint32_t ProtocolInformation, uint32_t CreateOptions); typedef void (*on_NtRegisterProtocolAddressInformation_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManager, uint32_t ProtocolId, uint32_t ProtocolInformationSize, uint32_t ProtocolInformation, uint32_t CreateOptions);;
+typedef void (*on_NtRegisterProtocolAddressInformation_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManager, uint32_t ProtocolId, uint32_t ProtocolInformationSize, uint32_t ProtocolInformation, uint32_t CreateOptions); typedef void (*on_NtRegisterProtocolAddressInformation_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManager, uint32_t ProtocolId, uint32_t ProtocolInformationSize, uint32_t ProtocolInformation, uint32_t CreateOptions);;
+typedef void (*on_NtRegisterThreadTerminatePort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle); typedef void (*on_NtRegisterThreadTerminatePort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle);;
+typedef void (*on_NtRegisterThreadTerminatePort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle); typedef void (*on_NtRegisterThreadTerminatePort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle);;
+typedef void (*on_NtReleaseKeyedEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t KeyValue, uint32_t Alertable, uint32_t Timeout); typedef void (*on_NtReleaseKeyedEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t KeyValue, uint32_t Alertable, uint32_t Timeout);;
+typedef void (*on_NtReleaseKeyedEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t KeyValue, uint32_t Alertable, uint32_t Timeout); typedef void (*on_NtReleaseKeyedEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t KeyValue, uint32_t Alertable, uint32_t Timeout);;
+typedef void (*on_NtReleaseMutant_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t PreviousCount); typedef void (*on_NtReleaseMutant_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t PreviousCount);;
+typedef void (*on_NtReleaseMutant_return_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t PreviousCount); typedef void (*on_NtReleaseMutant_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t PreviousCount);;
+typedef void (*on_NtReleaseSemaphore_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, int32_t ReleaseCount, uint32_t PreviousCount); typedef void (*on_NtReleaseSemaphore_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, int32_t ReleaseCount, uint32_t PreviousCount);;
+typedef void (*on_NtReleaseSemaphore_return_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, int32_t ReleaseCount, uint32_t PreviousCount); typedef void (*on_NtReleaseSemaphore_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, int32_t ReleaseCount, uint32_t PreviousCount);;
+typedef void (*on_NtReleaseWorkerFactoryWorker_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle); typedef void (*on_NtReleaseWorkerFactoryWorker_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle);;
+typedef void (*on_NtReleaseWorkerFactoryWorker_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle); typedef void (*on_NtReleaseWorkerFactoryWorker_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle);;
+typedef void (*on_NtRemoveIoCompletion_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Timeout); typedef void (*on_NtRemoveIoCompletion_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Timeout);;
+typedef void (*on_NtRemoveIoCompletion_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Timeout); typedef void (*on_NtRemoveIoCompletion_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Timeout);;
+typedef void (*on_NtRemoveIoCompletionEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionInformation, uint32_t Count, uint32_t NumEntriesRemoved, uint32_t Timeout, uint32_t Alertable); typedef void (*on_NtRemoveIoCompletionEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionInformation, uint32_t Count, uint32_t NumEntriesRemoved, uint32_t Timeout, uint32_t Alertable);;
+typedef void (*on_NtRemoveIoCompletionEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionInformation, uint32_t Count, uint32_t NumEntriesRemoved, uint32_t Timeout, uint32_t Alertable); typedef void (*on_NtRemoveIoCompletionEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionInformation, uint32_t Count, uint32_t NumEntriesRemoved, uint32_t Timeout, uint32_t Alertable);;
+typedef void (*on_NtRemoveProcessDebug_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DebugObjectHandle); typedef void (*on_NtRemoveProcessDebug_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DebugObjectHandle);;
+typedef void (*on_NtRemoveProcessDebug_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DebugObjectHandle); typedef void (*on_NtRemoveProcessDebug_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DebugObjectHandle);;
+typedef void (*on_NtRenameKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t NewName); typedef void (*on_NtRenameKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t NewName);;
+typedef void (*on_NtRenameKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t NewName); typedef void (*on_NtRenameKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t NewName);;
+typedef void (*on_NtRenameTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t LogFileName, uint32_t ExistingTransactionManagerGuid); typedef void (*on_NtRenameTransactionManager_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t LogFileName, uint32_t ExistingTransactionManagerGuid);;
+typedef void (*on_NtRenameTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t LogFileName, uint32_t ExistingTransactionManagerGuid); typedef void (*on_NtRenameTransactionManager_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t LogFileName, uint32_t ExistingTransactionManagerGuid);;
+typedef void (*on_NtReplaceKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t NewFile, uint32_t TargetHandle, uint32_t OldFile); typedef void (*on_NtReplaceKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t NewFile, uint32_t TargetHandle, uint32_t OldFile);;
+typedef void (*on_NtReplaceKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t NewFile, uint32_t TargetHandle, uint32_t OldFile); typedef void (*on_NtReplaceKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t NewFile, uint32_t TargetHandle, uint32_t OldFile);;
+typedef void (*on_NtReplacePartitionUnit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetInstancePath, uint32_t SpareInstancePath, uint32_t Flags); typedef void (*on_NtReplacePartitionUnit_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetInstancePath, uint32_t SpareInstancePath, uint32_t Flags);;
+typedef void (*on_NtReplacePartitionUnit_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetInstancePath, uint32_t SpareInstancePath, uint32_t Flags); typedef void (*on_NtReplacePartitionUnit_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetInstancePath, uint32_t SpareInstancePath, uint32_t Flags);;
+typedef void (*on_NtReplyPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ReplyMessage); typedef void (*on_NtReplyPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ReplyMessage);;
+typedef void (*on_NtReplyPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ReplyMessage); typedef void (*on_NtReplyPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ReplyMessage);;
+typedef void (*on_NtReplyWaitReceivePort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ReplyMessage, uint32_t ReceiveMessage); typedef void (*on_NtReplyWaitReceivePort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ReplyMessage, uint32_t ReceiveMessage);;
+typedef void (*on_NtReplyWaitReceivePort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ReplyMessage, uint32_t ReceiveMessage); typedef void (*on_NtReplyWaitReceivePort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ReplyMessage, uint32_t ReceiveMessage);;
+typedef void (*on_NtReplyWaitReceivePortEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ReplyMessage, uint32_t ReceiveMessage, uint32_t Timeout); typedef void (*on_NtReplyWaitReceivePortEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ReplyMessage, uint32_t ReceiveMessage, uint32_t Timeout);;
+typedef void (*on_NtReplyWaitReceivePortEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ReplyMessage, uint32_t ReceiveMessage, uint32_t Timeout); typedef void (*on_NtReplyWaitReceivePortEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ReplyMessage, uint32_t ReceiveMessage, uint32_t Timeout);;
+typedef void (*on_NtReplyWaitReplyPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ReplyMessage); typedef void (*on_NtReplyWaitReplyPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ReplyMessage);;
+typedef void (*on_NtReplyWaitReplyPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ReplyMessage); typedef void (*on_NtReplyWaitReplyPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ReplyMessage);;
+typedef void (*on_NtRequestPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t RequestMessage); typedef void (*on_NtRequestPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t RequestMessage);;
+typedef void (*on_NtRequestPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t RequestMessage); typedef void (*on_NtRequestPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t RequestMessage);;
+typedef void (*on_NtRequestWaitReplyPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t RequestMessage, uint32_t ReplyMessage); typedef void (*on_NtRequestWaitReplyPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t RequestMessage, uint32_t ReplyMessage);;
+typedef void (*on_NtRequestWaitReplyPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t RequestMessage, uint32_t ReplyMessage); typedef void (*on_NtRequestWaitReplyPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t RequestMessage, uint32_t ReplyMessage);;
+typedef void (*on_NtResetEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState); typedef void (*on_NtResetEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState);;
+typedef void (*on_NtResetEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState); typedef void (*on_NtResetEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState);;
+typedef void (*on_NtResetWriteWatch_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize); typedef void (*on_NtResetWriteWatch_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize);;
+typedef void (*on_NtResetWriteWatch_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize); typedef void (*on_NtResetWriteWatch_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize);;
+typedef void (*on_NtRestoreKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle, uint32_t Flags); typedef void (*on_NtRestoreKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle, uint32_t Flags);;
+typedef void (*on_NtRestoreKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle, uint32_t Flags); typedef void (*on_NtRestoreKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle, uint32_t Flags);;
+typedef void (*on_NtResumeProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle); typedef void (*on_NtResumeProcess_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle);;
+typedef void (*on_NtResumeProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle); typedef void (*on_NtResumeProcess_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle);;
+typedef void (*on_NtResumeThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount); typedef void (*on_NtResumeThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount);;
+typedef void (*on_NtResumeThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount); typedef void (*on_NtResumeThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount);;
+typedef void (*on_NtRollbackComplete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtRollbackComplete_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtRollbackComplete_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtRollbackComplete_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtRollbackEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtRollbackEnlistment_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtRollbackEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtRollbackEnlistment_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtRollbackTransaction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t Wait); typedef void (*on_NtRollbackTransaction_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t Wait);;
+typedef void (*on_NtRollbackTransaction_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t Wait); typedef void (*on_NtRollbackTransaction_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t Wait);;
+typedef void (*on_NtRollforwardTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle, uint32_t TmVirtualClock); typedef void (*on_NtRollforwardTransactionManager_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtRollforwardTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle, uint32_t TmVirtualClock); typedef void (*on_NtRollforwardTransactionManager_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtSaveKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle); typedef void (*on_NtSaveKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle);;
+typedef void (*on_NtSaveKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle); typedef void (*on_NtSaveKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle);;
+typedef void (*on_NtSaveKeyEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle, uint32_t Format); typedef void (*on_NtSaveKeyEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle, uint32_t Format);;
+typedef void (*on_NtSaveKeyEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle, uint32_t Format); typedef void (*on_NtSaveKeyEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle, uint32_t Format);;
+typedef void (*on_NtSaveMergedKeys_enter_t)(CPUState* cpu, target_ulong pc, uint32_t HighPrecedenceKeyHandle, uint32_t LowPrecedenceKeyHandle, uint32_t FileHandle); typedef void (*on_NtSaveMergedKeys_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t HighPrecedenceKeyHandle, uint32_t LowPrecedenceKeyHandle, uint32_t FileHandle);;
+typedef void (*on_NtSaveMergedKeys_return_t)(CPUState* cpu, target_ulong pc, uint32_t HighPrecedenceKeyHandle, uint32_t LowPrecedenceKeyHandle, uint32_t FileHandle); typedef void (*on_NtSaveMergedKeys_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t HighPrecedenceKeyHandle, uint32_t LowPrecedenceKeyHandle, uint32_t FileHandle);;
+typedef void (*on_NtSecureConnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t SecurityQos, uint32_t ClientView, uint32_t RequiredServerSid, uint32_t ServerView, uint32_t MaxMessageLength, uint32_t ConnectionInformation, uint32_t ConnectionInformationLength); typedef void (*on_NtSecureConnectPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t SecurityQos, uint32_t ClientView, uint32_t RequiredServerSid, uint32_t ServerView, uint32_t MaxMessageLength, uint32_t ConnectionInformation, uint32_t ConnectionInformationLength);;
+typedef void (*on_NtSecureConnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t SecurityQos, uint32_t ClientView, uint32_t RequiredServerSid, uint32_t ServerView, uint32_t MaxMessageLength, uint32_t ConnectionInformation, uint32_t ConnectionInformationLength); typedef void (*on_NtSecureConnectPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t SecurityQos, uint32_t ClientView, uint32_t RequiredServerSid, uint32_t ServerView, uint32_t MaxMessageLength, uint32_t ConnectionInformation, uint32_t ConnectionInformationLength);;
+typedef void (*on_NtSerializeBoot_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtSerializeBoot_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtSerializeBoot_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtSerializeBoot_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtSetBootEntryOrder_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count); typedef void (*on_NtSetBootEntryOrder_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);;
+typedef void (*on_NtSetBootEntryOrder_return_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count); typedef void (*on_NtSetBootEntryOrder_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);;
+typedef void (*on_NtSetBootOptions_enter_t)(CPUState* cpu, target_ulong pc, uint32_t BootOptions, uint32_t FieldsToChange); typedef void (*on_NtSetBootOptions_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t BootOptions, uint32_t FieldsToChange);;
+typedef void (*on_NtSetBootOptions_return_t)(CPUState* cpu, target_ulong pc, uint32_t BootOptions, uint32_t FieldsToChange); typedef void (*on_NtSetBootOptions_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t BootOptions, uint32_t FieldsToChange);;
+typedef void (*on_NtSetContextThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadContext); typedef void (*on_NtSetContextThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadContext);;
+typedef void (*on_NtSetContextThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadContext); typedef void (*on_NtSetContextThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadContext);;
+typedef void (*on_NtSetDebugFilterState_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ComponentId, uint32_t Level, uint32_t State); typedef void (*on_NtSetDebugFilterState_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ComponentId, uint32_t Level, uint32_t State);;
+typedef void (*on_NtSetDebugFilterState_return_t)(CPUState* cpu, target_ulong pc, uint32_t ComponentId, uint32_t Level, uint32_t State); typedef void (*on_NtSetDebugFilterState_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ComponentId, uint32_t Level, uint32_t State);;
+typedef void (*on_NtSetDefaultHardErrorPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DefaultHardErrorPort); typedef void (*on_NtSetDefaultHardErrorPort_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DefaultHardErrorPort);;
+typedef void (*on_NtSetDefaultHardErrorPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t DefaultHardErrorPort); typedef void (*on_NtSetDefaultHardErrorPort_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DefaultHardErrorPort);;
+typedef void (*on_NtSetDefaultLocale_enter_t)(CPUState* cpu, target_ulong pc, uint32_t UserProfile, uint32_t DefaultLocaleId); typedef void (*on_NtSetDefaultLocale_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t UserProfile, uint32_t DefaultLocaleId);;
+typedef void (*on_NtSetDefaultLocale_return_t)(CPUState* cpu, target_ulong pc, uint32_t UserProfile, uint32_t DefaultLocaleId); typedef void (*on_NtSetDefaultLocale_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t UserProfile, uint32_t DefaultLocaleId);;
+typedef void (*on_NtSetDefaultUILanguage_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DefaultUILanguageId); typedef void (*on_NtSetDefaultUILanguage_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DefaultUILanguageId);;
+typedef void (*on_NtSetDefaultUILanguage_return_t)(CPUState* cpu, target_ulong pc, uint32_t DefaultUILanguageId); typedef void (*on_NtSetDefaultUILanguage_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DefaultUILanguageId);;
+typedef void (*on_NtSetDriverEntryOrder_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count); typedef void (*on_NtSetDriverEntryOrder_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);;
+typedef void (*on_NtSetDriverEntryOrder_return_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count); typedef void (*on_NtSetDriverEntryOrder_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);;
+typedef void (*on_NtSetEaFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length); typedef void (*on_NtSetEaFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length);;
+typedef void (*on_NtSetEaFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length); typedef void (*on_NtSetEaFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length);;
+typedef void (*on_NtSetEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState); typedef void (*on_NtSetEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState);;
+typedef void (*on_NtSetEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState); typedef void (*on_NtSetEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState);;
+typedef void (*on_NtSetEventBoostPriority_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle); typedef void (*on_NtSetEventBoostPriority_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle);;
+typedef void (*on_NtSetEventBoostPriority_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle); typedef void (*on_NtSetEventBoostPriority_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventHandle);;
+typedef void (*on_NtSetHighEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle); typedef void (*on_NtSetHighEventPair_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);;
+typedef void (*on_NtSetHighEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle); typedef void (*on_NtSetHighEventPair_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);;
+typedef void (*on_NtSetHighWaitLowEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle); typedef void (*on_NtSetHighWaitLowEventPair_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);;
+typedef void (*on_NtSetHighWaitLowEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle); typedef void (*on_NtSetHighWaitLowEventPair_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);;
+typedef void (*on_NtSetInformationDebugObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t DebugObjectInformationClass, uint32_t DebugInformation, uint32_t DebugInformationLength, uint32_t ReturnLength); typedef void (*on_NtSetInformationDebugObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t DebugObjectInformationClass, uint32_t DebugInformation, uint32_t DebugInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtSetInformationDebugObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t DebugObjectInformationClass, uint32_t DebugInformation, uint32_t DebugInformationLength, uint32_t ReturnLength); typedef void (*on_NtSetInformationDebugObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t DebugObjectInformationClass, uint32_t DebugInformation, uint32_t DebugInformationLength, uint32_t ReturnLength);;
+typedef void (*on_NtSetInformationEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentInformationClass, uint32_t EnlistmentInformation, uint32_t EnlistmentInformationLength); typedef void (*on_NtSetInformationEnlistment_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentInformationClass, uint32_t EnlistmentInformation, uint32_t EnlistmentInformationLength);;
+typedef void (*on_NtSetInformationEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentInformationClass, uint32_t EnlistmentInformation, uint32_t EnlistmentInformationLength); typedef void (*on_NtSetInformationEnlistment_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentInformationClass, uint32_t EnlistmentInformation, uint32_t EnlistmentInformationLength);;
+typedef void (*on_NtSetInformationFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass); typedef void (*on_NtSetInformationFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass);;
+typedef void (*on_NtSetInformationFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass); typedef void (*on_NtSetInformationFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass);;
+typedef void (*on_NtSetInformationJobObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t JobObjectInformationClass, uint32_t JobObjectInformation, uint32_t JobObjectInformationLength); typedef void (*on_NtSetInformationJobObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t JobObjectInformationClass, uint32_t JobObjectInformation, uint32_t JobObjectInformationLength);;
+typedef void (*on_NtSetInformationJobObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t JobObjectInformationClass, uint32_t JobObjectInformation, uint32_t JobObjectInformationLength); typedef void (*on_NtSetInformationJobObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t JobObjectInformationClass, uint32_t JobObjectInformation, uint32_t JobObjectInformationLength);;
+typedef void (*on_NtSetInformationKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t KeySetInformationClass, uint32_t KeySetInformation, uint32_t KeySetInformationLength); typedef void (*on_NtSetInformationKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t KeySetInformationClass, uint32_t KeySetInformation, uint32_t KeySetInformationLength);;
+typedef void (*on_NtSetInformationKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t KeySetInformationClass, uint32_t KeySetInformation, uint32_t KeySetInformationLength); typedef void (*on_NtSetInformationKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t KeySetInformationClass, uint32_t KeySetInformation, uint32_t KeySetInformationLength);;
+typedef void (*on_NtSetInformationObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t ObjectInformationClass, uint32_t ObjectInformation, uint32_t ObjectInformationLength); typedef void (*on_NtSetInformationObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t ObjectInformationClass, uint32_t ObjectInformation, uint32_t ObjectInformationLength);;
+typedef void (*on_NtSetInformationObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t ObjectInformationClass, uint32_t ObjectInformation, uint32_t ObjectInformationLength); typedef void (*on_NtSetInformationObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t ObjectInformationClass, uint32_t ObjectInformation, uint32_t ObjectInformationLength);;
+typedef void (*on_NtSetInformationProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ProcessInformationClass, uint32_t ProcessInformation, uint32_t ProcessInformationLength); typedef void (*on_NtSetInformationProcess_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ProcessInformationClass, uint32_t ProcessInformation, uint32_t ProcessInformationLength);;
+typedef void (*on_NtSetInformationProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ProcessInformationClass, uint32_t ProcessInformation, uint32_t ProcessInformationLength); typedef void (*on_NtSetInformationProcess_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ProcessInformationClass, uint32_t ProcessInformation, uint32_t ProcessInformationLength);;
+typedef void (*on_NtSetInformationResourceManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t ResourceManagerInformationClass, uint32_t ResourceManagerInformation, uint32_t ResourceManagerInformationLength); typedef void (*on_NtSetInformationResourceManager_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t ResourceManagerInformationClass, uint32_t ResourceManagerInformation, uint32_t ResourceManagerInformationLength);;
+typedef void (*on_NtSetInformationResourceManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t ResourceManagerInformationClass, uint32_t ResourceManagerInformation, uint32_t ResourceManagerInformationLength); typedef void (*on_NtSetInformationResourceManager_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t ResourceManagerInformationClass, uint32_t ResourceManagerInformation, uint32_t ResourceManagerInformationLength);;
+typedef void (*on_NtSetInformationThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadInformationClass, uint32_t ThreadInformation, uint32_t ThreadInformationLength); typedef void (*on_NtSetInformationThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadInformationClass, uint32_t ThreadInformation, uint32_t ThreadInformationLength);;
+typedef void (*on_NtSetInformationThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadInformationClass, uint32_t ThreadInformation, uint32_t ThreadInformationLength); typedef void (*on_NtSetInformationThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadInformationClass, uint32_t ThreadInformation, uint32_t ThreadInformationLength);;
+typedef void (*on_NtSetInformationToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t TokenInformationClass, uint32_t TokenInformation, uint32_t TokenInformationLength); typedef void (*on_NtSetInformationToken_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t TokenInformationClass, uint32_t TokenInformation, uint32_t TokenInformationLength);;
+typedef void (*on_NtSetInformationToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t TokenInformationClass, uint32_t TokenInformation, uint32_t TokenInformationLength); typedef void (*on_NtSetInformationToken_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t TokenInformationClass, uint32_t TokenInformation, uint32_t TokenInformationLength);;
+typedef void (*on_NtSetInformationTransaction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t TransactionInformationClass, uint32_t TransactionInformation, uint32_t TransactionInformationLength); typedef void (*on_NtSetInformationTransaction_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t TransactionInformationClass, uint32_t TransactionInformation, uint32_t TransactionInformationLength);;
+typedef void (*on_NtSetInformationTransaction_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t TransactionInformationClass, uint32_t TransactionInformation, uint32_t TransactionInformationLength); typedef void (*on_NtSetInformationTransaction_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t TransactionInformationClass, uint32_t TransactionInformation, uint32_t TransactionInformationLength);;
+typedef void (*on_NtSetInformationTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t TransactionManagerInformationClass, uint32_t TransactionManagerInformation, uint32_t TransactionManagerInformationLength); typedef void (*on_NtSetInformationTransactionManager_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t TransactionManagerInformationClass, uint32_t TransactionManagerInformation, uint32_t TransactionManagerInformationLength);;
+typedef void (*on_NtSetInformationTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t TransactionManagerInformationClass, uint32_t TransactionManagerInformation, uint32_t TransactionManagerInformationLength); typedef void (*on_NtSetInformationTransactionManager_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t TransactionManagerInformationClass, uint32_t TransactionManagerInformation, uint32_t TransactionManagerInformationLength);;
+typedef void (*on_NtSetInformationWorkerFactory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t WorkerFactoryInformationClass, uint32_t WorkerFactoryInformation, uint32_t WorkerFactoryInformationLength); typedef void (*on_NtSetInformationWorkerFactory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t WorkerFactoryInformationClass, uint32_t WorkerFactoryInformation, uint32_t WorkerFactoryInformationLength);;
+typedef void (*on_NtSetInformationWorkerFactory_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t WorkerFactoryInformationClass, uint32_t WorkerFactoryInformation, uint32_t WorkerFactoryInformationLength); typedef void (*on_NtSetInformationWorkerFactory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t WorkerFactoryInformationClass, uint32_t WorkerFactoryInformation, uint32_t WorkerFactoryInformationLength);;
+typedef void (*on_NtSetIntervalProfile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Interval, uint32_t Source); typedef void (*on_NtSetIntervalProfile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Interval, uint32_t Source);;
+typedef void (*on_NtSetIntervalProfile_return_t)(CPUState* cpu, target_ulong pc, uint32_t Interval, uint32_t Source); typedef void (*on_NtSetIntervalProfile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Interval, uint32_t Source);;
+typedef void (*on_NtSetIoCompletion_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatus, uint32_t IoStatusInformation); typedef void (*on_NtSetIoCompletion_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatus, uint32_t IoStatusInformation);;
+typedef void (*on_NtSetIoCompletion_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatus, uint32_t IoStatusInformation); typedef void (*on_NtSetIoCompletion_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatus, uint32_t IoStatusInformation);;
+typedef void (*on_NtSetIoCompletionEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionReserveHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatus, uint32_t IoStatusInformation); typedef void (*on_NtSetIoCompletionEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionReserveHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatus, uint32_t IoStatusInformation);;
+typedef void (*on_NtSetIoCompletionEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionReserveHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatus, uint32_t IoStatusInformation); typedef void (*on_NtSetIoCompletionEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionReserveHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatus, uint32_t IoStatusInformation);;
+typedef void (*on_NtSetLdtEntries_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Selector0, uint32_t Entry0Low, uint32_t Entry0Hi, uint32_t Selector1, uint32_t Entry1Low, uint32_t Entry1Hi); typedef void (*on_NtSetLdtEntries_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Selector0, uint32_t Entry0Low, uint32_t Entry0Hi, uint32_t Selector1, uint32_t Entry1Low, uint32_t Entry1Hi);;
+typedef void (*on_NtSetLdtEntries_return_t)(CPUState* cpu, target_ulong pc, uint32_t Selector0, uint32_t Entry0Low, uint32_t Entry0Hi, uint32_t Selector1, uint32_t Entry1Low, uint32_t Entry1Hi); typedef void (*on_NtSetLdtEntries_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Selector0, uint32_t Entry0Low, uint32_t Entry0Hi, uint32_t Selector1, uint32_t Entry1Low, uint32_t Entry1Hi);;
+typedef void (*on_NtSetLowEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle); typedef void (*on_NtSetLowEventPair_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);;
+typedef void (*on_NtSetLowEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle); typedef void (*on_NtSetLowEventPair_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);;
+typedef void (*on_NtSetLowWaitHighEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle); typedef void (*on_NtSetLowWaitHighEventPair_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);;
+typedef void (*on_NtSetLowWaitHighEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle); typedef void (*on_NtSetLowWaitHighEventPair_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);;
+typedef void (*on_NtSetQuotaInformationFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length); typedef void (*on_NtSetQuotaInformationFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length);;
+typedef void (*on_NtSetQuotaInformationFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length); typedef void (*on_NtSetQuotaInformationFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length);;
+typedef void (*on_NtSetSecurityObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t SecurityInformation, uint32_t SecurityDescriptor); typedef void (*on_NtSetSecurityObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t SecurityInformation, uint32_t SecurityDescriptor);;
+typedef void (*on_NtSetSecurityObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t SecurityInformation, uint32_t SecurityDescriptor); typedef void (*on_NtSetSecurityObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t SecurityInformation, uint32_t SecurityDescriptor);;
+typedef void (*on_NtSetSystemEnvironmentValue_enter_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VariableValue); typedef void (*on_NtSetSystemEnvironmentValue_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VariableValue);;
+typedef void (*on_NtSetSystemEnvironmentValue_return_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VariableValue); typedef void (*on_NtSetSystemEnvironmentValue_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VariableValue);;
+typedef void (*on_NtSetSystemEnvironmentValueEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VendorGuid, uint32_t Value, uint32_t ValueLength, uint32_t Attributes); typedef void (*on_NtSetSystemEnvironmentValueEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VendorGuid, uint32_t Value, uint32_t ValueLength, uint32_t Attributes);;
+typedef void (*on_NtSetSystemEnvironmentValueEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VendorGuid, uint32_t Value, uint32_t ValueLength, uint32_t Attributes); typedef void (*on_NtSetSystemEnvironmentValueEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VendorGuid, uint32_t Value, uint32_t ValueLength, uint32_t Attributes);;
+typedef void (*on_NtSetSystemInformation_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t SystemInformation, uint32_t SystemInformationLength); typedef void (*on_NtSetSystemInformation_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t SystemInformation, uint32_t SystemInformationLength);;
+typedef void (*on_NtSetSystemInformation_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t SystemInformation, uint32_t SystemInformationLength); typedef void (*on_NtSetSystemInformation_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t SystemInformation, uint32_t SystemInformationLength);;
+typedef void (*on_NtSetSystemPowerState_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemAction, uint32_t MinSystemState, uint32_t Flags); typedef void (*on_NtSetSystemPowerState_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemAction, uint32_t MinSystemState, uint32_t Flags);;
+typedef void (*on_NtSetSystemPowerState_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemAction, uint32_t MinSystemState, uint32_t Flags); typedef void (*on_NtSetSystemPowerState_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemAction, uint32_t MinSystemState, uint32_t Flags);;
+typedef void (*on_NtSetSystemTime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemTime, uint32_t PreviousTime); typedef void (*on_NtSetSystemTime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemTime, uint32_t PreviousTime);;
+typedef void (*on_NtSetSystemTime_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemTime, uint32_t PreviousTime); typedef void (*on_NtSetSystemTime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SystemTime, uint32_t PreviousTime);;
+typedef void (*on_NtSetThreadExecutionState_enter_t)(CPUState* cpu, target_ulong pc, uint32_t esFlags, uint32_t PreviousFlags); typedef void (*on_NtSetThreadExecutionState_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t esFlags, uint32_t PreviousFlags);;
+typedef void (*on_NtSetThreadExecutionState_return_t)(CPUState* cpu, target_ulong pc, uint32_t esFlags, uint32_t PreviousFlags); typedef void (*on_NtSetThreadExecutionState_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t esFlags, uint32_t PreviousFlags);;
+typedef void (*on_NtSetTimer_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DueTime, uint32_t TimerApcRoutine, uint32_t TimerContext, uint32_t WakeTimer, int32_t Period, uint32_t PreviousState); typedef void (*on_NtSetTimer_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DueTime, uint32_t TimerApcRoutine, uint32_t TimerContext, uint32_t WakeTimer, int32_t Period, uint32_t PreviousState);;
+typedef void (*on_NtSetTimer_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DueTime, uint32_t TimerApcRoutine, uint32_t TimerContext, uint32_t WakeTimer, int32_t Period, uint32_t PreviousState); typedef void (*on_NtSetTimer_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DueTime, uint32_t TimerApcRoutine, uint32_t TimerContext, uint32_t WakeTimer, int32_t Period, uint32_t PreviousState);;
+typedef void (*on_NtSetTimerEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t TimerSetInformationClass, uint32_t TimerSetInformation, uint32_t TimerSetInformationLength); typedef void (*on_NtSetTimerEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t TimerSetInformationClass, uint32_t TimerSetInformation, uint32_t TimerSetInformationLength);;
+typedef void (*on_NtSetTimerEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t TimerSetInformationClass, uint32_t TimerSetInformation, uint32_t TimerSetInformationLength); typedef void (*on_NtSetTimerEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t TimerSetInformationClass, uint32_t TimerSetInformation, uint32_t TimerSetInformationLength);;
+typedef void (*on_NtSetTimerResolution_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DesiredTime, uint32_t SetResolution, uint32_t ActualTime); typedef void (*on_NtSetTimerResolution_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DesiredTime, uint32_t SetResolution, uint32_t ActualTime);;
+typedef void (*on_NtSetTimerResolution_return_t)(CPUState* cpu, target_ulong pc, uint32_t DesiredTime, uint32_t SetResolution, uint32_t ActualTime); typedef void (*on_NtSetTimerResolution_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DesiredTime, uint32_t SetResolution, uint32_t ActualTime);;
+typedef void (*on_NtSetUuidSeed_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Seed); typedef void (*on_NtSetUuidSeed_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Seed);;
+typedef void (*on_NtSetUuidSeed_return_t)(CPUState* cpu, target_ulong pc, uint32_t Seed); typedef void (*on_NtSetUuidSeed_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Seed);;
+typedef void (*on_NtSetValueKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName, uint32_t TitleIndex, uint32_t Type, uint32_t Data, uint32_t DataSize); typedef void (*on_NtSetValueKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName, uint32_t TitleIndex, uint32_t Type, uint32_t Data, uint32_t DataSize);;
+typedef void (*on_NtSetValueKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName, uint32_t TitleIndex, uint32_t Type, uint32_t Data, uint32_t DataSize); typedef void (*on_NtSetValueKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName, uint32_t TitleIndex, uint32_t Type, uint32_t Data, uint32_t DataSize);;
+typedef void (*on_NtSetVolumeInformationFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FsInformation, uint32_t Length, uint32_t FsInformationClass); typedef void (*on_NtSetVolumeInformationFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FsInformation, uint32_t Length, uint32_t FsInformationClass);;
+typedef void (*on_NtSetVolumeInformationFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FsInformation, uint32_t Length, uint32_t FsInformationClass); typedef void (*on_NtSetVolumeInformationFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FsInformation, uint32_t Length, uint32_t FsInformationClass);;
+typedef void (*on_NtShutdownSystem_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Action); typedef void (*on_NtShutdownSystem_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Action);;
+typedef void (*on_NtShutdownSystem_return_t)(CPUState* cpu, target_ulong pc, uint32_t Action); typedef void (*on_NtShutdownSystem_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Action);;
+typedef void (*on_NtShutdownWorkerFactory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t PendingWorkerCount); typedef void (*on_NtShutdownWorkerFactory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t PendingWorkerCount);;
+typedef void (*on_NtShutdownWorkerFactory_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t PendingWorkerCount); typedef void (*on_NtShutdownWorkerFactory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t PendingWorkerCount);;
+typedef void (*on_NtSignalAndWaitForSingleObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SignalHandle, uint32_t WaitHandle, uint32_t Alertable, uint32_t Timeout); typedef void (*on_NtSignalAndWaitForSingleObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SignalHandle, uint32_t WaitHandle, uint32_t Alertable, uint32_t Timeout);;
+typedef void (*on_NtSignalAndWaitForSingleObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t SignalHandle, uint32_t WaitHandle, uint32_t Alertable, uint32_t Timeout); typedef void (*on_NtSignalAndWaitForSingleObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SignalHandle, uint32_t WaitHandle, uint32_t Alertable, uint32_t Timeout);;
+typedef void (*on_NtSinglePhaseReject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtSinglePhaseReject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtSinglePhaseReject_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock); typedef void (*on_NtSinglePhaseReject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);;
+typedef void (*on_NtStartProfile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle); typedef void (*on_NtStartProfile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProfileHandle);;
+typedef void (*on_NtStartProfile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle); typedef void (*on_NtStartProfile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProfileHandle);;
+typedef void (*on_NtStopProfile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle); typedef void (*on_NtStopProfile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProfileHandle);;
+typedef void (*on_NtStopProfile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle); typedef void (*on_NtStopProfile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProfileHandle);;
+typedef void (*on_NtSuspendProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle); typedef void (*on_NtSuspendProcess_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle);;
+typedef void (*on_NtSuspendProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle); typedef void (*on_NtSuspendProcess_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle);;
+typedef void (*on_NtSuspendThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount); typedef void (*on_NtSuspendThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount);;
+typedef void (*on_NtSuspendThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount); typedef void (*on_NtSuspendThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount);;
+typedef void (*on_NtSystemDebugControl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Command, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength, uint32_t ReturnLength); typedef void (*on_NtSystemDebugControl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Command, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength, uint32_t ReturnLength);;
+typedef void (*on_NtSystemDebugControl_return_t)(CPUState* cpu, target_ulong pc, uint32_t Command, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength, uint32_t ReturnLength); typedef void (*on_NtSystemDebugControl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Command, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength, uint32_t ReturnLength);;
+typedef void (*on_NtTerminateJobObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t ExitStatus); typedef void (*on_NtTerminateJobObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t ExitStatus);;
+typedef void (*on_NtTerminateJobObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t ExitStatus); typedef void (*on_NtTerminateJobObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t ExitStatus);;
+typedef void (*on_NtTerminateProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ExitStatus); typedef void (*on_NtTerminateProcess_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ExitStatus);;
+typedef void (*on_NtTerminateProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ExitStatus); typedef void (*on_NtTerminateProcess_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ExitStatus);;
+typedef void (*on_NtTerminateThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ExitStatus); typedef void (*on_NtTerminateThread_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ExitStatus);;
+typedef void (*on_NtTerminateThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ExitStatus); typedef void (*on_NtTerminateThread_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ExitStatus);;
+typedef void (*on_NtTestAlert_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtTestAlert_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtTestAlert_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtTestAlert_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtThawRegistry_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtThawRegistry_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtThawRegistry_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtThawRegistry_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtThawTransactions_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtThawTransactions_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtThawTransactions_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtThawTransactions_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtTraceControl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FunctionCode, uint32_t InBuffer, uint32_t InBufferLen, uint32_t OutBuffer, uint32_t OutBufferLen, uint32_t ReturnLength); typedef void (*on_NtTraceControl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FunctionCode, uint32_t InBuffer, uint32_t InBufferLen, uint32_t OutBuffer, uint32_t OutBufferLen, uint32_t ReturnLength);;
+typedef void (*on_NtTraceControl_return_t)(CPUState* cpu, target_ulong pc, uint32_t FunctionCode, uint32_t InBuffer, uint32_t InBufferLen, uint32_t OutBuffer, uint32_t OutBufferLen, uint32_t ReturnLength); typedef void (*on_NtTraceControl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FunctionCode, uint32_t InBuffer, uint32_t InBufferLen, uint32_t OutBuffer, uint32_t OutBufferLen, uint32_t ReturnLength);;
+typedef void (*on_NtTraceEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TraceHandle, uint32_t Flags, uint32_t FieldSize, uint32_t Fields); typedef void (*on_NtTraceEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TraceHandle, uint32_t Flags, uint32_t FieldSize, uint32_t Fields);;
+typedef void (*on_NtTraceEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t TraceHandle, uint32_t Flags, uint32_t FieldSize, uint32_t Fields); typedef void (*on_NtTraceEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TraceHandle, uint32_t Flags, uint32_t FieldSize, uint32_t Fields);;
+typedef void (*on_NtTranslateFilePath_enter_t)(CPUState* cpu, target_ulong pc, uint32_t InputFilePath, uint32_t OutputType, uint32_t OutputFilePath, uint32_t OutputFilePathLength); typedef void (*on_NtTranslateFilePath_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t InputFilePath, uint32_t OutputType, uint32_t OutputFilePath, uint32_t OutputFilePathLength);;
+typedef void (*on_NtTranslateFilePath_return_t)(CPUState* cpu, target_ulong pc, uint32_t InputFilePath, uint32_t OutputType, uint32_t OutputFilePath, uint32_t OutputFilePathLength); typedef void (*on_NtTranslateFilePath_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t InputFilePath, uint32_t OutputType, uint32_t OutputFilePath, uint32_t OutputFilePathLength);;
+typedef void (*on_NtUmsThreadYield_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SchedulerParam); typedef void (*on_NtUmsThreadYield_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SchedulerParam);;
+typedef void (*on_NtUmsThreadYield_return_t)(CPUState* cpu, target_ulong pc, uint32_t SchedulerParam); typedef void (*on_NtUmsThreadYield_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t SchedulerParam);;
+typedef void (*on_NtUnloadDriver_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DriverServiceName); typedef void (*on_NtUnloadDriver_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DriverServiceName);;
+typedef void (*on_NtUnloadDriver_return_t)(CPUState* cpu, target_ulong pc, uint32_t DriverServiceName); typedef void (*on_NtUnloadDriver_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DriverServiceName);;
+typedef void (*on_NtUnloadKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey); typedef void (*on_NtUnloadKey_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey);;
+typedef void (*on_NtUnloadKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey); typedef void (*on_NtUnloadKey_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey);;
+typedef void (*on_NtUnloadKey2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t Flags); typedef void (*on_NtUnloadKey2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t Flags);;
+typedef void (*on_NtUnloadKey2_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t Flags); typedef void (*on_NtUnloadKey2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t Flags);;
+typedef void (*on_NtUnloadKeyEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t Event); typedef void (*on_NtUnloadKeyEx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t Event);;
+typedef void (*on_NtUnloadKeyEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t Event); typedef void (*on_NtUnloadKeyEx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t Event);;
+typedef void (*on_NtUnlockFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t ByteOffset, uint32_t Length, uint32_t Key); typedef void (*on_NtUnlockFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t ByteOffset, uint32_t Length, uint32_t Key);;
+typedef void (*on_NtUnlockFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t ByteOffset, uint32_t Length, uint32_t Key); typedef void (*on_NtUnlockFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t ByteOffset, uint32_t Length, uint32_t Key);;
+typedef void (*on_NtUnlockVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t MapType); typedef void (*on_NtUnlockVirtualMemory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t MapType);;
+typedef void (*on_NtUnlockVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t MapType); typedef void (*on_NtUnlockVirtualMemory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t MapType);;
+typedef void (*on_NtUnmapViewOfSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress); typedef void (*on_NtUnmapViewOfSection_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress);;
+typedef void (*on_NtUnmapViewOfSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress); typedef void (*on_NtUnmapViewOfSection_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress);;
+typedef void (*on_NtVdmControl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Service, uint32_t ServiceData); typedef void (*on_NtVdmControl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Service, uint32_t ServiceData);;
+typedef void (*on_NtVdmControl_return_t)(CPUState* cpu, target_ulong pc, uint32_t Service, uint32_t ServiceData); typedef void (*on_NtVdmControl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Service, uint32_t ServiceData);;
+typedef void (*on_NtWaitForDebugEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t Alertable, uint32_t Timeout, uint32_t WaitStateChange); typedef void (*on_NtWaitForDebugEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t Alertable, uint32_t Timeout, uint32_t WaitStateChange);;
+typedef void (*on_NtWaitForDebugEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t Alertable, uint32_t Timeout, uint32_t WaitStateChange); typedef void (*on_NtWaitForDebugEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t Alertable, uint32_t Timeout, uint32_t WaitStateChange);;
+typedef void (*on_NtWaitForKeyedEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t KeyValue, uint32_t Alertable, uint32_t Timeout); typedef void (*on_NtWaitForKeyedEvent_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t KeyValue, uint32_t Alertable, uint32_t Timeout);;
+typedef void (*on_NtWaitForKeyedEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t KeyValue, uint32_t Alertable, uint32_t Timeout); typedef void (*on_NtWaitForKeyedEvent_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t KeyValue, uint32_t Alertable, uint32_t Timeout);;
+typedef void (*on_NtWaitForMultipleObjects_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t Handles, uint32_t WaitType, uint32_t Alertable, uint32_t Timeout); typedef void (*on_NtWaitForMultipleObjects_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t Handles, uint32_t WaitType, uint32_t Alertable, uint32_t Timeout);;
+typedef void (*on_NtWaitForMultipleObjects_return_t)(CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t Handles, uint32_t WaitType, uint32_t Alertable, uint32_t Timeout); typedef void (*on_NtWaitForMultipleObjects_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t Handles, uint32_t WaitType, uint32_t Alertable, uint32_t Timeout);;
+typedef void (*on_NtWaitForMultipleObjects32_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t Handles, uint32_t WaitType, uint32_t Alertable, uint32_t Timeout); typedef void (*on_NtWaitForMultipleObjects32_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t Handles, uint32_t WaitType, uint32_t Alertable, uint32_t Timeout);;
+typedef void (*on_NtWaitForMultipleObjects32_return_t)(CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t Handles, uint32_t WaitType, uint32_t Alertable, uint32_t Timeout); typedef void (*on_NtWaitForMultipleObjects32_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t Handles, uint32_t WaitType, uint32_t Alertable, uint32_t Timeout);;
+typedef void (*on_NtWaitForSingleObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t Alertable, uint32_t Timeout); typedef void (*on_NtWaitForSingleObject_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t Alertable, uint32_t Timeout);;
+typedef void (*on_NtWaitForSingleObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t Alertable, uint32_t Timeout); typedef void (*on_NtWaitForSingleObject_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t Alertable, uint32_t Timeout);;
+typedef void (*on_NtWaitForWorkViaWorkerFactory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t MiniPacket); typedef void (*on_NtWaitForWorkViaWorkerFactory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t MiniPacket);;
+typedef void (*on_NtWaitForWorkViaWorkerFactory_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t MiniPacket); typedef void (*on_NtWaitForWorkViaWorkerFactory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t MiniPacket);;
+typedef void (*on_NtWaitHighEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle); typedef void (*on_NtWaitHighEventPair_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);;
+typedef void (*on_NtWaitHighEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle); typedef void (*on_NtWaitHighEventPair_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);;
+typedef void (*on_NtWaitLowEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle); typedef void (*on_NtWaitLowEventPair_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);;
+typedef void (*on_NtWaitLowEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle); typedef void (*on_NtWaitLowEventPair_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);;
+typedef void (*on_NtWorkerFactoryWorkerReady_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle); typedef void (*on_NtWorkerFactoryWorkerReady_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle);;
+typedef void (*on_NtWorkerFactoryWorkerReady_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle); typedef void (*on_NtWorkerFactoryWorkerReady_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle);;
+typedef void (*on_NtWriteFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ByteOffset, uint32_t Key); typedef void (*on_NtWriteFile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ByteOffset, uint32_t Key);;
+typedef void (*on_NtWriteFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ByteOffset, uint32_t Key); typedef void (*on_NtWriteFile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ByteOffset, uint32_t Key);;
+typedef void (*on_NtWriteFileGather_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t SegmentArray, uint32_t Length, uint32_t ByteOffset, uint32_t Key); typedef void (*on_NtWriteFileGather_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t SegmentArray, uint32_t Length, uint32_t ByteOffset, uint32_t Key);;
+typedef void (*on_NtWriteFileGather_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t SegmentArray, uint32_t Length, uint32_t ByteOffset, uint32_t Key); typedef void (*on_NtWriteFileGather_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t SegmentArray, uint32_t Length, uint32_t ByteOffset, uint32_t Key);;
+typedef void (*on_NtWriteRequestData_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message, uint32_t DataEntryIndex, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesWritten); typedef void (*on_NtWriteRequestData_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message, uint32_t DataEntryIndex, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesWritten);;
+typedef void (*on_NtWriteRequestData_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message, uint32_t DataEntryIndex, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesWritten); typedef void (*on_NtWriteRequestData_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message, uint32_t DataEntryIndex, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesWritten);;
+typedef void (*on_NtWriteVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesWritten); typedef void (*on_NtWriteVirtualMemory_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesWritten);;
+typedef void (*on_NtWriteVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesWritten); typedef void (*on_NtWriteVirtualMemory_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesWritten);;
+typedef void (*on_NtYieldExecution_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtYieldExecution_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_NtYieldExecution_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_NtYieldExecution_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_accept4_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, int32_t arg3); typedef void (*on_sys_accept4_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, int32_t arg3);;
+typedef void (*on_sys_accept4_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, int32_t arg3); typedef void (*on_sys_accept4_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, int32_t arg3);;
+typedef void (*on_sys_access_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t mode); typedef void (*on_sys_access_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, int32_t mode);;
+typedef void (*on_sys_access_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t mode); typedef void (*on_sys_access_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, int32_t mode);;
+typedef void (*on_sys_acct_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_acct_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
+typedef void (*on_sys_acct_return_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_acct_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
+typedef void (*on_sys_add_key_enter_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _payload, uint32_t plen, uint32_t destringid); typedef void (*on_sys_add_key_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _payload, uint32_t plen, uint32_t destringid);;
+typedef void (*on_sys_add_key_return_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _payload, uint32_t plen, uint32_t destringid); typedef void (*on_sys_add_key_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _payload, uint32_t plen, uint32_t destringid);;
+typedef void (*on_sys_adjtimex_enter_t)(CPUState* cpu, target_ulong pc, uint32_t txc_p); typedef void (*on_sys_adjtimex_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t txc_p);;
+typedef void (*on_sys_adjtimex_return_t)(CPUState* cpu, target_ulong pc, uint32_t txc_p); typedef void (*on_sys_adjtimex_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t txc_p);;
+typedef void (*on_sys_alarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t seconds); typedef void (*on_sys_alarm_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t seconds);;
+typedef void (*on_sys_alarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t seconds); typedef void (*on_sys_alarm_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t seconds);;
+typedef void (*on_sys_arch_prctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1); typedef void (*on_sys_arch_prctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1);;
+typedef void (*on_sys_arch_prctl_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1); typedef void (*on_sys_arch_prctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1);;
+typedef void (*on_sys_bdflush_enter_t)(CPUState* cpu, target_ulong pc, int32_t func, int32_t _data); typedef void (*on_sys_bdflush_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t func, int32_t _data);;
+typedef void (*on_sys_bdflush_return_t)(CPUState* cpu, target_ulong pc, int32_t func, int32_t _data); typedef void (*on_sys_bdflush_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t func, int32_t _data);;
+typedef void (*on_sys_bind_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2); typedef void (*on_sys_bind_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);;
+typedef void (*on_sys_bind_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2); typedef void (*on_sys_bind_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);;
+typedef void (*on_sys_bpf_enter_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t attr, uint32_t size); typedef void (*on_sys_bpf_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t attr, uint32_t size);;
+typedef void (*on_sys_bpf_return_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t attr, uint32_t size); typedef void (*on_sys_bpf_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t attr, uint32_t size);;
+typedef void (*on_sys_brk_enter_t)(CPUState* cpu, target_ulong pc, uint32_t brk); typedef void (*on_sys_brk_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t brk);;
+typedef void (*on_sys_brk_return_t)(CPUState* cpu, target_ulong pc, uint32_t brk); typedef void (*on_sys_brk_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t brk);;
+typedef void (*on_sys_capget_enter_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t dataptr); typedef void (*on_sys_capget_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t header, uint32_t dataptr);;
+typedef void (*on_sys_capget_return_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t dataptr); typedef void (*on_sys_capget_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t header, uint32_t dataptr);;
+typedef void (*on_sys_capset_enter_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t _data); typedef void (*on_sys_capset_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t header, uint32_t _data);;
+typedef void (*on_sys_capset_return_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t _data); typedef void (*on_sys_capset_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t header, uint32_t _data);;
+typedef void (*on_sys_chdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename); typedef void (*on_sys_chdir_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename);;
+typedef void (*on_sys_chdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename); typedef void (*on_sys_chdir_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename);;
+typedef void (*on_sys_chmod_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode); typedef void (*on_sys_chmod_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode);;
+typedef void (*on_sys_chmod_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode); typedef void (*on_sys_chmod_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode);;
+typedef void (*on_sys_chown_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_chown_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
+typedef void (*on_sys_chown_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_chown_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
+typedef void (*on_sys_chown16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_chown16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
+typedef void (*on_sys_chown16_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_chown16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
+typedef void (*on_sys_chroot_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename); typedef void (*on_sys_chroot_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename);;
+typedef void (*on_sys_chroot_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename); typedef void (*on_sys_chroot_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename);;
+typedef void (*on_sys_clock_adjtime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tx); typedef void (*on_sys_clock_adjtime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tx);;
+typedef void (*on_sys_clock_adjtime_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tx); typedef void (*on_sys_clock_adjtime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tx);;
+typedef void (*on_sys_clock_getres_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp); typedef void (*on_sys_clock_getres_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);;
+typedef void (*on_sys_clock_getres_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp); typedef void (*on_sys_clock_getres_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);;
+typedef void (*on_sys_clock_gettime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp); typedef void (*on_sys_clock_gettime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);;
+typedef void (*on_sys_clock_gettime_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp); typedef void (*on_sys_clock_gettime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);;
+typedef void (*on_sys_clock_nanosleep_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, int32_t flags, uint32_t rqtp, uint32_t rmtp); typedef void (*on_sys_clock_nanosleep_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, int32_t flags, uint32_t rqtp, uint32_t rmtp);;
+typedef void (*on_sys_clock_nanosleep_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, int32_t flags, uint32_t rqtp, uint32_t rmtp); typedef void (*on_sys_clock_nanosleep_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, int32_t flags, uint32_t rqtp, uint32_t rmtp);;
+typedef void (*on_sys_clock_settime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp); typedef void (*on_sys_clock_settime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);;
+typedef void (*on_sys_clock_settime_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp); typedef void (*on_sys_clock_settime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);;
+typedef void (*on_sys_clone_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4); typedef void (*on_sys_clone_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);;
+typedef void (*on_sys_clone_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4); typedef void (*on_sys_clone_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);;
+typedef void (*on_sys_close_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_close_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
+typedef void (*on_sys_close_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_close_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
+typedef void (*on_sys_connect_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2); typedef void (*on_sys_connect_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);;
+typedef void (*on_sys_connect_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2); typedef void (*on_sys_connect_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);;
+typedef void (*on_sys_copy_file_range_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags); typedef void (*on_sys_copy_file_range_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags);;
+typedef void (*on_sys_copy_file_range_return_t)(CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags); typedef void (*on_sys_copy_file_range_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags);;
+typedef void (*on_sys_creat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode); typedef void (*on_sys_creat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);;
+typedef void (*on_sys_creat_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode); typedef void (*on_sys_creat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);;
+typedef void (*on_sys_delete_module_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name_user, uint32_t flags); typedef void (*on_sys_delete_module_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name_user, uint32_t flags);;
+typedef void (*on_sys_delete_module_return_t)(CPUState* cpu, target_ulong pc, uint32_t name_user, uint32_t flags); typedef void (*on_sys_delete_module_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name_user, uint32_t flags);;
+typedef void (*on_sys_dup_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fildes); typedef void (*on_sys_dup_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fildes);;
+typedef void (*on_sys_dup_return_t)(CPUState* cpu, target_ulong pc, uint32_t fildes); typedef void (*on_sys_dup_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fildes);;
+typedef void (*on_sys_dup2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd); typedef void (*on_sys_dup2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd);;
+typedef void (*on_sys_dup2_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd); typedef void (*on_sys_dup2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd);;
+typedef void (*on_sys_dup3_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd, int32_t flags); typedef void (*on_sys_dup3_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd, int32_t flags);;
+typedef void (*on_sys_dup3_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd, int32_t flags); typedef void (*on_sys_dup3_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd, int32_t flags);;
+typedef void (*on_sys_epoll_create_enter_t)(CPUState* cpu, target_ulong pc, int32_t size); typedef void (*on_sys_epoll_create_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t size);;
+typedef void (*on_sys_epoll_create_return_t)(CPUState* cpu, target_ulong pc, int32_t size); typedef void (*on_sys_epoll_create_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t size);;
+typedef void (*on_sys_epoll_create1_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_epoll_create1_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
+typedef void (*on_sys_epoll_create1_return_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_epoll_create1_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
+typedef void (*on_sys_epoll_ctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t epfd, int32_t op, int32_t fd, uint32_t event); typedef void (*on_sys_epoll_ctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t epfd, int32_t op, int32_t fd, uint32_t event);;
+typedef void (*on_sys_epoll_ctl_return_t)(CPUState* cpu, target_ulong pc, int32_t epfd, int32_t op, int32_t fd, uint32_t event); typedef void (*on_sys_epoll_ctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t epfd, int32_t op, int32_t fd, uint32_t event);;
+typedef void (*on_sys_epoll_pwait_enter_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout, uint32_t sigmask, uint32_t sigsetsize); typedef void (*on_sys_epoll_pwait_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout, uint32_t sigmask, uint32_t sigsetsize);;
+typedef void (*on_sys_epoll_pwait_return_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout, uint32_t sigmask, uint32_t sigsetsize); typedef void (*on_sys_epoll_pwait_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout, uint32_t sigmask, uint32_t sigsetsize);;
+typedef void (*on_sys_epoll_wait_enter_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout); typedef void (*on_sys_epoll_wait_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout);;
+typedef void (*on_sys_epoll_wait_return_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout); typedef void (*on_sys_epoll_wait_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout);;
+typedef void (*on_sys_eventfd_enter_t)(CPUState* cpu, target_ulong pc, uint32_t count); typedef void (*on_sys_eventfd_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t count);;
+typedef void (*on_sys_eventfd_return_t)(CPUState* cpu, target_ulong pc, uint32_t count); typedef void (*on_sys_eventfd_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t count);;
+typedef void (*on_sys_eventfd2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t count, int32_t flags); typedef void (*on_sys_eventfd2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t count, int32_t flags);;
+typedef void (*on_sys_eventfd2_return_t)(CPUState* cpu, target_ulong pc, uint32_t count, int32_t flags); typedef void (*on_sys_eventfd2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t count, int32_t flags);;
+typedef void (*on_sys_execve_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t argv, uint32_t envp); typedef void (*on_sys_execve_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t argv, uint32_t envp);;
+typedef void (*on_sys_execve_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t argv, uint32_t envp); typedef void (*on_sys_execve_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t argv, uint32_t envp);;
+typedef void (*on_sys_execveat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t argv, uint32_t envp, int32_t flags); typedef void (*on_sys_execveat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t argv, uint32_t envp, int32_t flags);;
+typedef void (*on_sys_execveat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t argv, uint32_t envp, int32_t flags); typedef void (*on_sys_execveat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t argv, uint32_t envp, int32_t flags);;
+typedef void (*on_sys_exit_enter_t)(CPUState* cpu, target_ulong pc, int32_t error_code); typedef void (*on_sys_exit_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t error_code);;
+typedef void (*on_sys_exit_return_t)(CPUState* cpu, target_ulong pc, int32_t error_code); typedef void (*on_sys_exit_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t error_code);;
+typedef void (*on_sys_exit_group_enter_t)(CPUState* cpu, target_ulong pc, int32_t error_code); typedef void (*on_sys_exit_group_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t error_code);;
+typedef void (*on_sys_exit_group_return_t)(CPUState* cpu, target_ulong pc, int32_t error_code); typedef void (*on_sys_exit_group_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t error_code);;
+typedef void (*on_sys_faccessat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t mode); typedef void (*on_sys_faccessat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t mode);;
+typedef void (*on_sys_faccessat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t mode); typedef void (*on_sys_faccessat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t mode);;
+typedef void (*on_sys_fadvise64_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t len, int32_t advice); typedef void (*on_sys_fadvise64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t len, int32_t advice);;
+typedef void (*on_sys_fadvise64_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t len, int32_t advice); typedef void (*on_sys_fadvise64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t len, int32_t advice);;
+typedef void (*on_sys_fadvise64_64_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint64_t len, int32_t advice); typedef void (*on_sys_fadvise64_64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint64_t len, int32_t advice);;
+typedef void (*on_sys_fadvise64_64_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint64_t len, int32_t advice); typedef void (*on_sys_fadvise64_64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint64_t len, int32_t advice);;
+typedef void (*on_sys_fallocate_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t mode, uint64_t offset, uint64_t len); typedef void (*on_sys_fallocate_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t mode, uint64_t offset, uint64_t len);;
+typedef void (*on_sys_fallocate_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t mode, uint64_t offset, uint64_t len); typedef void (*on_sys_fallocate_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t mode, uint64_t offset, uint64_t len);;
+typedef void (*on_sys_fanotify_init_enter_t)(CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t event_f_flags); typedef void (*on_sys_fanotify_init_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t event_f_flags);;
+typedef void (*on_sys_fanotify_init_return_t)(CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t event_f_flags); typedef void (*on_sys_fanotify_init_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t event_f_flags);;
+typedef void (*on_sys_fanotify_mark_enter_t)(CPUState* cpu, target_ulong pc, int32_t fanotify_fd, uint32_t flags, uint64_t mask, int32_t fd, uint32_t pathname); typedef void (*on_sys_fanotify_mark_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fanotify_fd, uint32_t flags, uint64_t mask, int32_t fd, uint32_t pathname);;
+typedef void (*on_sys_fanotify_mark_return_t)(CPUState* cpu, target_ulong pc, int32_t fanotify_fd, uint32_t flags, uint64_t mask, int32_t fd, uint32_t pathname); typedef void (*on_sys_fanotify_mark_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fanotify_fd, uint32_t flags, uint64_t mask, int32_t fd, uint32_t pathname);;
+typedef void (*on_sys_fchdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_fchdir_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
+typedef void (*on_sys_fchdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_fchdir_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
+typedef void (*on_sys_fchmod_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t mode); typedef void (*on_sys_fchmod_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t mode);;
+typedef void (*on_sys_fchmod_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t mode); typedef void (*on_sys_fchmod_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t mode);;
+typedef void (*on_sys_fchmodat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode); typedef void (*on_sys_fchmodat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode);;
+typedef void (*on_sys_fchmodat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode); typedef void (*on_sys_fchmodat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode);;
+typedef void (*on_sys_fchown_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group); typedef void (*on_sys_fchown_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);;
+typedef void (*on_sys_fchown_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group); typedef void (*on_sys_fchown_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);;
+typedef void (*on_sys_fchown16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group); typedef void (*on_sys_fchown16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);;
+typedef void (*on_sys_fchown16_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group); typedef void (*on_sys_fchown16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);;
+typedef void (*on_sys_fchownat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t user, uint32_t group, int32_t flag); typedef void (*on_sys_fchownat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t user, uint32_t group, int32_t flag);;
+typedef void (*on_sys_fchownat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t user, uint32_t group, int32_t flag); typedef void (*on_sys_fchownat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t user, uint32_t group, int32_t flag);;
+typedef void (*on_sys_fcntl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg); typedef void (*on_sys_fcntl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);;
+typedef void (*on_sys_fcntl_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg); typedef void (*on_sys_fcntl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);;
+typedef void (*on_sys_fcntl64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg); typedef void (*on_sys_fcntl64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);;
+typedef void (*on_sys_fcntl64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg); typedef void (*on_sys_fcntl64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);;
+typedef void (*on_sys_fdatasync_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_fdatasync_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
+typedef void (*on_sys_fdatasync_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_fdatasync_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
+typedef void (*on_sys_fgetxattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size); typedef void (*on_sys_fgetxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size);;
+typedef void (*on_sys_fgetxattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size); typedef void (*on_sys_fgetxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size);;
+typedef void (*on_sys_finit_module_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t uargs, int32_t flags); typedef void (*on_sys_finit_module_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t uargs, int32_t flags);;
+typedef void (*on_sys_finit_module_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t uargs, int32_t flags); typedef void (*on_sys_finit_module_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t uargs, int32_t flags);;
+typedef void (*on_sys_flistxattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t list, uint32_t size); typedef void (*on_sys_flistxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t list, uint32_t size);;
+typedef void (*on_sys_flistxattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t list, uint32_t size); typedef void (*on_sys_flistxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t list, uint32_t size);;
+typedef void (*on_sys_flock_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd); typedef void (*on_sys_flock_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd);;
+typedef void (*on_sys_flock_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd); typedef void (*on_sys_flock_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd);;
+typedef void (*on_sys_fork_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_fork_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_fork_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_fork_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_fremovexattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name); typedef void (*on_sys_fremovexattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name);;
+typedef void (*on_sys_fremovexattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name); typedef void (*on_sys_fremovexattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name);;
+typedef void (*on_sys_fsetxattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size, int32_t flags); typedef void (*on_sys_fsetxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size, int32_t flags);;
+typedef void (*on_sys_fsetxattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size, int32_t flags); typedef void (*on_sys_fsetxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size, int32_t flags);;
+typedef void (*on_sys_fstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf); typedef void (*on_sys_fstat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);;
+typedef void (*on_sys_fstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf); typedef void (*on_sys_fstat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);;
+typedef void (*on_sys_fstat64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf); typedef void (*on_sys_fstat64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);;
+typedef void (*on_sys_fstat64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf); typedef void (*on_sys_fstat64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);;
+typedef void (*on_sys_fstatat64_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t statbuf, int32_t flag); typedef void (*on_sys_fstatat64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t statbuf, int32_t flag);;
+typedef void (*on_sys_fstatat64_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t statbuf, int32_t flag); typedef void (*on_sys_fstatat64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t statbuf, int32_t flag);;
+typedef void (*on_sys_fstatfs_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf); typedef void (*on_sys_fstatfs_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf);;
+typedef void (*on_sys_fstatfs_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf); typedef void (*on_sys_fstatfs_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf);;
+typedef void (*on_sys_fstatfs64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t sz, uint32_t buf); typedef void (*on_sys_fstatfs64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t sz, uint32_t buf);;
+typedef void (*on_sys_fstatfs64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t sz, uint32_t buf); typedef void (*on_sys_fstatfs64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t sz, uint32_t buf);;
+typedef void (*on_sys_fsync_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_fsync_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
+typedef void (*on_sys_fsync_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_fsync_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
+typedef void (*on_sys_ftruncate_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t length); typedef void (*on_sys_ftruncate_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t length);;
+typedef void (*on_sys_ftruncate_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t length); typedef void (*on_sys_ftruncate_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t length);;
+typedef void (*on_sys_ftruncate64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint64_t length); typedef void (*on_sys_ftruncate64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint64_t length);;
+typedef void (*on_sys_ftruncate64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint64_t length); typedef void (*on_sys_ftruncate64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint64_t length);;
+typedef void (*on_sys_futex_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uaddr, int32_t op, uint32_t val, uint32_t utime, uint32_t uaddr2, uint32_t val3); typedef void (*on_sys_futex_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uaddr, int32_t op, uint32_t val, uint32_t utime, uint32_t uaddr2, uint32_t val3);;
+typedef void (*on_sys_futex_return_t)(CPUState* cpu, target_ulong pc, uint32_t uaddr, int32_t op, uint32_t val, uint32_t utime, uint32_t uaddr2, uint32_t val3); typedef void (*on_sys_futex_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uaddr, int32_t op, uint32_t val, uint32_t utime, uint32_t uaddr2, uint32_t val3);;
+typedef void (*on_sys_futimesat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes); typedef void (*on_sys_futimesat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes);;
+typedef void (*on_sys_futimesat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes); typedef void (*on_sys_futimesat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes);;
+typedef void (*on_sys_get_mempolicy_enter_t)(CPUState* cpu, target_ulong pc, uint32_t policy, uint32_t nmask, uint32_t maxnode, uint32_t addr, uint32_t flags); typedef void (*on_sys_get_mempolicy_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t policy, uint32_t nmask, uint32_t maxnode, uint32_t addr, uint32_t flags);;
+typedef void (*on_sys_get_mempolicy_return_t)(CPUState* cpu, target_ulong pc, uint32_t policy, uint32_t nmask, uint32_t maxnode, uint32_t addr, uint32_t flags); typedef void (*on_sys_get_mempolicy_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t policy, uint32_t nmask, uint32_t maxnode, uint32_t addr, uint32_t flags);;
+typedef void (*on_sys_get_robust_list_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t head_ptr, uint32_t len_ptr); typedef void (*on_sys_get_robust_list_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t head_ptr, uint32_t len_ptr);;
+typedef void (*on_sys_get_robust_list_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t head_ptr, uint32_t len_ptr); typedef void (*on_sys_get_robust_list_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t head_ptr, uint32_t len_ptr);;
+typedef void (*on_sys_get_thread_area_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0); typedef void (*on_sys_get_thread_area_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0);;
+typedef void (*on_sys_get_thread_area_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0); typedef void (*on_sys_get_thread_area_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0);;
+typedef void (*on_sys_getcpu_enter_t)(CPUState* cpu, target_ulong pc, uint32_t _cpu, uint32_t node, uint32_t cache); typedef void (*on_sys_getcpu_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t _cpu, uint32_t node, uint32_t cache);;
+typedef void (*on_sys_getcpu_return_t)(CPUState* cpu, target_ulong pc, uint32_t _cpu, uint32_t node, uint32_t cache); typedef void (*on_sys_getcpu_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t _cpu, uint32_t node, uint32_t cache);;
+typedef void (*on_sys_getcwd_enter_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t size); typedef void (*on_sys_getcwd_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t size);;
+typedef void (*on_sys_getcwd_return_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t size); typedef void (*on_sys_getcwd_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t size);;
+typedef void (*on_sys_getdents_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count); typedef void (*on_sys_getdents_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);;
+typedef void (*on_sys_getdents_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count); typedef void (*on_sys_getdents_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);;
+typedef void (*on_sys_getdents64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count); typedef void (*on_sys_getdents64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);;
+typedef void (*on_sys_getdents64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count); typedef void (*on_sys_getdents64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);;
+typedef void (*on_sys_getegid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getegid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getegid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getegid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getegid16_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getegid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getegid16_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getegid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_geteuid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_geteuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_geteuid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_geteuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_geteuid16_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_geteuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_geteuid16_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_geteuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getgid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getgid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getgid16_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getgid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getgid16_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getgid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getgroups_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_getgroups_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
+typedef void (*on_sys_getgroups_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_getgroups_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
+typedef void (*on_sys_getgroups16_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_getgroups16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
+typedef void (*on_sys_getgroups16_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_getgroups16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
+typedef void (*on_sys_getitimer_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value); typedef void (*on_sys_getitimer_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, uint32_t value);;
+typedef void (*on_sys_getitimer_return_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value); typedef void (*on_sys_getitimer_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, uint32_t value);;
+typedef void (*on_sys_getpeername_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_getpeername_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_getpeername_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_getpeername_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_getpgid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid); typedef void (*on_sys_getpgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid);;
+typedef void (*on_sys_getpgid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid); typedef void (*on_sys_getpgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid);;
+typedef void (*on_sys_getpgrp_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getpgrp_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getpgrp_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getpgrp_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getpid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getpid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getpid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getpid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getppid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getppid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getppid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getppid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getpriority_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who); typedef void (*on_sys_getpriority_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who);;
+typedef void (*on_sys_getpriority_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who); typedef void (*on_sys_getpriority_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who);;
+typedef void (*on_sys_getrandom_enter_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t count, uint32_t flags); typedef void (*on_sys_getrandom_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t count, uint32_t flags);;
+typedef void (*on_sys_getrandom_return_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t count, uint32_t flags); typedef void (*on_sys_getrandom_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t count, uint32_t flags);;
+typedef void (*on_sys_getresgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_getresgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
+typedef void (*on_sys_getresgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_getresgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
+typedef void (*on_sys_getresgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_getresgid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
+typedef void (*on_sys_getresgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_getresgid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
+typedef void (*on_sys_getresuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_getresuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
+typedef void (*on_sys_getresuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_getresuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
+typedef void (*on_sys_getresuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_getresuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
+typedef void (*on_sys_getresuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_getresuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
+typedef void (*on_sys_getrlimit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim); typedef void (*on_sys_getrlimit_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);;
+typedef void (*on_sys_getrlimit_return_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim); typedef void (*on_sys_getrlimit_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);;
+typedef void (*on_sys_getrusage_enter_t)(CPUState* cpu, target_ulong pc, int32_t who, uint32_t ru); typedef void (*on_sys_getrusage_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t who, uint32_t ru);;
+typedef void (*on_sys_getrusage_return_t)(CPUState* cpu, target_ulong pc, int32_t who, uint32_t ru); typedef void (*on_sys_getrusage_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t who, uint32_t ru);;
+typedef void (*on_sys_getsid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid); typedef void (*on_sys_getsid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid);;
+typedef void (*on_sys_getsid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid); typedef void (*on_sys_getsid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid);;
+typedef void (*on_sys_getsockname_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_getsockname_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_getsockname_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_getsockname_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_getsockopt_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, uint32_t optlen); typedef void (*on_sys_getsockopt_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, uint32_t optlen);;
+typedef void (*on_sys_getsockopt_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, uint32_t optlen); typedef void (*on_sys_getsockopt_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, uint32_t optlen);;
+typedef void (*on_sys_gettid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_gettid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_gettid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_gettid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_gettimeofday_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz); typedef void (*on_sys_gettimeofday_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);;
+typedef void (*on_sys_gettimeofday_return_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz); typedef void (*on_sys_gettimeofday_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);;
+typedef void (*on_sys_getuid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getuid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getuid16_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getuid16_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_getxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size); typedef void (*on_sys_getxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);;
+typedef void (*on_sys_getxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size); typedef void (*on_sys_getxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);;
+typedef void (*on_sys_init_module_enter_t)(CPUState* cpu, target_ulong pc, uint32_t umod, uint32_t len, uint32_t uargs); typedef void (*on_sys_init_module_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t umod, uint32_t len, uint32_t uargs);;
+typedef void (*on_sys_init_module_return_t)(CPUState* cpu, target_ulong pc, uint32_t umod, uint32_t len, uint32_t uargs); typedef void (*on_sys_init_module_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t umod, uint32_t len, uint32_t uargs);;
+typedef void (*on_sys_inotify_add_watch_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t path, uint32_t mask); typedef void (*on_sys_inotify_add_watch_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t path, uint32_t mask);;
+typedef void (*on_sys_inotify_add_watch_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t path, uint32_t mask); typedef void (*on_sys_inotify_add_watch_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t path, uint32_t mask);;
+typedef void (*on_sys_inotify_init_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_inotify_init_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_inotify_init_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_inotify_init_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_inotify_init1_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_inotify_init1_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
+typedef void (*on_sys_inotify_init1_return_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_inotify_init1_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
+typedef void (*on_sys_inotify_rm_watch_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t wd); typedef void (*on_sys_inotify_rm_watch_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t wd);;
+typedef void (*on_sys_inotify_rm_watch_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t wd); typedef void (*on_sys_inotify_rm_watch_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t wd);;
+typedef void (*on_sys_io_cancel_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, uint32_t iocb, uint32_t result); typedef void (*on_sys_io_cancel_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ctx_id, uint32_t iocb, uint32_t result);;
+typedef void (*on_sys_io_cancel_return_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, uint32_t iocb, uint32_t result); typedef void (*on_sys_io_cancel_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ctx_id, uint32_t iocb, uint32_t result);;
+typedef void (*on_sys_io_destroy_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ctx); typedef void (*on_sys_io_destroy_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ctx);;
+typedef void (*on_sys_io_destroy_return_t)(CPUState* cpu, target_ulong pc, uint32_t ctx); typedef void (*on_sys_io_destroy_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ctx);;
+typedef void (*on_sys_io_getevents_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, int32_t min_nr, int32_t nr, uint32_t events, uint32_t timeout); typedef void (*on_sys_io_getevents_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ctx_id, int32_t min_nr, int32_t nr, uint32_t events, uint32_t timeout);;
+typedef void (*on_sys_io_getevents_return_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, int32_t min_nr, int32_t nr, uint32_t events, uint32_t timeout); typedef void (*on_sys_io_getevents_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ctx_id, int32_t min_nr, int32_t nr, uint32_t events, uint32_t timeout);;
+typedef void (*on_sys_io_setup_enter_t)(CPUState* cpu, target_ulong pc, uint32_t nr_reqs, uint32_t ctx); typedef void (*on_sys_io_setup_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t nr_reqs, uint32_t ctx);;
+typedef void (*on_sys_io_setup_return_t)(CPUState* cpu, target_ulong pc, uint32_t nr_reqs, uint32_t ctx); typedef void (*on_sys_io_setup_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t nr_reqs, uint32_t ctx);;
+typedef void (*on_sys_io_submit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, int32_t arg1, uint32_t arg2); typedef void (*on_sys_io_submit_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, int32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_io_submit_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, int32_t arg1, uint32_t arg2); typedef void (*on_sys_io_submit_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, int32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_ioctl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg); typedef void (*on_sys_ioctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);;
+typedef void (*on_sys_ioctl_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg); typedef void (*on_sys_ioctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);;
+typedef void (*on_sys_ioperm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, int32_t arg2); typedef void (*on_sys_ioperm_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, int32_t arg2);;
+typedef void (*on_sys_ioperm_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, int32_t arg2); typedef void (*on_sys_ioperm_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, int32_t arg2);;
+typedef void (*on_sys_iopl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0); typedef void (*on_sys_iopl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0);;
+typedef void (*on_sys_iopl_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0); typedef void (*on_sys_iopl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0);;
+typedef void (*on_sys_ioprio_get_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who); typedef void (*on_sys_ioprio_get_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who);;
+typedef void (*on_sys_ioprio_get_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who); typedef void (*on_sys_ioprio_get_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who);;
+typedef void (*on_sys_ioprio_set_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t ioprio); typedef void (*on_sys_ioprio_set_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t ioprio);;
+typedef void (*on_sys_ioprio_set_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t ioprio); typedef void (*on_sys_ioprio_set_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t ioprio);;
+typedef void (*on_sys_ipc_enter_t)(CPUState* cpu, target_ulong pc, uint32_t call, int32_t first, uint32_t second, uint32_t third, uint32_t ptr, int32_t fifth); typedef void (*on_sys_ipc_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t call, int32_t first, uint32_t second, uint32_t third, uint32_t ptr, int32_t fifth);;
+typedef void (*on_sys_ipc_return_t)(CPUState* cpu, target_ulong pc, uint32_t call, int32_t first, uint32_t second, uint32_t third, uint32_t ptr, int32_t fifth); typedef void (*on_sys_ipc_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t call, int32_t first, uint32_t second, uint32_t third, uint32_t ptr, int32_t fifth);;
+typedef void (*on_sys_kcmp_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid1, int32_t pid2, int32_t type, uint32_t idx1, uint32_t idx2); typedef void (*on_sys_kcmp_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid1, int32_t pid2, int32_t type, uint32_t idx1, uint32_t idx2);;
+typedef void (*on_sys_kcmp_return_t)(CPUState* cpu, target_ulong pc, int32_t pid1, int32_t pid2, int32_t type, uint32_t idx1, uint32_t idx2); typedef void (*on_sys_kcmp_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid1, int32_t pid2, int32_t type, uint32_t idx1, uint32_t idx2);;
+typedef void (*on_sys_kexec_load_enter_t)(CPUState* cpu, target_ulong pc, uint32_t entry, uint32_t nr_segments, uint32_t segments, uint32_t flags); typedef void (*on_sys_kexec_load_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t entry, uint32_t nr_segments, uint32_t segments, uint32_t flags);;
+typedef void (*on_sys_kexec_load_return_t)(CPUState* cpu, target_ulong pc, uint32_t entry, uint32_t nr_segments, uint32_t segments, uint32_t flags); typedef void (*on_sys_kexec_load_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t entry, uint32_t nr_segments, uint32_t segments, uint32_t flags);;
+typedef void (*on_sys_keyctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_keyctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
+typedef void (*on_sys_keyctl_return_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_keyctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
+typedef void (*on_sys_kill_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig); typedef void (*on_sys_kill_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);;
+typedef void (*on_sys_kill_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig); typedef void (*on_sys_kill_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);;
+typedef void (*on_sys_lchown_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_lchown_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
+typedef void (*on_sys_lchown_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_lchown_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
+typedef void (*on_sys_lchown16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_lchown16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
+typedef void (*on_sys_lchown16_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_lchown16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
+typedef void (*on_sys_lgetxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size); typedef void (*on_sys_lgetxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);;
+typedef void (*on_sys_lgetxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size); typedef void (*on_sys_lgetxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);;
+typedef void (*on_sys_link_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname); typedef void (*on_sys_link_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);;
+typedef void (*on_sys_link_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname); typedef void (*on_sys_link_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);;
+typedef void (*on_sys_linkat_enter_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, int32_t flags); typedef void (*on_sys_linkat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, int32_t flags);;
+typedef void (*on_sys_linkat_return_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, int32_t flags); typedef void (*on_sys_linkat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, int32_t flags);;
+typedef void (*on_sys_listen_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1); typedef void (*on_sys_listen_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);;
+typedef void (*on_sys_listen_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1); typedef void (*on_sys_listen_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);;
+typedef void (*on_sys_listxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size); typedef void (*on_sys_listxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);;
+typedef void (*on_sys_listxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size); typedef void (*on_sys_listxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);;
+typedef void (*on_sys_llistxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size); typedef void (*on_sys_llistxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);;
+typedef void (*on_sys_llistxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size); typedef void (*on_sys_llistxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);;
+typedef void (*on_sys_llseek_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset_high, uint32_t offset_low, uint32_t result, uint32_t whence); typedef void (*on_sys_llseek_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset_high, uint32_t offset_low, uint32_t result, uint32_t whence);;
+typedef void (*on_sys_llseek_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset_high, uint32_t offset_low, uint32_t result, uint32_t whence); typedef void (*on_sys_llseek_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset_high, uint32_t offset_low, uint32_t result, uint32_t whence);;
+typedef void (*on_sys_lookup_dcookie_enter_t)(CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len); typedef void (*on_sys_lookup_dcookie_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len);;
+typedef void (*on_sys_lookup_dcookie_return_t)(CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len); typedef void (*on_sys_lookup_dcookie_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len);;
+typedef void (*on_sys_lremovexattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name); typedef void (*on_sys_lremovexattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);;
+typedef void (*on_sys_lremovexattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name); typedef void (*on_sys_lremovexattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);;
+typedef void (*on_sys_lseek_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset, uint32_t whence); typedef void (*on_sys_lseek_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset, uint32_t whence);;
+typedef void (*on_sys_lseek_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset, uint32_t whence); typedef void (*on_sys_lseek_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset, uint32_t whence);;
+typedef void (*on_sys_lsetxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags); typedef void (*on_sys_lsetxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);;
+typedef void (*on_sys_lsetxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags); typedef void (*on_sys_lsetxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);;
+typedef void (*on_sys_lstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_lstat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
+typedef void (*on_sys_lstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_lstat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
+typedef void (*on_sys_lstat64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_lstat64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
+typedef void (*on_sys_lstat64_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_lstat64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
+typedef void (*on_sys_madvise_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t behavior); typedef void (*on_sys_madvise_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t behavior);;
+typedef void (*on_sys_madvise_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t behavior); typedef void (*on_sys_madvise_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t behavior);;
+typedef void (*on_sys_mbind_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t mode, uint32_t nmask, uint32_t maxnode, uint32_t flags); typedef void (*on_sys_mbind_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t mode, uint32_t nmask, uint32_t maxnode, uint32_t flags);;
+typedef void (*on_sys_mbind_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t mode, uint32_t nmask, uint32_t maxnode, uint32_t flags); typedef void (*on_sys_mbind_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t mode, uint32_t nmask, uint32_t maxnode, uint32_t flags);;
+typedef void (*on_sys_membarrier_enter_t)(CPUState* cpu, target_ulong pc, int32_t cmd, int32_t flags); typedef void (*on_sys_membarrier_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t cmd, int32_t flags);;
+typedef void (*on_sys_membarrier_return_t)(CPUState* cpu, target_ulong pc, int32_t cmd, int32_t flags); typedef void (*on_sys_membarrier_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t cmd, int32_t flags);;
+typedef void (*on_sys_memfd_create_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uname_ptr, uint32_t flags); typedef void (*on_sys_memfd_create_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uname_ptr, uint32_t flags);;
+typedef void (*on_sys_memfd_create_return_t)(CPUState* cpu, target_ulong pc, uint32_t uname_ptr, uint32_t flags); typedef void (*on_sys_memfd_create_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uname_ptr, uint32_t flags);;
+typedef void (*on_sys_migrate_pages_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t maxnode, uint32_t from, uint32_t to); typedef void (*on_sys_migrate_pages_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t maxnode, uint32_t from, uint32_t to);;
+typedef void (*on_sys_migrate_pages_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t maxnode, uint32_t from, uint32_t to); typedef void (*on_sys_migrate_pages_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t maxnode, uint32_t from, uint32_t to);;
+typedef void (*on_sys_mincore_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t vec); typedef void (*on_sys_mincore_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t vec);;
+typedef void (*on_sys_mincore_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t vec); typedef void (*on_sys_mincore_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t vec);;
+typedef void (*on_sys_mkdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode); typedef void (*on_sys_mkdir_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);;
+typedef void (*on_sys_mkdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode); typedef void (*on_sys_mkdir_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);;
+typedef void (*on_sys_mkdirat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, uint32_t mode); typedef void (*on_sys_mkdirat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, uint32_t mode);;
+typedef void (*on_sys_mkdirat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, uint32_t mode); typedef void (*on_sys_mkdirat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, uint32_t mode);;
+typedef void (*on_sys_mknod_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode, uint32_t dev); typedef void (*on_sys_mknod_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode, uint32_t dev);;
+typedef void (*on_sys_mknod_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode, uint32_t dev); typedef void (*on_sys_mknod_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode, uint32_t dev);;
+typedef void (*on_sys_mknodat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode, uint32_t dev); typedef void (*on_sys_mknodat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode, uint32_t dev);;
+typedef void (*on_sys_mknodat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode, uint32_t dev); typedef void (*on_sys_mknodat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode, uint32_t dev);;
+typedef void (*on_sys_mlock_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len); typedef void (*on_sys_mlock_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);;
+typedef void (*on_sys_mlock_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len); typedef void (*on_sys_mlock_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);;
+typedef void (*on_sys_mlock2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags); typedef void (*on_sys_mlock2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);;
+typedef void (*on_sys_mlock2_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags); typedef void (*on_sys_mlock2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);;
+typedef void (*on_sys_mlockall_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_mlockall_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
+typedef void (*on_sys_mlockall_return_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_mlockall_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
+typedef void (*on_sys_mmap_pgoff_enter_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len, uint32_t prot, uint32_t flags, uint32_t fd, uint32_t pgoff); typedef void (*on_sys_mmap_pgoff_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len, uint32_t prot, uint32_t flags, uint32_t fd, uint32_t pgoff);;
+typedef void (*on_sys_mmap_pgoff_return_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len, uint32_t prot, uint32_t flags, uint32_t fd, uint32_t pgoff); typedef void (*on_sys_mmap_pgoff_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len, uint32_t prot, uint32_t flags, uint32_t fd, uint32_t pgoff);;
+typedef void (*on_sys_modify_ldt_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_modify_ldt_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_modify_ldt_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_modify_ldt_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_mount_enter_t)(CPUState* cpu, target_ulong pc, uint32_t dev_name, uint32_t dir_name, uint32_t type, uint32_t flags, uint32_t _data); typedef void (*on_sys_mount_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t dev_name, uint32_t dir_name, uint32_t type, uint32_t flags, uint32_t _data);;
+typedef void (*on_sys_mount_return_t)(CPUState* cpu, target_ulong pc, uint32_t dev_name, uint32_t dir_name, uint32_t type, uint32_t flags, uint32_t _data); typedef void (*on_sys_mount_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t dev_name, uint32_t dir_name, uint32_t type, uint32_t flags, uint32_t _data);;
+typedef void (*on_sys_move_pages_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t nr_pages, uint32_t pages, uint32_t nodes, uint32_t status, int32_t flags); typedef void (*on_sys_move_pages_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t nr_pages, uint32_t pages, uint32_t nodes, uint32_t status, int32_t flags);;
+typedef void (*on_sys_move_pages_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t nr_pages, uint32_t pages, uint32_t nodes, uint32_t status, int32_t flags); typedef void (*on_sys_move_pages_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t nr_pages, uint32_t pages, uint32_t nodes, uint32_t status, int32_t flags);;
+typedef void (*on_sys_mprotect_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot); typedef void (*on_sys_mprotect_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot);;
+typedef void (*on_sys_mprotect_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot); typedef void (*on_sys_mprotect_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot);;
+typedef void (*on_sys_mq_getsetattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t mqstat, uint32_t omqstat); typedef void (*on_sys_mq_getsetattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t mqstat, uint32_t omqstat);;
+typedef void (*on_sys_mq_getsetattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t mqstat, uint32_t omqstat); typedef void (*on_sys_mq_getsetattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t mqstat, uint32_t omqstat);;
+typedef void (*on_sys_mq_notify_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t notification); typedef void (*on_sys_mq_notify_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t notification);;
+typedef void (*on_sys_mq_notify_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t notification); typedef void (*on_sys_mq_notify_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t notification);;
+typedef void (*on_sys_mq_open_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t oflag, uint32_t mode, uint32_t attr); typedef void (*on_sys_mq_open_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t oflag, uint32_t mode, uint32_t attr);;
+typedef void (*on_sys_mq_open_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t oflag, uint32_t mode, uint32_t attr); typedef void (*on_sys_mq_open_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t oflag, uint32_t mode, uint32_t attr);;
+typedef void (*on_sys_mq_timedreceive_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout); typedef void (*on_sys_mq_timedreceive_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);;
+typedef void (*on_sys_mq_timedreceive_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout); typedef void (*on_sys_mq_timedreceive_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);;
+typedef void (*on_sys_mq_timedsend_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout); typedef void (*on_sys_mq_timedsend_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);;
+typedef void (*on_sys_mq_timedsend_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout); typedef void (*on_sys_mq_timedsend_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);;
+typedef void (*on_sys_mq_unlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_mq_unlink_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
+typedef void (*on_sys_mq_unlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_mq_unlink_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
+typedef void (*on_sys_mremap_enter_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t old_len, uint32_t new_len, uint32_t flags, uint32_t new_addr); typedef void (*on_sys_mremap_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t old_len, uint32_t new_len, uint32_t flags, uint32_t new_addr);;
+typedef void (*on_sys_mremap_return_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t old_len, uint32_t new_len, uint32_t flags, uint32_t new_addr); typedef void (*on_sys_mremap_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t old_len, uint32_t new_len, uint32_t flags, uint32_t new_addr);;
+typedef void (*on_sys_msync_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags); typedef void (*on_sys_msync_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);;
+typedef void (*on_sys_msync_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags); typedef void (*on_sys_msync_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);;
+typedef void (*on_sys_munlock_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len); typedef void (*on_sys_munlock_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);;
+typedef void (*on_sys_munlock_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len); typedef void (*on_sys_munlock_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);;
+typedef void (*on_sys_munlockall_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_munlockall_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_munlockall_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_munlockall_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_munmap_enter_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len); typedef void (*on_sys_munmap_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len);;
+typedef void (*on_sys_munmap_return_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len); typedef void (*on_sys_munmap_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len);;
+typedef void (*on_sys_name_to_handle_at_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t name, uint32_t handle, uint32_t mnt_id, int32_t flag); typedef void (*on_sys_name_to_handle_at_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t name, uint32_t handle, uint32_t mnt_id, int32_t flag);;
+typedef void (*on_sys_name_to_handle_at_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t name, uint32_t handle, uint32_t mnt_id, int32_t flag); typedef void (*on_sys_name_to_handle_at_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t name, uint32_t handle, uint32_t mnt_id, int32_t flag);;
+typedef void (*on_sys_nanosleep_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rqtp, uint32_t rmtp); typedef void (*on_sys_nanosleep_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rqtp, uint32_t rmtp);;
+typedef void (*on_sys_nanosleep_return_t)(CPUState* cpu, target_ulong pc, uint32_t rqtp, uint32_t rmtp); typedef void (*on_sys_nanosleep_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rqtp, uint32_t rmtp);;
+typedef void (*on_sys_newfstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf); typedef void (*on_sys_newfstat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);;
+typedef void (*on_sys_newfstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf); typedef void (*on_sys_newfstat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);;
+typedef void (*on_sys_newlstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_newlstat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
+typedef void (*on_sys_newlstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_newlstat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
+typedef void (*on_sys_newstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_newstat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
+typedef void (*on_sys_newstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_newstat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
+typedef void (*on_sys_newuname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_newuname_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
+typedef void (*on_sys_newuname_return_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_newuname_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
+typedef void (*on_sys_nice_enter_t)(CPUState* cpu, target_ulong pc, int32_t increment); typedef void (*on_sys_nice_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t increment);;
+typedef void (*on_sys_nice_return_t)(CPUState* cpu, target_ulong pc, int32_t increment); typedef void (*on_sys_nice_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t increment);;
+typedef void (*on_sys_old_getrlimit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim); typedef void (*on_sys_old_getrlimit_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);;
+typedef void (*on_sys_old_getrlimit_return_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim); typedef void (*on_sys_old_getrlimit_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);;
+typedef void (*on_sys_old_mmap_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg); typedef void (*on_sys_old_mmap_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg);;
+typedef void (*on_sys_old_mmap_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg); typedef void (*on_sys_old_mmap_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg);;
+typedef void (*on_sys_old_readdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_old_readdir_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_old_readdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_old_readdir_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_old_select_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg); typedef void (*on_sys_old_select_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg);;
+typedef void (*on_sys_old_select_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg); typedef void (*on_sys_old_select_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg);;
+typedef void (*on_sys_oldumount_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_oldumount_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
+typedef void (*on_sys_oldumount_return_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_oldumount_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
+typedef void (*on_sys_olduname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0); typedef void (*on_sys_olduname_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0);;
+typedef void (*on_sys_olduname_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0); typedef void (*on_sys_olduname_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0);;
+typedef void (*on_sys_open_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t flags, uint32_t mode); typedef void (*on_sys_open_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, int32_t flags, uint32_t mode);;
+typedef void (*on_sys_open_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t flags, uint32_t mode); typedef void (*on_sys_open_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, int32_t flags, uint32_t mode);;
+typedef void (*on_sys_open_by_handle_at_enter_t)(CPUState* cpu, target_ulong pc, int32_t mountdirfd, uint32_t handle, int32_t flags); typedef void (*on_sys_open_by_handle_at_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t mountdirfd, uint32_t handle, int32_t flags);;
+typedef void (*on_sys_open_by_handle_at_return_t)(CPUState* cpu, target_ulong pc, int32_t mountdirfd, uint32_t handle, int32_t flags); typedef void (*on_sys_open_by_handle_at_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t mountdirfd, uint32_t handle, int32_t flags);;
+typedef void (*on_sys_openat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t flags, uint32_t mode); typedef void (*on_sys_openat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t flags, uint32_t mode);;
+typedef void (*on_sys_openat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t flags, uint32_t mode); typedef void (*on_sys_openat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t flags, uint32_t mode);;
+typedef void (*on_sys_pause_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_pause_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_pause_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_pause_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_perf_event_open_enter_t)(CPUState* cpu, target_ulong pc, uint32_t attr_uptr, int32_t pid, int32_t _cpu, int32_t group_fd, uint32_t flags); typedef void (*on_sys_perf_event_open_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t attr_uptr, int32_t pid, int32_t _cpu, int32_t group_fd, uint32_t flags);;
+typedef void (*on_sys_perf_event_open_return_t)(CPUState* cpu, target_ulong pc, uint32_t attr_uptr, int32_t pid, int32_t _cpu, int32_t group_fd, uint32_t flags); typedef void (*on_sys_perf_event_open_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t attr_uptr, int32_t pid, int32_t _cpu, int32_t group_fd, uint32_t flags);;
+typedef void (*on_sys_personality_enter_t)(CPUState* cpu, target_ulong pc, uint32_t personality); typedef void (*on_sys_personality_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t personality);;
+typedef void (*on_sys_personality_return_t)(CPUState* cpu, target_ulong pc, uint32_t personality); typedef void (*on_sys_personality_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t personality);;
+typedef void (*on_sys_pipe_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fildes); typedef void (*on_sys_pipe_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fildes);;
+typedef void (*on_sys_pipe_return_t)(CPUState* cpu, target_ulong pc, uint32_t fildes); typedef void (*on_sys_pipe_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fildes);;
+typedef void (*on_sys_pipe2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fildes, int32_t flags); typedef void (*on_sys_pipe2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fildes, int32_t flags);;
+typedef void (*on_sys_pipe2_return_t)(CPUState* cpu, target_ulong pc, uint32_t fildes, int32_t flags); typedef void (*on_sys_pipe2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fildes, int32_t flags);;
+typedef void (*on_sys_pivot_root_enter_t)(CPUState* cpu, target_ulong pc, uint32_t new_root, uint32_t put_old); typedef void (*on_sys_pivot_root_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t new_root, uint32_t put_old);;
+typedef void (*on_sys_pivot_root_return_t)(CPUState* cpu, target_ulong pc, uint32_t new_root, uint32_t put_old); typedef void (*on_sys_pivot_root_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t new_root, uint32_t put_old);;
+typedef void (*on_sys_pkey_alloc_enter_t)(CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t init_val); typedef void (*on_sys_pkey_alloc_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t init_val);;
+typedef void (*on_sys_pkey_alloc_return_t)(CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t init_val); typedef void (*on_sys_pkey_alloc_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t init_val);;
+typedef void (*on_sys_pkey_free_enter_t)(CPUState* cpu, target_ulong pc, int32_t pkey); typedef void (*on_sys_pkey_free_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pkey);;
+typedef void (*on_sys_pkey_free_return_t)(CPUState* cpu, target_ulong pc, int32_t pkey); typedef void (*on_sys_pkey_free_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pkey);;
+typedef void (*on_sys_pkey_mprotect_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot, int32_t pkey); typedef void (*on_sys_pkey_mprotect_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot, int32_t pkey);;
+typedef void (*on_sys_pkey_mprotect_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot, int32_t pkey); typedef void (*on_sys_pkey_mprotect_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot, int32_t pkey);;
+typedef void (*on_sys_poll_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ufds, uint32_t nfds, int32_t timeout); typedef void (*on_sys_poll_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ufds, uint32_t nfds, int32_t timeout);;
+typedef void (*on_sys_poll_return_t)(CPUState* cpu, target_ulong pc, uint32_t ufds, uint32_t nfds, int32_t timeout); typedef void (*on_sys_poll_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ufds, uint32_t nfds, int32_t timeout);;
+typedef void (*on_sys_ppoll_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4); typedef void (*on_sys_ppoll_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);;
+typedef void (*on_sys_ppoll_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4); typedef void (*on_sys_ppoll_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);;
+typedef void (*on_sys_prctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_prctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
+typedef void (*on_sys_prctl_return_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_prctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
+typedef void (*on_sys_pread64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos); typedef void (*on_sys_pread64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);;
+typedef void (*on_sys_pread64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos); typedef void (*on_sys_pread64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);;
+typedef void (*on_sys_preadv_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h); typedef void (*on_sys_preadv_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);;
+typedef void (*on_sys_preadv_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h); typedef void (*on_sys_preadv_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);;
+typedef void (*on_sys_preadv2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h, uint32_t flags); typedef void (*on_sys_preadv2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h, uint32_t flags);;
+typedef void (*on_sys_preadv2_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h, uint32_t flags); typedef void (*on_sys_preadv2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h, uint32_t flags);;
+typedef void (*on_sys_prlimit64_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t resource, uint32_t new_rlim, uint32_t old_rlim); typedef void (*on_sys_prlimit64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t resource, uint32_t new_rlim, uint32_t old_rlim);;
+typedef void (*on_sys_prlimit64_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t resource, uint32_t new_rlim, uint32_t old_rlim); typedef void (*on_sys_prlimit64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t resource, uint32_t new_rlim, uint32_t old_rlim);;
+typedef void (*on_sys_process_vm_readv_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags); typedef void (*on_sys_process_vm_readv_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);;
+typedef void (*on_sys_process_vm_readv_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags); typedef void (*on_sys_process_vm_readv_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);;
+typedef void (*on_sys_process_vm_writev_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags); typedef void (*on_sys_process_vm_writev_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);;
+typedef void (*on_sys_process_vm_writev_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags); typedef void (*on_sys_process_vm_writev_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);;
+typedef void (*on_sys_pselect6_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_pselect6_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
+typedef void (*on_sys_pselect6_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_pselect6_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
+typedef void (*on_sys_ptrace_enter_t)(CPUState* cpu, target_ulong pc, int32_t request, int32_t pid, uint32_t addr, uint32_t _data); typedef void (*on_sys_ptrace_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t request, int32_t pid, uint32_t addr, uint32_t _data);;
+typedef void (*on_sys_ptrace_return_t)(CPUState* cpu, target_ulong pc, int32_t request, int32_t pid, uint32_t addr, uint32_t _data); typedef void (*on_sys_ptrace_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t request, int32_t pid, uint32_t addr, uint32_t _data);;
+typedef void (*on_sys_pwrite64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos); typedef void (*on_sys_pwrite64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);;
+typedef void (*on_sys_pwrite64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos); typedef void (*on_sys_pwrite64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);;
+typedef void (*on_sys_pwritev_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h); typedef void (*on_sys_pwritev_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);;
+typedef void (*on_sys_pwritev_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h); typedef void (*on_sys_pwritev_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);;
+typedef void (*on_sys_pwritev2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h, uint32_t flags); typedef void (*on_sys_pwritev2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h, uint32_t flags);;
+typedef void (*on_sys_pwritev2_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h, uint32_t flags); typedef void (*on_sys_pwritev2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h, uint32_t flags);;
+typedef void (*on_sys_quotactl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t cmd, uint32_t special, uint32_t id, uint32_t addr); typedef void (*on_sys_quotactl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t cmd, uint32_t special, uint32_t id, uint32_t addr);;
+typedef void (*on_sys_quotactl_return_t)(CPUState* cpu, target_ulong pc, uint32_t cmd, uint32_t special, uint32_t id, uint32_t addr); typedef void (*on_sys_quotactl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t cmd, uint32_t special, uint32_t id, uint32_t addr);;
+typedef void (*on_sys_read_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count); typedef void (*on_sys_read_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);;
+typedef void (*on_sys_read_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count); typedef void (*on_sys_read_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);;
+typedef void (*on_sys_readahead_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t count); typedef void (*on_sys_readahead_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t count);;
+typedef void (*on_sys_readahead_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t count); typedef void (*on_sys_readahead_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t count);;
+typedef void (*on_sys_readlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf, int32_t bufsiz); typedef void (*on_sys_readlink_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf, int32_t bufsiz);;
+typedef void (*on_sys_readlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf, int32_t bufsiz); typedef void (*on_sys_readlink_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf, int32_t bufsiz);;
+typedef void (*on_sys_readlinkat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t buf, int32_t bufsiz); typedef void (*on_sys_readlinkat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t buf, int32_t bufsiz);;
+typedef void (*on_sys_readlinkat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t buf, int32_t bufsiz); typedef void (*on_sys_readlinkat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t buf, int32_t bufsiz);;
+typedef void (*on_sys_readv_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen); typedef void (*on_sys_readv_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);;
+typedef void (*on_sys_readv_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen); typedef void (*on_sys_readv_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);;
+typedef void (*on_sys_reboot_enter_t)(CPUState* cpu, target_ulong pc, int32_t magic1, int32_t magic2, uint32_t cmd, uint32_t arg); typedef void (*on_sys_reboot_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t magic1, int32_t magic2, uint32_t cmd, uint32_t arg);;
+typedef void (*on_sys_reboot_return_t)(CPUState* cpu, target_ulong pc, int32_t magic1, int32_t magic2, uint32_t cmd, uint32_t arg); typedef void (*on_sys_reboot_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t magic1, int32_t magic2, uint32_t cmd, uint32_t arg);;
+typedef void (*on_sys_recvfrom_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_recvfrom_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
+typedef void (*on_sys_recvfrom_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_recvfrom_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
+typedef void (*on_sys_recvmmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags, uint32_t timeout); typedef void (*on_sys_recvmmsg_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags, uint32_t timeout);;
+typedef void (*on_sys_recvmmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags, uint32_t timeout); typedef void (*on_sys_recvmmsg_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags, uint32_t timeout);;
+typedef void (*on_sys_recvmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags); typedef void (*on_sys_recvmsg_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);;
+typedef void (*on_sys_recvmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags); typedef void (*on_sys_recvmsg_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);;
+typedef void (*on_sys_remap_file_pages_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t size, uint32_t prot, uint32_t pgoff, uint32_t flags); typedef void (*on_sys_remap_file_pages_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t size, uint32_t prot, uint32_t pgoff, uint32_t flags);;
+typedef void (*on_sys_remap_file_pages_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t size, uint32_t prot, uint32_t pgoff, uint32_t flags); typedef void (*on_sys_remap_file_pages_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t size, uint32_t prot, uint32_t pgoff, uint32_t flags);;
+typedef void (*on_sys_removexattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name); typedef void (*on_sys_removexattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);;
+typedef void (*on_sys_removexattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name); typedef void (*on_sys_removexattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);;
+typedef void (*on_sys_rename_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname); typedef void (*on_sys_rename_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);;
+typedef void (*on_sys_rename_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname); typedef void (*on_sys_rename_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);;
+typedef void (*on_sys_renameat_enter_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname); typedef void (*on_sys_renameat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname);;
+typedef void (*on_sys_renameat_return_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname); typedef void (*on_sys_renameat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname);;
+typedef void (*on_sys_renameat2_enter_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, uint32_t flags); typedef void (*on_sys_renameat2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, uint32_t flags);;
+typedef void (*on_sys_renameat2_return_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, uint32_t flags); typedef void (*on_sys_renameat2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, uint32_t flags);;
+typedef void (*on_sys_request_key_enter_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _callout_info, uint32_t destringid); typedef void (*on_sys_request_key_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _callout_info, uint32_t destringid);;
+typedef void (*on_sys_request_key_return_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _callout_info, uint32_t destringid); typedef void (*on_sys_request_key_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _callout_info, uint32_t destringid);;
+typedef void (*on_sys_restart_syscall_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_restart_syscall_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_restart_syscall_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_restart_syscall_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_rmdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname); typedef void (*on_sys_rmdir_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname);;
+typedef void (*on_sys_rmdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname); typedef void (*on_sys_rmdir_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname);;
+typedef void (*on_sys_rt_sigaction_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3); typedef void (*on_sys_rt_sigaction_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);;
+typedef void (*on_sys_rt_sigaction_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3); typedef void (*on_sys_rt_sigaction_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);;
+typedef void (*on_sys_rt_sigpending_enter_t)(CPUState* cpu, target_ulong pc, uint32_t set, uint32_t sigsetsize); typedef void (*on_sys_rt_sigpending_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t set, uint32_t sigsetsize);;
+typedef void (*on_sys_rt_sigpending_return_t)(CPUState* cpu, target_ulong pc, uint32_t set, uint32_t sigsetsize); typedef void (*on_sys_rt_sigpending_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t set, uint32_t sigsetsize);;
+typedef void (*on_sys_rt_sigprocmask_enter_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset, uint32_t sigsetsize); typedef void (*on_sys_rt_sigprocmask_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset, uint32_t sigsetsize);;
+typedef void (*on_sys_rt_sigprocmask_return_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset, uint32_t sigsetsize); typedef void (*on_sys_rt_sigprocmask_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset, uint32_t sigsetsize);;
+typedef void (*on_sys_rt_sigqueueinfo_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig, uint32_t uinfo); typedef void (*on_sys_rt_sigqueueinfo_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig, uint32_t uinfo);;
+typedef void (*on_sys_rt_sigqueueinfo_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig, uint32_t uinfo); typedef void (*on_sys_rt_sigqueueinfo_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig, uint32_t uinfo);;
+typedef void (*on_sys_rt_sigreturn_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_rt_sigreturn_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_rt_sigreturn_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_rt_sigreturn_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_rt_sigsuspend_enter_t)(CPUState* cpu, target_ulong pc, uint32_t unewset, uint32_t sigsetsize); typedef void (*on_sys_rt_sigsuspend_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t unewset, uint32_t sigsetsize);;
+typedef void (*on_sys_rt_sigsuspend_return_t)(CPUState* cpu, target_ulong pc, uint32_t unewset, uint32_t sigsetsize); typedef void (*on_sys_rt_sigsuspend_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t unewset, uint32_t sigsetsize);;
+typedef void (*on_sys_rt_sigtimedwait_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uthese, uint32_t uinfo, uint32_t uts, uint32_t sigsetsize); typedef void (*on_sys_rt_sigtimedwait_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uthese, uint32_t uinfo, uint32_t uts, uint32_t sigsetsize);;
+typedef void (*on_sys_rt_sigtimedwait_return_t)(CPUState* cpu, target_ulong pc, uint32_t uthese, uint32_t uinfo, uint32_t uts, uint32_t sigsetsize); typedef void (*on_sys_rt_sigtimedwait_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uthese, uint32_t uinfo, uint32_t uts, uint32_t sigsetsize);;
+typedef void (*on_sys_rt_tgsigqueueinfo_enter_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig, uint32_t uinfo); typedef void (*on_sys_rt_tgsigqueueinfo_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig, uint32_t uinfo);;
+typedef void (*on_sys_rt_tgsigqueueinfo_return_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig, uint32_t uinfo); typedef void (*on_sys_rt_tgsigqueueinfo_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig, uint32_t uinfo);;
+typedef void (*on_sys_sched_get_priority_max_enter_t)(CPUState* cpu, target_ulong pc, int32_t policy); typedef void (*on_sys_sched_get_priority_max_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t policy);;
+typedef void (*on_sys_sched_get_priority_max_return_t)(CPUState* cpu, target_ulong pc, int32_t policy); typedef void (*on_sys_sched_get_priority_max_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t policy);;
+typedef void (*on_sys_sched_get_priority_min_enter_t)(CPUState* cpu, target_ulong pc, int32_t policy); typedef void (*on_sys_sched_get_priority_min_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t policy);;
+typedef void (*on_sys_sched_get_priority_min_return_t)(CPUState* cpu, target_ulong pc, int32_t policy); typedef void (*on_sys_sched_get_priority_min_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t policy);;
+typedef void (*on_sys_sched_getaffinity_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr); typedef void (*on_sys_sched_getaffinity_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);;
+typedef void (*on_sys_sched_getaffinity_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr); typedef void (*on_sys_sched_getaffinity_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);;
+typedef void (*on_sys_sched_getattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t size, uint32_t flags); typedef void (*on_sys_sched_getattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t size, uint32_t flags);;
+typedef void (*on_sys_sched_getattr_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t size, uint32_t flags); typedef void (*on_sys_sched_getattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t size, uint32_t flags);;
+typedef void (*on_sys_sched_getparam_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param); typedef void (*on_sys_sched_getparam_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);;
+typedef void (*on_sys_sched_getparam_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param); typedef void (*on_sys_sched_getparam_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);;
+typedef void (*on_sys_sched_getscheduler_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid); typedef void (*on_sys_sched_getscheduler_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid);;
+typedef void (*on_sys_sched_getscheduler_return_t)(CPUState* cpu, target_ulong pc, int32_t pid); typedef void (*on_sys_sched_getscheduler_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid);;
+typedef void (*on_sys_sched_rr_get_interval_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t interval); typedef void (*on_sys_sched_rr_get_interval_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t interval);;
+typedef void (*on_sys_sched_rr_get_interval_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t interval); typedef void (*on_sys_sched_rr_get_interval_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t interval);;
+typedef void (*on_sys_sched_setaffinity_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr); typedef void (*on_sys_sched_setaffinity_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);;
+typedef void (*on_sys_sched_setaffinity_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr); typedef void (*on_sys_sched_setaffinity_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);;
+typedef void (*on_sys_sched_setattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t flags); typedef void (*on_sys_sched_setattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t flags);;
+typedef void (*on_sys_sched_setattr_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t flags); typedef void (*on_sys_sched_setattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t flags);;
+typedef void (*on_sys_sched_setparam_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param); typedef void (*on_sys_sched_setparam_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);;
+typedef void (*on_sys_sched_setparam_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param); typedef void (*on_sys_sched_setparam_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);;
+typedef void (*on_sys_sched_setscheduler_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t policy, uint32_t param); typedef void (*on_sys_sched_setscheduler_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t policy, uint32_t param);;
+typedef void (*on_sys_sched_setscheduler_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t policy, uint32_t param); typedef void (*on_sys_sched_setscheduler_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t policy, uint32_t param);;
+typedef void (*on_sys_sched_yield_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_sched_yield_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_sched_yield_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_sched_yield_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_seccomp_enter_t)(CPUState* cpu, target_ulong pc, uint32_t op, uint32_t flags, uint32_t uargs); typedef void (*on_sys_seccomp_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t op, uint32_t flags, uint32_t uargs);;
+typedef void (*on_sys_seccomp_return_t)(CPUState* cpu, target_ulong pc, uint32_t op, uint32_t flags, uint32_t uargs); typedef void (*on_sys_seccomp_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t op, uint32_t flags, uint32_t uargs);;
+typedef void (*on_sys_select_enter_t)(CPUState* cpu, target_ulong pc, int32_t n, uint32_t inp, uint32_t outp, uint32_t exp, uint32_t tvp); typedef void (*on_sys_select_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t n, uint32_t inp, uint32_t outp, uint32_t exp, uint32_t tvp);;
+typedef void (*on_sys_select_return_t)(CPUState* cpu, target_ulong pc, int32_t n, uint32_t inp, uint32_t outp, uint32_t exp, uint32_t tvp); typedef void (*on_sys_select_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t n, uint32_t inp, uint32_t outp, uint32_t exp, uint32_t tvp);;
+typedef void (*on_sys_sendfile_enter_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count); typedef void (*on_sys_sendfile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);;
+typedef void (*on_sys_sendfile_return_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count); typedef void (*on_sys_sendfile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);;
+typedef void (*on_sys_sendfile64_enter_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count); typedef void (*on_sys_sendfile64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);;
+typedef void (*on_sys_sendfile64_return_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count); typedef void (*on_sys_sendfile64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);;
+typedef void (*on_sys_sendmmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags); typedef void (*on_sys_sendmmsg_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags);;
+typedef void (*on_sys_sendmmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags); typedef void (*on_sys_sendmmsg_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags);;
+typedef void (*on_sys_sendmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags); typedef void (*on_sys_sendmsg_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);;
+typedef void (*on_sys_sendmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags); typedef void (*on_sys_sendmsg_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);;
+typedef void (*on_sys_sendto_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, int32_t arg5); typedef void (*on_sys_sendto_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, int32_t arg5);;
+typedef void (*on_sys_sendto_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, int32_t arg5); typedef void (*on_sys_sendto_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, int32_t arg5);;
+typedef void (*on_sys_set_mempolicy_enter_t)(CPUState* cpu, target_ulong pc, int32_t mode, uint32_t nmask, uint32_t maxnode); typedef void (*on_sys_set_mempolicy_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t mode, uint32_t nmask, uint32_t maxnode);;
+typedef void (*on_sys_set_mempolicy_return_t)(CPUState* cpu, target_ulong pc, int32_t mode, uint32_t nmask, uint32_t maxnode); typedef void (*on_sys_set_mempolicy_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t mode, uint32_t nmask, uint32_t maxnode);;
+typedef void (*on_sys_set_robust_list_enter_t)(CPUState* cpu, target_ulong pc, uint32_t head, uint32_t len); typedef void (*on_sys_set_robust_list_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t head, uint32_t len);;
+typedef void (*on_sys_set_robust_list_return_t)(CPUState* cpu, target_ulong pc, uint32_t head, uint32_t len); typedef void (*on_sys_set_robust_list_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t head, uint32_t len);;
+typedef void (*on_sys_set_thread_area_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0); typedef void (*on_sys_set_thread_area_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0);;
+typedef void (*on_sys_set_thread_area_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0); typedef void (*on_sys_set_thread_area_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0);;
+typedef void (*on_sys_set_tid_address_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tidptr); typedef void (*on_sys_set_tid_address_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tidptr);;
+typedef void (*on_sys_set_tid_address_return_t)(CPUState* cpu, target_ulong pc, uint32_t tidptr); typedef void (*on_sys_set_tid_address_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tidptr);;
+typedef void (*on_sys_setdomainname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len); typedef void (*on_sys_setdomainname_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);;
+typedef void (*on_sys_setdomainname_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len); typedef void (*on_sys_setdomainname_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);;
+typedef void (*on_sys_setfsgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setfsgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
+typedef void (*on_sys_setfsgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setfsgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
+typedef void (*on_sys_setfsgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setfsgid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
+typedef void (*on_sys_setfsgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setfsgid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
+typedef void (*on_sys_setfsuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setfsuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
+typedef void (*on_sys_setfsuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setfsuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
+typedef void (*on_sys_setfsuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setfsuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
+typedef void (*on_sys_setfsuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setfsuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
+typedef void (*on_sys_setgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
+typedef void (*on_sys_setgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
+typedef void (*on_sys_setgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setgid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
+typedef void (*on_sys_setgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setgid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
+typedef void (*on_sys_setgroups_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_setgroups_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
+typedef void (*on_sys_setgroups_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_setgroups_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
+typedef void (*on_sys_setgroups16_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_setgroups16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
+typedef void (*on_sys_setgroups16_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_setgroups16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
+typedef void (*on_sys_sethostname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len); typedef void (*on_sys_sethostname_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);;
+typedef void (*on_sys_sethostname_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len); typedef void (*on_sys_sethostname_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);;
+typedef void (*on_sys_setitimer_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value, uint32_t ovalue); typedef void (*on_sys_setitimer_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, uint32_t value, uint32_t ovalue);;
+typedef void (*on_sys_setitimer_return_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value, uint32_t ovalue); typedef void (*on_sys_setitimer_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, uint32_t value, uint32_t ovalue);;
+typedef void (*on_sys_setns_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t nstype); typedef void (*on_sys_setns_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t nstype);;
+typedef void (*on_sys_setns_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t nstype); typedef void (*on_sys_setns_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t nstype);;
+typedef void (*on_sys_setpgid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t pgid); typedef void (*on_sys_setpgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t pgid);;
+typedef void (*on_sys_setpgid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t pgid); typedef void (*on_sys_setpgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t pgid);;
+typedef void (*on_sys_setpriority_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t niceval); typedef void (*on_sys_setpriority_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t niceval);;
+typedef void (*on_sys_setpriority_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t niceval); typedef void (*on_sys_setpriority_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t niceval);;
+typedef void (*on_sys_setregid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid); typedef void (*on_sys_setregid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);;
+typedef void (*on_sys_setregid_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid); typedef void (*on_sys_setregid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);;
+typedef void (*on_sys_setregid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid); typedef void (*on_sys_setregid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);;
+typedef void (*on_sys_setregid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid); typedef void (*on_sys_setregid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);;
+typedef void (*on_sys_setresgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_setresgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
+typedef void (*on_sys_setresgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_setresgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
+typedef void (*on_sys_setresgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_setresgid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
+typedef void (*on_sys_setresgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_setresgid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
+typedef void (*on_sys_setresuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_setresuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
+typedef void (*on_sys_setresuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_setresuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
+typedef void (*on_sys_setresuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_setresuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
+typedef void (*on_sys_setresuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_setresuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
+typedef void (*on_sys_setreuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid); typedef void (*on_sys_setreuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);;
+typedef void (*on_sys_setreuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid); typedef void (*on_sys_setreuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);;
+typedef void (*on_sys_setreuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid); typedef void (*on_sys_setreuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);;
+typedef void (*on_sys_setreuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid); typedef void (*on_sys_setreuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);;
+typedef void (*on_sys_setrlimit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim); typedef void (*on_sys_setrlimit_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);;
+typedef void (*on_sys_setrlimit_return_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim); typedef void (*on_sys_setrlimit_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);;
+typedef void (*on_sys_setsid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_setsid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_setsid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_setsid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_setsockopt_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, int32_t optlen); typedef void (*on_sys_setsockopt_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, int32_t optlen);;
+typedef void (*on_sys_setsockopt_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, int32_t optlen); typedef void (*on_sys_setsockopt_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, int32_t optlen);;
+typedef void (*on_sys_settimeofday_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz); typedef void (*on_sys_settimeofday_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);;
+typedef void (*on_sys_settimeofday_return_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz); typedef void (*on_sys_settimeofday_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);;
+typedef void (*on_sys_setuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
+typedef void (*on_sys_setuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
+typedef void (*on_sys_setuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
+typedef void (*on_sys_setuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
+typedef void (*on_sys_setxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags); typedef void (*on_sys_setxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);;
+typedef void (*on_sys_setxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags); typedef void (*on_sys_setxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);;
+typedef void (*on_sys_sgetmask_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_sgetmask_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_sgetmask_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_sgetmask_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_shutdown_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1); typedef void (*on_sys_shutdown_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);;
+typedef void (*on_sys_shutdown_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1); typedef void (*on_sys_shutdown_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);;
+typedef void (*on_sys_sigaction_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_sigaction_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_sigaction_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_sigaction_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_sigaltstack_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uss, uint32_t uoss); typedef void (*on_sys_sigaltstack_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uss, uint32_t uoss);;
+typedef void (*on_sys_sigaltstack_return_t)(CPUState* cpu, target_ulong pc, uint32_t uss, uint32_t uoss); typedef void (*on_sys_sigaltstack_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uss, uint32_t uoss);;
+typedef void (*on_sys_signal_enter_t)(CPUState* cpu, target_ulong pc, int32_t sig, uint32_t handler); typedef void (*on_sys_signal_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t sig, uint32_t handler);;
+typedef void (*on_sys_signal_return_t)(CPUState* cpu, target_ulong pc, int32_t sig, uint32_t handler); typedef void (*on_sys_signal_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t sig, uint32_t handler);;
+typedef void (*on_sys_signalfd_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask); typedef void (*on_sys_signalfd_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask);;
+typedef void (*on_sys_signalfd_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask); typedef void (*on_sys_signalfd_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask);;
+typedef void (*on_sys_signalfd4_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask, int32_t flags); typedef void (*on_sys_signalfd4_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask, int32_t flags);;
+typedef void (*on_sys_signalfd4_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask, int32_t flags); typedef void (*on_sys_signalfd4_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask, int32_t flags);;
+typedef void (*on_sys_sigpending_enter_t)(CPUState* cpu, target_ulong pc, uint32_t set); typedef void (*on_sys_sigpending_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t set);;
+typedef void (*on_sys_sigpending_return_t)(CPUState* cpu, target_ulong pc, uint32_t set); typedef void (*on_sys_sigpending_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t set);;
+typedef void (*on_sys_sigprocmask_enter_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset); typedef void (*on_sys_sigprocmask_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset);;
+typedef void (*on_sys_sigprocmask_return_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset); typedef void (*on_sys_sigprocmask_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset);;
+typedef void (*on_sys_sigreturn_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_sigreturn_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_sigreturn_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_sigreturn_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_sigsuspend_enter_t)(CPUState* cpu, target_ulong pc, int32_t unused1, int32_t unused2, uint32_t mask); typedef void (*on_sys_sigsuspend_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t unused1, int32_t unused2, uint32_t mask);;
+typedef void (*on_sys_sigsuspend_return_t)(CPUState* cpu, target_ulong pc, int32_t unused1, int32_t unused2, uint32_t mask); typedef void (*on_sys_sigsuspend_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t unused1, int32_t unused2, uint32_t mask);;
+typedef void (*on_sys_socket_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2); typedef void (*on_sys_socket_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2);;
+typedef void (*on_sys_socket_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2); typedef void (*on_sys_socket_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2);;
+typedef void (*on_sys_socketcall_enter_t)(CPUState* cpu, target_ulong pc, int32_t call, uint32_t args); typedef void (*on_sys_socketcall_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t call, uint32_t args);;
+typedef void (*on_sys_socketcall_return_t)(CPUState* cpu, target_ulong pc, int32_t call, uint32_t args); typedef void (*on_sys_socketcall_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t call, uint32_t args);;
+typedef void (*on_sys_socketpair_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2, uint32_t arg3); typedef void (*on_sys_socketpair_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2, uint32_t arg3);;
+typedef void (*on_sys_socketpair_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2, uint32_t arg3); typedef void (*on_sys_socketpair_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2, uint32_t arg3);;
+typedef void (*on_sys_splice_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags); typedef void (*on_sys_splice_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags);;
+typedef void (*on_sys_splice_return_t)(CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags); typedef void (*on_sys_splice_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags);;
+typedef void (*on_sys_ssetmask_enter_t)(CPUState* cpu, target_ulong pc, int32_t newmask); typedef void (*on_sys_ssetmask_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t newmask);;
+typedef void (*on_sys_ssetmask_return_t)(CPUState* cpu, target_ulong pc, int32_t newmask); typedef void (*on_sys_ssetmask_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t newmask);;
+typedef void (*on_sys_stat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_stat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
+typedef void (*on_sys_stat_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_stat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
+typedef void (*on_sys_stat64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_stat64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
+typedef void (*on_sys_stat64_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_stat64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
+typedef void (*on_sys_statfs_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf); typedef void (*on_sys_statfs_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf);;
+typedef void (*on_sys_statfs_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf); typedef void (*on_sys_statfs_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf);;
+typedef void (*on_sys_statfs64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t sz, uint32_t buf); typedef void (*on_sys_statfs64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t sz, uint32_t buf);;
+typedef void (*on_sys_statfs64_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t sz, uint32_t buf); typedef void (*on_sys_statfs64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t sz, uint32_t buf);;
+typedef void (*on_sys_statx_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t flags, uint32_t mask, uint32_t buffer); typedef void (*on_sys_statx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t flags, uint32_t mask, uint32_t buffer);;
+typedef void (*on_sys_statx_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t flags, uint32_t mask, uint32_t buffer); typedef void (*on_sys_statx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t flags, uint32_t mask, uint32_t buffer);;
+typedef void (*on_sys_stime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tptr); typedef void (*on_sys_stime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tptr);;
+typedef void (*on_sys_stime_return_t)(CPUState* cpu, target_ulong pc, uint32_t tptr); typedef void (*on_sys_stime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tptr);;
+typedef void (*on_sys_swapoff_enter_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile); typedef void (*on_sys_swapoff_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t specialfile);;
+typedef void (*on_sys_swapoff_return_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile); typedef void (*on_sys_swapoff_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t specialfile);;
+typedef void (*on_sys_swapon_enter_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile, int32_t swap_flags); typedef void (*on_sys_swapon_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t specialfile, int32_t swap_flags);;
+typedef void (*on_sys_swapon_return_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile, int32_t swap_flags); typedef void (*on_sys_swapon_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t specialfile, int32_t swap_flags);;
+typedef void (*on_sys_symlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t old, uint32_t _new); typedef void (*on_sys_symlink_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t old, uint32_t _new);;
+typedef void (*on_sys_symlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t old, uint32_t _new); typedef void (*on_sys_symlink_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t old, uint32_t _new);;
+typedef void (*on_sys_symlinkat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, int32_t newdfd, uint32_t newname); typedef void (*on_sys_symlinkat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldname, int32_t newdfd, uint32_t newname);;
+typedef void (*on_sys_symlinkat_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, int32_t newdfd, uint32_t newname); typedef void (*on_sys_symlinkat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldname, int32_t newdfd, uint32_t newname);;
+typedef void (*on_sys_sync_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_sync_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_sync_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_sync_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_sync_file_range_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint64_t nbytes, uint32_t flags); typedef void (*on_sys_sync_file_range_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint64_t nbytes, uint32_t flags);;
+typedef void (*on_sys_sync_file_range_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint64_t nbytes, uint32_t flags); typedef void (*on_sys_sync_file_range_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint64_t nbytes, uint32_t flags);;
+typedef void (*on_sys_syncfs_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd); typedef void (*on_sys_syncfs_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd);;
+typedef void (*on_sys_syncfs_return_t)(CPUState* cpu, target_ulong pc, int32_t fd); typedef void (*on_sys_syncfs_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd);;
+typedef void (*on_sys_sysctl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t args); typedef void (*on_sys_sysctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t args);;
+typedef void (*on_sys_sysctl_return_t)(CPUState* cpu, target_ulong pc, uint32_t args); typedef void (*on_sys_sysctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t args);;
+typedef void (*on_sys_sysfs_enter_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_sysfs_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_sysfs_return_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_sysfs_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg1, uint32_t arg2);;
+typedef void (*on_sys_sysinfo_enter_t)(CPUState* cpu, target_ulong pc, uint32_t info); typedef void (*on_sys_sysinfo_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t info);;
+typedef void (*on_sys_sysinfo_return_t)(CPUState* cpu, target_ulong pc, uint32_t info); typedef void (*on_sys_sysinfo_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t info);;
+typedef void (*on_sys_syslog_enter_t)(CPUState* cpu, target_ulong pc, int32_t type, uint32_t buf, int32_t len); typedef void (*on_sys_syslog_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t type, uint32_t buf, int32_t len);;
+typedef void (*on_sys_syslog_return_t)(CPUState* cpu, target_ulong pc, int32_t type, uint32_t buf, int32_t len); typedef void (*on_sys_syslog_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t type, uint32_t buf, int32_t len);;
+typedef void (*on_sys_tee_enter_t)(CPUState* cpu, target_ulong pc, int32_t fdin, int32_t fdout, uint32_t len, uint32_t flags); typedef void (*on_sys_tee_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fdin, int32_t fdout, uint32_t len, uint32_t flags);;
+typedef void (*on_sys_tee_return_t)(CPUState* cpu, target_ulong pc, int32_t fdin, int32_t fdout, uint32_t len, uint32_t flags); typedef void (*on_sys_tee_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fdin, int32_t fdout, uint32_t len, uint32_t flags);;
+typedef void (*on_sys_tgkill_enter_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig); typedef void (*on_sys_tgkill_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig);;
+typedef void (*on_sys_tgkill_return_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig); typedef void (*on_sys_tgkill_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig);;
+typedef void (*on_sys_time_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tloc); typedef void (*on_sys_time_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tloc);;
+typedef void (*on_sys_time_return_t)(CPUState* cpu, target_ulong pc, uint32_t tloc); typedef void (*on_sys_time_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tloc);;
+typedef void (*on_sys_timer_create_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t timer_event_spec, uint32_t created_timer_id); typedef void (*on_sys_timer_create_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t timer_event_spec, uint32_t created_timer_id);;
+typedef void (*on_sys_timer_create_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t timer_event_spec, uint32_t created_timer_id); typedef void (*on_sys_timer_create_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t timer_event_spec, uint32_t created_timer_id);;
+typedef void (*on_sys_timer_delete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id); typedef void (*on_sys_timer_delete_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id);;
+typedef void (*on_sys_timer_delete_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id); typedef void (*on_sys_timer_delete_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id);;
+typedef void (*on_sys_timer_getoverrun_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id); typedef void (*on_sys_timer_getoverrun_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id);;
+typedef void (*on_sys_timer_getoverrun_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id); typedef void (*on_sys_timer_getoverrun_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id);;
+typedef void (*on_sys_timer_gettime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, uint32_t setting); typedef void (*on_sys_timer_gettime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id, uint32_t setting);;
+typedef void (*on_sys_timer_gettime_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, uint32_t setting); typedef void (*on_sys_timer_gettime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id, uint32_t setting);;
+typedef void (*on_sys_timer_settime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, int32_t flags, uint32_t new_setting, uint32_t old_setting); typedef void (*on_sys_timer_settime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id, int32_t flags, uint32_t new_setting, uint32_t old_setting);;
+typedef void (*on_sys_timer_settime_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, int32_t flags, uint32_t new_setting, uint32_t old_setting); typedef void (*on_sys_timer_settime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id, int32_t flags, uint32_t new_setting, uint32_t old_setting);;
+typedef void (*on_sys_timerfd_create_enter_t)(CPUState* cpu, target_ulong pc, int32_t clockid, int32_t flags); typedef void (*on_sys_timerfd_create_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t clockid, int32_t flags);;
+typedef void (*on_sys_timerfd_create_return_t)(CPUState* cpu, target_ulong pc, int32_t clockid, int32_t flags); typedef void (*on_sys_timerfd_create_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t clockid, int32_t flags);;
+typedef void (*on_sys_timerfd_gettime_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t otmr); typedef void (*on_sys_timerfd_gettime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t otmr);;
+typedef void (*on_sys_timerfd_gettime_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t otmr); typedef void (*on_sys_timerfd_gettime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t otmr);;
+typedef void (*on_sys_timerfd_settime_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, int32_t flags, uint32_t utmr, uint32_t otmr); typedef void (*on_sys_timerfd_settime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, int32_t flags, uint32_t utmr, uint32_t otmr);;
+typedef void (*on_sys_timerfd_settime_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, int32_t flags, uint32_t utmr, uint32_t otmr); typedef void (*on_sys_timerfd_settime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, int32_t flags, uint32_t utmr, uint32_t otmr);;
+typedef void (*on_sys_times_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tbuf); typedef void (*on_sys_times_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tbuf);;
+typedef void (*on_sys_times_return_t)(CPUState* cpu, target_ulong pc, uint32_t tbuf); typedef void (*on_sys_times_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tbuf);;
+typedef void (*on_sys_tkill_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig); typedef void (*on_sys_tkill_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);;
+typedef void (*on_sys_tkill_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig); typedef void (*on_sys_tkill_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);;
+typedef void (*on_sys_truncate_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, int32_t length); typedef void (*on_sys_truncate_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, int32_t length);;
+typedef void (*on_sys_truncate_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, int32_t length); typedef void (*on_sys_truncate_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, int32_t length);;
+typedef void (*on_sys_truncate64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint64_t length); typedef void (*on_sys_truncate64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint64_t length);;
+typedef void (*on_sys_truncate64_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint64_t length); typedef void (*on_sys_truncate64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint64_t length);;
+typedef void (*on_sys_umask_enter_t)(CPUState* cpu, target_ulong pc, int32_t mask); typedef void (*on_sys_umask_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t mask);;
+typedef void (*on_sys_umask_return_t)(CPUState* cpu, target_ulong pc, int32_t mask); typedef void (*on_sys_umask_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t mask);;
+typedef void (*on_sys_umount_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t flags); typedef void (*on_sys_umount_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t flags);;
+typedef void (*on_sys_umount_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t flags); typedef void (*on_sys_umount_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t flags);;
+typedef void (*on_sys_uname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0); typedef void (*on_sys_uname_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0);;
+typedef void (*on_sys_uname_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0); typedef void (*on_sys_uname_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0);;
+typedef void (*on_sys_unlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname); typedef void (*on_sys_unlink_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname);;
+typedef void (*on_sys_unlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname); typedef void (*on_sys_unlink_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname);;
+typedef void (*on_sys_unlinkat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, int32_t flag); typedef void (*on_sys_unlinkat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, int32_t flag);;
+typedef void (*on_sys_unlinkat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, int32_t flag); typedef void (*on_sys_unlinkat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, int32_t flag);;
+typedef void (*on_sys_unshare_enter_t)(CPUState* cpu, target_ulong pc, uint32_t unshare_flags); typedef void (*on_sys_unshare_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t unshare_flags);;
+typedef void (*on_sys_unshare_return_t)(CPUState* cpu, target_ulong pc, uint32_t unshare_flags); typedef void (*on_sys_unshare_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t unshare_flags);;
+typedef void (*on_sys_uselib_enter_t)(CPUState* cpu, target_ulong pc, uint32_t library); typedef void (*on_sys_uselib_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t library);;
+typedef void (*on_sys_uselib_return_t)(CPUState* cpu, target_ulong pc, uint32_t library); typedef void (*on_sys_uselib_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t library);;
+typedef void (*on_sys_userfaultfd_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_userfaultfd_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
+typedef void (*on_sys_userfaultfd_return_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_userfaultfd_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
+typedef void (*on_sys_ustat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t dev, uint32_t ubuf); typedef void (*on_sys_ustat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t dev, uint32_t ubuf);;
+typedef void (*on_sys_ustat_return_t)(CPUState* cpu, target_ulong pc, uint32_t dev, uint32_t ubuf); typedef void (*on_sys_ustat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t dev, uint32_t ubuf);;
+typedef void (*on_sys_utime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t times); typedef void (*on_sys_utime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t times);;
+typedef void (*on_sys_utime_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t times); typedef void (*on_sys_utime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t times);;
+typedef void (*on_sys_utimensat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes, int32_t flags); typedef void (*on_sys_utimensat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes, int32_t flags);;
+typedef void (*on_sys_utimensat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes, int32_t flags); typedef void (*on_sys_utimensat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes, int32_t flags);;
+typedef void (*on_sys_utimes_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t utimes); typedef void (*on_sys_utimes_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t utimes);;
+typedef void (*on_sys_utimes_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t utimes); typedef void (*on_sys_utimes_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t utimes);;
+typedef void (*on_sys_vfork_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_vfork_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_vfork_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_vfork_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_vhangup_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_vhangup_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_vhangup_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_vhangup_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
+typedef void (*on_sys_vm86_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1); typedef void (*on_sys_vm86_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1);;
+typedef void (*on_sys_vm86_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1); typedef void (*on_sys_vm86_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1);;
+typedef void (*on_sys_vm86old_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0); typedef void (*on_sys_vm86old_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0);;
+typedef void (*on_sys_vm86old_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0); typedef void (*on_sys_vm86old_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0);;
+typedef void (*on_sys_vmsplice_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t iov, uint32_t nr_segs, uint32_t flags); typedef void (*on_sys_vmsplice_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t iov, uint32_t nr_segs, uint32_t flags);;
+typedef void (*on_sys_vmsplice_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t iov, uint32_t nr_segs, uint32_t flags); typedef void (*on_sys_vmsplice_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t iov, uint32_t nr_segs, uint32_t flags);;
+typedef void (*on_sys_wait4_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options, uint32_t ru); typedef void (*on_sys_wait4_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options, uint32_t ru);;
+typedef void (*on_sys_wait4_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options, uint32_t ru); typedef void (*on_sys_wait4_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options, uint32_t ru);;
+typedef void (*on_sys_waitid_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t pid, uint32_t infop, int32_t options, uint32_t ru); typedef void (*on_sys_waitid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t pid, uint32_t infop, int32_t options, uint32_t ru);;
+typedef void (*on_sys_waitid_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t pid, uint32_t infop, int32_t options, uint32_t ru); typedef void (*on_sys_waitid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t pid, uint32_t infop, int32_t options, uint32_t ru);;
+typedef void (*on_sys_waitpid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options); typedef void (*on_sys_waitpid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options);;
+typedef void (*on_sys_waitpid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options); typedef void (*on_sys_waitpid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options);;
+typedef void (*on_sys_write_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count); typedef void (*on_sys_write_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);;
+typedef void (*on_sys_write_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count); typedef void (*on_sys_write_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);;
+typedef void (*on_sys_writev_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen); typedef void (*on_sys_writev_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);;
+typedef void (*on_sys_writev_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen); typedef void (*on_sys_writev_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);;
+typedef void (*on_all_sys_enter_t)(CPUState *cpu, target_ulong pc, target_ulong callno); typedef void (*on_all_sys_enter_with_context_t)(void* context, CPUState *cpu, target_ulong pc, target_ulong callno);;
+typedef void (*on_all_sys_enter2_t)(CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx); typedef void (*on_all_sys_enter2_with_context_t)(void* context, CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx);;
+typedef void (*on_all_sys_return_t)(CPUState *cpu, target_ulong pc, target_ulong callno); typedef void (*on_all_sys_return_with_context_t)(void* context, CPUState *cpu, target_ulong pc, target_ulong callno);;
+typedef void (*on_all_sys_return2_t)(CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx); typedef void (*on_all_sys_return2_with_context_t)(void* context, CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx);;
+typedef void (*on_unknown_sys_enter_t)(CPUState *cpu, target_ulong pc, target_ulong callno); typedef void (*on_unknown_sys_enter_with_context_t)(void* context, CPUState *cpu, target_ulong pc, target_ulong callno);;
+typedef void (*on_unknown_sys_return_t)(CPUState *cpu, target_ulong pc, target_ulong callno); typedef void (*on_unknown_sys_return_with_context_t)(void* context, CPUState *cpu, target_ulong pc, target_ulong callno);;
+typedef void (*on_NtAcceptConnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ConnectionRequest, uint32_t AcceptConnection, uint32_t ServerView, uint32_t ClientView);
+void ppp_add_cb_on_NtAcceptConnectPort_enter(on_NtAcceptConnectPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAcceptConnectPort_enter(on_NtAcceptConnectPort_enter_t);
+typedef void (*on_NtAcceptConnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ConnectionRequest, uint32_t AcceptConnection, uint32_t ServerView, uint32_t ClientView);
+void ppp_add_cb_on_NtAcceptConnectPort_return(on_NtAcceptConnectPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAcceptConnectPort_return(on_NtAcceptConnectPort_return_t);
+typedef void (*on_NtAccessCheck_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus);
+void ppp_add_cb_on_NtAccessCheck_enter(on_NtAccessCheck_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheck_enter(on_NtAccessCheck_enter_t);
+typedef void (*on_NtAccessCheck_return_t)(CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus);
+void ppp_add_cb_on_NtAccessCheck_return(on_NtAccessCheck_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheck_return(on_NtAccessCheck_return_t);
+typedef void (*on_NtAccessCheckAndAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t DesiredAccess, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtAccessCheckAndAuditAlarm_enter(on_NtAccessCheckAndAuditAlarm_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheckAndAuditAlarm_enter(on_NtAccessCheckAndAuditAlarm_enter_t);
+typedef void (*on_NtAccessCheckAndAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t DesiredAccess, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtAccessCheckAndAuditAlarm_return(on_NtAccessCheckAndAuditAlarm_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheckAndAuditAlarm_return(on_NtAccessCheckAndAuditAlarm_return_t);
+typedef void (*on_NtAccessCheckByType_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus);
+void ppp_add_cb_on_NtAccessCheckByType_enter(on_NtAccessCheckByType_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheckByType_enter(on_NtAccessCheckByType_enter_t);
+typedef void (*on_NtAccessCheckByType_return_t)(CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus);
+void ppp_add_cb_on_NtAccessCheckByType_return(on_NtAccessCheckByType_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheckByType_return(on_NtAccessCheckByType_return_t);
+typedef void (*on_NtAccessCheckByTypeAndAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtAccessCheckByTypeAndAuditAlarm_enter(on_NtAccessCheckByTypeAndAuditAlarm_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheckByTypeAndAuditAlarm_enter(on_NtAccessCheckByTypeAndAuditAlarm_enter_t);
+typedef void (*on_NtAccessCheckByTypeAndAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtAccessCheckByTypeAndAuditAlarm_return(on_NtAccessCheckByTypeAndAuditAlarm_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheckByTypeAndAuditAlarm_return(on_NtAccessCheckByTypeAndAuditAlarm_return_t);
+typedef void (*on_NtAccessCheckByTypeResultList_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus);
+void ppp_add_cb_on_NtAccessCheckByTypeResultList_enter(on_NtAccessCheckByTypeResultList_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheckByTypeResultList_enter(on_NtAccessCheckByTypeResultList_enter_t);
+typedef void (*on_NtAccessCheckByTypeResultList_return_t)(CPUState* cpu, target_ulong pc, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t PrivilegeSet, uint32_t PrivilegeSetLength, uint32_t GrantedAccess, uint32_t AccessStatus);
+void ppp_add_cb_on_NtAccessCheckByTypeResultList_return(on_NtAccessCheckByTypeResultList_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheckByTypeResultList_return(on_NtAccessCheckByTypeResultList_return_t);
+typedef void (*on_NtAccessCheckByTypeResultListAndAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtAccessCheckByTypeResultListAndAuditAlarm_enter(on_NtAccessCheckByTypeResultListAndAuditAlarm_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheckByTypeResultListAndAuditAlarm_enter(on_NtAccessCheckByTypeResultListAndAuditAlarm_enter_t);
+typedef void (*on_NtAccessCheckByTypeResultListAndAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtAccessCheckByTypeResultListAndAuditAlarm_return(on_NtAccessCheckByTypeResultListAndAuditAlarm_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheckByTypeResultListAndAuditAlarm_return(on_NtAccessCheckByTypeResultListAndAuditAlarm_return_t);
+typedef void (*on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ClientToken, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_enter(on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_enter(on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_enter_t);
+typedef void (*on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ClientToken, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t PrincipalSelfSid, uint32_t DesiredAccess, uint32_t AuditType, uint32_t Flags, uint32_t ObjectTypeList, uint32_t ObjectTypeListLength, uint32_t GenericMapping, uint32_t ObjectCreation, uint32_t GrantedAccess, uint32_t AccessStatus, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_return(on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_return(on_NtAccessCheckByTypeResultListAndAuditAlarmByHandle_return_t);
+typedef void (*on_NtAddAtom_enter_t)(CPUState* cpu, target_ulong pc, uint32_t AtomName, uint32_t Length, uint32_t Atom);
+void ppp_add_cb_on_NtAddAtom_enter(on_NtAddAtom_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAddAtom_enter(on_NtAddAtom_enter_t);
+typedef void (*on_NtAddAtom_return_t)(CPUState* cpu, target_ulong pc, uint32_t AtomName, uint32_t Length, uint32_t Atom);
+void ppp_add_cb_on_NtAddAtom_return(on_NtAddAtom_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAddAtom_return(on_NtAddAtom_return_t);
+typedef void (*on_NtAddBootEntry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t BootEntry, uint32_t Id);
+void ppp_add_cb_on_NtAddBootEntry_enter(on_NtAddBootEntry_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAddBootEntry_enter(on_NtAddBootEntry_enter_t);
+typedef void (*on_NtAddBootEntry_return_t)(CPUState* cpu, target_ulong pc, uint32_t BootEntry, uint32_t Id);
+void ppp_add_cb_on_NtAddBootEntry_return(on_NtAddBootEntry_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAddBootEntry_return(on_NtAddBootEntry_return_t);
+typedef void (*on_NtAddDriverEntry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DriverEntry, uint32_t Id);
+void ppp_add_cb_on_NtAddDriverEntry_enter(on_NtAddDriverEntry_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAddDriverEntry_enter(on_NtAddDriverEntry_enter_t);
+typedef void (*on_NtAddDriverEntry_return_t)(CPUState* cpu, target_ulong pc, uint32_t DriverEntry, uint32_t Id);
+void ppp_add_cb_on_NtAddDriverEntry_return(on_NtAddDriverEntry_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAddDriverEntry_return(on_NtAddDriverEntry_return_t);
+typedef void (*on_NtAdjustGroupsToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t ResetToDefault, uint32_t NewState, uint32_t BufferLength, uint32_t PreviousState, uint32_t ReturnLength);
+void ppp_add_cb_on_NtAdjustGroupsToken_enter(on_NtAdjustGroupsToken_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAdjustGroupsToken_enter(on_NtAdjustGroupsToken_enter_t);
+typedef void (*on_NtAdjustGroupsToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t ResetToDefault, uint32_t NewState, uint32_t BufferLength, uint32_t PreviousState, uint32_t ReturnLength);
+void ppp_add_cb_on_NtAdjustGroupsToken_return(on_NtAdjustGroupsToken_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAdjustGroupsToken_return(on_NtAdjustGroupsToken_return_t);
+typedef void (*on_NtAdjustPrivilegesToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t DisableAllPrivileges, uint32_t NewState, uint32_t BufferLength, uint32_t PreviousState, uint32_t ReturnLength);
+void ppp_add_cb_on_NtAdjustPrivilegesToken_enter(on_NtAdjustPrivilegesToken_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAdjustPrivilegesToken_enter(on_NtAdjustPrivilegesToken_enter_t);
+typedef void (*on_NtAdjustPrivilegesToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t DisableAllPrivileges, uint32_t NewState, uint32_t BufferLength, uint32_t PreviousState, uint32_t ReturnLength);
+void ppp_add_cb_on_NtAdjustPrivilegesToken_return(on_NtAdjustPrivilegesToken_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAdjustPrivilegesToken_return(on_NtAdjustPrivilegesToken_return_t);
+typedef void (*on_NtAlertResumeThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount);
+void ppp_add_cb_on_NtAlertResumeThread_enter(on_NtAlertResumeThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlertResumeThread_enter(on_NtAlertResumeThread_enter_t);
+typedef void (*on_NtAlertResumeThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount);
+void ppp_add_cb_on_NtAlertResumeThread_return(on_NtAlertResumeThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlertResumeThread_return(on_NtAlertResumeThread_return_t);
+typedef void (*on_NtAlertThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle);
+void ppp_add_cb_on_NtAlertThread_enter(on_NtAlertThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlertThread_enter(on_NtAlertThread_enter_t);
+typedef void (*on_NtAlertThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle);
+void ppp_add_cb_on_NtAlertThread_return(on_NtAlertThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlertThread_return(on_NtAlertThread_return_t);
+typedef void (*on_NtAllocateLocallyUniqueId_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Luid);
+void ppp_add_cb_on_NtAllocateLocallyUniqueId_enter(on_NtAllocateLocallyUniqueId_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAllocateLocallyUniqueId_enter(on_NtAllocateLocallyUniqueId_enter_t);
+typedef void (*on_NtAllocateLocallyUniqueId_return_t)(CPUState* cpu, target_ulong pc, uint32_t Luid);
+void ppp_add_cb_on_NtAllocateLocallyUniqueId_return(on_NtAllocateLocallyUniqueId_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAllocateLocallyUniqueId_return(on_NtAllocateLocallyUniqueId_return_t);
+typedef void (*on_NtAllocateReserveObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MemoryReserveHandle, uint32_t ObjectAttributes, uint32_t Type);
+void ppp_add_cb_on_NtAllocateReserveObject_enter(on_NtAllocateReserveObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAllocateReserveObject_enter(on_NtAllocateReserveObject_enter_t);
+typedef void (*on_NtAllocateReserveObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t MemoryReserveHandle, uint32_t ObjectAttributes, uint32_t Type);
+void ppp_add_cb_on_NtAllocateReserveObject_return(on_NtAllocateReserveObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAllocateReserveObject_return(on_NtAllocateReserveObject_return_t);
+typedef void (*on_NtAllocateUserPhysicalPages_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t NumberOfPages, uint32_t UserPfnArray);
+void ppp_add_cb_on_NtAllocateUserPhysicalPages_enter(on_NtAllocateUserPhysicalPages_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAllocateUserPhysicalPages_enter(on_NtAllocateUserPhysicalPages_enter_t);
+typedef void (*on_NtAllocateUserPhysicalPages_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t NumberOfPages, uint32_t UserPfnArray);
+void ppp_add_cb_on_NtAllocateUserPhysicalPages_return(on_NtAllocateUserPhysicalPages_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAllocateUserPhysicalPages_return(on_NtAllocateUserPhysicalPages_return_t);
+typedef void (*on_NtAllocateUuids_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Time, uint32_t Range, uint32_t Sequence, uint32_t Seed);
+void ppp_add_cb_on_NtAllocateUuids_enter(on_NtAllocateUuids_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAllocateUuids_enter(on_NtAllocateUuids_enter_t);
+typedef void (*on_NtAllocateUuids_return_t)(CPUState* cpu, target_ulong pc, uint32_t Time, uint32_t Range, uint32_t Sequence, uint32_t Seed);
+void ppp_add_cb_on_NtAllocateUuids_return(on_NtAllocateUuids_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAllocateUuids_return(on_NtAllocateUuids_return_t);
+typedef void (*on_NtAllocateVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t ZeroBits, uint32_t RegionSize, uint32_t AllocationType, uint32_t Protect);
+void ppp_add_cb_on_NtAllocateVirtualMemory_enter(on_NtAllocateVirtualMemory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAllocateVirtualMemory_enter(on_NtAllocateVirtualMemory_enter_t);
+typedef void (*on_NtAllocateVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t ZeroBits, uint32_t RegionSize, uint32_t AllocationType, uint32_t Protect);
+void ppp_add_cb_on_NtAllocateVirtualMemory_return(on_NtAllocateVirtualMemory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAllocateVirtualMemory_return(on_NtAllocateVirtualMemory_return_t);
+typedef void (*on_NtAlpcAcceptConnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ConnectionPortHandle, uint32_t Flags, uint32_t ObjectAttributes, uint32_t PortAttributes, uint32_t PortContext, uint32_t ConnectionRequest, uint32_t ConnectionMessageAttributes, uint32_t AcceptConnection);
+void ppp_add_cb_on_NtAlpcAcceptConnectPort_enter(on_NtAlpcAcceptConnectPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcAcceptConnectPort_enter(on_NtAlpcAcceptConnectPort_enter_t);
+typedef void (*on_NtAlpcAcceptConnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ConnectionPortHandle, uint32_t Flags, uint32_t ObjectAttributes, uint32_t PortAttributes, uint32_t PortContext, uint32_t ConnectionRequest, uint32_t ConnectionMessageAttributes, uint32_t AcceptConnection);
+void ppp_add_cb_on_NtAlpcAcceptConnectPort_return(on_NtAlpcAcceptConnectPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcAcceptConnectPort_return(on_NtAlpcAcceptConnectPort_return_t);
+typedef void (*on_NtAlpcCancelMessage_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t MessageContext);
+void ppp_add_cb_on_NtAlpcCancelMessage_enter(on_NtAlpcCancelMessage_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcCancelMessage_enter(on_NtAlpcCancelMessage_enter_t);
+typedef void (*on_NtAlpcCancelMessage_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t MessageContext);
+void ppp_add_cb_on_NtAlpcCancelMessage_return(on_NtAlpcCancelMessage_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcCancelMessage_return(on_NtAlpcCancelMessage_return_t);
+typedef void (*on_NtAlpcConnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t ObjectAttributes, uint32_t PortAttributes, uint32_t Flags, uint32_t RequiredServerSid, uint32_t ConnectionMessage, uint32_t BufferLength, uint32_t OutMessageAttributes, uint32_t InMessageAttributes, uint32_t Timeout);
+void ppp_add_cb_on_NtAlpcConnectPort_enter(on_NtAlpcConnectPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcConnectPort_enter(on_NtAlpcConnectPort_enter_t);
+typedef void (*on_NtAlpcConnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t ObjectAttributes, uint32_t PortAttributes, uint32_t Flags, uint32_t RequiredServerSid, uint32_t ConnectionMessage, uint32_t BufferLength, uint32_t OutMessageAttributes, uint32_t InMessageAttributes, uint32_t Timeout);
+void ppp_add_cb_on_NtAlpcConnectPort_return(on_NtAlpcConnectPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcConnectPort_return(on_NtAlpcConnectPort_return_t);
+typedef void (*on_NtAlpcCreatePort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t PortAttributes);
+void ppp_add_cb_on_NtAlpcCreatePort_enter(on_NtAlpcCreatePort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcCreatePort_enter(on_NtAlpcCreatePort_enter_t);
+typedef void (*on_NtAlpcCreatePort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t PortAttributes);
+void ppp_add_cb_on_NtAlpcCreatePort_return(on_NtAlpcCreatePort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcCreatePort_return(on_NtAlpcCreatePort_return_t);
+typedef void (*on_NtAlpcCreatePortSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SectionHandle, uint32_t SectionSize, uint32_t AlpcSectionHandle, uint32_t ActualSectionSize);
+void ppp_add_cb_on_NtAlpcCreatePortSection_enter(on_NtAlpcCreatePortSection_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcCreatePortSection_enter(on_NtAlpcCreatePortSection_enter_t);
+typedef void (*on_NtAlpcCreatePortSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SectionHandle, uint32_t SectionSize, uint32_t AlpcSectionHandle, uint32_t ActualSectionSize);
+void ppp_add_cb_on_NtAlpcCreatePortSection_return(on_NtAlpcCreatePortSection_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcCreatePortSection_return(on_NtAlpcCreatePortSection_return_t);
+typedef void (*on_NtAlpcCreateResourceReserve_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t MessageSize, uint32_t ResourceId);
+void ppp_add_cb_on_NtAlpcCreateResourceReserve_enter(on_NtAlpcCreateResourceReserve_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcCreateResourceReserve_enter(on_NtAlpcCreateResourceReserve_enter_t);
+typedef void (*on_NtAlpcCreateResourceReserve_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t MessageSize, uint32_t ResourceId);
+void ppp_add_cb_on_NtAlpcCreateResourceReserve_return(on_NtAlpcCreateResourceReserve_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcCreateResourceReserve_return(on_NtAlpcCreateResourceReserve_return_t);
+typedef void (*on_NtAlpcCreateSectionView_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ViewAttributes);
+void ppp_add_cb_on_NtAlpcCreateSectionView_enter(on_NtAlpcCreateSectionView_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcCreateSectionView_enter(on_NtAlpcCreateSectionView_enter_t);
+typedef void (*on_NtAlpcCreateSectionView_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ViewAttributes);
+void ppp_add_cb_on_NtAlpcCreateSectionView_return(on_NtAlpcCreateSectionView_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcCreateSectionView_return(on_NtAlpcCreateSectionView_return_t);
+typedef void (*on_NtAlpcCreateSecurityContext_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SecurityAttribute);
+void ppp_add_cb_on_NtAlpcCreateSecurityContext_enter(on_NtAlpcCreateSecurityContext_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcCreateSecurityContext_enter(on_NtAlpcCreateSecurityContext_enter_t);
+typedef void (*on_NtAlpcCreateSecurityContext_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SecurityAttribute);
+void ppp_add_cb_on_NtAlpcCreateSecurityContext_return(on_NtAlpcCreateSecurityContext_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcCreateSecurityContext_return(on_NtAlpcCreateSecurityContext_return_t);
+typedef void (*on_NtAlpcDeletePortSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SectionHandle);
+void ppp_add_cb_on_NtAlpcDeletePortSection_enter(on_NtAlpcDeletePortSection_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcDeletePortSection_enter(on_NtAlpcDeletePortSection_enter_t);
+typedef void (*on_NtAlpcDeletePortSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SectionHandle);
+void ppp_add_cb_on_NtAlpcDeletePortSection_return(on_NtAlpcDeletePortSection_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcDeletePortSection_return(on_NtAlpcDeletePortSection_return_t);
+typedef void (*on_NtAlpcDeleteResourceReserve_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ResourceId);
+void ppp_add_cb_on_NtAlpcDeleteResourceReserve_enter(on_NtAlpcDeleteResourceReserve_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcDeleteResourceReserve_enter(on_NtAlpcDeleteResourceReserve_enter_t);
+typedef void (*on_NtAlpcDeleteResourceReserve_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ResourceId);
+void ppp_add_cb_on_NtAlpcDeleteResourceReserve_return(on_NtAlpcDeleteResourceReserve_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcDeleteResourceReserve_return(on_NtAlpcDeleteResourceReserve_return_t);
+typedef void (*on_NtAlpcDeleteSectionView_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ViewBase);
+void ppp_add_cb_on_NtAlpcDeleteSectionView_enter(on_NtAlpcDeleteSectionView_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcDeleteSectionView_enter(on_NtAlpcDeleteSectionView_enter_t);
+typedef void (*on_NtAlpcDeleteSectionView_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ViewBase);
+void ppp_add_cb_on_NtAlpcDeleteSectionView_return(on_NtAlpcDeleteSectionView_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcDeleteSectionView_return(on_NtAlpcDeleteSectionView_return_t);
+typedef void (*on_NtAlpcDeleteSecurityContext_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ContextHandle);
+void ppp_add_cb_on_NtAlpcDeleteSecurityContext_enter(on_NtAlpcDeleteSecurityContext_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcDeleteSecurityContext_enter(on_NtAlpcDeleteSecurityContext_enter_t);
+typedef void (*on_NtAlpcDeleteSecurityContext_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ContextHandle);
+void ppp_add_cb_on_NtAlpcDeleteSecurityContext_return(on_NtAlpcDeleteSecurityContext_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcDeleteSecurityContext_return(on_NtAlpcDeleteSecurityContext_return_t);
+typedef void (*on_NtAlpcDisconnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags);
+void ppp_add_cb_on_NtAlpcDisconnectPort_enter(on_NtAlpcDisconnectPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcDisconnectPort_enter(on_NtAlpcDisconnectPort_enter_t);
+typedef void (*on_NtAlpcDisconnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags);
+void ppp_add_cb_on_NtAlpcDisconnectPort_return(on_NtAlpcDisconnectPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcDisconnectPort_return(on_NtAlpcDisconnectPort_return_t);
+typedef void (*on_NtAlpcImpersonateClientOfPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortMessage, uint32_t Reserved);
+void ppp_add_cb_on_NtAlpcImpersonateClientOfPort_enter(on_NtAlpcImpersonateClientOfPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcImpersonateClientOfPort_enter(on_NtAlpcImpersonateClientOfPort_enter_t);
+typedef void (*on_NtAlpcImpersonateClientOfPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortMessage, uint32_t Reserved);
+void ppp_add_cb_on_NtAlpcImpersonateClientOfPort_return(on_NtAlpcImpersonateClientOfPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcImpersonateClientOfPort_return(on_NtAlpcImpersonateClientOfPort_return_t);
+typedef void (*on_NtAlpcOpenSenderProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t PortHandle, uint32_t PortMessage, uint32_t Flags, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtAlpcOpenSenderProcess_enter(on_NtAlpcOpenSenderProcess_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcOpenSenderProcess_enter(on_NtAlpcOpenSenderProcess_enter_t);
+typedef void (*on_NtAlpcOpenSenderProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t PortHandle, uint32_t PortMessage, uint32_t Flags, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtAlpcOpenSenderProcess_return(on_NtAlpcOpenSenderProcess_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcOpenSenderProcess_return(on_NtAlpcOpenSenderProcess_return_t);
+typedef void (*on_NtAlpcOpenSenderThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PortHandle, uint32_t PortMessage, uint32_t Flags, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtAlpcOpenSenderThread_enter(on_NtAlpcOpenSenderThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcOpenSenderThread_enter(on_NtAlpcOpenSenderThread_enter_t);
+typedef void (*on_NtAlpcOpenSenderThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PortHandle, uint32_t PortMessage, uint32_t Flags, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtAlpcOpenSenderThread_return(on_NtAlpcOpenSenderThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcOpenSenderThread_return(on_NtAlpcOpenSenderThread_return_t);
+typedef void (*on_NtAlpcQueryInformation_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length, uint32_t ReturnLength);
+void ppp_add_cb_on_NtAlpcQueryInformation_enter(on_NtAlpcQueryInformation_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcQueryInformation_enter(on_NtAlpcQueryInformation_enter_t);
+typedef void (*on_NtAlpcQueryInformation_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length, uint32_t ReturnLength);
+void ppp_add_cb_on_NtAlpcQueryInformation_return(on_NtAlpcQueryInformation_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcQueryInformation_return(on_NtAlpcQueryInformation_return_t);
+typedef void (*on_NtAlpcQueryInformationMessage_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortMessage, uint32_t MessageInformationClass, uint32_t MessageInformation, uint32_t Length, uint32_t ReturnLength);
+void ppp_add_cb_on_NtAlpcQueryInformationMessage_enter(on_NtAlpcQueryInformationMessage_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcQueryInformationMessage_enter(on_NtAlpcQueryInformationMessage_enter_t);
+typedef void (*on_NtAlpcQueryInformationMessage_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortMessage, uint32_t MessageInformationClass, uint32_t MessageInformation, uint32_t Length, uint32_t ReturnLength);
+void ppp_add_cb_on_NtAlpcQueryInformationMessage_return(on_NtAlpcQueryInformationMessage_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcQueryInformationMessage_return(on_NtAlpcQueryInformationMessage_return_t);
+typedef void (*on_NtAlpcRevokeSecurityContext_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ContextHandle);
+void ppp_add_cb_on_NtAlpcRevokeSecurityContext_enter(on_NtAlpcRevokeSecurityContext_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcRevokeSecurityContext_enter(on_NtAlpcRevokeSecurityContext_enter_t);
+typedef void (*on_NtAlpcRevokeSecurityContext_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t ContextHandle);
+void ppp_add_cb_on_NtAlpcRevokeSecurityContext_return(on_NtAlpcRevokeSecurityContext_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcRevokeSecurityContext_return(on_NtAlpcRevokeSecurityContext_return_t);
+typedef void (*on_NtAlpcSendWaitReceivePort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SendMessage, uint32_t SendMessageAttributes, uint32_t ReceiveMessage, uint32_t BufferLength, uint32_t ReceiveMessageAttributes, uint32_t Timeout);
+void ppp_add_cb_on_NtAlpcSendWaitReceivePort_enter(on_NtAlpcSendWaitReceivePort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcSendWaitReceivePort_enter(on_NtAlpcSendWaitReceivePort_enter_t);
+typedef void (*on_NtAlpcSendWaitReceivePort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Flags, uint32_t SendMessage, uint32_t SendMessageAttributes, uint32_t ReceiveMessage, uint32_t BufferLength, uint32_t ReceiveMessageAttributes, uint32_t Timeout);
+void ppp_add_cb_on_NtAlpcSendWaitReceivePort_return(on_NtAlpcSendWaitReceivePort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcSendWaitReceivePort_return(on_NtAlpcSendWaitReceivePort_return_t);
+typedef void (*on_NtAlpcSetInformation_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length);
+void ppp_add_cb_on_NtAlpcSetInformation_enter(on_NtAlpcSetInformation_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcSetInformation_enter(on_NtAlpcSetInformation_enter_t);
+typedef void (*on_NtAlpcSetInformation_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length);
+void ppp_add_cb_on_NtAlpcSetInformation_return(on_NtAlpcSetInformation_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAlpcSetInformation_return(on_NtAlpcSetInformation_return_t);
+typedef void (*on_NtApphelpCacheControl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t type, uint32_t buf);
+void ppp_add_cb_on_NtApphelpCacheControl_enter(on_NtApphelpCacheControl_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtApphelpCacheControl_enter(on_NtApphelpCacheControl_enter_t);
+typedef void (*on_NtApphelpCacheControl_return_t)(CPUState* cpu, target_ulong pc, uint32_t type, uint32_t buf);
+void ppp_add_cb_on_NtApphelpCacheControl_return(on_NtApphelpCacheControl_return_t);
+_Bool 
+    ppp_remove_cb_on_NtApphelpCacheControl_return(on_NtApphelpCacheControl_return_t);
+typedef void (*on_NtAreMappedFilesTheSame_enter_t)(CPUState* cpu, target_ulong pc, uint32_t File1MappedAsAnImage, uint32_t File2MappedAsFile);
+void ppp_add_cb_on_NtAreMappedFilesTheSame_enter(on_NtAreMappedFilesTheSame_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAreMappedFilesTheSame_enter(on_NtAreMappedFilesTheSame_enter_t);
+typedef void (*on_NtAreMappedFilesTheSame_return_t)(CPUState* cpu, target_ulong pc, uint32_t File1MappedAsAnImage, uint32_t File2MappedAsFile);
+void ppp_add_cb_on_NtAreMappedFilesTheSame_return(on_NtAreMappedFilesTheSame_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAreMappedFilesTheSame_return(on_NtAreMappedFilesTheSame_return_t);
+typedef void (*on_NtAssignProcessToJobObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t ProcessHandle);
+void ppp_add_cb_on_NtAssignProcessToJobObject_enter(on_NtAssignProcessToJobObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtAssignProcessToJobObject_enter(on_NtAssignProcessToJobObject_enter_t);
+typedef void (*on_NtAssignProcessToJobObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t ProcessHandle);
+void ppp_add_cb_on_NtAssignProcessToJobObject_return(on_NtAssignProcessToJobObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtAssignProcessToJobObject_return(on_NtAssignProcessToJobObject_return_t);
+typedef void (*on_NtCallbackReturn_enter_t)(CPUState* cpu, target_ulong pc, uint32_t OutputBuffer, uint32_t OutputLength, uint32_t Status);
+void ppp_add_cb_on_NtCallbackReturn_enter(on_NtCallbackReturn_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCallbackReturn_enter(on_NtCallbackReturn_enter_t);
+typedef void (*on_NtCallbackReturn_return_t)(CPUState* cpu, target_ulong pc, uint32_t OutputBuffer, uint32_t OutputLength, uint32_t Status);
+void ppp_add_cb_on_NtCallbackReturn_return(on_NtCallbackReturn_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCallbackReturn_return(on_NtCallbackReturn_return_t);
+typedef void (*on_NtCancelIoFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock);
+void ppp_add_cb_on_NtCancelIoFile_enter(on_NtCancelIoFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCancelIoFile_enter(on_NtCancelIoFile_enter_t);
+typedef void (*on_NtCancelIoFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock);
+void ppp_add_cb_on_NtCancelIoFile_return(on_NtCancelIoFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCancelIoFile_return(on_NtCancelIoFile_return_t);
+typedef void (*on_NtCancelIoFileEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoRequestToCancel, uint32_t IoStatusBlock);
+void ppp_add_cb_on_NtCancelIoFileEx_enter(on_NtCancelIoFileEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCancelIoFileEx_enter(on_NtCancelIoFileEx_enter_t);
+typedef void (*on_NtCancelIoFileEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoRequestToCancel, uint32_t IoStatusBlock);
+void ppp_add_cb_on_NtCancelIoFileEx_return(on_NtCancelIoFileEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCancelIoFileEx_return(on_NtCancelIoFileEx_return_t);
+typedef void (*on_NtCancelSynchronousIoFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t IoRequestToCancel, uint32_t IoStatusBlock);
+void ppp_add_cb_on_NtCancelSynchronousIoFile_enter(on_NtCancelSynchronousIoFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCancelSynchronousIoFile_enter(on_NtCancelSynchronousIoFile_enter_t);
+typedef void (*on_NtCancelSynchronousIoFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t IoRequestToCancel, uint32_t IoStatusBlock);
+void ppp_add_cb_on_NtCancelSynchronousIoFile_return(on_NtCancelSynchronousIoFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCancelSynchronousIoFile_return(on_NtCancelSynchronousIoFile_return_t);
+typedef void (*on_NtCancelTimer_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t CurrentState);
+void ppp_add_cb_on_NtCancelTimer_enter(on_NtCancelTimer_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCancelTimer_enter(on_NtCancelTimer_enter_t);
+typedef void (*on_NtCancelTimer_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t CurrentState);
+void ppp_add_cb_on_NtCancelTimer_return(on_NtCancelTimer_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCancelTimer_return(on_NtCancelTimer_return_t);
+typedef void (*on_NtClearEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle);
+void ppp_add_cb_on_NtClearEvent_enter(on_NtClearEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtClearEvent_enter(on_NtClearEvent_enter_t);
+typedef void (*on_NtClearEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle);
+void ppp_add_cb_on_NtClearEvent_return(on_NtClearEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtClearEvent_return(on_NtClearEvent_return_t);
+typedef void (*on_NtClose_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle);
+void ppp_add_cb_on_NtClose_enter(on_NtClose_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtClose_enter(on_NtClose_enter_t);
+typedef void (*on_NtClose_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle);
+void ppp_add_cb_on_NtClose_return(on_NtClose_return_t);
+_Bool 
+    ppp_remove_cb_on_NtClose_return(on_NtClose_return_t);
+typedef void (*on_NtCloseObjectAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtCloseObjectAuditAlarm_enter(on_NtCloseObjectAuditAlarm_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCloseObjectAuditAlarm_enter(on_NtCloseObjectAuditAlarm_enter_t);
+typedef void (*on_NtCloseObjectAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtCloseObjectAuditAlarm_return(on_NtCloseObjectAuditAlarm_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCloseObjectAuditAlarm_return(on_NtCloseObjectAuditAlarm_return_t);
+typedef void (*on_NtCommitComplete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtCommitComplete_enter(on_NtCommitComplete_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCommitComplete_enter(on_NtCommitComplete_enter_t);
+typedef void (*on_NtCommitComplete_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtCommitComplete_return(on_NtCommitComplete_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCommitComplete_return(on_NtCommitComplete_return_t);
+typedef void (*on_NtCommitEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtCommitEnlistment_enter(on_NtCommitEnlistment_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCommitEnlistment_enter(on_NtCommitEnlistment_enter_t);
+typedef void (*on_NtCommitEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtCommitEnlistment_return(on_NtCommitEnlistment_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCommitEnlistment_return(on_NtCommitEnlistment_return_t);
+typedef void (*on_NtCommitTransaction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t Wait);
+void ppp_add_cb_on_NtCommitTransaction_enter(on_NtCommitTransaction_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCommitTransaction_enter(on_NtCommitTransaction_enter_t);
+typedef void (*on_NtCommitTransaction_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t Wait);
+void ppp_add_cb_on_NtCommitTransaction_return(on_NtCommitTransaction_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCommitTransaction_return(on_NtCommitTransaction_return_t);
+typedef void (*on_NtCompactKeys_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t KeyArray);
+void ppp_add_cb_on_NtCompactKeys_enter(on_NtCompactKeys_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCompactKeys_enter(on_NtCompactKeys_enter_t);
+typedef void (*on_NtCompactKeys_return_t)(CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t KeyArray);
+void ppp_add_cb_on_NtCompactKeys_return(on_NtCompactKeys_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCompactKeys_return(on_NtCompactKeys_return_t);
+typedef void (*on_NtCompareTokens_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FirstTokenHandle, uint32_t SecondTokenHandle, uint32_t Equal);
+void ppp_add_cb_on_NtCompareTokens_enter(on_NtCompareTokens_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCompareTokens_enter(on_NtCompareTokens_enter_t);
+typedef void (*on_NtCompareTokens_return_t)(CPUState* cpu, target_ulong pc, uint32_t FirstTokenHandle, uint32_t SecondTokenHandle, uint32_t Equal);
+void ppp_add_cb_on_NtCompareTokens_return(on_NtCompareTokens_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCompareTokens_return(on_NtCompareTokens_return_t);
+typedef void (*on_NtCompleteConnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle);
+void ppp_add_cb_on_NtCompleteConnectPort_enter(on_NtCompleteConnectPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCompleteConnectPort_enter(on_NtCompleteConnectPort_enter_t);
+typedef void (*on_NtCompleteConnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle);
+void ppp_add_cb_on_NtCompleteConnectPort_return(on_NtCompleteConnectPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCompleteConnectPort_return(on_NtCompleteConnectPort_return_t);
+typedef void (*on_NtCompressKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Key);
+void ppp_add_cb_on_NtCompressKey_enter(on_NtCompressKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCompressKey_enter(on_NtCompressKey_enter_t);
+typedef void (*on_NtCompressKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t Key);
+void ppp_add_cb_on_NtCompressKey_return(on_NtCompressKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCompressKey_return(on_NtCompressKey_return_t);
+typedef void (*on_NtConnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t SecurityQos, uint32_t ClientView, uint32_t ServerView, uint32_t MaxMessageLength, uint32_t ConnectionInformation, uint32_t ConnectionInformationLength);
+void ppp_add_cb_on_NtConnectPort_enter(on_NtConnectPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtConnectPort_enter(on_NtConnectPort_enter_t);
+typedef void (*on_NtConnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t SecurityQos, uint32_t ClientView, uint32_t ServerView, uint32_t MaxMessageLength, uint32_t ConnectionInformation, uint32_t ConnectionInformationLength);
+void ppp_add_cb_on_NtConnectPort_return(on_NtConnectPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtConnectPort_return(on_NtConnectPort_return_t);
+typedef void (*on_NtContinue_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ContextRecord, uint32_t TestAlert);
+void ppp_add_cb_on_NtContinue_enter(on_NtContinue_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtContinue_enter(on_NtContinue_enter_t);
+typedef void (*on_NtContinue_return_t)(CPUState* cpu, target_ulong pc, uint32_t ContextRecord, uint32_t TestAlert);
+void ppp_add_cb_on_NtContinue_return(on_NtContinue_return_t);
+_Bool 
+    ppp_remove_cb_on_NtContinue_return(on_NtContinue_return_t);
+typedef void (*on_NtCreateDebugObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Flags);
+void ppp_add_cb_on_NtCreateDebugObject_enter(on_NtCreateDebugObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateDebugObject_enter(on_NtCreateDebugObject_enter_t);
+typedef void (*on_NtCreateDebugObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Flags);
+void ppp_add_cb_on_NtCreateDebugObject_return(on_NtCreateDebugObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateDebugObject_return(on_NtCreateDebugObject_return_t);
+typedef void (*on_NtCreateDirectoryObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtCreateDirectoryObject_enter(on_NtCreateDirectoryObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateDirectoryObject_enter(on_NtCreateDirectoryObject_enter_t);
+typedef void (*on_NtCreateDirectoryObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtCreateDirectoryObject_return(on_NtCreateDirectoryObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateDirectoryObject_return(on_NtCreateDirectoryObject_return_t);
+typedef void (*on_NtCreateEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t DesiredAccess, uint32_t ResourceManagerHandle, uint32_t TransactionHandle, uint32_t ObjectAttributes, uint32_t CreateOptions, uint32_t NotificationMask, uint32_t EnlistmentKey);
+void ppp_add_cb_on_NtCreateEnlistment_enter(on_NtCreateEnlistment_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateEnlistment_enter(on_NtCreateEnlistment_enter_t);
+typedef void (*on_NtCreateEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t DesiredAccess, uint32_t ResourceManagerHandle, uint32_t TransactionHandle, uint32_t ObjectAttributes, uint32_t CreateOptions, uint32_t NotificationMask, uint32_t EnlistmentKey);
+void ppp_add_cb_on_NtCreateEnlistment_return(on_NtCreateEnlistment_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateEnlistment_return(on_NtCreateEnlistment_return_t);
+typedef void (*on_NtCreateEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t EventType, uint32_t InitialState);
+void ppp_add_cb_on_NtCreateEvent_enter(on_NtCreateEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateEvent_enter(on_NtCreateEvent_enter_t);
+typedef void (*on_NtCreateEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t EventType, uint32_t InitialState);
+void ppp_add_cb_on_NtCreateEvent_return(on_NtCreateEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateEvent_return(on_NtCreateEvent_return_t);
+typedef void (*on_NtCreateEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtCreateEventPair_enter(on_NtCreateEventPair_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateEventPair_enter(on_NtCreateEventPair_enter_t);
+typedef void (*on_NtCreateEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtCreateEventPair_return(on_NtCreateEventPair_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateEventPair_return(on_NtCreateEventPair_return_t);
+typedef void (*on_NtCreateFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t AllocationSize, uint32_t FileAttributes, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, uint32_t EaBuffer, uint32_t EaLength);
+void ppp_add_cb_on_NtCreateFile_enter(on_NtCreateFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateFile_enter(on_NtCreateFile_enter_t);
+typedef void (*on_NtCreateFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t AllocationSize, uint32_t FileAttributes, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, uint32_t EaBuffer, uint32_t EaLength);
+void ppp_add_cb_on_NtCreateFile_return(on_NtCreateFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateFile_return(on_NtCreateFile_return_t);
+typedef void (*on_NtCreateIoCompletion_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Count);
+void ppp_add_cb_on_NtCreateIoCompletion_enter(on_NtCreateIoCompletion_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateIoCompletion_enter(on_NtCreateIoCompletion_enter_t);
+typedef void (*on_NtCreateIoCompletion_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Count);
+void ppp_add_cb_on_NtCreateIoCompletion_return(on_NtCreateIoCompletion_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateIoCompletion_return(on_NtCreateIoCompletion_return_t);
+typedef void (*on_NtCreateJobObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtCreateJobObject_enter(on_NtCreateJobObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateJobObject_enter(on_NtCreateJobObject_enter_t);
+typedef void (*on_NtCreateJobObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtCreateJobObject_return(on_NtCreateJobObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateJobObject_return(on_NtCreateJobObject_return_t);
+typedef void (*on_NtCreateJobSet_enter_t)(CPUState* cpu, target_ulong pc, uint32_t NumJob, uint32_t UserJobSet, uint32_t Flags);
+void ppp_add_cb_on_NtCreateJobSet_enter(on_NtCreateJobSet_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateJobSet_enter(on_NtCreateJobSet_enter_t);
+typedef void (*on_NtCreateJobSet_return_t)(CPUState* cpu, target_ulong pc, uint32_t NumJob, uint32_t UserJobSet, uint32_t Flags);
+void ppp_add_cb_on_NtCreateJobSet_return(on_NtCreateJobSet_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateJobSet_return(on_NtCreateJobSet_return_t);
+typedef void (*on_NtCreateKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TitleIndex, uint32_t Class, uint32_t CreateOptions, uint32_t Disposition);
+void ppp_add_cb_on_NtCreateKey_enter(on_NtCreateKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateKey_enter(on_NtCreateKey_enter_t);
+typedef void (*on_NtCreateKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TitleIndex, uint32_t Class, uint32_t CreateOptions, uint32_t Disposition);
+void ppp_add_cb_on_NtCreateKey_return(on_NtCreateKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateKey_return(on_NtCreateKey_return_t);
+typedef void (*on_NtCreateKeyedEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Flags);
+void ppp_add_cb_on_NtCreateKeyedEvent_enter(on_NtCreateKeyedEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateKeyedEvent_enter(on_NtCreateKeyedEvent_enter_t);
+typedef void (*on_NtCreateKeyedEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Flags);
+void ppp_add_cb_on_NtCreateKeyedEvent_return(on_NtCreateKeyedEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateKeyedEvent_return(on_NtCreateKeyedEvent_return_t);
+typedef void (*on_NtCreateKeyTransacted_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TitleIndex, uint32_t Class, uint32_t CreateOptions, uint32_t TransactionHandle, uint32_t Disposition);
+void ppp_add_cb_on_NtCreateKeyTransacted_enter(on_NtCreateKeyTransacted_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateKeyTransacted_enter(on_NtCreateKeyTransacted_enter_t);
+typedef void (*on_NtCreateKeyTransacted_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TitleIndex, uint32_t Class, uint32_t CreateOptions, uint32_t TransactionHandle, uint32_t Disposition);
+void ppp_add_cb_on_NtCreateKeyTransacted_return(on_NtCreateKeyTransacted_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateKeyTransacted_return(on_NtCreateKeyTransacted_return_t);
+typedef void (*on_NtCreateMailslotFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t CreateOptions, uint32_t MailslotQuota, uint32_t MaximumMessageSize, uint32_t ReadTimeout);
+void ppp_add_cb_on_NtCreateMailslotFile_enter(on_NtCreateMailslotFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateMailslotFile_enter(on_NtCreateMailslotFile_enter_t);
+typedef void (*on_NtCreateMailslotFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t CreateOptions, uint32_t MailslotQuota, uint32_t MaximumMessageSize, uint32_t ReadTimeout);
+void ppp_add_cb_on_NtCreateMailslotFile_return(on_NtCreateMailslotFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateMailslotFile_return(on_NtCreateMailslotFile_return_t);
+typedef void (*on_NtCreateMutant_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t InitialOwner);
+void ppp_add_cb_on_NtCreateMutant_enter(on_NtCreateMutant_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateMutant_enter(on_NtCreateMutant_enter_t);
+typedef void (*on_NtCreateMutant_return_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t InitialOwner);
+void ppp_add_cb_on_NtCreateMutant_return(on_NtCreateMutant_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateMutant_return(on_NtCreateMutant_return_t);
+typedef void (*on_NtCreateNamedPipeFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, uint32_t NamedPipeType, uint32_t ReadMode, uint32_t CompletionMode, uint32_t MaximumInstances, uint32_t InboundQuota, uint32_t OutboundQuota, uint32_t DefaultTimeout);
+void ppp_add_cb_on_NtCreateNamedPipeFile_enter(on_NtCreateNamedPipeFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateNamedPipeFile_enter(on_NtCreateNamedPipeFile_enter_t);
+typedef void (*on_NtCreateNamedPipeFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t ShareAccess, uint32_t CreateDisposition, uint32_t CreateOptions, uint32_t NamedPipeType, uint32_t ReadMode, uint32_t CompletionMode, uint32_t MaximumInstances, uint32_t InboundQuota, uint32_t OutboundQuota, uint32_t DefaultTimeout);
+void ppp_add_cb_on_NtCreateNamedPipeFile_return(on_NtCreateNamedPipeFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateNamedPipeFile_return(on_NtCreateNamedPipeFile_return_t);
+typedef void (*on_NtCreatePagingFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PageFileName, uint32_t MinimumSize, uint32_t MaximumSize, uint32_t Priority);
+void ppp_add_cb_on_NtCreatePagingFile_enter(on_NtCreatePagingFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreatePagingFile_enter(on_NtCreatePagingFile_enter_t);
+typedef void (*on_NtCreatePagingFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t PageFileName, uint32_t MinimumSize, uint32_t MaximumSize, uint32_t Priority);
+void ppp_add_cb_on_NtCreatePagingFile_return(on_NtCreatePagingFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreatePagingFile_return(on_NtCreatePagingFile_return_t);
+typedef void (*on_NtCreatePort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t MaxConnectionInfoLength, uint32_t MaxMessageLength, uint32_t MaxPoolUsage);
+void ppp_add_cb_on_NtCreatePort_enter(on_NtCreatePort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreatePort_enter(on_NtCreatePort_enter_t);
+typedef void (*on_NtCreatePort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t MaxConnectionInfoLength, uint32_t MaxMessageLength, uint32_t MaxPoolUsage);
+void ppp_add_cb_on_NtCreatePort_return(on_NtCreatePort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreatePort_return(on_NtCreatePort_return_t);
+typedef void (*on_NtCreatePrivateNamespace_enter_t)(CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t BoundaryDescriptor);
+void ppp_add_cb_on_NtCreatePrivateNamespace_enter(on_NtCreatePrivateNamespace_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreatePrivateNamespace_enter(on_NtCreatePrivateNamespace_enter_t);
+typedef void (*on_NtCreatePrivateNamespace_return_t)(CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t BoundaryDescriptor);
+void ppp_add_cb_on_NtCreatePrivateNamespace_return(on_NtCreatePrivateNamespace_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreatePrivateNamespace_return(on_NtCreatePrivateNamespace_return_t);
+typedef void (*on_NtCreateProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ParentProcess, uint32_t InheritObjectTable, uint32_t SectionHandle, uint32_t DebugPort, uint32_t ExceptionPort);
+void ppp_add_cb_on_NtCreateProcess_enter(on_NtCreateProcess_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateProcess_enter(on_NtCreateProcess_enter_t);
+typedef void (*on_NtCreateProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ParentProcess, uint32_t InheritObjectTable, uint32_t SectionHandle, uint32_t DebugPort, uint32_t ExceptionPort);
+void ppp_add_cb_on_NtCreateProcess_return(on_NtCreateProcess_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateProcess_return(on_NtCreateProcess_return_t);
+typedef void (*on_NtCreateProcessEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ParentProcess, uint32_t Flags, uint32_t SectionHandle, uint32_t DebugPort, uint32_t ExceptionPort, uint32_t JobMemberLevel);
+void ppp_add_cb_on_NtCreateProcessEx_enter(on_NtCreateProcessEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateProcessEx_enter(on_NtCreateProcessEx_enter_t);
+typedef void (*on_NtCreateProcessEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ParentProcess, uint32_t Flags, uint32_t SectionHandle, uint32_t DebugPort, uint32_t ExceptionPort, uint32_t JobMemberLevel);
+void ppp_add_cb_on_NtCreateProcessEx_return(on_NtCreateProcessEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateProcessEx_return(on_NtCreateProcessEx_return_t);
+typedef void (*on_NtCreateProfile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle, uint32_t Process, uint32_t RangeBase, uint32_t RangeSize, uint32_t BucketSize, uint32_t Buffer, uint32_t BufferSize, uint32_t ProfileSource, uint32_t Affinity);
+void ppp_add_cb_on_NtCreateProfile_enter(on_NtCreateProfile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateProfile_enter(on_NtCreateProfile_enter_t);
+typedef void (*on_NtCreateProfile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle, uint32_t Process, uint32_t RangeBase, uint32_t RangeSize, uint32_t BucketSize, uint32_t Buffer, uint32_t BufferSize, uint32_t ProfileSource, uint32_t Affinity);
+void ppp_add_cb_on_NtCreateProfile_return(on_NtCreateProfile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateProfile_return(on_NtCreateProfile_return_t);
+typedef void (*on_NtCreateProfileEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle, uint32_t Process, uint32_t ProfileBase, uint32_t ProfileSize, uint32_t BucketSize, uint32_t Buffer, uint32_t BufferSize, uint32_t ProfileSource, uint32_t GroupAffinityCount, uint32_t GroupAffinity);
+void ppp_add_cb_on_NtCreateProfileEx_enter(on_NtCreateProfileEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateProfileEx_enter(on_NtCreateProfileEx_enter_t);
+typedef void (*on_NtCreateProfileEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle, uint32_t Process, uint32_t ProfileBase, uint32_t ProfileSize, uint32_t BucketSize, uint32_t Buffer, uint32_t BufferSize, uint32_t ProfileSource, uint32_t GroupAffinityCount, uint32_t GroupAffinity);
+void ppp_add_cb_on_NtCreateProfileEx_return(on_NtCreateProfileEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateProfileEx_return(on_NtCreateProfileEx_return_t);
+typedef void (*on_NtCreateResourceManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t DesiredAccess, uint32_t TmHandle, uint32_t RmGuid, uint32_t ObjectAttributes, uint32_t CreateOptions, uint32_t Description);
+void ppp_add_cb_on_NtCreateResourceManager_enter(on_NtCreateResourceManager_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateResourceManager_enter(on_NtCreateResourceManager_enter_t);
+typedef void (*on_NtCreateResourceManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t DesiredAccess, uint32_t TmHandle, uint32_t RmGuid, uint32_t ObjectAttributes, uint32_t CreateOptions, uint32_t Description);
+void ppp_add_cb_on_NtCreateResourceManager_return(on_NtCreateResourceManager_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateResourceManager_return(on_NtCreateResourceManager_return_t);
+typedef void (*on_NtCreateSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t MaximumSize, uint32_t SectionPageProtection, uint32_t AllocationAttributes, uint32_t FileHandle);
+void ppp_add_cb_on_NtCreateSection_enter(on_NtCreateSection_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateSection_enter(on_NtCreateSection_enter_t);
+typedef void (*on_NtCreateSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t MaximumSize, uint32_t SectionPageProtection, uint32_t AllocationAttributes, uint32_t FileHandle);
+void ppp_add_cb_on_NtCreateSection_return(on_NtCreateSection_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateSection_return(on_NtCreateSection_return_t);
+typedef void (*on_NtCreateSemaphore_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, int32_t InitialCount, int32_t MaximumCount);
+void ppp_add_cb_on_NtCreateSemaphore_enter(on_NtCreateSemaphore_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateSemaphore_enter(on_NtCreateSemaphore_enter_t);
+typedef void (*on_NtCreateSemaphore_return_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, int32_t InitialCount, int32_t MaximumCount);
+void ppp_add_cb_on_NtCreateSemaphore_return(on_NtCreateSemaphore_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateSemaphore_return(on_NtCreateSemaphore_return_t);
+typedef void (*on_NtCreateSymbolicLinkObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LinkTarget);
+void ppp_add_cb_on_NtCreateSymbolicLinkObject_enter(on_NtCreateSymbolicLinkObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateSymbolicLinkObject_enter(on_NtCreateSymbolicLinkObject_enter_t);
+typedef void (*on_NtCreateSymbolicLinkObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LinkTarget);
+void ppp_add_cb_on_NtCreateSymbolicLinkObject_return(on_NtCreateSymbolicLinkObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateSymbolicLinkObject_return(on_NtCreateSymbolicLinkObject_return_t);
+typedef void (*on_NtCreateThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ProcessHandle, uint32_t ClientId, uint32_t ThreadContext, uint32_t InitialTeb, uint32_t CreateSuspended);
+void ppp_add_cb_on_NtCreateThread_enter(on_NtCreateThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateThread_enter(on_NtCreateThread_enter_t);
+typedef void (*on_NtCreateThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ProcessHandle, uint32_t ClientId, uint32_t ThreadContext, uint32_t InitialTeb, uint32_t CreateSuspended);
+void ppp_add_cb_on_NtCreateThread_return(on_NtCreateThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateThread_return(on_NtCreateThread_return_t);
+typedef void (*on_NtCreateThreadEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ProcessHandle, uint32_t StartRoutine, uint32_t Argument, uint32_t CreateFlags, uint32_t ZeroBits, uint32_t StackSize, uint32_t MaximumStackSize, uint32_t AttributeList);
+void ppp_add_cb_on_NtCreateThreadEx_enter(on_NtCreateThreadEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateThreadEx_enter(on_NtCreateThreadEx_enter_t);
+typedef void (*on_NtCreateThreadEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ProcessHandle, uint32_t StartRoutine, uint32_t Argument, uint32_t CreateFlags, uint32_t ZeroBits, uint32_t StackSize, uint32_t MaximumStackSize, uint32_t AttributeList);
+void ppp_add_cb_on_NtCreateThreadEx_return(on_NtCreateThreadEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateThreadEx_return(on_NtCreateThreadEx_return_t);
+typedef void (*on_NtCreateTimer_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TimerType);
+void ppp_add_cb_on_NtCreateTimer_enter(on_NtCreateTimer_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateTimer_enter(on_NtCreateTimer_enter_t);
+typedef void (*on_NtCreateTimer_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TimerType);
+void ppp_add_cb_on_NtCreateTimer_return(on_NtCreateTimer_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateTimer_return(on_NtCreateTimer_return_t);
+typedef void (*on_NtCreateToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TokenType, uint32_t AuthenticationId, uint32_t ExpirationTime, uint32_t User, uint32_t Groups, uint32_t Privileges, uint32_t Owner, uint32_t PrimaryGroup, uint32_t DefaultDacl, uint32_t TokenSource);
+void ppp_add_cb_on_NtCreateToken_enter(on_NtCreateToken_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateToken_enter(on_NtCreateToken_enter_t);
+typedef void (*on_NtCreateToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TokenType, uint32_t AuthenticationId, uint32_t ExpirationTime, uint32_t User, uint32_t Groups, uint32_t Privileges, uint32_t Owner, uint32_t PrimaryGroup, uint32_t DefaultDacl, uint32_t TokenSource);
+void ppp_add_cb_on_NtCreateToken_return(on_NtCreateToken_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateToken_return(on_NtCreateToken_return_t);
+typedef void (*on_NtCreateTransaction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Uow, uint32_t TmHandle, uint32_t CreateOptions, uint32_t IsolationLevel, uint32_t IsolationFlags, uint32_t Timeout, uint32_t Description);
+void ppp_add_cb_on_NtCreateTransaction_enter(on_NtCreateTransaction_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateTransaction_enter(on_NtCreateTransaction_enter_t);
+typedef void (*on_NtCreateTransaction_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Uow, uint32_t TmHandle, uint32_t CreateOptions, uint32_t IsolationLevel, uint32_t IsolationFlags, uint32_t Timeout, uint32_t Description);
+void ppp_add_cb_on_NtCreateTransaction_return(on_NtCreateTransaction_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateTransaction_return(on_NtCreateTransaction_return_t);
+typedef void (*on_NtCreateTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LogFileName, uint32_t CreateOptions, uint32_t CommitStrength);
+void ppp_add_cb_on_NtCreateTransactionManager_enter(on_NtCreateTransactionManager_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateTransactionManager_enter(on_NtCreateTransactionManager_enter_t);
+typedef void (*on_NtCreateTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LogFileName, uint32_t CreateOptions, uint32_t CommitStrength);
+void ppp_add_cb_on_NtCreateTransactionManager_return(on_NtCreateTransactionManager_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateTransactionManager_return(on_NtCreateTransactionManager_return_t);
+typedef void (*on_NtCreateUserProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ThreadHandle, uint32_t ProcessDesiredAccess, uint32_t ThreadDesiredAccess, uint32_t ProcessObjectAttributes, uint32_t ThreadObjectAttributes, uint32_t ProcessFlags, uint32_t ThreadFlags, uint32_t ProcessParameters, uint32_t CreateInfo, uint32_t AttributeList);
+void ppp_add_cb_on_NtCreateUserProcess_enter(on_NtCreateUserProcess_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateUserProcess_enter(on_NtCreateUserProcess_enter_t);
+typedef void (*on_NtCreateUserProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ThreadHandle, uint32_t ProcessDesiredAccess, uint32_t ThreadDesiredAccess, uint32_t ProcessObjectAttributes, uint32_t ThreadObjectAttributes, uint32_t ProcessFlags, uint32_t ThreadFlags, uint32_t ProcessParameters, uint32_t CreateInfo, uint32_t AttributeList);
+void ppp_add_cb_on_NtCreateUserProcess_return(on_NtCreateUserProcess_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateUserProcess_return(on_NtCreateUserProcess_return_t);
+typedef void (*on_NtCreateWaitablePort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t MaxConnectionInfoLength, uint32_t MaxMessageLength, uint32_t MaxPoolUsage);
+void ppp_add_cb_on_NtCreateWaitablePort_enter(on_NtCreateWaitablePort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateWaitablePort_enter(on_NtCreateWaitablePort_enter_t);
+typedef void (*on_NtCreateWaitablePort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ObjectAttributes, uint32_t MaxConnectionInfoLength, uint32_t MaxMessageLength, uint32_t MaxPoolUsage);
+void ppp_add_cb_on_NtCreateWaitablePort_return(on_NtCreateWaitablePort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateWaitablePort_return(on_NtCreateWaitablePort_return_t);
+typedef void (*on_NtCreateWorkerFactory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandleReturn, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t CompletionPortHandle, uint32_t WorkerProcessHandle, uint32_t StartRoutine, uint32_t StartParameter, uint32_t MaxThreadCount, uint32_t StackReserve, uint32_t StackCommit);
+void ppp_add_cb_on_NtCreateWorkerFactory_enter(on_NtCreateWorkerFactory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateWorkerFactory_enter(on_NtCreateWorkerFactory_enter_t);
+typedef void (*on_NtCreateWorkerFactory_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandleReturn, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t CompletionPortHandle, uint32_t WorkerProcessHandle, uint32_t StartRoutine, uint32_t StartParameter, uint32_t MaxThreadCount, uint32_t StackReserve, uint32_t StackCommit);
+void ppp_add_cb_on_NtCreateWorkerFactory_return(on_NtCreateWorkerFactory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtCreateWorkerFactory_return(on_NtCreateWorkerFactory_return_t);
+typedef void (*on_NtDebugActiveProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DebugObjectHandle);
+void ppp_add_cb_on_NtDebugActiveProcess_enter(on_NtDebugActiveProcess_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDebugActiveProcess_enter(on_NtDebugActiveProcess_enter_t);
+typedef void (*on_NtDebugActiveProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DebugObjectHandle);
+void ppp_add_cb_on_NtDebugActiveProcess_return(on_NtDebugActiveProcess_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDebugActiveProcess_return(on_NtDebugActiveProcess_return_t);
+typedef void (*on_NtDebugContinue_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t ClientId, uint32_t ContinueStatus);
+void ppp_add_cb_on_NtDebugContinue_enter(on_NtDebugContinue_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDebugContinue_enter(on_NtDebugContinue_enter_t);
+typedef void (*on_NtDebugContinue_return_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t ClientId, uint32_t ContinueStatus);
+void ppp_add_cb_on_NtDebugContinue_return(on_NtDebugContinue_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDebugContinue_return(on_NtDebugContinue_return_t);
+typedef void (*on_NtDelayExecution_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Alertable, uint32_t DelayInterval);
+void ppp_add_cb_on_NtDelayExecution_enter(on_NtDelayExecution_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDelayExecution_enter(on_NtDelayExecution_enter_t);
+typedef void (*on_NtDelayExecution_return_t)(CPUState* cpu, target_ulong pc, uint32_t Alertable, uint32_t DelayInterval);
+void ppp_add_cb_on_NtDelayExecution_return(on_NtDelayExecution_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDelayExecution_return(on_NtDelayExecution_return_t);
+typedef void (*on_NtDeleteAtom_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Atom);
+void ppp_add_cb_on_NtDeleteAtom_enter(on_NtDeleteAtom_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteAtom_enter(on_NtDeleteAtom_enter_t);
+typedef void (*on_NtDeleteAtom_return_t)(CPUState* cpu, target_ulong pc, uint32_t Atom);
+void ppp_add_cb_on_NtDeleteAtom_return(on_NtDeleteAtom_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteAtom_return(on_NtDeleteAtom_return_t);
+typedef void (*on_NtDeleteBootEntry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Id);
+void ppp_add_cb_on_NtDeleteBootEntry_enter(on_NtDeleteBootEntry_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteBootEntry_enter(on_NtDeleteBootEntry_enter_t);
+typedef void (*on_NtDeleteBootEntry_return_t)(CPUState* cpu, target_ulong pc, uint32_t Id);
+void ppp_add_cb_on_NtDeleteBootEntry_return(on_NtDeleteBootEntry_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteBootEntry_return(on_NtDeleteBootEntry_return_t);
+typedef void (*on_NtDeleteDriverEntry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Id);
+void ppp_add_cb_on_NtDeleteDriverEntry_enter(on_NtDeleteDriverEntry_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteDriverEntry_enter(on_NtDeleteDriverEntry_enter_t);
+typedef void (*on_NtDeleteDriverEntry_return_t)(CPUState* cpu, target_ulong pc, uint32_t Id);
+void ppp_add_cb_on_NtDeleteDriverEntry_return(on_NtDeleteDriverEntry_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteDriverEntry_return(on_NtDeleteDriverEntry_return_t);
+typedef void (*on_NtDeleteFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtDeleteFile_enter(on_NtDeleteFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteFile_enter(on_NtDeleteFile_enter_t);
+typedef void (*on_NtDeleteFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtDeleteFile_return(on_NtDeleteFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteFile_return(on_NtDeleteFile_return_t);
+typedef void (*on_NtDeleteKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle);
+void ppp_add_cb_on_NtDeleteKey_enter(on_NtDeleteKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteKey_enter(on_NtDeleteKey_enter_t);
+typedef void (*on_NtDeleteKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle);
+void ppp_add_cb_on_NtDeleteKey_return(on_NtDeleteKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteKey_return(on_NtDeleteKey_return_t);
+typedef void (*on_NtDeleteObjectAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtDeleteObjectAuditAlarm_enter(on_NtDeleteObjectAuditAlarm_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteObjectAuditAlarm_enter(on_NtDeleteObjectAuditAlarm_enter_t);
+typedef void (*on_NtDeleteObjectAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtDeleteObjectAuditAlarm_return(on_NtDeleteObjectAuditAlarm_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteObjectAuditAlarm_return(on_NtDeleteObjectAuditAlarm_return_t);
+typedef void (*on_NtDeletePrivateNamespace_enter_t)(CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle);
+void ppp_add_cb_on_NtDeletePrivateNamespace_enter(on_NtDeletePrivateNamespace_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDeletePrivateNamespace_enter(on_NtDeletePrivateNamespace_enter_t);
+typedef void (*on_NtDeletePrivateNamespace_return_t)(CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle);
+void ppp_add_cb_on_NtDeletePrivateNamespace_return(on_NtDeletePrivateNamespace_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDeletePrivateNamespace_return(on_NtDeletePrivateNamespace_return_t);
+typedef void (*on_NtDeleteValueKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName);
+void ppp_add_cb_on_NtDeleteValueKey_enter(on_NtDeleteValueKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteValueKey_enter(on_NtDeleteValueKey_enter_t);
+typedef void (*on_NtDeleteValueKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName);
+void ppp_add_cb_on_NtDeleteValueKey_return(on_NtDeleteValueKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDeleteValueKey_return(on_NtDeleteValueKey_return_t);
+typedef void (*on_NtDeviceIoControlFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t IoControlCode, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength);
+void ppp_add_cb_on_NtDeviceIoControlFile_enter(on_NtDeviceIoControlFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDeviceIoControlFile_enter(on_NtDeviceIoControlFile_enter_t);
+typedef void (*on_NtDeviceIoControlFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t IoControlCode, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength);
+void ppp_add_cb_on_NtDeviceIoControlFile_return(on_NtDeviceIoControlFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDeviceIoControlFile_return(on_NtDeviceIoControlFile_return_t);
+typedef void (*on_NtDisableLastKnownGood_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtDisableLastKnownGood_enter(on_NtDisableLastKnownGood_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDisableLastKnownGood_enter(on_NtDisableLastKnownGood_enter_t);
+typedef void (*on_NtDisableLastKnownGood_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtDisableLastKnownGood_return(on_NtDisableLastKnownGood_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDisableLastKnownGood_return(on_NtDisableLastKnownGood_return_t);
+typedef void (*on_NtDisplayString_enter_t)(CPUState* cpu, target_ulong pc, uint32_t String);
+void ppp_add_cb_on_NtDisplayString_enter(on_NtDisplayString_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDisplayString_enter(on_NtDisplayString_enter_t);
+typedef void (*on_NtDisplayString_return_t)(CPUState* cpu, target_ulong pc, uint32_t String);
+void ppp_add_cb_on_NtDisplayString_return(on_NtDisplayString_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDisplayString_return(on_NtDisplayString_return_t);
+typedef void (*on_NtDrawText_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Text);
+void ppp_add_cb_on_NtDrawText_enter(on_NtDrawText_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDrawText_enter(on_NtDrawText_enter_t);
+typedef void (*on_NtDrawText_return_t)(CPUState* cpu, target_ulong pc, uint32_t Text);
+void ppp_add_cb_on_NtDrawText_return(on_NtDrawText_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDrawText_return(on_NtDrawText_return_t);
+typedef void (*on_NtDuplicateObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SourceProcessHandle, uint32_t SourceHandle, uint32_t TargetProcessHandle, uint32_t TargetHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Options);
+void ppp_add_cb_on_NtDuplicateObject_enter(on_NtDuplicateObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDuplicateObject_enter(on_NtDuplicateObject_enter_t);
+typedef void (*on_NtDuplicateObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t SourceProcessHandle, uint32_t SourceHandle, uint32_t TargetProcessHandle, uint32_t TargetHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Options);
+void ppp_add_cb_on_NtDuplicateObject_return(on_NtDuplicateObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDuplicateObject_return(on_NtDuplicateObject_return_t);
+typedef void (*on_NtDuplicateToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ExistingTokenHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t EffectiveOnly, uint32_t TokenType, uint32_t NewTokenHandle);
+void ppp_add_cb_on_NtDuplicateToken_enter(on_NtDuplicateToken_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtDuplicateToken_enter(on_NtDuplicateToken_enter_t);
+typedef void (*on_NtDuplicateToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t ExistingTokenHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t EffectiveOnly, uint32_t TokenType, uint32_t NewTokenHandle);
+void ppp_add_cb_on_NtDuplicateToken_return(on_NtDuplicateToken_return_t);
+_Bool 
+    ppp_remove_cb_on_NtDuplicateToken_return(on_NtDuplicateToken_return_t);
+typedef void (*on_NtEnableLastKnownGood_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtEnableLastKnownGood_enter(on_NtEnableLastKnownGood_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtEnableLastKnownGood_enter(on_NtEnableLastKnownGood_enter_t);
+typedef void (*on_NtEnableLastKnownGood_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtEnableLastKnownGood_return(on_NtEnableLastKnownGood_return_t);
+_Bool 
+    ppp_remove_cb_on_NtEnableLastKnownGood_return(on_NtEnableLastKnownGood_return_t);
+typedef void (*on_NtEnumerateBootEntries_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Buffer, uint32_t BufferLength);
+void ppp_add_cb_on_NtEnumerateBootEntries_enter(on_NtEnumerateBootEntries_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtEnumerateBootEntries_enter(on_NtEnumerateBootEntries_enter_t);
+typedef void (*on_NtEnumerateBootEntries_return_t)(CPUState* cpu, target_ulong pc, uint32_t Buffer, uint32_t BufferLength);
+void ppp_add_cb_on_NtEnumerateBootEntries_return(on_NtEnumerateBootEntries_return_t);
+_Bool 
+    ppp_remove_cb_on_NtEnumerateBootEntries_return(on_NtEnumerateBootEntries_return_t);
+typedef void (*on_NtEnumerateDriverEntries_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Buffer, uint32_t BufferLength);
+void ppp_add_cb_on_NtEnumerateDriverEntries_enter(on_NtEnumerateDriverEntries_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtEnumerateDriverEntries_enter(on_NtEnumerateDriverEntries_enter_t);
+typedef void (*on_NtEnumerateDriverEntries_return_t)(CPUState* cpu, target_ulong pc, uint32_t Buffer, uint32_t BufferLength);
+void ppp_add_cb_on_NtEnumerateDriverEntries_return(on_NtEnumerateDriverEntries_return_t);
+_Bool 
+    ppp_remove_cb_on_NtEnumerateDriverEntries_return(on_NtEnumerateDriverEntries_return_t);
+typedef void (*on_NtEnumerateKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Index, uint32_t KeyInformationClass, uint32_t KeyInformation, uint32_t Length, uint32_t ResultLength);
+void ppp_add_cb_on_NtEnumerateKey_enter(on_NtEnumerateKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtEnumerateKey_enter(on_NtEnumerateKey_enter_t);
+typedef void (*on_NtEnumerateKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Index, uint32_t KeyInformationClass, uint32_t KeyInformation, uint32_t Length, uint32_t ResultLength);
+void ppp_add_cb_on_NtEnumerateKey_return(on_NtEnumerateKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtEnumerateKey_return(on_NtEnumerateKey_return_t);
+typedef void (*on_NtEnumerateSystemEnvironmentValuesEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t InformationClass, uint32_t Buffer, uint32_t BufferLength);
+void ppp_add_cb_on_NtEnumerateSystemEnvironmentValuesEx_enter(on_NtEnumerateSystemEnvironmentValuesEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtEnumerateSystemEnvironmentValuesEx_enter(on_NtEnumerateSystemEnvironmentValuesEx_enter_t);
+typedef void (*on_NtEnumerateSystemEnvironmentValuesEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t InformationClass, uint32_t Buffer, uint32_t BufferLength);
+void ppp_add_cb_on_NtEnumerateSystemEnvironmentValuesEx_return(on_NtEnumerateSystemEnvironmentValuesEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtEnumerateSystemEnvironmentValuesEx_return(on_NtEnumerateSystemEnvironmentValuesEx_return_t);
+typedef void (*on_NtEnumerateTransactionObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t RootObjectHandle, uint32_t QueryType, uint32_t ObjectCursor, uint32_t ObjectCursorLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtEnumerateTransactionObject_enter(on_NtEnumerateTransactionObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtEnumerateTransactionObject_enter(on_NtEnumerateTransactionObject_enter_t);
+typedef void (*on_NtEnumerateTransactionObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t RootObjectHandle, uint32_t QueryType, uint32_t ObjectCursor, uint32_t ObjectCursorLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtEnumerateTransactionObject_return(on_NtEnumerateTransactionObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtEnumerateTransactionObject_return(on_NtEnumerateTransactionObject_return_t);
+typedef void (*on_NtEnumerateValueKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Index, uint32_t KeyValueInformationClass, uint32_t KeyValueInformation, uint32_t Length, uint32_t ResultLength);
+void ppp_add_cb_on_NtEnumerateValueKey_enter(on_NtEnumerateValueKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtEnumerateValueKey_enter(on_NtEnumerateValueKey_enter_t);
+typedef void (*on_NtEnumerateValueKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Index, uint32_t KeyValueInformationClass, uint32_t KeyValueInformation, uint32_t Length, uint32_t ResultLength);
+void ppp_add_cb_on_NtEnumerateValueKey_return(on_NtEnumerateValueKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtEnumerateValueKey_return(on_NtEnumerateValueKey_return_t);
+typedef void (*on_NtExtendSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t NewSectionSize);
+void ppp_add_cb_on_NtExtendSection_enter(on_NtExtendSection_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtExtendSection_enter(on_NtExtendSection_enter_t);
+typedef void (*on_NtExtendSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t NewSectionSize);
+void ppp_add_cb_on_NtExtendSection_return(on_NtExtendSection_return_t);
+_Bool 
+    ppp_remove_cb_on_NtExtendSection_return(on_NtExtendSection_return_t);
+typedef void (*on_NtFilterToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ExistingTokenHandle, uint32_t Flags, uint32_t SidsToDisable, uint32_t PrivilegesToDelete, uint32_t RestrictedSids, uint32_t NewTokenHandle);
+void ppp_add_cb_on_NtFilterToken_enter(on_NtFilterToken_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFilterToken_enter(on_NtFilterToken_enter_t);
+typedef void (*on_NtFilterToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t ExistingTokenHandle, uint32_t Flags, uint32_t SidsToDisable, uint32_t PrivilegesToDelete, uint32_t RestrictedSids, uint32_t NewTokenHandle);
+void ppp_add_cb_on_NtFilterToken_return(on_NtFilterToken_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFilterToken_return(on_NtFilterToken_return_t);
+typedef void (*on_NtFindAtom_enter_t)(CPUState* cpu, target_ulong pc, uint32_t AtomName, uint32_t Length, uint32_t Atom);
+void ppp_add_cb_on_NtFindAtom_enter(on_NtFindAtom_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFindAtom_enter(on_NtFindAtom_enter_t);
+typedef void (*on_NtFindAtom_return_t)(CPUState* cpu, target_ulong pc, uint32_t AtomName, uint32_t Length, uint32_t Atom);
+void ppp_add_cb_on_NtFindAtom_return(on_NtFindAtom_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFindAtom_return(on_NtFindAtom_return_t);
+typedef void (*on_NtFlushBuffersFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock);
+void ppp_add_cb_on_NtFlushBuffersFile_enter(on_NtFlushBuffersFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushBuffersFile_enter(on_NtFlushBuffersFile_enter_t);
+typedef void (*on_NtFlushBuffersFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock);
+void ppp_add_cb_on_NtFlushBuffersFile_return(on_NtFlushBuffersFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushBuffersFile_return(on_NtFlushBuffersFile_return_t);
+typedef void (*on_NtFlushInstallUILanguage_enter_t)(CPUState* cpu, target_ulong pc, uint32_t InstallUILanguage, uint32_t SetComittedFlag);
+void ppp_add_cb_on_NtFlushInstallUILanguage_enter(on_NtFlushInstallUILanguage_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushInstallUILanguage_enter(on_NtFlushInstallUILanguage_enter_t);
+typedef void (*on_NtFlushInstallUILanguage_return_t)(CPUState* cpu, target_ulong pc, uint32_t InstallUILanguage, uint32_t SetComittedFlag);
+void ppp_add_cb_on_NtFlushInstallUILanguage_return(on_NtFlushInstallUILanguage_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushInstallUILanguage_return(on_NtFlushInstallUILanguage_return_t);
+typedef void (*on_NtFlushInstructionCache_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Length);
+void ppp_add_cb_on_NtFlushInstructionCache_enter(on_NtFlushInstructionCache_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushInstructionCache_enter(on_NtFlushInstructionCache_enter_t);
+typedef void (*on_NtFlushInstructionCache_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Length);
+void ppp_add_cb_on_NtFlushInstructionCache_return(on_NtFlushInstructionCache_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushInstructionCache_return(on_NtFlushInstructionCache_return_t);
+typedef void (*on_NtFlushKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle);
+void ppp_add_cb_on_NtFlushKey_enter(on_NtFlushKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushKey_enter(on_NtFlushKey_enter_t);
+typedef void (*on_NtFlushKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle);
+void ppp_add_cb_on_NtFlushKey_return(on_NtFlushKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushKey_return(on_NtFlushKey_return_t);
+typedef void (*on_NtFlushProcessWriteBuffers_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtFlushProcessWriteBuffers_enter(on_NtFlushProcessWriteBuffers_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushProcessWriteBuffers_enter(on_NtFlushProcessWriteBuffers_enter_t);
+typedef void (*on_NtFlushProcessWriteBuffers_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtFlushProcessWriteBuffers_return(on_NtFlushProcessWriteBuffers_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushProcessWriteBuffers_return(on_NtFlushProcessWriteBuffers_return_t);
+typedef void (*on_NtFlushVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t IoStatus);
+void ppp_add_cb_on_NtFlushVirtualMemory_enter(on_NtFlushVirtualMemory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushVirtualMemory_enter(on_NtFlushVirtualMemory_enter_t);
+typedef void (*on_NtFlushVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t IoStatus);
+void ppp_add_cb_on_NtFlushVirtualMemory_return(on_NtFlushVirtualMemory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushVirtualMemory_return(on_NtFlushVirtualMemory_return_t);
+typedef void (*on_NtFlushWriteBuffer_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtFlushWriteBuffer_enter(on_NtFlushWriteBuffer_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushWriteBuffer_enter(on_NtFlushWriteBuffer_enter_t);
+typedef void (*on_NtFlushWriteBuffer_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtFlushWriteBuffer_return(on_NtFlushWriteBuffer_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFlushWriteBuffer_return(on_NtFlushWriteBuffer_return_t);
+typedef void (*on_NtFreeUserPhysicalPages_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t NumberOfPages, uint32_t UserPfnArray);
+void ppp_add_cb_on_NtFreeUserPhysicalPages_enter(on_NtFreeUserPhysicalPages_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFreeUserPhysicalPages_enter(on_NtFreeUserPhysicalPages_enter_t);
+typedef void (*on_NtFreeUserPhysicalPages_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t NumberOfPages, uint32_t UserPfnArray);
+void ppp_add_cb_on_NtFreeUserPhysicalPages_return(on_NtFreeUserPhysicalPages_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFreeUserPhysicalPages_return(on_NtFreeUserPhysicalPages_return_t);
+typedef void (*on_NtFreeVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t FreeType);
+void ppp_add_cb_on_NtFreeVirtualMemory_enter(on_NtFreeVirtualMemory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFreeVirtualMemory_enter(on_NtFreeVirtualMemory_enter_t);
+typedef void (*on_NtFreeVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t FreeType);
+void ppp_add_cb_on_NtFreeVirtualMemory_return(on_NtFreeVirtualMemory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFreeVirtualMemory_return(on_NtFreeVirtualMemory_return_t);
+typedef void (*on_NtFreezeRegistry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimeOutInSeconds);
+void ppp_add_cb_on_NtFreezeRegistry_enter(on_NtFreezeRegistry_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFreezeRegistry_enter(on_NtFreezeRegistry_enter_t);
+typedef void (*on_NtFreezeRegistry_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimeOutInSeconds);
+void ppp_add_cb_on_NtFreezeRegistry_return(on_NtFreezeRegistry_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFreezeRegistry_return(on_NtFreezeRegistry_return_t);
+typedef void (*on_NtFreezeTransactions_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FreezeTimeout, uint32_t ThawTimeout);
+void ppp_add_cb_on_NtFreezeTransactions_enter(on_NtFreezeTransactions_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFreezeTransactions_enter(on_NtFreezeTransactions_enter_t);
+typedef void (*on_NtFreezeTransactions_return_t)(CPUState* cpu, target_ulong pc, uint32_t FreezeTimeout, uint32_t ThawTimeout);
+void ppp_add_cb_on_NtFreezeTransactions_return(on_NtFreezeTransactions_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFreezeTransactions_return(on_NtFreezeTransactions_return_t);
+typedef void (*on_NtFsControlFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t IoControlCode, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength);
+void ppp_add_cb_on_NtFsControlFile_enter(on_NtFsControlFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtFsControlFile_enter(on_NtFsControlFile_enter_t);
+typedef void (*on_NtFsControlFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t IoControlCode, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength);
+void ppp_add_cb_on_NtFsControlFile_return(on_NtFsControlFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtFsControlFile_return(on_NtFsControlFile_return_t);
+typedef void (*on_NtGetContextThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadContext);
+void ppp_add_cb_on_NtGetContextThread_enter(on_NtGetContextThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtGetContextThread_enter(on_NtGetContextThread_enter_t);
+typedef void (*on_NtGetContextThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadContext);
+void ppp_add_cb_on_NtGetContextThread_return(on_NtGetContextThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtGetContextThread_return(on_NtGetContextThread_return_t);
+typedef void (*on_NtGetCurrentProcessorNumber_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtGetCurrentProcessorNumber_enter(on_NtGetCurrentProcessorNumber_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtGetCurrentProcessorNumber_enter(on_NtGetCurrentProcessorNumber_enter_t);
+typedef void (*on_NtGetCurrentProcessorNumber_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtGetCurrentProcessorNumber_return(on_NtGetCurrentProcessorNumber_return_t);
+_Bool 
+    ppp_remove_cb_on_NtGetCurrentProcessorNumber_return(on_NtGetCurrentProcessorNumber_return_t);
+typedef void (*on_NtGetDevicePowerState_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Device, uint32_t State);
+void ppp_add_cb_on_NtGetDevicePowerState_enter(on_NtGetDevicePowerState_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtGetDevicePowerState_enter(on_NtGetDevicePowerState_enter_t);
+typedef void (*on_NtGetDevicePowerState_return_t)(CPUState* cpu, target_ulong pc, uint32_t Device, uint32_t State);
+void ppp_add_cb_on_NtGetDevicePowerState_return(on_NtGetDevicePowerState_return_t);
+_Bool 
+    ppp_remove_cb_on_NtGetDevicePowerState_return(on_NtGetDevicePowerState_return_t);
+typedef void (*on_NtGetMUIRegistryInfo_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Flags, uint32_t DataSize, uint32_t Data);
+void ppp_add_cb_on_NtGetMUIRegistryInfo_enter(on_NtGetMUIRegistryInfo_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtGetMUIRegistryInfo_enter(on_NtGetMUIRegistryInfo_enter_t);
+typedef void (*on_NtGetMUIRegistryInfo_return_t)(CPUState* cpu, target_ulong pc, uint32_t Flags, uint32_t DataSize, uint32_t Data);
+void ppp_add_cb_on_NtGetMUIRegistryInfo_return(on_NtGetMUIRegistryInfo_return_t);
+_Bool 
+    ppp_remove_cb_on_NtGetMUIRegistryInfo_return(on_NtGetMUIRegistryInfo_return_t);
+typedef void (*on_NtGetNextProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Flags, uint32_t NewProcessHandle);
+void ppp_add_cb_on_NtGetNextProcess_enter(on_NtGetNextProcess_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtGetNextProcess_enter(on_NtGetNextProcess_enter_t);
+typedef void (*on_NtGetNextProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Flags, uint32_t NewProcessHandle);
+void ppp_add_cb_on_NtGetNextProcess_return(on_NtGetNextProcess_return_t);
+_Bool 
+    ppp_remove_cb_on_NtGetNextProcess_return(on_NtGetNextProcess_return_t);
+typedef void (*on_NtGetNextThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Flags, uint32_t NewThreadHandle);
+void ppp_add_cb_on_NtGetNextThread_enter(on_NtGetNextThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtGetNextThread_enter(on_NtGetNextThread_enter_t);
+typedef void (*on_NtGetNextThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t Flags, uint32_t NewThreadHandle);
+void ppp_add_cb_on_NtGetNextThread_return(on_NtGetNextThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtGetNextThread_return(on_NtGetNextThread_return_t);
+typedef void (*on_NtGetNlsSectionPtr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SectionType, uint32_t SectionData, uint32_t ContextData, uint32_t SectionPointer, uint32_t SectionSize);
+void ppp_add_cb_on_NtGetNlsSectionPtr_enter(on_NtGetNlsSectionPtr_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtGetNlsSectionPtr_enter(on_NtGetNlsSectionPtr_enter_t);
+typedef void (*on_NtGetNlsSectionPtr_return_t)(CPUState* cpu, target_ulong pc, uint32_t SectionType, uint32_t SectionData, uint32_t ContextData, uint32_t SectionPointer, uint32_t SectionSize);
+void ppp_add_cb_on_NtGetNlsSectionPtr_return(on_NtGetNlsSectionPtr_return_t);
+_Bool 
+    ppp_remove_cb_on_NtGetNlsSectionPtr_return(on_NtGetNlsSectionPtr_return_t);
+typedef void (*on_NtGetNotificationResourceManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t TransactionNotification, uint32_t NotificationLength, uint32_t Timeout, uint32_t ReturnLength, uint32_t Asynchronous, uint32_t AsynchronousContext);
+void ppp_add_cb_on_NtGetNotificationResourceManager_enter(on_NtGetNotificationResourceManager_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtGetNotificationResourceManager_enter(on_NtGetNotificationResourceManager_enter_t);
+typedef void (*on_NtGetNotificationResourceManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t TransactionNotification, uint32_t NotificationLength, uint32_t Timeout, uint32_t ReturnLength, uint32_t Asynchronous, uint32_t AsynchronousContext);
+void ppp_add_cb_on_NtGetNotificationResourceManager_return(on_NtGetNotificationResourceManager_return_t);
+_Bool 
+    ppp_remove_cb_on_NtGetNotificationResourceManager_return(on_NtGetNotificationResourceManager_return_t);
+typedef void (*on_NtGetPlugPlayEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t Context, uint32_t EventBlock, uint32_t EventBufferSize);
+void ppp_add_cb_on_NtGetPlugPlayEvent_enter(on_NtGetPlugPlayEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtGetPlugPlayEvent_enter(on_NtGetPlugPlayEvent_enter_t);
+typedef void (*on_NtGetPlugPlayEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t Context, uint32_t EventBlock, uint32_t EventBufferSize);
+void ppp_add_cb_on_NtGetPlugPlayEvent_return(on_NtGetPlugPlayEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtGetPlugPlayEvent_return(on_NtGetPlugPlayEvent_return_t);
+typedef void (*on_NtGetWriteWatch_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t Flags, uint32_t BaseAddress, uint32_t RegionSize, uint32_t UserAddressArray, uint32_t EntriesInUserAddressArray, uint32_t Granularity);
+void ppp_add_cb_on_NtGetWriteWatch_enter(on_NtGetWriteWatch_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtGetWriteWatch_enter(on_NtGetWriteWatch_enter_t);
+typedef void (*on_NtGetWriteWatch_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t Flags, uint32_t BaseAddress, uint32_t RegionSize, uint32_t UserAddressArray, uint32_t EntriesInUserAddressArray, uint32_t Granularity);
+void ppp_add_cb_on_NtGetWriteWatch_return(on_NtGetWriteWatch_return_t);
+_Bool 
+    ppp_remove_cb_on_NtGetWriteWatch_return(on_NtGetWriteWatch_return_t);
+typedef void (*on_NtImpersonateAnonymousToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle);
+void ppp_add_cb_on_NtImpersonateAnonymousToken_enter(on_NtImpersonateAnonymousToken_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtImpersonateAnonymousToken_enter(on_NtImpersonateAnonymousToken_enter_t);
+typedef void (*on_NtImpersonateAnonymousToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle);
+void ppp_add_cb_on_NtImpersonateAnonymousToken_return(on_NtImpersonateAnonymousToken_return_t);
+_Bool 
+    ppp_remove_cb_on_NtImpersonateAnonymousToken_return(on_NtImpersonateAnonymousToken_return_t);
+typedef void (*on_NtImpersonateClientOfPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message);
+void ppp_add_cb_on_NtImpersonateClientOfPort_enter(on_NtImpersonateClientOfPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtImpersonateClientOfPort_enter(on_NtImpersonateClientOfPort_enter_t);
+typedef void (*on_NtImpersonateClientOfPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message);
+void ppp_add_cb_on_NtImpersonateClientOfPort_return(on_NtImpersonateClientOfPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtImpersonateClientOfPort_return(on_NtImpersonateClientOfPort_return_t);
+typedef void (*on_NtImpersonateThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ServerThreadHandle, uint32_t ClientThreadHandle, uint32_t SecurityQos);
+void ppp_add_cb_on_NtImpersonateThread_enter(on_NtImpersonateThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtImpersonateThread_enter(on_NtImpersonateThread_enter_t);
+typedef void (*on_NtImpersonateThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ServerThreadHandle, uint32_t ClientThreadHandle, uint32_t SecurityQos);
+void ppp_add_cb_on_NtImpersonateThread_return(on_NtImpersonateThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtImpersonateThread_return(on_NtImpersonateThread_return_t);
+typedef void (*on_NtInitializeNlsFiles_enter_t)(CPUState* cpu, target_ulong pc, uint32_t BaseAddress, uint32_t DefaultLocaleId, uint32_t DefaultCasingTableSize);
+void ppp_add_cb_on_NtInitializeNlsFiles_enter(on_NtInitializeNlsFiles_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtInitializeNlsFiles_enter(on_NtInitializeNlsFiles_enter_t);
+typedef void (*on_NtInitializeNlsFiles_return_t)(CPUState* cpu, target_ulong pc, uint32_t BaseAddress, uint32_t DefaultLocaleId, uint32_t DefaultCasingTableSize);
+void ppp_add_cb_on_NtInitializeNlsFiles_return(on_NtInitializeNlsFiles_return_t);
+_Bool 
+    ppp_remove_cb_on_NtInitializeNlsFiles_return(on_NtInitializeNlsFiles_return_t);
+typedef void (*on_NtInitializeRegistry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t BootCondition);
+void ppp_add_cb_on_NtInitializeRegistry_enter(on_NtInitializeRegistry_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtInitializeRegistry_enter(on_NtInitializeRegistry_enter_t);
+typedef void (*on_NtInitializeRegistry_return_t)(CPUState* cpu, target_ulong pc, uint32_t BootCondition);
+void ppp_add_cb_on_NtInitializeRegistry_return(on_NtInitializeRegistry_return_t);
+_Bool 
+    ppp_remove_cb_on_NtInitializeRegistry_return(on_NtInitializeRegistry_return_t);
+typedef void (*on_NtInitiatePowerAction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemAction, uint32_t MinSystemState, uint32_t Flags, uint32_t Asynchronous);
+void ppp_add_cb_on_NtInitiatePowerAction_enter(on_NtInitiatePowerAction_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtInitiatePowerAction_enter(on_NtInitiatePowerAction_enter_t);
+typedef void (*on_NtInitiatePowerAction_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemAction, uint32_t MinSystemState, uint32_t Flags, uint32_t Asynchronous);
+void ppp_add_cb_on_NtInitiatePowerAction_return(on_NtInitiatePowerAction_return_t);
+_Bool 
+    ppp_remove_cb_on_NtInitiatePowerAction_return(on_NtInitiatePowerAction_return_t);
+typedef void (*on_NtIsProcessInJob_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t JobHandle);
+void ppp_add_cb_on_NtIsProcessInJob_enter(on_NtIsProcessInJob_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtIsProcessInJob_enter(on_NtIsProcessInJob_enter_t);
+typedef void (*on_NtIsProcessInJob_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t JobHandle);
+void ppp_add_cb_on_NtIsProcessInJob_return(on_NtIsProcessInJob_return_t);
+_Bool 
+    ppp_remove_cb_on_NtIsProcessInJob_return(on_NtIsProcessInJob_return_t);
+typedef void (*on_NtIsSystemResumeAutomatic_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtIsSystemResumeAutomatic_enter(on_NtIsSystemResumeAutomatic_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtIsSystemResumeAutomatic_enter(on_NtIsSystemResumeAutomatic_enter_t);
+typedef void (*on_NtIsSystemResumeAutomatic_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtIsSystemResumeAutomatic_return(on_NtIsSystemResumeAutomatic_return_t);
+_Bool 
+    ppp_remove_cb_on_NtIsSystemResumeAutomatic_return(on_NtIsSystemResumeAutomatic_return_t);
+typedef void (*on_NtIsUILanguageComitted_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtIsUILanguageComitted_enter(on_NtIsUILanguageComitted_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtIsUILanguageComitted_enter(on_NtIsUILanguageComitted_enter_t);
+typedef void (*on_NtIsUILanguageComitted_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtIsUILanguageComitted_return(on_NtIsUILanguageComitted_return_t);
+_Bool 
+    ppp_remove_cb_on_NtIsUILanguageComitted_return(on_NtIsUILanguageComitted_return_t);
+typedef void (*on_NtListenPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ConnectionRequest);
+void ppp_add_cb_on_NtListenPort_enter(on_NtListenPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtListenPort_enter(on_NtListenPort_enter_t);
+typedef void (*on_NtListenPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ConnectionRequest);
+void ppp_add_cb_on_NtListenPort_return(on_NtListenPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtListenPort_return(on_NtListenPort_return_t);
+typedef void (*on_NtLoadDriver_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DriverServiceName);
+void ppp_add_cb_on_NtLoadDriver_enter(on_NtLoadDriver_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtLoadDriver_enter(on_NtLoadDriver_enter_t);
+typedef void (*on_NtLoadDriver_return_t)(CPUState* cpu, target_ulong pc, uint32_t DriverServiceName);
+void ppp_add_cb_on_NtLoadDriver_return(on_NtLoadDriver_return_t);
+_Bool 
+    ppp_remove_cb_on_NtLoadDriver_return(on_NtLoadDriver_return_t);
+typedef void (*on_NtLoadKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile);
+void ppp_add_cb_on_NtLoadKey_enter(on_NtLoadKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtLoadKey_enter(on_NtLoadKey_enter_t);
+typedef void (*on_NtLoadKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile);
+void ppp_add_cb_on_NtLoadKey_return(on_NtLoadKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtLoadKey_return(on_NtLoadKey_return_t);
+typedef void (*on_NtLoadKey2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile, uint32_t Flags);
+void ppp_add_cb_on_NtLoadKey2_enter(on_NtLoadKey2_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtLoadKey2_enter(on_NtLoadKey2_enter_t);
+typedef void (*on_NtLoadKey2_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile, uint32_t Flags);
+void ppp_add_cb_on_NtLoadKey2_return(on_NtLoadKey2_return_t);
+_Bool 
+    ppp_remove_cb_on_NtLoadKey2_return(on_NtLoadKey2_return_t);
+typedef void (*on_NtLoadKeyEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile, uint32_t Flags, uint32_t TrustClassKey);
+void ppp_add_cb_on_NtLoadKeyEx_enter(on_NtLoadKeyEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtLoadKeyEx_enter(on_NtLoadKeyEx_enter_t);
+typedef void (*on_NtLoadKeyEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t SourceFile, uint32_t Flags, uint32_t TrustClassKey);
+void ppp_add_cb_on_NtLoadKeyEx_return(on_NtLoadKeyEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtLoadKeyEx_return(on_NtLoadKeyEx_return_t);
+typedef void (*on_NtLockFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t ByteOffset, uint32_t Length, uint32_t Key, uint32_t FailImmediately, uint32_t ExclusiveLock);
+void ppp_add_cb_on_NtLockFile_enter(on_NtLockFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtLockFile_enter(on_NtLockFile_enter_t);
+typedef void (*on_NtLockFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t ByteOffset, uint32_t Length, uint32_t Key, uint32_t FailImmediately, uint32_t ExclusiveLock);
+void ppp_add_cb_on_NtLockFile_return(on_NtLockFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtLockFile_return(on_NtLockFile_return_t);
+typedef void (*on_NtLockProductActivationKeys_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pPrivateVer, uint32_t pSafeMode);
+void ppp_add_cb_on_NtLockProductActivationKeys_enter(on_NtLockProductActivationKeys_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtLockProductActivationKeys_enter(on_NtLockProductActivationKeys_enter_t);
+typedef void (*on_NtLockProductActivationKeys_return_t)(CPUState* cpu, target_ulong pc, uint32_t pPrivateVer, uint32_t pSafeMode);
+void ppp_add_cb_on_NtLockProductActivationKeys_return(on_NtLockProductActivationKeys_return_t);
+_Bool 
+    ppp_remove_cb_on_NtLockProductActivationKeys_return(on_NtLockProductActivationKeys_return_t);
+typedef void (*on_NtLockRegistryKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle);
+void ppp_add_cb_on_NtLockRegistryKey_enter(on_NtLockRegistryKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtLockRegistryKey_enter(on_NtLockRegistryKey_enter_t);
+typedef void (*on_NtLockRegistryKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle);
+void ppp_add_cb_on_NtLockRegistryKey_return(on_NtLockRegistryKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtLockRegistryKey_return(on_NtLockRegistryKey_return_t);
+typedef void (*on_NtLockVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t MapType);
+void ppp_add_cb_on_NtLockVirtualMemory_enter(on_NtLockVirtualMemory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtLockVirtualMemory_enter(on_NtLockVirtualMemory_enter_t);
+typedef void (*on_NtLockVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t MapType);
+void ppp_add_cb_on_NtLockVirtualMemory_return(on_NtLockVirtualMemory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtLockVirtualMemory_return(on_NtLockVirtualMemory_return_t);
+typedef void (*on_NtMakePermanentObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle);
+void ppp_add_cb_on_NtMakePermanentObject_enter(on_NtMakePermanentObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtMakePermanentObject_enter(on_NtMakePermanentObject_enter_t);
+typedef void (*on_NtMakePermanentObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle);
+void ppp_add_cb_on_NtMakePermanentObject_return(on_NtMakePermanentObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtMakePermanentObject_return(on_NtMakePermanentObject_return_t);
+typedef void (*on_NtMakeTemporaryObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle);
+void ppp_add_cb_on_NtMakeTemporaryObject_enter(on_NtMakeTemporaryObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtMakeTemporaryObject_enter(on_NtMakeTemporaryObject_enter_t);
+typedef void (*on_NtMakeTemporaryObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle);
+void ppp_add_cb_on_NtMakeTemporaryObject_return(on_NtMakeTemporaryObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtMakeTemporaryObject_return(on_NtMakeTemporaryObject_return_t);
+typedef void (*on_NtMapCMFModule_enter_t)(CPUState* cpu, target_ulong pc, uint32_t What, uint32_t Index, uint32_t CacheIndexOut, uint32_t CacheFlagsOut, uint32_t ViewSizeOut, uint32_t BaseAddress);
+void ppp_add_cb_on_NtMapCMFModule_enter(on_NtMapCMFModule_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtMapCMFModule_enter(on_NtMapCMFModule_enter_t);
+typedef void (*on_NtMapCMFModule_return_t)(CPUState* cpu, target_ulong pc, uint32_t What, uint32_t Index, uint32_t CacheIndexOut, uint32_t CacheFlagsOut, uint32_t ViewSizeOut, uint32_t BaseAddress);
+void ppp_add_cb_on_NtMapCMFModule_return(on_NtMapCMFModule_return_t);
+_Bool 
+    ppp_remove_cb_on_NtMapCMFModule_return(on_NtMapCMFModule_return_t);
+typedef void (*on_NtMapUserPhysicalPages_enter_t)(CPUState* cpu, target_ulong pc, uint32_t VirtualAddress, uint32_t NumberOfPages, uint32_t UserPfnArray);
+void ppp_add_cb_on_NtMapUserPhysicalPages_enter(on_NtMapUserPhysicalPages_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtMapUserPhysicalPages_enter(on_NtMapUserPhysicalPages_enter_t);
+typedef void (*on_NtMapUserPhysicalPages_return_t)(CPUState* cpu, target_ulong pc, uint32_t VirtualAddress, uint32_t NumberOfPages, uint32_t UserPfnArray);
+void ppp_add_cb_on_NtMapUserPhysicalPages_return(on_NtMapUserPhysicalPages_return_t);
+_Bool 
+    ppp_remove_cb_on_NtMapUserPhysicalPages_return(on_NtMapUserPhysicalPages_return_t);
+typedef void (*on_NtMapUserPhysicalPagesScatter_enter_t)(CPUState* cpu, target_ulong pc, uint32_t VirtualAddresses, uint32_t NumberOfPages, uint32_t UserPfnArray);
+void ppp_add_cb_on_NtMapUserPhysicalPagesScatter_enter(on_NtMapUserPhysicalPagesScatter_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtMapUserPhysicalPagesScatter_enter(on_NtMapUserPhysicalPagesScatter_enter_t);
+typedef void (*on_NtMapUserPhysicalPagesScatter_return_t)(CPUState* cpu, target_ulong pc, uint32_t VirtualAddresses, uint32_t NumberOfPages, uint32_t UserPfnArray);
+void ppp_add_cb_on_NtMapUserPhysicalPagesScatter_return(on_NtMapUserPhysicalPagesScatter_return_t);
+_Bool 
+    ppp_remove_cb_on_NtMapUserPhysicalPagesScatter_return(on_NtMapUserPhysicalPagesScatter_return_t);
+typedef void (*on_NtMapViewOfSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t ZeroBits, uint32_t CommitSize, uint32_t SectionOffset, uint32_t ViewSize, uint32_t InheritDisposition, uint32_t AllocationType, uint32_t Win32Protect);
+void ppp_add_cb_on_NtMapViewOfSection_enter(on_NtMapViewOfSection_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtMapViewOfSection_enter(on_NtMapViewOfSection_enter_t);
+typedef void (*on_NtMapViewOfSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t ZeroBits, uint32_t CommitSize, uint32_t SectionOffset, uint32_t ViewSize, uint32_t InheritDisposition, uint32_t AllocationType, uint32_t Win32Protect);
+void ppp_add_cb_on_NtMapViewOfSection_return(on_NtMapViewOfSection_return_t);
+_Bool 
+    ppp_remove_cb_on_NtMapViewOfSection_return(on_NtMapViewOfSection_return_t);
+typedef void (*on_NtModifyBootEntry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t BootEntry);
+void ppp_add_cb_on_NtModifyBootEntry_enter(on_NtModifyBootEntry_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtModifyBootEntry_enter(on_NtModifyBootEntry_enter_t);
+typedef void (*on_NtModifyBootEntry_return_t)(CPUState* cpu, target_ulong pc, uint32_t BootEntry);
+void ppp_add_cb_on_NtModifyBootEntry_return(on_NtModifyBootEntry_return_t);
+_Bool 
+    ppp_remove_cb_on_NtModifyBootEntry_return(on_NtModifyBootEntry_return_t);
+typedef void (*on_NtModifyDriverEntry_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DriverEntry);
+void ppp_add_cb_on_NtModifyDriverEntry_enter(on_NtModifyDriverEntry_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtModifyDriverEntry_enter(on_NtModifyDriverEntry_enter_t);
+typedef void (*on_NtModifyDriverEntry_return_t)(CPUState* cpu, target_ulong pc, uint32_t DriverEntry);
+void ppp_add_cb_on_NtModifyDriverEntry_return(on_NtModifyDriverEntry_return_t);
+_Bool 
+    ppp_remove_cb_on_NtModifyDriverEntry_return(on_NtModifyDriverEntry_return_t);
+typedef void (*on_NtNotifyChangeDirectoryFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t CompletionFilter, uint32_t WatchTree);
+void ppp_add_cb_on_NtNotifyChangeDirectoryFile_enter(on_NtNotifyChangeDirectoryFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtNotifyChangeDirectoryFile_enter(on_NtNotifyChangeDirectoryFile_enter_t);
+typedef void (*on_NtNotifyChangeDirectoryFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t CompletionFilter, uint32_t WatchTree);
+void ppp_add_cb_on_NtNotifyChangeDirectoryFile_return(on_NtNotifyChangeDirectoryFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtNotifyChangeDirectoryFile_return(on_NtNotifyChangeDirectoryFile_return_t);
+typedef void (*on_NtNotifyChangeKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t CompletionFilter, uint32_t WatchTree, uint32_t Buffer, uint32_t BufferSize, uint32_t Asynchronous);
+void ppp_add_cb_on_NtNotifyChangeKey_enter(on_NtNotifyChangeKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtNotifyChangeKey_enter(on_NtNotifyChangeKey_enter_t);
+typedef void (*on_NtNotifyChangeKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t CompletionFilter, uint32_t WatchTree, uint32_t Buffer, uint32_t BufferSize, uint32_t Asynchronous);
+void ppp_add_cb_on_NtNotifyChangeKey_return(on_NtNotifyChangeKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtNotifyChangeKey_return(on_NtNotifyChangeKey_return_t);
+typedef void (*on_NtNotifyChangeMultipleKeys_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MasterKeyHandle, uint32_t Count, uint32_t SlaveObjects, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t CompletionFilter, uint32_t WatchTree, uint32_t Buffer, uint32_t BufferSize, uint32_t Asynchronous);
+void ppp_add_cb_on_NtNotifyChangeMultipleKeys_enter(on_NtNotifyChangeMultipleKeys_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtNotifyChangeMultipleKeys_enter(on_NtNotifyChangeMultipleKeys_enter_t);
+typedef void (*on_NtNotifyChangeMultipleKeys_return_t)(CPUState* cpu, target_ulong pc, uint32_t MasterKeyHandle, uint32_t Count, uint32_t SlaveObjects, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t CompletionFilter, uint32_t WatchTree, uint32_t Buffer, uint32_t BufferSize, uint32_t Asynchronous);
+void ppp_add_cb_on_NtNotifyChangeMultipleKeys_return(on_NtNotifyChangeMultipleKeys_return_t);
+_Bool 
+    ppp_remove_cb_on_NtNotifyChangeMultipleKeys_return(on_NtNotifyChangeMultipleKeys_return_t);
+typedef void (*on_NtNotifyChangeSession_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Session, uint32_t IoStateSequence, uint32_t Reserved, uint32_t Action, uint32_t IoState, uint32_t IoState2, uint32_t Buffer, uint32_t BufferSize);
+void ppp_add_cb_on_NtNotifyChangeSession_enter(on_NtNotifyChangeSession_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtNotifyChangeSession_enter(on_NtNotifyChangeSession_enter_t);
+typedef void (*on_NtNotifyChangeSession_return_t)(CPUState* cpu, target_ulong pc, uint32_t Session, uint32_t IoStateSequence, uint32_t Reserved, uint32_t Action, uint32_t IoState, uint32_t IoState2, uint32_t Buffer, uint32_t BufferSize);
+void ppp_add_cb_on_NtNotifyChangeSession_return(on_NtNotifyChangeSession_return_t);
+_Bool 
+    ppp_remove_cb_on_NtNotifyChangeSession_return(on_NtNotifyChangeSession_return_t);
+typedef void (*on_NtOpenDirectoryObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenDirectoryObject_enter(on_NtOpenDirectoryObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenDirectoryObject_enter(on_NtOpenDirectoryObject_enter_t);
+typedef void (*on_NtOpenDirectoryObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenDirectoryObject_return(on_NtOpenDirectoryObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenDirectoryObject_return(on_NtOpenDirectoryObject_return_t);
+typedef void (*on_NtOpenEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t DesiredAccess, uint32_t ResourceManagerHandle, uint32_t EnlistmentGuid, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenEnlistment_enter(on_NtOpenEnlistment_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenEnlistment_enter(on_NtOpenEnlistment_enter_t);
+typedef void (*on_NtOpenEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t DesiredAccess, uint32_t ResourceManagerHandle, uint32_t EnlistmentGuid, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenEnlistment_return(on_NtOpenEnlistment_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenEnlistment_return(on_NtOpenEnlistment_return_t);
+typedef void (*on_NtOpenEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenEvent_enter(on_NtOpenEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenEvent_enter(on_NtOpenEvent_enter_t);
+typedef void (*on_NtOpenEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenEvent_return(on_NtOpenEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenEvent_return(on_NtOpenEvent_return_t);
+typedef void (*on_NtOpenEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenEventPair_enter(on_NtOpenEventPair_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenEventPair_enter(on_NtOpenEventPair_enter_t);
+typedef void (*on_NtOpenEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenEventPair_return(on_NtOpenEventPair_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenEventPair_return(on_NtOpenEventPair_return_t);
+typedef void (*on_NtOpenFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t ShareAccess, uint32_t OpenOptions);
+void ppp_add_cb_on_NtOpenFile_enter(on_NtOpenFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenFile_enter(on_NtOpenFile_enter_t);
+typedef void (*on_NtOpenFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t IoStatusBlock, uint32_t ShareAccess, uint32_t OpenOptions);
+void ppp_add_cb_on_NtOpenFile_return(on_NtOpenFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenFile_return(on_NtOpenFile_return_t);
+typedef void (*on_NtOpenIoCompletion_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenIoCompletion_enter(on_NtOpenIoCompletion_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenIoCompletion_enter(on_NtOpenIoCompletion_enter_t);
+typedef void (*on_NtOpenIoCompletion_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenIoCompletion_return(on_NtOpenIoCompletion_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenIoCompletion_return(on_NtOpenIoCompletion_return_t);
+typedef void (*on_NtOpenJobObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenJobObject_enter(on_NtOpenJobObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenJobObject_enter(on_NtOpenJobObject_enter_t);
+typedef void (*on_NtOpenJobObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenJobObject_return(on_NtOpenJobObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenJobObject_return(on_NtOpenJobObject_return_t);
+typedef void (*on_NtOpenKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenKey_enter(on_NtOpenKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenKey_enter(on_NtOpenKey_enter_t);
+typedef void (*on_NtOpenKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenKey_return(on_NtOpenKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenKey_return(on_NtOpenKey_return_t);
+typedef void (*on_NtOpenKeyedEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenKeyedEvent_enter(on_NtOpenKeyedEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenKeyedEvent_enter(on_NtOpenKeyedEvent_enter_t);
+typedef void (*on_NtOpenKeyedEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenKeyedEvent_return(on_NtOpenKeyedEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenKeyedEvent_return(on_NtOpenKeyedEvent_return_t);
+typedef void (*on_NtOpenKeyEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t OpenOptions);
+void ppp_add_cb_on_NtOpenKeyEx_enter(on_NtOpenKeyEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenKeyEx_enter(on_NtOpenKeyEx_enter_t);
+typedef void (*on_NtOpenKeyEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t OpenOptions);
+void ppp_add_cb_on_NtOpenKeyEx_return(on_NtOpenKeyEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenKeyEx_return(on_NtOpenKeyEx_return_t);
+typedef void (*on_NtOpenKeyTransacted_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TransactionHandle);
+void ppp_add_cb_on_NtOpenKeyTransacted_enter(on_NtOpenKeyTransacted_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenKeyTransacted_enter(on_NtOpenKeyTransacted_enter_t);
+typedef void (*on_NtOpenKeyTransacted_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t TransactionHandle);
+void ppp_add_cb_on_NtOpenKeyTransacted_return(on_NtOpenKeyTransacted_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenKeyTransacted_return(on_NtOpenKeyTransacted_return_t);
+typedef void (*on_NtOpenKeyTransactedEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t OpenOptions, uint32_t TransactionHandle);
+void ppp_add_cb_on_NtOpenKeyTransactedEx_enter(on_NtOpenKeyTransactedEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenKeyTransactedEx_enter(on_NtOpenKeyTransactedEx_enter_t);
+typedef void (*on_NtOpenKeyTransactedEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t OpenOptions, uint32_t TransactionHandle);
+void ppp_add_cb_on_NtOpenKeyTransactedEx_return(on_NtOpenKeyTransactedEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenKeyTransactedEx_return(on_NtOpenKeyTransactedEx_return_t);
+typedef void (*on_NtOpenMutant_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenMutant_enter(on_NtOpenMutant_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenMutant_enter(on_NtOpenMutant_enter_t);
+typedef void (*on_NtOpenMutant_return_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenMutant_return(on_NtOpenMutant_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenMutant_return(on_NtOpenMutant_return_t);
+typedef void (*on_NtOpenObjectAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t GrantedAccess, uint32_t Privileges, uint32_t ObjectCreation, uint32_t AccessGranted, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtOpenObjectAuditAlarm_enter(on_NtOpenObjectAuditAlarm_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenObjectAuditAlarm_enter(on_NtOpenObjectAuditAlarm_enter_t);
+typedef void (*on_NtOpenObjectAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ObjectTypeName, uint32_t ObjectName, uint32_t SecurityDescriptor, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t GrantedAccess, uint32_t Privileges, uint32_t ObjectCreation, uint32_t AccessGranted, uint32_t GenerateOnClose);
+void ppp_add_cb_on_NtOpenObjectAuditAlarm_return(on_NtOpenObjectAuditAlarm_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenObjectAuditAlarm_return(on_NtOpenObjectAuditAlarm_return_t);
+typedef void (*on_NtOpenPrivateNamespace_enter_t)(CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t BoundaryDescriptor);
+void ppp_add_cb_on_NtOpenPrivateNamespace_enter(on_NtOpenPrivateNamespace_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenPrivateNamespace_enter(on_NtOpenPrivateNamespace_enter_t);
+typedef void (*on_NtOpenPrivateNamespace_return_t)(CPUState* cpu, target_ulong pc, uint32_t NamespaceHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t BoundaryDescriptor);
+void ppp_add_cb_on_NtOpenPrivateNamespace_return(on_NtOpenPrivateNamespace_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenPrivateNamespace_return(on_NtOpenPrivateNamespace_return_t);
+typedef void (*on_NtOpenProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ClientId);
+void ppp_add_cb_on_NtOpenProcess_enter(on_NtOpenProcess_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenProcess_enter(on_NtOpenProcess_enter_t);
+typedef void (*on_NtOpenProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ClientId);
+void ppp_add_cb_on_NtOpenProcess_return(on_NtOpenProcess_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenProcess_return(on_NtOpenProcess_return_t);
+typedef void (*on_NtOpenProcessToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t TokenHandle);
+void ppp_add_cb_on_NtOpenProcessToken_enter(on_NtOpenProcessToken_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenProcessToken_enter(on_NtOpenProcessToken_enter_t);
+typedef void (*on_NtOpenProcessToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t TokenHandle);
+void ppp_add_cb_on_NtOpenProcessToken_return(on_NtOpenProcessToken_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenProcessToken_return(on_NtOpenProcessToken_return_t);
+typedef void (*on_NtOpenProcessTokenEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t TokenHandle);
+void ppp_add_cb_on_NtOpenProcessTokenEx_enter(on_NtOpenProcessTokenEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenProcessTokenEx_enter(on_NtOpenProcessTokenEx_enter_t);
+typedef void (*on_NtOpenProcessTokenEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DesiredAccess, uint32_t HandleAttributes, uint32_t TokenHandle);
+void ppp_add_cb_on_NtOpenProcessTokenEx_return(on_NtOpenProcessTokenEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenProcessTokenEx_return(on_NtOpenProcessTokenEx_return_t);
+typedef void (*on_NtOpenResourceManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t DesiredAccess, uint32_t TmHandle, uint32_t ResourceManagerGuid, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenResourceManager_enter(on_NtOpenResourceManager_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenResourceManager_enter(on_NtOpenResourceManager_enter_t);
+typedef void (*on_NtOpenResourceManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t DesiredAccess, uint32_t TmHandle, uint32_t ResourceManagerGuid, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenResourceManager_return(on_NtOpenResourceManager_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenResourceManager_return(on_NtOpenResourceManager_return_t);
+typedef void (*on_NtOpenSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenSection_enter(on_NtOpenSection_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenSection_enter(on_NtOpenSection_enter_t);
+typedef void (*on_NtOpenSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenSection_return(on_NtOpenSection_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenSection_return(on_NtOpenSection_return_t);
+typedef void (*on_NtOpenSemaphore_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenSemaphore_enter(on_NtOpenSemaphore_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenSemaphore_enter(on_NtOpenSemaphore_enter_t);
+typedef void (*on_NtOpenSemaphore_return_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenSemaphore_return(on_NtOpenSemaphore_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenSemaphore_return(on_NtOpenSemaphore_return_t);
+typedef void (*on_NtOpenSession_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SessionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenSession_enter(on_NtOpenSession_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenSession_enter(on_NtOpenSession_enter_t);
+typedef void (*on_NtOpenSession_return_t)(CPUState* cpu, target_ulong pc, uint32_t SessionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenSession_return(on_NtOpenSession_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenSession_return(on_NtOpenSession_return_t);
+typedef void (*on_NtOpenSymbolicLinkObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenSymbolicLinkObject_enter(on_NtOpenSymbolicLinkObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenSymbolicLinkObject_enter(on_NtOpenSymbolicLinkObject_enter_t);
+typedef void (*on_NtOpenSymbolicLinkObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenSymbolicLinkObject_return(on_NtOpenSymbolicLinkObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenSymbolicLinkObject_return(on_NtOpenSymbolicLinkObject_return_t);
+typedef void (*on_NtOpenThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ClientId);
+void ppp_add_cb_on_NtOpenThread_enter(on_NtOpenThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenThread_enter(on_NtOpenThread_enter_t);
+typedef void (*on_NtOpenThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t ClientId);
+void ppp_add_cb_on_NtOpenThread_return(on_NtOpenThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenThread_return(on_NtOpenThread_return_t);
+typedef void (*on_NtOpenThreadToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t OpenAsSelf, uint32_t TokenHandle);
+void ppp_add_cb_on_NtOpenThreadToken_enter(on_NtOpenThreadToken_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenThreadToken_enter(on_NtOpenThreadToken_enter_t);
+typedef void (*on_NtOpenThreadToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t OpenAsSelf, uint32_t TokenHandle);
+void ppp_add_cb_on_NtOpenThreadToken_return(on_NtOpenThreadToken_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenThreadToken_return(on_NtOpenThreadToken_return_t);
+typedef void (*on_NtOpenThreadTokenEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t OpenAsSelf, uint32_t HandleAttributes, uint32_t TokenHandle);
+void ppp_add_cb_on_NtOpenThreadTokenEx_enter(on_NtOpenThreadTokenEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenThreadTokenEx_enter(on_NtOpenThreadTokenEx_enter_t);
+typedef void (*on_NtOpenThreadTokenEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t DesiredAccess, uint32_t OpenAsSelf, uint32_t HandleAttributes, uint32_t TokenHandle);
+void ppp_add_cb_on_NtOpenThreadTokenEx_return(on_NtOpenThreadTokenEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenThreadTokenEx_return(on_NtOpenThreadTokenEx_return_t);
+typedef void (*on_NtOpenTimer_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenTimer_enter(on_NtOpenTimer_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenTimer_enter(on_NtOpenTimer_enter_t);
+typedef void (*on_NtOpenTimer_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes);
+void ppp_add_cb_on_NtOpenTimer_return(on_NtOpenTimer_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenTimer_return(on_NtOpenTimer_return_t);
+typedef void (*on_NtOpenTransaction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Uow, uint32_t TmHandle);
+void ppp_add_cb_on_NtOpenTransaction_enter(on_NtOpenTransaction_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenTransaction_enter(on_NtOpenTransaction_enter_t);
+typedef void (*on_NtOpenTransaction_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t Uow, uint32_t TmHandle);
+void ppp_add_cb_on_NtOpenTransaction_return(on_NtOpenTransaction_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenTransaction_return(on_NtOpenTransaction_return_t);
+typedef void (*on_NtOpenTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LogFileName, uint32_t TmIdentity, uint32_t OpenOptions);
+void ppp_add_cb_on_NtOpenTransactionManager_enter(on_NtOpenTransactionManager_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenTransactionManager_enter(on_NtOpenTransactionManager_enter_t);
+typedef void (*on_NtOpenTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t DesiredAccess, uint32_t ObjectAttributes, uint32_t LogFileName, uint32_t TmIdentity, uint32_t OpenOptions);
+void ppp_add_cb_on_NtOpenTransactionManager_return(on_NtOpenTransactionManager_return_t);
+_Bool 
+    ppp_remove_cb_on_NtOpenTransactionManager_return(on_NtOpenTransactionManager_return_t);
+typedef void (*on_NtPlugPlayControl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PnPControlClass, uint32_t PnPControlData, uint32_t PnPControlDataLength);
+void ppp_add_cb_on_NtPlugPlayControl_enter(on_NtPlugPlayControl_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtPlugPlayControl_enter(on_NtPlugPlayControl_enter_t);
+typedef void (*on_NtPlugPlayControl_return_t)(CPUState* cpu, target_ulong pc, uint32_t PnPControlClass, uint32_t PnPControlData, uint32_t PnPControlDataLength);
+void ppp_add_cb_on_NtPlugPlayControl_return(on_NtPlugPlayControl_return_t);
+_Bool 
+    ppp_remove_cb_on_NtPlugPlayControl_return(on_NtPlugPlayControl_return_t);
+typedef void (*on_NtPowerInformation_enter_t)(CPUState* cpu, target_ulong pc, uint32_t InformationLevel, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength);
+void ppp_add_cb_on_NtPowerInformation_enter(on_NtPowerInformation_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtPowerInformation_enter(on_NtPowerInformation_enter_t);
+typedef void (*on_NtPowerInformation_return_t)(CPUState* cpu, target_ulong pc, uint32_t InformationLevel, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength);
+void ppp_add_cb_on_NtPowerInformation_return(on_NtPowerInformation_return_t);
+_Bool 
+    ppp_remove_cb_on_NtPowerInformation_return(on_NtPowerInformation_return_t);
+typedef void (*on_NtPrepareComplete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtPrepareComplete_enter(on_NtPrepareComplete_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtPrepareComplete_enter(on_NtPrepareComplete_enter_t);
+typedef void (*on_NtPrepareComplete_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtPrepareComplete_return(on_NtPrepareComplete_return_t);
+_Bool 
+    ppp_remove_cb_on_NtPrepareComplete_return(on_NtPrepareComplete_return_t);
+typedef void (*on_NtPrepareEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtPrepareEnlistment_enter(on_NtPrepareEnlistment_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtPrepareEnlistment_enter(on_NtPrepareEnlistment_enter_t);
+typedef void (*on_NtPrepareEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtPrepareEnlistment_return(on_NtPrepareEnlistment_return_t);
+_Bool 
+    ppp_remove_cb_on_NtPrepareEnlistment_return(on_NtPrepareEnlistment_return_t);
+typedef void (*on_NtPrePrepareComplete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtPrePrepareComplete_enter(on_NtPrePrepareComplete_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtPrePrepareComplete_enter(on_NtPrePrepareComplete_enter_t);
+typedef void (*on_NtPrePrepareComplete_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtPrePrepareComplete_return(on_NtPrePrepareComplete_return_t);
+_Bool 
+    ppp_remove_cb_on_NtPrePrepareComplete_return(on_NtPrePrepareComplete_return_t);
+typedef void (*on_NtPrePrepareEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtPrePrepareEnlistment_enter(on_NtPrePrepareEnlistment_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtPrePrepareEnlistment_enter(on_NtPrePrepareEnlistment_enter_t);
+typedef void (*on_NtPrePrepareEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtPrePrepareEnlistment_return(on_NtPrePrepareEnlistment_return_t);
+_Bool 
+    ppp_remove_cb_on_NtPrePrepareEnlistment_return(on_NtPrePrepareEnlistment_return_t);
+typedef void (*on_NtPrivilegeCheck_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ClientToken, uint32_t RequiredPrivileges, uint32_t Result);
+void ppp_add_cb_on_NtPrivilegeCheck_enter(on_NtPrivilegeCheck_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtPrivilegeCheck_enter(on_NtPrivilegeCheck_enter_t);
+typedef void (*on_NtPrivilegeCheck_return_t)(CPUState* cpu, target_ulong pc, uint32_t ClientToken, uint32_t RequiredPrivileges, uint32_t Result);
+void ppp_add_cb_on_NtPrivilegeCheck_return(on_NtPrivilegeCheck_return_t);
+_Bool 
+    ppp_remove_cb_on_NtPrivilegeCheck_return(on_NtPrivilegeCheck_return_t);
+typedef void (*on_NtPrivilegedServiceAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t ServiceName, uint32_t ClientToken, uint32_t Privileges, uint32_t AccessGranted);
+void ppp_add_cb_on_NtPrivilegedServiceAuditAlarm_enter(on_NtPrivilegedServiceAuditAlarm_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtPrivilegedServiceAuditAlarm_enter(on_NtPrivilegedServiceAuditAlarm_enter_t);
+typedef void (*on_NtPrivilegedServiceAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t ServiceName, uint32_t ClientToken, uint32_t Privileges, uint32_t AccessGranted);
+void ppp_add_cb_on_NtPrivilegedServiceAuditAlarm_return(on_NtPrivilegedServiceAuditAlarm_return_t);
+_Bool 
+    ppp_remove_cb_on_NtPrivilegedServiceAuditAlarm_return(on_NtPrivilegedServiceAuditAlarm_return_t);
+typedef void (*on_NtPrivilegeObjectAuditAlarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t Privileges, uint32_t AccessGranted);
+void ppp_add_cb_on_NtPrivilegeObjectAuditAlarm_enter(on_NtPrivilegeObjectAuditAlarm_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtPrivilegeObjectAuditAlarm_enter(on_NtPrivilegeObjectAuditAlarm_enter_t);
+typedef void (*on_NtPrivilegeObjectAuditAlarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t SubsystemName, uint32_t HandleId, uint32_t ClientToken, uint32_t DesiredAccess, uint32_t Privileges, uint32_t AccessGranted);
+void ppp_add_cb_on_NtPrivilegeObjectAuditAlarm_return(on_NtPrivilegeObjectAuditAlarm_return_t);
+_Bool 
+    ppp_remove_cb_on_NtPrivilegeObjectAuditAlarm_return(on_NtPrivilegeObjectAuditAlarm_return_t);
+typedef void (*on_NtPropagationComplete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t RequestCookie, uint32_t BufferLength, uint32_t Buffer);
+void ppp_add_cb_on_NtPropagationComplete_enter(on_NtPropagationComplete_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtPropagationComplete_enter(on_NtPropagationComplete_enter_t);
+typedef void (*on_NtPropagationComplete_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t RequestCookie, uint32_t BufferLength, uint32_t Buffer);
+void ppp_add_cb_on_NtPropagationComplete_return(on_NtPropagationComplete_return_t);
+_Bool 
+    ppp_remove_cb_on_NtPropagationComplete_return(on_NtPropagationComplete_return_t);
+typedef void (*on_NtPropagationFailed_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t RequestCookie, uint32_t PropStatus);
+void ppp_add_cb_on_NtPropagationFailed_enter(on_NtPropagationFailed_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtPropagationFailed_enter(on_NtPropagationFailed_enter_t);
+typedef void (*on_NtPropagationFailed_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t RequestCookie, uint32_t PropStatus);
+void ppp_add_cb_on_NtPropagationFailed_return(on_NtPropagationFailed_return_t);
+_Bool 
+    ppp_remove_cb_on_NtPropagationFailed_return(on_NtPropagationFailed_return_t);
+typedef void (*on_NtProtectVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t NewProtectWin32, uint32_t OldProtect);
+void ppp_add_cb_on_NtProtectVirtualMemory_enter(on_NtProtectVirtualMemory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtProtectVirtualMemory_enter(on_NtProtectVirtualMemory_enter_t);
+typedef void (*on_NtProtectVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t NewProtectWin32, uint32_t OldProtect);
+void ppp_add_cb_on_NtProtectVirtualMemory_return(on_NtProtectVirtualMemory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtProtectVirtualMemory_return(on_NtProtectVirtualMemory_return_t);
+typedef void (*on_NtPulseEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState);
+void ppp_add_cb_on_NtPulseEvent_enter(on_NtPulseEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtPulseEvent_enter(on_NtPulseEvent_enter_t);
+typedef void (*on_NtPulseEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState);
+void ppp_add_cb_on_NtPulseEvent_return(on_NtPulseEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtPulseEvent_return(on_NtPulseEvent_return_t);
+typedef void (*on_NtQueryAttributesFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes, uint32_t FileInformation);
+void ppp_add_cb_on_NtQueryAttributesFile_enter(on_NtQueryAttributesFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryAttributesFile_enter(on_NtQueryAttributesFile_enter_t);
+typedef void (*on_NtQueryAttributesFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes, uint32_t FileInformation);
+void ppp_add_cb_on_NtQueryAttributesFile_return(on_NtQueryAttributesFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryAttributesFile_return(on_NtQueryAttributesFile_return_t);
+typedef void (*on_NtQueryBootEntryOrder_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);
+void ppp_add_cb_on_NtQueryBootEntryOrder_enter(on_NtQueryBootEntryOrder_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryBootEntryOrder_enter(on_NtQueryBootEntryOrder_enter_t);
+typedef void (*on_NtQueryBootEntryOrder_return_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);
+void ppp_add_cb_on_NtQueryBootEntryOrder_return(on_NtQueryBootEntryOrder_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryBootEntryOrder_return(on_NtQueryBootEntryOrder_return_t);
+typedef void (*on_NtQueryBootOptions_enter_t)(CPUState* cpu, target_ulong pc, uint32_t BootOptions, uint32_t BootOptionsLength);
+void ppp_add_cb_on_NtQueryBootOptions_enter(on_NtQueryBootOptions_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryBootOptions_enter(on_NtQueryBootOptions_enter_t);
+typedef void (*on_NtQueryBootOptions_return_t)(CPUState* cpu, target_ulong pc, uint32_t BootOptions, uint32_t BootOptionsLength);
+void ppp_add_cb_on_NtQueryBootOptions_return(on_NtQueryBootOptions_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryBootOptions_return(on_NtQueryBootOptions_return_t);
+typedef void (*on_NtQueryDebugFilterState_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ComponentId, uint32_t Level);
+void ppp_add_cb_on_NtQueryDebugFilterState_enter(on_NtQueryDebugFilterState_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryDebugFilterState_enter(on_NtQueryDebugFilterState_enter_t);
+typedef void (*on_NtQueryDebugFilterState_return_t)(CPUState* cpu, target_ulong pc, uint32_t ComponentId, uint32_t Level);
+void ppp_add_cb_on_NtQueryDebugFilterState_return(on_NtQueryDebugFilterState_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryDebugFilterState_return(on_NtQueryDebugFilterState_return_t);
+typedef void (*on_NtQueryDefaultLocale_enter_t)(CPUState* cpu, target_ulong pc, uint32_t UserProfile, uint32_t DefaultLocaleId);
+void ppp_add_cb_on_NtQueryDefaultLocale_enter(on_NtQueryDefaultLocale_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryDefaultLocale_enter(on_NtQueryDefaultLocale_enter_t);
+typedef void (*on_NtQueryDefaultLocale_return_t)(CPUState* cpu, target_ulong pc, uint32_t UserProfile, uint32_t DefaultLocaleId);
+void ppp_add_cb_on_NtQueryDefaultLocale_return(on_NtQueryDefaultLocale_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryDefaultLocale_return(on_NtQueryDefaultLocale_return_t);
+typedef void (*on_NtQueryDefaultUILanguage_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DefaultUILanguageId);
+void ppp_add_cb_on_NtQueryDefaultUILanguage_enter(on_NtQueryDefaultUILanguage_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryDefaultUILanguage_enter(on_NtQueryDefaultUILanguage_enter_t);
+typedef void (*on_NtQueryDefaultUILanguage_return_t)(CPUState* cpu, target_ulong pc, uint32_t DefaultUILanguageId);
+void ppp_add_cb_on_NtQueryDefaultUILanguage_return(on_NtQueryDefaultUILanguage_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryDefaultUILanguage_return(on_NtQueryDefaultUILanguage_return_t);
+typedef void (*on_NtQueryDirectoryFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass, uint32_t ReturnSingleEntry, uint32_t FileName, uint32_t RestartScan);
+void ppp_add_cb_on_NtQueryDirectoryFile_enter(on_NtQueryDirectoryFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryDirectoryFile_enter(on_NtQueryDirectoryFile_enter_t);
+typedef void (*on_NtQueryDirectoryFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass, uint32_t ReturnSingleEntry, uint32_t FileName, uint32_t RestartScan);
+void ppp_add_cb_on_NtQueryDirectoryFile_return(on_NtQueryDirectoryFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryDirectoryFile_return(on_NtQueryDirectoryFile_return_t);
+typedef void (*on_NtQueryDirectoryObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t RestartScan, uint32_t Context, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryDirectoryObject_enter(on_NtQueryDirectoryObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryDirectoryObject_enter(on_NtQueryDirectoryObject_enter_t);
+typedef void (*on_NtQueryDirectoryObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t DirectoryHandle, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t RestartScan, uint32_t Context, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryDirectoryObject_return(on_NtQueryDirectoryObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryDirectoryObject_return(on_NtQueryDirectoryObject_return_t);
+typedef void (*on_NtQueryDriverEntryOrder_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);
+void ppp_add_cb_on_NtQueryDriverEntryOrder_enter(on_NtQueryDriverEntryOrder_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryDriverEntryOrder_enter(on_NtQueryDriverEntryOrder_enter_t);
+typedef void (*on_NtQueryDriverEntryOrder_return_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);
+void ppp_add_cb_on_NtQueryDriverEntryOrder_return(on_NtQueryDriverEntryOrder_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryDriverEntryOrder_return(on_NtQueryDriverEntryOrder_return_t);
+typedef void (*on_NtQueryEaFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t EaList, uint32_t EaListLength, uint32_t EaIndex, uint32_t RestartScan);
+void ppp_add_cb_on_NtQueryEaFile_enter(on_NtQueryEaFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryEaFile_enter(on_NtQueryEaFile_enter_t);
+typedef void (*on_NtQueryEaFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t EaList, uint32_t EaListLength, uint32_t EaIndex, uint32_t RestartScan);
+void ppp_add_cb_on_NtQueryEaFile_return(on_NtQueryEaFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryEaFile_return(on_NtQueryEaFile_return_t);
+typedef void (*on_NtQueryEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t EventInformationClass, uint32_t EventInformation, uint32_t EventInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryEvent_enter(on_NtQueryEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryEvent_enter(on_NtQueryEvent_enter_t);
+typedef void (*on_NtQueryEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t EventInformationClass, uint32_t EventInformation, uint32_t EventInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryEvent_return(on_NtQueryEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryEvent_return(on_NtQueryEvent_return_t);
+typedef void (*on_NtQueryFullAttributesFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes, uint32_t FileInformation);
+void ppp_add_cb_on_NtQueryFullAttributesFile_enter(on_NtQueryFullAttributesFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryFullAttributesFile_enter(on_NtQueryFullAttributesFile_enter_t);
+typedef void (*on_NtQueryFullAttributesFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ObjectAttributes, uint32_t FileInformation);
+void ppp_add_cb_on_NtQueryFullAttributesFile_return(on_NtQueryFullAttributesFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryFullAttributesFile_return(on_NtQueryFullAttributesFile_return_t);
+typedef void (*on_NtQueryInformationAtom_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Atom, uint32_t InformationClass, uint32_t AtomInformation, uint32_t AtomInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationAtom_enter(on_NtQueryInformationAtom_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationAtom_enter(on_NtQueryInformationAtom_enter_t);
+typedef void (*on_NtQueryInformationAtom_return_t)(CPUState* cpu, target_ulong pc, uint32_t Atom, uint32_t InformationClass, uint32_t AtomInformation, uint32_t AtomInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationAtom_return(on_NtQueryInformationAtom_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationAtom_return(on_NtQueryInformationAtom_return_t);
+typedef void (*on_NtQueryInformationEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentInformationClass, uint32_t EnlistmentInformation, uint32_t EnlistmentInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationEnlistment_enter(on_NtQueryInformationEnlistment_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationEnlistment_enter(on_NtQueryInformationEnlistment_enter_t);
+typedef void (*on_NtQueryInformationEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentInformationClass, uint32_t EnlistmentInformation, uint32_t EnlistmentInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationEnlistment_return(on_NtQueryInformationEnlistment_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationEnlistment_return(on_NtQueryInformationEnlistment_return_t);
+typedef void (*on_NtQueryInformationFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass);
+void ppp_add_cb_on_NtQueryInformationFile_enter(on_NtQueryInformationFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationFile_enter(on_NtQueryInformationFile_enter_t);
+typedef void (*on_NtQueryInformationFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass);
+void ppp_add_cb_on_NtQueryInformationFile_return(on_NtQueryInformationFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationFile_return(on_NtQueryInformationFile_return_t);
+typedef void (*on_NtQueryInformationJobObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t JobObjectInformationClass, uint32_t JobObjectInformation, uint32_t JobObjectInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationJobObject_enter(on_NtQueryInformationJobObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationJobObject_enter(on_NtQueryInformationJobObject_enter_t);
+typedef void (*on_NtQueryInformationJobObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t JobObjectInformationClass, uint32_t JobObjectInformation, uint32_t JobObjectInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationJobObject_return(on_NtQueryInformationJobObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationJobObject_return(on_NtQueryInformationJobObject_return_t);
+typedef void (*on_NtQueryInformationPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationPort_enter(on_NtQueryInformationPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationPort_enter(on_NtQueryInformationPort_enter_t);
+typedef void (*on_NtQueryInformationPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortInformationClass, uint32_t PortInformation, uint32_t Length, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationPort_return(on_NtQueryInformationPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationPort_return(on_NtQueryInformationPort_return_t);
+typedef void (*on_NtQueryInformationProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ProcessInformationClass, uint32_t ProcessInformation, uint32_t ProcessInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationProcess_enter(on_NtQueryInformationProcess_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationProcess_enter(on_NtQueryInformationProcess_enter_t);
+typedef void (*on_NtQueryInformationProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ProcessInformationClass, uint32_t ProcessInformation, uint32_t ProcessInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationProcess_return(on_NtQueryInformationProcess_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationProcess_return(on_NtQueryInformationProcess_return_t);
+typedef void (*on_NtQueryInformationResourceManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t ResourceManagerInformationClass, uint32_t ResourceManagerInformation, uint32_t ResourceManagerInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationResourceManager_enter(on_NtQueryInformationResourceManager_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationResourceManager_enter(on_NtQueryInformationResourceManager_enter_t);
+typedef void (*on_NtQueryInformationResourceManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t ResourceManagerInformationClass, uint32_t ResourceManagerInformation, uint32_t ResourceManagerInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationResourceManager_return(on_NtQueryInformationResourceManager_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationResourceManager_return(on_NtQueryInformationResourceManager_return_t);
+typedef void (*on_NtQueryInformationThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadInformationClass, uint32_t ThreadInformation, uint32_t ThreadInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationThread_enter(on_NtQueryInformationThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationThread_enter(on_NtQueryInformationThread_enter_t);
+typedef void (*on_NtQueryInformationThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadInformationClass, uint32_t ThreadInformation, uint32_t ThreadInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationThread_return(on_NtQueryInformationThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationThread_return(on_NtQueryInformationThread_return_t);
+typedef void (*on_NtQueryInformationToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t TokenInformationClass, uint32_t TokenInformation, uint32_t TokenInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationToken_enter(on_NtQueryInformationToken_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationToken_enter(on_NtQueryInformationToken_enter_t);
+typedef void (*on_NtQueryInformationToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t TokenInformationClass, uint32_t TokenInformation, uint32_t TokenInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationToken_return(on_NtQueryInformationToken_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationToken_return(on_NtQueryInformationToken_return_t);
+typedef void (*on_NtQueryInformationTransaction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t TransactionInformationClass, uint32_t TransactionInformation, uint32_t TransactionInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationTransaction_enter(on_NtQueryInformationTransaction_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationTransaction_enter(on_NtQueryInformationTransaction_enter_t);
+typedef void (*on_NtQueryInformationTransaction_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t TransactionInformationClass, uint32_t TransactionInformation, uint32_t TransactionInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationTransaction_return(on_NtQueryInformationTransaction_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationTransaction_return(on_NtQueryInformationTransaction_return_t);
+typedef void (*on_NtQueryInformationTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle, uint32_t TransactionManagerInformationClass, uint32_t TransactionManagerInformation, uint32_t TransactionManagerInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationTransactionManager_enter(on_NtQueryInformationTransactionManager_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationTransactionManager_enter(on_NtQueryInformationTransactionManager_enter_t);
+typedef void (*on_NtQueryInformationTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle, uint32_t TransactionManagerInformationClass, uint32_t TransactionManagerInformation, uint32_t TransactionManagerInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationTransactionManager_return(on_NtQueryInformationTransactionManager_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationTransactionManager_return(on_NtQueryInformationTransactionManager_return_t);
+typedef void (*on_NtQueryInformationWorkerFactory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t WorkerFactoryInformationClass, uint32_t WorkerFactoryInformation, uint32_t WorkerFactoryInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationWorkerFactory_enter(on_NtQueryInformationWorkerFactory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationWorkerFactory_enter(on_NtQueryInformationWorkerFactory_enter_t);
+typedef void (*on_NtQueryInformationWorkerFactory_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t WorkerFactoryInformationClass, uint32_t WorkerFactoryInformation, uint32_t WorkerFactoryInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryInformationWorkerFactory_return(on_NtQueryInformationWorkerFactory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInformationWorkerFactory_return(on_NtQueryInformationWorkerFactory_return_t);
+typedef void (*on_NtQueryInstallUILanguage_enter_t)(CPUState* cpu, target_ulong pc, uint32_t InstallUILanguageId);
+void ppp_add_cb_on_NtQueryInstallUILanguage_enter(on_NtQueryInstallUILanguage_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInstallUILanguage_enter(on_NtQueryInstallUILanguage_enter_t);
+typedef void (*on_NtQueryInstallUILanguage_return_t)(CPUState* cpu, target_ulong pc, uint32_t InstallUILanguageId);
+void ppp_add_cb_on_NtQueryInstallUILanguage_return(on_NtQueryInstallUILanguage_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryInstallUILanguage_return(on_NtQueryInstallUILanguage_return_t);
+typedef void (*on_NtQueryIntervalProfile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileSource, uint32_t Interval);
+void ppp_add_cb_on_NtQueryIntervalProfile_enter(on_NtQueryIntervalProfile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryIntervalProfile_enter(on_NtQueryIntervalProfile_enter_t);
+typedef void (*on_NtQueryIntervalProfile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileSource, uint32_t Interval);
+void ppp_add_cb_on_NtQueryIntervalProfile_return(on_NtQueryIntervalProfile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryIntervalProfile_return(on_NtQueryIntervalProfile_return_t);
+typedef void (*on_NtQueryIoCompletion_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionInformationClass, uint32_t IoCompletionInformation, uint32_t IoCompletionInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryIoCompletion_enter(on_NtQueryIoCompletion_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryIoCompletion_enter(on_NtQueryIoCompletion_enter_t);
+typedef void (*on_NtQueryIoCompletion_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionInformationClass, uint32_t IoCompletionInformation, uint32_t IoCompletionInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryIoCompletion_return(on_NtQueryIoCompletion_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryIoCompletion_return(on_NtQueryIoCompletion_return_t);
+typedef void (*on_NtQueryKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t KeyInformationClass, uint32_t KeyInformation, uint32_t Length, uint32_t ResultLength);
+void ppp_add_cb_on_NtQueryKey_enter(on_NtQueryKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryKey_enter(on_NtQueryKey_enter_t);
+typedef void (*on_NtQueryKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t KeyInformationClass, uint32_t KeyInformation, uint32_t Length, uint32_t ResultLength);
+void ppp_add_cb_on_NtQueryKey_return(on_NtQueryKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryKey_return(on_NtQueryKey_return_t);
+typedef void (*on_NtQueryLicenseValue_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Name, uint32_t Type, uint32_t Buffer, uint32_t Length, uint32_t ReturnedLength);
+void ppp_add_cb_on_NtQueryLicenseValue_enter(on_NtQueryLicenseValue_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryLicenseValue_enter(on_NtQueryLicenseValue_enter_t);
+typedef void (*on_NtQueryLicenseValue_return_t)(CPUState* cpu, target_ulong pc, uint32_t Name, uint32_t Type, uint32_t Buffer, uint32_t Length, uint32_t ReturnedLength);
+void ppp_add_cb_on_NtQueryLicenseValue_return(on_NtQueryLicenseValue_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryLicenseValue_return(on_NtQueryLicenseValue_return_t);
+typedef void (*on_NtQueryMultipleValueKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueEntries, uint32_t EntryCount, uint32_t ValueBuffer, uint32_t BufferLength, uint32_t RequiredBufferLength);
+void ppp_add_cb_on_NtQueryMultipleValueKey_enter(on_NtQueryMultipleValueKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryMultipleValueKey_enter(on_NtQueryMultipleValueKey_enter_t);
+typedef void (*on_NtQueryMultipleValueKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueEntries, uint32_t EntryCount, uint32_t ValueBuffer, uint32_t BufferLength, uint32_t RequiredBufferLength);
+void ppp_add_cb_on_NtQueryMultipleValueKey_return(on_NtQueryMultipleValueKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryMultipleValueKey_return(on_NtQueryMultipleValueKey_return_t);
+typedef void (*on_NtQueryMutant_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t MutantInformationClass, uint32_t MutantInformation, uint32_t MutantInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryMutant_enter(on_NtQueryMutant_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryMutant_enter(on_NtQueryMutant_enter_t);
+typedef void (*on_NtQueryMutant_return_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t MutantInformationClass, uint32_t MutantInformation, uint32_t MutantInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryMutant_return(on_NtQueryMutant_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryMutant_return(on_NtQueryMutant_return_t);
+typedef void (*on_NtQueryObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t ObjectInformationClass, uint32_t ObjectInformation, uint32_t ObjectInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryObject_enter(on_NtQueryObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryObject_enter(on_NtQueryObject_enter_t);
+typedef void (*on_NtQueryObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t ObjectInformationClass, uint32_t ObjectInformation, uint32_t ObjectInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryObject_return(on_NtQueryObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryObject_return(on_NtQueryObject_return_t);
+typedef void (*on_NtQueryOpenSubKeys_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t HandleCount);
+void ppp_add_cb_on_NtQueryOpenSubKeys_enter(on_NtQueryOpenSubKeys_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryOpenSubKeys_enter(on_NtQueryOpenSubKeys_enter_t);
+typedef void (*on_NtQueryOpenSubKeys_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t HandleCount);
+void ppp_add_cb_on_NtQueryOpenSubKeys_return(on_NtQueryOpenSubKeys_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryOpenSubKeys_return(on_NtQueryOpenSubKeys_return_t);
+typedef void (*on_NtQueryOpenSubKeysEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t BufferLength, uint32_t Buffer, uint32_t RequiredSize);
+void ppp_add_cb_on_NtQueryOpenSubKeysEx_enter(on_NtQueryOpenSubKeysEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryOpenSubKeysEx_enter(on_NtQueryOpenSubKeysEx_enter_t);
+typedef void (*on_NtQueryOpenSubKeysEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t BufferLength, uint32_t Buffer, uint32_t RequiredSize);
+void ppp_add_cb_on_NtQueryOpenSubKeysEx_return(on_NtQueryOpenSubKeysEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryOpenSubKeysEx_return(on_NtQueryOpenSubKeysEx_return_t);
+typedef void (*on_NtQueryPerformanceCounter_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PerformanceCounter, uint32_t PerformanceFrequency);
+void ppp_add_cb_on_NtQueryPerformanceCounter_enter(on_NtQueryPerformanceCounter_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryPerformanceCounter_enter(on_NtQueryPerformanceCounter_enter_t);
+typedef void (*on_NtQueryPerformanceCounter_return_t)(CPUState* cpu, target_ulong pc, uint32_t PerformanceCounter, uint32_t PerformanceFrequency);
+void ppp_add_cb_on_NtQueryPerformanceCounter_return(on_NtQueryPerformanceCounter_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryPerformanceCounter_return(on_NtQueryPerformanceCounter_return_t);
+typedef void (*on_NtQueryPortInformationProcess_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtQueryPortInformationProcess_enter(on_NtQueryPortInformationProcess_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryPortInformationProcess_enter(on_NtQueryPortInformationProcess_enter_t);
+typedef void (*on_NtQueryPortInformationProcess_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtQueryPortInformationProcess_return(on_NtQueryPortInformationProcess_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryPortInformationProcess_return(on_NtQueryPortInformationProcess_return_t);
+typedef void (*on_NtQueryQuotaInformationFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t SidList, uint32_t SidListLength, uint32_t StartSid, uint32_t RestartScan);
+void ppp_add_cb_on_NtQueryQuotaInformationFile_enter(on_NtQueryQuotaInformationFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryQuotaInformationFile_enter(on_NtQueryQuotaInformationFile_enter_t);
+typedef void (*on_NtQueryQuotaInformationFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ReturnSingleEntry, uint32_t SidList, uint32_t SidListLength, uint32_t StartSid, uint32_t RestartScan);
+void ppp_add_cb_on_NtQueryQuotaInformationFile_return(on_NtQueryQuotaInformationFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryQuotaInformationFile_return(on_NtQueryQuotaInformationFile_return_t);
+typedef void (*on_NtQuerySection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t SectionInformationClass, uint32_t SectionInformation, uint32_t SectionInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQuerySection_enter(on_NtQuerySection_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySection_enter(on_NtQuerySection_enter_t);
+typedef void (*on_NtQuerySection_return_t)(CPUState* cpu, target_ulong pc, uint32_t SectionHandle, uint32_t SectionInformationClass, uint32_t SectionInformation, uint32_t SectionInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQuerySection_return(on_NtQuerySection_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySection_return(on_NtQuerySection_return_t);
+typedef void (*on_NtQuerySecurityAttributesToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t Attributes, uint32_t NumberOfAttributes, uint32_t Buffer, uint32_t Length, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQuerySecurityAttributesToken_enter(on_NtQuerySecurityAttributesToken_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySecurityAttributesToken_enter(on_NtQuerySecurityAttributesToken_enter_t);
+typedef void (*on_NtQuerySecurityAttributesToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t Attributes, uint32_t NumberOfAttributes, uint32_t Buffer, uint32_t Length, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQuerySecurityAttributesToken_return(on_NtQuerySecurityAttributesToken_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySecurityAttributesToken_return(on_NtQuerySecurityAttributesToken_return_t);
+typedef void (*on_NtQuerySecurityObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t SecurityInformation, uint32_t SecurityDescriptor, uint32_t Length, uint32_t LengthNeeded);
+void ppp_add_cb_on_NtQuerySecurityObject_enter(on_NtQuerySecurityObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySecurityObject_enter(on_NtQuerySecurityObject_enter_t);
+typedef void (*on_NtQuerySecurityObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t SecurityInformation, uint32_t SecurityDescriptor, uint32_t Length, uint32_t LengthNeeded);
+void ppp_add_cb_on_NtQuerySecurityObject_return(on_NtQuerySecurityObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySecurityObject_return(on_NtQuerySecurityObject_return_t);
+typedef void (*on_NtQuerySemaphore_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t SemaphoreInformationClass, uint32_t SemaphoreInformation, uint32_t SemaphoreInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQuerySemaphore_enter(on_NtQuerySemaphore_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySemaphore_enter(on_NtQuerySemaphore_enter_t);
+typedef void (*on_NtQuerySemaphore_return_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, uint32_t SemaphoreInformationClass, uint32_t SemaphoreInformation, uint32_t SemaphoreInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQuerySemaphore_return(on_NtQuerySemaphore_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySemaphore_return(on_NtQuerySemaphore_return_t);
+typedef void (*on_NtQuerySymbolicLinkObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t LinkTarget, uint32_t ReturnedLength);
+void ppp_add_cb_on_NtQuerySymbolicLinkObject_enter(on_NtQuerySymbolicLinkObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySymbolicLinkObject_enter(on_NtQuerySymbolicLinkObject_enter_t);
+typedef void (*on_NtQuerySymbolicLinkObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t LinkHandle, uint32_t LinkTarget, uint32_t ReturnedLength);
+void ppp_add_cb_on_NtQuerySymbolicLinkObject_return(on_NtQuerySymbolicLinkObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySymbolicLinkObject_return(on_NtQuerySymbolicLinkObject_return_t);
+typedef void (*on_NtQuerySystemEnvironmentValue_enter_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VariableValue, uint32_t ValueLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQuerySystemEnvironmentValue_enter(on_NtQuerySystemEnvironmentValue_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySystemEnvironmentValue_enter(on_NtQuerySystemEnvironmentValue_enter_t);
+typedef void (*on_NtQuerySystemEnvironmentValue_return_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VariableValue, uint32_t ValueLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQuerySystemEnvironmentValue_return(on_NtQuerySystemEnvironmentValue_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySystemEnvironmentValue_return(on_NtQuerySystemEnvironmentValue_return_t);
+typedef void (*on_NtQuerySystemEnvironmentValueEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VendorGuid, uint32_t Value, uint32_t ValueLength, uint32_t Attributes);
+void ppp_add_cb_on_NtQuerySystemEnvironmentValueEx_enter(on_NtQuerySystemEnvironmentValueEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySystemEnvironmentValueEx_enter(on_NtQuerySystemEnvironmentValueEx_enter_t);
+typedef void (*on_NtQuerySystemEnvironmentValueEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VendorGuid, uint32_t Value, uint32_t ValueLength, uint32_t Attributes);
+void ppp_add_cb_on_NtQuerySystemEnvironmentValueEx_return(on_NtQuerySystemEnvironmentValueEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySystemEnvironmentValueEx_return(on_NtQuerySystemEnvironmentValueEx_return_t);
+typedef void (*on_NtQuerySystemInformation_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t SystemInformation, uint32_t SystemInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQuerySystemInformation_enter(on_NtQuerySystemInformation_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySystemInformation_enter(on_NtQuerySystemInformation_enter_t);
+typedef void (*on_NtQuerySystemInformation_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t SystemInformation, uint32_t SystemInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQuerySystemInformation_return(on_NtQuerySystemInformation_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySystemInformation_return(on_NtQuerySystemInformation_return_t);
+typedef void (*on_NtQuerySystemInformationEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t QueryInformation, uint32_t QueryInformationLength, uint32_t SystemInformation, uint32_t SystemInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQuerySystemInformationEx_enter(on_NtQuerySystemInformationEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySystemInformationEx_enter(on_NtQuerySystemInformationEx_enter_t);
+typedef void (*on_NtQuerySystemInformationEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t QueryInformation, uint32_t QueryInformationLength, uint32_t SystemInformation, uint32_t SystemInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQuerySystemInformationEx_return(on_NtQuerySystemInformationEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySystemInformationEx_return(on_NtQuerySystemInformationEx_return_t);
+typedef void (*on_NtQuerySystemTime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemTime);
+void ppp_add_cb_on_NtQuerySystemTime_enter(on_NtQuerySystemTime_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySystemTime_enter(on_NtQuerySystemTime_enter_t);
+typedef void (*on_NtQuerySystemTime_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemTime);
+void ppp_add_cb_on_NtQuerySystemTime_return(on_NtQuerySystemTime_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQuerySystemTime_return(on_NtQuerySystemTime_return_t);
+typedef void (*on_NtQueryTimer_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t TimerInformationClass, uint32_t TimerInformation, uint32_t TimerInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryTimer_enter(on_NtQueryTimer_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryTimer_enter(on_NtQueryTimer_enter_t);
+typedef void (*on_NtQueryTimer_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t TimerInformationClass, uint32_t TimerInformation, uint32_t TimerInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryTimer_return(on_NtQueryTimer_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryTimer_return(on_NtQueryTimer_return_t);
+typedef void (*on_NtQueryTimerResolution_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MaximumTime, uint32_t MinimumTime, uint32_t CurrentTime);
+void ppp_add_cb_on_NtQueryTimerResolution_enter(on_NtQueryTimerResolution_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryTimerResolution_enter(on_NtQueryTimerResolution_enter_t);
+typedef void (*on_NtQueryTimerResolution_return_t)(CPUState* cpu, target_ulong pc, uint32_t MaximumTime, uint32_t MinimumTime, uint32_t CurrentTime);
+void ppp_add_cb_on_NtQueryTimerResolution_return(on_NtQueryTimerResolution_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryTimerResolution_return(on_NtQueryTimerResolution_return_t);
+typedef void (*on_NtQueryValueKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName, uint32_t KeyValueInformationClass, uint32_t KeyValueInformation, uint32_t Length, uint32_t ResultLength);
+void ppp_add_cb_on_NtQueryValueKey_enter(on_NtQueryValueKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryValueKey_enter(on_NtQueryValueKey_enter_t);
+typedef void (*on_NtQueryValueKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName, uint32_t KeyValueInformationClass, uint32_t KeyValueInformation, uint32_t Length, uint32_t ResultLength);
+void ppp_add_cb_on_NtQueryValueKey_return(on_NtQueryValueKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryValueKey_return(on_NtQueryValueKey_return_t);
+typedef void (*on_NtQueryVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t MemoryInformationClass, uint32_t MemoryInformation, uint32_t MemoryInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryVirtualMemory_enter(on_NtQueryVirtualMemory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryVirtualMemory_enter(on_NtQueryVirtualMemory_enter_t);
+typedef void (*on_NtQueryVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t MemoryInformationClass, uint32_t MemoryInformation, uint32_t MemoryInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtQueryVirtualMemory_return(on_NtQueryVirtualMemory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryVirtualMemory_return(on_NtQueryVirtualMemory_return_t);
+typedef void (*on_NtQueryVolumeInformationFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FsInformation, uint32_t Length, uint32_t FsInformationClass);
+void ppp_add_cb_on_NtQueryVolumeInformationFile_enter(on_NtQueryVolumeInformationFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryVolumeInformationFile_enter(on_NtQueryVolumeInformationFile_enter_t);
+typedef void (*on_NtQueryVolumeInformationFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FsInformation, uint32_t Length, uint32_t FsInformationClass);
+void ppp_add_cb_on_NtQueryVolumeInformationFile_return(on_NtQueryVolumeInformationFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueryVolumeInformationFile_return(on_NtQueryVolumeInformationFile_return_t);
+typedef void (*on_NtQueueApcThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ApcRoutine, uint32_t ApcArgument1, uint32_t ApcArgument2, uint32_t ApcArgument3);
+void ppp_add_cb_on_NtQueueApcThread_enter(on_NtQueueApcThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueueApcThread_enter(on_NtQueueApcThread_enter_t);
+typedef void (*on_NtQueueApcThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ApcRoutine, uint32_t ApcArgument1, uint32_t ApcArgument2, uint32_t ApcArgument3);
+void ppp_add_cb_on_NtQueueApcThread_return(on_NtQueueApcThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueueApcThread_return(on_NtQueueApcThread_return_t);
+typedef void (*on_NtQueueApcThreadEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t UserApcReserveHandle, uint32_t ApcRoutine, uint32_t ApcArgument1, uint32_t ApcArgument2, uint32_t ApcArgument3);
+void ppp_add_cb_on_NtQueueApcThreadEx_enter(on_NtQueueApcThreadEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtQueueApcThreadEx_enter(on_NtQueueApcThreadEx_enter_t);
+typedef void (*on_NtQueueApcThreadEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t UserApcReserveHandle, uint32_t ApcRoutine, uint32_t ApcArgument1, uint32_t ApcArgument2, uint32_t ApcArgument3);
+void ppp_add_cb_on_NtQueueApcThreadEx_return(on_NtQueueApcThreadEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtQueueApcThreadEx_return(on_NtQueueApcThreadEx_return_t);
+typedef void (*on_NtRaiseException_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ExceptionRecord, uint32_t ContextRecord, uint32_t FirstChance);
+void ppp_add_cb_on_NtRaiseException_enter(on_NtRaiseException_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRaiseException_enter(on_NtRaiseException_enter_t);
+typedef void (*on_NtRaiseException_return_t)(CPUState* cpu, target_ulong pc, uint32_t ExceptionRecord, uint32_t ContextRecord, uint32_t FirstChance);
+void ppp_add_cb_on_NtRaiseException_return(on_NtRaiseException_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRaiseException_return(on_NtRaiseException_return_t);
+typedef void (*on_NtRaiseHardError_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ErrorStatus, uint32_t NumberOfParameters, uint32_t UnicodeStringParameterMask, uint32_t Parameters, uint32_t ValidResponseOptions, uint32_t Response);
+void ppp_add_cb_on_NtRaiseHardError_enter(on_NtRaiseHardError_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRaiseHardError_enter(on_NtRaiseHardError_enter_t);
+typedef void (*on_NtRaiseHardError_return_t)(CPUState* cpu, target_ulong pc, uint32_t ErrorStatus, uint32_t NumberOfParameters, uint32_t UnicodeStringParameterMask, uint32_t Parameters, uint32_t ValidResponseOptions, uint32_t Response);
+void ppp_add_cb_on_NtRaiseHardError_return(on_NtRaiseHardError_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRaiseHardError_return(on_NtRaiseHardError_return_t);
+typedef void (*on_NtReadFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ByteOffset, uint32_t Key);
+void ppp_add_cb_on_NtReadFile_enter(on_NtReadFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReadFile_enter(on_NtReadFile_enter_t);
+typedef void (*on_NtReadFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ByteOffset, uint32_t Key);
+void ppp_add_cb_on_NtReadFile_return(on_NtReadFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReadFile_return(on_NtReadFile_return_t);
+typedef void (*on_NtReadFileScatter_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t SegmentArray, uint32_t Length, uint32_t ByteOffset, uint32_t Key);
+void ppp_add_cb_on_NtReadFileScatter_enter(on_NtReadFileScatter_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReadFileScatter_enter(on_NtReadFileScatter_enter_t);
+typedef void (*on_NtReadFileScatter_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t SegmentArray, uint32_t Length, uint32_t ByteOffset, uint32_t Key);
+void ppp_add_cb_on_NtReadFileScatter_return(on_NtReadFileScatter_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReadFileScatter_return(on_NtReadFileScatter_return_t);
+typedef void (*on_NtReadOnlyEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtReadOnlyEnlistment_enter(on_NtReadOnlyEnlistment_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReadOnlyEnlistment_enter(on_NtReadOnlyEnlistment_enter_t);
+typedef void (*on_NtReadOnlyEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtReadOnlyEnlistment_return(on_NtReadOnlyEnlistment_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReadOnlyEnlistment_return(on_NtReadOnlyEnlistment_return_t);
+typedef void (*on_NtReadRequestData_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message, uint32_t DataEntryIndex, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesRead);
+void ppp_add_cb_on_NtReadRequestData_enter(on_NtReadRequestData_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReadRequestData_enter(on_NtReadRequestData_enter_t);
+typedef void (*on_NtReadRequestData_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message, uint32_t DataEntryIndex, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesRead);
+void ppp_add_cb_on_NtReadRequestData_return(on_NtReadRequestData_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReadRequestData_return(on_NtReadRequestData_return_t);
+typedef void (*on_NtReadVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesRead);
+void ppp_add_cb_on_NtReadVirtualMemory_enter(on_NtReadVirtualMemory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReadVirtualMemory_enter(on_NtReadVirtualMemory_enter_t);
+typedef void (*on_NtReadVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesRead);
+void ppp_add_cb_on_NtReadVirtualMemory_return(on_NtReadVirtualMemory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReadVirtualMemory_return(on_NtReadVirtualMemory_return_t);
+typedef void (*on_NtRecoverEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentKey);
+void ppp_add_cb_on_NtRecoverEnlistment_enter(on_NtRecoverEnlistment_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRecoverEnlistment_enter(on_NtRecoverEnlistment_enter_t);
+typedef void (*on_NtRecoverEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentKey);
+void ppp_add_cb_on_NtRecoverEnlistment_return(on_NtRecoverEnlistment_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRecoverEnlistment_return(on_NtRecoverEnlistment_return_t);
+typedef void (*on_NtRecoverResourceManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle);
+void ppp_add_cb_on_NtRecoverResourceManager_enter(on_NtRecoverResourceManager_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRecoverResourceManager_enter(on_NtRecoverResourceManager_enter_t);
+typedef void (*on_NtRecoverResourceManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle);
+void ppp_add_cb_on_NtRecoverResourceManager_return(on_NtRecoverResourceManager_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRecoverResourceManager_return(on_NtRecoverResourceManager_return_t);
+typedef void (*on_NtRecoverTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle);
+void ppp_add_cb_on_NtRecoverTransactionManager_enter(on_NtRecoverTransactionManager_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRecoverTransactionManager_enter(on_NtRecoverTransactionManager_enter_t);
+typedef void (*on_NtRecoverTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle);
+void ppp_add_cb_on_NtRecoverTransactionManager_return(on_NtRecoverTransactionManager_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRecoverTransactionManager_return(on_NtRecoverTransactionManager_return_t);
+typedef void (*on_NtRegisterProtocolAddressInformation_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManager, uint32_t ProtocolId, uint32_t ProtocolInformationSize, uint32_t ProtocolInformation, uint32_t CreateOptions);
+void ppp_add_cb_on_NtRegisterProtocolAddressInformation_enter(on_NtRegisterProtocolAddressInformation_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRegisterProtocolAddressInformation_enter(on_NtRegisterProtocolAddressInformation_enter_t);
+typedef void (*on_NtRegisterProtocolAddressInformation_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManager, uint32_t ProtocolId, uint32_t ProtocolInformationSize, uint32_t ProtocolInformation, uint32_t CreateOptions);
+void ppp_add_cb_on_NtRegisterProtocolAddressInformation_return(on_NtRegisterProtocolAddressInformation_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRegisterProtocolAddressInformation_return(on_NtRegisterProtocolAddressInformation_return_t);
+typedef void (*on_NtRegisterThreadTerminatePort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle);
+void ppp_add_cb_on_NtRegisterThreadTerminatePort_enter(on_NtRegisterThreadTerminatePort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRegisterThreadTerminatePort_enter(on_NtRegisterThreadTerminatePort_enter_t);
+typedef void (*on_NtRegisterThreadTerminatePort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle);
+void ppp_add_cb_on_NtRegisterThreadTerminatePort_return(on_NtRegisterThreadTerminatePort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRegisterThreadTerminatePort_return(on_NtRegisterThreadTerminatePort_return_t);
+typedef void (*on_NtReleaseKeyedEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t KeyValue, uint32_t Alertable, uint32_t Timeout);
+void ppp_add_cb_on_NtReleaseKeyedEvent_enter(on_NtReleaseKeyedEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReleaseKeyedEvent_enter(on_NtReleaseKeyedEvent_enter_t);
+typedef void (*on_NtReleaseKeyedEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t KeyValue, uint32_t Alertable, uint32_t Timeout);
+void ppp_add_cb_on_NtReleaseKeyedEvent_return(on_NtReleaseKeyedEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReleaseKeyedEvent_return(on_NtReleaseKeyedEvent_return_t);
+typedef void (*on_NtReleaseMutant_enter_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t PreviousCount);
+void ppp_add_cb_on_NtReleaseMutant_enter(on_NtReleaseMutant_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReleaseMutant_enter(on_NtReleaseMutant_enter_t);
+typedef void (*on_NtReleaseMutant_return_t)(CPUState* cpu, target_ulong pc, uint32_t MutantHandle, uint32_t PreviousCount);
+void ppp_add_cb_on_NtReleaseMutant_return(on_NtReleaseMutant_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReleaseMutant_return(on_NtReleaseMutant_return_t);
+typedef void (*on_NtReleaseSemaphore_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, int32_t ReleaseCount, uint32_t PreviousCount);
+void ppp_add_cb_on_NtReleaseSemaphore_enter(on_NtReleaseSemaphore_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReleaseSemaphore_enter(on_NtReleaseSemaphore_enter_t);
+typedef void (*on_NtReleaseSemaphore_return_t)(CPUState* cpu, target_ulong pc, uint32_t SemaphoreHandle, int32_t ReleaseCount, uint32_t PreviousCount);
+void ppp_add_cb_on_NtReleaseSemaphore_return(on_NtReleaseSemaphore_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReleaseSemaphore_return(on_NtReleaseSemaphore_return_t);
+typedef void (*on_NtReleaseWorkerFactoryWorker_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle);
+void ppp_add_cb_on_NtReleaseWorkerFactoryWorker_enter(on_NtReleaseWorkerFactoryWorker_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReleaseWorkerFactoryWorker_enter(on_NtReleaseWorkerFactoryWorker_enter_t);
+typedef void (*on_NtReleaseWorkerFactoryWorker_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle);
+void ppp_add_cb_on_NtReleaseWorkerFactoryWorker_return(on_NtReleaseWorkerFactoryWorker_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReleaseWorkerFactoryWorker_return(on_NtReleaseWorkerFactoryWorker_return_t);
+typedef void (*on_NtRemoveIoCompletion_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Timeout);
+void ppp_add_cb_on_NtRemoveIoCompletion_enter(on_NtRemoveIoCompletion_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRemoveIoCompletion_enter(on_NtRemoveIoCompletion_enter_t);
+typedef void (*on_NtRemoveIoCompletion_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Timeout);
+void ppp_add_cb_on_NtRemoveIoCompletion_return(on_NtRemoveIoCompletion_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRemoveIoCompletion_return(on_NtRemoveIoCompletion_return_t);
+typedef void (*on_NtRemoveIoCompletionEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionInformation, uint32_t Count, uint32_t NumEntriesRemoved, uint32_t Timeout, uint32_t Alertable);
+void ppp_add_cb_on_NtRemoveIoCompletionEx_enter(on_NtRemoveIoCompletionEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRemoveIoCompletionEx_enter(on_NtRemoveIoCompletionEx_enter_t);
+typedef void (*on_NtRemoveIoCompletionEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionInformation, uint32_t Count, uint32_t NumEntriesRemoved, uint32_t Timeout, uint32_t Alertable);
+void ppp_add_cb_on_NtRemoveIoCompletionEx_return(on_NtRemoveIoCompletionEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRemoveIoCompletionEx_return(on_NtRemoveIoCompletionEx_return_t);
+typedef void (*on_NtRemoveProcessDebug_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DebugObjectHandle);
+void ppp_add_cb_on_NtRemoveProcessDebug_enter(on_NtRemoveProcessDebug_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRemoveProcessDebug_enter(on_NtRemoveProcessDebug_enter_t);
+typedef void (*on_NtRemoveProcessDebug_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t DebugObjectHandle);
+void ppp_add_cb_on_NtRemoveProcessDebug_return(on_NtRemoveProcessDebug_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRemoveProcessDebug_return(on_NtRemoveProcessDebug_return_t);
+typedef void (*on_NtRenameKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t NewName);
+void ppp_add_cb_on_NtRenameKey_enter(on_NtRenameKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRenameKey_enter(on_NtRenameKey_enter_t);
+typedef void (*on_NtRenameKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t NewName);
+void ppp_add_cb_on_NtRenameKey_return(on_NtRenameKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRenameKey_return(on_NtRenameKey_return_t);
+typedef void (*on_NtRenameTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t LogFileName, uint32_t ExistingTransactionManagerGuid);
+void ppp_add_cb_on_NtRenameTransactionManager_enter(on_NtRenameTransactionManager_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRenameTransactionManager_enter(on_NtRenameTransactionManager_enter_t);
+typedef void (*on_NtRenameTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t LogFileName, uint32_t ExistingTransactionManagerGuid);
+void ppp_add_cb_on_NtRenameTransactionManager_return(on_NtRenameTransactionManager_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRenameTransactionManager_return(on_NtRenameTransactionManager_return_t);
+typedef void (*on_NtReplaceKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t NewFile, uint32_t TargetHandle, uint32_t OldFile);
+void ppp_add_cb_on_NtReplaceKey_enter(on_NtReplaceKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReplaceKey_enter(on_NtReplaceKey_enter_t);
+typedef void (*on_NtReplaceKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t NewFile, uint32_t TargetHandle, uint32_t OldFile);
+void ppp_add_cb_on_NtReplaceKey_return(on_NtReplaceKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReplaceKey_return(on_NtReplaceKey_return_t);
+typedef void (*on_NtReplacePartitionUnit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetInstancePath, uint32_t SpareInstancePath, uint32_t Flags);
+void ppp_add_cb_on_NtReplacePartitionUnit_enter(on_NtReplacePartitionUnit_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReplacePartitionUnit_enter(on_NtReplacePartitionUnit_enter_t);
+typedef void (*on_NtReplacePartitionUnit_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetInstancePath, uint32_t SpareInstancePath, uint32_t Flags);
+void ppp_add_cb_on_NtReplacePartitionUnit_return(on_NtReplacePartitionUnit_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReplacePartitionUnit_return(on_NtReplacePartitionUnit_return_t);
+typedef void (*on_NtReplyPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ReplyMessage);
+void ppp_add_cb_on_NtReplyPort_enter(on_NtReplyPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReplyPort_enter(on_NtReplyPort_enter_t);
+typedef void (*on_NtReplyPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ReplyMessage);
+void ppp_add_cb_on_NtReplyPort_return(on_NtReplyPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReplyPort_return(on_NtReplyPort_return_t);
+typedef void (*on_NtReplyWaitReceivePort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ReplyMessage, uint32_t ReceiveMessage);
+void ppp_add_cb_on_NtReplyWaitReceivePort_enter(on_NtReplyWaitReceivePort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReplyWaitReceivePort_enter(on_NtReplyWaitReceivePort_enter_t);
+typedef void (*on_NtReplyWaitReceivePort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ReplyMessage, uint32_t ReceiveMessage);
+void ppp_add_cb_on_NtReplyWaitReceivePort_return(on_NtReplyWaitReceivePort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReplyWaitReceivePort_return(on_NtReplyWaitReceivePort_return_t);
+typedef void (*on_NtReplyWaitReceivePortEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ReplyMessage, uint32_t ReceiveMessage, uint32_t Timeout);
+void ppp_add_cb_on_NtReplyWaitReceivePortEx_enter(on_NtReplyWaitReceivePortEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReplyWaitReceivePortEx_enter(on_NtReplyWaitReceivePortEx_enter_t);
+typedef void (*on_NtReplyWaitReceivePortEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ReplyMessage, uint32_t ReceiveMessage, uint32_t Timeout);
+void ppp_add_cb_on_NtReplyWaitReceivePortEx_return(on_NtReplyWaitReceivePortEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReplyWaitReceivePortEx_return(on_NtReplyWaitReceivePortEx_return_t);
+typedef void (*on_NtReplyWaitReplyPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ReplyMessage);
+void ppp_add_cb_on_NtReplyWaitReplyPort_enter(on_NtReplyWaitReplyPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtReplyWaitReplyPort_enter(on_NtReplyWaitReplyPort_enter_t);
+typedef void (*on_NtReplyWaitReplyPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t ReplyMessage);
+void ppp_add_cb_on_NtReplyWaitReplyPort_return(on_NtReplyWaitReplyPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtReplyWaitReplyPort_return(on_NtReplyWaitReplyPort_return_t);
+typedef void (*on_NtRequestPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t RequestMessage);
+void ppp_add_cb_on_NtRequestPort_enter(on_NtRequestPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRequestPort_enter(on_NtRequestPort_enter_t);
+typedef void (*on_NtRequestPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t RequestMessage);
+void ppp_add_cb_on_NtRequestPort_return(on_NtRequestPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRequestPort_return(on_NtRequestPort_return_t);
+typedef void (*on_NtRequestWaitReplyPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t RequestMessage, uint32_t ReplyMessage);
+void ppp_add_cb_on_NtRequestWaitReplyPort_enter(on_NtRequestWaitReplyPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRequestWaitReplyPort_enter(on_NtRequestWaitReplyPort_enter_t);
+typedef void (*on_NtRequestWaitReplyPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t RequestMessage, uint32_t ReplyMessage);
+void ppp_add_cb_on_NtRequestWaitReplyPort_return(on_NtRequestWaitReplyPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRequestWaitReplyPort_return(on_NtRequestWaitReplyPort_return_t);
+typedef void (*on_NtResetEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState);
+void ppp_add_cb_on_NtResetEvent_enter(on_NtResetEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtResetEvent_enter(on_NtResetEvent_enter_t);
+typedef void (*on_NtResetEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState);
+void ppp_add_cb_on_NtResetEvent_return(on_NtResetEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtResetEvent_return(on_NtResetEvent_return_t);
+typedef void (*on_NtResetWriteWatch_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize);
+void ppp_add_cb_on_NtResetWriteWatch_enter(on_NtResetWriteWatch_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtResetWriteWatch_enter(on_NtResetWriteWatch_enter_t);
+typedef void (*on_NtResetWriteWatch_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize);
+void ppp_add_cb_on_NtResetWriteWatch_return(on_NtResetWriteWatch_return_t);
+_Bool 
+    ppp_remove_cb_on_NtResetWriteWatch_return(on_NtResetWriteWatch_return_t);
+typedef void (*on_NtRestoreKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle, uint32_t Flags);
+void ppp_add_cb_on_NtRestoreKey_enter(on_NtRestoreKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRestoreKey_enter(on_NtRestoreKey_enter_t);
+typedef void (*on_NtRestoreKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle, uint32_t Flags);
+void ppp_add_cb_on_NtRestoreKey_return(on_NtRestoreKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRestoreKey_return(on_NtRestoreKey_return_t);
+typedef void (*on_NtResumeProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle);
+void ppp_add_cb_on_NtResumeProcess_enter(on_NtResumeProcess_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtResumeProcess_enter(on_NtResumeProcess_enter_t);
+typedef void (*on_NtResumeProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle);
+void ppp_add_cb_on_NtResumeProcess_return(on_NtResumeProcess_return_t);
+_Bool 
+    ppp_remove_cb_on_NtResumeProcess_return(on_NtResumeProcess_return_t);
+typedef void (*on_NtResumeThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount);
+void ppp_add_cb_on_NtResumeThread_enter(on_NtResumeThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtResumeThread_enter(on_NtResumeThread_enter_t);
+typedef void (*on_NtResumeThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount);
+void ppp_add_cb_on_NtResumeThread_return(on_NtResumeThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtResumeThread_return(on_NtResumeThread_return_t);
+typedef void (*on_NtRollbackComplete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtRollbackComplete_enter(on_NtRollbackComplete_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRollbackComplete_enter(on_NtRollbackComplete_enter_t);
+typedef void (*on_NtRollbackComplete_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtRollbackComplete_return(on_NtRollbackComplete_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRollbackComplete_return(on_NtRollbackComplete_return_t);
+typedef void (*on_NtRollbackEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtRollbackEnlistment_enter(on_NtRollbackEnlistment_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRollbackEnlistment_enter(on_NtRollbackEnlistment_enter_t);
+typedef void (*on_NtRollbackEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtRollbackEnlistment_return(on_NtRollbackEnlistment_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRollbackEnlistment_return(on_NtRollbackEnlistment_return_t);
+typedef void (*on_NtRollbackTransaction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t Wait);
+void ppp_add_cb_on_NtRollbackTransaction_enter(on_NtRollbackTransaction_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRollbackTransaction_enter(on_NtRollbackTransaction_enter_t);
+typedef void (*on_NtRollbackTransaction_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t Wait);
+void ppp_add_cb_on_NtRollbackTransaction_return(on_NtRollbackTransaction_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRollbackTransaction_return(on_NtRollbackTransaction_return_t);
+typedef void (*on_NtRollforwardTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtRollforwardTransactionManager_enter(on_NtRollforwardTransactionManager_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtRollforwardTransactionManager_enter(on_NtRollforwardTransactionManager_enter_t);
+typedef void (*on_NtRollforwardTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionManagerHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtRollforwardTransactionManager_return(on_NtRollforwardTransactionManager_return_t);
+_Bool 
+    ppp_remove_cb_on_NtRollforwardTransactionManager_return(on_NtRollforwardTransactionManager_return_t);
+typedef void (*on_NtSaveKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle);
+void ppp_add_cb_on_NtSaveKey_enter(on_NtSaveKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSaveKey_enter(on_NtSaveKey_enter_t);
+typedef void (*on_NtSaveKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle);
+void ppp_add_cb_on_NtSaveKey_return(on_NtSaveKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSaveKey_return(on_NtSaveKey_return_t);
+typedef void (*on_NtSaveKeyEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle, uint32_t Format);
+void ppp_add_cb_on_NtSaveKeyEx_enter(on_NtSaveKeyEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSaveKeyEx_enter(on_NtSaveKeyEx_enter_t);
+typedef void (*on_NtSaveKeyEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t FileHandle, uint32_t Format);
+void ppp_add_cb_on_NtSaveKeyEx_return(on_NtSaveKeyEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSaveKeyEx_return(on_NtSaveKeyEx_return_t);
+typedef void (*on_NtSaveMergedKeys_enter_t)(CPUState* cpu, target_ulong pc, uint32_t HighPrecedenceKeyHandle, uint32_t LowPrecedenceKeyHandle, uint32_t FileHandle);
+void ppp_add_cb_on_NtSaveMergedKeys_enter(on_NtSaveMergedKeys_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSaveMergedKeys_enter(on_NtSaveMergedKeys_enter_t);
+typedef void (*on_NtSaveMergedKeys_return_t)(CPUState* cpu, target_ulong pc, uint32_t HighPrecedenceKeyHandle, uint32_t LowPrecedenceKeyHandle, uint32_t FileHandle);
+void ppp_add_cb_on_NtSaveMergedKeys_return(on_NtSaveMergedKeys_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSaveMergedKeys_return(on_NtSaveMergedKeys_return_t);
+typedef void (*on_NtSecureConnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t SecurityQos, uint32_t ClientView, uint32_t RequiredServerSid, uint32_t ServerView, uint32_t MaxMessageLength, uint32_t ConnectionInformation, uint32_t ConnectionInformationLength);
+void ppp_add_cb_on_NtSecureConnectPort_enter(on_NtSecureConnectPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSecureConnectPort_enter(on_NtSecureConnectPort_enter_t);
+typedef void (*on_NtSecureConnectPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortName, uint32_t SecurityQos, uint32_t ClientView, uint32_t RequiredServerSid, uint32_t ServerView, uint32_t MaxMessageLength, uint32_t ConnectionInformation, uint32_t ConnectionInformationLength);
+void ppp_add_cb_on_NtSecureConnectPort_return(on_NtSecureConnectPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSecureConnectPort_return(on_NtSecureConnectPort_return_t);
+typedef void (*on_NtSerializeBoot_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtSerializeBoot_enter(on_NtSerializeBoot_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSerializeBoot_enter(on_NtSerializeBoot_enter_t);
+typedef void (*on_NtSerializeBoot_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtSerializeBoot_return(on_NtSerializeBoot_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSerializeBoot_return(on_NtSerializeBoot_return_t);
+typedef void (*on_NtSetBootEntryOrder_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);
+void ppp_add_cb_on_NtSetBootEntryOrder_enter(on_NtSetBootEntryOrder_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetBootEntryOrder_enter(on_NtSetBootEntryOrder_enter_t);
+typedef void (*on_NtSetBootEntryOrder_return_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);
+void ppp_add_cb_on_NtSetBootEntryOrder_return(on_NtSetBootEntryOrder_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetBootEntryOrder_return(on_NtSetBootEntryOrder_return_t);
+typedef void (*on_NtSetBootOptions_enter_t)(CPUState* cpu, target_ulong pc, uint32_t BootOptions, uint32_t FieldsToChange);
+void ppp_add_cb_on_NtSetBootOptions_enter(on_NtSetBootOptions_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetBootOptions_enter(on_NtSetBootOptions_enter_t);
+typedef void (*on_NtSetBootOptions_return_t)(CPUState* cpu, target_ulong pc, uint32_t BootOptions, uint32_t FieldsToChange);
+void ppp_add_cb_on_NtSetBootOptions_return(on_NtSetBootOptions_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetBootOptions_return(on_NtSetBootOptions_return_t);
+typedef void (*on_NtSetContextThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadContext);
+void ppp_add_cb_on_NtSetContextThread_enter(on_NtSetContextThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetContextThread_enter(on_NtSetContextThread_enter_t);
+typedef void (*on_NtSetContextThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadContext);
+void ppp_add_cb_on_NtSetContextThread_return(on_NtSetContextThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetContextThread_return(on_NtSetContextThread_return_t);
+typedef void (*on_NtSetDebugFilterState_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ComponentId, uint32_t Level, uint32_t State);
+void ppp_add_cb_on_NtSetDebugFilterState_enter(on_NtSetDebugFilterState_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetDebugFilterState_enter(on_NtSetDebugFilterState_enter_t);
+typedef void (*on_NtSetDebugFilterState_return_t)(CPUState* cpu, target_ulong pc, uint32_t ComponentId, uint32_t Level, uint32_t State);
+void ppp_add_cb_on_NtSetDebugFilterState_return(on_NtSetDebugFilterState_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetDebugFilterState_return(on_NtSetDebugFilterState_return_t);
+typedef void (*on_NtSetDefaultHardErrorPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DefaultHardErrorPort);
+void ppp_add_cb_on_NtSetDefaultHardErrorPort_enter(on_NtSetDefaultHardErrorPort_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetDefaultHardErrorPort_enter(on_NtSetDefaultHardErrorPort_enter_t);
+typedef void (*on_NtSetDefaultHardErrorPort_return_t)(CPUState* cpu, target_ulong pc, uint32_t DefaultHardErrorPort);
+void ppp_add_cb_on_NtSetDefaultHardErrorPort_return(on_NtSetDefaultHardErrorPort_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetDefaultHardErrorPort_return(on_NtSetDefaultHardErrorPort_return_t);
+typedef void (*on_NtSetDefaultLocale_enter_t)(CPUState* cpu, target_ulong pc, uint32_t UserProfile, uint32_t DefaultLocaleId);
+void ppp_add_cb_on_NtSetDefaultLocale_enter(on_NtSetDefaultLocale_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetDefaultLocale_enter(on_NtSetDefaultLocale_enter_t);
+typedef void (*on_NtSetDefaultLocale_return_t)(CPUState* cpu, target_ulong pc, uint32_t UserProfile, uint32_t DefaultLocaleId);
+void ppp_add_cb_on_NtSetDefaultLocale_return(on_NtSetDefaultLocale_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetDefaultLocale_return(on_NtSetDefaultLocale_return_t);
+typedef void (*on_NtSetDefaultUILanguage_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DefaultUILanguageId);
+void ppp_add_cb_on_NtSetDefaultUILanguage_enter(on_NtSetDefaultUILanguage_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetDefaultUILanguage_enter(on_NtSetDefaultUILanguage_enter_t);
+typedef void (*on_NtSetDefaultUILanguage_return_t)(CPUState* cpu, target_ulong pc, uint32_t DefaultUILanguageId);
+void ppp_add_cb_on_NtSetDefaultUILanguage_return(on_NtSetDefaultUILanguage_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetDefaultUILanguage_return(on_NtSetDefaultUILanguage_return_t);
+typedef void (*on_NtSetDriverEntryOrder_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);
+void ppp_add_cb_on_NtSetDriverEntryOrder_enter(on_NtSetDriverEntryOrder_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetDriverEntryOrder_enter(on_NtSetDriverEntryOrder_enter_t);
+typedef void (*on_NtSetDriverEntryOrder_return_t)(CPUState* cpu, target_ulong pc, uint32_t Ids, uint32_t Count);
+void ppp_add_cb_on_NtSetDriverEntryOrder_return(on_NtSetDriverEntryOrder_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetDriverEntryOrder_return(on_NtSetDriverEntryOrder_return_t);
+typedef void (*on_NtSetEaFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length);
+void ppp_add_cb_on_NtSetEaFile_enter(on_NtSetEaFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetEaFile_enter(on_NtSetEaFile_enter_t);
+typedef void (*on_NtSetEaFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length);
+void ppp_add_cb_on_NtSetEaFile_return(on_NtSetEaFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetEaFile_return(on_NtSetEaFile_return_t);
+typedef void (*on_NtSetEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState);
+void ppp_add_cb_on_NtSetEvent_enter(on_NtSetEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetEvent_enter(on_NtSetEvent_enter_t);
+typedef void (*on_NtSetEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle, uint32_t PreviousState);
+void ppp_add_cb_on_NtSetEvent_return(on_NtSetEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetEvent_return(on_NtSetEvent_return_t);
+typedef void (*on_NtSetEventBoostPriority_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle);
+void ppp_add_cb_on_NtSetEventBoostPriority_enter(on_NtSetEventBoostPriority_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetEventBoostPriority_enter(on_NtSetEventBoostPriority_enter_t);
+typedef void (*on_NtSetEventBoostPriority_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventHandle);
+void ppp_add_cb_on_NtSetEventBoostPriority_return(on_NtSetEventBoostPriority_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetEventBoostPriority_return(on_NtSetEventBoostPriority_return_t);
+typedef void (*on_NtSetHighEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);
+void ppp_add_cb_on_NtSetHighEventPair_enter(on_NtSetHighEventPair_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetHighEventPair_enter(on_NtSetHighEventPair_enter_t);
+typedef void (*on_NtSetHighEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);
+void ppp_add_cb_on_NtSetHighEventPair_return(on_NtSetHighEventPair_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetHighEventPair_return(on_NtSetHighEventPair_return_t);
+typedef void (*on_NtSetHighWaitLowEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);
+void ppp_add_cb_on_NtSetHighWaitLowEventPair_enter(on_NtSetHighWaitLowEventPair_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetHighWaitLowEventPair_enter(on_NtSetHighWaitLowEventPair_enter_t);
+typedef void (*on_NtSetHighWaitLowEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);
+void ppp_add_cb_on_NtSetHighWaitLowEventPair_return(on_NtSetHighWaitLowEventPair_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetHighWaitLowEventPair_return(on_NtSetHighWaitLowEventPair_return_t);
+typedef void (*on_NtSetInformationDebugObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t DebugObjectInformationClass, uint32_t DebugInformation, uint32_t DebugInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtSetInformationDebugObject_enter(on_NtSetInformationDebugObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationDebugObject_enter(on_NtSetInformationDebugObject_enter_t);
+typedef void (*on_NtSetInformationDebugObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t DebugObjectInformationClass, uint32_t DebugInformation, uint32_t DebugInformationLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtSetInformationDebugObject_return(on_NtSetInformationDebugObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationDebugObject_return(on_NtSetInformationDebugObject_return_t);
+typedef void (*on_NtSetInformationEnlistment_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentInformationClass, uint32_t EnlistmentInformation, uint32_t EnlistmentInformationLength);
+void ppp_add_cb_on_NtSetInformationEnlistment_enter(on_NtSetInformationEnlistment_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationEnlistment_enter(on_NtSetInformationEnlistment_enter_t);
+typedef void (*on_NtSetInformationEnlistment_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t EnlistmentInformationClass, uint32_t EnlistmentInformation, uint32_t EnlistmentInformationLength);
+void ppp_add_cb_on_NtSetInformationEnlistment_return(on_NtSetInformationEnlistment_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationEnlistment_return(on_NtSetInformationEnlistment_return_t);
+typedef void (*on_NtSetInformationFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass);
+void ppp_add_cb_on_NtSetInformationFile_enter(on_NtSetInformationFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationFile_enter(on_NtSetInformationFile_enter_t);
+typedef void (*on_NtSetInformationFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FileInformation, uint32_t Length, uint32_t FileInformationClass);
+void ppp_add_cb_on_NtSetInformationFile_return(on_NtSetInformationFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationFile_return(on_NtSetInformationFile_return_t);
+typedef void (*on_NtSetInformationJobObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t JobObjectInformationClass, uint32_t JobObjectInformation, uint32_t JobObjectInformationLength);
+void ppp_add_cb_on_NtSetInformationJobObject_enter(on_NtSetInformationJobObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationJobObject_enter(on_NtSetInformationJobObject_enter_t);
+typedef void (*on_NtSetInformationJobObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t JobObjectInformationClass, uint32_t JobObjectInformation, uint32_t JobObjectInformationLength);
+void ppp_add_cb_on_NtSetInformationJobObject_return(on_NtSetInformationJobObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationJobObject_return(on_NtSetInformationJobObject_return_t);
+typedef void (*on_NtSetInformationKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t KeySetInformationClass, uint32_t KeySetInformation, uint32_t KeySetInformationLength);
+void ppp_add_cb_on_NtSetInformationKey_enter(on_NtSetInformationKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationKey_enter(on_NtSetInformationKey_enter_t);
+typedef void (*on_NtSetInformationKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t KeySetInformationClass, uint32_t KeySetInformation, uint32_t KeySetInformationLength);
+void ppp_add_cb_on_NtSetInformationKey_return(on_NtSetInformationKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationKey_return(on_NtSetInformationKey_return_t);
+typedef void (*on_NtSetInformationObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t ObjectInformationClass, uint32_t ObjectInformation, uint32_t ObjectInformationLength);
+void ppp_add_cb_on_NtSetInformationObject_enter(on_NtSetInformationObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationObject_enter(on_NtSetInformationObject_enter_t);
+typedef void (*on_NtSetInformationObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t ObjectInformationClass, uint32_t ObjectInformation, uint32_t ObjectInformationLength);
+void ppp_add_cb_on_NtSetInformationObject_return(on_NtSetInformationObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationObject_return(on_NtSetInformationObject_return_t);
+typedef void (*on_NtSetInformationProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ProcessInformationClass, uint32_t ProcessInformation, uint32_t ProcessInformationLength);
+void ppp_add_cb_on_NtSetInformationProcess_enter(on_NtSetInformationProcess_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationProcess_enter(on_NtSetInformationProcess_enter_t);
+typedef void (*on_NtSetInformationProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ProcessInformationClass, uint32_t ProcessInformation, uint32_t ProcessInformationLength);
+void ppp_add_cb_on_NtSetInformationProcess_return(on_NtSetInformationProcess_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationProcess_return(on_NtSetInformationProcess_return_t);
+typedef void (*on_NtSetInformationResourceManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t ResourceManagerInformationClass, uint32_t ResourceManagerInformation, uint32_t ResourceManagerInformationLength);
+void ppp_add_cb_on_NtSetInformationResourceManager_enter(on_NtSetInformationResourceManager_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationResourceManager_enter(on_NtSetInformationResourceManager_enter_t);
+typedef void (*on_NtSetInformationResourceManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t ResourceManagerHandle, uint32_t ResourceManagerInformationClass, uint32_t ResourceManagerInformation, uint32_t ResourceManagerInformationLength);
+void ppp_add_cb_on_NtSetInformationResourceManager_return(on_NtSetInformationResourceManager_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationResourceManager_return(on_NtSetInformationResourceManager_return_t);
+typedef void (*on_NtSetInformationThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadInformationClass, uint32_t ThreadInformation, uint32_t ThreadInformationLength);
+void ppp_add_cb_on_NtSetInformationThread_enter(on_NtSetInformationThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationThread_enter(on_NtSetInformationThread_enter_t);
+typedef void (*on_NtSetInformationThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ThreadInformationClass, uint32_t ThreadInformation, uint32_t ThreadInformationLength);
+void ppp_add_cb_on_NtSetInformationThread_return(on_NtSetInformationThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationThread_return(on_NtSetInformationThread_return_t);
+typedef void (*on_NtSetInformationToken_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t TokenInformationClass, uint32_t TokenInformation, uint32_t TokenInformationLength);
+void ppp_add_cb_on_NtSetInformationToken_enter(on_NtSetInformationToken_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationToken_enter(on_NtSetInformationToken_enter_t);
+typedef void (*on_NtSetInformationToken_return_t)(CPUState* cpu, target_ulong pc, uint32_t TokenHandle, uint32_t TokenInformationClass, uint32_t TokenInformation, uint32_t TokenInformationLength);
+void ppp_add_cb_on_NtSetInformationToken_return(on_NtSetInformationToken_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationToken_return(on_NtSetInformationToken_return_t);
+typedef void (*on_NtSetInformationTransaction_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t TransactionInformationClass, uint32_t TransactionInformation, uint32_t TransactionInformationLength);
+void ppp_add_cb_on_NtSetInformationTransaction_enter(on_NtSetInformationTransaction_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationTransaction_enter(on_NtSetInformationTransaction_enter_t);
+typedef void (*on_NtSetInformationTransaction_return_t)(CPUState* cpu, target_ulong pc, uint32_t TransactionHandle, uint32_t TransactionInformationClass, uint32_t TransactionInformation, uint32_t TransactionInformationLength);
+void ppp_add_cb_on_NtSetInformationTransaction_return(on_NtSetInformationTransaction_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationTransaction_return(on_NtSetInformationTransaction_return_t);
+typedef void (*on_NtSetInformationTransactionManager_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t TransactionManagerInformationClass, uint32_t TransactionManagerInformation, uint32_t TransactionManagerInformationLength);
+void ppp_add_cb_on_NtSetInformationTransactionManager_enter(on_NtSetInformationTransactionManager_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationTransactionManager_enter(on_NtSetInformationTransactionManager_enter_t);
+typedef void (*on_NtSetInformationTransactionManager_return_t)(CPUState* cpu, target_ulong pc, uint32_t TmHandle, uint32_t TransactionManagerInformationClass, uint32_t TransactionManagerInformation, uint32_t TransactionManagerInformationLength);
+void ppp_add_cb_on_NtSetInformationTransactionManager_return(on_NtSetInformationTransactionManager_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationTransactionManager_return(on_NtSetInformationTransactionManager_return_t);
+typedef void (*on_NtSetInformationWorkerFactory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t WorkerFactoryInformationClass, uint32_t WorkerFactoryInformation, uint32_t WorkerFactoryInformationLength);
+void ppp_add_cb_on_NtSetInformationWorkerFactory_enter(on_NtSetInformationWorkerFactory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationWorkerFactory_enter(on_NtSetInformationWorkerFactory_enter_t);
+typedef void (*on_NtSetInformationWorkerFactory_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t WorkerFactoryInformationClass, uint32_t WorkerFactoryInformation, uint32_t WorkerFactoryInformationLength);
+void ppp_add_cb_on_NtSetInformationWorkerFactory_return(on_NtSetInformationWorkerFactory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetInformationWorkerFactory_return(on_NtSetInformationWorkerFactory_return_t);
+typedef void (*on_NtSetIntervalProfile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Interval, uint32_t Source);
+void ppp_add_cb_on_NtSetIntervalProfile_enter(on_NtSetIntervalProfile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetIntervalProfile_enter(on_NtSetIntervalProfile_enter_t);
+typedef void (*on_NtSetIntervalProfile_return_t)(CPUState* cpu, target_ulong pc, uint32_t Interval, uint32_t Source);
+void ppp_add_cb_on_NtSetIntervalProfile_return(on_NtSetIntervalProfile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetIntervalProfile_return(on_NtSetIntervalProfile_return_t);
+typedef void (*on_NtSetIoCompletion_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatus, uint32_t IoStatusInformation);
+void ppp_add_cb_on_NtSetIoCompletion_enter(on_NtSetIoCompletion_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetIoCompletion_enter(on_NtSetIoCompletion_enter_t);
+typedef void (*on_NtSetIoCompletion_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatus, uint32_t IoStatusInformation);
+void ppp_add_cb_on_NtSetIoCompletion_return(on_NtSetIoCompletion_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetIoCompletion_return(on_NtSetIoCompletion_return_t);
+typedef void (*on_NtSetIoCompletionEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionReserveHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatus, uint32_t IoStatusInformation);
+void ppp_add_cb_on_NtSetIoCompletionEx_enter(on_NtSetIoCompletionEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetIoCompletionEx_enter(on_NtSetIoCompletionEx_enter_t);
+typedef void (*on_NtSetIoCompletionEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t IoCompletionHandle, uint32_t IoCompletionReserveHandle, uint32_t KeyContext, uint32_t ApcContext, uint32_t IoStatus, uint32_t IoStatusInformation);
+void ppp_add_cb_on_NtSetIoCompletionEx_return(on_NtSetIoCompletionEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetIoCompletionEx_return(on_NtSetIoCompletionEx_return_t);
+typedef void (*on_NtSetLdtEntries_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Selector0, uint32_t Entry0Low, uint32_t Entry0Hi, uint32_t Selector1, uint32_t Entry1Low, uint32_t Entry1Hi);
+void ppp_add_cb_on_NtSetLdtEntries_enter(on_NtSetLdtEntries_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetLdtEntries_enter(on_NtSetLdtEntries_enter_t);
+typedef void (*on_NtSetLdtEntries_return_t)(CPUState* cpu, target_ulong pc, uint32_t Selector0, uint32_t Entry0Low, uint32_t Entry0Hi, uint32_t Selector1, uint32_t Entry1Low, uint32_t Entry1Hi);
+void ppp_add_cb_on_NtSetLdtEntries_return(on_NtSetLdtEntries_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetLdtEntries_return(on_NtSetLdtEntries_return_t);
+typedef void (*on_NtSetLowEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);
+void ppp_add_cb_on_NtSetLowEventPair_enter(on_NtSetLowEventPair_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetLowEventPair_enter(on_NtSetLowEventPair_enter_t);
+typedef void (*on_NtSetLowEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);
+void ppp_add_cb_on_NtSetLowEventPair_return(on_NtSetLowEventPair_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetLowEventPair_return(on_NtSetLowEventPair_return_t);
+typedef void (*on_NtSetLowWaitHighEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);
+void ppp_add_cb_on_NtSetLowWaitHighEventPair_enter(on_NtSetLowWaitHighEventPair_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetLowWaitHighEventPair_enter(on_NtSetLowWaitHighEventPair_enter_t);
+typedef void (*on_NtSetLowWaitHighEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);
+void ppp_add_cb_on_NtSetLowWaitHighEventPair_return(on_NtSetLowWaitHighEventPair_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetLowWaitHighEventPair_return(on_NtSetLowWaitHighEventPair_return_t);
+typedef void (*on_NtSetQuotaInformationFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length);
+void ppp_add_cb_on_NtSetQuotaInformationFile_enter(on_NtSetQuotaInformationFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetQuotaInformationFile_enter(on_NtSetQuotaInformationFile_enter_t);
+typedef void (*on_NtSetQuotaInformationFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length);
+void ppp_add_cb_on_NtSetQuotaInformationFile_return(on_NtSetQuotaInformationFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetQuotaInformationFile_return(on_NtSetQuotaInformationFile_return_t);
+typedef void (*on_NtSetSecurityObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t SecurityInformation, uint32_t SecurityDescriptor);
+void ppp_add_cb_on_NtSetSecurityObject_enter(on_NtSetSecurityObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetSecurityObject_enter(on_NtSetSecurityObject_enter_t);
+typedef void (*on_NtSetSecurityObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t SecurityInformation, uint32_t SecurityDescriptor);
+void ppp_add_cb_on_NtSetSecurityObject_return(on_NtSetSecurityObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetSecurityObject_return(on_NtSetSecurityObject_return_t);
+typedef void (*on_NtSetSystemEnvironmentValue_enter_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VariableValue);
+void ppp_add_cb_on_NtSetSystemEnvironmentValue_enter(on_NtSetSystemEnvironmentValue_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetSystemEnvironmentValue_enter(on_NtSetSystemEnvironmentValue_enter_t);
+typedef void (*on_NtSetSystemEnvironmentValue_return_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VariableValue);
+void ppp_add_cb_on_NtSetSystemEnvironmentValue_return(on_NtSetSystemEnvironmentValue_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetSystemEnvironmentValue_return(on_NtSetSystemEnvironmentValue_return_t);
+typedef void (*on_NtSetSystemEnvironmentValueEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VendorGuid, uint32_t Value, uint32_t ValueLength, uint32_t Attributes);
+void ppp_add_cb_on_NtSetSystemEnvironmentValueEx_enter(on_NtSetSystemEnvironmentValueEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetSystemEnvironmentValueEx_enter(on_NtSetSystemEnvironmentValueEx_enter_t);
+typedef void (*on_NtSetSystemEnvironmentValueEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t VariableName, uint32_t VendorGuid, uint32_t Value, uint32_t ValueLength, uint32_t Attributes);
+void ppp_add_cb_on_NtSetSystemEnvironmentValueEx_return(on_NtSetSystemEnvironmentValueEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetSystemEnvironmentValueEx_return(on_NtSetSystemEnvironmentValueEx_return_t);
+typedef void (*on_NtSetSystemInformation_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t SystemInformation, uint32_t SystemInformationLength);
+void ppp_add_cb_on_NtSetSystemInformation_enter(on_NtSetSystemInformation_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetSystemInformation_enter(on_NtSetSystemInformation_enter_t);
+typedef void (*on_NtSetSystemInformation_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemInformationClass, uint32_t SystemInformation, uint32_t SystemInformationLength);
+void ppp_add_cb_on_NtSetSystemInformation_return(on_NtSetSystemInformation_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetSystemInformation_return(on_NtSetSystemInformation_return_t);
+typedef void (*on_NtSetSystemPowerState_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemAction, uint32_t MinSystemState, uint32_t Flags);
+void ppp_add_cb_on_NtSetSystemPowerState_enter(on_NtSetSystemPowerState_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetSystemPowerState_enter(on_NtSetSystemPowerState_enter_t);
+typedef void (*on_NtSetSystemPowerState_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemAction, uint32_t MinSystemState, uint32_t Flags);
+void ppp_add_cb_on_NtSetSystemPowerState_return(on_NtSetSystemPowerState_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetSystemPowerState_return(on_NtSetSystemPowerState_return_t);
+typedef void (*on_NtSetSystemTime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SystemTime, uint32_t PreviousTime);
+void ppp_add_cb_on_NtSetSystemTime_enter(on_NtSetSystemTime_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetSystemTime_enter(on_NtSetSystemTime_enter_t);
+typedef void (*on_NtSetSystemTime_return_t)(CPUState* cpu, target_ulong pc, uint32_t SystemTime, uint32_t PreviousTime);
+void ppp_add_cb_on_NtSetSystemTime_return(on_NtSetSystemTime_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetSystemTime_return(on_NtSetSystemTime_return_t);
+typedef void (*on_NtSetThreadExecutionState_enter_t)(CPUState* cpu, target_ulong pc, uint32_t esFlags, uint32_t PreviousFlags);
+void ppp_add_cb_on_NtSetThreadExecutionState_enter(on_NtSetThreadExecutionState_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetThreadExecutionState_enter(on_NtSetThreadExecutionState_enter_t);
+typedef void (*on_NtSetThreadExecutionState_return_t)(CPUState* cpu, target_ulong pc, uint32_t esFlags, uint32_t PreviousFlags);
+void ppp_add_cb_on_NtSetThreadExecutionState_return(on_NtSetThreadExecutionState_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetThreadExecutionState_return(on_NtSetThreadExecutionState_return_t);
+typedef void (*on_NtSetTimer_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DueTime, uint32_t TimerApcRoutine, uint32_t TimerContext, uint32_t WakeTimer, int32_t Period, uint32_t PreviousState);
+void ppp_add_cb_on_NtSetTimer_enter(on_NtSetTimer_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetTimer_enter(on_NtSetTimer_enter_t);
+typedef void (*on_NtSetTimer_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t DueTime, uint32_t TimerApcRoutine, uint32_t TimerContext, uint32_t WakeTimer, int32_t Period, uint32_t PreviousState);
+void ppp_add_cb_on_NtSetTimer_return(on_NtSetTimer_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetTimer_return(on_NtSetTimer_return_t);
+typedef void (*on_NtSetTimerEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t TimerSetInformationClass, uint32_t TimerSetInformation, uint32_t TimerSetInformationLength);
+void ppp_add_cb_on_NtSetTimerEx_enter(on_NtSetTimerEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetTimerEx_enter(on_NtSetTimerEx_enter_t);
+typedef void (*on_NtSetTimerEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t TimerHandle, uint32_t TimerSetInformationClass, uint32_t TimerSetInformation, uint32_t TimerSetInformationLength);
+void ppp_add_cb_on_NtSetTimerEx_return(on_NtSetTimerEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetTimerEx_return(on_NtSetTimerEx_return_t);
+typedef void (*on_NtSetTimerResolution_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DesiredTime, uint32_t SetResolution, uint32_t ActualTime);
+void ppp_add_cb_on_NtSetTimerResolution_enter(on_NtSetTimerResolution_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetTimerResolution_enter(on_NtSetTimerResolution_enter_t);
+typedef void (*on_NtSetTimerResolution_return_t)(CPUState* cpu, target_ulong pc, uint32_t DesiredTime, uint32_t SetResolution, uint32_t ActualTime);
+void ppp_add_cb_on_NtSetTimerResolution_return(on_NtSetTimerResolution_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetTimerResolution_return(on_NtSetTimerResolution_return_t);
+typedef void (*on_NtSetUuidSeed_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Seed);
+void ppp_add_cb_on_NtSetUuidSeed_enter(on_NtSetUuidSeed_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetUuidSeed_enter(on_NtSetUuidSeed_enter_t);
+typedef void (*on_NtSetUuidSeed_return_t)(CPUState* cpu, target_ulong pc, uint32_t Seed);
+void ppp_add_cb_on_NtSetUuidSeed_return(on_NtSetUuidSeed_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetUuidSeed_return(on_NtSetUuidSeed_return_t);
+typedef void (*on_NtSetValueKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName, uint32_t TitleIndex, uint32_t Type, uint32_t Data, uint32_t DataSize);
+void ppp_add_cb_on_NtSetValueKey_enter(on_NtSetValueKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetValueKey_enter(on_NtSetValueKey_enter_t);
+typedef void (*on_NtSetValueKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyHandle, uint32_t ValueName, uint32_t TitleIndex, uint32_t Type, uint32_t Data, uint32_t DataSize);
+void ppp_add_cb_on_NtSetValueKey_return(on_NtSetValueKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetValueKey_return(on_NtSetValueKey_return_t);
+typedef void (*on_NtSetVolumeInformationFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FsInformation, uint32_t Length, uint32_t FsInformationClass);
+void ppp_add_cb_on_NtSetVolumeInformationFile_enter(on_NtSetVolumeInformationFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSetVolumeInformationFile_enter(on_NtSetVolumeInformationFile_enter_t);
+typedef void (*on_NtSetVolumeInformationFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t FsInformation, uint32_t Length, uint32_t FsInformationClass);
+void ppp_add_cb_on_NtSetVolumeInformationFile_return(on_NtSetVolumeInformationFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSetVolumeInformationFile_return(on_NtSetVolumeInformationFile_return_t);
+typedef void (*on_NtShutdownSystem_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Action);
+void ppp_add_cb_on_NtShutdownSystem_enter(on_NtShutdownSystem_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtShutdownSystem_enter(on_NtShutdownSystem_enter_t);
+typedef void (*on_NtShutdownSystem_return_t)(CPUState* cpu, target_ulong pc, uint32_t Action);
+void ppp_add_cb_on_NtShutdownSystem_return(on_NtShutdownSystem_return_t);
+_Bool 
+    ppp_remove_cb_on_NtShutdownSystem_return(on_NtShutdownSystem_return_t);
+typedef void (*on_NtShutdownWorkerFactory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t PendingWorkerCount);
+void ppp_add_cb_on_NtShutdownWorkerFactory_enter(on_NtShutdownWorkerFactory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtShutdownWorkerFactory_enter(on_NtShutdownWorkerFactory_enter_t);
+typedef void (*on_NtShutdownWorkerFactory_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t PendingWorkerCount);
+void ppp_add_cb_on_NtShutdownWorkerFactory_return(on_NtShutdownWorkerFactory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtShutdownWorkerFactory_return(on_NtShutdownWorkerFactory_return_t);
+typedef void (*on_NtSignalAndWaitForSingleObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SignalHandle, uint32_t WaitHandle, uint32_t Alertable, uint32_t Timeout);
+void ppp_add_cb_on_NtSignalAndWaitForSingleObject_enter(on_NtSignalAndWaitForSingleObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSignalAndWaitForSingleObject_enter(on_NtSignalAndWaitForSingleObject_enter_t);
+typedef void (*on_NtSignalAndWaitForSingleObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t SignalHandle, uint32_t WaitHandle, uint32_t Alertable, uint32_t Timeout);
+void ppp_add_cb_on_NtSignalAndWaitForSingleObject_return(on_NtSignalAndWaitForSingleObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSignalAndWaitForSingleObject_return(on_NtSignalAndWaitForSingleObject_return_t);
+typedef void (*on_NtSinglePhaseReject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtSinglePhaseReject_enter(on_NtSinglePhaseReject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSinglePhaseReject_enter(on_NtSinglePhaseReject_enter_t);
+typedef void (*on_NtSinglePhaseReject_return_t)(CPUState* cpu, target_ulong pc, uint32_t EnlistmentHandle, uint32_t TmVirtualClock);
+void ppp_add_cb_on_NtSinglePhaseReject_return(on_NtSinglePhaseReject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSinglePhaseReject_return(on_NtSinglePhaseReject_return_t);
+typedef void (*on_NtStartProfile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle);
+void ppp_add_cb_on_NtStartProfile_enter(on_NtStartProfile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtStartProfile_enter(on_NtStartProfile_enter_t);
+typedef void (*on_NtStartProfile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle);
+void ppp_add_cb_on_NtStartProfile_return(on_NtStartProfile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtStartProfile_return(on_NtStartProfile_return_t);
+typedef void (*on_NtStopProfile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle);
+void ppp_add_cb_on_NtStopProfile_enter(on_NtStopProfile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtStopProfile_enter(on_NtStopProfile_enter_t);
+typedef void (*on_NtStopProfile_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProfileHandle);
+void ppp_add_cb_on_NtStopProfile_return(on_NtStopProfile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtStopProfile_return(on_NtStopProfile_return_t);
+typedef void (*on_NtSuspendProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle);
+void ppp_add_cb_on_NtSuspendProcess_enter(on_NtSuspendProcess_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSuspendProcess_enter(on_NtSuspendProcess_enter_t);
+typedef void (*on_NtSuspendProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle);
+void ppp_add_cb_on_NtSuspendProcess_return(on_NtSuspendProcess_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSuspendProcess_return(on_NtSuspendProcess_return_t);
+typedef void (*on_NtSuspendThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount);
+void ppp_add_cb_on_NtSuspendThread_enter(on_NtSuspendThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSuspendThread_enter(on_NtSuspendThread_enter_t);
+typedef void (*on_NtSuspendThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t PreviousSuspendCount);
+void ppp_add_cb_on_NtSuspendThread_return(on_NtSuspendThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSuspendThread_return(on_NtSuspendThread_return_t);
+typedef void (*on_NtSystemDebugControl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Command, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtSystemDebugControl_enter(on_NtSystemDebugControl_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtSystemDebugControl_enter(on_NtSystemDebugControl_enter_t);
+typedef void (*on_NtSystemDebugControl_return_t)(CPUState* cpu, target_ulong pc, uint32_t Command, uint32_t InputBuffer, uint32_t InputBufferLength, uint32_t OutputBuffer, uint32_t OutputBufferLength, uint32_t ReturnLength);
+void ppp_add_cb_on_NtSystemDebugControl_return(on_NtSystemDebugControl_return_t);
+_Bool 
+    ppp_remove_cb_on_NtSystemDebugControl_return(on_NtSystemDebugControl_return_t);
+typedef void (*on_NtTerminateJobObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t ExitStatus);
+void ppp_add_cb_on_NtTerminateJobObject_enter(on_NtTerminateJobObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtTerminateJobObject_enter(on_NtTerminateJobObject_enter_t);
+typedef void (*on_NtTerminateJobObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t JobHandle, uint32_t ExitStatus);
+void ppp_add_cb_on_NtTerminateJobObject_return(on_NtTerminateJobObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtTerminateJobObject_return(on_NtTerminateJobObject_return_t);
+typedef void (*on_NtTerminateProcess_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ExitStatus);
+void ppp_add_cb_on_NtTerminateProcess_enter(on_NtTerminateProcess_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtTerminateProcess_enter(on_NtTerminateProcess_enter_t);
+typedef void (*on_NtTerminateProcess_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t ExitStatus);
+void ppp_add_cb_on_NtTerminateProcess_return(on_NtTerminateProcess_return_t);
+_Bool 
+    ppp_remove_cb_on_NtTerminateProcess_return(on_NtTerminateProcess_return_t);
+typedef void (*on_NtTerminateThread_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ExitStatus);
+void ppp_add_cb_on_NtTerminateThread_enter(on_NtTerminateThread_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtTerminateThread_enter(on_NtTerminateThread_enter_t);
+typedef void (*on_NtTerminateThread_return_t)(CPUState* cpu, target_ulong pc, uint32_t ThreadHandle, uint32_t ExitStatus);
+void ppp_add_cb_on_NtTerminateThread_return(on_NtTerminateThread_return_t);
+_Bool 
+    ppp_remove_cb_on_NtTerminateThread_return(on_NtTerminateThread_return_t);
+typedef void (*on_NtTestAlert_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtTestAlert_enter(on_NtTestAlert_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtTestAlert_enter(on_NtTestAlert_enter_t);
+typedef void (*on_NtTestAlert_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtTestAlert_return(on_NtTestAlert_return_t);
+_Bool 
+    ppp_remove_cb_on_NtTestAlert_return(on_NtTestAlert_return_t);
+typedef void (*on_NtThawRegistry_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtThawRegistry_enter(on_NtThawRegistry_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtThawRegistry_enter(on_NtThawRegistry_enter_t);
+typedef void (*on_NtThawRegistry_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtThawRegistry_return(on_NtThawRegistry_return_t);
+_Bool 
+    ppp_remove_cb_on_NtThawRegistry_return(on_NtThawRegistry_return_t);
+typedef void (*on_NtThawTransactions_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtThawTransactions_enter(on_NtThawTransactions_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtThawTransactions_enter(on_NtThawTransactions_enter_t);
+typedef void (*on_NtThawTransactions_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtThawTransactions_return(on_NtThawTransactions_return_t);
+_Bool 
+    ppp_remove_cb_on_NtThawTransactions_return(on_NtThawTransactions_return_t);
+typedef void (*on_NtTraceControl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FunctionCode, uint32_t InBuffer, uint32_t InBufferLen, uint32_t OutBuffer, uint32_t OutBufferLen, uint32_t ReturnLength);
+void ppp_add_cb_on_NtTraceControl_enter(on_NtTraceControl_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtTraceControl_enter(on_NtTraceControl_enter_t);
+typedef void (*on_NtTraceControl_return_t)(CPUState* cpu, target_ulong pc, uint32_t FunctionCode, uint32_t InBuffer, uint32_t InBufferLen, uint32_t OutBuffer, uint32_t OutBufferLen, uint32_t ReturnLength);
+void ppp_add_cb_on_NtTraceControl_return(on_NtTraceControl_return_t);
+_Bool 
+    ppp_remove_cb_on_NtTraceControl_return(on_NtTraceControl_return_t);
+typedef void (*on_NtTraceEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TraceHandle, uint32_t Flags, uint32_t FieldSize, uint32_t Fields);
+void ppp_add_cb_on_NtTraceEvent_enter(on_NtTraceEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtTraceEvent_enter(on_NtTraceEvent_enter_t);
+typedef void (*on_NtTraceEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t TraceHandle, uint32_t Flags, uint32_t FieldSize, uint32_t Fields);
+void ppp_add_cb_on_NtTraceEvent_return(on_NtTraceEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtTraceEvent_return(on_NtTraceEvent_return_t);
+typedef void (*on_NtTranslateFilePath_enter_t)(CPUState* cpu, target_ulong pc, uint32_t InputFilePath, uint32_t OutputType, uint32_t OutputFilePath, uint32_t OutputFilePathLength);
+void ppp_add_cb_on_NtTranslateFilePath_enter(on_NtTranslateFilePath_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtTranslateFilePath_enter(on_NtTranslateFilePath_enter_t);
+typedef void (*on_NtTranslateFilePath_return_t)(CPUState* cpu, target_ulong pc, uint32_t InputFilePath, uint32_t OutputType, uint32_t OutputFilePath, uint32_t OutputFilePathLength);
+void ppp_add_cb_on_NtTranslateFilePath_return(on_NtTranslateFilePath_return_t);
+_Bool 
+    ppp_remove_cb_on_NtTranslateFilePath_return(on_NtTranslateFilePath_return_t);
+typedef void (*on_NtUmsThreadYield_enter_t)(CPUState* cpu, target_ulong pc, uint32_t SchedulerParam);
+void ppp_add_cb_on_NtUmsThreadYield_enter(on_NtUmsThreadYield_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtUmsThreadYield_enter(on_NtUmsThreadYield_enter_t);
+typedef void (*on_NtUmsThreadYield_return_t)(CPUState* cpu, target_ulong pc, uint32_t SchedulerParam);
+void ppp_add_cb_on_NtUmsThreadYield_return(on_NtUmsThreadYield_return_t);
+_Bool 
+    ppp_remove_cb_on_NtUmsThreadYield_return(on_NtUmsThreadYield_return_t);
+typedef void (*on_NtUnloadDriver_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DriverServiceName);
+void ppp_add_cb_on_NtUnloadDriver_enter(on_NtUnloadDriver_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtUnloadDriver_enter(on_NtUnloadDriver_enter_t);
+typedef void (*on_NtUnloadDriver_return_t)(CPUState* cpu, target_ulong pc, uint32_t DriverServiceName);
+void ppp_add_cb_on_NtUnloadDriver_return(on_NtUnloadDriver_return_t);
+_Bool 
+    ppp_remove_cb_on_NtUnloadDriver_return(on_NtUnloadDriver_return_t);
+typedef void (*on_NtUnloadKey_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey);
+void ppp_add_cb_on_NtUnloadKey_enter(on_NtUnloadKey_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtUnloadKey_enter(on_NtUnloadKey_enter_t);
+typedef void (*on_NtUnloadKey_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey);
+void ppp_add_cb_on_NtUnloadKey_return(on_NtUnloadKey_return_t);
+_Bool 
+    ppp_remove_cb_on_NtUnloadKey_return(on_NtUnloadKey_return_t);
+typedef void (*on_NtUnloadKey2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t Flags);
+void ppp_add_cb_on_NtUnloadKey2_enter(on_NtUnloadKey2_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtUnloadKey2_enter(on_NtUnloadKey2_enter_t);
+typedef void (*on_NtUnloadKey2_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t Flags);
+void ppp_add_cb_on_NtUnloadKey2_return(on_NtUnloadKey2_return_t);
+_Bool 
+    ppp_remove_cb_on_NtUnloadKey2_return(on_NtUnloadKey2_return_t);
+typedef void (*on_NtUnloadKeyEx_enter_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t Event);
+void ppp_add_cb_on_NtUnloadKeyEx_enter(on_NtUnloadKeyEx_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtUnloadKeyEx_enter(on_NtUnloadKeyEx_enter_t);
+typedef void (*on_NtUnloadKeyEx_return_t)(CPUState* cpu, target_ulong pc, uint32_t TargetKey, uint32_t Event);
+void ppp_add_cb_on_NtUnloadKeyEx_return(on_NtUnloadKeyEx_return_t);
+_Bool 
+    ppp_remove_cb_on_NtUnloadKeyEx_return(on_NtUnloadKeyEx_return_t);
+typedef void (*on_NtUnlockFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t ByteOffset, uint32_t Length, uint32_t Key);
+void ppp_add_cb_on_NtUnlockFile_enter(on_NtUnlockFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtUnlockFile_enter(on_NtUnlockFile_enter_t);
+typedef void (*on_NtUnlockFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t IoStatusBlock, uint32_t ByteOffset, uint32_t Length, uint32_t Key);
+void ppp_add_cb_on_NtUnlockFile_return(on_NtUnlockFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtUnlockFile_return(on_NtUnlockFile_return_t);
+typedef void (*on_NtUnlockVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t MapType);
+void ppp_add_cb_on_NtUnlockVirtualMemory_enter(on_NtUnlockVirtualMemory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtUnlockVirtualMemory_enter(on_NtUnlockVirtualMemory_enter_t);
+typedef void (*on_NtUnlockVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t RegionSize, uint32_t MapType);
+void ppp_add_cb_on_NtUnlockVirtualMemory_return(on_NtUnlockVirtualMemory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtUnlockVirtualMemory_return(on_NtUnlockVirtualMemory_return_t);
+typedef void (*on_NtUnmapViewOfSection_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress);
+void ppp_add_cb_on_NtUnmapViewOfSection_enter(on_NtUnmapViewOfSection_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtUnmapViewOfSection_enter(on_NtUnmapViewOfSection_enter_t);
+typedef void (*on_NtUnmapViewOfSection_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress);
+void ppp_add_cb_on_NtUnmapViewOfSection_return(on_NtUnmapViewOfSection_return_t);
+_Bool 
+    ppp_remove_cb_on_NtUnmapViewOfSection_return(on_NtUnmapViewOfSection_return_t);
+typedef void (*on_NtVdmControl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Service, uint32_t ServiceData);
+void ppp_add_cb_on_NtVdmControl_enter(on_NtVdmControl_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtVdmControl_enter(on_NtVdmControl_enter_t);
+typedef void (*on_NtVdmControl_return_t)(CPUState* cpu, target_ulong pc, uint32_t Service, uint32_t ServiceData);
+void ppp_add_cb_on_NtVdmControl_return(on_NtVdmControl_return_t);
+_Bool 
+    ppp_remove_cb_on_NtVdmControl_return(on_NtVdmControl_return_t);
+typedef void (*on_NtWaitForDebugEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t Alertable, uint32_t Timeout, uint32_t WaitStateChange);
+void ppp_add_cb_on_NtWaitForDebugEvent_enter(on_NtWaitForDebugEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitForDebugEvent_enter(on_NtWaitForDebugEvent_enter_t);
+typedef void (*on_NtWaitForDebugEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t DebugObjectHandle, uint32_t Alertable, uint32_t Timeout, uint32_t WaitStateChange);
+void ppp_add_cb_on_NtWaitForDebugEvent_return(on_NtWaitForDebugEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitForDebugEvent_return(on_NtWaitForDebugEvent_return_t);
+typedef void (*on_NtWaitForKeyedEvent_enter_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t KeyValue, uint32_t Alertable, uint32_t Timeout);
+void ppp_add_cb_on_NtWaitForKeyedEvent_enter(on_NtWaitForKeyedEvent_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitForKeyedEvent_enter(on_NtWaitForKeyedEvent_enter_t);
+typedef void (*on_NtWaitForKeyedEvent_return_t)(CPUState* cpu, target_ulong pc, uint32_t KeyedEventHandle, uint32_t KeyValue, uint32_t Alertable, uint32_t Timeout);
+void ppp_add_cb_on_NtWaitForKeyedEvent_return(on_NtWaitForKeyedEvent_return_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitForKeyedEvent_return(on_NtWaitForKeyedEvent_return_t);
+typedef void (*on_NtWaitForMultipleObjects_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t Handles, uint32_t WaitType, uint32_t Alertable, uint32_t Timeout);
+void ppp_add_cb_on_NtWaitForMultipleObjects_enter(on_NtWaitForMultipleObjects_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitForMultipleObjects_enter(on_NtWaitForMultipleObjects_enter_t);
+typedef void (*on_NtWaitForMultipleObjects_return_t)(CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t Handles, uint32_t WaitType, uint32_t Alertable, uint32_t Timeout);
+void ppp_add_cb_on_NtWaitForMultipleObjects_return(on_NtWaitForMultipleObjects_return_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitForMultipleObjects_return(on_NtWaitForMultipleObjects_return_t);
+typedef void (*on_NtWaitForMultipleObjects32_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t Handles, uint32_t WaitType, uint32_t Alertable, uint32_t Timeout);
+void ppp_add_cb_on_NtWaitForMultipleObjects32_enter(on_NtWaitForMultipleObjects32_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitForMultipleObjects32_enter(on_NtWaitForMultipleObjects32_enter_t);
+typedef void (*on_NtWaitForMultipleObjects32_return_t)(CPUState* cpu, target_ulong pc, uint32_t Count, uint32_t Handles, uint32_t WaitType, uint32_t Alertable, uint32_t Timeout);
+void ppp_add_cb_on_NtWaitForMultipleObjects32_return(on_NtWaitForMultipleObjects32_return_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitForMultipleObjects32_return(on_NtWaitForMultipleObjects32_return_t);
+typedef void (*on_NtWaitForSingleObject_enter_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t Alertable, uint32_t Timeout);
+void ppp_add_cb_on_NtWaitForSingleObject_enter(on_NtWaitForSingleObject_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitForSingleObject_enter(on_NtWaitForSingleObject_enter_t);
+typedef void (*on_NtWaitForSingleObject_return_t)(CPUState* cpu, target_ulong pc, uint32_t Handle, uint32_t Alertable, uint32_t Timeout);
+void ppp_add_cb_on_NtWaitForSingleObject_return(on_NtWaitForSingleObject_return_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitForSingleObject_return(on_NtWaitForSingleObject_return_t);
+typedef void (*on_NtWaitForWorkViaWorkerFactory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t MiniPacket);
+void ppp_add_cb_on_NtWaitForWorkViaWorkerFactory_enter(on_NtWaitForWorkViaWorkerFactory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitForWorkViaWorkerFactory_enter(on_NtWaitForWorkViaWorkerFactory_enter_t);
+typedef void (*on_NtWaitForWorkViaWorkerFactory_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle, uint32_t MiniPacket);
+void ppp_add_cb_on_NtWaitForWorkViaWorkerFactory_return(on_NtWaitForWorkViaWorkerFactory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitForWorkViaWorkerFactory_return(on_NtWaitForWorkViaWorkerFactory_return_t);
+typedef void (*on_NtWaitHighEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);
+void ppp_add_cb_on_NtWaitHighEventPair_enter(on_NtWaitHighEventPair_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitHighEventPair_enter(on_NtWaitHighEventPair_enter_t);
+typedef void (*on_NtWaitHighEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);
+void ppp_add_cb_on_NtWaitHighEventPair_return(on_NtWaitHighEventPair_return_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitHighEventPair_return(on_NtWaitHighEventPair_return_t);
+typedef void (*on_NtWaitLowEventPair_enter_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);
+void ppp_add_cb_on_NtWaitLowEventPair_enter(on_NtWaitLowEventPair_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitLowEventPair_enter(on_NtWaitLowEventPair_enter_t);
+typedef void (*on_NtWaitLowEventPair_return_t)(CPUState* cpu, target_ulong pc, uint32_t EventPairHandle);
+void ppp_add_cb_on_NtWaitLowEventPair_return(on_NtWaitLowEventPair_return_t);
+_Bool 
+    ppp_remove_cb_on_NtWaitLowEventPair_return(on_NtWaitLowEventPair_return_t);
+typedef void (*on_NtWorkerFactoryWorkerReady_enter_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle);
+void ppp_add_cb_on_NtWorkerFactoryWorkerReady_enter(on_NtWorkerFactoryWorkerReady_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtWorkerFactoryWorkerReady_enter(on_NtWorkerFactoryWorkerReady_enter_t);
+typedef void (*on_NtWorkerFactoryWorkerReady_return_t)(CPUState* cpu, target_ulong pc, uint32_t WorkerFactoryHandle);
+void ppp_add_cb_on_NtWorkerFactoryWorkerReady_return(on_NtWorkerFactoryWorkerReady_return_t);
+_Bool 
+    ppp_remove_cb_on_NtWorkerFactoryWorkerReady_return(on_NtWorkerFactoryWorkerReady_return_t);
+typedef void (*on_NtWriteFile_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ByteOffset, uint32_t Key);
+void ppp_add_cb_on_NtWriteFile_enter(on_NtWriteFile_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtWriteFile_enter(on_NtWriteFile_enter_t);
+typedef void (*on_NtWriteFile_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t Buffer, uint32_t Length, uint32_t ByteOffset, uint32_t Key);
+void ppp_add_cb_on_NtWriteFile_return(on_NtWriteFile_return_t);
+_Bool 
+    ppp_remove_cb_on_NtWriteFile_return(on_NtWriteFile_return_t);
+typedef void (*on_NtWriteFileGather_enter_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t SegmentArray, uint32_t Length, uint32_t ByteOffset, uint32_t Key);
+void ppp_add_cb_on_NtWriteFileGather_enter(on_NtWriteFileGather_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtWriteFileGather_enter(on_NtWriteFileGather_enter_t);
+typedef void (*on_NtWriteFileGather_return_t)(CPUState* cpu, target_ulong pc, uint32_t FileHandle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext, uint32_t IoStatusBlock, uint32_t SegmentArray, uint32_t Length, uint32_t ByteOffset, uint32_t Key);
+void ppp_add_cb_on_NtWriteFileGather_return(on_NtWriteFileGather_return_t);
+_Bool 
+    ppp_remove_cb_on_NtWriteFileGather_return(on_NtWriteFileGather_return_t);
+typedef void (*on_NtWriteRequestData_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message, uint32_t DataEntryIndex, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesWritten);
+void ppp_add_cb_on_NtWriteRequestData_enter(on_NtWriteRequestData_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtWriteRequestData_enter(on_NtWriteRequestData_enter_t);
+typedef void (*on_NtWriteRequestData_return_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t Message, uint32_t DataEntryIndex, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesWritten);
+void ppp_add_cb_on_NtWriteRequestData_return(on_NtWriteRequestData_return_t);
+_Bool 
+    ppp_remove_cb_on_NtWriteRequestData_return(on_NtWriteRequestData_return_t);
+typedef void (*on_NtWriteVirtualMemory_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesWritten);
+void ppp_add_cb_on_NtWriteVirtualMemory_enter(on_NtWriteVirtualMemory_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtWriteVirtualMemory_enter(on_NtWriteVirtualMemory_enter_t);
+typedef void (*on_NtWriteVirtualMemory_return_t)(CPUState* cpu, target_ulong pc, uint32_t ProcessHandle, uint32_t BaseAddress, uint32_t Buffer, uint32_t BufferSize, uint32_t NumberOfBytesWritten);
+void ppp_add_cb_on_NtWriteVirtualMemory_return(on_NtWriteVirtualMemory_return_t);
+_Bool 
+    ppp_remove_cb_on_NtWriteVirtualMemory_return(on_NtWriteVirtualMemory_return_t);
+typedef void (*on_NtYieldExecution_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtYieldExecution_enter(on_NtYieldExecution_enter_t);
+_Bool 
+    ppp_remove_cb_on_NtYieldExecution_enter(on_NtYieldExecution_enter_t);
+typedef void (*on_NtYieldExecution_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_NtYieldExecution_return(on_NtYieldExecution_return_t);
+_Bool 
+    ppp_remove_cb_on_NtYieldExecution_return(on_NtYieldExecution_return_t);
+typedef void (*on_sys_accept4_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, int32_t arg3);
+void ppp_add_cb_on_sys_accept4_enter(on_sys_accept4_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_accept4_enter(on_sys_accept4_enter_t);
+typedef void (*on_sys_accept4_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, int32_t arg3);
+void ppp_add_cb_on_sys_accept4_return(on_sys_accept4_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_accept4_return(on_sys_accept4_return_t);
+typedef void (*on_sys_access_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t mode);
+void ppp_add_cb_on_sys_access_enter(on_sys_access_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_access_enter(on_sys_access_enter_t);
+typedef void (*on_sys_access_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t mode);
+void ppp_add_cb_on_sys_access_return(on_sys_access_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_access_return(on_sys_access_return_t);
+typedef void (*on_sys_acct_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name);
+void ppp_add_cb_on_sys_acct_enter(on_sys_acct_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_acct_enter(on_sys_acct_enter_t);
+typedef void (*on_sys_acct_return_t)(CPUState* cpu, target_ulong pc, uint32_t name);
+void ppp_add_cb_on_sys_acct_return(on_sys_acct_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_acct_return(on_sys_acct_return_t);
+typedef void (*on_sys_add_key_enter_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _payload, uint32_t plen, uint32_t destringid);
+void ppp_add_cb_on_sys_add_key_enter(on_sys_add_key_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_add_key_enter(on_sys_add_key_enter_t);
+typedef void (*on_sys_add_key_return_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _payload, uint32_t plen, uint32_t destringid);
+void ppp_add_cb_on_sys_add_key_return(on_sys_add_key_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_add_key_return(on_sys_add_key_return_t);
+typedef void (*on_sys_adjtimex_enter_t)(CPUState* cpu, target_ulong pc, uint32_t txc_p);
+void ppp_add_cb_on_sys_adjtimex_enter(on_sys_adjtimex_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_adjtimex_enter(on_sys_adjtimex_enter_t);
+typedef void (*on_sys_adjtimex_return_t)(CPUState* cpu, target_ulong pc, uint32_t txc_p);
+void ppp_add_cb_on_sys_adjtimex_return(on_sys_adjtimex_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_adjtimex_return(on_sys_adjtimex_return_t);
+typedef void (*on_sys_alarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t seconds);
+void ppp_add_cb_on_sys_alarm_enter(on_sys_alarm_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_alarm_enter(on_sys_alarm_enter_t);
+typedef void (*on_sys_alarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t seconds);
+void ppp_add_cb_on_sys_alarm_return(on_sys_alarm_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_alarm_return(on_sys_alarm_return_t);
+typedef void (*on_sys_arch_prctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1);
+void ppp_add_cb_on_sys_arch_prctl_enter(on_sys_arch_prctl_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_arch_prctl_enter(on_sys_arch_prctl_enter_t);
+typedef void (*on_sys_arch_prctl_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1);
+void ppp_add_cb_on_sys_arch_prctl_return(on_sys_arch_prctl_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_arch_prctl_return(on_sys_arch_prctl_return_t);
+typedef void (*on_sys_bdflush_enter_t)(CPUState* cpu, target_ulong pc, int32_t func, int32_t _data);
+void ppp_add_cb_on_sys_bdflush_enter(on_sys_bdflush_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_bdflush_enter(on_sys_bdflush_enter_t);
+typedef void (*on_sys_bdflush_return_t)(CPUState* cpu, target_ulong pc, int32_t func, int32_t _data);
+void ppp_add_cb_on_sys_bdflush_return(on_sys_bdflush_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_bdflush_return(on_sys_bdflush_return_t);
+typedef void (*on_sys_bind_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);
+void ppp_add_cb_on_sys_bind_enter(on_sys_bind_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_bind_enter(on_sys_bind_enter_t);
+typedef void (*on_sys_bind_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);
+void ppp_add_cb_on_sys_bind_return(on_sys_bind_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_bind_return(on_sys_bind_return_t);
+typedef void (*on_sys_bpf_enter_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t attr, uint32_t size);
+void ppp_add_cb_on_sys_bpf_enter(on_sys_bpf_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_bpf_enter(on_sys_bpf_enter_t);
+typedef void (*on_sys_bpf_return_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t attr, uint32_t size);
+void ppp_add_cb_on_sys_bpf_return(on_sys_bpf_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_bpf_return(on_sys_bpf_return_t);
+typedef void (*on_sys_brk_enter_t)(CPUState* cpu, target_ulong pc, uint32_t brk);
+void ppp_add_cb_on_sys_brk_enter(on_sys_brk_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_brk_enter(on_sys_brk_enter_t);
+typedef void (*on_sys_brk_return_t)(CPUState* cpu, target_ulong pc, uint32_t brk);
+void ppp_add_cb_on_sys_brk_return(on_sys_brk_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_brk_return(on_sys_brk_return_t);
+typedef void (*on_sys_capget_enter_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t dataptr);
+void ppp_add_cb_on_sys_capget_enter(on_sys_capget_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_capget_enter(on_sys_capget_enter_t);
+typedef void (*on_sys_capget_return_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t dataptr);
+void ppp_add_cb_on_sys_capget_return(on_sys_capget_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_capget_return(on_sys_capget_return_t);
+typedef void (*on_sys_capset_enter_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t _data);
+void ppp_add_cb_on_sys_capset_enter(on_sys_capset_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_capset_enter(on_sys_capset_enter_t);
+typedef void (*on_sys_capset_return_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t _data);
+void ppp_add_cb_on_sys_capset_return(on_sys_capset_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_capset_return(on_sys_capset_return_t);
+typedef void (*on_sys_chdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename);
+void ppp_add_cb_on_sys_chdir_enter(on_sys_chdir_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_chdir_enter(on_sys_chdir_enter_t);
+typedef void (*on_sys_chdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename);
+void ppp_add_cb_on_sys_chdir_return(on_sys_chdir_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_chdir_return(on_sys_chdir_return_t);
+typedef void (*on_sys_chmod_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode);
+void ppp_add_cb_on_sys_chmod_enter(on_sys_chmod_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_chmod_enter(on_sys_chmod_enter_t);
+typedef void (*on_sys_chmod_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode);
+void ppp_add_cb_on_sys_chmod_return(on_sys_chmod_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_chmod_return(on_sys_chmod_return_t);
+typedef void (*on_sys_chown_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
+void ppp_add_cb_on_sys_chown_enter(on_sys_chown_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_chown_enter(on_sys_chown_enter_t);
+typedef void (*on_sys_chown_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
+void ppp_add_cb_on_sys_chown_return(on_sys_chown_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_chown_return(on_sys_chown_return_t);
+typedef void (*on_sys_chown16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
+void ppp_add_cb_on_sys_chown16_enter(on_sys_chown16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_chown16_enter(on_sys_chown16_enter_t);
+typedef void (*on_sys_chown16_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
+void ppp_add_cb_on_sys_chown16_return(on_sys_chown16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_chown16_return(on_sys_chown16_return_t);
+typedef void (*on_sys_chroot_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename);
+void ppp_add_cb_on_sys_chroot_enter(on_sys_chroot_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_chroot_enter(on_sys_chroot_enter_t);
+typedef void (*on_sys_chroot_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename);
+void ppp_add_cb_on_sys_chroot_return(on_sys_chroot_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_chroot_return(on_sys_chroot_return_t);
+typedef void (*on_sys_clock_adjtime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tx);
+void ppp_add_cb_on_sys_clock_adjtime_enter(on_sys_clock_adjtime_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_clock_adjtime_enter(on_sys_clock_adjtime_enter_t);
+typedef void (*on_sys_clock_adjtime_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tx);
+void ppp_add_cb_on_sys_clock_adjtime_return(on_sys_clock_adjtime_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_clock_adjtime_return(on_sys_clock_adjtime_return_t);
+typedef void (*on_sys_clock_getres_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);
+void ppp_add_cb_on_sys_clock_getres_enter(on_sys_clock_getres_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_clock_getres_enter(on_sys_clock_getres_enter_t);
+typedef void (*on_sys_clock_getres_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);
+void ppp_add_cb_on_sys_clock_getres_return(on_sys_clock_getres_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_clock_getres_return(on_sys_clock_getres_return_t);
+typedef void (*on_sys_clock_gettime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);
+void ppp_add_cb_on_sys_clock_gettime_enter(on_sys_clock_gettime_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_clock_gettime_enter(on_sys_clock_gettime_enter_t);
+typedef void (*on_sys_clock_gettime_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);
+void ppp_add_cb_on_sys_clock_gettime_return(on_sys_clock_gettime_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_clock_gettime_return(on_sys_clock_gettime_return_t);
+typedef void (*on_sys_clock_nanosleep_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, int32_t flags, uint32_t rqtp, uint32_t rmtp);
+void ppp_add_cb_on_sys_clock_nanosleep_enter(on_sys_clock_nanosleep_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_clock_nanosleep_enter(on_sys_clock_nanosleep_enter_t);
+typedef void (*on_sys_clock_nanosleep_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, int32_t flags, uint32_t rqtp, uint32_t rmtp);
+void ppp_add_cb_on_sys_clock_nanosleep_return(on_sys_clock_nanosleep_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_clock_nanosleep_return(on_sys_clock_nanosleep_return_t);
+typedef void (*on_sys_clock_settime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);
+void ppp_add_cb_on_sys_clock_settime_enter(on_sys_clock_settime_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_clock_settime_enter(on_sys_clock_settime_enter_t);
+typedef void (*on_sys_clock_settime_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);
+void ppp_add_cb_on_sys_clock_settime_return(on_sys_clock_settime_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_clock_settime_return(on_sys_clock_settime_return_t);
+typedef void (*on_sys_clone_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);
+void ppp_add_cb_on_sys_clone_enter(on_sys_clone_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_clone_enter(on_sys_clone_enter_t);
+typedef void (*on_sys_clone_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);
+void ppp_add_cb_on_sys_clone_return(on_sys_clone_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_clone_return(on_sys_clone_return_t);
+typedef void (*on_sys_close_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
+void ppp_add_cb_on_sys_close_enter(on_sys_close_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_close_enter(on_sys_close_enter_t);
+typedef void (*on_sys_close_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
+void ppp_add_cb_on_sys_close_return(on_sys_close_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_close_return(on_sys_close_return_t);
+typedef void (*on_sys_connect_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);
+void ppp_add_cb_on_sys_connect_enter(on_sys_connect_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_connect_enter(on_sys_connect_enter_t);
+typedef void (*on_sys_connect_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);
+void ppp_add_cb_on_sys_connect_return(on_sys_connect_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_connect_return(on_sys_connect_return_t);
+typedef void (*on_sys_copy_file_range_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags);
+void ppp_add_cb_on_sys_copy_file_range_enter(on_sys_copy_file_range_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_copy_file_range_enter(on_sys_copy_file_range_enter_t);
+typedef void (*on_sys_copy_file_range_return_t)(CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags);
+void ppp_add_cb_on_sys_copy_file_range_return(on_sys_copy_file_range_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_copy_file_range_return(on_sys_copy_file_range_return_t);
+typedef void (*on_sys_creat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);
+void ppp_add_cb_on_sys_creat_enter(on_sys_creat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_creat_enter(on_sys_creat_enter_t);
+typedef void (*on_sys_creat_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);
+void ppp_add_cb_on_sys_creat_return(on_sys_creat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_creat_return(on_sys_creat_return_t);
+typedef void (*on_sys_delete_module_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name_user, uint32_t flags);
+void ppp_add_cb_on_sys_delete_module_enter(on_sys_delete_module_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_delete_module_enter(on_sys_delete_module_enter_t);
+typedef void (*on_sys_delete_module_return_t)(CPUState* cpu, target_ulong pc, uint32_t name_user, uint32_t flags);
+void ppp_add_cb_on_sys_delete_module_return(on_sys_delete_module_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_delete_module_return(on_sys_delete_module_return_t);
+typedef void (*on_sys_dup_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fildes);
+void ppp_add_cb_on_sys_dup_enter(on_sys_dup_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_dup_enter(on_sys_dup_enter_t);
+typedef void (*on_sys_dup_return_t)(CPUState* cpu, target_ulong pc, uint32_t fildes);
+void ppp_add_cb_on_sys_dup_return(on_sys_dup_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_dup_return(on_sys_dup_return_t);
+typedef void (*on_sys_dup2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd);
+void ppp_add_cb_on_sys_dup2_enter(on_sys_dup2_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_dup2_enter(on_sys_dup2_enter_t);
+typedef void (*on_sys_dup2_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd);
+void ppp_add_cb_on_sys_dup2_return(on_sys_dup2_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_dup2_return(on_sys_dup2_return_t);
+typedef void (*on_sys_dup3_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd, int32_t flags);
+void ppp_add_cb_on_sys_dup3_enter(on_sys_dup3_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_dup3_enter(on_sys_dup3_enter_t);
+typedef void (*on_sys_dup3_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd, int32_t flags);
+void ppp_add_cb_on_sys_dup3_return(on_sys_dup3_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_dup3_return(on_sys_dup3_return_t);
+typedef void (*on_sys_epoll_create_enter_t)(CPUState* cpu, target_ulong pc, int32_t size);
+void ppp_add_cb_on_sys_epoll_create_enter(on_sys_epoll_create_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_epoll_create_enter(on_sys_epoll_create_enter_t);
+typedef void (*on_sys_epoll_create_return_t)(CPUState* cpu, target_ulong pc, int32_t size);
+void ppp_add_cb_on_sys_epoll_create_return(on_sys_epoll_create_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_epoll_create_return(on_sys_epoll_create_return_t);
+typedef void (*on_sys_epoll_create1_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags);
+void ppp_add_cb_on_sys_epoll_create1_enter(on_sys_epoll_create1_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_epoll_create1_enter(on_sys_epoll_create1_enter_t);
+typedef void (*on_sys_epoll_create1_return_t)(CPUState* cpu, target_ulong pc, int32_t flags);
+void ppp_add_cb_on_sys_epoll_create1_return(on_sys_epoll_create1_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_epoll_create1_return(on_sys_epoll_create1_return_t);
+typedef void (*on_sys_epoll_ctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t epfd, int32_t op, int32_t fd, uint32_t event);
+void ppp_add_cb_on_sys_epoll_ctl_enter(on_sys_epoll_ctl_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_epoll_ctl_enter(on_sys_epoll_ctl_enter_t);
+typedef void (*on_sys_epoll_ctl_return_t)(CPUState* cpu, target_ulong pc, int32_t epfd, int32_t op, int32_t fd, uint32_t event);
+void ppp_add_cb_on_sys_epoll_ctl_return(on_sys_epoll_ctl_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_epoll_ctl_return(on_sys_epoll_ctl_return_t);
+typedef void (*on_sys_epoll_pwait_enter_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout, uint32_t sigmask, uint32_t sigsetsize);
+void ppp_add_cb_on_sys_epoll_pwait_enter(on_sys_epoll_pwait_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_epoll_pwait_enter(on_sys_epoll_pwait_enter_t);
+typedef void (*on_sys_epoll_pwait_return_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout, uint32_t sigmask, uint32_t sigsetsize);
+void ppp_add_cb_on_sys_epoll_pwait_return(on_sys_epoll_pwait_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_epoll_pwait_return(on_sys_epoll_pwait_return_t);
+typedef void (*on_sys_epoll_wait_enter_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout);
+void ppp_add_cb_on_sys_epoll_wait_enter(on_sys_epoll_wait_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_epoll_wait_enter(on_sys_epoll_wait_enter_t);
+typedef void (*on_sys_epoll_wait_return_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout);
+void ppp_add_cb_on_sys_epoll_wait_return(on_sys_epoll_wait_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_epoll_wait_return(on_sys_epoll_wait_return_t);
+typedef void (*on_sys_eventfd_enter_t)(CPUState* cpu, target_ulong pc, uint32_t count);
+void ppp_add_cb_on_sys_eventfd_enter(on_sys_eventfd_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_eventfd_enter(on_sys_eventfd_enter_t);
+typedef void (*on_sys_eventfd_return_t)(CPUState* cpu, target_ulong pc, uint32_t count);
+void ppp_add_cb_on_sys_eventfd_return(on_sys_eventfd_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_eventfd_return(on_sys_eventfd_return_t);
+typedef void (*on_sys_eventfd2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t count, int32_t flags);
+void ppp_add_cb_on_sys_eventfd2_enter(on_sys_eventfd2_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_eventfd2_enter(on_sys_eventfd2_enter_t);
+typedef void (*on_sys_eventfd2_return_t)(CPUState* cpu, target_ulong pc, uint32_t count, int32_t flags);
+void ppp_add_cb_on_sys_eventfd2_return(on_sys_eventfd2_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_eventfd2_return(on_sys_eventfd2_return_t);
+typedef void (*on_sys_execve_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t argv, uint32_t envp);
+void ppp_add_cb_on_sys_execve_enter(on_sys_execve_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_execve_enter(on_sys_execve_enter_t);
+typedef void (*on_sys_execve_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t argv, uint32_t envp);
+void ppp_add_cb_on_sys_execve_return(on_sys_execve_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_execve_return(on_sys_execve_return_t);
+typedef void (*on_sys_execveat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t argv, uint32_t envp, int32_t flags);
+void ppp_add_cb_on_sys_execveat_enter(on_sys_execveat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_execveat_enter(on_sys_execveat_enter_t);
+typedef void (*on_sys_execveat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t argv, uint32_t envp, int32_t flags);
+void ppp_add_cb_on_sys_execveat_return(on_sys_execveat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_execveat_return(on_sys_execveat_return_t);
+typedef void (*on_sys_exit_enter_t)(CPUState* cpu, target_ulong pc, int32_t error_code);
+void ppp_add_cb_on_sys_exit_enter(on_sys_exit_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_exit_enter(on_sys_exit_enter_t);
+typedef void (*on_sys_exit_return_t)(CPUState* cpu, target_ulong pc, int32_t error_code);
+void ppp_add_cb_on_sys_exit_return(on_sys_exit_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_exit_return(on_sys_exit_return_t);
+typedef void (*on_sys_exit_group_enter_t)(CPUState* cpu, target_ulong pc, int32_t error_code);
+void ppp_add_cb_on_sys_exit_group_enter(on_sys_exit_group_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_exit_group_enter(on_sys_exit_group_enter_t);
+typedef void (*on_sys_exit_group_return_t)(CPUState* cpu, target_ulong pc, int32_t error_code);
+void ppp_add_cb_on_sys_exit_group_return(on_sys_exit_group_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_exit_group_return(on_sys_exit_group_return_t);
+typedef void (*on_sys_faccessat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t mode);
+void ppp_add_cb_on_sys_faccessat_enter(on_sys_faccessat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_faccessat_enter(on_sys_faccessat_enter_t);
+typedef void (*on_sys_faccessat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t mode);
+void ppp_add_cb_on_sys_faccessat_return(on_sys_faccessat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_faccessat_return(on_sys_faccessat_return_t);
+typedef void (*on_sys_fadvise64_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t len, int32_t advice);
+void ppp_add_cb_on_sys_fadvise64_enter(on_sys_fadvise64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fadvise64_enter(on_sys_fadvise64_enter_t);
+typedef void (*on_sys_fadvise64_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t len, int32_t advice);
+void ppp_add_cb_on_sys_fadvise64_return(on_sys_fadvise64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fadvise64_return(on_sys_fadvise64_return_t);
+typedef void (*on_sys_fadvise64_64_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint64_t len, int32_t advice);
+void ppp_add_cb_on_sys_fadvise64_64_enter(on_sys_fadvise64_64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fadvise64_64_enter(on_sys_fadvise64_64_enter_t);
+typedef void (*on_sys_fadvise64_64_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint64_t len, int32_t advice);
+void ppp_add_cb_on_sys_fadvise64_64_return(on_sys_fadvise64_64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fadvise64_64_return(on_sys_fadvise64_64_return_t);
+typedef void (*on_sys_fallocate_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t mode, uint64_t offset, uint64_t len);
+void ppp_add_cb_on_sys_fallocate_enter(on_sys_fallocate_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fallocate_enter(on_sys_fallocate_enter_t);
+typedef void (*on_sys_fallocate_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t mode, uint64_t offset, uint64_t len);
+void ppp_add_cb_on_sys_fallocate_return(on_sys_fallocate_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fallocate_return(on_sys_fallocate_return_t);
+typedef void (*on_sys_fanotify_init_enter_t)(CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t event_f_flags);
+void ppp_add_cb_on_sys_fanotify_init_enter(on_sys_fanotify_init_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fanotify_init_enter(on_sys_fanotify_init_enter_t);
+typedef void (*on_sys_fanotify_init_return_t)(CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t event_f_flags);
+void ppp_add_cb_on_sys_fanotify_init_return(on_sys_fanotify_init_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fanotify_init_return(on_sys_fanotify_init_return_t);
+typedef void (*on_sys_fanotify_mark_enter_t)(CPUState* cpu, target_ulong pc, int32_t fanotify_fd, uint32_t flags, uint64_t mask, int32_t fd, uint32_t pathname);
+void ppp_add_cb_on_sys_fanotify_mark_enter(on_sys_fanotify_mark_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fanotify_mark_enter(on_sys_fanotify_mark_enter_t);
+typedef void (*on_sys_fanotify_mark_return_t)(CPUState* cpu, target_ulong pc, int32_t fanotify_fd, uint32_t flags, uint64_t mask, int32_t fd, uint32_t pathname);
+void ppp_add_cb_on_sys_fanotify_mark_return(on_sys_fanotify_mark_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fanotify_mark_return(on_sys_fanotify_mark_return_t);
+typedef void (*on_sys_fchdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
+void ppp_add_cb_on_sys_fchdir_enter(on_sys_fchdir_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fchdir_enter(on_sys_fchdir_enter_t);
+typedef void (*on_sys_fchdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
+void ppp_add_cb_on_sys_fchdir_return(on_sys_fchdir_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fchdir_return(on_sys_fchdir_return_t);
+typedef void (*on_sys_fchmod_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t mode);
+void ppp_add_cb_on_sys_fchmod_enter(on_sys_fchmod_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fchmod_enter(on_sys_fchmod_enter_t);
+typedef void (*on_sys_fchmod_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t mode);
+void ppp_add_cb_on_sys_fchmod_return(on_sys_fchmod_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fchmod_return(on_sys_fchmod_return_t);
+typedef void (*on_sys_fchmodat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode);
+void ppp_add_cb_on_sys_fchmodat_enter(on_sys_fchmodat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fchmodat_enter(on_sys_fchmodat_enter_t);
+typedef void (*on_sys_fchmodat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode);
+void ppp_add_cb_on_sys_fchmodat_return(on_sys_fchmodat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fchmodat_return(on_sys_fchmodat_return_t);
+typedef void (*on_sys_fchown_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);
+void ppp_add_cb_on_sys_fchown_enter(on_sys_fchown_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fchown_enter(on_sys_fchown_enter_t);
+typedef void (*on_sys_fchown_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);
+void ppp_add_cb_on_sys_fchown_return(on_sys_fchown_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fchown_return(on_sys_fchown_return_t);
+typedef void (*on_sys_fchown16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);
+void ppp_add_cb_on_sys_fchown16_enter(on_sys_fchown16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fchown16_enter(on_sys_fchown16_enter_t);
+typedef void (*on_sys_fchown16_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);
+void ppp_add_cb_on_sys_fchown16_return(on_sys_fchown16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fchown16_return(on_sys_fchown16_return_t);
+typedef void (*on_sys_fchownat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t user, uint32_t group, int32_t flag);
+void ppp_add_cb_on_sys_fchownat_enter(on_sys_fchownat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fchownat_enter(on_sys_fchownat_enter_t);
+typedef void (*on_sys_fchownat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t user, uint32_t group, int32_t flag);
+void ppp_add_cb_on_sys_fchownat_return(on_sys_fchownat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fchownat_return(on_sys_fchownat_return_t);
+typedef void (*on_sys_fcntl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);
+void ppp_add_cb_on_sys_fcntl_enter(on_sys_fcntl_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fcntl_enter(on_sys_fcntl_enter_t);
+typedef void (*on_sys_fcntl_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);
+void ppp_add_cb_on_sys_fcntl_return(on_sys_fcntl_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fcntl_return(on_sys_fcntl_return_t);
+typedef void (*on_sys_fcntl64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);
+void ppp_add_cb_on_sys_fcntl64_enter(on_sys_fcntl64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fcntl64_enter(on_sys_fcntl64_enter_t);
+typedef void (*on_sys_fcntl64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);
+void ppp_add_cb_on_sys_fcntl64_return(on_sys_fcntl64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fcntl64_return(on_sys_fcntl64_return_t);
+typedef void (*on_sys_fdatasync_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
+void ppp_add_cb_on_sys_fdatasync_enter(on_sys_fdatasync_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fdatasync_enter(on_sys_fdatasync_enter_t);
+typedef void (*on_sys_fdatasync_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
+void ppp_add_cb_on_sys_fdatasync_return(on_sys_fdatasync_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fdatasync_return(on_sys_fdatasync_return_t);
+typedef void (*on_sys_fgetxattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size);
+void ppp_add_cb_on_sys_fgetxattr_enter(on_sys_fgetxattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fgetxattr_enter(on_sys_fgetxattr_enter_t);
+typedef void (*on_sys_fgetxattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size);
+void ppp_add_cb_on_sys_fgetxattr_return(on_sys_fgetxattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fgetxattr_return(on_sys_fgetxattr_return_t);
+typedef void (*on_sys_finit_module_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t uargs, int32_t flags);
+void ppp_add_cb_on_sys_finit_module_enter(on_sys_finit_module_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_finit_module_enter(on_sys_finit_module_enter_t);
+typedef void (*on_sys_finit_module_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t uargs, int32_t flags);
+void ppp_add_cb_on_sys_finit_module_return(on_sys_finit_module_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_finit_module_return(on_sys_finit_module_return_t);
+typedef void (*on_sys_flistxattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t list, uint32_t size);
+void ppp_add_cb_on_sys_flistxattr_enter(on_sys_flistxattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_flistxattr_enter(on_sys_flistxattr_enter_t);
+typedef void (*on_sys_flistxattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t list, uint32_t size);
+void ppp_add_cb_on_sys_flistxattr_return(on_sys_flistxattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_flistxattr_return(on_sys_flistxattr_return_t);
+typedef void (*on_sys_flock_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd);
+void ppp_add_cb_on_sys_flock_enter(on_sys_flock_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_flock_enter(on_sys_flock_enter_t);
+typedef void (*on_sys_flock_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd);
+void ppp_add_cb_on_sys_flock_return(on_sys_flock_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_flock_return(on_sys_flock_return_t);
+typedef void (*on_sys_fork_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_fork_enter(on_sys_fork_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fork_enter(on_sys_fork_enter_t);
+typedef void (*on_sys_fork_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_fork_return(on_sys_fork_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fork_return(on_sys_fork_return_t);
+typedef void (*on_sys_fremovexattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name);
+void ppp_add_cb_on_sys_fremovexattr_enter(on_sys_fremovexattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fremovexattr_enter(on_sys_fremovexattr_enter_t);
+typedef void (*on_sys_fremovexattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name);
+void ppp_add_cb_on_sys_fremovexattr_return(on_sys_fremovexattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fremovexattr_return(on_sys_fremovexattr_return_t);
+typedef void (*on_sys_fsetxattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size, int32_t flags);
+void ppp_add_cb_on_sys_fsetxattr_enter(on_sys_fsetxattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fsetxattr_enter(on_sys_fsetxattr_enter_t);
+typedef void (*on_sys_fsetxattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size, int32_t flags);
+void ppp_add_cb_on_sys_fsetxattr_return(on_sys_fsetxattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fsetxattr_return(on_sys_fsetxattr_return_t);
+typedef void (*on_sys_fstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);
+void ppp_add_cb_on_sys_fstat_enter(on_sys_fstat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fstat_enter(on_sys_fstat_enter_t);
+typedef void (*on_sys_fstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);
+void ppp_add_cb_on_sys_fstat_return(on_sys_fstat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fstat_return(on_sys_fstat_return_t);
+typedef void (*on_sys_fstat64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);
+void ppp_add_cb_on_sys_fstat64_enter(on_sys_fstat64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fstat64_enter(on_sys_fstat64_enter_t);
+typedef void (*on_sys_fstat64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);
+void ppp_add_cb_on_sys_fstat64_return(on_sys_fstat64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fstat64_return(on_sys_fstat64_return_t);
+typedef void (*on_sys_fstatat64_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t statbuf, int32_t flag);
+void ppp_add_cb_on_sys_fstatat64_enter(on_sys_fstatat64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fstatat64_enter(on_sys_fstatat64_enter_t);
+typedef void (*on_sys_fstatat64_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t statbuf, int32_t flag);
+void ppp_add_cb_on_sys_fstatat64_return(on_sys_fstatat64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fstatat64_return(on_sys_fstatat64_return_t);
+typedef void (*on_sys_fstatfs_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf);
+void ppp_add_cb_on_sys_fstatfs_enter(on_sys_fstatfs_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fstatfs_enter(on_sys_fstatfs_enter_t);
+typedef void (*on_sys_fstatfs_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf);
+void ppp_add_cb_on_sys_fstatfs_return(on_sys_fstatfs_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fstatfs_return(on_sys_fstatfs_return_t);
+typedef void (*on_sys_fstatfs64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t sz, uint32_t buf);
+void ppp_add_cb_on_sys_fstatfs64_enter(on_sys_fstatfs64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fstatfs64_enter(on_sys_fstatfs64_enter_t);
+typedef void (*on_sys_fstatfs64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t sz, uint32_t buf);
+void ppp_add_cb_on_sys_fstatfs64_return(on_sys_fstatfs64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fstatfs64_return(on_sys_fstatfs64_return_t);
+typedef void (*on_sys_fsync_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
+void ppp_add_cb_on_sys_fsync_enter(on_sys_fsync_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_fsync_enter(on_sys_fsync_enter_t);
+typedef void (*on_sys_fsync_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
+void ppp_add_cb_on_sys_fsync_return(on_sys_fsync_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_fsync_return(on_sys_fsync_return_t);
+typedef void (*on_sys_ftruncate_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t length);
+void ppp_add_cb_on_sys_ftruncate_enter(on_sys_ftruncate_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_ftruncate_enter(on_sys_ftruncate_enter_t);
+typedef void (*on_sys_ftruncate_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t length);
+void ppp_add_cb_on_sys_ftruncate_return(on_sys_ftruncate_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_ftruncate_return(on_sys_ftruncate_return_t);
+typedef void (*on_sys_ftruncate64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint64_t length);
+void ppp_add_cb_on_sys_ftruncate64_enter(on_sys_ftruncate64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_ftruncate64_enter(on_sys_ftruncate64_enter_t);
+typedef void (*on_sys_ftruncate64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint64_t length);
+void ppp_add_cb_on_sys_ftruncate64_return(on_sys_ftruncate64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_ftruncate64_return(on_sys_ftruncate64_return_t);
+typedef void (*on_sys_futex_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uaddr, int32_t op, uint32_t val, uint32_t utime, uint32_t uaddr2, uint32_t val3);
+void ppp_add_cb_on_sys_futex_enter(on_sys_futex_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_futex_enter(on_sys_futex_enter_t);
+typedef void (*on_sys_futex_return_t)(CPUState* cpu, target_ulong pc, uint32_t uaddr, int32_t op, uint32_t val, uint32_t utime, uint32_t uaddr2, uint32_t val3);
+void ppp_add_cb_on_sys_futex_return(on_sys_futex_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_futex_return(on_sys_futex_return_t);
+typedef void (*on_sys_futimesat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes);
+void ppp_add_cb_on_sys_futimesat_enter(on_sys_futimesat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_futimesat_enter(on_sys_futimesat_enter_t);
+typedef void (*on_sys_futimesat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes);
+void ppp_add_cb_on_sys_futimesat_return(on_sys_futimesat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_futimesat_return(on_sys_futimesat_return_t);
+typedef void (*on_sys_get_mempolicy_enter_t)(CPUState* cpu, target_ulong pc, uint32_t policy, uint32_t nmask, uint32_t maxnode, uint32_t addr, uint32_t flags);
+void ppp_add_cb_on_sys_get_mempolicy_enter(on_sys_get_mempolicy_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_get_mempolicy_enter(on_sys_get_mempolicy_enter_t);
+typedef void (*on_sys_get_mempolicy_return_t)(CPUState* cpu, target_ulong pc, uint32_t policy, uint32_t nmask, uint32_t maxnode, uint32_t addr, uint32_t flags);
+void ppp_add_cb_on_sys_get_mempolicy_return(on_sys_get_mempolicy_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_get_mempolicy_return(on_sys_get_mempolicy_return_t);
+typedef void (*on_sys_get_robust_list_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t head_ptr, uint32_t len_ptr);
+void ppp_add_cb_on_sys_get_robust_list_enter(on_sys_get_robust_list_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_get_robust_list_enter(on_sys_get_robust_list_enter_t);
+typedef void (*on_sys_get_robust_list_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t head_ptr, uint32_t len_ptr);
+void ppp_add_cb_on_sys_get_robust_list_return(on_sys_get_robust_list_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_get_robust_list_return(on_sys_get_robust_list_return_t);
+typedef void (*on_sys_get_thread_area_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0);
+void ppp_add_cb_on_sys_get_thread_area_enter(on_sys_get_thread_area_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_get_thread_area_enter(on_sys_get_thread_area_enter_t);
+typedef void (*on_sys_get_thread_area_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0);
+void ppp_add_cb_on_sys_get_thread_area_return(on_sys_get_thread_area_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_get_thread_area_return(on_sys_get_thread_area_return_t);
+typedef void (*on_sys_getcpu_enter_t)(CPUState* cpu, target_ulong pc, uint32_t _cpu, uint32_t node, uint32_t cache);
+void ppp_add_cb_on_sys_getcpu_enter(on_sys_getcpu_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getcpu_enter(on_sys_getcpu_enter_t);
+typedef void (*on_sys_getcpu_return_t)(CPUState* cpu, target_ulong pc, uint32_t _cpu, uint32_t node, uint32_t cache);
+void ppp_add_cb_on_sys_getcpu_return(on_sys_getcpu_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getcpu_return(on_sys_getcpu_return_t);
+typedef void (*on_sys_getcwd_enter_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t size);
+void ppp_add_cb_on_sys_getcwd_enter(on_sys_getcwd_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getcwd_enter(on_sys_getcwd_enter_t);
+typedef void (*on_sys_getcwd_return_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t size);
+void ppp_add_cb_on_sys_getcwd_return(on_sys_getcwd_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getcwd_return(on_sys_getcwd_return_t);
+typedef void (*on_sys_getdents_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);
+void ppp_add_cb_on_sys_getdents_enter(on_sys_getdents_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getdents_enter(on_sys_getdents_enter_t);
+typedef void (*on_sys_getdents_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);
+void ppp_add_cb_on_sys_getdents_return(on_sys_getdents_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getdents_return(on_sys_getdents_return_t);
+typedef void (*on_sys_getdents64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);
+void ppp_add_cb_on_sys_getdents64_enter(on_sys_getdents64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getdents64_enter(on_sys_getdents64_enter_t);
+typedef void (*on_sys_getdents64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);
+void ppp_add_cb_on_sys_getdents64_return(on_sys_getdents64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getdents64_return(on_sys_getdents64_return_t);
+typedef void (*on_sys_getegid_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getegid_enter(on_sys_getegid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getegid_enter(on_sys_getegid_enter_t);
+typedef void (*on_sys_getegid_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getegid_return(on_sys_getegid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getegid_return(on_sys_getegid_return_t);
+typedef void (*on_sys_getegid16_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getegid16_enter(on_sys_getegid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getegid16_enter(on_sys_getegid16_enter_t);
+typedef void (*on_sys_getegid16_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getegid16_return(on_sys_getegid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getegid16_return(on_sys_getegid16_return_t);
+typedef void (*on_sys_geteuid_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_geteuid_enter(on_sys_geteuid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_geteuid_enter(on_sys_geteuid_enter_t);
+typedef void (*on_sys_geteuid_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_geteuid_return(on_sys_geteuid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_geteuid_return(on_sys_geteuid_return_t);
+typedef void (*on_sys_geteuid16_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_geteuid16_enter(on_sys_geteuid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_geteuid16_enter(on_sys_geteuid16_enter_t);
+typedef void (*on_sys_geteuid16_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_geteuid16_return(on_sys_geteuid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_geteuid16_return(on_sys_geteuid16_return_t);
+typedef void (*on_sys_getgid_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getgid_enter(on_sys_getgid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getgid_enter(on_sys_getgid_enter_t);
+typedef void (*on_sys_getgid_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getgid_return(on_sys_getgid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getgid_return(on_sys_getgid_return_t);
+typedef void (*on_sys_getgid16_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getgid16_enter(on_sys_getgid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getgid16_enter(on_sys_getgid16_enter_t);
+typedef void (*on_sys_getgid16_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getgid16_return(on_sys_getgid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getgid16_return(on_sys_getgid16_return_t);
+typedef void (*on_sys_getgroups_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
+void ppp_add_cb_on_sys_getgroups_enter(on_sys_getgroups_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getgroups_enter(on_sys_getgroups_enter_t);
+typedef void (*on_sys_getgroups_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
+void ppp_add_cb_on_sys_getgroups_return(on_sys_getgroups_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getgroups_return(on_sys_getgroups_return_t);
+typedef void (*on_sys_getgroups16_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
+void ppp_add_cb_on_sys_getgroups16_enter(on_sys_getgroups16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getgroups16_enter(on_sys_getgroups16_enter_t);
+typedef void (*on_sys_getgroups16_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
+void ppp_add_cb_on_sys_getgroups16_return(on_sys_getgroups16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getgroups16_return(on_sys_getgroups16_return_t);
+typedef void (*on_sys_getitimer_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value);
+void ppp_add_cb_on_sys_getitimer_enter(on_sys_getitimer_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getitimer_enter(on_sys_getitimer_enter_t);
+typedef void (*on_sys_getitimer_return_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value);
+void ppp_add_cb_on_sys_getitimer_return(on_sys_getitimer_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getitimer_return(on_sys_getitimer_return_t);
+typedef void (*on_sys_getpeername_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_getpeername_enter(on_sys_getpeername_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getpeername_enter(on_sys_getpeername_enter_t);
+typedef void (*on_sys_getpeername_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_getpeername_return(on_sys_getpeername_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getpeername_return(on_sys_getpeername_return_t);
+typedef void (*on_sys_getpgid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid);
+void ppp_add_cb_on_sys_getpgid_enter(on_sys_getpgid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getpgid_enter(on_sys_getpgid_enter_t);
+typedef void (*on_sys_getpgid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid);
+void ppp_add_cb_on_sys_getpgid_return(on_sys_getpgid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getpgid_return(on_sys_getpgid_return_t);
+typedef void (*on_sys_getpgrp_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getpgrp_enter(on_sys_getpgrp_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getpgrp_enter(on_sys_getpgrp_enter_t);
+typedef void (*on_sys_getpgrp_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getpgrp_return(on_sys_getpgrp_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getpgrp_return(on_sys_getpgrp_return_t);
+typedef void (*on_sys_getpid_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getpid_enter(on_sys_getpid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getpid_enter(on_sys_getpid_enter_t);
+typedef void (*on_sys_getpid_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getpid_return(on_sys_getpid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getpid_return(on_sys_getpid_return_t);
+typedef void (*on_sys_getppid_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getppid_enter(on_sys_getppid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getppid_enter(on_sys_getppid_enter_t);
+typedef void (*on_sys_getppid_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getppid_return(on_sys_getppid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getppid_return(on_sys_getppid_return_t);
+typedef void (*on_sys_getpriority_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who);
+void ppp_add_cb_on_sys_getpriority_enter(on_sys_getpriority_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getpriority_enter(on_sys_getpriority_enter_t);
+typedef void (*on_sys_getpriority_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who);
+void ppp_add_cb_on_sys_getpriority_return(on_sys_getpriority_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getpriority_return(on_sys_getpriority_return_t);
+typedef void (*on_sys_getrandom_enter_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t count, uint32_t flags);
+void ppp_add_cb_on_sys_getrandom_enter(on_sys_getrandom_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getrandom_enter(on_sys_getrandom_enter_t);
+typedef void (*on_sys_getrandom_return_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t count, uint32_t flags);
+void ppp_add_cb_on_sys_getrandom_return(on_sys_getrandom_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getrandom_return(on_sys_getrandom_return_t);
+typedef void (*on_sys_getresgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
+void ppp_add_cb_on_sys_getresgid_enter(on_sys_getresgid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getresgid_enter(on_sys_getresgid_enter_t);
+typedef void (*on_sys_getresgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
+void ppp_add_cb_on_sys_getresgid_return(on_sys_getresgid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getresgid_return(on_sys_getresgid_return_t);
+typedef void (*on_sys_getresgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
+void ppp_add_cb_on_sys_getresgid16_enter(on_sys_getresgid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getresgid16_enter(on_sys_getresgid16_enter_t);
+typedef void (*on_sys_getresgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
+void ppp_add_cb_on_sys_getresgid16_return(on_sys_getresgid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getresgid16_return(on_sys_getresgid16_return_t);
+typedef void (*on_sys_getresuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
+void ppp_add_cb_on_sys_getresuid_enter(on_sys_getresuid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getresuid_enter(on_sys_getresuid_enter_t);
+typedef void (*on_sys_getresuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
+void ppp_add_cb_on_sys_getresuid_return(on_sys_getresuid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getresuid_return(on_sys_getresuid_return_t);
+typedef void (*on_sys_getresuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
+void ppp_add_cb_on_sys_getresuid16_enter(on_sys_getresuid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getresuid16_enter(on_sys_getresuid16_enter_t);
+typedef void (*on_sys_getresuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
+void ppp_add_cb_on_sys_getresuid16_return(on_sys_getresuid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getresuid16_return(on_sys_getresuid16_return_t);
+typedef void (*on_sys_getrlimit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);
+void ppp_add_cb_on_sys_getrlimit_enter(on_sys_getrlimit_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getrlimit_enter(on_sys_getrlimit_enter_t);
+typedef void (*on_sys_getrlimit_return_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);
+void ppp_add_cb_on_sys_getrlimit_return(on_sys_getrlimit_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getrlimit_return(on_sys_getrlimit_return_t);
+typedef void (*on_sys_getrusage_enter_t)(CPUState* cpu, target_ulong pc, int32_t who, uint32_t ru);
+void ppp_add_cb_on_sys_getrusage_enter(on_sys_getrusage_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getrusage_enter(on_sys_getrusage_enter_t);
+typedef void (*on_sys_getrusage_return_t)(CPUState* cpu, target_ulong pc, int32_t who, uint32_t ru);
+void ppp_add_cb_on_sys_getrusage_return(on_sys_getrusage_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getrusage_return(on_sys_getrusage_return_t);
+typedef void (*on_sys_getsid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid);
+void ppp_add_cb_on_sys_getsid_enter(on_sys_getsid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getsid_enter(on_sys_getsid_enter_t);
+typedef void (*on_sys_getsid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid);
+void ppp_add_cb_on_sys_getsid_return(on_sys_getsid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getsid_return(on_sys_getsid_return_t);
+typedef void (*on_sys_getsockname_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_getsockname_enter(on_sys_getsockname_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getsockname_enter(on_sys_getsockname_enter_t);
+typedef void (*on_sys_getsockname_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_getsockname_return(on_sys_getsockname_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getsockname_return(on_sys_getsockname_return_t);
+typedef void (*on_sys_getsockopt_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, uint32_t optlen);
+void ppp_add_cb_on_sys_getsockopt_enter(on_sys_getsockopt_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getsockopt_enter(on_sys_getsockopt_enter_t);
+typedef void (*on_sys_getsockopt_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, uint32_t optlen);
+void ppp_add_cb_on_sys_getsockopt_return(on_sys_getsockopt_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getsockopt_return(on_sys_getsockopt_return_t);
+typedef void (*on_sys_gettid_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_gettid_enter(on_sys_gettid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_gettid_enter(on_sys_gettid_enter_t);
+typedef void (*on_sys_gettid_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_gettid_return(on_sys_gettid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_gettid_return(on_sys_gettid_return_t);
+typedef void (*on_sys_gettimeofday_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);
+void ppp_add_cb_on_sys_gettimeofday_enter(on_sys_gettimeofday_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_gettimeofday_enter(on_sys_gettimeofday_enter_t);
+typedef void (*on_sys_gettimeofday_return_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);
+void ppp_add_cb_on_sys_gettimeofday_return(on_sys_gettimeofday_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_gettimeofday_return(on_sys_gettimeofday_return_t);
+typedef void (*on_sys_getuid_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getuid_enter(on_sys_getuid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getuid_enter(on_sys_getuid_enter_t);
+typedef void (*on_sys_getuid_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getuid_return(on_sys_getuid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getuid_return(on_sys_getuid_return_t);
+typedef void (*on_sys_getuid16_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getuid16_enter(on_sys_getuid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getuid16_enter(on_sys_getuid16_enter_t);
+typedef void (*on_sys_getuid16_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_getuid16_return(on_sys_getuid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getuid16_return(on_sys_getuid16_return_t);
+typedef void (*on_sys_getxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);
+void ppp_add_cb_on_sys_getxattr_enter(on_sys_getxattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_getxattr_enter(on_sys_getxattr_enter_t);
+typedef void (*on_sys_getxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);
+void ppp_add_cb_on_sys_getxattr_return(on_sys_getxattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_getxattr_return(on_sys_getxattr_return_t);
+typedef void (*on_sys_init_module_enter_t)(CPUState* cpu, target_ulong pc, uint32_t umod, uint32_t len, uint32_t uargs);
+void ppp_add_cb_on_sys_init_module_enter(on_sys_init_module_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_init_module_enter(on_sys_init_module_enter_t);
+typedef void (*on_sys_init_module_return_t)(CPUState* cpu, target_ulong pc, uint32_t umod, uint32_t len, uint32_t uargs);
+void ppp_add_cb_on_sys_init_module_return(on_sys_init_module_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_init_module_return(on_sys_init_module_return_t);
+typedef void (*on_sys_inotify_add_watch_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t path, uint32_t mask);
+void ppp_add_cb_on_sys_inotify_add_watch_enter(on_sys_inotify_add_watch_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_inotify_add_watch_enter(on_sys_inotify_add_watch_enter_t);
+typedef void (*on_sys_inotify_add_watch_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t path, uint32_t mask);
+void ppp_add_cb_on_sys_inotify_add_watch_return(on_sys_inotify_add_watch_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_inotify_add_watch_return(on_sys_inotify_add_watch_return_t);
+typedef void (*on_sys_inotify_init_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_inotify_init_enter(on_sys_inotify_init_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_inotify_init_enter(on_sys_inotify_init_enter_t);
+typedef void (*on_sys_inotify_init_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_inotify_init_return(on_sys_inotify_init_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_inotify_init_return(on_sys_inotify_init_return_t);
+typedef void (*on_sys_inotify_init1_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags);
+void ppp_add_cb_on_sys_inotify_init1_enter(on_sys_inotify_init1_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_inotify_init1_enter(on_sys_inotify_init1_enter_t);
+typedef void (*on_sys_inotify_init1_return_t)(CPUState* cpu, target_ulong pc, int32_t flags);
+void ppp_add_cb_on_sys_inotify_init1_return(on_sys_inotify_init1_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_inotify_init1_return(on_sys_inotify_init1_return_t);
+typedef void (*on_sys_inotify_rm_watch_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t wd);
+void ppp_add_cb_on_sys_inotify_rm_watch_enter(on_sys_inotify_rm_watch_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_inotify_rm_watch_enter(on_sys_inotify_rm_watch_enter_t);
+typedef void (*on_sys_inotify_rm_watch_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t wd);
+void ppp_add_cb_on_sys_inotify_rm_watch_return(on_sys_inotify_rm_watch_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_inotify_rm_watch_return(on_sys_inotify_rm_watch_return_t);
+typedef void (*on_sys_io_cancel_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, uint32_t iocb, uint32_t result);
+void ppp_add_cb_on_sys_io_cancel_enter(on_sys_io_cancel_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_io_cancel_enter(on_sys_io_cancel_enter_t);
+typedef void (*on_sys_io_cancel_return_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, uint32_t iocb, uint32_t result);
+void ppp_add_cb_on_sys_io_cancel_return(on_sys_io_cancel_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_io_cancel_return(on_sys_io_cancel_return_t);
+typedef void (*on_sys_io_destroy_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ctx);
+void ppp_add_cb_on_sys_io_destroy_enter(on_sys_io_destroy_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_io_destroy_enter(on_sys_io_destroy_enter_t);
+typedef void (*on_sys_io_destroy_return_t)(CPUState* cpu, target_ulong pc, uint32_t ctx);
+void ppp_add_cb_on_sys_io_destroy_return(on_sys_io_destroy_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_io_destroy_return(on_sys_io_destroy_return_t);
+typedef void (*on_sys_io_getevents_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, int32_t min_nr, int32_t nr, uint32_t events, uint32_t timeout);
+void ppp_add_cb_on_sys_io_getevents_enter(on_sys_io_getevents_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_io_getevents_enter(on_sys_io_getevents_enter_t);
+typedef void (*on_sys_io_getevents_return_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, int32_t min_nr, int32_t nr, uint32_t events, uint32_t timeout);
+void ppp_add_cb_on_sys_io_getevents_return(on_sys_io_getevents_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_io_getevents_return(on_sys_io_getevents_return_t);
+typedef void (*on_sys_io_setup_enter_t)(CPUState* cpu, target_ulong pc, uint32_t nr_reqs, uint32_t ctx);
+void ppp_add_cb_on_sys_io_setup_enter(on_sys_io_setup_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_io_setup_enter(on_sys_io_setup_enter_t);
+typedef void (*on_sys_io_setup_return_t)(CPUState* cpu, target_ulong pc, uint32_t nr_reqs, uint32_t ctx);
+void ppp_add_cb_on_sys_io_setup_return(on_sys_io_setup_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_io_setup_return(on_sys_io_setup_return_t);
+typedef void (*on_sys_io_submit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, int32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_io_submit_enter(on_sys_io_submit_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_io_submit_enter(on_sys_io_submit_enter_t);
+typedef void (*on_sys_io_submit_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, int32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_io_submit_return(on_sys_io_submit_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_io_submit_return(on_sys_io_submit_return_t);
+typedef void (*on_sys_ioctl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);
+void ppp_add_cb_on_sys_ioctl_enter(on_sys_ioctl_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_ioctl_enter(on_sys_ioctl_enter_t);
+typedef void (*on_sys_ioctl_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);
+void ppp_add_cb_on_sys_ioctl_return(on_sys_ioctl_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_ioctl_return(on_sys_ioctl_return_t);
+typedef void (*on_sys_ioperm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, int32_t arg2);
+void ppp_add_cb_on_sys_ioperm_enter(on_sys_ioperm_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_ioperm_enter(on_sys_ioperm_enter_t);
+typedef void (*on_sys_ioperm_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, int32_t arg2);
+void ppp_add_cb_on_sys_ioperm_return(on_sys_ioperm_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_ioperm_return(on_sys_ioperm_return_t);
+typedef void (*on_sys_iopl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0);
+void ppp_add_cb_on_sys_iopl_enter(on_sys_iopl_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_iopl_enter(on_sys_iopl_enter_t);
+typedef void (*on_sys_iopl_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0);
+void ppp_add_cb_on_sys_iopl_return(on_sys_iopl_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_iopl_return(on_sys_iopl_return_t);
+typedef void (*on_sys_ioprio_get_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who);
+void ppp_add_cb_on_sys_ioprio_get_enter(on_sys_ioprio_get_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_ioprio_get_enter(on_sys_ioprio_get_enter_t);
+typedef void (*on_sys_ioprio_get_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who);
+void ppp_add_cb_on_sys_ioprio_get_return(on_sys_ioprio_get_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_ioprio_get_return(on_sys_ioprio_get_return_t);
+typedef void (*on_sys_ioprio_set_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t ioprio);
+void ppp_add_cb_on_sys_ioprio_set_enter(on_sys_ioprio_set_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_ioprio_set_enter(on_sys_ioprio_set_enter_t);
+typedef void (*on_sys_ioprio_set_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t ioprio);
+void ppp_add_cb_on_sys_ioprio_set_return(on_sys_ioprio_set_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_ioprio_set_return(on_sys_ioprio_set_return_t);
+typedef void (*on_sys_ipc_enter_t)(CPUState* cpu, target_ulong pc, uint32_t call, int32_t first, uint32_t second, uint32_t third, uint32_t ptr, int32_t fifth);
+void ppp_add_cb_on_sys_ipc_enter(on_sys_ipc_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_ipc_enter(on_sys_ipc_enter_t);
+typedef void (*on_sys_ipc_return_t)(CPUState* cpu, target_ulong pc, uint32_t call, int32_t first, uint32_t second, uint32_t third, uint32_t ptr, int32_t fifth);
+void ppp_add_cb_on_sys_ipc_return(on_sys_ipc_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_ipc_return(on_sys_ipc_return_t);
+typedef void (*on_sys_kcmp_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid1, int32_t pid2, int32_t type, uint32_t idx1, uint32_t idx2);
+void ppp_add_cb_on_sys_kcmp_enter(on_sys_kcmp_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_kcmp_enter(on_sys_kcmp_enter_t);
+typedef void (*on_sys_kcmp_return_t)(CPUState* cpu, target_ulong pc, int32_t pid1, int32_t pid2, int32_t type, uint32_t idx1, uint32_t idx2);
+void ppp_add_cb_on_sys_kcmp_return(on_sys_kcmp_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_kcmp_return(on_sys_kcmp_return_t);
+typedef void (*on_sys_kexec_load_enter_t)(CPUState* cpu, target_ulong pc, uint32_t entry, uint32_t nr_segments, uint32_t segments, uint32_t flags);
+void ppp_add_cb_on_sys_kexec_load_enter(on_sys_kexec_load_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_kexec_load_enter(on_sys_kexec_load_enter_t);
+typedef void (*on_sys_kexec_load_return_t)(CPUState* cpu, target_ulong pc, uint32_t entry, uint32_t nr_segments, uint32_t segments, uint32_t flags);
+void ppp_add_cb_on_sys_kexec_load_return(on_sys_kexec_load_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_kexec_load_return(on_sys_kexec_load_return_t);
+typedef void (*on_sys_keyctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
+void ppp_add_cb_on_sys_keyctl_enter(on_sys_keyctl_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_keyctl_enter(on_sys_keyctl_enter_t);
+typedef void (*on_sys_keyctl_return_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
+void ppp_add_cb_on_sys_keyctl_return(on_sys_keyctl_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_keyctl_return(on_sys_keyctl_return_t);
+typedef void (*on_sys_kill_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);
+void ppp_add_cb_on_sys_kill_enter(on_sys_kill_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_kill_enter(on_sys_kill_enter_t);
+typedef void (*on_sys_kill_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);
+void ppp_add_cb_on_sys_kill_return(on_sys_kill_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_kill_return(on_sys_kill_return_t);
+typedef void (*on_sys_lchown_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
+void ppp_add_cb_on_sys_lchown_enter(on_sys_lchown_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_lchown_enter(on_sys_lchown_enter_t);
+typedef void (*on_sys_lchown_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
+void ppp_add_cb_on_sys_lchown_return(on_sys_lchown_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_lchown_return(on_sys_lchown_return_t);
+typedef void (*on_sys_lchown16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
+void ppp_add_cb_on_sys_lchown16_enter(on_sys_lchown16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_lchown16_enter(on_sys_lchown16_enter_t);
+typedef void (*on_sys_lchown16_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
+void ppp_add_cb_on_sys_lchown16_return(on_sys_lchown16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_lchown16_return(on_sys_lchown16_return_t);
+typedef void (*on_sys_lgetxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);
+void ppp_add_cb_on_sys_lgetxattr_enter(on_sys_lgetxattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_lgetxattr_enter(on_sys_lgetxattr_enter_t);
+typedef void (*on_sys_lgetxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);
+void ppp_add_cb_on_sys_lgetxattr_return(on_sys_lgetxattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_lgetxattr_return(on_sys_lgetxattr_return_t);
+typedef void (*on_sys_link_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);
+void ppp_add_cb_on_sys_link_enter(on_sys_link_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_link_enter(on_sys_link_enter_t);
+typedef void (*on_sys_link_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);
+void ppp_add_cb_on_sys_link_return(on_sys_link_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_link_return(on_sys_link_return_t);
+typedef void (*on_sys_linkat_enter_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, int32_t flags);
+void ppp_add_cb_on_sys_linkat_enter(on_sys_linkat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_linkat_enter(on_sys_linkat_enter_t);
+typedef void (*on_sys_linkat_return_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, int32_t flags);
+void ppp_add_cb_on_sys_linkat_return(on_sys_linkat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_linkat_return(on_sys_linkat_return_t);
+typedef void (*on_sys_listen_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);
+void ppp_add_cb_on_sys_listen_enter(on_sys_listen_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_listen_enter(on_sys_listen_enter_t);
+typedef void (*on_sys_listen_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);
+void ppp_add_cb_on_sys_listen_return(on_sys_listen_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_listen_return(on_sys_listen_return_t);
+typedef void (*on_sys_listxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);
+void ppp_add_cb_on_sys_listxattr_enter(on_sys_listxattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_listxattr_enter(on_sys_listxattr_enter_t);
+typedef void (*on_sys_listxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);
+void ppp_add_cb_on_sys_listxattr_return(on_sys_listxattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_listxattr_return(on_sys_listxattr_return_t);
+typedef void (*on_sys_llistxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);
+void ppp_add_cb_on_sys_llistxattr_enter(on_sys_llistxattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_llistxattr_enter(on_sys_llistxattr_enter_t);
+typedef void (*on_sys_llistxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);
+void ppp_add_cb_on_sys_llistxattr_return(on_sys_llistxattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_llistxattr_return(on_sys_llistxattr_return_t);
+typedef void (*on_sys_llseek_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset_high, uint32_t offset_low, uint32_t result, uint32_t whence);
+void ppp_add_cb_on_sys_llseek_enter(on_sys_llseek_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_llseek_enter(on_sys_llseek_enter_t);
+typedef void (*on_sys_llseek_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset_high, uint32_t offset_low, uint32_t result, uint32_t whence);
+void ppp_add_cb_on_sys_llseek_return(on_sys_llseek_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_llseek_return(on_sys_llseek_return_t);
+typedef void (*on_sys_lookup_dcookie_enter_t)(CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len);
+void ppp_add_cb_on_sys_lookup_dcookie_enter(on_sys_lookup_dcookie_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_lookup_dcookie_enter(on_sys_lookup_dcookie_enter_t);
+typedef void (*on_sys_lookup_dcookie_return_t)(CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len);
+void ppp_add_cb_on_sys_lookup_dcookie_return(on_sys_lookup_dcookie_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_lookup_dcookie_return(on_sys_lookup_dcookie_return_t);
+typedef void (*on_sys_lremovexattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);
+void ppp_add_cb_on_sys_lremovexattr_enter(on_sys_lremovexattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_lremovexattr_enter(on_sys_lremovexattr_enter_t);
+typedef void (*on_sys_lremovexattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);
+void ppp_add_cb_on_sys_lremovexattr_return(on_sys_lremovexattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_lremovexattr_return(on_sys_lremovexattr_return_t);
+typedef void (*on_sys_lseek_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset, uint32_t whence);
+void ppp_add_cb_on_sys_lseek_enter(on_sys_lseek_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_lseek_enter(on_sys_lseek_enter_t);
+typedef void (*on_sys_lseek_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset, uint32_t whence);
+void ppp_add_cb_on_sys_lseek_return(on_sys_lseek_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_lseek_return(on_sys_lseek_return_t);
+typedef void (*on_sys_lsetxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);
+void ppp_add_cb_on_sys_lsetxattr_enter(on_sys_lsetxattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_lsetxattr_enter(on_sys_lsetxattr_enter_t);
+typedef void (*on_sys_lsetxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);
+void ppp_add_cb_on_sys_lsetxattr_return(on_sys_lsetxattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_lsetxattr_return(on_sys_lsetxattr_return_t);
+typedef void (*on_sys_lstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
+void ppp_add_cb_on_sys_lstat_enter(on_sys_lstat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_lstat_enter(on_sys_lstat_enter_t);
+typedef void (*on_sys_lstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
+void ppp_add_cb_on_sys_lstat_return(on_sys_lstat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_lstat_return(on_sys_lstat_return_t);
+typedef void (*on_sys_lstat64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
+void ppp_add_cb_on_sys_lstat64_enter(on_sys_lstat64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_lstat64_enter(on_sys_lstat64_enter_t);
+typedef void (*on_sys_lstat64_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
+void ppp_add_cb_on_sys_lstat64_return(on_sys_lstat64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_lstat64_return(on_sys_lstat64_return_t);
+typedef void (*on_sys_madvise_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t behavior);
+void ppp_add_cb_on_sys_madvise_enter(on_sys_madvise_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_madvise_enter(on_sys_madvise_enter_t);
+typedef void (*on_sys_madvise_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t behavior);
+void ppp_add_cb_on_sys_madvise_return(on_sys_madvise_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_madvise_return(on_sys_madvise_return_t);
+typedef void (*on_sys_mbind_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t mode, uint32_t nmask, uint32_t maxnode, uint32_t flags);
+void ppp_add_cb_on_sys_mbind_enter(on_sys_mbind_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mbind_enter(on_sys_mbind_enter_t);
+typedef void (*on_sys_mbind_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t mode, uint32_t nmask, uint32_t maxnode, uint32_t flags);
+void ppp_add_cb_on_sys_mbind_return(on_sys_mbind_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mbind_return(on_sys_mbind_return_t);
+typedef void (*on_sys_membarrier_enter_t)(CPUState* cpu, target_ulong pc, int32_t cmd, int32_t flags);
+void ppp_add_cb_on_sys_membarrier_enter(on_sys_membarrier_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_membarrier_enter(on_sys_membarrier_enter_t);
+typedef void (*on_sys_membarrier_return_t)(CPUState* cpu, target_ulong pc, int32_t cmd, int32_t flags);
+void ppp_add_cb_on_sys_membarrier_return(on_sys_membarrier_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_membarrier_return(on_sys_membarrier_return_t);
+typedef void (*on_sys_memfd_create_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uname_ptr, uint32_t flags);
+void ppp_add_cb_on_sys_memfd_create_enter(on_sys_memfd_create_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_memfd_create_enter(on_sys_memfd_create_enter_t);
+typedef void (*on_sys_memfd_create_return_t)(CPUState* cpu, target_ulong pc, uint32_t uname_ptr, uint32_t flags);
+void ppp_add_cb_on_sys_memfd_create_return(on_sys_memfd_create_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_memfd_create_return(on_sys_memfd_create_return_t);
+typedef void (*on_sys_migrate_pages_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t maxnode, uint32_t from, uint32_t to);
+void ppp_add_cb_on_sys_migrate_pages_enter(on_sys_migrate_pages_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_migrate_pages_enter(on_sys_migrate_pages_enter_t);
+typedef void (*on_sys_migrate_pages_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t maxnode, uint32_t from, uint32_t to);
+void ppp_add_cb_on_sys_migrate_pages_return(on_sys_migrate_pages_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_migrate_pages_return(on_sys_migrate_pages_return_t);
+typedef void (*on_sys_mincore_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t vec);
+void ppp_add_cb_on_sys_mincore_enter(on_sys_mincore_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mincore_enter(on_sys_mincore_enter_t);
+typedef void (*on_sys_mincore_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t vec);
+void ppp_add_cb_on_sys_mincore_return(on_sys_mincore_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mincore_return(on_sys_mincore_return_t);
+typedef void (*on_sys_mkdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);
+void ppp_add_cb_on_sys_mkdir_enter(on_sys_mkdir_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mkdir_enter(on_sys_mkdir_enter_t);
+typedef void (*on_sys_mkdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);
+void ppp_add_cb_on_sys_mkdir_return(on_sys_mkdir_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mkdir_return(on_sys_mkdir_return_t);
+typedef void (*on_sys_mkdirat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, uint32_t mode);
+void ppp_add_cb_on_sys_mkdirat_enter(on_sys_mkdirat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mkdirat_enter(on_sys_mkdirat_enter_t);
+typedef void (*on_sys_mkdirat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, uint32_t mode);
+void ppp_add_cb_on_sys_mkdirat_return(on_sys_mkdirat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mkdirat_return(on_sys_mkdirat_return_t);
+typedef void (*on_sys_mknod_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode, uint32_t dev);
+void ppp_add_cb_on_sys_mknod_enter(on_sys_mknod_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mknod_enter(on_sys_mknod_enter_t);
+typedef void (*on_sys_mknod_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode, uint32_t dev);
+void ppp_add_cb_on_sys_mknod_return(on_sys_mknod_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mknod_return(on_sys_mknod_return_t);
+typedef void (*on_sys_mknodat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode, uint32_t dev);
+void ppp_add_cb_on_sys_mknodat_enter(on_sys_mknodat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mknodat_enter(on_sys_mknodat_enter_t);
+typedef void (*on_sys_mknodat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode, uint32_t dev);
+void ppp_add_cb_on_sys_mknodat_return(on_sys_mknodat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mknodat_return(on_sys_mknodat_return_t);
+typedef void (*on_sys_mlock_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);
+void ppp_add_cb_on_sys_mlock_enter(on_sys_mlock_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mlock_enter(on_sys_mlock_enter_t);
+typedef void (*on_sys_mlock_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);
+void ppp_add_cb_on_sys_mlock_return(on_sys_mlock_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mlock_return(on_sys_mlock_return_t);
+typedef void (*on_sys_mlock2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);
+void ppp_add_cb_on_sys_mlock2_enter(on_sys_mlock2_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mlock2_enter(on_sys_mlock2_enter_t);
+typedef void (*on_sys_mlock2_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);
+void ppp_add_cb_on_sys_mlock2_return(on_sys_mlock2_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mlock2_return(on_sys_mlock2_return_t);
+typedef void (*on_sys_mlockall_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags);
+void ppp_add_cb_on_sys_mlockall_enter(on_sys_mlockall_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mlockall_enter(on_sys_mlockall_enter_t);
+typedef void (*on_sys_mlockall_return_t)(CPUState* cpu, target_ulong pc, int32_t flags);
+void ppp_add_cb_on_sys_mlockall_return(on_sys_mlockall_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mlockall_return(on_sys_mlockall_return_t);
+typedef void (*on_sys_mmap_pgoff_enter_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len, uint32_t prot, uint32_t flags, uint32_t fd, uint32_t pgoff);
+void ppp_add_cb_on_sys_mmap_pgoff_enter(on_sys_mmap_pgoff_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mmap_pgoff_enter(on_sys_mmap_pgoff_enter_t);
+typedef void (*on_sys_mmap_pgoff_return_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len, uint32_t prot, uint32_t flags, uint32_t fd, uint32_t pgoff);
+void ppp_add_cb_on_sys_mmap_pgoff_return(on_sys_mmap_pgoff_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mmap_pgoff_return(on_sys_mmap_pgoff_return_t);
+typedef void (*on_sys_modify_ldt_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_modify_ldt_enter(on_sys_modify_ldt_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_modify_ldt_enter(on_sys_modify_ldt_enter_t);
+typedef void (*on_sys_modify_ldt_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_modify_ldt_return(on_sys_modify_ldt_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_modify_ldt_return(on_sys_modify_ldt_return_t);
+typedef void (*on_sys_mount_enter_t)(CPUState* cpu, target_ulong pc, uint32_t dev_name, uint32_t dir_name, uint32_t type, uint32_t flags, uint32_t _data);
+void ppp_add_cb_on_sys_mount_enter(on_sys_mount_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mount_enter(on_sys_mount_enter_t);
+typedef void (*on_sys_mount_return_t)(CPUState* cpu, target_ulong pc, uint32_t dev_name, uint32_t dir_name, uint32_t type, uint32_t flags, uint32_t _data);
+void ppp_add_cb_on_sys_mount_return(on_sys_mount_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mount_return(on_sys_mount_return_t);
+typedef void (*on_sys_move_pages_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t nr_pages, uint32_t pages, uint32_t nodes, uint32_t status, int32_t flags);
+void ppp_add_cb_on_sys_move_pages_enter(on_sys_move_pages_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_move_pages_enter(on_sys_move_pages_enter_t);
+typedef void (*on_sys_move_pages_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t nr_pages, uint32_t pages, uint32_t nodes, uint32_t status, int32_t flags);
+void ppp_add_cb_on_sys_move_pages_return(on_sys_move_pages_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_move_pages_return(on_sys_move_pages_return_t);
+typedef void (*on_sys_mprotect_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot);
+void ppp_add_cb_on_sys_mprotect_enter(on_sys_mprotect_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mprotect_enter(on_sys_mprotect_enter_t);
+typedef void (*on_sys_mprotect_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot);
+void ppp_add_cb_on_sys_mprotect_return(on_sys_mprotect_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mprotect_return(on_sys_mprotect_return_t);
+typedef void (*on_sys_mq_getsetattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t mqstat, uint32_t omqstat);
+void ppp_add_cb_on_sys_mq_getsetattr_enter(on_sys_mq_getsetattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mq_getsetattr_enter(on_sys_mq_getsetattr_enter_t);
+typedef void (*on_sys_mq_getsetattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t mqstat, uint32_t omqstat);
+void ppp_add_cb_on_sys_mq_getsetattr_return(on_sys_mq_getsetattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mq_getsetattr_return(on_sys_mq_getsetattr_return_t);
+typedef void (*on_sys_mq_notify_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t notification);
+void ppp_add_cb_on_sys_mq_notify_enter(on_sys_mq_notify_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mq_notify_enter(on_sys_mq_notify_enter_t);
+typedef void (*on_sys_mq_notify_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t notification);
+void ppp_add_cb_on_sys_mq_notify_return(on_sys_mq_notify_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mq_notify_return(on_sys_mq_notify_return_t);
+typedef void (*on_sys_mq_open_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t oflag, uint32_t mode, uint32_t attr);
+void ppp_add_cb_on_sys_mq_open_enter(on_sys_mq_open_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mq_open_enter(on_sys_mq_open_enter_t);
+typedef void (*on_sys_mq_open_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t oflag, uint32_t mode, uint32_t attr);
+void ppp_add_cb_on_sys_mq_open_return(on_sys_mq_open_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mq_open_return(on_sys_mq_open_return_t);
+typedef void (*on_sys_mq_timedreceive_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);
+void ppp_add_cb_on_sys_mq_timedreceive_enter(on_sys_mq_timedreceive_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mq_timedreceive_enter(on_sys_mq_timedreceive_enter_t);
+typedef void (*on_sys_mq_timedreceive_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);
+void ppp_add_cb_on_sys_mq_timedreceive_return(on_sys_mq_timedreceive_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mq_timedreceive_return(on_sys_mq_timedreceive_return_t);
+typedef void (*on_sys_mq_timedsend_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);
+void ppp_add_cb_on_sys_mq_timedsend_enter(on_sys_mq_timedsend_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mq_timedsend_enter(on_sys_mq_timedsend_enter_t);
+typedef void (*on_sys_mq_timedsend_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);
+void ppp_add_cb_on_sys_mq_timedsend_return(on_sys_mq_timedsend_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mq_timedsend_return(on_sys_mq_timedsend_return_t);
+typedef void (*on_sys_mq_unlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name);
+void ppp_add_cb_on_sys_mq_unlink_enter(on_sys_mq_unlink_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mq_unlink_enter(on_sys_mq_unlink_enter_t);
+typedef void (*on_sys_mq_unlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t name);
+void ppp_add_cb_on_sys_mq_unlink_return(on_sys_mq_unlink_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mq_unlink_return(on_sys_mq_unlink_return_t);
+typedef void (*on_sys_mremap_enter_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t old_len, uint32_t new_len, uint32_t flags, uint32_t new_addr);
+void ppp_add_cb_on_sys_mremap_enter(on_sys_mremap_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_mremap_enter(on_sys_mremap_enter_t);
+typedef void (*on_sys_mremap_return_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t old_len, uint32_t new_len, uint32_t flags, uint32_t new_addr);
+void ppp_add_cb_on_sys_mremap_return(on_sys_mremap_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_mremap_return(on_sys_mremap_return_t);
+typedef void (*on_sys_msync_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);
+void ppp_add_cb_on_sys_msync_enter(on_sys_msync_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_msync_enter(on_sys_msync_enter_t);
+typedef void (*on_sys_msync_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);
+void ppp_add_cb_on_sys_msync_return(on_sys_msync_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_msync_return(on_sys_msync_return_t);
+typedef void (*on_sys_munlock_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);
+void ppp_add_cb_on_sys_munlock_enter(on_sys_munlock_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_munlock_enter(on_sys_munlock_enter_t);
+typedef void (*on_sys_munlock_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);
+void ppp_add_cb_on_sys_munlock_return(on_sys_munlock_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_munlock_return(on_sys_munlock_return_t);
+typedef void (*on_sys_munlockall_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_munlockall_enter(on_sys_munlockall_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_munlockall_enter(on_sys_munlockall_enter_t);
+typedef void (*on_sys_munlockall_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_munlockall_return(on_sys_munlockall_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_munlockall_return(on_sys_munlockall_return_t);
+typedef void (*on_sys_munmap_enter_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len);
+void ppp_add_cb_on_sys_munmap_enter(on_sys_munmap_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_munmap_enter(on_sys_munmap_enter_t);
+typedef void (*on_sys_munmap_return_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len);
+void ppp_add_cb_on_sys_munmap_return(on_sys_munmap_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_munmap_return(on_sys_munmap_return_t);
+typedef void (*on_sys_name_to_handle_at_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t name, uint32_t handle, uint32_t mnt_id, int32_t flag);
+void ppp_add_cb_on_sys_name_to_handle_at_enter(on_sys_name_to_handle_at_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_name_to_handle_at_enter(on_sys_name_to_handle_at_enter_t);
+typedef void (*on_sys_name_to_handle_at_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t name, uint32_t handle, uint32_t mnt_id, int32_t flag);
+void ppp_add_cb_on_sys_name_to_handle_at_return(on_sys_name_to_handle_at_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_name_to_handle_at_return(on_sys_name_to_handle_at_return_t);
+typedef void (*on_sys_nanosleep_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rqtp, uint32_t rmtp);
+void ppp_add_cb_on_sys_nanosleep_enter(on_sys_nanosleep_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_nanosleep_enter(on_sys_nanosleep_enter_t);
+typedef void (*on_sys_nanosleep_return_t)(CPUState* cpu, target_ulong pc, uint32_t rqtp, uint32_t rmtp);
+void ppp_add_cb_on_sys_nanosleep_return(on_sys_nanosleep_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_nanosleep_return(on_sys_nanosleep_return_t);
+typedef void (*on_sys_newfstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);
+void ppp_add_cb_on_sys_newfstat_enter(on_sys_newfstat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_newfstat_enter(on_sys_newfstat_enter_t);
+typedef void (*on_sys_newfstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);
+void ppp_add_cb_on_sys_newfstat_return(on_sys_newfstat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_newfstat_return(on_sys_newfstat_return_t);
+typedef void (*on_sys_newlstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
+void ppp_add_cb_on_sys_newlstat_enter(on_sys_newlstat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_newlstat_enter(on_sys_newlstat_enter_t);
+typedef void (*on_sys_newlstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
+void ppp_add_cb_on_sys_newlstat_return(on_sys_newlstat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_newlstat_return(on_sys_newlstat_return_t);
+typedef void (*on_sys_newstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
+void ppp_add_cb_on_sys_newstat_enter(on_sys_newstat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_newstat_enter(on_sys_newstat_enter_t);
+typedef void (*on_sys_newstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
+void ppp_add_cb_on_sys_newstat_return(on_sys_newstat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_newstat_return(on_sys_newstat_return_t);
+typedef void (*on_sys_newuname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name);
+void ppp_add_cb_on_sys_newuname_enter(on_sys_newuname_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_newuname_enter(on_sys_newuname_enter_t);
+typedef void (*on_sys_newuname_return_t)(CPUState* cpu, target_ulong pc, uint32_t name);
+void ppp_add_cb_on_sys_newuname_return(on_sys_newuname_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_newuname_return(on_sys_newuname_return_t);
+typedef void (*on_sys_nice_enter_t)(CPUState* cpu, target_ulong pc, int32_t increment);
+void ppp_add_cb_on_sys_nice_enter(on_sys_nice_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_nice_enter(on_sys_nice_enter_t);
+typedef void (*on_sys_nice_return_t)(CPUState* cpu, target_ulong pc, int32_t increment);
+void ppp_add_cb_on_sys_nice_return(on_sys_nice_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_nice_return(on_sys_nice_return_t);
+typedef void (*on_sys_old_getrlimit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);
+void ppp_add_cb_on_sys_old_getrlimit_enter(on_sys_old_getrlimit_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_old_getrlimit_enter(on_sys_old_getrlimit_enter_t);
+typedef void (*on_sys_old_getrlimit_return_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);
+void ppp_add_cb_on_sys_old_getrlimit_return(on_sys_old_getrlimit_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_old_getrlimit_return(on_sys_old_getrlimit_return_t);
+typedef void (*on_sys_old_mmap_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg);
+void ppp_add_cb_on_sys_old_mmap_enter(on_sys_old_mmap_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_old_mmap_enter(on_sys_old_mmap_enter_t);
+typedef void (*on_sys_old_mmap_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg);
+void ppp_add_cb_on_sys_old_mmap_return(on_sys_old_mmap_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_old_mmap_return(on_sys_old_mmap_return_t);
+typedef void (*on_sys_old_readdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_old_readdir_enter(on_sys_old_readdir_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_old_readdir_enter(on_sys_old_readdir_enter_t);
+typedef void (*on_sys_old_readdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_old_readdir_return(on_sys_old_readdir_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_old_readdir_return(on_sys_old_readdir_return_t);
+typedef void (*on_sys_old_select_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg);
+void ppp_add_cb_on_sys_old_select_enter(on_sys_old_select_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_old_select_enter(on_sys_old_select_enter_t);
+typedef void (*on_sys_old_select_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg);
+void ppp_add_cb_on_sys_old_select_return(on_sys_old_select_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_old_select_return(on_sys_old_select_return_t);
+typedef void (*on_sys_oldumount_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name);
+void ppp_add_cb_on_sys_oldumount_enter(on_sys_oldumount_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_oldumount_enter(on_sys_oldumount_enter_t);
+typedef void (*on_sys_oldumount_return_t)(CPUState* cpu, target_ulong pc, uint32_t name);
+void ppp_add_cb_on_sys_oldumount_return(on_sys_oldumount_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_oldumount_return(on_sys_oldumount_return_t);
+typedef void (*on_sys_olduname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0);
+void ppp_add_cb_on_sys_olduname_enter(on_sys_olduname_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_olduname_enter(on_sys_olduname_enter_t);
+typedef void (*on_sys_olduname_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0);
+void ppp_add_cb_on_sys_olduname_return(on_sys_olduname_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_olduname_return(on_sys_olduname_return_t);
+typedef void (*on_sys_open_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t flags, uint32_t mode);
+void ppp_add_cb_on_sys_open_enter(on_sys_open_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_open_enter(on_sys_open_enter_t);
+typedef void (*on_sys_open_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t flags, uint32_t mode);
+void ppp_add_cb_on_sys_open_return(on_sys_open_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_open_return(on_sys_open_return_t);
+typedef void (*on_sys_open_by_handle_at_enter_t)(CPUState* cpu, target_ulong pc, int32_t mountdirfd, uint32_t handle, int32_t flags);
+void ppp_add_cb_on_sys_open_by_handle_at_enter(on_sys_open_by_handle_at_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_open_by_handle_at_enter(on_sys_open_by_handle_at_enter_t);
+typedef void (*on_sys_open_by_handle_at_return_t)(CPUState* cpu, target_ulong pc, int32_t mountdirfd, uint32_t handle, int32_t flags);
+void ppp_add_cb_on_sys_open_by_handle_at_return(on_sys_open_by_handle_at_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_open_by_handle_at_return(on_sys_open_by_handle_at_return_t);
+typedef void (*on_sys_openat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t flags, uint32_t mode);
+void ppp_add_cb_on_sys_openat_enter(on_sys_openat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_openat_enter(on_sys_openat_enter_t);
+typedef void (*on_sys_openat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t flags, uint32_t mode);
+void ppp_add_cb_on_sys_openat_return(on_sys_openat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_openat_return(on_sys_openat_return_t);
+typedef void (*on_sys_pause_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_pause_enter(on_sys_pause_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_pause_enter(on_sys_pause_enter_t);
+typedef void (*on_sys_pause_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_pause_return(on_sys_pause_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_pause_return(on_sys_pause_return_t);
+typedef void (*on_sys_perf_event_open_enter_t)(CPUState* cpu, target_ulong pc, uint32_t attr_uptr, int32_t pid, int32_t _cpu, int32_t group_fd, uint32_t flags);
+void ppp_add_cb_on_sys_perf_event_open_enter(on_sys_perf_event_open_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_perf_event_open_enter(on_sys_perf_event_open_enter_t);
+typedef void (*on_sys_perf_event_open_return_t)(CPUState* cpu, target_ulong pc, uint32_t attr_uptr, int32_t pid, int32_t _cpu, int32_t group_fd, uint32_t flags);
+void ppp_add_cb_on_sys_perf_event_open_return(on_sys_perf_event_open_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_perf_event_open_return(on_sys_perf_event_open_return_t);
+typedef void (*on_sys_personality_enter_t)(CPUState* cpu, target_ulong pc, uint32_t personality);
+void ppp_add_cb_on_sys_personality_enter(on_sys_personality_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_personality_enter(on_sys_personality_enter_t);
+typedef void (*on_sys_personality_return_t)(CPUState* cpu, target_ulong pc, uint32_t personality);
+void ppp_add_cb_on_sys_personality_return(on_sys_personality_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_personality_return(on_sys_personality_return_t);
+typedef void (*on_sys_pipe_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fildes);
+void ppp_add_cb_on_sys_pipe_enter(on_sys_pipe_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_pipe_enter(on_sys_pipe_enter_t);
+typedef void (*on_sys_pipe_return_t)(CPUState* cpu, target_ulong pc, uint32_t fildes);
+void ppp_add_cb_on_sys_pipe_return(on_sys_pipe_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_pipe_return(on_sys_pipe_return_t);
+typedef void (*on_sys_pipe2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fildes, int32_t flags);
+void ppp_add_cb_on_sys_pipe2_enter(on_sys_pipe2_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_pipe2_enter(on_sys_pipe2_enter_t);
+typedef void (*on_sys_pipe2_return_t)(CPUState* cpu, target_ulong pc, uint32_t fildes, int32_t flags);
+void ppp_add_cb_on_sys_pipe2_return(on_sys_pipe2_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_pipe2_return(on_sys_pipe2_return_t);
+typedef void (*on_sys_pivot_root_enter_t)(CPUState* cpu, target_ulong pc, uint32_t new_root, uint32_t put_old);
+void ppp_add_cb_on_sys_pivot_root_enter(on_sys_pivot_root_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_pivot_root_enter(on_sys_pivot_root_enter_t);
+typedef void (*on_sys_pivot_root_return_t)(CPUState* cpu, target_ulong pc, uint32_t new_root, uint32_t put_old);
+void ppp_add_cb_on_sys_pivot_root_return(on_sys_pivot_root_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_pivot_root_return(on_sys_pivot_root_return_t);
+typedef void (*on_sys_pkey_alloc_enter_t)(CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t init_val);
+void ppp_add_cb_on_sys_pkey_alloc_enter(on_sys_pkey_alloc_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_pkey_alloc_enter(on_sys_pkey_alloc_enter_t);
+typedef void (*on_sys_pkey_alloc_return_t)(CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t init_val);
+void ppp_add_cb_on_sys_pkey_alloc_return(on_sys_pkey_alloc_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_pkey_alloc_return(on_sys_pkey_alloc_return_t);
+typedef void (*on_sys_pkey_free_enter_t)(CPUState* cpu, target_ulong pc, int32_t pkey);
+void ppp_add_cb_on_sys_pkey_free_enter(on_sys_pkey_free_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_pkey_free_enter(on_sys_pkey_free_enter_t);
+typedef void (*on_sys_pkey_free_return_t)(CPUState* cpu, target_ulong pc, int32_t pkey);
+void ppp_add_cb_on_sys_pkey_free_return(on_sys_pkey_free_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_pkey_free_return(on_sys_pkey_free_return_t);
+typedef void (*on_sys_pkey_mprotect_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot, int32_t pkey);
+void ppp_add_cb_on_sys_pkey_mprotect_enter(on_sys_pkey_mprotect_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_pkey_mprotect_enter(on_sys_pkey_mprotect_enter_t);
+typedef void (*on_sys_pkey_mprotect_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot, int32_t pkey);
+void ppp_add_cb_on_sys_pkey_mprotect_return(on_sys_pkey_mprotect_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_pkey_mprotect_return(on_sys_pkey_mprotect_return_t);
+typedef void (*on_sys_poll_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ufds, uint32_t nfds, int32_t timeout);
+void ppp_add_cb_on_sys_poll_enter(on_sys_poll_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_poll_enter(on_sys_poll_enter_t);
+typedef void (*on_sys_poll_return_t)(CPUState* cpu, target_ulong pc, uint32_t ufds, uint32_t nfds, int32_t timeout);
+void ppp_add_cb_on_sys_poll_return(on_sys_poll_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_poll_return(on_sys_poll_return_t);
+typedef void (*on_sys_ppoll_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);
+void ppp_add_cb_on_sys_ppoll_enter(on_sys_ppoll_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_ppoll_enter(on_sys_ppoll_enter_t);
+typedef void (*on_sys_ppoll_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);
+void ppp_add_cb_on_sys_ppoll_return(on_sys_ppoll_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_ppoll_return(on_sys_ppoll_return_t);
+typedef void (*on_sys_prctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
+void ppp_add_cb_on_sys_prctl_enter(on_sys_prctl_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_prctl_enter(on_sys_prctl_enter_t);
+typedef void (*on_sys_prctl_return_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
+void ppp_add_cb_on_sys_prctl_return(on_sys_prctl_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_prctl_return(on_sys_prctl_return_t);
+typedef void (*on_sys_pread64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);
+void ppp_add_cb_on_sys_pread64_enter(on_sys_pread64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_pread64_enter(on_sys_pread64_enter_t);
+typedef void (*on_sys_pread64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);
+void ppp_add_cb_on_sys_pread64_return(on_sys_pread64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_pread64_return(on_sys_pread64_return_t);
+typedef void (*on_sys_preadv_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);
+void ppp_add_cb_on_sys_preadv_enter(on_sys_preadv_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_preadv_enter(on_sys_preadv_enter_t);
+typedef void (*on_sys_preadv_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);
+void ppp_add_cb_on_sys_preadv_return(on_sys_preadv_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_preadv_return(on_sys_preadv_return_t);
+typedef void (*on_sys_preadv2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h, uint32_t flags);
+void ppp_add_cb_on_sys_preadv2_enter(on_sys_preadv2_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_preadv2_enter(on_sys_preadv2_enter_t);
+typedef void (*on_sys_preadv2_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h, uint32_t flags);
+void ppp_add_cb_on_sys_preadv2_return(on_sys_preadv2_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_preadv2_return(on_sys_preadv2_return_t);
+typedef void (*on_sys_prlimit64_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t resource, uint32_t new_rlim, uint32_t old_rlim);
+void ppp_add_cb_on_sys_prlimit64_enter(on_sys_prlimit64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_prlimit64_enter(on_sys_prlimit64_enter_t);
+typedef void (*on_sys_prlimit64_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t resource, uint32_t new_rlim, uint32_t old_rlim);
+void ppp_add_cb_on_sys_prlimit64_return(on_sys_prlimit64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_prlimit64_return(on_sys_prlimit64_return_t);
+typedef void (*on_sys_process_vm_readv_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);
+void ppp_add_cb_on_sys_process_vm_readv_enter(on_sys_process_vm_readv_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_process_vm_readv_enter(on_sys_process_vm_readv_enter_t);
+typedef void (*on_sys_process_vm_readv_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);
+void ppp_add_cb_on_sys_process_vm_readv_return(on_sys_process_vm_readv_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_process_vm_readv_return(on_sys_process_vm_readv_return_t);
+typedef void (*on_sys_process_vm_writev_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);
+void ppp_add_cb_on_sys_process_vm_writev_enter(on_sys_process_vm_writev_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_process_vm_writev_enter(on_sys_process_vm_writev_enter_t);
+typedef void (*on_sys_process_vm_writev_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);
+void ppp_add_cb_on_sys_process_vm_writev_return(on_sys_process_vm_writev_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_process_vm_writev_return(on_sys_process_vm_writev_return_t);
+typedef void (*on_sys_pselect6_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
+void ppp_add_cb_on_sys_pselect6_enter(on_sys_pselect6_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_pselect6_enter(on_sys_pselect6_enter_t);
+typedef void (*on_sys_pselect6_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
+void ppp_add_cb_on_sys_pselect6_return(on_sys_pselect6_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_pselect6_return(on_sys_pselect6_return_t);
+typedef void (*on_sys_ptrace_enter_t)(CPUState* cpu, target_ulong pc, int32_t request, int32_t pid, uint32_t addr, uint32_t _data);
+void ppp_add_cb_on_sys_ptrace_enter(on_sys_ptrace_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_ptrace_enter(on_sys_ptrace_enter_t);
+typedef void (*on_sys_ptrace_return_t)(CPUState* cpu, target_ulong pc, int32_t request, int32_t pid, uint32_t addr, uint32_t _data);
+void ppp_add_cb_on_sys_ptrace_return(on_sys_ptrace_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_ptrace_return(on_sys_ptrace_return_t);
+typedef void (*on_sys_pwrite64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);
+void ppp_add_cb_on_sys_pwrite64_enter(on_sys_pwrite64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_pwrite64_enter(on_sys_pwrite64_enter_t);
+typedef void (*on_sys_pwrite64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);
+void ppp_add_cb_on_sys_pwrite64_return(on_sys_pwrite64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_pwrite64_return(on_sys_pwrite64_return_t);
+typedef void (*on_sys_pwritev_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);
+void ppp_add_cb_on_sys_pwritev_enter(on_sys_pwritev_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_pwritev_enter(on_sys_pwritev_enter_t);
+typedef void (*on_sys_pwritev_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);
+void ppp_add_cb_on_sys_pwritev_return(on_sys_pwritev_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_pwritev_return(on_sys_pwritev_return_t);
+typedef void (*on_sys_pwritev2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h, uint32_t flags);
+void ppp_add_cb_on_sys_pwritev2_enter(on_sys_pwritev2_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_pwritev2_enter(on_sys_pwritev2_enter_t);
+typedef void (*on_sys_pwritev2_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h, uint32_t flags);
+void ppp_add_cb_on_sys_pwritev2_return(on_sys_pwritev2_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_pwritev2_return(on_sys_pwritev2_return_t);
+typedef void (*on_sys_quotactl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t cmd, uint32_t special, uint32_t id, uint32_t addr);
+void ppp_add_cb_on_sys_quotactl_enter(on_sys_quotactl_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_quotactl_enter(on_sys_quotactl_enter_t);
+typedef void (*on_sys_quotactl_return_t)(CPUState* cpu, target_ulong pc, uint32_t cmd, uint32_t special, uint32_t id, uint32_t addr);
+void ppp_add_cb_on_sys_quotactl_return(on_sys_quotactl_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_quotactl_return(on_sys_quotactl_return_t);
+typedef void (*on_sys_read_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);
+void ppp_add_cb_on_sys_read_enter(on_sys_read_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_read_enter(on_sys_read_enter_t);
+typedef void (*on_sys_read_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);
+void ppp_add_cb_on_sys_read_return(on_sys_read_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_read_return(on_sys_read_return_t);
+typedef void (*on_sys_readahead_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t count);
+void ppp_add_cb_on_sys_readahead_enter(on_sys_readahead_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_readahead_enter(on_sys_readahead_enter_t);
+typedef void (*on_sys_readahead_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t count);
+void ppp_add_cb_on_sys_readahead_return(on_sys_readahead_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_readahead_return(on_sys_readahead_return_t);
+typedef void (*on_sys_readlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf, int32_t bufsiz);
+void ppp_add_cb_on_sys_readlink_enter(on_sys_readlink_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_readlink_enter(on_sys_readlink_enter_t);
+typedef void (*on_sys_readlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf, int32_t bufsiz);
+void ppp_add_cb_on_sys_readlink_return(on_sys_readlink_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_readlink_return(on_sys_readlink_return_t);
+typedef void (*on_sys_readlinkat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t buf, int32_t bufsiz);
+void ppp_add_cb_on_sys_readlinkat_enter(on_sys_readlinkat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_readlinkat_enter(on_sys_readlinkat_enter_t);
+typedef void (*on_sys_readlinkat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t buf, int32_t bufsiz);
+void ppp_add_cb_on_sys_readlinkat_return(on_sys_readlinkat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_readlinkat_return(on_sys_readlinkat_return_t);
+typedef void (*on_sys_readv_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);
+void ppp_add_cb_on_sys_readv_enter(on_sys_readv_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_readv_enter(on_sys_readv_enter_t);
+typedef void (*on_sys_readv_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);
+void ppp_add_cb_on_sys_readv_return(on_sys_readv_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_readv_return(on_sys_readv_return_t);
+typedef void (*on_sys_reboot_enter_t)(CPUState* cpu, target_ulong pc, int32_t magic1, int32_t magic2, uint32_t cmd, uint32_t arg);
+void ppp_add_cb_on_sys_reboot_enter(on_sys_reboot_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_reboot_enter(on_sys_reboot_enter_t);
+typedef void (*on_sys_reboot_return_t)(CPUState* cpu, target_ulong pc, int32_t magic1, int32_t magic2, uint32_t cmd, uint32_t arg);
+void ppp_add_cb_on_sys_reboot_return(on_sys_reboot_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_reboot_return(on_sys_reboot_return_t);
+typedef void (*on_sys_recvfrom_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
+void ppp_add_cb_on_sys_recvfrom_enter(on_sys_recvfrom_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_recvfrom_enter(on_sys_recvfrom_enter_t);
+typedef void (*on_sys_recvfrom_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
+void ppp_add_cb_on_sys_recvfrom_return(on_sys_recvfrom_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_recvfrom_return(on_sys_recvfrom_return_t);
+typedef void (*on_sys_recvmmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags, uint32_t timeout);
+void ppp_add_cb_on_sys_recvmmsg_enter(on_sys_recvmmsg_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_recvmmsg_enter(on_sys_recvmmsg_enter_t);
+typedef void (*on_sys_recvmmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags, uint32_t timeout);
+void ppp_add_cb_on_sys_recvmmsg_return(on_sys_recvmmsg_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_recvmmsg_return(on_sys_recvmmsg_return_t);
+typedef void (*on_sys_recvmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);
+void ppp_add_cb_on_sys_recvmsg_enter(on_sys_recvmsg_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_recvmsg_enter(on_sys_recvmsg_enter_t);
+typedef void (*on_sys_recvmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);
+void ppp_add_cb_on_sys_recvmsg_return(on_sys_recvmsg_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_recvmsg_return(on_sys_recvmsg_return_t);
+typedef void (*on_sys_remap_file_pages_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t size, uint32_t prot, uint32_t pgoff, uint32_t flags);
+void ppp_add_cb_on_sys_remap_file_pages_enter(on_sys_remap_file_pages_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_remap_file_pages_enter(on_sys_remap_file_pages_enter_t);
+typedef void (*on_sys_remap_file_pages_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t size, uint32_t prot, uint32_t pgoff, uint32_t flags);
+void ppp_add_cb_on_sys_remap_file_pages_return(on_sys_remap_file_pages_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_remap_file_pages_return(on_sys_remap_file_pages_return_t);
+typedef void (*on_sys_removexattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);
+void ppp_add_cb_on_sys_removexattr_enter(on_sys_removexattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_removexattr_enter(on_sys_removexattr_enter_t);
+typedef void (*on_sys_removexattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);
+void ppp_add_cb_on_sys_removexattr_return(on_sys_removexattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_removexattr_return(on_sys_removexattr_return_t);
+typedef void (*on_sys_rename_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);
+void ppp_add_cb_on_sys_rename_enter(on_sys_rename_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_rename_enter(on_sys_rename_enter_t);
+typedef void (*on_sys_rename_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);
+void ppp_add_cb_on_sys_rename_return(on_sys_rename_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_rename_return(on_sys_rename_return_t);
+typedef void (*on_sys_renameat_enter_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname);
+void ppp_add_cb_on_sys_renameat_enter(on_sys_renameat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_renameat_enter(on_sys_renameat_enter_t);
+typedef void (*on_sys_renameat_return_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname);
+void ppp_add_cb_on_sys_renameat_return(on_sys_renameat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_renameat_return(on_sys_renameat_return_t);
+typedef void (*on_sys_renameat2_enter_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, uint32_t flags);
+void ppp_add_cb_on_sys_renameat2_enter(on_sys_renameat2_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_renameat2_enter(on_sys_renameat2_enter_t);
+typedef void (*on_sys_renameat2_return_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, uint32_t flags);
+void ppp_add_cb_on_sys_renameat2_return(on_sys_renameat2_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_renameat2_return(on_sys_renameat2_return_t);
+typedef void (*on_sys_request_key_enter_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _callout_info, uint32_t destringid);
+void ppp_add_cb_on_sys_request_key_enter(on_sys_request_key_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_request_key_enter(on_sys_request_key_enter_t);
+typedef void (*on_sys_request_key_return_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _callout_info, uint32_t destringid);
+void ppp_add_cb_on_sys_request_key_return(on_sys_request_key_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_request_key_return(on_sys_request_key_return_t);
+typedef void (*on_sys_restart_syscall_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_restart_syscall_enter(on_sys_restart_syscall_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_restart_syscall_enter(on_sys_restart_syscall_enter_t);
+typedef void (*on_sys_restart_syscall_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_restart_syscall_return(on_sys_restart_syscall_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_restart_syscall_return(on_sys_restart_syscall_return_t);
+typedef void (*on_sys_rmdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname);
+void ppp_add_cb_on_sys_rmdir_enter(on_sys_rmdir_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_rmdir_enter(on_sys_rmdir_enter_t);
+typedef void (*on_sys_rmdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname);
+void ppp_add_cb_on_sys_rmdir_return(on_sys_rmdir_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_rmdir_return(on_sys_rmdir_return_t);
+typedef void (*on_sys_rt_sigaction_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);
+void ppp_add_cb_on_sys_rt_sigaction_enter(on_sys_rt_sigaction_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigaction_enter(on_sys_rt_sigaction_enter_t);
+typedef void (*on_sys_rt_sigaction_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);
+void ppp_add_cb_on_sys_rt_sigaction_return(on_sys_rt_sigaction_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigaction_return(on_sys_rt_sigaction_return_t);
+typedef void (*on_sys_rt_sigpending_enter_t)(CPUState* cpu, target_ulong pc, uint32_t set, uint32_t sigsetsize);
+void ppp_add_cb_on_sys_rt_sigpending_enter(on_sys_rt_sigpending_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigpending_enter(on_sys_rt_sigpending_enter_t);
+typedef void (*on_sys_rt_sigpending_return_t)(CPUState* cpu, target_ulong pc, uint32_t set, uint32_t sigsetsize);
+void ppp_add_cb_on_sys_rt_sigpending_return(on_sys_rt_sigpending_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigpending_return(on_sys_rt_sigpending_return_t);
+typedef void (*on_sys_rt_sigprocmask_enter_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset, uint32_t sigsetsize);
+void ppp_add_cb_on_sys_rt_sigprocmask_enter(on_sys_rt_sigprocmask_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigprocmask_enter(on_sys_rt_sigprocmask_enter_t);
+typedef void (*on_sys_rt_sigprocmask_return_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset, uint32_t sigsetsize);
+void ppp_add_cb_on_sys_rt_sigprocmask_return(on_sys_rt_sigprocmask_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigprocmask_return(on_sys_rt_sigprocmask_return_t);
+typedef void (*on_sys_rt_sigqueueinfo_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig, uint32_t uinfo);
+void ppp_add_cb_on_sys_rt_sigqueueinfo_enter(on_sys_rt_sigqueueinfo_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigqueueinfo_enter(on_sys_rt_sigqueueinfo_enter_t);
+typedef void (*on_sys_rt_sigqueueinfo_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig, uint32_t uinfo);
+void ppp_add_cb_on_sys_rt_sigqueueinfo_return(on_sys_rt_sigqueueinfo_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigqueueinfo_return(on_sys_rt_sigqueueinfo_return_t);
+typedef void (*on_sys_rt_sigreturn_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_rt_sigreturn_enter(on_sys_rt_sigreturn_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigreturn_enter(on_sys_rt_sigreturn_enter_t);
+typedef void (*on_sys_rt_sigreturn_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_rt_sigreturn_return(on_sys_rt_sigreturn_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigreturn_return(on_sys_rt_sigreturn_return_t);
+typedef void (*on_sys_rt_sigsuspend_enter_t)(CPUState* cpu, target_ulong pc, uint32_t unewset, uint32_t sigsetsize);
+void ppp_add_cb_on_sys_rt_sigsuspend_enter(on_sys_rt_sigsuspend_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigsuspend_enter(on_sys_rt_sigsuspend_enter_t);
+typedef void (*on_sys_rt_sigsuspend_return_t)(CPUState* cpu, target_ulong pc, uint32_t unewset, uint32_t sigsetsize);
+void ppp_add_cb_on_sys_rt_sigsuspend_return(on_sys_rt_sigsuspend_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigsuspend_return(on_sys_rt_sigsuspend_return_t);
+typedef void (*on_sys_rt_sigtimedwait_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uthese, uint32_t uinfo, uint32_t uts, uint32_t sigsetsize);
+void ppp_add_cb_on_sys_rt_sigtimedwait_enter(on_sys_rt_sigtimedwait_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigtimedwait_enter(on_sys_rt_sigtimedwait_enter_t);
+typedef void (*on_sys_rt_sigtimedwait_return_t)(CPUState* cpu, target_ulong pc, uint32_t uthese, uint32_t uinfo, uint32_t uts, uint32_t sigsetsize);
+void ppp_add_cb_on_sys_rt_sigtimedwait_return(on_sys_rt_sigtimedwait_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_sigtimedwait_return(on_sys_rt_sigtimedwait_return_t);
+typedef void (*on_sys_rt_tgsigqueueinfo_enter_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig, uint32_t uinfo);
+void ppp_add_cb_on_sys_rt_tgsigqueueinfo_enter(on_sys_rt_tgsigqueueinfo_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_tgsigqueueinfo_enter(on_sys_rt_tgsigqueueinfo_enter_t);
+typedef void (*on_sys_rt_tgsigqueueinfo_return_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig, uint32_t uinfo);
+void ppp_add_cb_on_sys_rt_tgsigqueueinfo_return(on_sys_rt_tgsigqueueinfo_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_rt_tgsigqueueinfo_return(on_sys_rt_tgsigqueueinfo_return_t);
+typedef void (*on_sys_sched_get_priority_max_enter_t)(CPUState* cpu, target_ulong pc, int32_t policy);
+void ppp_add_cb_on_sys_sched_get_priority_max_enter(on_sys_sched_get_priority_max_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_get_priority_max_enter(on_sys_sched_get_priority_max_enter_t);
+typedef void (*on_sys_sched_get_priority_max_return_t)(CPUState* cpu, target_ulong pc, int32_t policy);
+void ppp_add_cb_on_sys_sched_get_priority_max_return(on_sys_sched_get_priority_max_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_get_priority_max_return(on_sys_sched_get_priority_max_return_t);
+typedef void (*on_sys_sched_get_priority_min_enter_t)(CPUState* cpu, target_ulong pc, int32_t policy);
+void ppp_add_cb_on_sys_sched_get_priority_min_enter(on_sys_sched_get_priority_min_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_get_priority_min_enter(on_sys_sched_get_priority_min_enter_t);
+typedef void (*on_sys_sched_get_priority_min_return_t)(CPUState* cpu, target_ulong pc, int32_t policy);
+void ppp_add_cb_on_sys_sched_get_priority_min_return(on_sys_sched_get_priority_min_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_get_priority_min_return(on_sys_sched_get_priority_min_return_t);
+typedef void (*on_sys_sched_getaffinity_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);
+void ppp_add_cb_on_sys_sched_getaffinity_enter(on_sys_sched_getaffinity_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_getaffinity_enter(on_sys_sched_getaffinity_enter_t);
+typedef void (*on_sys_sched_getaffinity_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);
+void ppp_add_cb_on_sys_sched_getaffinity_return(on_sys_sched_getaffinity_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_getaffinity_return(on_sys_sched_getaffinity_return_t);
+typedef void (*on_sys_sched_getattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t size, uint32_t flags);
+void ppp_add_cb_on_sys_sched_getattr_enter(on_sys_sched_getattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_getattr_enter(on_sys_sched_getattr_enter_t);
+typedef void (*on_sys_sched_getattr_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t size, uint32_t flags);
+void ppp_add_cb_on_sys_sched_getattr_return(on_sys_sched_getattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_getattr_return(on_sys_sched_getattr_return_t);
+typedef void (*on_sys_sched_getparam_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);
+void ppp_add_cb_on_sys_sched_getparam_enter(on_sys_sched_getparam_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_getparam_enter(on_sys_sched_getparam_enter_t);
+typedef void (*on_sys_sched_getparam_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);
+void ppp_add_cb_on_sys_sched_getparam_return(on_sys_sched_getparam_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_getparam_return(on_sys_sched_getparam_return_t);
+typedef void (*on_sys_sched_getscheduler_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid);
+void ppp_add_cb_on_sys_sched_getscheduler_enter(on_sys_sched_getscheduler_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_getscheduler_enter(on_sys_sched_getscheduler_enter_t);
+typedef void (*on_sys_sched_getscheduler_return_t)(CPUState* cpu, target_ulong pc, int32_t pid);
+void ppp_add_cb_on_sys_sched_getscheduler_return(on_sys_sched_getscheduler_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_getscheduler_return(on_sys_sched_getscheduler_return_t);
+typedef void (*on_sys_sched_rr_get_interval_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t interval);
+void ppp_add_cb_on_sys_sched_rr_get_interval_enter(on_sys_sched_rr_get_interval_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_rr_get_interval_enter(on_sys_sched_rr_get_interval_enter_t);
+typedef void (*on_sys_sched_rr_get_interval_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t interval);
+void ppp_add_cb_on_sys_sched_rr_get_interval_return(on_sys_sched_rr_get_interval_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_rr_get_interval_return(on_sys_sched_rr_get_interval_return_t);
+typedef void (*on_sys_sched_setaffinity_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);
+void ppp_add_cb_on_sys_sched_setaffinity_enter(on_sys_sched_setaffinity_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_setaffinity_enter(on_sys_sched_setaffinity_enter_t);
+typedef void (*on_sys_sched_setaffinity_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);
+void ppp_add_cb_on_sys_sched_setaffinity_return(on_sys_sched_setaffinity_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_setaffinity_return(on_sys_sched_setaffinity_return_t);
+typedef void (*on_sys_sched_setattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t flags);
+void ppp_add_cb_on_sys_sched_setattr_enter(on_sys_sched_setattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_setattr_enter(on_sys_sched_setattr_enter_t);
+typedef void (*on_sys_sched_setattr_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t flags);
+void ppp_add_cb_on_sys_sched_setattr_return(on_sys_sched_setattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_setattr_return(on_sys_sched_setattr_return_t);
+typedef void (*on_sys_sched_setparam_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);
+void ppp_add_cb_on_sys_sched_setparam_enter(on_sys_sched_setparam_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_setparam_enter(on_sys_sched_setparam_enter_t);
+typedef void (*on_sys_sched_setparam_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);
+void ppp_add_cb_on_sys_sched_setparam_return(on_sys_sched_setparam_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_setparam_return(on_sys_sched_setparam_return_t);
+typedef void (*on_sys_sched_setscheduler_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t policy, uint32_t param);
+void ppp_add_cb_on_sys_sched_setscheduler_enter(on_sys_sched_setscheduler_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_setscheduler_enter(on_sys_sched_setscheduler_enter_t);
+typedef void (*on_sys_sched_setscheduler_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t policy, uint32_t param);
+void ppp_add_cb_on_sys_sched_setscheduler_return(on_sys_sched_setscheduler_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_setscheduler_return(on_sys_sched_setscheduler_return_t);
+typedef void (*on_sys_sched_yield_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_sched_yield_enter(on_sys_sched_yield_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_yield_enter(on_sys_sched_yield_enter_t);
+typedef void (*on_sys_sched_yield_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_sched_yield_return(on_sys_sched_yield_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sched_yield_return(on_sys_sched_yield_return_t);
+typedef void (*on_sys_seccomp_enter_t)(CPUState* cpu, target_ulong pc, uint32_t op, uint32_t flags, uint32_t uargs);
+void ppp_add_cb_on_sys_seccomp_enter(on_sys_seccomp_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_seccomp_enter(on_sys_seccomp_enter_t);
+typedef void (*on_sys_seccomp_return_t)(CPUState* cpu, target_ulong pc, uint32_t op, uint32_t flags, uint32_t uargs);
+void ppp_add_cb_on_sys_seccomp_return(on_sys_seccomp_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_seccomp_return(on_sys_seccomp_return_t);
+typedef void (*on_sys_select_enter_t)(CPUState* cpu, target_ulong pc, int32_t n, uint32_t inp, uint32_t outp, uint32_t exp, uint32_t tvp);
+void ppp_add_cb_on_sys_select_enter(on_sys_select_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_select_enter(on_sys_select_enter_t);
+typedef void (*on_sys_select_return_t)(CPUState* cpu, target_ulong pc, int32_t n, uint32_t inp, uint32_t outp, uint32_t exp, uint32_t tvp);
+void ppp_add_cb_on_sys_select_return(on_sys_select_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_select_return(on_sys_select_return_t);
+typedef void (*on_sys_sendfile_enter_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);
+void ppp_add_cb_on_sys_sendfile_enter(on_sys_sendfile_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sendfile_enter(on_sys_sendfile_enter_t);
+typedef void (*on_sys_sendfile_return_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);
+void ppp_add_cb_on_sys_sendfile_return(on_sys_sendfile_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sendfile_return(on_sys_sendfile_return_t);
+typedef void (*on_sys_sendfile64_enter_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);
+void ppp_add_cb_on_sys_sendfile64_enter(on_sys_sendfile64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sendfile64_enter(on_sys_sendfile64_enter_t);
+typedef void (*on_sys_sendfile64_return_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);
+void ppp_add_cb_on_sys_sendfile64_return(on_sys_sendfile64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sendfile64_return(on_sys_sendfile64_return_t);
+typedef void (*on_sys_sendmmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags);
+void ppp_add_cb_on_sys_sendmmsg_enter(on_sys_sendmmsg_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sendmmsg_enter(on_sys_sendmmsg_enter_t);
+typedef void (*on_sys_sendmmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags);
+void ppp_add_cb_on_sys_sendmmsg_return(on_sys_sendmmsg_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sendmmsg_return(on_sys_sendmmsg_return_t);
+typedef void (*on_sys_sendmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);
+void ppp_add_cb_on_sys_sendmsg_enter(on_sys_sendmsg_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sendmsg_enter(on_sys_sendmsg_enter_t);
+typedef void (*on_sys_sendmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);
+void ppp_add_cb_on_sys_sendmsg_return(on_sys_sendmsg_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sendmsg_return(on_sys_sendmsg_return_t);
+typedef void (*on_sys_sendto_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, int32_t arg5);
+void ppp_add_cb_on_sys_sendto_enter(on_sys_sendto_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sendto_enter(on_sys_sendto_enter_t);
+typedef void (*on_sys_sendto_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, int32_t arg5);
+void ppp_add_cb_on_sys_sendto_return(on_sys_sendto_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sendto_return(on_sys_sendto_return_t);
+typedef void (*on_sys_set_mempolicy_enter_t)(CPUState* cpu, target_ulong pc, int32_t mode, uint32_t nmask, uint32_t maxnode);
+void ppp_add_cb_on_sys_set_mempolicy_enter(on_sys_set_mempolicy_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_set_mempolicy_enter(on_sys_set_mempolicy_enter_t);
+typedef void (*on_sys_set_mempolicy_return_t)(CPUState* cpu, target_ulong pc, int32_t mode, uint32_t nmask, uint32_t maxnode);
+void ppp_add_cb_on_sys_set_mempolicy_return(on_sys_set_mempolicy_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_set_mempolicy_return(on_sys_set_mempolicy_return_t);
+typedef void (*on_sys_set_robust_list_enter_t)(CPUState* cpu, target_ulong pc, uint32_t head, uint32_t len);
+void ppp_add_cb_on_sys_set_robust_list_enter(on_sys_set_robust_list_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_set_robust_list_enter(on_sys_set_robust_list_enter_t);
+typedef void (*on_sys_set_robust_list_return_t)(CPUState* cpu, target_ulong pc, uint32_t head, uint32_t len);
+void ppp_add_cb_on_sys_set_robust_list_return(on_sys_set_robust_list_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_set_robust_list_return(on_sys_set_robust_list_return_t);
+typedef void (*on_sys_set_thread_area_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0);
+void ppp_add_cb_on_sys_set_thread_area_enter(on_sys_set_thread_area_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_set_thread_area_enter(on_sys_set_thread_area_enter_t);
+typedef void (*on_sys_set_thread_area_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0);
+void ppp_add_cb_on_sys_set_thread_area_return(on_sys_set_thread_area_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_set_thread_area_return(on_sys_set_thread_area_return_t);
+typedef void (*on_sys_set_tid_address_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tidptr);
+void ppp_add_cb_on_sys_set_tid_address_enter(on_sys_set_tid_address_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_set_tid_address_enter(on_sys_set_tid_address_enter_t);
+typedef void (*on_sys_set_tid_address_return_t)(CPUState* cpu, target_ulong pc, uint32_t tidptr);
+void ppp_add_cb_on_sys_set_tid_address_return(on_sys_set_tid_address_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_set_tid_address_return(on_sys_set_tid_address_return_t);
+typedef void (*on_sys_setdomainname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);
+void ppp_add_cb_on_sys_setdomainname_enter(on_sys_setdomainname_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setdomainname_enter(on_sys_setdomainname_enter_t);
+typedef void (*on_sys_setdomainname_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);
+void ppp_add_cb_on_sys_setdomainname_return(on_sys_setdomainname_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setdomainname_return(on_sys_setdomainname_return_t);
+typedef void (*on_sys_setfsgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
+void ppp_add_cb_on_sys_setfsgid_enter(on_sys_setfsgid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setfsgid_enter(on_sys_setfsgid_enter_t);
+typedef void (*on_sys_setfsgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
+void ppp_add_cb_on_sys_setfsgid_return(on_sys_setfsgid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setfsgid_return(on_sys_setfsgid_return_t);
+typedef void (*on_sys_setfsgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
+void ppp_add_cb_on_sys_setfsgid16_enter(on_sys_setfsgid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setfsgid16_enter(on_sys_setfsgid16_enter_t);
+typedef void (*on_sys_setfsgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
+void ppp_add_cb_on_sys_setfsgid16_return(on_sys_setfsgid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setfsgid16_return(on_sys_setfsgid16_return_t);
+typedef void (*on_sys_setfsuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
+void ppp_add_cb_on_sys_setfsuid_enter(on_sys_setfsuid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setfsuid_enter(on_sys_setfsuid_enter_t);
+typedef void (*on_sys_setfsuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
+void ppp_add_cb_on_sys_setfsuid_return(on_sys_setfsuid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setfsuid_return(on_sys_setfsuid_return_t);
+typedef void (*on_sys_setfsuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
+void ppp_add_cb_on_sys_setfsuid16_enter(on_sys_setfsuid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setfsuid16_enter(on_sys_setfsuid16_enter_t);
+typedef void (*on_sys_setfsuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
+void ppp_add_cb_on_sys_setfsuid16_return(on_sys_setfsuid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setfsuid16_return(on_sys_setfsuid16_return_t);
+typedef void (*on_sys_setgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
+void ppp_add_cb_on_sys_setgid_enter(on_sys_setgid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setgid_enter(on_sys_setgid_enter_t);
+typedef void (*on_sys_setgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
+void ppp_add_cb_on_sys_setgid_return(on_sys_setgid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setgid_return(on_sys_setgid_return_t);
+typedef void (*on_sys_setgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
+void ppp_add_cb_on_sys_setgid16_enter(on_sys_setgid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setgid16_enter(on_sys_setgid16_enter_t);
+typedef void (*on_sys_setgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
+void ppp_add_cb_on_sys_setgid16_return(on_sys_setgid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setgid16_return(on_sys_setgid16_return_t);
+typedef void (*on_sys_setgroups_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
+void ppp_add_cb_on_sys_setgroups_enter(on_sys_setgroups_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setgroups_enter(on_sys_setgroups_enter_t);
+typedef void (*on_sys_setgroups_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
+void ppp_add_cb_on_sys_setgroups_return(on_sys_setgroups_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setgroups_return(on_sys_setgroups_return_t);
+typedef void (*on_sys_setgroups16_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
+void ppp_add_cb_on_sys_setgroups16_enter(on_sys_setgroups16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setgroups16_enter(on_sys_setgroups16_enter_t);
+typedef void (*on_sys_setgroups16_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
+void ppp_add_cb_on_sys_setgroups16_return(on_sys_setgroups16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setgroups16_return(on_sys_setgroups16_return_t);
+typedef void (*on_sys_sethostname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);
+void ppp_add_cb_on_sys_sethostname_enter(on_sys_sethostname_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sethostname_enter(on_sys_sethostname_enter_t);
+typedef void (*on_sys_sethostname_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);
+void ppp_add_cb_on_sys_sethostname_return(on_sys_sethostname_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sethostname_return(on_sys_sethostname_return_t);
+typedef void (*on_sys_setitimer_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value, uint32_t ovalue);
+void ppp_add_cb_on_sys_setitimer_enter(on_sys_setitimer_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setitimer_enter(on_sys_setitimer_enter_t);
+typedef void (*on_sys_setitimer_return_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value, uint32_t ovalue);
+void ppp_add_cb_on_sys_setitimer_return(on_sys_setitimer_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setitimer_return(on_sys_setitimer_return_t);
+typedef void (*on_sys_setns_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t nstype);
+void ppp_add_cb_on_sys_setns_enter(on_sys_setns_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setns_enter(on_sys_setns_enter_t);
+typedef void (*on_sys_setns_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t nstype);
+void ppp_add_cb_on_sys_setns_return(on_sys_setns_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setns_return(on_sys_setns_return_t);
+typedef void (*on_sys_setpgid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t pgid);
+void ppp_add_cb_on_sys_setpgid_enter(on_sys_setpgid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setpgid_enter(on_sys_setpgid_enter_t);
+typedef void (*on_sys_setpgid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t pgid);
+void ppp_add_cb_on_sys_setpgid_return(on_sys_setpgid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setpgid_return(on_sys_setpgid_return_t);
+typedef void (*on_sys_setpriority_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t niceval);
+void ppp_add_cb_on_sys_setpriority_enter(on_sys_setpriority_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setpriority_enter(on_sys_setpriority_enter_t);
+typedef void (*on_sys_setpriority_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t niceval);
+void ppp_add_cb_on_sys_setpriority_return(on_sys_setpriority_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setpriority_return(on_sys_setpriority_return_t);
+typedef void (*on_sys_setregid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);
+void ppp_add_cb_on_sys_setregid_enter(on_sys_setregid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setregid_enter(on_sys_setregid_enter_t);
+typedef void (*on_sys_setregid_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);
+void ppp_add_cb_on_sys_setregid_return(on_sys_setregid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setregid_return(on_sys_setregid_return_t);
+typedef void (*on_sys_setregid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);
+void ppp_add_cb_on_sys_setregid16_enter(on_sys_setregid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setregid16_enter(on_sys_setregid16_enter_t);
+typedef void (*on_sys_setregid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);
+void ppp_add_cb_on_sys_setregid16_return(on_sys_setregid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setregid16_return(on_sys_setregid16_return_t);
+typedef void (*on_sys_setresgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
+void ppp_add_cb_on_sys_setresgid_enter(on_sys_setresgid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setresgid_enter(on_sys_setresgid_enter_t);
+typedef void (*on_sys_setresgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
+void ppp_add_cb_on_sys_setresgid_return(on_sys_setresgid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setresgid_return(on_sys_setresgid_return_t);
+typedef void (*on_sys_setresgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
+void ppp_add_cb_on_sys_setresgid16_enter(on_sys_setresgid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setresgid16_enter(on_sys_setresgid16_enter_t);
+typedef void (*on_sys_setresgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
+void ppp_add_cb_on_sys_setresgid16_return(on_sys_setresgid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setresgid16_return(on_sys_setresgid16_return_t);
+typedef void (*on_sys_setresuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
+void ppp_add_cb_on_sys_setresuid_enter(on_sys_setresuid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setresuid_enter(on_sys_setresuid_enter_t);
+typedef void (*on_sys_setresuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
+void ppp_add_cb_on_sys_setresuid_return(on_sys_setresuid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setresuid_return(on_sys_setresuid_return_t);
+typedef void (*on_sys_setresuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
+void ppp_add_cb_on_sys_setresuid16_enter(on_sys_setresuid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setresuid16_enter(on_sys_setresuid16_enter_t);
+typedef void (*on_sys_setresuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
+void ppp_add_cb_on_sys_setresuid16_return(on_sys_setresuid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setresuid16_return(on_sys_setresuid16_return_t);
+typedef void (*on_sys_setreuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);
+void ppp_add_cb_on_sys_setreuid_enter(on_sys_setreuid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setreuid_enter(on_sys_setreuid_enter_t);
+typedef void (*on_sys_setreuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);
+void ppp_add_cb_on_sys_setreuid_return(on_sys_setreuid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setreuid_return(on_sys_setreuid_return_t);
+typedef void (*on_sys_setreuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);
+void ppp_add_cb_on_sys_setreuid16_enter(on_sys_setreuid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setreuid16_enter(on_sys_setreuid16_enter_t);
+typedef void (*on_sys_setreuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);
+void ppp_add_cb_on_sys_setreuid16_return(on_sys_setreuid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setreuid16_return(on_sys_setreuid16_return_t);
+typedef void (*on_sys_setrlimit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);
+void ppp_add_cb_on_sys_setrlimit_enter(on_sys_setrlimit_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setrlimit_enter(on_sys_setrlimit_enter_t);
+typedef void (*on_sys_setrlimit_return_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);
+void ppp_add_cb_on_sys_setrlimit_return(on_sys_setrlimit_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setrlimit_return(on_sys_setrlimit_return_t);
+typedef void (*on_sys_setsid_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_setsid_enter(on_sys_setsid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setsid_enter(on_sys_setsid_enter_t);
+typedef void (*on_sys_setsid_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_setsid_return(on_sys_setsid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setsid_return(on_sys_setsid_return_t);
+typedef void (*on_sys_setsockopt_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, int32_t optlen);
+void ppp_add_cb_on_sys_setsockopt_enter(on_sys_setsockopt_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setsockopt_enter(on_sys_setsockopt_enter_t);
+typedef void (*on_sys_setsockopt_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, int32_t optlen);
+void ppp_add_cb_on_sys_setsockopt_return(on_sys_setsockopt_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setsockopt_return(on_sys_setsockopt_return_t);
+typedef void (*on_sys_settimeofday_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);
+void ppp_add_cb_on_sys_settimeofday_enter(on_sys_settimeofday_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_settimeofday_enter(on_sys_settimeofday_enter_t);
+typedef void (*on_sys_settimeofday_return_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);
+void ppp_add_cb_on_sys_settimeofday_return(on_sys_settimeofday_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_settimeofday_return(on_sys_settimeofday_return_t);
+typedef void (*on_sys_setuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
+void ppp_add_cb_on_sys_setuid_enter(on_sys_setuid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setuid_enter(on_sys_setuid_enter_t);
+typedef void (*on_sys_setuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
+void ppp_add_cb_on_sys_setuid_return(on_sys_setuid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setuid_return(on_sys_setuid_return_t);
+typedef void (*on_sys_setuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
+void ppp_add_cb_on_sys_setuid16_enter(on_sys_setuid16_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setuid16_enter(on_sys_setuid16_enter_t);
+typedef void (*on_sys_setuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
+void ppp_add_cb_on_sys_setuid16_return(on_sys_setuid16_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setuid16_return(on_sys_setuid16_return_t);
+typedef void (*on_sys_setxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);
+void ppp_add_cb_on_sys_setxattr_enter(on_sys_setxattr_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_setxattr_enter(on_sys_setxattr_enter_t);
+typedef void (*on_sys_setxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);
+void ppp_add_cb_on_sys_setxattr_return(on_sys_setxattr_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_setxattr_return(on_sys_setxattr_return_t);
+typedef void (*on_sys_sgetmask_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_sgetmask_enter(on_sys_sgetmask_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sgetmask_enter(on_sys_sgetmask_enter_t);
+typedef void (*on_sys_sgetmask_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_sgetmask_return(on_sys_sgetmask_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sgetmask_return(on_sys_sgetmask_return_t);
+typedef void (*on_sys_shutdown_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);
+void ppp_add_cb_on_sys_shutdown_enter(on_sys_shutdown_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_shutdown_enter(on_sys_shutdown_enter_t);
+typedef void (*on_sys_shutdown_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);
+void ppp_add_cb_on_sys_shutdown_return(on_sys_shutdown_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_shutdown_return(on_sys_shutdown_return_t);
+typedef void (*on_sys_sigaction_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_sigaction_enter(on_sys_sigaction_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sigaction_enter(on_sys_sigaction_enter_t);
+typedef void (*on_sys_sigaction_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_sigaction_return(on_sys_sigaction_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sigaction_return(on_sys_sigaction_return_t);
+typedef void (*on_sys_sigaltstack_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uss, uint32_t uoss);
+void ppp_add_cb_on_sys_sigaltstack_enter(on_sys_sigaltstack_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sigaltstack_enter(on_sys_sigaltstack_enter_t);
+typedef void (*on_sys_sigaltstack_return_t)(CPUState* cpu, target_ulong pc, uint32_t uss, uint32_t uoss);
+void ppp_add_cb_on_sys_sigaltstack_return(on_sys_sigaltstack_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sigaltstack_return(on_sys_sigaltstack_return_t);
+typedef void (*on_sys_signal_enter_t)(CPUState* cpu, target_ulong pc, int32_t sig, uint32_t handler);
+void ppp_add_cb_on_sys_signal_enter(on_sys_signal_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_signal_enter(on_sys_signal_enter_t);
+typedef void (*on_sys_signal_return_t)(CPUState* cpu, target_ulong pc, int32_t sig, uint32_t handler);
+void ppp_add_cb_on_sys_signal_return(on_sys_signal_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_signal_return(on_sys_signal_return_t);
+typedef void (*on_sys_signalfd_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask);
+void ppp_add_cb_on_sys_signalfd_enter(on_sys_signalfd_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_signalfd_enter(on_sys_signalfd_enter_t);
+typedef void (*on_sys_signalfd_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask);
+void ppp_add_cb_on_sys_signalfd_return(on_sys_signalfd_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_signalfd_return(on_sys_signalfd_return_t);
+typedef void (*on_sys_signalfd4_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask, int32_t flags);
+void ppp_add_cb_on_sys_signalfd4_enter(on_sys_signalfd4_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_signalfd4_enter(on_sys_signalfd4_enter_t);
+typedef void (*on_sys_signalfd4_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask, int32_t flags);
+void ppp_add_cb_on_sys_signalfd4_return(on_sys_signalfd4_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_signalfd4_return(on_sys_signalfd4_return_t);
+typedef void (*on_sys_sigpending_enter_t)(CPUState* cpu, target_ulong pc, uint32_t set);
+void ppp_add_cb_on_sys_sigpending_enter(on_sys_sigpending_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sigpending_enter(on_sys_sigpending_enter_t);
+typedef void (*on_sys_sigpending_return_t)(CPUState* cpu, target_ulong pc, uint32_t set);
+void ppp_add_cb_on_sys_sigpending_return(on_sys_sigpending_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sigpending_return(on_sys_sigpending_return_t);
+typedef void (*on_sys_sigprocmask_enter_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset);
+void ppp_add_cb_on_sys_sigprocmask_enter(on_sys_sigprocmask_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sigprocmask_enter(on_sys_sigprocmask_enter_t);
+typedef void (*on_sys_sigprocmask_return_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset);
+void ppp_add_cb_on_sys_sigprocmask_return(on_sys_sigprocmask_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sigprocmask_return(on_sys_sigprocmask_return_t);
+typedef void (*on_sys_sigreturn_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_sigreturn_enter(on_sys_sigreturn_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sigreturn_enter(on_sys_sigreturn_enter_t);
+typedef void (*on_sys_sigreturn_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_sigreturn_return(on_sys_sigreturn_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sigreturn_return(on_sys_sigreturn_return_t);
+typedef void (*on_sys_sigsuspend_enter_t)(CPUState* cpu, target_ulong pc, int32_t unused1, int32_t unused2, uint32_t mask);
+void ppp_add_cb_on_sys_sigsuspend_enter(on_sys_sigsuspend_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sigsuspend_enter(on_sys_sigsuspend_enter_t);
+typedef void (*on_sys_sigsuspend_return_t)(CPUState* cpu, target_ulong pc, int32_t unused1, int32_t unused2, uint32_t mask);
+void ppp_add_cb_on_sys_sigsuspend_return(on_sys_sigsuspend_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sigsuspend_return(on_sys_sigsuspend_return_t);
+typedef void (*on_sys_socket_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2);
+void ppp_add_cb_on_sys_socket_enter(on_sys_socket_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_socket_enter(on_sys_socket_enter_t);
+typedef void (*on_sys_socket_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2);
+void ppp_add_cb_on_sys_socket_return(on_sys_socket_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_socket_return(on_sys_socket_return_t);
+typedef void (*on_sys_socketcall_enter_t)(CPUState* cpu, target_ulong pc, int32_t call, uint32_t args);
+void ppp_add_cb_on_sys_socketcall_enter(on_sys_socketcall_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_socketcall_enter(on_sys_socketcall_enter_t);
+typedef void (*on_sys_socketcall_return_t)(CPUState* cpu, target_ulong pc, int32_t call, uint32_t args);
+void ppp_add_cb_on_sys_socketcall_return(on_sys_socketcall_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_socketcall_return(on_sys_socketcall_return_t);
+typedef void (*on_sys_socketpair_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2, uint32_t arg3);
+void ppp_add_cb_on_sys_socketpair_enter(on_sys_socketpair_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_socketpair_enter(on_sys_socketpair_enter_t);
+typedef void (*on_sys_socketpair_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2, uint32_t arg3);
+void ppp_add_cb_on_sys_socketpair_return(on_sys_socketpair_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_socketpair_return(on_sys_socketpair_return_t);
+typedef void (*on_sys_splice_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags);
+void ppp_add_cb_on_sys_splice_enter(on_sys_splice_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_splice_enter(on_sys_splice_enter_t);
+typedef void (*on_sys_splice_return_t)(CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags);
+void ppp_add_cb_on_sys_splice_return(on_sys_splice_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_splice_return(on_sys_splice_return_t);
+typedef void (*on_sys_ssetmask_enter_t)(CPUState* cpu, target_ulong pc, int32_t newmask);
+void ppp_add_cb_on_sys_ssetmask_enter(on_sys_ssetmask_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_ssetmask_enter(on_sys_ssetmask_enter_t);
+typedef void (*on_sys_ssetmask_return_t)(CPUState* cpu, target_ulong pc, int32_t newmask);
+void ppp_add_cb_on_sys_ssetmask_return(on_sys_ssetmask_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_ssetmask_return(on_sys_ssetmask_return_t);
+typedef void (*on_sys_stat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
+void ppp_add_cb_on_sys_stat_enter(on_sys_stat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_stat_enter(on_sys_stat_enter_t);
+typedef void (*on_sys_stat_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
+void ppp_add_cb_on_sys_stat_return(on_sys_stat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_stat_return(on_sys_stat_return_t);
+typedef void (*on_sys_stat64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
+void ppp_add_cb_on_sys_stat64_enter(on_sys_stat64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_stat64_enter(on_sys_stat64_enter_t);
+typedef void (*on_sys_stat64_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
+void ppp_add_cb_on_sys_stat64_return(on_sys_stat64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_stat64_return(on_sys_stat64_return_t);
+typedef void (*on_sys_statfs_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf);
+void ppp_add_cb_on_sys_statfs_enter(on_sys_statfs_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_statfs_enter(on_sys_statfs_enter_t);
+typedef void (*on_sys_statfs_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf);
+void ppp_add_cb_on_sys_statfs_return(on_sys_statfs_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_statfs_return(on_sys_statfs_return_t);
+typedef void (*on_sys_statfs64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t sz, uint32_t buf);
+void ppp_add_cb_on_sys_statfs64_enter(on_sys_statfs64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_statfs64_enter(on_sys_statfs64_enter_t);
+typedef void (*on_sys_statfs64_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t sz, uint32_t buf);
+void ppp_add_cb_on_sys_statfs64_return(on_sys_statfs64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_statfs64_return(on_sys_statfs64_return_t);
+typedef void (*on_sys_statx_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t flags, uint32_t mask, uint32_t buffer);
+void ppp_add_cb_on_sys_statx_enter(on_sys_statx_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_statx_enter(on_sys_statx_enter_t);
+typedef void (*on_sys_statx_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t flags, uint32_t mask, uint32_t buffer);
+void ppp_add_cb_on_sys_statx_return(on_sys_statx_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_statx_return(on_sys_statx_return_t);
+typedef void (*on_sys_stime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tptr);
+void ppp_add_cb_on_sys_stime_enter(on_sys_stime_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_stime_enter(on_sys_stime_enter_t);
+typedef void (*on_sys_stime_return_t)(CPUState* cpu, target_ulong pc, uint32_t tptr);
+void ppp_add_cb_on_sys_stime_return(on_sys_stime_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_stime_return(on_sys_stime_return_t);
+typedef void (*on_sys_swapoff_enter_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile);
+void ppp_add_cb_on_sys_swapoff_enter(on_sys_swapoff_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_swapoff_enter(on_sys_swapoff_enter_t);
+typedef void (*on_sys_swapoff_return_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile);
+void ppp_add_cb_on_sys_swapoff_return(on_sys_swapoff_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_swapoff_return(on_sys_swapoff_return_t);
+typedef void (*on_sys_swapon_enter_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile, int32_t swap_flags);
+void ppp_add_cb_on_sys_swapon_enter(on_sys_swapon_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_swapon_enter(on_sys_swapon_enter_t);
+typedef void (*on_sys_swapon_return_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile, int32_t swap_flags);
+void ppp_add_cb_on_sys_swapon_return(on_sys_swapon_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_swapon_return(on_sys_swapon_return_t);
+typedef void (*on_sys_symlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t old, uint32_t _new);
+void ppp_add_cb_on_sys_symlink_enter(on_sys_symlink_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_symlink_enter(on_sys_symlink_enter_t);
+typedef void (*on_sys_symlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t old, uint32_t _new);
+void ppp_add_cb_on_sys_symlink_return(on_sys_symlink_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_symlink_return(on_sys_symlink_return_t);
+typedef void (*on_sys_symlinkat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, int32_t newdfd, uint32_t newname);
+void ppp_add_cb_on_sys_symlinkat_enter(on_sys_symlinkat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_symlinkat_enter(on_sys_symlinkat_enter_t);
+typedef void (*on_sys_symlinkat_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, int32_t newdfd, uint32_t newname);
+void ppp_add_cb_on_sys_symlinkat_return(on_sys_symlinkat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_symlinkat_return(on_sys_symlinkat_return_t);
+typedef void (*on_sys_sync_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_sync_enter(on_sys_sync_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sync_enter(on_sys_sync_enter_t);
+typedef void (*on_sys_sync_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_sync_return(on_sys_sync_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sync_return(on_sys_sync_return_t);
+typedef void (*on_sys_sync_file_range_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint64_t nbytes, uint32_t flags);
+void ppp_add_cb_on_sys_sync_file_range_enter(on_sys_sync_file_range_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sync_file_range_enter(on_sys_sync_file_range_enter_t);
+typedef void (*on_sys_sync_file_range_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint64_t nbytes, uint32_t flags);
+void ppp_add_cb_on_sys_sync_file_range_return(on_sys_sync_file_range_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sync_file_range_return(on_sys_sync_file_range_return_t);
+typedef void (*on_sys_syncfs_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd);
+void ppp_add_cb_on_sys_syncfs_enter(on_sys_syncfs_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_syncfs_enter(on_sys_syncfs_enter_t);
+typedef void (*on_sys_syncfs_return_t)(CPUState* cpu, target_ulong pc, int32_t fd);
+void ppp_add_cb_on_sys_syncfs_return(on_sys_syncfs_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_syncfs_return(on_sys_syncfs_return_t);
+typedef void (*on_sys_sysctl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t args);
+void ppp_add_cb_on_sys_sysctl_enter(on_sys_sysctl_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sysctl_enter(on_sys_sysctl_enter_t);
+typedef void (*on_sys_sysctl_return_t)(CPUState* cpu, target_ulong pc, uint32_t args);
+void ppp_add_cb_on_sys_sysctl_return(on_sys_sysctl_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sysctl_return(on_sys_sysctl_return_t);
+typedef void (*on_sys_sysfs_enter_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_sysfs_enter(on_sys_sysfs_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sysfs_enter(on_sys_sysfs_enter_t);
+typedef void (*on_sys_sysfs_return_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg1, uint32_t arg2);
+void ppp_add_cb_on_sys_sysfs_return(on_sys_sysfs_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sysfs_return(on_sys_sysfs_return_t);
+typedef void (*on_sys_sysinfo_enter_t)(CPUState* cpu, target_ulong pc, uint32_t info);
+void ppp_add_cb_on_sys_sysinfo_enter(on_sys_sysinfo_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_sysinfo_enter(on_sys_sysinfo_enter_t);
+typedef void (*on_sys_sysinfo_return_t)(CPUState* cpu, target_ulong pc, uint32_t info);
+void ppp_add_cb_on_sys_sysinfo_return(on_sys_sysinfo_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_sysinfo_return(on_sys_sysinfo_return_t);
+typedef void (*on_sys_syslog_enter_t)(CPUState* cpu, target_ulong pc, int32_t type, uint32_t buf, int32_t len);
+void ppp_add_cb_on_sys_syslog_enter(on_sys_syslog_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_syslog_enter(on_sys_syslog_enter_t);
+typedef void (*on_sys_syslog_return_t)(CPUState* cpu, target_ulong pc, int32_t type, uint32_t buf, int32_t len);
+void ppp_add_cb_on_sys_syslog_return(on_sys_syslog_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_syslog_return(on_sys_syslog_return_t);
+typedef void (*on_sys_tee_enter_t)(CPUState* cpu, target_ulong pc, int32_t fdin, int32_t fdout, uint32_t len, uint32_t flags);
+void ppp_add_cb_on_sys_tee_enter(on_sys_tee_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_tee_enter(on_sys_tee_enter_t);
+typedef void (*on_sys_tee_return_t)(CPUState* cpu, target_ulong pc, int32_t fdin, int32_t fdout, uint32_t len, uint32_t flags);
+void ppp_add_cb_on_sys_tee_return(on_sys_tee_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_tee_return(on_sys_tee_return_t);
+typedef void (*on_sys_tgkill_enter_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig);
+void ppp_add_cb_on_sys_tgkill_enter(on_sys_tgkill_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_tgkill_enter(on_sys_tgkill_enter_t);
+typedef void (*on_sys_tgkill_return_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig);
+void ppp_add_cb_on_sys_tgkill_return(on_sys_tgkill_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_tgkill_return(on_sys_tgkill_return_t);
+typedef void (*on_sys_time_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tloc);
+void ppp_add_cb_on_sys_time_enter(on_sys_time_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_time_enter(on_sys_time_enter_t);
+typedef void (*on_sys_time_return_t)(CPUState* cpu, target_ulong pc, uint32_t tloc);
+void ppp_add_cb_on_sys_time_return(on_sys_time_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_time_return(on_sys_time_return_t);
+typedef void (*on_sys_timer_create_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t timer_event_spec, uint32_t created_timer_id);
+void ppp_add_cb_on_sys_timer_create_enter(on_sys_timer_create_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_timer_create_enter(on_sys_timer_create_enter_t);
+typedef void (*on_sys_timer_create_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t timer_event_spec, uint32_t created_timer_id);
+void ppp_add_cb_on_sys_timer_create_return(on_sys_timer_create_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_timer_create_return(on_sys_timer_create_return_t);
+typedef void (*on_sys_timer_delete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id);
+void ppp_add_cb_on_sys_timer_delete_enter(on_sys_timer_delete_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_timer_delete_enter(on_sys_timer_delete_enter_t);
+typedef void (*on_sys_timer_delete_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id);
+void ppp_add_cb_on_sys_timer_delete_return(on_sys_timer_delete_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_timer_delete_return(on_sys_timer_delete_return_t);
+typedef void (*on_sys_timer_getoverrun_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id);
+void ppp_add_cb_on_sys_timer_getoverrun_enter(on_sys_timer_getoverrun_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_timer_getoverrun_enter(on_sys_timer_getoverrun_enter_t);
+typedef void (*on_sys_timer_getoverrun_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id);
+void ppp_add_cb_on_sys_timer_getoverrun_return(on_sys_timer_getoverrun_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_timer_getoverrun_return(on_sys_timer_getoverrun_return_t);
+typedef void (*on_sys_timer_gettime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, uint32_t setting);
+void ppp_add_cb_on_sys_timer_gettime_enter(on_sys_timer_gettime_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_timer_gettime_enter(on_sys_timer_gettime_enter_t);
+typedef void (*on_sys_timer_gettime_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, uint32_t setting);
+void ppp_add_cb_on_sys_timer_gettime_return(on_sys_timer_gettime_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_timer_gettime_return(on_sys_timer_gettime_return_t);
+typedef void (*on_sys_timer_settime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, int32_t flags, uint32_t new_setting, uint32_t old_setting);
+void ppp_add_cb_on_sys_timer_settime_enter(on_sys_timer_settime_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_timer_settime_enter(on_sys_timer_settime_enter_t);
+typedef void (*on_sys_timer_settime_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, int32_t flags, uint32_t new_setting, uint32_t old_setting);
+void ppp_add_cb_on_sys_timer_settime_return(on_sys_timer_settime_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_timer_settime_return(on_sys_timer_settime_return_t);
+typedef void (*on_sys_timerfd_create_enter_t)(CPUState* cpu, target_ulong pc, int32_t clockid, int32_t flags);
+void ppp_add_cb_on_sys_timerfd_create_enter(on_sys_timerfd_create_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_timerfd_create_enter(on_sys_timerfd_create_enter_t);
+typedef void (*on_sys_timerfd_create_return_t)(CPUState* cpu, target_ulong pc, int32_t clockid, int32_t flags);
+void ppp_add_cb_on_sys_timerfd_create_return(on_sys_timerfd_create_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_timerfd_create_return(on_sys_timerfd_create_return_t);
+typedef void (*on_sys_timerfd_gettime_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t otmr);
+void ppp_add_cb_on_sys_timerfd_gettime_enter(on_sys_timerfd_gettime_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_timerfd_gettime_enter(on_sys_timerfd_gettime_enter_t);
+typedef void (*on_sys_timerfd_gettime_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t otmr);
+void ppp_add_cb_on_sys_timerfd_gettime_return(on_sys_timerfd_gettime_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_timerfd_gettime_return(on_sys_timerfd_gettime_return_t);
+typedef void (*on_sys_timerfd_settime_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, int32_t flags, uint32_t utmr, uint32_t otmr);
+void ppp_add_cb_on_sys_timerfd_settime_enter(on_sys_timerfd_settime_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_timerfd_settime_enter(on_sys_timerfd_settime_enter_t);
+typedef void (*on_sys_timerfd_settime_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, int32_t flags, uint32_t utmr, uint32_t otmr);
+void ppp_add_cb_on_sys_timerfd_settime_return(on_sys_timerfd_settime_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_timerfd_settime_return(on_sys_timerfd_settime_return_t);
+typedef void (*on_sys_times_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tbuf);
+void ppp_add_cb_on_sys_times_enter(on_sys_times_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_times_enter(on_sys_times_enter_t);
+typedef void (*on_sys_times_return_t)(CPUState* cpu, target_ulong pc, uint32_t tbuf);
+void ppp_add_cb_on_sys_times_return(on_sys_times_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_times_return(on_sys_times_return_t);
+typedef void (*on_sys_tkill_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);
+void ppp_add_cb_on_sys_tkill_enter(on_sys_tkill_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_tkill_enter(on_sys_tkill_enter_t);
+typedef void (*on_sys_tkill_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);
+void ppp_add_cb_on_sys_tkill_return(on_sys_tkill_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_tkill_return(on_sys_tkill_return_t);
+typedef void (*on_sys_truncate_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, int32_t length);
+void ppp_add_cb_on_sys_truncate_enter(on_sys_truncate_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_truncate_enter(on_sys_truncate_enter_t);
+typedef void (*on_sys_truncate_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, int32_t length);
+void ppp_add_cb_on_sys_truncate_return(on_sys_truncate_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_truncate_return(on_sys_truncate_return_t);
+typedef void (*on_sys_truncate64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint64_t length);
+void ppp_add_cb_on_sys_truncate64_enter(on_sys_truncate64_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_truncate64_enter(on_sys_truncate64_enter_t);
+typedef void (*on_sys_truncate64_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint64_t length);
+void ppp_add_cb_on_sys_truncate64_return(on_sys_truncate64_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_truncate64_return(on_sys_truncate64_return_t);
+typedef void (*on_sys_umask_enter_t)(CPUState* cpu, target_ulong pc, int32_t mask);
+void ppp_add_cb_on_sys_umask_enter(on_sys_umask_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_umask_enter(on_sys_umask_enter_t);
+typedef void (*on_sys_umask_return_t)(CPUState* cpu, target_ulong pc, int32_t mask);
+void ppp_add_cb_on_sys_umask_return(on_sys_umask_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_umask_return(on_sys_umask_return_t);
+typedef void (*on_sys_umount_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t flags);
+void ppp_add_cb_on_sys_umount_enter(on_sys_umount_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_umount_enter(on_sys_umount_enter_t);
+typedef void (*on_sys_umount_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t flags);
+void ppp_add_cb_on_sys_umount_return(on_sys_umount_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_umount_return(on_sys_umount_return_t);
+typedef void (*on_sys_uname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0);
+void ppp_add_cb_on_sys_uname_enter(on_sys_uname_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_uname_enter(on_sys_uname_enter_t);
+typedef void (*on_sys_uname_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0);
+void ppp_add_cb_on_sys_uname_return(on_sys_uname_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_uname_return(on_sys_uname_return_t);
+typedef void (*on_sys_unlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname);
+void ppp_add_cb_on_sys_unlink_enter(on_sys_unlink_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_unlink_enter(on_sys_unlink_enter_t);
+typedef void (*on_sys_unlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname);
+void ppp_add_cb_on_sys_unlink_return(on_sys_unlink_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_unlink_return(on_sys_unlink_return_t);
+typedef void (*on_sys_unlinkat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, int32_t flag);
+void ppp_add_cb_on_sys_unlinkat_enter(on_sys_unlinkat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_unlinkat_enter(on_sys_unlinkat_enter_t);
+typedef void (*on_sys_unlinkat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, int32_t flag);
+void ppp_add_cb_on_sys_unlinkat_return(on_sys_unlinkat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_unlinkat_return(on_sys_unlinkat_return_t);
+typedef void (*on_sys_unshare_enter_t)(CPUState* cpu, target_ulong pc, uint32_t unshare_flags);
+void ppp_add_cb_on_sys_unshare_enter(on_sys_unshare_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_unshare_enter(on_sys_unshare_enter_t);
+typedef void (*on_sys_unshare_return_t)(CPUState* cpu, target_ulong pc, uint32_t unshare_flags);
+void ppp_add_cb_on_sys_unshare_return(on_sys_unshare_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_unshare_return(on_sys_unshare_return_t);
+typedef void (*on_sys_uselib_enter_t)(CPUState* cpu, target_ulong pc, uint32_t library);
+void ppp_add_cb_on_sys_uselib_enter(on_sys_uselib_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_uselib_enter(on_sys_uselib_enter_t);
+typedef void (*on_sys_uselib_return_t)(CPUState* cpu, target_ulong pc, uint32_t library);
+void ppp_add_cb_on_sys_uselib_return(on_sys_uselib_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_uselib_return(on_sys_uselib_return_t);
+typedef void (*on_sys_userfaultfd_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags);
+void ppp_add_cb_on_sys_userfaultfd_enter(on_sys_userfaultfd_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_userfaultfd_enter(on_sys_userfaultfd_enter_t);
+typedef void (*on_sys_userfaultfd_return_t)(CPUState* cpu, target_ulong pc, int32_t flags);
+void ppp_add_cb_on_sys_userfaultfd_return(on_sys_userfaultfd_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_userfaultfd_return(on_sys_userfaultfd_return_t);
+typedef void (*on_sys_ustat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t dev, uint32_t ubuf);
+void ppp_add_cb_on_sys_ustat_enter(on_sys_ustat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_ustat_enter(on_sys_ustat_enter_t);
+typedef void (*on_sys_ustat_return_t)(CPUState* cpu, target_ulong pc, uint32_t dev, uint32_t ubuf);
+void ppp_add_cb_on_sys_ustat_return(on_sys_ustat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_ustat_return(on_sys_ustat_return_t);
+typedef void (*on_sys_utime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t times);
+void ppp_add_cb_on_sys_utime_enter(on_sys_utime_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_utime_enter(on_sys_utime_enter_t);
+typedef void (*on_sys_utime_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t times);
+void ppp_add_cb_on_sys_utime_return(on_sys_utime_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_utime_return(on_sys_utime_return_t);
+typedef void (*on_sys_utimensat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes, int32_t flags);
+void ppp_add_cb_on_sys_utimensat_enter(on_sys_utimensat_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_utimensat_enter(on_sys_utimensat_enter_t);
+typedef void (*on_sys_utimensat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes, int32_t flags);
+void ppp_add_cb_on_sys_utimensat_return(on_sys_utimensat_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_utimensat_return(on_sys_utimensat_return_t);
+typedef void (*on_sys_utimes_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t utimes);
+void ppp_add_cb_on_sys_utimes_enter(on_sys_utimes_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_utimes_enter(on_sys_utimes_enter_t);
+typedef void (*on_sys_utimes_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t utimes);
+void ppp_add_cb_on_sys_utimes_return(on_sys_utimes_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_utimes_return(on_sys_utimes_return_t);
+typedef void (*on_sys_vfork_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_vfork_enter(on_sys_vfork_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_vfork_enter(on_sys_vfork_enter_t);
+typedef void (*on_sys_vfork_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_vfork_return(on_sys_vfork_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_vfork_return(on_sys_vfork_return_t);
+typedef void (*on_sys_vhangup_enter_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_vhangup_enter(on_sys_vhangup_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_vhangup_enter(on_sys_vhangup_enter_t);
+typedef void (*on_sys_vhangup_return_t)(CPUState* cpu, target_ulong pc);
+void ppp_add_cb_on_sys_vhangup_return(on_sys_vhangup_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_vhangup_return(on_sys_vhangup_return_t);
+typedef void (*on_sys_vm86_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1);
+void ppp_add_cb_on_sys_vm86_enter(on_sys_vm86_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_vm86_enter(on_sys_vm86_enter_t);
+typedef void (*on_sys_vm86_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1);
+void ppp_add_cb_on_sys_vm86_return(on_sys_vm86_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_vm86_return(on_sys_vm86_return_t);
+typedef void (*on_sys_vm86old_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0);
+void ppp_add_cb_on_sys_vm86old_enter(on_sys_vm86old_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_vm86old_enter(on_sys_vm86old_enter_t);
+typedef void (*on_sys_vm86old_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0);
+void ppp_add_cb_on_sys_vm86old_return(on_sys_vm86old_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_vm86old_return(on_sys_vm86old_return_t);
+typedef void (*on_sys_vmsplice_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t iov, uint32_t nr_segs, uint32_t flags);
+void ppp_add_cb_on_sys_vmsplice_enter(on_sys_vmsplice_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_vmsplice_enter(on_sys_vmsplice_enter_t);
+typedef void (*on_sys_vmsplice_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t iov, uint32_t nr_segs, uint32_t flags);
+void ppp_add_cb_on_sys_vmsplice_return(on_sys_vmsplice_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_vmsplice_return(on_sys_vmsplice_return_t);
+typedef void (*on_sys_wait4_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options, uint32_t ru);
+void ppp_add_cb_on_sys_wait4_enter(on_sys_wait4_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_wait4_enter(on_sys_wait4_enter_t);
+typedef void (*on_sys_wait4_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options, uint32_t ru);
+void ppp_add_cb_on_sys_wait4_return(on_sys_wait4_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_wait4_return(on_sys_wait4_return_t);
+typedef void (*on_sys_waitid_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t pid, uint32_t infop, int32_t options, uint32_t ru);
+void ppp_add_cb_on_sys_waitid_enter(on_sys_waitid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_waitid_enter(on_sys_waitid_enter_t);
+typedef void (*on_sys_waitid_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t pid, uint32_t infop, int32_t options, uint32_t ru);
+void ppp_add_cb_on_sys_waitid_return(on_sys_waitid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_waitid_return(on_sys_waitid_return_t);
+typedef void (*on_sys_waitpid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options);
+void ppp_add_cb_on_sys_waitpid_enter(on_sys_waitpid_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_waitpid_enter(on_sys_waitpid_enter_t);
+typedef void (*on_sys_waitpid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options);
+void ppp_add_cb_on_sys_waitpid_return(on_sys_waitpid_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_waitpid_return(on_sys_waitpid_return_t);
+typedef void (*on_sys_write_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);
+void ppp_add_cb_on_sys_write_enter(on_sys_write_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_write_enter(on_sys_write_enter_t);
+typedef void (*on_sys_write_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);
+void ppp_add_cb_on_sys_write_return(on_sys_write_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_write_return(on_sys_write_return_t);
+typedef void (*on_sys_writev_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);
+void ppp_add_cb_on_sys_writev_enter(on_sys_writev_enter_t);
+_Bool 
+    ppp_remove_cb_on_sys_writev_enter(on_sys_writev_enter_t);
+typedef void (*on_sys_writev_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);
+void ppp_add_cb_on_sys_writev_return(on_sys_writev_return_t);
+_Bool 
+    ppp_remove_cb_on_sys_writev_return(on_sys_writev_return_t);
+typedef void (*on_all_sys_enter_t)(CPUState *cpu, target_ulong pc, target_ulong callno);
+void ppp_add_cb_on_all_sys_enter(on_all_sys_enter_t);
+_Bool 
+    ppp_remove_cb_on_all_sys_enter(on_all_sys_enter_t);
+typedef void (*on_all_sys_enter2_t)(CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx);
+void ppp_add_cb_on_all_sys_enter2(on_all_sys_enter2_t);
+_Bool 
+    ppp_remove_cb_on_all_sys_enter2(on_all_sys_enter2_t);
+typedef void (*on_all_sys_return_t)(CPUState *cpu, target_ulong pc, target_ulong callno);
+void ppp_add_cb_on_all_sys_return(on_all_sys_return_t);
+_Bool 
+    ppp_remove_cb_on_all_sys_return(on_all_sys_return_t);
+typedef void (*on_all_sys_return2_t)(CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx);
+void ppp_add_cb_on_all_sys_return2(on_all_sys_return2_t);
+_Bool 
+    ppp_remove_cb_on_all_sys_return2(on_all_sys_return2_t);
+typedef void (*on_unknown_sys_enter_t)(CPUState *cpu, target_ulong pc, target_ulong callno);
+void ppp_add_cb_on_unknown_sys_enter(on_unknown_sys_enter_t);
+_Bool 
+    ppp_remove_cb_on_unknown_sys_enter(on_unknown_sys_enter_t);
+typedef void (*on_unknown_sys_return_t)(CPUState *cpu, target_ulong pc, target_ulong callno);
+void ppp_add_cb_on_unknown_sys_return(on_unknown_sys_return_t);
+_Bool 
+    ppp_remove_cb_on_unknown_sys_return(on_unknown_sys_return_t);

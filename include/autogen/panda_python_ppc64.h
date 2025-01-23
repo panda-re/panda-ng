@@ -10413,7 +10413,6 @@ gchar* g_module_build_path (const gchar *directory,
  int breakheader();
        
        
-       
 typedef int Int128;
 typedef int Int128Aligned;
 typedef union {
@@ -13541,8 +13540,8 @@ _Bool
  void cpu_loop_exit(CPUState *cpu);
  void cpu_loop_exit_restore(CPUState *cpu, uintptr_t pc);
 int cpu_exec(CPUState *cpu);
-typedef int32_t target_long;
-typedef uint32_t target_ulong;
+typedef int64_t target_long;
+typedef uint64_t target_ulong;
 _Bool 
     runstate_check(RunState state);
 void runstate_set(RunState new_state);
@@ -14040,7 +14039,7 @@ typedef enum MemOp {
     MO_BSWAP = 0x10,
     MO_LE = 0,
     MO_BE = MO_BSWAP,
-    MO_TE = MO_LE,
+    MO_TE = MO_BE,
     MO_ASHIFT = 5,
     MO_AMASK = 0x7 << MO_ASHIFT,
     MO_UNALN = 0,
@@ -14352,55 +14351,6 @@ int plugin_num_vcpus(void);
 struct qemu_plugin_scoreboard *plugin_scoreboard_new(size_t element_size);
 void plugin_scoreboard_free(struct qemu_plugin_scoreboard *score);
        
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
-;
 typedef uint16_t float16;
 typedef uint32_t float32;
 typedef uint64_t float64;
@@ -14541,13 +14491,6 @@ typedef union {
         uint64_t upper;
     } ll;
 } CPU_QuadU;
-typedef struct ArchCPU ARMCPU; typedef struct ArchCPU ArchCPU; typedef struct ARMCPUClass ARMCPUClass; typedef ArchCPU *ArchCPU_autoptr; typedef GList *ArchCPU_listautoptr; typedef GSList *ArchCPU_slistautoptr; typedef GQueue *ArchCPU_queueautoptr;
-typedef struct AArch64CPUClass AArch64CPUClass;
-enum {
-    M_REG_NS = 0,
-    M_REG_S = 1,
-    M_REG_NUM_BANKS = 2,
-};
 typedef struct GDBFeature {
     const char *xmlname;
     const char *xml;
@@ -14593,1238 +14536,615 @@ typedef struct {
 GArray *gdb_get_register_list(CPUState *cpu);
 void gdb_set_stop_cpu(CPUState *cpu);
 extern const GDBFeature gdb_static_features[];
-uint64_t arm_cpu_mp_affinity(ARMCPU *cpu);
+typedef struct ArchCPU PowerPCCPU; typedef struct ArchCPU ArchCPU; typedef struct PowerPCCPUClass PowerPCCPUClass; typedef ArchCPU *ArchCPU_autoptr; typedef GList *ArchCPU_listautoptr; typedef GSList *ArchCPU_slistautoptr; typedef GQueue *ArchCPU_queueautoptr;
+typedef struct PPCTimebase {
+    uint64_t guest_timebase;
+    int64_t time_of_the_day_ns;
+    
+   _Bool 
+        runstate_paused;
+} PPCTimebase;
+extern const VMStateDescription vmstate_ppc_timebase;
+void cpu_ppc_clock_vm_state_change(void *opaque, 
+                                                _Bool 
+                                                     running,
+                                   RunState state);
 enum {
-    GTIMER_PHYS = 0,
-    GTIMER_VIRT = 1,
-    GTIMER_HYP = 2,
-    GTIMER_SEC = 3,
-    GTIMER_HYPVIRT = 4,
+    POWERPC_EXCP_NONE = -1,
+    POWERPC_EXCP_CRITICAL = 0,
+    POWERPC_EXCP_MCHECK = 1,
+    POWERPC_EXCP_DSI = 2,
+    POWERPC_EXCP_ISI = 3,
+    POWERPC_EXCP_EXTERNAL = 4,
+    POWERPC_EXCP_ALIGN = 5,
+    POWERPC_EXCP_PROGRAM = 6,
+    POWERPC_EXCP_FPU = 7,
+    POWERPC_EXCP_SYSCALL = 8,
+    POWERPC_EXCP_APU = 9,
+    POWERPC_EXCP_DECR = 10,
+    POWERPC_EXCP_FIT = 11,
+    POWERPC_EXCP_WDT = 12,
+    POWERPC_EXCP_DTLB = 13,
+    POWERPC_EXCP_ITLB = 14,
+    POWERPC_EXCP_DEBUG = 15,
+    POWERPC_EXCP_SPEU = 32,
+    POWERPC_EXCP_EFPDI = 33,
+    POWERPC_EXCP_EFPRI = 34,
+    POWERPC_EXCP_EPERFM = 35,
+    POWERPC_EXCP_DOORI = 36,
+    POWERPC_EXCP_DOORCI = 37,
+    POWERPC_EXCP_GDOORI = 38,
+    POWERPC_EXCP_GDOORCI = 39,
+    POWERPC_EXCP_HYPPRIV = 41,
+    POWERPC_EXCP_RESET = 64,
+    POWERPC_EXCP_DSEG = 65,
+    POWERPC_EXCP_ISEG = 66,
+    POWERPC_EXCP_HDECR = 67,
+    POWERPC_EXCP_TRACE = 68,
+    POWERPC_EXCP_HDSI = 69,
+    POWERPC_EXCP_HISI = 70,
+    POWERPC_EXCP_HDSEG = 71,
+    POWERPC_EXCP_HISEG = 72,
+    POWERPC_EXCP_VPU = 73,
+    POWERPC_EXCP_PIT = 74,
+    POWERPC_EXCP_EMUL = 77,
+    POWERPC_EXCP_IFTLB = 78,
+    POWERPC_EXCP_DLTLB = 79,
+    POWERPC_EXCP_DSTLB = 80,
+    POWERPC_EXCP_FPA = 81,
+    POWERPC_EXCP_DABR = 82,
+    POWERPC_EXCP_IABR = 83,
+    POWERPC_EXCP_SMI = 84,
+    POWERPC_EXCP_PERFM = 85,
+    POWERPC_EXCP_THERM = 86,
+    POWERPC_EXCP_VPUA = 87,
+    POWERPC_EXCP_SOFTP = 88,
+    POWERPC_EXCP_MAINT = 89,
+    POWERPC_EXCP_MEXTBR = 90,
+    POWERPC_EXCP_NMEXTBR = 91,
+    POWERPC_EXCP_ITLBE = 92,
+    POWERPC_EXCP_DTLBE = 93,
+    POWERPC_EXCP_VSXU = 94,
+    POWERPC_EXCP_FU = 95,
+    POWERPC_EXCP_HV_EMU = 96,
+    POWERPC_EXCP_HV_MAINT = 97,
+    POWERPC_EXCP_HV_FU = 98,
+    POWERPC_EXCP_SDOOR = 99,
+    POWERPC_EXCP_SDOOR_HV = 100,
+    POWERPC_EXCP_HVIRT = 101,
+    POWERPC_EXCP_SYSCALL_VECTORED = 102,
+    POWERPC_EXCP_PERFM_EBB = 103,
+    POWERPC_EXCP_EXTERNAL_EBB = 104,
+    POWERPC_EXCP_NB = 105,
+    POWERPC_EXCP_SYSCALL_USER = 0x203,
 };
-typedef struct DynamicGDBFeatureInfo {
-    GDBFeature desc;
-    union {
-        struct {
-            uint32_t *keys;
-        } cpregs;
-    } data;
-} DynamicGDBFeatureInfo;
-typedef struct ARMGenericTimer {
-    uint64_t cval;
-    uint64_t ctl;
-} ARMGenericTimer;
-typedef struct ARMVectorReg {
-    uint64_t d[2] ;
-} ARMVectorReg;
-typedef struct CPUARMTBFlags {
+enum {
+    POWERPC_EXCP_ALIGN_FP = 0x01,
+    POWERPC_EXCP_ALIGN_LST = 0x02,
+    POWERPC_EXCP_ALIGN_LE = 0x03,
+    POWERPC_EXCP_ALIGN_PROT = 0x04,
+    POWERPC_EXCP_ALIGN_BAT = 0x05,
+    POWERPC_EXCP_ALIGN_CACHE = 0x06,
+    POWERPC_EXCP_ALIGN_INSN = 0x07,
+    POWERPC_EXCP_FP = 0x10,
+    POWERPC_EXCP_FP_OX = 0x01,
+    POWERPC_EXCP_FP_UX = 0x02,
+    POWERPC_EXCP_FP_ZX = 0x03,
+    POWERPC_EXCP_FP_XX = 0x04,
+    POWERPC_EXCP_FP_VXSNAN = 0x05,
+    POWERPC_EXCP_FP_VXISI = 0x06,
+    POWERPC_EXCP_FP_VXIDI = 0x07,
+    POWERPC_EXCP_FP_VXZDZ = 0x08,
+    POWERPC_EXCP_FP_VXIMZ = 0x09,
+    POWERPC_EXCP_FP_VXVC = 0x0A,
+    POWERPC_EXCP_FP_VXSOFT = 0x0B,
+    POWERPC_EXCP_FP_VXSQRT = 0x0C,
+    POWERPC_EXCP_FP_VXCVI = 0x0D,
+    POWERPC_EXCP_INVAL = 0x20,
+    POWERPC_EXCP_INVAL_INVAL = 0x01,
+    POWERPC_EXCP_INVAL_LSWX = 0x02,
+    POWERPC_EXCP_INVAL_SPR = 0x03,
+    POWERPC_EXCP_INVAL_FP = 0x04,
+    POWERPC_EXCP_PRIV = 0x30,
+    POWERPC_EXCP_PRIV_OPC = 0x01,
+    POWERPC_EXCP_PRIV_REG = 0x02,
+    POWERPC_EXCP_TRAP = 0x40,
+};
+typedef enum powerpc_excp_t {
+    POWERPC_EXCP_UNKNOWN = 0,
+    POWERPC_EXCP_STD,
+    POWERPC_EXCP_40x,
+    POWERPC_EXCP_6xx,
+    POWERPC_EXCP_7xx,
+    POWERPC_EXCP_74xx,
+    POWERPC_EXCP_BOOKE,
+    POWERPC_EXCP_970,
+    POWERPC_EXCP_POWER7,
+    POWERPC_EXCP_POWER8,
+    POWERPC_EXCP_POWER9,
+    POWERPC_EXCP_POWER10,
+    POWERPC_EXCP_POWER11,
+} powerpc_excp_t;
+typedef enum powerpc_mmu_t {
+    POWERPC_MMU_UNKNOWN = 0x00000000,
+    POWERPC_MMU_32B = 0x00000001,
+    POWERPC_MMU_SOFT_6xx = 0x00000002,
+    POWERPC_MMU_SOFT_74xx = 0x00000003,
+    POWERPC_MMU_SOFT_4xx = 0x00000004,
+    POWERPC_MMU_REAL = 0x00000006,
+    POWERPC_MMU_MPC8xx = 0x00000007,
+    POWERPC_MMU_BOOKE = 0x00000008,
+    POWERPC_MMU_BOOKE206 = 0x00000009,
+    POWERPC_MMU_64B = 0x00010000 | 0x00000001,
+    POWERPC_MMU_2_03 = 0x00010000 | 0x00000002,
+    POWERPC_MMU_2_06 = 0x00010000 | 0x00000003,
+    POWERPC_MMU_2_07 = 0x00010000 | 0x00000004,
+    POWERPC_MMU_3_00 = 0x00010000 | 0x00000005,
+} powerpc_mmu_t;
+typedef enum powerpc_input_t {
+    PPC_FLAGS_INPUT_UNKNOWN = 0,
+    PPC_FLAGS_INPUT_6xx,
+    PPC_FLAGS_INPUT_BookE,
+    PPC_FLAGS_INPUT_405,
+    PPC_FLAGS_INPUT_970,
+    PPC_FLAGS_INPUT_POWER7,
+    PPC_FLAGS_INPUT_POWER9,
+    PPC_FLAGS_INPUT_RCPU,
+} powerpc_input_t;
+typedef struct opc_handler_t opc_handler_t;
+typedef struct DisasContext DisasContext;
+typedef struct ppc_dcr_t ppc_dcr_t;
+typedef struct ppc_spr_t ppc_spr_t;
+typedef struct ppc_tb_t ppc_tb_t;
+typedef union ppc_tlb_t ppc_tlb_t;
+typedef struct ppc_hash_pte64 ppc_hash_pte64_t;
+typedef struct PPCHash64Options PPCHash64Options;
+typedef struct CPUArchState CPUPPCState;
+struct ppc_spr_t {
+    const char *name;
+    target_ulong default_value;
+    unsigned int gdb_id;
+    void (*uea_read)(DisasContext *ctx, int gpr_num, int spr_num);
+    void (*uea_write)(DisasContext *ctx, int spr_num, int gpr_num);
+    void (*oea_read)(DisasContext *ctx, int gpr_num, int spr_num);
+    void (*oea_write)(DisasContext *ctx, int spr_num, int gpr_num);
+    void (*hea_read)(DisasContext *ctx, int gpr_num, int spr_num);
+    void (*hea_write)(DisasContext *ctx, int spr_num, int gpr_num);
+};
+typedef union _ppc_vsr_t {
+    uint8_t u8[16];
+    uint16_t u16[8];
+    uint32_t u32[4];
+    uint64_t u64[2];
+    int8_t s8[16];
+    int16_t s16[8];
+    int32_t s32[4];
+    int64_t s64[2];
+    float16 f16[8];
+    float32 f32[4];
+    float64 f64[2];
+    float128 f128;
+    int u128;
+    Int128 s128;
+} ppc_vsr_t;
+typedef ppc_vsr_t ppc_avr_t;
+typedef ppc_vsr_t ppc_fprp_t;
+typedef ppc_vsr_t ppc_acc_t;
+typedef struct ppc6xx_tlb_t ppc6xx_tlb_t;
+struct ppc6xx_tlb_t {
+    target_ulong pte0;
+    target_ulong pte1;
+    target_ulong EPN;
+};
+typedef struct ppcemb_tlb_t ppcemb_tlb_t;
+struct ppcemb_tlb_t {
+    uint64_t RPN;
+    target_ulong EPN;
+    target_ulong PID;
+    target_ulong size;
+    uint32_t prot;
+    uint32_t attr;
+};
+typedef struct ppcmas_tlb_t {
+     uint32_t mas8;
+     uint32_t mas1;
+     uint64_t mas2;
+     uint64_t mas7_3;
+} ppcmas_tlb_t;
+union ppc_tlb_t {
+    ppc6xx_tlb_t *tlb6;
+    ppcemb_tlb_t *tlbe;
+    ppcmas_tlb_t *tlbm;
+};
+typedef struct PPCHash64SegmentPageSizes PPCHash64SegmentPageSizes;
+typedef struct ppc_slb_t ppc_slb_t;
+struct ppc_slb_t {
+    uint64_t esid;
+    uint64_t vsid;
+    const PPCHash64SegmentPageSizes *sps;
+};
+typedef struct ppc_v3_pate_t {
+    uint64_t dw0;
+    uint64_t dw1;
+} ppc_v3_pate_t;
+typedef enum {
+    PMU_EVENT_INVALID = 0,
+    PMU_EVENT_INACTIVE,
+    PMU_EVENT_CYCLES,
+    PMU_EVENT_INSTRUCTIONS,
+    PMU_EVENT_INSN_RUN_LATCH,
+} PMUEventType;
+enum { R_MSR_SF_SHIFT = 63}; enum { R_MSR_SF_LENGTH = 1}; enum { R_MSR_SF_MASK = 9223372036854775808};
+enum { R_MSR_TAG_SHIFT = 62}; enum { R_MSR_TAG_LENGTH = 1}; enum { R_MSR_TAG_MASK = 4611686018427387904};
+enum { R_MSR_ISF_SHIFT = 61}; enum { R_MSR_ISF_LENGTH = 1}; enum { R_MSR_ISF_MASK = 2305843009213693952};
+enum { R_MSR_HV_SHIFT = 60}; enum { R_MSR_HV_LENGTH = 1}; enum { R_MSR_HV_MASK = 1152921504606846976};
+enum { R_MSR_TS0_SHIFT = 34}; enum { R_MSR_TS0_LENGTH = 1}; enum { R_MSR_TS0_MASK = 17179869184};
+enum { R_MSR_TS1_SHIFT = 33}; enum { R_MSR_TS1_LENGTH = 1}; enum { R_MSR_TS1_MASK = 8589934592};
+enum { R_MSR_TS_SHIFT = 34}; enum { R_MSR_TS_LENGTH = 2}; enum { R_MSR_TS_MASK = 51539607552};
+enum { R_MSR_TM_SHIFT = 32}; enum { R_MSR_TM_LENGTH = 1}; enum { R_MSR_TM_MASK = 4294967296};
+enum { R_MSR_CM_SHIFT = 31}; enum { R_MSR_CM_LENGTH = 1}; enum { R_MSR_CM_MASK = 2147483648};
+enum { R_MSR_ICM_SHIFT = 30}; enum { R_MSR_ICM_LENGTH = 1}; enum { R_MSR_ICM_MASK = 1073741824};
+enum { R_MSR_GS_SHIFT = 28}; enum { R_MSR_GS_LENGTH = 1}; enum { R_MSR_GS_MASK = 268435456};
+enum { R_MSR_UCLE_SHIFT = 26}; enum { R_MSR_UCLE_LENGTH = 1}; enum { R_MSR_UCLE_MASK = 67108864};
+enum { R_MSR_VR_SHIFT = 25}; enum { R_MSR_VR_LENGTH = 1}; enum { R_MSR_VR_MASK = 33554432};
+enum { R_MSR_SPE_SHIFT = 25}; enum { R_MSR_SPE_LENGTH = 1}; enum { R_MSR_SPE_MASK = 33554432};
+enum { R_MSR_VSX_SHIFT = 23}; enum { R_MSR_VSX_LENGTH = 1}; enum { R_MSR_VSX_MASK = 8388608};
+enum { R_MSR_S_SHIFT = 22}; enum { R_MSR_S_LENGTH = 1}; enum { R_MSR_S_MASK = 4194304};
+enum { R_MSR_KEY_SHIFT = 19}; enum { R_MSR_KEY_LENGTH = 1}; enum { R_MSR_KEY_MASK = 524288};
+enum { R_MSR_POW_SHIFT = 18}; enum { R_MSR_POW_LENGTH = 1}; enum { R_MSR_POW_MASK = 262144};
+enum { R_MSR_WE_SHIFT = 18}; enum { R_MSR_WE_LENGTH = 1}; enum { R_MSR_WE_MASK = 262144};
+enum { R_MSR_TGPR_SHIFT = 17}; enum { R_MSR_TGPR_LENGTH = 1}; enum { R_MSR_TGPR_MASK = 131072};
+enum { R_MSR_CE_SHIFT = 17}; enum { R_MSR_CE_LENGTH = 1}; enum { R_MSR_CE_MASK = 131072};
+enum { R_MSR_ILE_SHIFT = 16}; enum { R_MSR_ILE_LENGTH = 1}; enum { R_MSR_ILE_MASK = 65536};
+enum { R_MSR_EE_SHIFT = 15}; enum { R_MSR_EE_LENGTH = 1}; enum { R_MSR_EE_MASK = 32768};
+enum { R_MSR_PR_SHIFT = 14}; enum { R_MSR_PR_LENGTH = 1}; enum { R_MSR_PR_MASK = 16384};
+enum { R_MSR_FP_SHIFT = 13}; enum { R_MSR_FP_LENGTH = 1}; enum { R_MSR_FP_MASK = 8192};
+enum { R_MSR_ME_SHIFT = 12}; enum { R_MSR_ME_LENGTH = 1}; enum { R_MSR_ME_MASK = 4096};
+enum { R_MSR_FE0_SHIFT = 11}; enum { R_MSR_FE0_LENGTH = 1}; enum { R_MSR_FE0_MASK = 2048};
+enum { R_MSR_SE_SHIFT = 10}; enum { R_MSR_SE_LENGTH = 1}; enum { R_MSR_SE_MASK = 1024};
+enum { R_MSR_DWE_SHIFT = 10}; enum { R_MSR_DWE_LENGTH = 1}; enum { R_MSR_DWE_MASK = 1024};
+enum { R_MSR_UBLE_SHIFT = 10}; enum { R_MSR_UBLE_LENGTH = 1}; enum { R_MSR_UBLE_MASK = 1024};
+enum { R_MSR_BE_SHIFT = 9}; enum { R_MSR_BE_LENGTH = 1}; enum { R_MSR_BE_MASK = 512};
+enum { R_MSR_DE_SHIFT = 9}; enum { R_MSR_DE_LENGTH = 1}; enum { R_MSR_DE_MASK = 512};
+enum { R_MSR_FE1_SHIFT = 8}; enum { R_MSR_FE1_LENGTH = 1}; enum { R_MSR_FE1_MASK = 256};
+enum { R_MSR_AL_SHIFT = 7}; enum { R_MSR_AL_LENGTH = 1}; enum { R_MSR_AL_MASK = 128};
+enum { R_MSR_EP_SHIFT = 6}; enum { R_MSR_EP_LENGTH = 1}; enum { R_MSR_EP_MASK = 64};
+enum { R_MSR_IR_SHIFT = 5}; enum { R_MSR_IR_LENGTH = 1}; enum { R_MSR_IR_MASK = 32};
+enum { R_MSR_DR_SHIFT = 4}; enum { R_MSR_DR_LENGTH = 1}; enum { R_MSR_DR_MASK = 16};
+enum { R_MSR_IS_SHIFT = 5}; enum { R_MSR_IS_LENGTH = 1}; enum { R_MSR_IS_MASK = 32};
+enum { R_MSR_DS_SHIFT = 4}; enum { R_MSR_DS_LENGTH = 1}; enum { R_MSR_DS_MASK = 16};
+enum { R_MSR_PE_SHIFT = 3}; enum { R_MSR_PE_LENGTH = 1}; enum { R_MSR_PE_MASK = 8};
+enum { R_MSR_PX_SHIFT = 2}; enum { R_MSR_PX_LENGTH = 1}; enum { R_MSR_PX_MASK = 4};
+enum { R_MSR_PMM_SHIFT = 2}; enum { R_MSR_PMM_LENGTH = 1}; enum { R_MSR_PMM_MASK = 4};
+enum { R_MSR_RI_SHIFT = 1}; enum { R_MSR_RI_LENGTH = 1}; enum { R_MSR_RI_MASK = 2};
+enum { R_MSR_LE_SHIFT = 0}; enum { R_MSR_LE_LENGTH = 1}; enum { R_MSR_LE_MASK = 1};
+enum {
+    POWERPC_FLAG_NONE = 0x00000000,
+    POWERPC_FLAG_SPE = 0x00000001,
+    POWERPC_FLAG_VRE = 0x00000002,
+    POWERPC_FLAG_TGPR = 0x00000004,
+    POWERPC_FLAG_CE = 0x00000008,
+    POWERPC_FLAG_SE = 0x00000010,
+    POWERPC_FLAG_DWE = 0x00000020,
+    POWERPC_FLAG_UBLE = 0x00000040,
+    POWERPC_FLAG_BE = 0x00000080,
+    POWERPC_FLAG_DE = 0x00000100,
+    POWERPC_FLAG_PX = 0x00000200,
+    POWERPC_FLAG_PMM = 0x00000400,
+    POWERPC_FLAG_BUS_CLK = 0x00020000,
+    POWERPC_FLAG_CFAR = 0x00040000,
+    POWERPC_FLAG_VSX = 0x00080000,
+    POWERPC_FLAG_TM = 0x00100000,
+    POWERPC_FLAG_SCV = 0x00200000,
+    POWERPC_FLAG_SMT = 0x00400000,
+    POWERPC_FLAG_SMT_1LPAR = 0x00800000,
+    POWERPC_FLAG_BHRB = 0x01000000,
+};
+enum {
+    HFLAGS_LE = 0,
+    HFLAGS_HV = 1,
+    HFLAGS_64 = 2,
+    HFLAGS_GTSE = 3,
+    HFLAGS_DR = 4,
+    HFLAGS_HR = 5,
+    HFLAGS_SPE = 6,
+    HFLAGS_TM = 8,
+    HFLAGS_BE = 9,
+    HFLAGS_SE = 10,
+    HFLAGS_FP = 13,
+    HFLAGS_PR = 14,
+    HFLAGS_PMCC0 = 15,
+    HFLAGS_PMCC1 = 16,
+    HFLAGS_PMCJCE = 17,
+    HFLAGS_PMC_OTHER = 18,
+    HFLAGS_INSN_CNT = 19,
+    HFLAGS_BHRB_ENABLE = 20,
+    HFLAGS_VSX = 23,
+    HFLAGS_VR = 25,
+    HFLAGS_IMMU_IDX = 26,
+    HFLAGS_DMMU_IDX = 29,
+};
+enum { R_FPSCR_FI_SHIFT = 17}; enum { R_FPSCR_FI_LENGTH = 1}; enum { R_FPSCR_FI_MASK = 131072};
+struct ppc_radix_page_info {
+    uint32_t count;
+    uint32_t entries[8];
+};
+enum { R_DEXCR_PNH_SBHE_SHIFT = 63}; enum { R_DEXCR_PNH_SBHE_LENGTH = 1}; enum { R_DEXCR_PNH_SBHE_MASK = 9223372036854775808}; enum { R_DEXCR_PRO_SBHE_SHIFT = 31}; enum { R_DEXCR_PRO_SBHE_LENGTH = 1}; enum { R_DEXCR_PRO_SBHE_MASK = 2147483648}; enum { R_HDEXCR_HNU_SBHE_SHIFT = 63}; enum { R_HDEXCR_HNU_SBHE_LENGTH = 1}; enum { R_HDEXCR_HNU_SBHE_MASK = 9223372036854775808}; enum { R_HDEXCR_ENF_SBHE_SHIFT = 31}; enum { R_HDEXCR_ENF_SBHE_LENGTH = 1}; enum { R_HDEXCR_ENF_SBHE_MASK = 2147483648};
+enum { R_DEXCR_PNH_IBRTPD_SHIFT = 62}; enum { R_DEXCR_PNH_IBRTPD_LENGTH = 1}; enum { R_DEXCR_PNH_IBRTPD_MASK = 4611686018427387904}; enum { R_DEXCR_PRO_IBRTPD_SHIFT = 30}; enum { R_DEXCR_PRO_IBRTPD_LENGTH = 1}; enum { R_DEXCR_PRO_IBRTPD_MASK = 1073741824}; enum { R_HDEXCR_HNU_IBRTPD_SHIFT = 62}; enum { R_HDEXCR_HNU_IBRTPD_LENGTH = 1}; enum { R_HDEXCR_HNU_IBRTPD_MASK = 4611686018427387904}; enum { R_HDEXCR_ENF_IBRTPD_SHIFT = 30}; enum { R_HDEXCR_ENF_IBRTPD_LENGTH = 1}; enum { R_HDEXCR_ENF_IBRTPD_MASK = 1073741824};
+enum { R_DEXCR_PNH_SRAPD_SHIFT = 59}; enum { R_DEXCR_PNH_SRAPD_LENGTH = 1}; enum { R_DEXCR_PNH_SRAPD_MASK = 576460752303423488}; enum { R_DEXCR_PRO_SRAPD_SHIFT = 27}; enum { R_DEXCR_PRO_SRAPD_LENGTH = 1}; enum { R_DEXCR_PRO_SRAPD_MASK = 134217728}; enum { R_HDEXCR_HNU_SRAPD_SHIFT = 59}; enum { R_HDEXCR_HNU_SRAPD_LENGTH = 1}; enum { R_HDEXCR_HNU_SRAPD_MASK = 576460752303423488}; enum { R_HDEXCR_ENF_SRAPD_SHIFT = 27}; enum { R_HDEXCR_ENF_SRAPD_LENGTH = 1}; enum { R_HDEXCR_ENF_SRAPD_MASK = 134217728};
+enum { R_DEXCR_PNH_NPHIE_SHIFT = 58}; enum { R_DEXCR_PNH_NPHIE_LENGTH = 1}; enum { R_DEXCR_PNH_NPHIE_MASK = 288230376151711744}; enum { R_DEXCR_PRO_NPHIE_SHIFT = 26}; enum { R_DEXCR_PRO_NPHIE_LENGTH = 1}; enum { R_DEXCR_PRO_NPHIE_MASK = 67108864}; enum { R_HDEXCR_HNU_NPHIE_SHIFT = 58}; enum { R_HDEXCR_HNU_NPHIE_LENGTH = 1}; enum { R_HDEXCR_HNU_NPHIE_MASK = 288230376151711744}; enum { R_HDEXCR_ENF_NPHIE_SHIFT = 26}; enum { R_HDEXCR_ENF_NPHIE_LENGTH = 1}; enum { R_HDEXCR_ENF_NPHIE_MASK = 67108864};
+enum { R_DEXCR_PNH_PHIE_SHIFT = 57}; enum { R_DEXCR_PNH_PHIE_LENGTH = 1}; enum { R_DEXCR_PNH_PHIE_MASK = 144115188075855872}; enum { R_DEXCR_PRO_PHIE_SHIFT = 25}; enum { R_DEXCR_PRO_PHIE_LENGTH = 1}; enum { R_DEXCR_PRO_PHIE_MASK = 33554432}; enum { R_HDEXCR_HNU_PHIE_SHIFT = 57}; enum { R_HDEXCR_HNU_PHIE_LENGTH = 1}; enum { R_HDEXCR_HNU_PHIE_MASK = 144115188075855872}; enum { R_HDEXCR_ENF_PHIE_SHIFT = 25}; enum { R_HDEXCR_ENF_PHIE_LENGTH = 1}; enum { R_HDEXCR_ENF_PHIE_MASK = 33554432};
+struct CPUArchState {
+    target_ulong gpr[32];
+    target_ulong gprh[32];
+    target_ulong lr;
+    target_ulong ctr;
+    uint32_t crf[8];
+    target_ulong cfar;
+    target_ulong xer;
+    target_ulong so;
+    target_ulong ov;
+    target_ulong ca;
+    target_ulong ov32;
+    target_ulong ca32;
+    target_ulong reserve_addr;
+    target_ulong reserve_length;
+    target_ulong reserve_val;
+    target_ulong reserve_val2;
+    target_ulong msr;
+    target_ulong tgpr[4];
+    target_ulong nip;
+    int access_type;
+    
+   _Bool 
+        has_smt_siblings;
+    int core_index;
+    int chip_index;
+    ppc_slb_t slb[64];
+    struct CPUBreakpoint *ciabr_breakpoint;
+    struct CPUWatchpoint *dawr0_watchpoint;
+    target_ulong sr[32];
+    uint32_t nb_BATs;
+    target_ulong DBAT[2][8];
+    target_ulong IBAT[2][8];
+    int32_t nb_tlb;
+    int tlb_per_way;
+    int nb_ways;
+    int last_way;
+    int nb_pids;
+    int tlb_type;
+    ppc_tlb_t tlb;
+    uint32_t tlb_need_flush;
+    target_ulong spr[1024];
+    ppc_spr_t spr_cb[1024];
+    uint8_t pmc_ins_cnt;
+    uint8_t pmc_cyc_cnt;
+    uint32_t vscr;
+    ppc_vsr_t vsr[64] ;
+    ppc_vsr_t vscr_sat ;
+    uint64_t spe_acc;
+    uint32_t spe_fscr;
+    float_status vec_status;
+    float_status fp_status;
+    target_ulong fpscr;
+    ppc_tb_t *tb_env;
+    ppc_dcr_t *dcr_env;
+    int dcache_line_size;
+    int icache_line_size;
+    target_ulong bhrb_num_entries;
+    intptr_t bhrb_base;
+    target_ulong bhrb_filter;
+    target_ulong bhrb_offset;
+    target_ulong bhrb_offset_mask;
+    uint64_t bhrb[32];
+    target_ulong msr_mask;
+    powerpc_mmu_t mmu_model;
+    powerpc_excp_t excp_model;
+    powerpc_input_t bus_model;
+    int bfd_mach;
     uint32_t flags;
-    target_ulong flags2;
-} CPUARMTBFlags;
-typedef struct ARMMMUFaultInfo ARMMMUFaultInfo;
-typedef struct NVICState NVICState;
-typedef struct CPUArchState {
-    uint32_t regs[16];
-    uint64_t xregs[32];
-    uint64_t pc;
-    uint32_t pstate;
+    uint64_t insns_flags;
+    uint64_t insns_flags2;
+    int error_code;
+    uint32_t pending_interrupts;
+    uint64_t excp_stats[POWERPC_EXCP_NB];
+    uint32_t irq_input_state;
+    target_ulong excp_vectors[POWERPC_EXCP_NB];
+    target_ulong excp_prefix;
+    target_ulong ivor_mask;
+    target_ulong ivpr_mask;
+    target_ulong hreset_vector;
+    hwaddr mpic_iack;
     
    _Bool 
-        aarch64;
+        mpic_proxy;
     
    _Bool 
-        thumb;
-    CPUARMTBFlags hflags;
-    uint32_t uncached_cpsr;
-    uint32_t spsr;
-    uint64_t banked_spsr[8];
-    uint32_t banked_r13[8];
-    uint32_t banked_r14[8];
-    uint32_t usr_regs[5];
-    uint32_t fiq_regs[5];
-    uint32_t CF;
-    uint32_t VF;
-    uint32_t NF;
-    uint32_t ZF;
-    uint32_t QF;
-    uint32_t GE;
-    uint32_t condexec_bits;
-    uint32_t btype;
-    uint64_t daif;
-    uint64_t svcr;
-    uint64_t elr_el[4];
-    uint64_t sp_el[4];
-    struct {
-        uint32_t c0_cpuid;
-        union {
-            struct {
-                uint64_t _unused_csselr0;
-                uint64_t csselr_ns;
-                uint64_t _unused_csselr1;
-                uint64_t csselr_s;
-            };
-            uint64_t csselr_el[4];
-        };
-        union {
-            struct {
-                uint64_t _unused_sctlr;
-                uint64_t sctlr_ns;
-                uint64_t hsctlr;
-                uint64_t sctlr_s;
-            };
-            uint64_t sctlr_el[4];
-        };
-        uint64_t vsctlr;
-        uint64_t cpacr_el1;
-        uint64_t cptr_el[4];
-        uint32_t c1_xscaleauxcr;
-        uint64_t sder;
-        uint32_t nsacr;
-        union {
-            struct {
-                uint64_t _unused_ttbr0_0;
-                uint64_t ttbr0_ns;
-                uint64_t _unused_ttbr0_1;
-                uint64_t ttbr0_s;
-            };
-            uint64_t ttbr0_el[4];
-        };
-        union {
-            struct {
-                uint64_t _unused_ttbr1_0;
-                uint64_t ttbr1_ns;
-                uint64_t _unused_ttbr1_1;
-                uint64_t ttbr1_s;
-            };
-            uint64_t ttbr1_el[4];
-        };
-        uint64_t vttbr_el2;
-        uint64_t vsttbr_el2;
-        uint64_t tcr_el[4];
-        uint64_t vtcr_el2;
-        uint64_t vstcr_el2;
-        uint32_t c2_data;
-        uint32_t c2_insn;
-        union {
-            struct {
-                uint64_t dacr_ns;
-                uint64_t dacr_s;
-            };
-            struct {
-                uint64_t dacr32_el2;
-            };
-        };
-        uint32_t pmsav5_data_ap;
-        uint32_t pmsav5_insn_ap;
-        uint64_t hcr_el2;
-        uint64_t hcrx_el2;
-        uint64_t scr_el3;
-        union {
-            struct {
-                uint64_t ifsr_ns;
-                uint64_t ifsr_s;
-            };
-            struct {
-                uint64_t ifsr32_el2;
-            };
-        };
-        union {
-            struct {
-                uint64_t _unused_dfsr;
-                uint64_t dfsr_ns;
-                uint64_t hsr;
-                uint64_t dfsr_s;
-            };
-            uint64_t esr_el[4];
-        };
-        uint32_t c6_region[8];
-        union {
-            struct {
-                uint64_t _unused_far0;
-                uint32_t dfar_ns;
-                uint32_t ifar_ns;
-                uint32_t dfar_s;
-                uint32_t ifar_s;
-                uint64_t _unused_far3;
-            };
-            uint64_t far_el[4];
-        };
-        uint64_t hpfar_el2;
-        uint64_t hstr_el2;
-        union {
-            struct {
-                uint64_t _unused_par_0;
-                uint64_t par_ns;
-                uint64_t _unused_par_1;
-                uint64_t par_s;
-            };
-            uint64_t par_el[4];
-        };
-        uint32_t c9_insn;
-        uint32_t c9_data;
-        uint64_t c9_pmcr;
-        uint64_t c9_pmcnten;
-        uint64_t c9_pmovsr;
-        uint64_t c9_pmuserenr;
-        uint64_t c9_pmselr;
-        uint64_t c9_pminten;
-        union {
-            struct {
-                uint64_t _unused_mair_0;
-                uint32_t mair0_ns;
-                uint32_t mair1_ns;
-                uint64_t _unused_mair_1;
-                uint32_t mair0_s;
-                uint32_t mair1_s;
-            };
-            uint64_t mair_el[4];
-        };
-        union {
-            struct {
-                uint64_t _unused_vbar;
-                uint64_t vbar_ns;
-                uint64_t hvbar;
-                uint64_t vbar_s;
-            };
-            uint64_t vbar_el[4];
-        };
-        uint32_t mvbar;
-        uint64_t rvbar;
-        struct {
-            uint32_t fcseidr_ns;
-            uint32_t fcseidr_s;
-        };
-        union {
-            struct {
-                uint64_t _unused_contextidr_0;
-                uint64_t contextidr_ns;
-                uint64_t _unused_contextidr_1;
-                uint64_t contextidr_s;
-            };
-            uint64_t contextidr_el[4];
-        };
-        union {
-            struct {
-                uint64_t tpidrurw_ns;
-                uint64_t tpidrprw_ns;
-                uint64_t htpidr;
-                uint64_t _tpidr_el3;
-            };
-            uint64_t tpidr_el[4];
-        };
-        uint64_t tpidr2_el0;
-        uint64_t tpidrurw_s;
-        uint64_t tpidrprw_s;
-        uint64_t tpidruro_s;
-        union {
-            uint64_t tpidruro_ns;
-            uint64_t tpidrro_el[1];
-        };
-        uint64_t c14_cntfrq;
-        uint64_t c14_cntkctl;
-        uint64_t cnthctl_el2;
-        uint64_t cntvoff_el2;
-        uint64_t cntpoff_el2;
-        ARMGenericTimer c14_timer[5];
-        uint32_t c15_cpar;
-        uint32_t c15_ticonfig;
-        uint32_t c15_i_max;
-        uint32_t c15_i_min;
-        uint32_t c15_threadid;
-        uint32_t c15_config_base_address;
-        uint32_t c15_diagnostic;
-        uint32_t c15_power_diagnostic;
-        uint32_t c15_power_control;
-        uint64_t dbgbvr[16];
-        uint64_t dbgbcr[16];
-        uint64_t dbgwvr[16];
-        uint64_t dbgwcr[16];
-        uint64_t dbgclaim;
-        uint64_t mdscr_el1;
-        uint64_t oslsr_el1;
-        uint64_t osdlr_el1;
-        uint64_t mdcr_el2;
-        uint64_t mdcr_el3;
-        uint64_t c15_ccnt;
-        uint64_t c15_ccnt_delta;
-        uint64_t c14_pmevcntr[31];
-        uint64_t c14_pmevcntr_delta[31];
-        uint64_t c14_pmevtyper[31];
-        uint64_t pmccfiltr_el0;
-        uint64_t vpidr_el2;
-        uint64_t vmpidr_el2;
-        uint64_t tfsr_el[4];
-        uint64_t gcr_el1;
-        uint64_t rgsr_el1;
-        uint64_t disr_el1;
-        uint64_t vdisr_el2;
-        uint64_t vsesr_el2;
-        uint64_t fgt_read[2];
-        uint64_t fgt_write[2];
-        uint64_t fgt_exec[1];
-        uint64_t gpccr_el3;
-        uint64_t gptbr_el3;
-        uint64_t mfar_el3;
-        uint64_t vncr_el2;
-    } cp15;
-    struct {
-        uint32_t other_sp;
-        uint32_t other_ss_msp;
-        uint32_t other_ss_psp;
-        uint32_t vecbase[M_REG_NUM_BANKS];
-        uint32_t basepri[M_REG_NUM_BANKS];
-        uint32_t control[M_REG_NUM_BANKS];
-        uint32_t ccr[M_REG_NUM_BANKS];
-        uint32_t cfsr[M_REG_NUM_BANKS];
-        uint32_t hfsr;
-        uint32_t dfsr;
-        uint32_t sfsr;
-        uint32_t mmfar[M_REG_NUM_BANKS];
-        uint32_t bfar;
-        uint32_t sfar;
-        unsigned mpu_ctrl[M_REG_NUM_BANKS];
-        int exception;
-        uint32_t primask[M_REG_NUM_BANKS];
-        uint32_t faultmask[M_REG_NUM_BANKS];
-        uint32_t aircr;
-        uint32_t secure;
-        uint32_t csselr[M_REG_NUM_BANKS];
-        uint32_t scr[M_REG_NUM_BANKS];
-        uint32_t msplim[M_REG_NUM_BANKS];
-        uint32_t psplim[M_REG_NUM_BANKS];
-        uint32_t fpcar[M_REG_NUM_BANKS];
-        uint32_t fpccr[M_REG_NUM_BANKS];
-        uint32_t fpdscr[M_REG_NUM_BANKS];
-        uint32_t cpacr[M_REG_NUM_BANKS];
-        uint32_t nsacr;
-        uint32_t ltpsize;
-        uint32_t vpr;
-    } v7m;
-    struct {
-        uint32_t syndrome;
-        uint32_t fsr;
-        uint64_t vaddress;
-        uint32_t target_el;
-    } exception;
-    struct {
-        uint8_t pending;
-        uint8_t has_esr;
-        uint64_t esr;
-    } serror;
-    uint8_t ext_dabt_raised;
-    uint32_t irq_line_state;
-    uint32_t teecr;
-    uint32_t teehbr;
-    struct {
-        ARMVectorReg zregs[32];
-        uint32_t qc[4] ;
-        int vec_len;
-        int vec_stride;
-        uint64_t fpsr;
-        uint64_t fpcr;
-        uint32_t xregs[16];
-        uint32_t scratch[8];
-        float_status fp_status;
-        float_status fp_status_f16;
-        float_status standard_fp_status;
-        float_status standard_fp_status_f16;
-        uint64_t zcr_el[4];
-        uint64_t smcr_el[4];
-    } vfp;
-    uint64_t exclusive_addr;
-    uint64_t exclusive_val;
-    uint64_t exclusive_high;
-    struct {
-        uint64_t regs[16];
-        uint64_t val;
-        uint32_t cregs[16];
-    } iwmmxt;
-    struct CPUBreakpoint *cpu_breakpoint[16];
-    struct CPUWatchpoint *cpu_watchpoint[16];
-    ARMMMUFaultInfo *tlb_fi;
-    struct {} end_reset_fields;
-    uint64_t features;
-    struct {
-        uint32_t *drbar;
-        uint32_t *drsr;
-        uint32_t *dracr;
-        uint32_t rnr[M_REG_NUM_BANKS];
-    } pmsav7;
-    struct {
-        uint32_t *rbar[M_REG_NUM_BANKS];
-        uint32_t *rlar[M_REG_NUM_BANKS];
-        uint32_t *hprbar;
-        uint32_t *hprlar;
-        uint32_t mair0[M_REG_NUM_BANKS];
-        uint32_t mair1[M_REG_NUM_BANKS];
-        uint32_t hprselr;
-    } pmsav8;
-    struct {
-        uint32_t *rbar;
-        uint32_t *rlar;
-        uint32_t rnr;
-        uint32_t ctrl;
-    } sau;
-    NVICState *nvic;
-    const struct arm_boot_info *boot_info;
-    void *gicv3state;
-} CPUARMState;
-typedef void ARMELChangeHookFn(ARMCPU *cpu, void *opaque);
-typedef struct ARMELChangeHook ARMELChangeHook;
-struct ARMELChangeHook {
-    ARMELChangeHookFn *hook;
-    void *opaque;
-    struct { struct ARMELChangeHook *le_next; struct ARMELChangeHook **le_prev; } node;
+        has_hv_mode;
+    
+   _Bool 
+        resume_as_sreset;
+    
+   _Bool 
+        quiesced;
+    uint32_t hflags;
+    target_ulong hflags_compat_nmsr;
+    int (*check_pow)(CPUPPCState *env);
+    int (*check_attn)(CPUPPCState *env);
+    void *load_info;
+    uint8_t fit_period[4];
+    uint8_t wdt_period[4];
+    target_ulong tm_gpr[32];
+    ppc_avr_t tm_vsr[64];
+    uint64_t tm_cr;
+    uint64_t tm_lr;
+    uint64_t tm_ctr;
+    uint64_t tm_fpscr;
+    uint64_t tm_amr;
+    uint64_t tm_ppr;
+    uint64_t tm_vrsave;
+    uint32_t tm_vscr;
+    uint64_t tm_dscr;
+    uint64_t tm_tar;
+    QEMUTimer *pmu_cyc_overflow_timers[6];
+    uint64_t pmu_base_time;
 };
-typedef enum ARMPSCIState {
-    PSCI_ON = 0,
-    PSCI_OFF = 1,
-    PSCI_ON_PENDING = 2
-} ARMPSCIState;
-typedef struct ARMISARegisters ARMISARegisters;
-typedef struct {
-    uint32_t map, init, supported;
-} ARMVQMap;
+typedef struct PPCVirtualHypervisor PPCVirtualHypervisor;
+typedef struct PPCVirtualHypervisorClass PPCVirtualHypervisorClass;
 struct ArchCPU {
     CPUState parent_obj;
-    CPUARMState env;
-    GHashTable *cp_regs;
-    uint64_t *cpreg_indexes;
-    uint64_t *cpreg_values;
-    int32_t cpreg_array_len;
-    uint64_t *cpreg_vmstate_indexes;
-    uint64_t *cpreg_vmstate_values;
-    int32_t cpreg_vmstate_array_len;
-    DynamicGDBFeatureInfo dyn_sysreg_feature;
-    DynamicGDBFeatureInfo dyn_svereg_feature;
-    DynamicGDBFeatureInfo dyn_m_systemreg_feature;
-    DynamicGDBFeatureInfo dyn_m_secextreg_feature;
-    QEMUTimer *gt_timer[5];
-    QEMUTimer *pmu_timer;
-    QEMUTimer *wfxt_timer;
-    qemu_irq gt_timer_outputs[5];
-    qemu_irq gicv3_maintenance_interrupt;
-    qemu_irq pmu_interrupt;
-    MemoryRegion *secure_memory;
-    MemoryRegion *tag_memory;
-    MemoryRegion *secure_tag_memory;
-    Object *idau;
-    const char *dtb_compatible;
-    uint32_t psci_version;
-    ARMPSCIState power_state;
-    
-   _Bool 
-        has_el2;
-    
-   _Bool 
-        has_el3;
-    
-   _Bool 
-        has_pmu;
-    
-   _Bool 
-        has_vfp;
-    
-   _Bool 
-        has_vfp_d32;
-    
-   _Bool 
-        has_neon;
-    
-   _Bool 
-        has_dsp;
-    
-   _Bool 
-        has_mpu;
-    
-   _Bool 
-        kvm_mte;
-    uint32_t pmsav7_dregion;
-    uint32_t pmsav8r_hdregion;
-    uint32_t sau_sregion;
-    uint32_t psci_conduit;
-    uint32_t init_svtor;
-    uint32_t init_nsvtor;
-    uint32_t kvm_target;
-    
-   _Bool 
-        mp_is_up;
-    
-   _Bool 
-        host_cpu_probe_failed;
-    
-   _Bool 
-        backcompat_cntfrq;
-    
-   _Bool 
-        backcompat_pauth_default_use_qarma5;
-    int32_t core_count;
-    struct ARMISARegisters {
-        uint32_t id_isar0;
-        uint32_t id_isar1;
-        uint32_t id_isar2;
-        uint32_t id_isar3;
-        uint32_t id_isar4;
-        uint32_t id_isar5;
-        uint32_t id_isar6;
-        uint32_t id_mmfr0;
-        uint32_t id_mmfr1;
-        uint32_t id_mmfr2;
-        uint32_t id_mmfr3;
-        uint32_t id_mmfr4;
-        uint32_t id_mmfr5;
-        uint32_t id_pfr0;
-        uint32_t id_pfr1;
-        uint32_t id_pfr2;
-        uint32_t mvfr0;
-        uint32_t mvfr1;
-        uint32_t mvfr2;
-        uint32_t id_dfr0;
-        uint32_t id_dfr1;
-        uint32_t dbgdidr;
-        uint32_t dbgdevid;
-        uint32_t dbgdevid1;
-        uint64_t id_aa64isar0;
-        uint64_t id_aa64isar1;
-        uint64_t id_aa64isar2;
-        uint64_t id_aa64pfr0;
-        uint64_t id_aa64pfr1;
-        uint64_t id_aa64mmfr0;
-        uint64_t id_aa64mmfr1;
-        uint64_t id_aa64mmfr2;
-        uint64_t id_aa64mmfr3;
-        uint64_t id_aa64dfr0;
-        uint64_t id_aa64dfr1;
-        uint64_t id_aa64zfr0;
-        uint64_t id_aa64smfr0;
-        uint64_t reset_pmcr_el0;
-    } isar;
-    uint64_t midr;
-    uint32_t revidr;
-    uint32_t reset_fpsid;
-    uint64_t ctr;
-    uint32_t reset_sctlr;
-    uint64_t pmceid0;
-    uint64_t pmceid1;
-    uint32_t id_afr0;
-    uint64_t id_aa64afr0;
-    uint64_t id_aa64afr1;
-    uint64_t clidr;
-    uint64_t mp_affinity;
-    uint64_t ccsidr[16];
-    uint64_t reset_cbar;
-    uint32_t reset_auxcr;
-    
-   _Bool 
-        reset_hivecs;
-    uint8_t reset_l0gptsz;
-    
-   _Bool 
-        prop_pauth;
-    
-   _Bool 
-        prop_pauth_impdef;
-    
-   _Bool 
-        prop_pauth_qarma3;
-    
-   _Bool 
-        prop_pauth_qarma5;
-    
-   _Bool 
-        prop_lpa2;
-    uint8_t dcz_blocksize;
-    uint8_t gm_blocksize;
-    uint64_t rvbar_prop;
-    int gic_num_lrs;
-    int gic_vpribits;
-    int gic_vprebits;
-    int gic_pribits;
-    
-   _Bool 
-        cfgend;
-    struct { struct ARMELChangeHook *lh_first; } pre_el_change_hooks;
-    struct { struct ARMELChangeHook *lh_first; } el_change_hooks;
+    CPUPPCState env;
+    int vcpu_id;
+    uint32_t compat_pvr;
+    PPCVirtualHypervisor *vhyp;
+    PPCVirtualHypervisorClass *vhyp_class;
+    void *machine_data;
     int32_t node_id;
-    uint8_t device_irq_level;
-    uint32_t sve_max_vq;
-    ARMVQMap sve_vq;
-    ARMVQMap sme_vq;
-    uint64_t gt_cntfrq_hz;
+    PPCHash64Options *hash64_opts;
+    opc_handler_t *opcodes[0x40];
 };
-typedef struct ARMCPUInfo {
-    const char *name;
-    void (*initfn)(Object *obj);
-    void (*class_init)(ObjectClass *oc, void *data);
-} ARMCPUInfo;
-struct ARMCPUClass {
+struct PowerPCCPUClass {
     CPUClass parent_class;
-    const ARMCPUInfo *info;
     DeviceRealize parent_realize;
+    DeviceUnrealize parent_unrealize;
     ResettablePhases parent_phases;
+    void (*parent_parse_features)(const char *type, char *str, Error **errp);
+    uint32_t pvr;
+    uint32_t spapr_logical_pvr;
+    
+   _Bool 
+        (*pvr_match)(struct PowerPCCPUClass *pcc, uint32_t pvr, 
+                                                                _Bool 
+                                                                     best);
+    uint64_t pcr_mask;
+    uint64_t pcr_supported;
+    uint32_t svr;
+    uint64_t insns_flags;
+    uint64_t insns_flags2;
+    uint64_t msr_mask;
+    uint64_t lpcr_mask;
+    uint64_t lpcr_pm;
+    powerpc_mmu_t mmu_model;
+    powerpc_excp_t excp_model;
+    powerpc_input_t bus_model;
+    uint32_t flags;
+    int bfd_mach;
+    uint32_t l1_dcache_size, l1_icache_size;
+    GDBFeature gdb_spr;
+    const PPCHash64Options *hash64_opts;
+    struct ppc_radix_page_info *radix_page_info;
+    uint32_t lrg_decr_bits;
+    int n_host_threads;
+    void (*init_proc)(CPUPPCState *env);
+    int (*check_pow)(CPUPPCState *env);
+    int (*check_attn)(CPUPPCState *env);
 };
-struct AArch64CPUClass {
-    ARMCPUClass parent_class;
+ObjectClass *ppc_cpu_class_by_name(const char *name);
+PowerPCCPUClass *ppc_cpu_class_by_pvr(uint32_t pvr);
+PowerPCCPUClass *ppc_cpu_class_by_pvr_mask(uint32_t pvr);
+PowerPCCPUClass *ppc_cpu_get_family_class(PowerPCCPUClass *pcc);
+struct PPCVirtualHypervisorClass {
+    InterfaceClass parent;
+    
+   _Bool 
+        (*cpu_in_nested)(PowerPCCPU *cpu);
+    void (*deliver_hv_excp)(PowerPCCPU *cpu, int excp);
+    void (*hypercall)(PPCVirtualHypervisor *vhyp, PowerPCCPU *cpu);
+    hwaddr (*hpt_mask)(PPCVirtualHypervisor *vhyp);
+    const ppc_hash_pte64_t *(*map_hptes)(PPCVirtualHypervisor *vhyp,
+                                         hwaddr ptex, int n);
+    void (*unmap_hptes)(PPCVirtualHypervisor *vhyp,
+                        const ppc_hash_pte64_t *hptes,
+                        hwaddr ptex, int n);
+    void (*hpte_set_c)(PPCVirtualHypervisor *vhyp, hwaddr ptex, uint64_t pte1);
+    void (*hpte_set_r)(PPCVirtualHypervisor *vhyp, hwaddr ptex, uint64_t pte1);
+    
+   _Bool 
+        (*get_pate)(PPCVirtualHypervisor *vhyp, PowerPCCPU *cpu,
+                     target_ulong lpid, ppc_v3_pate_t *entry);
+    target_ulong (*encode_hpt_for_kvm_pr)(PPCVirtualHypervisor *vhyp);
+    void (*cpu_exec_enter)(PPCVirtualHypervisor *vhyp, PowerPCCPU *cpu);
+    void (*cpu_exec_exit)(PPCVirtualHypervisor *vhyp, PowerPCCPU *cpu);
 };
-void arm_gt_ptimer_cb(void *opaque);
-void arm_gt_vtimer_cb(void *opaque);
-void arm_gt_htimer_cb(void *opaque);
-void arm_gt_stimer_cb(void *opaque);
-void arm_gt_hvtimer_cb(void *opaque);
-unsigned int gt_cntfrq_period_ns(ARMCPU *cpu);
-void gt_rme_post_el_change(ARMCPU *cpu, void *opaque);
-void arm_cpu_post_init(Object *obj);
-uint64_t arm_build_mp_affinity(int idx, uint8_t clustersz);
-extern const VMStateDescription vmstate_arm_cpu;
-void arm_cpu_do_interrupt(CPUState *cpu);
-void arm_v7m_cpu_do_interrupt(CPUState *cpu);
-hwaddr arm_cpu_get_phys_page_attrs_debug(CPUState *cpu, vaddr addr,
-                                         MemTxAttrs *attrs);
-int arm_cpu_gdb_read_register(CPUState *cpu, GByteArray *buf, int reg);
-int arm_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
-int arm_cpu_write_elf64_note(WriteCoreDumpFunction f, CPUState *cs,
-                             int cpuid, DumpState *s);
-int arm_cpu_write_elf32_note(WriteCoreDumpFunction f, CPUState *cs,
-                             int cpuid, DumpState *s);
-void arm_emulate_firmware_reset(CPUState *cpustate, int target_el);
-void aarch64_sync_32_to_64(CPUARMState *env);
-void aarch64_sync_64_to_32(CPUARMState *env);
-int fp_exception_el(CPUARMState *env, int cur_el);
-int sve_exception_el(CPUARMState *env, int cur_el);
-int sme_exception_el(CPUARMState *env, int cur_el);
-uint32_t sve_vqm1_for_el_sm(CPUARMState *env, int el, 
-                                                     _Bool 
-                                                          sm);
-uint32_t sve_vqm1_for_el(CPUARMState *env, int el);
-void pmu_op_start(CPUARMState *env);
-void pmu_op_finish(CPUARMState *env);
-void arm_pmu_timer_cb(void *opaque);
-void pmu_pre_el_change(ARMCPU *cpu, void *ignored);
-void pmu_post_el_change(ARMCPU *cpu, void *ignored);
-void pmu_init(ARMCPU *cpu);
-enum { R_SVCR_SM_SHIFT = 0}; enum { R_SVCR_SM_LENGTH = 1}; enum { R_SVCR_SM_MASK = 1};
-enum { R_SVCR_ZA_SHIFT = 1}; enum { R_SVCR_ZA_LENGTH = 1}; enum { R_SVCR_ZA_MASK = 2};
-enum { R_SMCR_LEN_SHIFT = 0}; enum { R_SMCR_LEN_LENGTH = 4}; enum { R_SMCR_LEN_MASK = 15};
-enum { R_SMCR_FA64_SHIFT = 31}; enum { R_SMCR_FA64_LENGTH = 1}; enum { R_SMCR_FA64_MASK = 2147483648};
-void write_v7m_exception(CPUARMState *env, uint32_t new_exc);
-uint32_t cpsr_read(CPUARMState *env);
-typedef enum CPSRWriteType {
-    CPSRWriteByInstr = 0,
-    CPSRWriteExceptionReturn = 1,
-    CPSRWriteRaw = 2,
-    CPSRWriteByGDBStub = 3,
-} CPSRWriteType;
-void cpsr_write(CPUARMState *env, uint32_t val, uint32_t mask,
-                CPSRWriteType write_type);
-uint32_t vfp_get_fpscr(CPUARMState *env);
-void vfp_set_fpscr(CPUARMState *env, uint32_t val);
-;
-uint32_t vfp_get_fpsr(CPUARMState *env);
-uint32_t vfp_get_fpcr(CPUARMState *env);
-void vfp_set_fpsr(CPUARMState *env, uint32_t value);
-void vfp_set_fpcr(CPUARMState *env, uint32_t value);
-enum arm_cpu_mode {
-  ARM_CPU_MODE_USR = 0x10,
-  ARM_CPU_MODE_FIQ = 0x11,
-  ARM_CPU_MODE_IRQ = 0x12,
-  ARM_CPU_MODE_SVC = 0x13,
-  ARM_CPU_MODE_MON = 0x16,
-  ARM_CPU_MODE_ABT = 0x17,
-  ARM_CPU_MODE_HYP = 0x1a,
-  ARM_CPU_MODE_UND = 0x1b,
-  ARM_CPU_MODE_SYS = 0x1f
-};
-enum { R_V7M_CCR_NONBASETHRDENA_SHIFT = 0}; enum { R_V7M_CCR_NONBASETHRDENA_LENGTH = 1}; enum { R_V7M_CCR_NONBASETHRDENA_MASK = 1};
-enum { R_V7M_CCR_USERSETMPEND_SHIFT = 1}; enum { R_V7M_CCR_USERSETMPEND_LENGTH = 1}; enum { R_V7M_CCR_USERSETMPEND_MASK = 2};
-enum { R_V7M_CCR_UNALIGN_TRP_SHIFT = 3}; enum { R_V7M_CCR_UNALIGN_TRP_LENGTH = 1}; enum { R_V7M_CCR_UNALIGN_TRP_MASK = 8};
-enum { R_V7M_CCR_DIV_0_TRP_SHIFT = 4}; enum { R_V7M_CCR_DIV_0_TRP_LENGTH = 1}; enum { R_V7M_CCR_DIV_0_TRP_MASK = 16};
-enum { R_V7M_CCR_BFHFNMIGN_SHIFT = 8}; enum { R_V7M_CCR_BFHFNMIGN_LENGTH = 1}; enum { R_V7M_CCR_BFHFNMIGN_MASK = 256};
-enum { R_V7M_CCR_STKALIGN_SHIFT = 9}; enum { R_V7M_CCR_STKALIGN_LENGTH = 1}; enum { R_V7M_CCR_STKALIGN_MASK = 512};
-enum { R_V7M_CCR_STKOFHFNMIGN_SHIFT = 10}; enum { R_V7M_CCR_STKOFHFNMIGN_LENGTH = 1}; enum { R_V7M_CCR_STKOFHFNMIGN_MASK = 1024};
-enum { R_V7M_CCR_DC_SHIFT = 16}; enum { R_V7M_CCR_DC_LENGTH = 1}; enum { R_V7M_CCR_DC_MASK = 65536};
-enum { R_V7M_CCR_IC_SHIFT = 17}; enum { R_V7M_CCR_IC_LENGTH = 1}; enum { R_V7M_CCR_IC_MASK = 131072};
-enum { R_V7M_CCR_BP_SHIFT = 18}; enum { R_V7M_CCR_BP_LENGTH = 1}; enum { R_V7M_CCR_BP_MASK = 262144};
-enum { R_V7M_CCR_LOB_SHIFT = 19}; enum { R_V7M_CCR_LOB_LENGTH = 1}; enum { R_V7M_CCR_LOB_MASK = 524288};
-enum { R_V7M_CCR_TRD_SHIFT = 20}; enum { R_V7M_CCR_TRD_LENGTH = 1}; enum { R_V7M_CCR_TRD_MASK = 1048576};
-enum { R_V7M_SCR_SLEEPONEXIT_SHIFT = 1}; enum { R_V7M_SCR_SLEEPONEXIT_LENGTH = 1}; enum { R_V7M_SCR_SLEEPONEXIT_MASK = 2};
-enum { R_V7M_SCR_SLEEPDEEP_SHIFT = 2}; enum { R_V7M_SCR_SLEEPDEEP_LENGTH = 1}; enum { R_V7M_SCR_SLEEPDEEP_MASK = 4};
-enum { R_V7M_SCR_SLEEPDEEPS_SHIFT = 3}; enum { R_V7M_SCR_SLEEPDEEPS_LENGTH = 1}; enum { R_V7M_SCR_SLEEPDEEPS_MASK = 8};
-enum { R_V7M_SCR_SEVONPEND_SHIFT = 4}; enum { R_V7M_SCR_SEVONPEND_LENGTH = 1}; enum { R_V7M_SCR_SEVONPEND_MASK = 16};
-enum { R_V7M_AIRCR_VECTRESET_SHIFT = 0}; enum { R_V7M_AIRCR_VECTRESET_LENGTH = 1}; enum { R_V7M_AIRCR_VECTRESET_MASK = 1};
-enum { R_V7M_AIRCR_VECTCLRACTIVE_SHIFT = 1}; enum { R_V7M_AIRCR_VECTCLRACTIVE_LENGTH = 1}; enum { R_V7M_AIRCR_VECTCLRACTIVE_MASK = 2};
-enum { R_V7M_AIRCR_SYSRESETREQ_SHIFT = 2}; enum { R_V7M_AIRCR_SYSRESETREQ_LENGTH = 1}; enum { R_V7M_AIRCR_SYSRESETREQ_MASK = 4};
-enum { R_V7M_AIRCR_SYSRESETREQS_SHIFT = 3}; enum { R_V7M_AIRCR_SYSRESETREQS_LENGTH = 1}; enum { R_V7M_AIRCR_SYSRESETREQS_MASK = 8};
-enum { R_V7M_AIRCR_PRIGROUP_SHIFT = 8}; enum { R_V7M_AIRCR_PRIGROUP_LENGTH = 3}; enum { R_V7M_AIRCR_PRIGROUP_MASK = 1792};
-enum { R_V7M_AIRCR_BFHFNMINS_SHIFT = 13}; enum { R_V7M_AIRCR_BFHFNMINS_LENGTH = 1}; enum { R_V7M_AIRCR_BFHFNMINS_MASK = 8192};
-enum { R_V7M_AIRCR_PRIS_SHIFT = 14}; enum { R_V7M_AIRCR_PRIS_LENGTH = 1}; enum { R_V7M_AIRCR_PRIS_MASK = 16384};
-enum { R_V7M_AIRCR_ENDIANNESS_SHIFT = 15}; enum { R_V7M_AIRCR_ENDIANNESS_LENGTH = 1}; enum { R_V7M_AIRCR_ENDIANNESS_MASK = 32768};
-enum { R_V7M_AIRCR_VECTKEY_SHIFT = 16}; enum { R_V7M_AIRCR_VECTKEY_LENGTH = 16}; enum { R_V7M_AIRCR_VECTKEY_MASK = 4294901760};
-enum { R_V7M_CFSR_IACCVIOL_SHIFT = 0}; enum { R_V7M_CFSR_IACCVIOL_LENGTH = 1}; enum { R_V7M_CFSR_IACCVIOL_MASK = 1};
-enum { R_V7M_CFSR_DACCVIOL_SHIFT = 1}; enum { R_V7M_CFSR_DACCVIOL_LENGTH = 1}; enum { R_V7M_CFSR_DACCVIOL_MASK = 2};
-enum { R_V7M_CFSR_MUNSTKERR_SHIFT = 3}; enum { R_V7M_CFSR_MUNSTKERR_LENGTH = 1}; enum { R_V7M_CFSR_MUNSTKERR_MASK = 8};
-enum { R_V7M_CFSR_MSTKERR_SHIFT = 4}; enum { R_V7M_CFSR_MSTKERR_LENGTH = 1}; enum { R_V7M_CFSR_MSTKERR_MASK = 16};
-enum { R_V7M_CFSR_MLSPERR_SHIFT = 5}; enum { R_V7M_CFSR_MLSPERR_LENGTH = 1}; enum { R_V7M_CFSR_MLSPERR_MASK = 32};
-enum { R_V7M_CFSR_MMARVALID_SHIFT = 7}; enum { R_V7M_CFSR_MMARVALID_LENGTH = 1}; enum { R_V7M_CFSR_MMARVALID_MASK = 128};
-enum { R_V7M_CFSR_IBUSERR_SHIFT = 8}; enum { R_V7M_CFSR_IBUSERR_LENGTH = 1}; enum { R_V7M_CFSR_IBUSERR_MASK = 256};
-enum { R_V7M_CFSR_PRECISERR_SHIFT = 9}; enum { R_V7M_CFSR_PRECISERR_LENGTH = 1}; enum { R_V7M_CFSR_PRECISERR_MASK = 512};
-enum { R_V7M_CFSR_IMPRECISERR_SHIFT = 10}; enum { R_V7M_CFSR_IMPRECISERR_LENGTH = 1}; enum { R_V7M_CFSR_IMPRECISERR_MASK = 1024};
-enum { R_V7M_CFSR_UNSTKERR_SHIFT = 11}; enum { R_V7M_CFSR_UNSTKERR_LENGTH = 1}; enum { R_V7M_CFSR_UNSTKERR_MASK = 2048};
-enum { R_V7M_CFSR_STKERR_SHIFT = 12}; enum { R_V7M_CFSR_STKERR_LENGTH = 1}; enum { R_V7M_CFSR_STKERR_MASK = 4096};
-enum { R_V7M_CFSR_LSPERR_SHIFT = 13}; enum { R_V7M_CFSR_LSPERR_LENGTH = 1}; enum { R_V7M_CFSR_LSPERR_MASK = 8192};
-enum { R_V7M_CFSR_BFARVALID_SHIFT = 15}; enum { R_V7M_CFSR_BFARVALID_LENGTH = 1}; enum { R_V7M_CFSR_BFARVALID_MASK = 32768};
-enum { R_V7M_CFSR_UNDEFINSTR_SHIFT = 16}; enum { R_V7M_CFSR_UNDEFINSTR_LENGTH = 1}; enum { R_V7M_CFSR_UNDEFINSTR_MASK = 65536};
-enum { R_V7M_CFSR_INVSTATE_SHIFT = 17}; enum { R_V7M_CFSR_INVSTATE_LENGTH = 1}; enum { R_V7M_CFSR_INVSTATE_MASK = 131072};
-enum { R_V7M_CFSR_INVPC_SHIFT = 18}; enum { R_V7M_CFSR_INVPC_LENGTH = 1}; enum { R_V7M_CFSR_INVPC_MASK = 262144};
-enum { R_V7M_CFSR_NOCP_SHIFT = 19}; enum { R_V7M_CFSR_NOCP_LENGTH = 1}; enum { R_V7M_CFSR_NOCP_MASK = 524288};
-enum { R_V7M_CFSR_STKOF_SHIFT = 20}; enum { R_V7M_CFSR_STKOF_LENGTH = 1}; enum { R_V7M_CFSR_STKOF_MASK = 1048576};
-enum { R_V7M_CFSR_UNALIGNED_SHIFT = 24}; enum { R_V7M_CFSR_UNALIGNED_LENGTH = 1}; enum { R_V7M_CFSR_UNALIGNED_MASK = 16777216};
-enum { R_V7M_CFSR_DIVBYZERO_SHIFT = 25}; enum { R_V7M_CFSR_DIVBYZERO_LENGTH = 1}; enum { R_V7M_CFSR_DIVBYZERO_MASK = 33554432};
-enum { R_V7M_CFSR_MMFSR_SHIFT = 0}; enum { R_V7M_CFSR_MMFSR_LENGTH = 8}; enum { R_V7M_CFSR_MMFSR_MASK = 255};
-enum { R_V7M_CFSR_BFSR_SHIFT = 8}; enum { R_V7M_CFSR_BFSR_LENGTH = 8}; enum { R_V7M_CFSR_BFSR_MASK = 65280};
-enum { R_V7M_CFSR_UFSR_SHIFT = 16}; enum { R_V7M_CFSR_UFSR_LENGTH = 16}; enum { R_V7M_CFSR_UFSR_MASK = 4294901760};
-enum { R_V7M_HFSR_VECTTBL_SHIFT = 1}; enum { R_V7M_HFSR_VECTTBL_LENGTH = 1}; enum { R_V7M_HFSR_VECTTBL_MASK = 2};
-enum { R_V7M_HFSR_FORCED_SHIFT = 30}; enum { R_V7M_HFSR_FORCED_LENGTH = 1}; enum { R_V7M_HFSR_FORCED_MASK = 1073741824};
-enum { R_V7M_HFSR_DEBUGEVT_SHIFT = 31}; enum { R_V7M_HFSR_DEBUGEVT_LENGTH = 1}; enum { R_V7M_HFSR_DEBUGEVT_MASK = 2147483648};
-enum { R_V7M_DFSR_HALTED_SHIFT = 0}; enum { R_V7M_DFSR_HALTED_LENGTH = 1}; enum { R_V7M_DFSR_HALTED_MASK = 1};
-enum { R_V7M_DFSR_BKPT_SHIFT = 1}; enum { R_V7M_DFSR_BKPT_LENGTH = 1}; enum { R_V7M_DFSR_BKPT_MASK = 2};
-enum { R_V7M_DFSR_DWTTRAP_SHIFT = 2}; enum { R_V7M_DFSR_DWTTRAP_LENGTH = 1}; enum { R_V7M_DFSR_DWTTRAP_MASK = 4};
-enum { R_V7M_DFSR_VCATCH_SHIFT = 3}; enum { R_V7M_DFSR_VCATCH_LENGTH = 1}; enum { R_V7M_DFSR_VCATCH_MASK = 8};
-enum { R_V7M_DFSR_EXTERNAL_SHIFT = 4}; enum { R_V7M_DFSR_EXTERNAL_LENGTH = 1}; enum { R_V7M_DFSR_EXTERNAL_MASK = 16};
-enum { R_V7M_SFSR_INVEP_SHIFT = 0}; enum { R_V7M_SFSR_INVEP_LENGTH = 1}; enum { R_V7M_SFSR_INVEP_MASK = 1};
-enum { R_V7M_SFSR_INVIS_SHIFT = 1}; enum { R_V7M_SFSR_INVIS_LENGTH = 1}; enum { R_V7M_SFSR_INVIS_MASK = 2};
-enum { R_V7M_SFSR_INVER_SHIFT = 2}; enum { R_V7M_SFSR_INVER_LENGTH = 1}; enum { R_V7M_SFSR_INVER_MASK = 4};
-enum { R_V7M_SFSR_AUVIOL_SHIFT = 3}; enum { R_V7M_SFSR_AUVIOL_LENGTH = 1}; enum { R_V7M_SFSR_AUVIOL_MASK = 8};
-enum { R_V7M_SFSR_INVTRAN_SHIFT = 4}; enum { R_V7M_SFSR_INVTRAN_LENGTH = 1}; enum { R_V7M_SFSR_INVTRAN_MASK = 16};
-enum { R_V7M_SFSR_LSPERR_SHIFT = 5}; enum { R_V7M_SFSR_LSPERR_LENGTH = 1}; enum { R_V7M_SFSR_LSPERR_MASK = 32};
-enum { R_V7M_SFSR_SFARVALID_SHIFT = 6}; enum { R_V7M_SFSR_SFARVALID_LENGTH = 1}; enum { R_V7M_SFSR_SFARVALID_MASK = 64};
-enum { R_V7M_SFSR_LSERR_SHIFT = 7}; enum { R_V7M_SFSR_LSERR_LENGTH = 1}; enum { R_V7M_SFSR_LSERR_MASK = 128};
-enum { R_V7M_MPU_CTRL_ENABLE_SHIFT = 0}; enum { R_V7M_MPU_CTRL_ENABLE_LENGTH = 1}; enum { R_V7M_MPU_CTRL_ENABLE_MASK = 1};
-enum { R_V7M_MPU_CTRL_HFNMIENA_SHIFT = 1}; enum { R_V7M_MPU_CTRL_HFNMIENA_LENGTH = 1}; enum { R_V7M_MPU_CTRL_HFNMIENA_MASK = 2};
-enum { R_V7M_MPU_CTRL_PRIVDEFENA_SHIFT = 2}; enum { R_V7M_MPU_CTRL_PRIVDEFENA_LENGTH = 1}; enum { R_V7M_MPU_CTRL_PRIVDEFENA_MASK = 4};
-enum { R_V7M_CLIDR_CTYPE_ALL_SHIFT = 0}; enum { R_V7M_CLIDR_CTYPE_ALL_LENGTH = 21}; enum { R_V7M_CLIDR_CTYPE_ALL_MASK = 2097151};
-enum { R_V7M_CLIDR_LOUIS_SHIFT = 21}; enum { R_V7M_CLIDR_LOUIS_LENGTH = 3}; enum { R_V7M_CLIDR_LOUIS_MASK = 14680064};
-enum { R_V7M_CLIDR_LOC_SHIFT = 24}; enum { R_V7M_CLIDR_LOC_LENGTH = 3}; enum { R_V7M_CLIDR_LOC_MASK = 117440512};
-enum { R_V7M_CLIDR_LOUU_SHIFT = 27}; enum { R_V7M_CLIDR_LOUU_LENGTH = 3}; enum { R_V7M_CLIDR_LOUU_MASK = 939524096};
-enum { R_V7M_CLIDR_ICB_SHIFT = 30}; enum { R_V7M_CLIDR_ICB_LENGTH = 2}; enum { R_V7M_CLIDR_ICB_MASK = 3221225472};
-enum { R_V7M_CSSELR_IND_SHIFT = 0}; enum { R_V7M_CSSELR_IND_LENGTH = 1}; enum { R_V7M_CSSELR_IND_MASK = 1};
-enum { R_V7M_CSSELR_LEVEL_SHIFT = 1}; enum { R_V7M_CSSELR_LEVEL_LENGTH = 3}; enum { R_V7M_CSSELR_LEVEL_MASK = 14};
-enum { R_V7M_CSSELR_INDEX_SHIFT = 0}; enum { R_V7M_CSSELR_INDEX_LENGTH = 4}; enum { R_V7M_CSSELR_INDEX_MASK = 15};
-enum { R_V7M_FPCCR_LSPACT_SHIFT = 0}; enum { R_V7M_FPCCR_LSPACT_LENGTH = 1}; enum { R_V7M_FPCCR_LSPACT_MASK = 1};
-enum { R_V7M_FPCCR_USER_SHIFT = 1}; enum { R_V7M_FPCCR_USER_LENGTH = 1}; enum { R_V7M_FPCCR_USER_MASK = 2};
-enum { R_V7M_FPCCR_S_SHIFT = 2}; enum { R_V7M_FPCCR_S_LENGTH = 1}; enum { R_V7M_FPCCR_S_MASK = 4};
-enum { R_V7M_FPCCR_THREAD_SHIFT = 3}; enum { R_V7M_FPCCR_THREAD_LENGTH = 1}; enum { R_V7M_FPCCR_THREAD_MASK = 8};
-enum { R_V7M_FPCCR_HFRDY_SHIFT = 4}; enum { R_V7M_FPCCR_HFRDY_LENGTH = 1}; enum { R_V7M_FPCCR_HFRDY_MASK = 16};
-enum { R_V7M_FPCCR_MMRDY_SHIFT = 5}; enum { R_V7M_FPCCR_MMRDY_LENGTH = 1}; enum { R_V7M_FPCCR_MMRDY_MASK = 32};
-enum { R_V7M_FPCCR_BFRDY_SHIFT = 6}; enum { R_V7M_FPCCR_BFRDY_LENGTH = 1}; enum { R_V7M_FPCCR_BFRDY_MASK = 64};
-enum { R_V7M_FPCCR_SFRDY_SHIFT = 7}; enum { R_V7M_FPCCR_SFRDY_LENGTH = 1}; enum { R_V7M_FPCCR_SFRDY_MASK = 128};
-enum { R_V7M_FPCCR_MONRDY_SHIFT = 8}; enum { R_V7M_FPCCR_MONRDY_LENGTH = 1}; enum { R_V7M_FPCCR_MONRDY_MASK = 256};
-enum { R_V7M_FPCCR_SPLIMVIOL_SHIFT = 9}; enum { R_V7M_FPCCR_SPLIMVIOL_LENGTH = 1}; enum { R_V7M_FPCCR_SPLIMVIOL_MASK = 512};
-enum { R_V7M_FPCCR_UFRDY_SHIFT = 10}; enum { R_V7M_FPCCR_UFRDY_LENGTH = 1}; enum { R_V7M_FPCCR_UFRDY_MASK = 1024};
-enum { R_V7M_FPCCR_RES0_SHIFT = 11}; enum { R_V7M_FPCCR_RES0_LENGTH = 15}; enum { R_V7M_FPCCR_RES0_MASK = 67106816};
-enum { R_V7M_FPCCR_TS_SHIFT = 26}; enum { R_V7M_FPCCR_TS_LENGTH = 1}; enum { R_V7M_FPCCR_TS_MASK = 67108864};
-enum { R_V7M_FPCCR_CLRONRETS_SHIFT = 27}; enum { R_V7M_FPCCR_CLRONRETS_LENGTH = 1}; enum { R_V7M_FPCCR_CLRONRETS_MASK = 134217728};
-enum { R_V7M_FPCCR_CLRONRET_SHIFT = 28}; enum { R_V7M_FPCCR_CLRONRET_LENGTH = 1}; enum { R_V7M_FPCCR_CLRONRET_MASK = 268435456};
-enum { R_V7M_FPCCR_LSPENS_SHIFT = 29}; enum { R_V7M_FPCCR_LSPENS_LENGTH = 1}; enum { R_V7M_FPCCR_LSPENS_MASK = 536870912};
-enum { R_V7M_FPCCR_LSPEN_SHIFT = 30}; enum { R_V7M_FPCCR_LSPEN_LENGTH = 1}; enum { R_V7M_FPCCR_LSPEN_MASK = 1073741824};
-enum { R_V7M_FPCCR_ASPEN_SHIFT = 31}; enum { R_V7M_FPCCR_ASPEN_LENGTH = 1}; enum { R_V7M_FPCCR_ASPEN_MASK = 2147483648};
-enum { R_V7M_VPR_P0_SHIFT = 0}; enum { R_V7M_VPR_P0_LENGTH = 16}; enum { R_V7M_VPR_P0_MASK = 65535};
-enum { R_V7M_VPR_MASK01_SHIFT = 16}; enum { R_V7M_VPR_MASK01_LENGTH = 4}; enum { R_V7M_VPR_MASK01_MASK = 983040};
-enum { R_V7M_VPR_MASK23_SHIFT = 20}; enum { R_V7M_VPR_MASK23_LENGTH = 4}; enum { R_V7M_VPR_MASK23_MASK = 15728640};
-enum { R_CLIDR_EL1_CTYPE1_SHIFT = 0}; enum { R_CLIDR_EL1_CTYPE1_LENGTH = 3}; enum { R_CLIDR_EL1_CTYPE1_MASK = 7};
-enum { R_CLIDR_EL1_CTYPE2_SHIFT = 3}; enum { R_CLIDR_EL1_CTYPE2_LENGTH = 3}; enum { R_CLIDR_EL1_CTYPE2_MASK = 56};
-enum { R_CLIDR_EL1_CTYPE3_SHIFT = 6}; enum { R_CLIDR_EL1_CTYPE3_LENGTH = 3}; enum { R_CLIDR_EL1_CTYPE3_MASK = 448};
-enum { R_CLIDR_EL1_CTYPE4_SHIFT = 9}; enum { R_CLIDR_EL1_CTYPE4_LENGTH = 3}; enum { R_CLIDR_EL1_CTYPE4_MASK = 3584};
-enum { R_CLIDR_EL1_CTYPE5_SHIFT = 12}; enum { R_CLIDR_EL1_CTYPE5_LENGTH = 3}; enum { R_CLIDR_EL1_CTYPE5_MASK = 28672};
-enum { R_CLIDR_EL1_CTYPE6_SHIFT = 15}; enum { R_CLIDR_EL1_CTYPE6_LENGTH = 3}; enum { R_CLIDR_EL1_CTYPE6_MASK = 229376};
-enum { R_CLIDR_EL1_CTYPE7_SHIFT = 18}; enum { R_CLIDR_EL1_CTYPE7_LENGTH = 3}; enum { R_CLIDR_EL1_CTYPE7_MASK = 1835008};
-enum { R_CLIDR_EL1_LOUIS_SHIFT = 21}; enum { R_CLIDR_EL1_LOUIS_LENGTH = 3}; enum { R_CLIDR_EL1_LOUIS_MASK = 14680064};
-enum { R_CLIDR_EL1_LOC_SHIFT = 24}; enum { R_CLIDR_EL1_LOC_LENGTH = 3}; enum { R_CLIDR_EL1_LOC_MASK = 117440512};
-enum { R_CLIDR_EL1_LOUU_SHIFT = 27}; enum { R_CLIDR_EL1_LOUU_LENGTH = 3}; enum { R_CLIDR_EL1_LOUU_MASK = 939524096};
-enum { R_CLIDR_EL1_ICB_SHIFT = 30}; enum { R_CLIDR_EL1_ICB_LENGTH = 3}; enum { R_CLIDR_EL1_ICB_MASK = 7516192768};
-enum { R_CCSIDR_EL1_CCIDX_LINESIZE_SHIFT = 0}; enum { R_CCSIDR_EL1_CCIDX_LINESIZE_LENGTH = 3}; enum { R_CCSIDR_EL1_CCIDX_LINESIZE_MASK = 7};
-enum { R_CCSIDR_EL1_CCIDX_ASSOCIATIVITY_SHIFT = 3}; enum { R_CCSIDR_EL1_CCIDX_ASSOCIATIVITY_LENGTH = 21}; enum { R_CCSIDR_EL1_CCIDX_ASSOCIATIVITY_MASK = 16777208};
-enum { R_CCSIDR_EL1_CCIDX_NUMSETS_SHIFT = 32}; enum { R_CCSIDR_EL1_CCIDX_NUMSETS_LENGTH = 24}; enum { R_CCSIDR_EL1_CCIDX_NUMSETS_MASK = 72057589742960640};
-enum { R_CCSIDR_EL1_LINESIZE_SHIFT = 0}; enum { R_CCSIDR_EL1_LINESIZE_LENGTH = 3}; enum { R_CCSIDR_EL1_LINESIZE_MASK = 7};
-enum { R_CCSIDR_EL1_ASSOCIATIVITY_SHIFT = 3}; enum { R_CCSIDR_EL1_ASSOCIATIVITY_LENGTH = 10}; enum { R_CCSIDR_EL1_ASSOCIATIVITY_MASK = 8184};
-enum { R_CCSIDR_EL1_NUMSETS_SHIFT = 13}; enum { R_CCSIDR_EL1_NUMSETS_LENGTH = 15}; enum { R_CCSIDR_EL1_NUMSETS_MASK = 268427264};
-enum { R_CTR_EL0_IMINLINE_SHIFT = 0}; enum { R_CTR_EL0_IMINLINE_LENGTH = 4}; enum { R_CTR_EL0_IMINLINE_MASK = 15};
-enum { R_CTR_EL0_L1IP_SHIFT = 14}; enum { R_CTR_EL0_L1IP_LENGTH = 2}; enum { R_CTR_EL0_L1IP_MASK = 49152};
-enum { R_CTR_EL0_DMINLINE_SHIFT = 16}; enum { R_CTR_EL0_DMINLINE_LENGTH = 4}; enum { R_CTR_EL0_DMINLINE_MASK = 983040};
-enum { R_CTR_EL0_ERG_SHIFT = 20}; enum { R_CTR_EL0_ERG_LENGTH = 4}; enum { R_CTR_EL0_ERG_MASK = 15728640};
-enum { R_CTR_EL0_CWG_SHIFT = 24}; enum { R_CTR_EL0_CWG_LENGTH = 4}; enum { R_CTR_EL0_CWG_MASK = 251658240};
-enum { R_CTR_EL0_IDC_SHIFT = 28}; enum { R_CTR_EL0_IDC_LENGTH = 1}; enum { R_CTR_EL0_IDC_MASK = 268435456};
-enum { R_CTR_EL0_DIC_SHIFT = 29}; enum { R_CTR_EL0_DIC_LENGTH = 1}; enum { R_CTR_EL0_DIC_MASK = 536870912};
-enum { R_CTR_EL0_TMINLINE_SHIFT = 32}; enum { R_CTR_EL0_TMINLINE_LENGTH = 6}; enum { R_CTR_EL0_TMINLINE_MASK = 270582939648};
-enum { R_MIDR_EL1_REVISION_SHIFT = 0}; enum { R_MIDR_EL1_REVISION_LENGTH = 4}; enum { R_MIDR_EL1_REVISION_MASK = 15};
-enum { R_MIDR_EL1_PARTNUM_SHIFT = 4}; enum { R_MIDR_EL1_PARTNUM_LENGTH = 12}; enum { R_MIDR_EL1_PARTNUM_MASK = 65520};
-enum { R_MIDR_EL1_ARCHITECTURE_SHIFT = 16}; enum { R_MIDR_EL1_ARCHITECTURE_LENGTH = 4}; enum { R_MIDR_EL1_ARCHITECTURE_MASK = 983040};
-enum { R_MIDR_EL1_VARIANT_SHIFT = 20}; enum { R_MIDR_EL1_VARIANT_LENGTH = 4}; enum { R_MIDR_EL1_VARIANT_MASK = 15728640};
-enum { R_MIDR_EL1_IMPLEMENTER_SHIFT = 24}; enum { R_MIDR_EL1_IMPLEMENTER_LENGTH = 8}; enum { R_MIDR_EL1_IMPLEMENTER_MASK = 4278190080};
-enum { R_ID_ISAR0_SWAP_SHIFT = 0}; enum { R_ID_ISAR0_SWAP_LENGTH = 4}; enum { R_ID_ISAR0_SWAP_MASK = 15};
-enum { R_ID_ISAR0_BITCOUNT_SHIFT = 4}; enum { R_ID_ISAR0_BITCOUNT_LENGTH = 4}; enum { R_ID_ISAR0_BITCOUNT_MASK = 240};
-enum { R_ID_ISAR0_BITFIELD_SHIFT = 8}; enum { R_ID_ISAR0_BITFIELD_LENGTH = 4}; enum { R_ID_ISAR0_BITFIELD_MASK = 3840};
-enum { R_ID_ISAR0_CMPBRANCH_SHIFT = 12}; enum { R_ID_ISAR0_CMPBRANCH_LENGTH = 4}; enum { R_ID_ISAR0_CMPBRANCH_MASK = 61440};
-enum { R_ID_ISAR0_COPROC_SHIFT = 16}; enum { R_ID_ISAR0_COPROC_LENGTH = 4}; enum { R_ID_ISAR0_COPROC_MASK = 983040};
-enum { R_ID_ISAR0_DEBUG_SHIFT = 20}; enum { R_ID_ISAR0_DEBUG_LENGTH = 4}; enum { R_ID_ISAR0_DEBUG_MASK = 15728640};
-enum { R_ID_ISAR0_DIVIDE_SHIFT = 24}; enum { R_ID_ISAR0_DIVIDE_LENGTH = 4}; enum { R_ID_ISAR0_DIVIDE_MASK = 251658240};
-enum { R_ID_ISAR1_ENDIAN_SHIFT = 0}; enum { R_ID_ISAR1_ENDIAN_LENGTH = 4}; enum { R_ID_ISAR1_ENDIAN_MASK = 15};
-enum { R_ID_ISAR1_EXCEPT_SHIFT = 4}; enum { R_ID_ISAR1_EXCEPT_LENGTH = 4}; enum { R_ID_ISAR1_EXCEPT_MASK = 240};
-enum { R_ID_ISAR1_EXCEPT_AR_SHIFT = 8}; enum { R_ID_ISAR1_EXCEPT_AR_LENGTH = 4}; enum { R_ID_ISAR1_EXCEPT_AR_MASK = 3840};
-enum { R_ID_ISAR1_EXTEND_SHIFT = 12}; enum { R_ID_ISAR1_EXTEND_LENGTH = 4}; enum { R_ID_ISAR1_EXTEND_MASK = 61440};
-enum { R_ID_ISAR1_IFTHEN_SHIFT = 16}; enum { R_ID_ISAR1_IFTHEN_LENGTH = 4}; enum { R_ID_ISAR1_IFTHEN_MASK = 983040};
-enum { R_ID_ISAR1_IMMEDIATE_SHIFT = 20}; enum { R_ID_ISAR1_IMMEDIATE_LENGTH = 4}; enum { R_ID_ISAR1_IMMEDIATE_MASK = 15728640};
-enum { R_ID_ISAR1_INTERWORK_SHIFT = 24}; enum { R_ID_ISAR1_INTERWORK_LENGTH = 4}; enum { R_ID_ISAR1_INTERWORK_MASK = 251658240};
-enum { R_ID_ISAR1_JAZELLE_SHIFT = 28}; enum { R_ID_ISAR1_JAZELLE_LENGTH = 4}; enum { R_ID_ISAR1_JAZELLE_MASK = 4026531840};
-enum { R_ID_ISAR2_LOADSTORE_SHIFT = 0}; enum { R_ID_ISAR2_LOADSTORE_LENGTH = 4}; enum { R_ID_ISAR2_LOADSTORE_MASK = 15};
-enum { R_ID_ISAR2_MEMHINT_SHIFT = 4}; enum { R_ID_ISAR2_MEMHINT_LENGTH = 4}; enum { R_ID_ISAR2_MEMHINT_MASK = 240};
-enum { R_ID_ISAR2_MULTIACCESSINT_SHIFT = 8}; enum { R_ID_ISAR2_MULTIACCESSINT_LENGTH = 4}; enum { R_ID_ISAR2_MULTIACCESSINT_MASK = 3840};
-enum { R_ID_ISAR2_MULT_SHIFT = 12}; enum { R_ID_ISAR2_MULT_LENGTH = 4}; enum { R_ID_ISAR2_MULT_MASK = 61440};
-enum { R_ID_ISAR2_MULTS_SHIFT = 16}; enum { R_ID_ISAR2_MULTS_LENGTH = 4}; enum { R_ID_ISAR2_MULTS_MASK = 983040};
-enum { R_ID_ISAR2_MULTU_SHIFT = 20}; enum { R_ID_ISAR2_MULTU_LENGTH = 4}; enum { R_ID_ISAR2_MULTU_MASK = 15728640};
-enum { R_ID_ISAR2_PSR_AR_SHIFT = 24}; enum { R_ID_ISAR2_PSR_AR_LENGTH = 4}; enum { R_ID_ISAR2_PSR_AR_MASK = 251658240};
-enum { R_ID_ISAR2_REVERSAL_SHIFT = 28}; enum { R_ID_ISAR2_REVERSAL_LENGTH = 4}; enum { R_ID_ISAR2_REVERSAL_MASK = 4026531840};
-enum { R_ID_ISAR3_SATURATE_SHIFT = 0}; enum { R_ID_ISAR3_SATURATE_LENGTH = 4}; enum { R_ID_ISAR3_SATURATE_MASK = 15};
-enum { R_ID_ISAR3_SIMD_SHIFT = 4}; enum { R_ID_ISAR3_SIMD_LENGTH = 4}; enum { R_ID_ISAR3_SIMD_MASK = 240};
-enum { R_ID_ISAR3_SVC_SHIFT = 8}; enum { R_ID_ISAR3_SVC_LENGTH = 4}; enum { R_ID_ISAR3_SVC_MASK = 3840};
-enum { R_ID_ISAR3_SYNCHPRIM_SHIFT = 12}; enum { R_ID_ISAR3_SYNCHPRIM_LENGTH = 4}; enum { R_ID_ISAR3_SYNCHPRIM_MASK = 61440};
-enum { R_ID_ISAR3_TABBRANCH_SHIFT = 16}; enum { R_ID_ISAR3_TABBRANCH_LENGTH = 4}; enum { R_ID_ISAR3_TABBRANCH_MASK = 983040};
-enum { R_ID_ISAR3_T32COPY_SHIFT = 20}; enum { R_ID_ISAR3_T32COPY_LENGTH = 4}; enum { R_ID_ISAR3_T32COPY_MASK = 15728640};
-enum { R_ID_ISAR3_TRUENOP_SHIFT = 24}; enum { R_ID_ISAR3_TRUENOP_LENGTH = 4}; enum { R_ID_ISAR3_TRUENOP_MASK = 251658240};
-enum { R_ID_ISAR3_T32EE_SHIFT = 28}; enum { R_ID_ISAR3_T32EE_LENGTH = 4}; enum { R_ID_ISAR3_T32EE_MASK = 4026531840};
-enum { R_ID_ISAR4_UNPRIV_SHIFT = 0}; enum { R_ID_ISAR4_UNPRIV_LENGTH = 4}; enum { R_ID_ISAR4_UNPRIV_MASK = 15};
-enum { R_ID_ISAR4_WITHSHIFTS_SHIFT = 4}; enum { R_ID_ISAR4_WITHSHIFTS_LENGTH = 4}; enum { R_ID_ISAR4_WITHSHIFTS_MASK = 240};
-enum { R_ID_ISAR4_WRITEBACK_SHIFT = 8}; enum { R_ID_ISAR4_WRITEBACK_LENGTH = 4}; enum { R_ID_ISAR4_WRITEBACK_MASK = 3840};
-enum { R_ID_ISAR4_SMC_SHIFT = 12}; enum { R_ID_ISAR4_SMC_LENGTH = 4}; enum { R_ID_ISAR4_SMC_MASK = 61440};
-enum { R_ID_ISAR4_BARRIER_SHIFT = 16}; enum { R_ID_ISAR4_BARRIER_LENGTH = 4}; enum { R_ID_ISAR4_BARRIER_MASK = 983040};
-enum { R_ID_ISAR4_SYNCHPRIM_FRAC_SHIFT = 20}; enum { R_ID_ISAR4_SYNCHPRIM_FRAC_LENGTH = 4}; enum { R_ID_ISAR4_SYNCHPRIM_FRAC_MASK = 15728640};
-enum { R_ID_ISAR4_PSR_M_SHIFT = 24}; enum { R_ID_ISAR4_PSR_M_LENGTH = 4}; enum { R_ID_ISAR4_PSR_M_MASK = 251658240};
-enum { R_ID_ISAR4_SWP_FRAC_SHIFT = 28}; enum { R_ID_ISAR4_SWP_FRAC_LENGTH = 4}; enum { R_ID_ISAR4_SWP_FRAC_MASK = 4026531840};
-enum { R_ID_ISAR5_SEVL_SHIFT = 0}; enum { R_ID_ISAR5_SEVL_LENGTH = 4}; enum { R_ID_ISAR5_SEVL_MASK = 15};
-enum { R_ID_ISAR5_AES_SHIFT = 4}; enum { R_ID_ISAR5_AES_LENGTH = 4}; enum { R_ID_ISAR5_AES_MASK = 240};
-enum { R_ID_ISAR5_SHA1_SHIFT = 8}; enum { R_ID_ISAR5_SHA1_LENGTH = 4}; enum { R_ID_ISAR5_SHA1_MASK = 3840};
-enum { R_ID_ISAR5_SHA2_SHIFT = 12}; enum { R_ID_ISAR5_SHA2_LENGTH = 4}; enum { R_ID_ISAR5_SHA2_MASK = 61440};
-enum { R_ID_ISAR5_CRC32_SHIFT = 16}; enum { R_ID_ISAR5_CRC32_LENGTH = 4}; enum { R_ID_ISAR5_CRC32_MASK = 983040};
-enum { R_ID_ISAR5_RDM_SHIFT = 24}; enum { R_ID_ISAR5_RDM_LENGTH = 4}; enum { R_ID_ISAR5_RDM_MASK = 251658240};
-enum { R_ID_ISAR5_VCMA_SHIFT = 28}; enum { R_ID_ISAR5_VCMA_LENGTH = 4}; enum { R_ID_ISAR5_VCMA_MASK = 4026531840};
-enum { R_ID_ISAR6_JSCVT_SHIFT = 0}; enum { R_ID_ISAR6_JSCVT_LENGTH = 4}; enum { R_ID_ISAR6_JSCVT_MASK = 15};
-enum { R_ID_ISAR6_DP_SHIFT = 4}; enum { R_ID_ISAR6_DP_LENGTH = 4}; enum { R_ID_ISAR6_DP_MASK = 240};
-enum { R_ID_ISAR6_FHM_SHIFT = 8}; enum { R_ID_ISAR6_FHM_LENGTH = 4}; enum { R_ID_ISAR6_FHM_MASK = 3840};
-enum { R_ID_ISAR6_SB_SHIFT = 12}; enum { R_ID_ISAR6_SB_LENGTH = 4}; enum { R_ID_ISAR6_SB_MASK = 61440};
-enum { R_ID_ISAR6_SPECRES_SHIFT = 16}; enum { R_ID_ISAR6_SPECRES_LENGTH = 4}; enum { R_ID_ISAR6_SPECRES_MASK = 983040};
-enum { R_ID_ISAR6_BF16_SHIFT = 20}; enum { R_ID_ISAR6_BF16_LENGTH = 4}; enum { R_ID_ISAR6_BF16_MASK = 15728640};
-enum { R_ID_ISAR6_I8MM_SHIFT = 24}; enum { R_ID_ISAR6_I8MM_LENGTH = 4}; enum { R_ID_ISAR6_I8MM_MASK = 251658240};
-enum { R_ID_MMFR0_VMSA_SHIFT = 0}; enum { R_ID_MMFR0_VMSA_LENGTH = 4}; enum { R_ID_MMFR0_VMSA_MASK = 15};
-enum { R_ID_MMFR0_PMSA_SHIFT = 4}; enum { R_ID_MMFR0_PMSA_LENGTH = 4}; enum { R_ID_MMFR0_PMSA_MASK = 240};
-enum { R_ID_MMFR0_OUTERSHR_SHIFT = 8}; enum { R_ID_MMFR0_OUTERSHR_LENGTH = 4}; enum { R_ID_MMFR0_OUTERSHR_MASK = 3840};
-enum { R_ID_MMFR0_SHARELVL_SHIFT = 12}; enum { R_ID_MMFR0_SHARELVL_LENGTH = 4}; enum { R_ID_MMFR0_SHARELVL_MASK = 61440};
-enum { R_ID_MMFR0_TCM_SHIFT = 16}; enum { R_ID_MMFR0_TCM_LENGTH = 4}; enum { R_ID_MMFR0_TCM_MASK = 983040};
-enum { R_ID_MMFR0_AUXREG_SHIFT = 20}; enum { R_ID_MMFR0_AUXREG_LENGTH = 4}; enum { R_ID_MMFR0_AUXREG_MASK = 15728640};
-enum { R_ID_MMFR0_FCSE_SHIFT = 24}; enum { R_ID_MMFR0_FCSE_LENGTH = 4}; enum { R_ID_MMFR0_FCSE_MASK = 251658240};
-enum { R_ID_MMFR0_INNERSHR_SHIFT = 28}; enum { R_ID_MMFR0_INNERSHR_LENGTH = 4}; enum { R_ID_MMFR0_INNERSHR_MASK = 4026531840};
-enum { R_ID_MMFR1_L1HVDVA_SHIFT = 0}; enum { R_ID_MMFR1_L1HVDVA_LENGTH = 4}; enum { R_ID_MMFR1_L1HVDVA_MASK = 15};
-enum { R_ID_MMFR1_L1UNIVA_SHIFT = 4}; enum { R_ID_MMFR1_L1UNIVA_LENGTH = 4}; enum { R_ID_MMFR1_L1UNIVA_MASK = 240};
-enum { R_ID_MMFR1_L1HVDSW_SHIFT = 8}; enum { R_ID_MMFR1_L1HVDSW_LENGTH = 4}; enum { R_ID_MMFR1_L1HVDSW_MASK = 3840};
-enum { R_ID_MMFR1_L1UNISW_SHIFT = 12}; enum { R_ID_MMFR1_L1UNISW_LENGTH = 4}; enum { R_ID_MMFR1_L1UNISW_MASK = 61440};
-enum { R_ID_MMFR1_L1HVD_SHIFT = 16}; enum { R_ID_MMFR1_L1HVD_LENGTH = 4}; enum { R_ID_MMFR1_L1HVD_MASK = 983040};
-enum { R_ID_MMFR1_L1UNI_SHIFT = 20}; enum { R_ID_MMFR1_L1UNI_LENGTH = 4}; enum { R_ID_MMFR1_L1UNI_MASK = 15728640};
-enum { R_ID_MMFR1_L1TSTCLN_SHIFT = 24}; enum { R_ID_MMFR1_L1TSTCLN_LENGTH = 4}; enum { R_ID_MMFR1_L1TSTCLN_MASK = 251658240};
-enum { R_ID_MMFR1_BPRED_SHIFT = 28}; enum { R_ID_MMFR1_BPRED_LENGTH = 4}; enum { R_ID_MMFR1_BPRED_MASK = 4026531840};
-enum { R_ID_MMFR2_L1HVDFG_SHIFT = 0}; enum { R_ID_MMFR2_L1HVDFG_LENGTH = 4}; enum { R_ID_MMFR2_L1HVDFG_MASK = 15};
-enum { R_ID_MMFR2_L1HVDBG_SHIFT = 4}; enum { R_ID_MMFR2_L1HVDBG_LENGTH = 4}; enum { R_ID_MMFR2_L1HVDBG_MASK = 240};
-enum { R_ID_MMFR2_L1HVDRNG_SHIFT = 8}; enum { R_ID_MMFR2_L1HVDRNG_LENGTH = 4}; enum { R_ID_MMFR2_L1HVDRNG_MASK = 3840};
-enum { R_ID_MMFR2_HVDTLB_SHIFT = 12}; enum { R_ID_MMFR2_HVDTLB_LENGTH = 4}; enum { R_ID_MMFR2_HVDTLB_MASK = 61440};
-enum { R_ID_MMFR2_UNITLB_SHIFT = 16}; enum { R_ID_MMFR2_UNITLB_LENGTH = 4}; enum { R_ID_MMFR2_UNITLB_MASK = 983040};
-enum { R_ID_MMFR2_MEMBARR_SHIFT = 20}; enum { R_ID_MMFR2_MEMBARR_LENGTH = 4}; enum { R_ID_MMFR2_MEMBARR_MASK = 15728640};
-enum { R_ID_MMFR2_WFISTALL_SHIFT = 24}; enum { R_ID_MMFR2_WFISTALL_LENGTH = 4}; enum { R_ID_MMFR2_WFISTALL_MASK = 251658240};
-enum { R_ID_MMFR2_HWACCFLG_SHIFT = 28}; enum { R_ID_MMFR2_HWACCFLG_LENGTH = 4}; enum { R_ID_MMFR2_HWACCFLG_MASK = 4026531840};
-enum { R_ID_MMFR3_CMAINTVA_SHIFT = 0}; enum { R_ID_MMFR3_CMAINTVA_LENGTH = 4}; enum { R_ID_MMFR3_CMAINTVA_MASK = 15};
-enum { R_ID_MMFR3_CMAINTSW_SHIFT = 4}; enum { R_ID_MMFR3_CMAINTSW_LENGTH = 4}; enum { R_ID_MMFR3_CMAINTSW_MASK = 240};
-enum { R_ID_MMFR3_BPMAINT_SHIFT = 8}; enum { R_ID_MMFR3_BPMAINT_LENGTH = 4}; enum { R_ID_MMFR3_BPMAINT_MASK = 3840};
-enum { R_ID_MMFR3_MAINTBCST_SHIFT = 12}; enum { R_ID_MMFR3_MAINTBCST_LENGTH = 4}; enum { R_ID_MMFR3_MAINTBCST_MASK = 61440};
-enum { R_ID_MMFR3_PAN_SHIFT = 16}; enum { R_ID_MMFR3_PAN_LENGTH = 4}; enum { R_ID_MMFR3_PAN_MASK = 983040};
-enum { R_ID_MMFR3_COHWALK_SHIFT = 20}; enum { R_ID_MMFR3_COHWALK_LENGTH = 4}; enum { R_ID_MMFR3_COHWALK_MASK = 15728640};
-enum { R_ID_MMFR3_CMEMSZ_SHIFT = 24}; enum { R_ID_MMFR3_CMEMSZ_LENGTH = 4}; enum { R_ID_MMFR3_CMEMSZ_MASK = 251658240};
-enum { R_ID_MMFR3_SUPERSEC_SHIFT = 28}; enum { R_ID_MMFR3_SUPERSEC_LENGTH = 4}; enum { R_ID_MMFR3_SUPERSEC_MASK = 4026531840};
-enum { R_ID_MMFR4_SPECSEI_SHIFT = 0}; enum { R_ID_MMFR4_SPECSEI_LENGTH = 4}; enum { R_ID_MMFR4_SPECSEI_MASK = 15};
-enum { R_ID_MMFR4_AC2_SHIFT = 4}; enum { R_ID_MMFR4_AC2_LENGTH = 4}; enum { R_ID_MMFR4_AC2_MASK = 240};
-enum { R_ID_MMFR4_XNX_SHIFT = 8}; enum { R_ID_MMFR4_XNX_LENGTH = 4}; enum { R_ID_MMFR4_XNX_MASK = 3840};
-enum { R_ID_MMFR4_CNP_SHIFT = 12}; enum { R_ID_MMFR4_CNP_LENGTH = 4}; enum { R_ID_MMFR4_CNP_MASK = 61440};
-enum { R_ID_MMFR4_HPDS_SHIFT = 16}; enum { R_ID_MMFR4_HPDS_LENGTH = 4}; enum { R_ID_MMFR4_HPDS_MASK = 983040};
-enum { R_ID_MMFR4_LSM_SHIFT = 20}; enum { R_ID_MMFR4_LSM_LENGTH = 4}; enum { R_ID_MMFR4_LSM_MASK = 15728640};
-enum { R_ID_MMFR4_CCIDX_SHIFT = 24}; enum { R_ID_MMFR4_CCIDX_LENGTH = 4}; enum { R_ID_MMFR4_CCIDX_MASK = 251658240};
-enum { R_ID_MMFR4_EVT_SHIFT = 28}; enum { R_ID_MMFR4_EVT_LENGTH = 4}; enum { R_ID_MMFR4_EVT_MASK = 4026531840};
-enum { R_ID_MMFR5_ETS_SHIFT = 0}; enum { R_ID_MMFR5_ETS_LENGTH = 4}; enum { R_ID_MMFR5_ETS_MASK = 15};
-enum { R_ID_MMFR5_NTLBPA_SHIFT = 4}; enum { R_ID_MMFR5_NTLBPA_LENGTH = 4}; enum { R_ID_MMFR5_NTLBPA_MASK = 240};
-enum { R_ID_PFR0_STATE0_SHIFT = 0}; enum { R_ID_PFR0_STATE0_LENGTH = 4}; enum { R_ID_PFR0_STATE0_MASK = 15};
-enum { R_ID_PFR0_STATE1_SHIFT = 4}; enum { R_ID_PFR0_STATE1_LENGTH = 4}; enum { R_ID_PFR0_STATE1_MASK = 240};
-enum { R_ID_PFR0_STATE2_SHIFT = 8}; enum { R_ID_PFR0_STATE2_LENGTH = 4}; enum { R_ID_PFR0_STATE2_MASK = 3840};
-enum { R_ID_PFR0_STATE3_SHIFT = 12}; enum { R_ID_PFR0_STATE3_LENGTH = 4}; enum { R_ID_PFR0_STATE3_MASK = 61440};
-enum { R_ID_PFR0_CSV2_SHIFT = 16}; enum { R_ID_PFR0_CSV2_LENGTH = 4}; enum { R_ID_PFR0_CSV2_MASK = 983040};
-enum { R_ID_PFR0_AMU_SHIFT = 20}; enum { R_ID_PFR0_AMU_LENGTH = 4}; enum { R_ID_PFR0_AMU_MASK = 15728640};
-enum { R_ID_PFR0_DIT_SHIFT = 24}; enum { R_ID_PFR0_DIT_LENGTH = 4}; enum { R_ID_PFR0_DIT_MASK = 251658240};
-enum { R_ID_PFR0_RAS_SHIFT = 28}; enum { R_ID_PFR0_RAS_LENGTH = 4}; enum { R_ID_PFR0_RAS_MASK = 4026531840};
-enum { R_ID_PFR1_PROGMOD_SHIFT = 0}; enum { R_ID_PFR1_PROGMOD_LENGTH = 4}; enum { R_ID_PFR1_PROGMOD_MASK = 15};
-enum { R_ID_PFR1_SECURITY_SHIFT = 4}; enum { R_ID_PFR1_SECURITY_LENGTH = 4}; enum { R_ID_PFR1_SECURITY_MASK = 240};
-enum { R_ID_PFR1_MPROGMOD_SHIFT = 8}; enum { R_ID_PFR1_MPROGMOD_LENGTH = 4}; enum { R_ID_PFR1_MPROGMOD_MASK = 3840};
-enum { R_ID_PFR1_VIRTUALIZATION_SHIFT = 12}; enum { R_ID_PFR1_VIRTUALIZATION_LENGTH = 4}; enum { R_ID_PFR1_VIRTUALIZATION_MASK = 61440};
-enum { R_ID_PFR1_GENTIMER_SHIFT = 16}; enum { R_ID_PFR1_GENTIMER_LENGTH = 4}; enum { R_ID_PFR1_GENTIMER_MASK = 983040};
-enum { R_ID_PFR1_SEC_FRAC_SHIFT = 20}; enum { R_ID_PFR1_SEC_FRAC_LENGTH = 4}; enum { R_ID_PFR1_SEC_FRAC_MASK = 15728640};
-enum { R_ID_PFR1_VIRT_FRAC_SHIFT = 24}; enum { R_ID_PFR1_VIRT_FRAC_LENGTH = 4}; enum { R_ID_PFR1_VIRT_FRAC_MASK = 251658240};
-enum { R_ID_PFR1_GIC_SHIFT = 28}; enum { R_ID_PFR1_GIC_LENGTH = 4}; enum { R_ID_PFR1_GIC_MASK = 4026531840};
-enum { R_ID_PFR2_CSV3_SHIFT = 0}; enum { R_ID_PFR2_CSV3_LENGTH = 4}; enum { R_ID_PFR2_CSV3_MASK = 15};
-enum { R_ID_PFR2_SSBS_SHIFT = 4}; enum { R_ID_PFR2_SSBS_LENGTH = 4}; enum { R_ID_PFR2_SSBS_MASK = 240};
-enum { R_ID_PFR2_RAS_FRAC_SHIFT = 8}; enum { R_ID_PFR2_RAS_FRAC_LENGTH = 4}; enum { R_ID_PFR2_RAS_FRAC_MASK = 3840};
-enum { R_ID_AA64ISAR0_AES_SHIFT = 4}; enum { R_ID_AA64ISAR0_AES_LENGTH = 4}; enum { R_ID_AA64ISAR0_AES_MASK = 240};
-enum { R_ID_AA64ISAR0_SHA1_SHIFT = 8}; enum { R_ID_AA64ISAR0_SHA1_LENGTH = 4}; enum { R_ID_AA64ISAR0_SHA1_MASK = 3840};
-enum { R_ID_AA64ISAR0_SHA2_SHIFT = 12}; enum { R_ID_AA64ISAR0_SHA2_LENGTH = 4}; enum { R_ID_AA64ISAR0_SHA2_MASK = 61440};
-enum { R_ID_AA64ISAR0_CRC32_SHIFT = 16}; enum { R_ID_AA64ISAR0_CRC32_LENGTH = 4}; enum { R_ID_AA64ISAR0_CRC32_MASK = 983040};
-enum { R_ID_AA64ISAR0_ATOMIC_SHIFT = 20}; enum { R_ID_AA64ISAR0_ATOMIC_LENGTH = 4}; enum { R_ID_AA64ISAR0_ATOMIC_MASK = 15728640};
-enum { R_ID_AA64ISAR0_TME_SHIFT = 24}; enum { R_ID_AA64ISAR0_TME_LENGTH = 4}; enum { R_ID_AA64ISAR0_TME_MASK = 251658240};
-enum { R_ID_AA64ISAR0_RDM_SHIFT = 28}; enum { R_ID_AA64ISAR0_RDM_LENGTH = 4}; enum { R_ID_AA64ISAR0_RDM_MASK = 4026531840};
-enum { R_ID_AA64ISAR0_SHA3_SHIFT = 32}; enum { R_ID_AA64ISAR0_SHA3_LENGTH = 4}; enum { R_ID_AA64ISAR0_SHA3_MASK = 64424509440};
-enum { R_ID_AA64ISAR0_SM3_SHIFT = 36}; enum { R_ID_AA64ISAR0_SM3_LENGTH = 4}; enum { R_ID_AA64ISAR0_SM3_MASK = 1030792151040};
-enum { R_ID_AA64ISAR0_SM4_SHIFT = 40}; enum { R_ID_AA64ISAR0_SM4_LENGTH = 4}; enum { R_ID_AA64ISAR0_SM4_MASK = 16492674416640};
-enum { R_ID_AA64ISAR0_DP_SHIFT = 44}; enum { R_ID_AA64ISAR0_DP_LENGTH = 4}; enum { R_ID_AA64ISAR0_DP_MASK = 263882790666240};
-enum { R_ID_AA64ISAR0_FHM_SHIFT = 48}; enum { R_ID_AA64ISAR0_FHM_LENGTH = 4}; enum { R_ID_AA64ISAR0_FHM_MASK = 4222124650659840};
-enum { R_ID_AA64ISAR0_TS_SHIFT = 52}; enum { R_ID_AA64ISAR0_TS_LENGTH = 4}; enum { R_ID_AA64ISAR0_TS_MASK = 67553994410557440};
-enum { R_ID_AA64ISAR0_TLB_SHIFT = 56}; enum { R_ID_AA64ISAR0_TLB_LENGTH = 4}; enum { R_ID_AA64ISAR0_TLB_MASK = 1080863910568919040};
-enum { R_ID_AA64ISAR0_RNDR_SHIFT = 60}; enum { R_ID_AA64ISAR0_RNDR_LENGTH = 4}; enum { R_ID_AA64ISAR0_RNDR_MASK = 17293822569102704640};
-enum { R_ID_AA64ISAR1_DPB_SHIFT = 0}; enum { R_ID_AA64ISAR1_DPB_LENGTH = 4}; enum { R_ID_AA64ISAR1_DPB_MASK = 15};
-enum { R_ID_AA64ISAR1_APA_SHIFT = 4}; enum { R_ID_AA64ISAR1_APA_LENGTH = 4}; enum { R_ID_AA64ISAR1_APA_MASK = 240};
-enum { R_ID_AA64ISAR1_API_SHIFT = 8}; enum { R_ID_AA64ISAR1_API_LENGTH = 4}; enum { R_ID_AA64ISAR1_API_MASK = 3840};
-enum { R_ID_AA64ISAR1_JSCVT_SHIFT = 12}; enum { R_ID_AA64ISAR1_JSCVT_LENGTH = 4}; enum { R_ID_AA64ISAR1_JSCVT_MASK = 61440};
-enum { R_ID_AA64ISAR1_FCMA_SHIFT = 16}; enum { R_ID_AA64ISAR1_FCMA_LENGTH = 4}; enum { R_ID_AA64ISAR1_FCMA_MASK = 983040};
-enum { R_ID_AA64ISAR1_LRCPC_SHIFT = 20}; enum { R_ID_AA64ISAR1_LRCPC_LENGTH = 4}; enum { R_ID_AA64ISAR1_LRCPC_MASK = 15728640};
-enum { R_ID_AA64ISAR1_GPA_SHIFT = 24}; enum { R_ID_AA64ISAR1_GPA_LENGTH = 4}; enum { R_ID_AA64ISAR1_GPA_MASK = 251658240};
-enum { R_ID_AA64ISAR1_GPI_SHIFT = 28}; enum { R_ID_AA64ISAR1_GPI_LENGTH = 4}; enum { R_ID_AA64ISAR1_GPI_MASK = 4026531840};
-enum { R_ID_AA64ISAR1_FRINTTS_SHIFT = 32}; enum { R_ID_AA64ISAR1_FRINTTS_LENGTH = 4}; enum { R_ID_AA64ISAR1_FRINTTS_MASK = 64424509440};
-enum { R_ID_AA64ISAR1_SB_SHIFT = 36}; enum { R_ID_AA64ISAR1_SB_LENGTH = 4}; enum { R_ID_AA64ISAR1_SB_MASK = 1030792151040};
-enum { R_ID_AA64ISAR1_SPECRES_SHIFT = 40}; enum { R_ID_AA64ISAR1_SPECRES_LENGTH = 4}; enum { R_ID_AA64ISAR1_SPECRES_MASK = 16492674416640};
-enum { R_ID_AA64ISAR1_BF16_SHIFT = 44}; enum { R_ID_AA64ISAR1_BF16_LENGTH = 4}; enum { R_ID_AA64ISAR1_BF16_MASK = 263882790666240};
-enum { R_ID_AA64ISAR1_DGH_SHIFT = 48}; enum { R_ID_AA64ISAR1_DGH_LENGTH = 4}; enum { R_ID_AA64ISAR1_DGH_MASK = 4222124650659840};
-enum { R_ID_AA64ISAR1_I8MM_SHIFT = 52}; enum { R_ID_AA64ISAR1_I8MM_LENGTH = 4}; enum { R_ID_AA64ISAR1_I8MM_MASK = 67553994410557440};
-enum { R_ID_AA64ISAR1_XS_SHIFT = 56}; enum { R_ID_AA64ISAR1_XS_LENGTH = 4}; enum { R_ID_AA64ISAR1_XS_MASK = 1080863910568919040};
-enum { R_ID_AA64ISAR1_LS64_SHIFT = 60}; enum { R_ID_AA64ISAR1_LS64_LENGTH = 4}; enum { R_ID_AA64ISAR1_LS64_MASK = 17293822569102704640};
-enum { R_ID_AA64ISAR2_WFXT_SHIFT = 0}; enum { R_ID_AA64ISAR2_WFXT_LENGTH = 4}; enum { R_ID_AA64ISAR2_WFXT_MASK = 15};
-enum { R_ID_AA64ISAR2_RPRES_SHIFT = 4}; enum { R_ID_AA64ISAR2_RPRES_LENGTH = 4}; enum { R_ID_AA64ISAR2_RPRES_MASK = 240};
-enum { R_ID_AA64ISAR2_GPA3_SHIFT = 8}; enum { R_ID_AA64ISAR2_GPA3_LENGTH = 4}; enum { R_ID_AA64ISAR2_GPA3_MASK = 3840};
-enum { R_ID_AA64ISAR2_APA3_SHIFT = 12}; enum { R_ID_AA64ISAR2_APA3_LENGTH = 4}; enum { R_ID_AA64ISAR2_APA3_MASK = 61440};
-enum { R_ID_AA64ISAR2_MOPS_SHIFT = 16}; enum { R_ID_AA64ISAR2_MOPS_LENGTH = 4}; enum { R_ID_AA64ISAR2_MOPS_MASK = 983040};
-enum { R_ID_AA64ISAR2_BC_SHIFT = 20}; enum { R_ID_AA64ISAR2_BC_LENGTH = 4}; enum { R_ID_AA64ISAR2_BC_MASK = 15728640};
-enum { R_ID_AA64ISAR2_PAC_FRAC_SHIFT = 24}; enum { R_ID_AA64ISAR2_PAC_FRAC_LENGTH = 4}; enum { R_ID_AA64ISAR2_PAC_FRAC_MASK = 251658240};
-enum { R_ID_AA64ISAR2_CLRBHB_SHIFT = 28}; enum { R_ID_AA64ISAR2_CLRBHB_LENGTH = 4}; enum { R_ID_AA64ISAR2_CLRBHB_MASK = 4026531840};
-enum { R_ID_AA64ISAR2_SYSREG_128_SHIFT = 32}; enum { R_ID_AA64ISAR2_SYSREG_128_LENGTH = 4}; enum { R_ID_AA64ISAR2_SYSREG_128_MASK = 64424509440};
-enum { R_ID_AA64ISAR2_SYSINSTR_128_SHIFT = 36}; enum { R_ID_AA64ISAR2_SYSINSTR_128_LENGTH = 4}; enum { R_ID_AA64ISAR2_SYSINSTR_128_MASK = 1030792151040};
-enum { R_ID_AA64ISAR2_PRFMSLC_SHIFT = 40}; enum { R_ID_AA64ISAR2_PRFMSLC_LENGTH = 4}; enum { R_ID_AA64ISAR2_PRFMSLC_MASK = 16492674416640};
-enum { R_ID_AA64ISAR2_RPRFM_SHIFT = 48}; enum { R_ID_AA64ISAR2_RPRFM_LENGTH = 4}; enum { R_ID_AA64ISAR2_RPRFM_MASK = 4222124650659840};
-enum { R_ID_AA64ISAR2_CSSC_SHIFT = 52}; enum { R_ID_AA64ISAR2_CSSC_LENGTH = 4}; enum { R_ID_AA64ISAR2_CSSC_MASK = 67553994410557440};
-enum { R_ID_AA64ISAR2_ATS1A_SHIFT = 60}; enum { R_ID_AA64ISAR2_ATS1A_LENGTH = 4}; enum { R_ID_AA64ISAR2_ATS1A_MASK = 17293822569102704640};
-enum { R_ID_AA64PFR0_EL0_SHIFT = 0}; enum { R_ID_AA64PFR0_EL0_LENGTH = 4}; enum { R_ID_AA64PFR0_EL0_MASK = 15};
-enum { R_ID_AA64PFR0_EL1_SHIFT = 4}; enum { R_ID_AA64PFR0_EL1_LENGTH = 4}; enum { R_ID_AA64PFR0_EL1_MASK = 240};
-enum { R_ID_AA64PFR0_EL2_SHIFT = 8}; enum { R_ID_AA64PFR0_EL2_LENGTH = 4}; enum { R_ID_AA64PFR0_EL2_MASK = 3840};
-enum { R_ID_AA64PFR0_EL3_SHIFT = 12}; enum { R_ID_AA64PFR0_EL3_LENGTH = 4}; enum { R_ID_AA64PFR0_EL3_MASK = 61440};
-enum { R_ID_AA64PFR0_FP_SHIFT = 16}; enum { R_ID_AA64PFR0_FP_LENGTH = 4}; enum { R_ID_AA64PFR0_FP_MASK = 983040};
-enum { R_ID_AA64PFR0_ADVSIMD_SHIFT = 20}; enum { R_ID_AA64PFR0_ADVSIMD_LENGTH = 4}; enum { R_ID_AA64PFR0_ADVSIMD_MASK = 15728640};
-enum { R_ID_AA64PFR0_GIC_SHIFT = 24}; enum { R_ID_AA64PFR0_GIC_LENGTH = 4}; enum { R_ID_AA64PFR0_GIC_MASK = 251658240};
-enum { R_ID_AA64PFR0_RAS_SHIFT = 28}; enum { R_ID_AA64PFR0_RAS_LENGTH = 4}; enum { R_ID_AA64PFR0_RAS_MASK = 4026531840};
-enum { R_ID_AA64PFR0_SVE_SHIFT = 32}; enum { R_ID_AA64PFR0_SVE_LENGTH = 4}; enum { R_ID_AA64PFR0_SVE_MASK = 64424509440};
-enum { R_ID_AA64PFR0_SEL2_SHIFT = 36}; enum { R_ID_AA64PFR0_SEL2_LENGTH = 4}; enum { R_ID_AA64PFR0_SEL2_MASK = 1030792151040};
-enum { R_ID_AA64PFR0_MPAM_SHIFT = 40}; enum { R_ID_AA64PFR0_MPAM_LENGTH = 4}; enum { R_ID_AA64PFR0_MPAM_MASK = 16492674416640};
-enum { R_ID_AA64PFR0_AMU_SHIFT = 44}; enum { R_ID_AA64PFR0_AMU_LENGTH = 4}; enum { R_ID_AA64PFR0_AMU_MASK = 263882790666240};
-enum { R_ID_AA64PFR0_DIT_SHIFT = 48}; enum { R_ID_AA64PFR0_DIT_LENGTH = 4}; enum { R_ID_AA64PFR0_DIT_MASK = 4222124650659840};
-enum { R_ID_AA64PFR0_RME_SHIFT = 52}; enum { R_ID_AA64PFR0_RME_LENGTH = 4}; enum { R_ID_AA64PFR0_RME_MASK = 67553994410557440};
-enum { R_ID_AA64PFR0_CSV2_SHIFT = 56}; enum { R_ID_AA64PFR0_CSV2_LENGTH = 4}; enum { R_ID_AA64PFR0_CSV2_MASK = 1080863910568919040};
-enum { R_ID_AA64PFR0_CSV3_SHIFT = 60}; enum { R_ID_AA64PFR0_CSV3_LENGTH = 4}; enum { R_ID_AA64PFR0_CSV3_MASK = 17293822569102704640};
-enum { R_ID_AA64PFR1_BT_SHIFT = 0}; enum { R_ID_AA64PFR1_BT_LENGTH = 4}; enum { R_ID_AA64PFR1_BT_MASK = 15};
-enum { R_ID_AA64PFR1_SSBS_SHIFT = 4}; enum { R_ID_AA64PFR1_SSBS_LENGTH = 4}; enum { R_ID_AA64PFR1_SSBS_MASK = 240};
-enum { R_ID_AA64PFR1_MTE_SHIFT = 8}; enum { R_ID_AA64PFR1_MTE_LENGTH = 4}; enum { R_ID_AA64PFR1_MTE_MASK = 3840};
-enum { R_ID_AA64PFR1_RAS_FRAC_SHIFT = 12}; enum { R_ID_AA64PFR1_RAS_FRAC_LENGTH = 4}; enum { R_ID_AA64PFR1_RAS_FRAC_MASK = 61440};
-enum { R_ID_AA64PFR1_MPAM_FRAC_SHIFT = 16}; enum { R_ID_AA64PFR1_MPAM_FRAC_LENGTH = 4}; enum { R_ID_AA64PFR1_MPAM_FRAC_MASK = 983040};
-enum { R_ID_AA64PFR1_SME_SHIFT = 24}; enum { R_ID_AA64PFR1_SME_LENGTH = 4}; enum { R_ID_AA64PFR1_SME_MASK = 251658240};
-enum { R_ID_AA64PFR1_RNDR_TRAP_SHIFT = 28}; enum { R_ID_AA64PFR1_RNDR_TRAP_LENGTH = 4}; enum { R_ID_AA64PFR1_RNDR_TRAP_MASK = 4026531840};
-enum { R_ID_AA64PFR1_CSV2_FRAC_SHIFT = 32}; enum { R_ID_AA64PFR1_CSV2_FRAC_LENGTH = 4}; enum { R_ID_AA64PFR1_CSV2_FRAC_MASK = 64424509440};
-enum { R_ID_AA64PFR1_NMI_SHIFT = 36}; enum { R_ID_AA64PFR1_NMI_LENGTH = 4}; enum { R_ID_AA64PFR1_NMI_MASK = 1030792151040};
-enum { R_ID_AA64PFR1_MTE_FRAC_SHIFT = 40}; enum { R_ID_AA64PFR1_MTE_FRAC_LENGTH = 4}; enum { R_ID_AA64PFR1_MTE_FRAC_MASK = 16492674416640};
-enum { R_ID_AA64PFR1_GCS_SHIFT = 44}; enum { R_ID_AA64PFR1_GCS_LENGTH = 4}; enum { R_ID_AA64PFR1_GCS_MASK = 263882790666240};
-enum { R_ID_AA64PFR1_THE_SHIFT = 48}; enum { R_ID_AA64PFR1_THE_LENGTH = 4}; enum { R_ID_AA64PFR1_THE_MASK = 4222124650659840};
-enum { R_ID_AA64PFR1_MTEX_SHIFT = 52}; enum { R_ID_AA64PFR1_MTEX_LENGTH = 4}; enum { R_ID_AA64PFR1_MTEX_MASK = 67553994410557440};
-enum { R_ID_AA64PFR1_DF2_SHIFT = 56}; enum { R_ID_AA64PFR1_DF2_LENGTH = 4}; enum { R_ID_AA64PFR1_DF2_MASK = 1080863910568919040};
-enum { R_ID_AA64PFR1_PFAR_SHIFT = 60}; enum { R_ID_AA64PFR1_PFAR_LENGTH = 4}; enum { R_ID_AA64PFR1_PFAR_MASK = 17293822569102704640};
-enum { R_ID_AA64MMFR0_PARANGE_SHIFT = 0}; enum { R_ID_AA64MMFR0_PARANGE_LENGTH = 4}; enum { R_ID_AA64MMFR0_PARANGE_MASK = 15};
-enum { R_ID_AA64MMFR0_ASIDBITS_SHIFT = 4}; enum { R_ID_AA64MMFR0_ASIDBITS_LENGTH = 4}; enum { R_ID_AA64MMFR0_ASIDBITS_MASK = 240};
-enum { R_ID_AA64MMFR0_BIGEND_SHIFT = 8}; enum { R_ID_AA64MMFR0_BIGEND_LENGTH = 4}; enum { R_ID_AA64MMFR0_BIGEND_MASK = 3840};
-enum { R_ID_AA64MMFR0_SNSMEM_SHIFT = 12}; enum { R_ID_AA64MMFR0_SNSMEM_LENGTH = 4}; enum { R_ID_AA64MMFR0_SNSMEM_MASK = 61440};
-enum { R_ID_AA64MMFR0_BIGENDEL0_SHIFT = 16}; enum { R_ID_AA64MMFR0_BIGENDEL0_LENGTH = 4}; enum { R_ID_AA64MMFR0_BIGENDEL0_MASK = 983040};
-enum { R_ID_AA64MMFR0_TGRAN16_SHIFT = 20}; enum { R_ID_AA64MMFR0_TGRAN16_LENGTH = 4}; enum { R_ID_AA64MMFR0_TGRAN16_MASK = 15728640};
-enum { R_ID_AA64MMFR0_TGRAN64_SHIFT = 24}; enum { R_ID_AA64MMFR0_TGRAN64_LENGTH = 4}; enum { R_ID_AA64MMFR0_TGRAN64_MASK = 251658240};
-enum { R_ID_AA64MMFR0_TGRAN4_SHIFT = 28}; enum { R_ID_AA64MMFR0_TGRAN4_LENGTH = 4}; enum { R_ID_AA64MMFR0_TGRAN4_MASK = 4026531840};
-enum { R_ID_AA64MMFR0_TGRAN16_2_SHIFT = 32}; enum { R_ID_AA64MMFR0_TGRAN16_2_LENGTH = 4}; enum { R_ID_AA64MMFR0_TGRAN16_2_MASK = 64424509440};
-enum { R_ID_AA64MMFR0_TGRAN64_2_SHIFT = 36}; enum { R_ID_AA64MMFR0_TGRAN64_2_LENGTH = 4}; enum { R_ID_AA64MMFR0_TGRAN64_2_MASK = 1030792151040};
-enum { R_ID_AA64MMFR0_TGRAN4_2_SHIFT = 40}; enum { R_ID_AA64MMFR0_TGRAN4_2_LENGTH = 4}; enum { R_ID_AA64MMFR0_TGRAN4_2_MASK = 16492674416640};
-enum { R_ID_AA64MMFR0_EXS_SHIFT = 44}; enum { R_ID_AA64MMFR0_EXS_LENGTH = 4}; enum { R_ID_AA64MMFR0_EXS_MASK = 263882790666240};
-enum { R_ID_AA64MMFR0_FGT_SHIFT = 56}; enum { R_ID_AA64MMFR0_FGT_LENGTH = 4}; enum { R_ID_AA64MMFR0_FGT_MASK = 1080863910568919040};
-enum { R_ID_AA64MMFR0_ECV_SHIFT = 60}; enum { R_ID_AA64MMFR0_ECV_LENGTH = 4}; enum { R_ID_AA64MMFR0_ECV_MASK = 17293822569102704640};
-enum { R_ID_AA64MMFR1_HAFDBS_SHIFT = 0}; enum { R_ID_AA64MMFR1_HAFDBS_LENGTH = 4}; enum { R_ID_AA64MMFR1_HAFDBS_MASK = 15};
-enum { R_ID_AA64MMFR1_VMIDBITS_SHIFT = 4}; enum { R_ID_AA64MMFR1_VMIDBITS_LENGTH = 4}; enum { R_ID_AA64MMFR1_VMIDBITS_MASK = 240};
-enum { R_ID_AA64MMFR1_VH_SHIFT = 8}; enum { R_ID_AA64MMFR1_VH_LENGTH = 4}; enum { R_ID_AA64MMFR1_VH_MASK = 3840};
-enum { R_ID_AA64MMFR1_HPDS_SHIFT = 12}; enum { R_ID_AA64MMFR1_HPDS_LENGTH = 4}; enum { R_ID_AA64MMFR1_HPDS_MASK = 61440};
-enum { R_ID_AA64MMFR1_LO_SHIFT = 16}; enum { R_ID_AA64MMFR1_LO_LENGTH = 4}; enum { R_ID_AA64MMFR1_LO_MASK = 983040};
-enum { R_ID_AA64MMFR1_PAN_SHIFT = 20}; enum { R_ID_AA64MMFR1_PAN_LENGTH = 4}; enum { R_ID_AA64MMFR1_PAN_MASK = 15728640};
-enum { R_ID_AA64MMFR1_SPECSEI_SHIFT = 24}; enum { R_ID_AA64MMFR1_SPECSEI_LENGTH = 4}; enum { R_ID_AA64MMFR1_SPECSEI_MASK = 251658240};
-enum { R_ID_AA64MMFR1_XNX_SHIFT = 28}; enum { R_ID_AA64MMFR1_XNX_LENGTH = 4}; enum { R_ID_AA64MMFR1_XNX_MASK = 4026531840};
-enum { R_ID_AA64MMFR1_TWED_SHIFT = 32}; enum { R_ID_AA64MMFR1_TWED_LENGTH = 4}; enum { R_ID_AA64MMFR1_TWED_MASK = 64424509440};
-enum { R_ID_AA64MMFR1_ETS_SHIFT = 36}; enum { R_ID_AA64MMFR1_ETS_LENGTH = 4}; enum { R_ID_AA64MMFR1_ETS_MASK = 1030792151040};
-enum { R_ID_AA64MMFR1_HCX_SHIFT = 40}; enum { R_ID_AA64MMFR1_HCX_LENGTH = 4}; enum { R_ID_AA64MMFR1_HCX_MASK = 16492674416640};
-enum { R_ID_AA64MMFR1_AFP_SHIFT = 44}; enum { R_ID_AA64MMFR1_AFP_LENGTH = 4}; enum { R_ID_AA64MMFR1_AFP_MASK = 263882790666240};
-enum { R_ID_AA64MMFR1_NTLBPA_SHIFT = 48}; enum { R_ID_AA64MMFR1_NTLBPA_LENGTH = 4}; enum { R_ID_AA64MMFR1_NTLBPA_MASK = 4222124650659840};
-enum { R_ID_AA64MMFR1_TIDCP1_SHIFT = 52}; enum { R_ID_AA64MMFR1_TIDCP1_LENGTH = 4}; enum { R_ID_AA64MMFR1_TIDCP1_MASK = 67553994410557440};
-enum { R_ID_AA64MMFR1_CMOW_SHIFT = 56}; enum { R_ID_AA64MMFR1_CMOW_LENGTH = 4}; enum { R_ID_AA64MMFR1_CMOW_MASK = 1080863910568919040};
-enum { R_ID_AA64MMFR1_ECBHB_SHIFT = 60}; enum { R_ID_AA64MMFR1_ECBHB_LENGTH = 4}; enum { R_ID_AA64MMFR1_ECBHB_MASK = 17293822569102704640};
-enum { R_ID_AA64MMFR2_CNP_SHIFT = 0}; enum { R_ID_AA64MMFR2_CNP_LENGTH = 4}; enum { R_ID_AA64MMFR2_CNP_MASK = 15};
-enum { R_ID_AA64MMFR2_UAO_SHIFT = 4}; enum { R_ID_AA64MMFR2_UAO_LENGTH = 4}; enum { R_ID_AA64MMFR2_UAO_MASK = 240};
-enum { R_ID_AA64MMFR2_LSM_SHIFT = 8}; enum { R_ID_AA64MMFR2_LSM_LENGTH = 4}; enum { R_ID_AA64MMFR2_LSM_MASK = 3840};
-enum { R_ID_AA64MMFR2_IESB_SHIFT = 12}; enum { R_ID_AA64MMFR2_IESB_LENGTH = 4}; enum { R_ID_AA64MMFR2_IESB_MASK = 61440};
-enum { R_ID_AA64MMFR2_VARANGE_SHIFT = 16}; enum { R_ID_AA64MMFR2_VARANGE_LENGTH = 4}; enum { R_ID_AA64MMFR2_VARANGE_MASK = 983040};
-enum { R_ID_AA64MMFR2_CCIDX_SHIFT = 20}; enum { R_ID_AA64MMFR2_CCIDX_LENGTH = 4}; enum { R_ID_AA64MMFR2_CCIDX_MASK = 15728640};
-enum { R_ID_AA64MMFR2_NV_SHIFT = 24}; enum { R_ID_AA64MMFR2_NV_LENGTH = 4}; enum { R_ID_AA64MMFR2_NV_MASK = 251658240};
-enum { R_ID_AA64MMFR2_ST_SHIFT = 28}; enum { R_ID_AA64MMFR2_ST_LENGTH = 4}; enum { R_ID_AA64MMFR2_ST_MASK = 4026531840};
-enum { R_ID_AA64MMFR2_AT_SHIFT = 32}; enum { R_ID_AA64MMFR2_AT_LENGTH = 4}; enum { R_ID_AA64MMFR2_AT_MASK = 64424509440};
-enum { R_ID_AA64MMFR2_IDS_SHIFT = 36}; enum { R_ID_AA64MMFR2_IDS_LENGTH = 4}; enum { R_ID_AA64MMFR2_IDS_MASK = 1030792151040};
-enum { R_ID_AA64MMFR2_FWB_SHIFT = 40}; enum { R_ID_AA64MMFR2_FWB_LENGTH = 4}; enum { R_ID_AA64MMFR2_FWB_MASK = 16492674416640};
-enum { R_ID_AA64MMFR2_TTL_SHIFT = 48}; enum { R_ID_AA64MMFR2_TTL_LENGTH = 4}; enum { R_ID_AA64MMFR2_TTL_MASK = 4222124650659840};
-enum { R_ID_AA64MMFR2_BBM_SHIFT = 52}; enum { R_ID_AA64MMFR2_BBM_LENGTH = 4}; enum { R_ID_AA64MMFR2_BBM_MASK = 67553994410557440};
-enum { R_ID_AA64MMFR2_EVT_SHIFT = 56}; enum { R_ID_AA64MMFR2_EVT_LENGTH = 4}; enum { R_ID_AA64MMFR2_EVT_MASK = 1080863910568919040};
-enum { R_ID_AA64MMFR2_E0PD_SHIFT = 60}; enum { R_ID_AA64MMFR2_E0PD_LENGTH = 4}; enum { R_ID_AA64MMFR2_E0PD_MASK = 17293822569102704640};
-enum { R_ID_AA64MMFR3_TCRX_SHIFT = 0}; enum { R_ID_AA64MMFR3_TCRX_LENGTH = 4}; enum { R_ID_AA64MMFR3_TCRX_MASK = 15};
-enum { R_ID_AA64MMFR3_SCTLRX_SHIFT = 4}; enum { R_ID_AA64MMFR3_SCTLRX_LENGTH = 4}; enum { R_ID_AA64MMFR3_SCTLRX_MASK = 240};
-enum { R_ID_AA64MMFR3_S1PIE_SHIFT = 8}; enum { R_ID_AA64MMFR3_S1PIE_LENGTH = 4}; enum { R_ID_AA64MMFR3_S1PIE_MASK = 3840};
-enum { R_ID_AA64MMFR3_S2PIE_SHIFT = 12}; enum { R_ID_AA64MMFR3_S2PIE_LENGTH = 4}; enum { R_ID_AA64MMFR3_S2PIE_MASK = 61440};
-enum { R_ID_AA64MMFR3_S1POE_SHIFT = 16}; enum { R_ID_AA64MMFR3_S1POE_LENGTH = 4}; enum { R_ID_AA64MMFR3_S1POE_MASK = 983040};
-enum { R_ID_AA64MMFR3_S2POE_SHIFT = 20}; enum { R_ID_AA64MMFR3_S2POE_LENGTH = 4}; enum { R_ID_AA64MMFR3_S2POE_MASK = 15728640};
-enum { R_ID_AA64MMFR3_AIE_SHIFT = 24}; enum { R_ID_AA64MMFR3_AIE_LENGTH = 4}; enum { R_ID_AA64MMFR3_AIE_MASK = 251658240};
-enum { R_ID_AA64MMFR3_MEC_SHIFT = 28}; enum { R_ID_AA64MMFR3_MEC_LENGTH = 4}; enum { R_ID_AA64MMFR3_MEC_MASK = 4026531840};
-enum { R_ID_AA64MMFR3_D128_SHIFT = 32}; enum { R_ID_AA64MMFR3_D128_LENGTH = 4}; enum { R_ID_AA64MMFR3_D128_MASK = 64424509440};
-enum { R_ID_AA64MMFR3_D128_2_SHIFT = 36}; enum { R_ID_AA64MMFR3_D128_2_LENGTH = 4}; enum { R_ID_AA64MMFR3_D128_2_MASK = 1030792151040};
-enum { R_ID_AA64MMFR3_SNERR_SHIFT = 40}; enum { R_ID_AA64MMFR3_SNERR_LENGTH = 4}; enum { R_ID_AA64MMFR3_SNERR_MASK = 16492674416640};
-enum { R_ID_AA64MMFR3_ANERR_SHIFT = 44}; enum { R_ID_AA64MMFR3_ANERR_LENGTH = 4}; enum { R_ID_AA64MMFR3_ANERR_MASK = 263882790666240};
-enum { R_ID_AA64MMFR3_SDERR_SHIFT = 52}; enum { R_ID_AA64MMFR3_SDERR_LENGTH = 4}; enum { R_ID_AA64MMFR3_SDERR_MASK = 67553994410557440};
-enum { R_ID_AA64MMFR3_ADERR_SHIFT = 56}; enum { R_ID_AA64MMFR3_ADERR_LENGTH = 4}; enum { R_ID_AA64MMFR3_ADERR_MASK = 1080863910568919040};
-enum { R_ID_AA64MMFR3_SPEC_FPACC_SHIFT = 60}; enum { R_ID_AA64MMFR3_SPEC_FPACC_LENGTH = 4}; enum { R_ID_AA64MMFR3_SPEC_FPACC_MASK = 17293822569102704640};
-enum { R_ID_AA64DFR0_DEBUGVER_SHIFT = 0}; enum { R_ID_AA64DFR0_DEBUGVER_LENGTH = 4}; enum { R_ID_AA64DFR0_DEBUGVER_MASK = 15};
-enum { R_ID_AA64DFR0_TRACEVER_SHIFT = 4}; enum { R_ID_AA64DFR0_TRACEVER_LENGTH = 4}; enum { R_ID_AA64DFR0_TRACEVER_MASK = 240};
-enum { R_ID_AA64DFR0_PMUVER_SHIFT = 8}; enum { R_ID_AA64DFR0_PMUVER_LENGTH = 4}; enum { R_ID_AA64DFR0_PMUVER_MASK = 3840};
-enum { R_ID_AA64DFR0_BRPS_SHIFT = 12}; enum { R_ID_AA64DFR0_BRPS_LENGTH = 4}; enum { R_ID_AA64DFR0_BRPS_MASK = 61440};
-enum { R_ID_AA64DFR0_PMSS_SHIFT = 16}; enum { R_ID_AA64DFR0_PMSS_LENGTH = 4}; enum { R_ID_AA64DFR0_PMSS_MASK = 983040};
-enum { R_ID_AA64DFR0_WRPS_SHIFT = 20}; enum { R_ID_AA64DFR0_WRPS_LENGTH = 4}; enum { R_ID_AA64DFR0_WRPS_MASK = 15728640};
-enum { R_ID_AA64DFR0_SEBEP_SHIFT = 24}; enum { R_ID_AA64DFR0_SEBEP_LENGTH = 4}; enum { R_ID_AA64DFR0_SEBEP_MASK = 251658240};
-enum { R_ID_AA64DFR0_CTX_CMPS_SHIFT = 28}; enum { R_ID_AA64DFR0_CTX_CMPS_LENGTH = 4}; enum { R_ID_AA64DFR0_CTX_CMPS_MASK = 4026531840};
-enum { R_ID_AA64DFR0_PMSVER_SHIFT = 32}; enum { R_ID_AA64DFR0_PMSVER_LENGTH = 4}; enum { R_ID_AA64DFR0_PMSVER_MASK = 64424509440};
-enum { R_ID_AA64DFR0_DOUBLELOCK_SHIFT = 36}; enum { R_ID_AA64DFR0_DOUBLELOCK_LENGTH = 4}; enum { R_ID_AA64DFR0_DOUBLELOCK_MASK = 1030792151040};
-enum { R_ID_AA64DFR0_TRACEFILT_SHIFT = 40}; enum { R_ID_AA64DFR0_TRACEFILT_LENGTH = 4}; enum { R_ID_AA64DFR0_TRACEFILT_MASK = 16492674416640};
-enum { R_ID_AA64DFR0_TRACEBUFFER_SHIFT = 44}; enum { R_ID_AA64DFR0_TRACEBUFFER_LENGTH = 4}; enum { R_ID_AA64DFR0_TRACEBUFFER_MASK = 263882790666240};
-enum { R_ID_AA64DFR0_MTPMU_SHIFT = 48}; enum { R_ID_AA64DFR0_MTPMU_LENGTH = 4}; enum { R_ID_AA64DFR0_MTPMU_MASK = 4222124650659840};
-enum { R_ID_AA64DFR0_BRBE_SHIFT = 52}; enum { R_ID_AA64DFR0_BRBE_LENGTH = 4}; enum { R_ID_AA64DFR0_BRBE_MASK = 67553994410557440};
-enum { R_ID_AA64DFR0_EXTTRCBUFF_SHIFT = 56}; enum { R_ID_AA64DFR0_EXTTRCBUFF_LENGTH = 4}; enum { R_ID_AA64DFR0_EXTTRCBUFF_MASK = 1080863910568919040};
-enum { R_ID_AA64DFR0_HPMN0_SHIFT = 60}; enum { R_ID_AA64DFR0_HPMN0_LENGTH = 4}; enum { R_ID_AA64DFR0_HPMN0_MASK = 17293822569102704640};
-enum { R_ID_AA64ZFR0_SVEVER_SHIFT = 0}; enum { R_ID_AA64ZFR0_SVEVER_LENGTH = 4}; enum { R_ID_AA64ZFR0_SVEVER_MASK = 15};
-enum { R_ID_AA64ZFR0_AES_SHIFT = 4}; enum { R_ID_AA64ZFR0_AES_LENGTH = 4}; enum { R_ID_AA64ZFR0_AES_MASK = 240};
-enum { R_ID_AA64ZFR0_BITPERM_SHIFT = 16}; enum { R_ID_AA64ZFR0_BITPERM_LENGTH = 4}; enum { R_ID_AA64ZFR0_BITPERM_MASK = 983040};
-enum { R_ID_AA64ZFR0_BFLOAT16_SHIFT = 20}; enum { R_ID_AA64ZFR0_BFLOAT16_LENGTH = 4}; enum { R_ID_AA64ZFR0_BFLOAT16_MASK = 15728640};
-enum { R_ID_AA64ZFR0_B16B16_SHIFT = 24}; enum { R_ID_AA64ZFR0_B16B16_LENGTH = 4}; enum { R_ID_AA64ZFR0_B16B16_MASK = 251658240};
-enum { R_ID_AA64ZFR0_SHA3_SHIFT = 32}; enum { R_ID_AA64ZFR0_SHA3_LENGTH = 4}; enum { R_ID_AA64ZFR0_SHA3_MASK = 64424509440};
-enum { R_ID_AA64ZFR0_SM4_SHIFT = 40}; enum { R_ID_AA64ZFR0_SM4_LENGTH = 4}; enum { R_ID_AA64ZFR0_SM4_MASK = 16492674416640};
-enum { R_ID_AA64ZFR0_I8MM_SHIFT = 44}; enum { R_ID_AA64ZFR0_I8MM_LENGTH = 4}; enum { R_ID_AA64ZFR0_I8MM_MASK = 263882790666240};
-enum { R_ID_AA64ZFR0_F32MM_SHIFT = 52}; enum { R_ID_AA64ZFR0_F32MM_LENGTH = 4}; enum { R_ID_AA64ZFR0_F32MM_MASK = 67553994410557440};
-enum { R_ID_AA64ZFR0_F64MM_SHIFT = 56}; enum { R_ID_AA64ZFR0_F64MM_LENGTH = 4}; enum { R_ID_AA64ZFR0_F64MM_MASK = 1080863910568919040};
-enum { R_ID_AA64SMFR0_F32F32_SHIFT = 32}; enum { R_ID_AA64SMFR0_F32F32_LENGTH = 1}; enum { R_ID_AA64SMFR0_F32F32_MASK = 4294967296};
-enum { R_ID_AA64SMFR0_BI32I32_SHIFT = 33}; enum { R_ID_AA64SMFR0_BI32I32_LENGTH = 1}; enum { R_ID_AA64SMFR0_BI32I32_MASK = 8589934592};
-enum { R_ID_AA64SMFR0_B16F32_SHIFT = 34}; enum { R_ID_AA64SMFR0_B16F32_LENGTH = 1}; enum { R_ID_AA64SMFR0_B16F32_MASK = 17179869184};
-enum { R_ID_AA64SMFR0_F16F32_SHIFT = 35}; enum { R_ID_AA64SMFR0_F16F32_LENGTH = 1}; enum { R_ID_AA64SMFR0_F16F32_MASK = 34359738368};
-enum { R_ID_AA64SMFR0_I8I32_SHIFT = 36}; enum { R_ID_AA64SMFR0_I8I32_LENGTH = 4}; enum { R_ID_AA64SMFR0_I8I32_MASK = 1030792151040};
-enum { R_ID_AA64SMFR0_F16F16_SHIFT = 42}; enum { R_ID_AA64SMFR0_F16F16_LENGTH = 1}; enum { R_ID_AA64SMFR0_F16F16_MASK = 4398046511104};
-enum { R_ID_AA64SMFR0_B16B16_SHIFT = 43}; enum { R_ID_AA64SMFR0_B16B16_LENGTH = 1}; enum { R_ID_AA64SMFR0_B16B16_MASK = 8796093022208};
-enum { R_ID_AA64SMFR0_I16I32_SHIFT = 44}; enum { R_ID_AA64SMFR0_I16I32_LENGTH = 4}; enum { R_ID_AA64SMFR0_I16I32_MASK = 263882790666240};
-enum { R_ID_AA64SMFR0_F64F64_SHIFT = 48}; enum { R_ID_AA64SMFR0_F64F64_LENGTH = 1}; enum { R_ID_AA64SMFR0_F64F64_MASK = 281474976710656};
-enum { R_ID_AA64SMFR0_I16I64_SHIFT = 52}; enum { R_ID_AA64SMFR0_I16I64_LENGTH = 4}; enum { R_ID_AA64SMFR0_I16I64_MASK = 67553994410557440};
-enum { R_ID_AA64SMFR0_SMEVER_SHIFT = 56}; enum { R_ID_AA64SMFR0_SMEVER_LENGTH = 4}; enum { R_ID_AA64SMFR0_SMEVER_MASK = 1080863910568919040};
-enum { R_ID_AA64SMFR0_FA64_SHIFT = 63}; enum { R_ID_AA64SMFR0_FA64_LENGTH = 1}; enum { R_ID_AA64SMFR0_FA64_MASK = 9223372036854775808};
-enum { R_ID_DFR0_COPDBG_SHIFT = 0}; enum { R_ID_DFR0_COPDBG_LENGTH = 4}; enum { R_ID_DFR0_COPDBG_MASK = 15};
-enum { R_ID_DFR0_COPSDBG_SHIFT = 4}; enum { R_ID_DFR0_COPSDBG_LENGTH = 4}; enum { R_ID_DFR0_COPSDBG_MASK = 240};
-enum { R_ID_DFR0_MMAPDBG_SHIFT = 8}; enum { R_ID_DFR0_MMAPDBG_LENGTH = 4}; enum { R_ID_DFR0_MMAPDBG_MASK = 3840};
-enum { R_ID_DFR0_COPTRC_SHIFT = 12}; enum { R_ID_DFR0_COPTRC_LENGTH = 4}; enum { R_ID_DFR0_COPTRC_MASK = 61440};
-enum { R_ID_DFR0_MMAPTRC_SHIFT = 16}; enum { R_ID_DFR0_MMAPTRC_LENGTH = 4}; enum { R_ID_DFR0_MMAPTRC_MASK = 983040};
-enum { R_ID_DFR0_MPROFDBG_SHIFT = 20}; enum { R_ID_DFR0_MPROFDBG_LENGTH = 4}; enum { R_ID_DFR0_MPROFDBG_MASK = 15728640};
-enum { R_ID_DFR0_PERFMON_SHIFT = 24}; enum { R_ID_DFR0_PERFMON_LENGTH = 4}; enum { R_ID_DFR0_PERFMON_MASK = 251658240};
-enum { R_ID_DFR0_TRACEFILT_SHIFT = 28}; enum { R_ID_DFR0_TRACEFILT_LENGTH = 4}; enum { R_ID_DFR0_TRACEFILT_MASK = 4026531840};
-enum { R_ID_DFR1_MTPMU_SHIFT = 0}; enum { R_ID_DFR1_MTPMU_LENGTH = 4}; enum { R_ID_DFR1_MTPMU_MASK = 15};
-enum { R_ID_DFR1_HPMN0_SHIFT = 4}; enum { R_ID_DFR1_HPMN0_LENGTH = 4}; enum { R_ID_DFR1_HPMN0_MASK = 240};
-enum { R_DBGDIDR_SE_IMP_SHIFT = 12}; enum { R_DBGDIDR_SE_IMP_LENGTH = 1}; enum { R_DBGDIDR_SE_IMP_MASK = 4096};
-enum { R_DBGDIDR_NSUHD_IMP_SHIFT = 14}; enum { R_DBGDIDR_NSUHD_IMP_LENGTH = 1}; enum { R_DBGDIDR_NSUHD_IMP_MASK = 16384};
-enum { R_DBGDIDR_VERSION_SHIFT = 16}; enum { R_DBGDIDR_VERSION_LENGTH = 4}; enum { R_DBGDIDR_VERSION_MASK = 983040};
-enum { R_DBGDIDR_CTX_CMPS_SHIFT = 20}; enum { R_DBGDIDR_CTX_CMPS_LENGTH = 4}; enum { R_DBGDIDR_CTX_CMPS_MASK = 15728640};
-enum { R_DBGDIDR_BRPS_SHIFT = 24}; enum { R_DBGDIDR_BRPS_LENGTH = 4}; enum { R_DBGDIDR_BRPS_MASK = 251658240};
-enum { R_DBGDIDR_WRPS_SHIFT = 28}; enum { R_DBGDIDR_WRPS_LENGTH = 4}; enum { R_DBGDIDR_WRPS_MASK = 4026531840};
-enum { R_DBGDEVID_PCSAMPLE_SHIFT = 0}; enum { R_DBGDEVID_PCSAMPLE_LENGTH = 4}; enum { R_DBGDEVID_PCSAMPLE_MASK = 15};
-enum { R_DBGDEVID_WPADDRMASK_SHIFT = 4}; enum { R_DBGDEVID_WPADDRMASK_LENGTH = 4}; enum { R_DBGDEVID_WPADDRMASK_MASK = 240};
-enum { R_DBGDEVID_BPADDRMASK_SHIFT = 8}; enum { R_DBGDEVID_BPADDRMASK_LENGTH = 4}; enum { R_DBGDEVID_BPADDRMASK_MASK = 3840};
-enum { R_DBGDEVID_VECTORCATCH_SHIFT = 12}; enum { R_DBGDEVID_VECTORCATCH_LENGTH = 4}; enum { R_DBGDEVID_VECTORCATCH_MASK = 61440};
-enum { R_DBGDEVID_VIRTEXTNS_SHIFT = 16}; enum { R_DBGDEVID_VIRTEXTNS_LENGTH = 4}; enum { R_DBGDEVID_VIRTEXTNS_MASK = 983040};
-enum { R_DBGDEVID_DOUBLELOCK_SHIFT = 20}; enum { R_DBGDEVID_DOUBLELOCK_LENGTH = 4}; enum { R_DBGDEVID_DOUBLELOCK_MASK = 15728640};
-enum { R_DBGDEVID_AUXREGS_SHIFT = 24}; enum { R_DBGDEVID_AUXREGS_LENGTH = 4}; enum { R_DBGDEVID_AUXREGS_MASK = 251658240};
-enum { R_DBGDEVID_CIDMASK_SHIFT = 28}; enum { R_DBGDEVID_CIDMASK_LENGTH = 4}; enum { R_DBGDEVID_CIDMASK_MASK = 4026531840};
-enum { R_DBGDEVID1_PCSROFFSET_SHIFT = 0}; enum { R_DBGDEVID1_PCSROFFSET_LENGTH = 4}; enum { R_DBGDEVID1_PCSROFFSET_MASK = 15};
-enum { R_MVFR0_SIMDREG_SHIFT = 0}; enum { R_MVFR0_SIMDREG_LENGTH = 4}; enum { R_MVFR0_SIMDREG_MASK = 15};
-enum { R_MVFR0_FPSP_SHIFT = 4}; enum { R_MVFR0_FPSP_LENGTH = 4}; enum { R_MVFR0_FPSP_MASK = 240};
-enum { R_MVFR0_FPDP_SHIFT = 8}; enum { R_MVFR0_FPDP_LENGTH = 4}; enum { R_MVFR0_FPDP_MASK = 3840};
-enum { R_MVFR0_FPTRAP_SHIFT = 12}; enum { R_MVFR0_FPTRAP_LENGTH = 4}; enum { R_MVFR0_FPTRAP_MASK = 61440};
-enum { R_MVFR0_FPDIVIDE_SHIFT = 16}; enum { R_MVFR0_FPDIVIDE_LENGTH = 4}; enum { R_MVFR0_FPDIVIDE_MASK = 983040};
-enum { R_MVFR0_FPSQRT_SHIFT = 20}; enum { R_MVFR0_FPSQRT_LENGTH = 4}; enum { R_MVFR0_FPSQRT_MASK = 15728640};
-enum { R_MVFR0_FPSHVEC_SHIFT = 24}; enum { R_MVFR0_FPSHVEC_LENGTH = 4}; enum { R_MVFR0_FPSHVEC_MASK = 251658240};
-enum { R_MVFR0_FPROUND_SHIFT = 28}; enum { R_MVFR0_FPROUND_LENGTH = 4}; enum { R_MVFR0_FPROUND_MASK = 4026531840};
-enum { R_MVFR1_FPFTZ_SHIFT = 0}; enum { R_MVFR1_FPFTZ_LENGTH = 4}; enum { R_MVFR1_FPFTZ_MASK = 15};
-enum { R_MVFR1_FPDNAN_SHIFT = 4}; enum { R_MVFR1_FPDNAN_LENGTH = 4}; enum { R_MVFR1_FPDNAN_MASK = 240};
-enum { R_MVFR1_SIMDLS_SHIFT = 8}; enum { R_MVFR1_SIMDLS_LENGTH = 4}; enum { R_MVFR1_SIMDLS_MASK = 3840};
-enum { R_MVFR1_SIMDINT_SHIFT = 12}; enum { R_MVFR1_SIMDINT_LENGTH = 4}; enum { R_MVFR1_SIMDINT_MASK = 61440};
-enum { R_MVFR1_SIMDSP_SHIFT = 16}; enum { R_MVFR1_SIMDSP_LENGTH = 4}; enum { R_MVFR1_SIMDSP_MASK = 983040};
-enum { R_MVFR1_SIMDHP_SHIFT = 20}; enum { R_MVFR1_SIMDHP_LENGTH = 4}; enum { R_MVFR1_SIMDHP_MASK = 15728640};
-enum { R_MVFR1_MVE_SHIFT = 8}; enum { R_MVFR1_MVE_LENGTH = 4}; enum { R_MVFR1_MVE_MASK = 3840};
-enum { R_MVFR1_FP16_SHIFT = 20}; enum { R_MVFR1_FP16_LENGTH = 4}; enum { R_MVFR1_FP16_MASK = 15728640};
-enum { R_MVFR1_FPHP_SHIFT = 24}; enum { R_MVFR1_FPHP_LENGTH = 4}; enum { R_MVFR1_FPHP_MASK = 251658240};
-enum { R_MVFR1_SIMDFMAC_SHIFT = 28}; enum { R_MVFR1_SIMDFMAC_LENGTH = 4}; enum { R_MVFR1_SIMDFMAC_MASK = 4026531840};
-enum { R_MVFR2_SIMDMISC_SHIFT = 0}; enum { R_MVFR2_SIMDMISC_LENGTH = 4}; enum { R_MVFR2_SIMDMISC_MASK = 15};
-enum { R_MVFR2_FPMISC_SHIFT = 4}; enum { R_MVFR2_FPMISC_LENGTH = 4}; enum { R_MVFR2_FPMISC_MASK = 240};
-enum { R_GPCCR_PPS_SHIFT = 0}; enum { R_GPCCR_PPS_LENGTH = 3}; enum { R_GPCCR_PPS_MASK = 7};
-enum { R_GPCCR_IRGN_SHIFT = 8}; enum { R_GPCCR_IRGN_LENGTH = 2}; enum { R_GPCCR_IRGN_MASK = 768};
-enum { R_GPCCR_ORGN_SHIFT = 10}; enum { R_GPCCR_ORGN_LENGTH = 2}; enum { R_GPCCR_ORGN_MASK = 3072};
-enum { R_GPCCR_SH_SHIFT = 12}; enum { R_GPCCR_SH_LENGTH = 2}; enum { R_GPCCR_SH_MASK = 12288};
-enum { R_GPCCR_PGS_SHIFT = 14}; enum { R_GPCCR_PGS_LENGTH = 2}; enum { R_GPCCR_PGS_MASK = 49152};
-enum { R_GPCCR_GPC_SHIFT = 16}; enum { R_GPCCR_GPC_LENGTH = 1}; enum { R_GPCCR_GPC_MASK = 65536};
-enum { R_GPCCR_GPCP_SHIFT = 17}; enum { R_GPCCR_GPCP_LENGTH = 1}; enum { R_GPCCR_GPCP_MASK = 131072};
-enum { R_GPCCR_L0GPTSZ_SHIFT = 20}; enum { R_GPCCR_L0GPTSZ_LENGTH = 4}; enum { R_GPCCR_L0GPTSZ_MASK = 15728640};
-enum { R_MFAR_FPA_SHIFT = 12}; enum { R_MFAR_FPA_LENGTH = 40}; enum { R_MFAR_FPA_MASK = 4503599627366400};
-enum { R_MFAR_NSE_SHIFT = 62}; enum { R_MFAR_NSE_LENGTH = 1}; enum { R_MFAR_NSE_MASK = 4611686018427387904};
-enum { R_MFAR_NS_SHIFT = 63}; enum { R_MFAR_NS_LENGTH = 1}; enum { R_MFAR_NS_MASK = 9223372036854775808};
-;
-enum arm_features {
-    ARM_FEATURE_AUXCR,
-    ARM_FEATURE_XSCALE,
-    ARM_FEATURE_IWMMXT,
-    ARM_FEATURE_V6,
-    ARM_FEATURE_V6K,
-    ARM_FEATURE_V7,
-    ARM_FEATURE_THUMB2,
-    ARM_FEATURE_PMSA,
-    ARM_FEATURE_NEON,
-    ARM_FEATURE_M,
-    ARM_FEATURE_OMAPCP,
-    ARM_FEATURE_THUMB2EE,
-    ARM_FEATURE_V7MP,
-    ARM_FEATURE_V7VE,
-    ARM_FEATURE_V4T,
-    ARM_FEATURE_V5,
-    ARM_FEATURE_STRONGARM,
-    ARM_FEATURE_VAPA,
-    ARM_FEATURE_GENERIC_TIMER,
-    ARM_FEATURE_MVFR,
-    ARM_FEATURE_DUMMY_C15_REGS,
-    ARM_FEATURE_CACHE_TEST_CLEAN,
-    ARM_FEATURE_CACHE_DIRTY_REG,
-    ARM_FEATURE_CACHE_BLOCK_OPS,
-    ARM_FEATURE_MPIDR,
-    ARM_FEATURE_LPAE,
-    ARM_FEATURE_V8,
-    ARM_FEATURE_AARCH64,
-    ARM_FEATURE_CBAR,
-    ARM_FEATURE_CBAR_RO,
-    ARM_FEATURE_EL2,
-    ARM_FEATURE_EL3,
-    ARM_FEATURE_THUMB_DSP,
-    ARM_FEATURE_PMU,
-    ARM_FEATURE_VBAR,
-    ARM_FEATURE_M_SECURITY,
-    ARM_FEATURE_M_MAIN,
-    ARM_FEATURE_V8_1M,
-    ARM_FEATURE_BACKCOMPAT_CNTFRQ,
-};
-void arm_cpu_finalize_features(ARMCPU *cpu, Error **errp);
-typedef enum ARMSecuritySpace {
-    ARMSS_Secure = 0,
-    ARMSS_NonSecure = 1,
-    ARMSS_Root = 2,
-    ARMSS_Realm = 3,
-} ARMSecuritySpace;
-ARMSecuritySpace arm_security_space_below_el3(CPUARMState *env);
-ARMSecuritySpace arm_security_space(CPUARMState *env);
-uint64_t arm_hcr_el2_eff_secstate(CPUARMState *env, ARMSecuritySpace space);
-uint64_t arm_hcr_el2_eff(CPUARMState *env);
-uint64_t arm_hcrx_el2_eff(CPUARMState *env);
-uint32_t arm_phys_excp_target_el(CPUState *cs, uint32_t excp_idx,
-                                 uint32_t cur_el, 
-                                                 _Bool 
-                                                      secure);
+void ppc_cpu_dump_state(CPUState *cpu, FILE *f, int flags);
+int ppc_cpu_gdb_read_register(CPUState *cpu, GByteArray *buf, int reg);
+int ppc_cpu_gdb_read_register_apple(CPUState *cpu, GByteArray *buf, int reg);
+int ppc_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
+int ppc_cpu_gdb_write_register_apple(CPUState *cpu, uint8_t *buf, int reg);
+hwaddr ppc_cpu_get_phys_page_debug(CPUState *cpu, vaddr addr);
+int ppc64_cpu_write_elf64_note(WriteCoreDumpFunction f, CPUState *cs,
+                               int cpuid, DumpState *s);
+int ppc32_cpu_write_elf32_note(WriteCoreDumpFunction f, CPUState *cs,
+                               int cpuid, DumpState *s);
+void ppc_maybe_interrupt(CPUPPCState *env);
+void ppc_cpu_do_interrupt(CPUState *cpu);
 _Bool 
-    write_list_to_cpustate(ARMCPU *cpu);
+    ppc_cpu_exec_interrupt(CPUState *cpu, int int_req);
+void ppc_cpu_do_system_reset(CPUState *cs);
+void ppc_cpu_do_fwnmi_machine_check(CPUState *cs, target_ulong vector);
+extern const VMStateDescription vmstate_ppc_cpu;
+void ppc_translate_init(void);
+void ppc_translate_code(CPUState *cs, TranslationBlock *tb,
+                        int *max_insns, vaddr pc, void *host_pc);
+void ppc_store_sdr1(CPUPPCState *env, target_ulong value);
+void ppc_store_lpcr(PowerPCCPU *cpu, target_ulong val);
+void ppc_update_ciabr(CPUPPCState *env);
+void ppc_store_ciabr(CPUPPCState *env, target_ulong value);
+void ppc_update_daw0(CPUPPCState *env);
+void ppc_store_dawr0(CPUPPCState *env, target_ulong value);
+void ppc_store_dawrx0(CPUPPCState *env, uint32_t value);
+void ppc_store_msr(CPUPPCState *env, target_ulong value);
+void ppc_cpu_list(void);
+uint64_t cpu_ppc_load_tbl(CPUPPCState *env);
+uint32_t cpu_ppc_load_tbu(CPUPPCState *env);
+void cpu_ppc_store_tbu(CPUPPCState *env, uint32_t value);
+void cpu_ppc_store_tbl(CPUPPCState *env, uint32_t value);
+uint64_t cpu_ppc_load_atbl(CPUPPCState *env);
+uint32_t cpu_ppc_load_atbu(CPUPPCState *env);
+void cpu_ppc_store_atbl(CPUPPCState *env, uint32_t value);
+void cpu_ppc_store_atbu(CPUPPCState *env, uint32_t value);
+void cpu_ppc_increase_tb_by_offset(CPUPPCState *env, int64_t offset);
+void cpu_ppc_decrease_tb_by_offset(CPUPPCState *env, int64_t offset);
+uint64_t cpu_ppc_load_vtb(CPUPPCState *env);
+void cpu_ppc_store_vtb(CPUPPCState *env, uint64_t value);
 _Bool 
-    write_cpustate_to_list(ARMCPU *cpu, 
-                                        _Bool 
-                                             kvm_sync);
-typedef enum ARMMMUIdx {
-    ARMMMUIdx_E10_0 = 0 | 0x10,
-    ARMMMUIdx_E20_0 = 1 | 0x10,
-    ARMMMUIdx_E10_1 = 2 | 0x10,
-    ARMMMUIdx_E20_2 = 3 | 0x10,
-    ARMMMUIdx_E10_1_PAN = 4 | 0x10,
-    ARMMMUIdx_E20_2_PAN = 5 | 0x10,
-    ARMMMUIdx_E2 = 6 | 0x10,
-    ARMMMUIdx_E3 = 7 | 0x10,
-    ARMMMUIdx_E30_0 = 8 | 0x10,
-    ARMMMUIdx_E30_3_PAN = 9 | 0x10,
-    ARMMMUIdx_Stage2_S = 10 | 0x10,
-    ARMMMUIdx_Stage2 = 11 | 0x10,
-    ARMMMUIdx_Phys_S = 12 | 0x10,
-    ARMMMUIdx_Phys_NS = 13 | 0x10,
-    ARMMMUIdx_Phys_Root = 14 | 0x10,
-    ARMMMUIdx_Phys_Realm = 15 | 0x10,
-    ARMMMUIdx_Stage1_E0 = 0 | 0x20,
-    ARMMMUIdx_Stage1_E1 = 1 | 0x20,
-    ARMMMUIdx_Stage1_E1_PAN = 2 | 0x20,
-    ARMMMUIdx_MUser = 0x40,
-    ARMMMUIdx_MPriv = 0x40 | 0x1,
-    ARMMMUIdx_MUserNegPri = ARMMMUIdx_MUser | 0x2,
-    ARMMMUIdx_MPrivNegPri = ARMMMUIdx_MPriv | 0x2,
-    ARMMMUIdx_MSUser = ARMMMUIdx_MUser | 0x4,
-    ARMMMUIdx_MSPriv = ARMMMUIdx_MPriv | 0x4,
-    ARMMMUIdx_MSUserNegPri = ARMMMUIdx_MUserNegPri | 0x4,
-    ARMMMUIdx_MSPrivNegPri = ARMMMUIdx_MPrivNegPri | 0x4,
-} ARMMMUIdx;
-typedef enum ARMMMUIdxBit {
-    ARMMMUIdxBit_E10_0 = 1 << (ARMMMUIdx_E10_0 & 0xf),
-    ARMMMUIdxBit_E20_0 = 1 << (ARMMMUIdx_E20_0 & 0xf),
-    ARMMMUIdxBit_E10_1 = 1 << (ARMMMUIdx_E10_1 & 0xf),
-    ARMMMUIdxBit_E10_1_PAN = 1 << (ARMMMUIdx_E10_1_PAN & 0xf),
-    ARMMMUIdxBit_E2 = 1 << (ARMMMUIdx_E2 & 0xf),
-    ARMMMUIdxBit_E20_2 = 1 << (ARMMMUIdx_E20_2 & 0xf),
-    ARMMMUIdxBit_E20_2_PAN = 1 << (ARMMMUIdx_E20_2_PAN & 0xf),
-    ARMMMUIdxBit_E3 = 1 << (ARMMMUIdx_E3 & 0xf),
-    ARMMMUIdxBit_E30_0 = 1 << (ARMMMUIdx_E30_0 & 0xf),
-    ARMMMUIdxBit_E30_3_PAN = 1 << (ARMMMUIdx_E30_3_PAN & 0xf),
-    ARMMMUIdxBit_Stage2 = 1 << (ARMMMUIdx_Stage2 & 0xf),
-    ARMMMUIdxBit_Stage2_S = 1 << (ARMMMUIdx_Stage2_S & 0xf),
-    ARMMMUIdxBit_MUser = 1 << (ARMMMUIdx_MUser & 0xf),
-    ARMMMUIdxBit_MPriv = 1 << (ARMMMUIdx_MPriv & 0xf),
-    ARMMMUIdxBit_MUserNegPri = 1 << (ARMMMUIdx_MUserNegPri & 0xf),
-    ARMMMUIdxBit_MPrivNegPri = 1 << (ARMMMUIdx_MPrivNegPri & 0xf),
-    ARMMMUIdxBit_MSUser = 1 << (ARMMMUIdx_MSUser & 0xf),
-    ARMMMUIdxBit_MSPriv = 1 << (ARMMMUIdx_MSPriv & 0xf),
-    ARMMMUIdxBit_MSUserNegPri = 1 << (ARMMMUIdx_MSUserNegPri & 0xf),
-    ARMMMUIdxBit_MSPrivNegPri = 1 << (ARMMMUIdx_MSPrivNegPri & 0xf),
-} ARMMMUIdxBit;
-typedef enum ARMASIdx {
-    ARMASIdx_NS = 0,
-    ARMASIdx_S = 1,
-    ARMASIdx_TagNS = 2,
-    ARMASIdx_TagS = 3,
-} ARMASIdx;
-uint64_t arm_sctlr(CPUARMState *env, int el);
+    ppc_decr_clear_on_delivery(CPUPPCState *env);
+target_ulong cpu_ppc_load_decr(CPUPPCState *env);
+void cpu_ppc_store_decr(CPUPPCState *env, target_ulong value);
+target_ulong cpu_ppc_load_hdecr(CPUPPCState *env);
+void cpu_ppc_store_hdecr(CPUPPCState *env, target_ulong value);
+void cpu_ppc_store_tbu40(CPUPPCState *env, uint64_t value);
+uint64_t cpu_ppc_load_purr(CPUPPCState *env);
+void cpu_ppc_store_purr(CPUPPCState *env, uint64_t value);
+target_ulong load_40x_pit(CPUPPCState *env);
+void store_40x_pit(CPUPPCState *env, target_ulong val);
+void store_40x_dbcr0(CPUPPCState *env, uint32_t val);
+void store_40x_sler(CPUPPCState *env, uint32_t val);
+void store_40x_tcr(CPUPPCState *env, target_ulong val);
+void store_40x_tsr(CPUPPCState *env, target_ulong val);
+void store_booke_tcr(CPUPPCState *env, target_ulong val);
+void store_booke_tsr(CPUPPCState *env, target_ulong val);
+void ppc_tlb_invalidate_all(CPUPPCState *env);
+void ppc_tlb_invalidate_one(CPUPPCState *env, target_ulong addr);
+void cpu_ppc_set_vhyp(PowerPCCPU *cpu, PPCVirtualHypervisor *vhyp);
+void cpu_ppc_set_1lpar(PowerPCCPU *cpu);
+void ppc_store_fpscr(CPUPPCState *env, target_ulong val);
+void helper_hfscr_facility_check(CPUPPCState *env, uint32_t bit,
+                                 const char *caller, uint32_t cause);
+int ppc_dcr_read(ppc_dcr_t *dcr_env, int dcrn, uint32_t *valp);
+int ppc_dcr_write(ppc_dcr_t *dcr_env, int dcrn, uint32_t val);
+_Bool 
+    ppc_check_compat(PowerPCCPU *cpu, uint32_t compat_pvr,
+                      uint32_t min_compat_pvr, uint32_t max_compat_pvr);
+_Bool 
+    ppc_type_check_compat(const char *cputype, uint32_t compat_pvr,
+                           uint32_t min_compat_pvr, uint32_t max_compat_pvr);
+int ppc_set_compat(PowerPCCPU *cpu, uint32_t compat_pvr, Error **errp);
+int ppc_set_compat_all(uint32_t compat_pvr, Error **errp);
+int ppc_init_compat_all(uint32_t compat_pvr, Error **errp);
+int ppc_compat_max_vthreads(PowerPCCPU *cpu);
+void ppc_compat_add_property(Object *obj, const char *name,
+                             uint32_t *compat_pvr, const char *basedesc);
 typedef struct RAMBlockNotifier RAMBlockNotifier;
 typedef struct {
     struct rcu_head rcu;
@@ -16650,86 +15970,257 @@ void address_space_stl_cached_slow(MemoryRegionCache *cache,
     hwaddr addr, uint32_t val, MemTxAttrs attrs, MemTxResult *result);
 void address_space_stq_cached_slow(MemoryRegionCache *cache,
     hwaddr addr, uint64_t val, MemTxAttrs attrs, MemTxResult *result);
-typedef struct {
-    
-   _Bool 
-        decided;
-    int bits;
-    uint64_t mask;
-} TargetPageBits;
-_Bool 
-    set_preferred_target_page_bits(int bits);
-void finalize_target_page_bits(void);
-extern const TargetPageBits target_page;
 CPUArchState *cpu_copy(CPUArchState *env);
 ;
 ;
 ;
-enum { R_TBFLAG_ANY_AARCH64_STATE_SHIFT = 0}; enum { R_TBFLAG_ANY_AARCH64_STATE_LENGTH = 1}; enum { R_TBFLAG_ANY_AARCH64_STATE_MASK = 1};
-enum { R_TBFLAG_ANY_SS_ACTIVE_SHIFT = 1}; enum { R_TBFLAG_ANY_SS_ACTIVE_LENGTH = 1}; enum { R_TBFLAG_ANY_SS_ACTIVE_MASK = 2};
-enum { R_TBFLAG_ANY_PSTATE__SS_SHIFT = 2}; enum { R_TBFLAG_ANY_PSTATE__SS_LENGTH = 1}; enum { R_TBFLAG_ANY_PSTATE__SS_MASK = 4};
-enum { R_TBFLAG_ANY_BE_DATA_SHIFT = 3}; enum { R_TBFLAG_ANY_BE_DATA_LENGTH = 1}; enum { R_TBFLAG_ANY_BE_DATA_MASK = 8};
-enum { R_TBFLAG_ANY_MMUIDX_SHIFT = 4}; enum { R_TBFLAG_ANY_MMUIDX_LENGTH = 4}; enum { R_TBFLAG_ANY_MMUIDX_MASK = 240};
-enum { R_TBFLAG_ANY_FPEXC_EL_SHIFT = 8}; enum { R_TBFLAG_ANY_FPEXC_EL_LENGTH = 2}; enum { R_TBFLAG_ANY_FPEXC_EL_MASK = 768};
-enum { R_TBFLAG_ANY_ALIGN_MEM_SHIFT = 10}; enum { R_TBFLAG_ANY_ALIGN_MEM_LENGTH = 1}; enum { R_TBFLAG_ANY_ALIGN_MEM_MASK = 1024};
-enum { R_TBFLAG_ANY_PSTATE__IL_SHIFT = 11}; enum { R_TBFLAG_ANY_PSTATE__IL_LENGTH = 1}; enum { R_TBFLAG_ANY_PSTATE__IL_MASK = 2048};
-enum { R_TBFLAG_ANY_FGT_ACTIVE_SHIFT = 12}; enum { R_TBFLAG_ANY_FGT_ACTIVE_LENGTH = 1}; enum { R_TBFLAG_ANY_FGT_ACTIVE_MASK = 4096};
-enum { R_TBFLAG_ANY_FGT_SVC_SHIFT = 13}; enum { R_TBFLAG_ANY_FGT_SVC_LENGTH = 1}; enum { R_TBFLAG_ANY_FGT_SVC_MASK = 8192};
-enum { R_TBFLAG_AM32_CONDEXEC_SHIFT = 24}; enum { R_TBFLAG_AM32_CONDEXEC_LENGTH = 8}; enum { R_TBFLAG_AM32_CONDEXEC_MASK = 4278190080};
-enum { R_TBFLAG_AM32_THUMB_SHIFT = 23}; enum { R_TBFLAG_AM32_THUMB_LENGTH = 1}; enum { R_TBFLAG_AM32_THUMB_MASK = 8388608};
-enum { R_TBFLAG_A32_VECLEN_SHIFT = 0}; enum { R_TBFLAG_A32_VECLEN_LENGTH = 3}; enum { R_TBFLAG_A32_VECLEN_MASK = 7};
-enum { R_TBFLAG_A32_VECSTRIDE_SHIFT = 3}; enum { R_TBFLAG_A32_VECSTRIDE_LENGTH = 2}; enum { R_TBFLAG_A32_VECSTRIDE_MASK = 24};
-enum { R_TBFLAG_A32_XSCALE_CPAR_SHIFT = 5}; enum { R_TBFLAG_A32_XSCALE_CPAR_LENGTH = 2}; enum { R_TBFLAG_A32_XSCALE_CPAR_MASK = 96};
-enum { R_TBFLAG_A32_VFPEN_SHIFT = 7}; enum { R_TBFLAG_A32_VFPEN_LENGTH = 1}; enum { R_TBFLAG_A32_VFPEN_MASK = 128};
-enum { R_TBFLAG_A32_SCTLR__B_SHIFT = 8}; enum { R_TBFLAG_A32_SCTLR__B_LENGTH = 1}; enum { R_TBFLAG_A32_SCTLR__B_MASK = 256};
-enum { R_TBFLAG_A32_HSTR_ACTIVE_SHIFT = 9}; enum { R_TBFLAG_A32_HSTR_ACTIVE_LENGTH = 1}; enum { R_TBFLAG_A32_HSTR_ACTIVE_MASK = 512};
-enum { R_TBFLAG_A32_NS_SHIFT = 10}; enum { R_TBFLAG_A32_NS_LENGTH = 1}; enum { R_TBFLAG_A32_NS_MASK = 1024};
-enum { R_TBFLAG_A32_SME_TRAP_NONSTREAMING_SHIFT = 11}; enum { R_TBFLAG_A32_SME_TRAP_NONSTREAMING_LENGTH = 1}; enum { R_TBFLAG_A32_SME_TRAP_NONSTREAMING_MASK = 2048};
-enum { R_TBFLAG_M32_HANDLER_SHIFT = 0}; enum { R_TBFLAG_M32_HANDLER_LENGTH = 1}; enum { R_TBFLAG_M32_HANDLER_MASK = 1};
-enum { R_TBFLAG_M32_STACKCHECK_SHIFT = 1}; enum { R_TBFLAG_M32_STACKCHECK_LENGTH = 1}; enum { R_TBFLAG_M32_STACKCHECK_MASK = 2};
-enum { R_TBFLAG_M32_LSPACT_SHIFT = 2}; enum { R_TBFLAG_M32_LSPACT_LENGTH = 1}; enum { R_TBFLAG_M32_LSPACT_MASK = 4};
-enum { R_TBFLAG_M32_NEW_FP_CTXT_NEEDED_SHIFT = 3}; enum { R_TBFLAG_M32_NEW_FP_CTXT_NEEDED_LENGTH = 1}; enum { R_TBFLAG_M32_NEW_FP_CTXT_NEEDED_MASK = 8};
-enum { R_TBFLAG_M32_FPCCR_S_WRONG_SHIFT = 4}; enum { R_TBFLAG_M32_FPCCR_S_WRONG_LENGTH = 1}; enum { R_TBFLAG_M32_FPCCR_S_WRONG_MASK = 16};
-enum { R_TBFLAG_M32_MVE_NO_PRED_SHIFT = 5}; enum { R_TBFLAG_M32_MVE_NO_PRED_LENGTH = 1}; enum { R_TBFLAG_M32_MVE_NO_PRED_MASK = 32};
-enum { R_TBFLAG_M32_SECURE_SHIFT = 6}; enum { R_TBFLAG_M32_SECURE_LENGTH = 1}; enum { R_TBFLAG_M32_SECURE_MASK = 64};
-enum { R_TBFLAG_A64_TBII_SHIFT = 0}; enum { R_TBFLAG_A64_TBII_LENGTH = 2}; enum { R_TBFLAG_A64_TBII_MASK = 3};
-enum { R_TBFLAG_A64_SVEEXC_EL_SHIFT = 2}; enum { R_TBFLAG_A64_SVEEXC_EL_LENGTH = 2}; enum { R_TBFLAG_A64_SVEEXC_EL_MASK = 12};
-enum { R_TBFLAG_A64_VL_SHIFT = 4}; enum { R_TBFLAG_A64_VL_LENGTH = 4}; enum { R_TBFLAG_A64_VL_MASK = 240};
-enum { R_TBFLAG_A64_PAUTH_ACTIVE_SHIFT = 8}; enum { R_TBFLAG_A64_PAUTH_ACTIVE_LENGTH = 1}; enum { R_TBFLAG_A64_PAUTH_ACTIVE_MASK = 256};
-enum { R_TBFLAG_A64_BT_SHIFT = 9}; enum { R_TBFLAG_A64_BT_LENGTH = 1}; enum { R_TBFLAG_A64_BT_MASK = 512};
-enum { R_TBFLAG_A64_BTYPE_SHIFT = 10}; enum { R_TBFLAG_A64_BTYPE_LENGTH = 2}; enum { R_TBFLAG_A64_BTYPE_MASK = 3072};
-enum { R_TBFLAG_A64_TBID_SHIFT = 12}; enum { R_TBFLAG_A64_TBID_LENGTH = 2}; enum { R_TBFLAG_A64_TBID_MASK = 12288};
-enum { R_TBFLAG_A64_UNPRIV_SHIFT = 14}; enum { R_TBFLAG_A64_UNPRIV_LENGTH = 1}; enum { R_TBFLAG_A64_UNPRIV_MASK = 16384};
-enum { R_TBFLAG_A64_ATA_SHIFT = 15}; enum { R_TBFLAG_A64_ATA_LENGTH = 1}; enum { R_TBFLAG_A64_ATA_MASK = 32768};
-enum { R_TBFLAG_A64_TCMA_SHIFT = 16}; enum { R_TBFLAG_A64_TCMA_LENGTH = 2}; enum { R_TBFLAG_A64_TCMA_MASK = 196608};
-enum { R_TBFLAG_A64_MTE_ACTIVE_SHIFT = 18}; enum { R_TBFLAG_A64_MTE_ACTIVE_LENGTH = 1}; enum { R_TBFLAG_A64_MTE_ACTIVE_MASK = 262144};
-enum { R_TBFLAG_A64_MTE0_ACTIVE_SHIFT = 19}; enum { R_TBFLAG_A64_MTE0_ACTIVE_LENGTH = 1}; enum { R_TBFLAG_A64_MTE0_ACTIVE_MASK = 524288};
-enum { R_TBFLAG_A64_SMEEXC_EL_SHIFT = 20}; enum { R_TBFLAG_A64_SMEEXC_EL_LENGTH = 2}; enum { R_TBFLAG_A64_SMEEXC_EL_MASK = 3145728};
-enum { R_TBFLAG_A64_PSTATE_SM_SHIFT = 22}; enum { R_TBFLAG_A64_PSTATE_SM_LENGTH = 1}; enum { R_TBFLAG_A64_PSTATE_SM_MASK = 4194304};
-enum { R_TBFLAG_A64_PSTATE_ZA_SHIFT = 23}; enum { R_TBFLAG_A64_PSTATE_ZA_LENGTH = 1}; enum { R_TBFLAG_A64_PSTATE_ZA_MASK = 8388608};
-enum { R_TBFLAG_A64_SVL_SHIFT = 24}; enum { R_TBFLAG_A64_SVL_LENGTH = 4}; enum { R_TBFLAG_A64_SVL_MASK = 251658240};
-enum { R_TBFLAG_A64_SME_TRAP_NONSTREAMING_SHIFT = 28}; enum { R_TBFLAG_A64_SME_TRAP_NONSTREAMING_LENGTH = 1}; enum { R_TBFLAG_A64_SME_TRAP_NONSTREAMING_MASK = 268435456};
-enum { R_TBFLAG_A64_TRAP_ERET_SHIFT = 29}; enum { R_TBFLAG_A64_TRAP_ERET_LENGTH = 1}; enum { R_TBFLAG_A64_TRAP_ERET_MASK = 536870912};
-enum { R_TBFLAG_A64_NAA_SHIFT = 30}; enum { R_TBFLAG_A64_NAA_LENGTH = 1}; enum { R_TBFLAG_A64_NAA_MASK = 1073741824};
-enum { R_TBFLAG_A64_ATA0_SHIFT = 31}; enum { R_TBFLAG_A64_ATA0_LENGTH = 1}; enum { R_TBFLAG_A64_ATA0_MASK = 2147483648};
-enum { R_TBFLAG_A64_NV_SHIFT = 32}; enum { R_TBFLAG_A64_NV_LENGTH = 1}; enum { R_TBFLAG_A64_NV_MASK = 4294967296};
-enum { R_TBFLAG_A64_NV1_SHIFT = 33}; enum { R_TBFLAG_A64_NV1_LENGTH = 1}; enum { R_TBFLAG_A64_NV1_MASK = 8589934592};
-enum { R_TBFLAG_A64_NV2_SHIFT = 34}; enum { R_TBFLAG_A64_NV2_LENGTH = 1}; enum { R_TBFLAG_A64_NV2_MASK = 17179869184};
-enum { R_TBFLAG_A64_NV2_MEM_E20_SHIFT = 35}; enum { R_TBFLAG_A64_NV2_MEM_E20_LENGTH = 1}; enum { R_TBFLAG_A64_NV2_MEM_E20_MASK = 34359738368};
-enum { R_TBFLAG_A64_NV2_MEM_BE_SHIFT = 36}; enum { R_TBFLAG_A64_NV2_MEM_BE_LENGTH = 1}; enum { R_TBFLAG_A64_NV2_MEM_BE_MASK = 68719476736};
-void cpu_get_tb_cpu_state(CPUARMState *env, vaddr *pc,
-                          uint64_t *cs_base, uint32_t *flags);
 enum {
-    QEMU_PSCI_CONDUIT_DISABLED = 0,
-    QEMU_PSCI_CONDUIT_SMC = 1,
-    QEMU_PSCI_CONDUIT_HVC = 2,
+    PPC_NONE = 0x0000000000000000ULL,
+    PPC_INSNS_BASE = 0x0000000000000001ULL,
+    PPC_64B = 0x0000000000000020ULL,
+    PPC_64BX = 0x0000000000000040ULL,
+    PPC_64H = 0x0000000000000080ULL,
+    PPC_WAIT = 0x0000000000000100ULL,
+    PPC_MFTB = 0x0000000000000200ULL,
+    PPC_ISEL = 0x0000000000000800ULL,
+    PPC_POPCNTB = 0x0000000000001000ULL,
+    PPC_STRING = 0x0000000000002000ULL,
+    PPC_CILDST = 0x0000000000004000ULL,
+    PPC_FLOAT = 0x0000000000010000ULL,
+    PPC_FLOAT_EXT = 0x0000000000020000ULL,
+    PPC_FLOAT_FSQRT = 0x0000000000040000ULL,
+    PPC_FLOAT_FRES = 0x0000000000080000ULL,
+    PPC_FLOAT_FRSQRTE = 0x0000000000100000ULL,
+    PPC_FLOAT_FRSQRTES = 0x0000000000200000ULL,
+    PPC_FLOAT_FSEL = 0x0000000000400000ULL,
+    PPC_FLOAT_STFIWX = 0x0000000000800000ULL,
+    PPC_ALTIVEC = 0x0000000001000000ULL,
+    PPC_SPE = 0x0000000002000000ULL,
+    PPC_SPE_SINGLE = 0x0000000004000000ULL,
+    PPC_SPE_DOUBLE = 0x0000000008000000ULL,
+    PPC_MEM_TLBIA = 0x0000000010000000ULL,
+    PPC_MEM_TLBIE = 0x0000000020000000ULL,
+    PPC_MEM_TLBSYNC = 0x0000000040000000ULL,
+    PPC_MEM_SYNC = 0x0000000080000000ULL,
+    PPC_MEM_EIEIO = 0x0000000100000000ULL,
+    PPC_CACHE = 0x0000000200000000ULL,
+    PPC_CACHE_ICBI = 0x0000000400000000ULL,
+    PPC_CACHE_DCBZ = 0x0000000800000000ULL,
+    PPC_CACHE_DCBA = 0x0000002000000000ULL,
+    PPC_CACHE_LOCK = 0x0000004000000000ULL,
+    PPC_EXTERN = 0x0000010000000000ULL,
+    PPC_SEGMENT = 0x0000020000000000ULL,
+    PPC_6xx_TLB = 0x0000040000000000ULL,
+    PPC_40x_TLB = 0x0000100000000000ULL,
+    PPC_SEGMENT_64B = 0x0000200000000000ULL,
+    PPC_SLBI = 0x0000400000000000ULL,
+    PPC_WRTEE = 0x0001000000000000ULL,
+    PPC_40x_EXCP = 0x0002000000000000ULL,
+    PPC_405_MAC = 0x0004000000000000ULL,
+    PPC_440_SPEC = 0x0008000000000000ULL,
+    PPC_BOOKE = 0x0010000000000000ULL,
+    PPC_MFAPIDI = 0x0020000000000000ULL,
+    PPC_TLBIVA = 0x0040000000000000ULL,
+    PPC_TLBIVAX = 0x0080000000000000ULL,
+    PPC_4xx_COMMON = 0x0100000000000000ULL,
+    PPC_40x_ICBT = 0x0200000000000000ULL,
+    PPC_RFMCI = 0x0400000000000000ULL,
+    PPC_RFDI = 0x0800000000000000ULL,
+    PPC_DCR = 0x1000000000000000ULL,
+    PPC_DCRX = 0x2000000000000000ULL,
+    PPC_POPCNTWD = 0x8000000000000000ULL,
+    PPC2_BOOKE206 = 0x0000000000000001ULL,
+    PPC2_VSX = 0x0000000000000002ULL,
+    PPC2_DFP = 0x0000000000000004ULL,
+    PPC2_PRCNTL = 0x0000000000000008ULL,
+    PPC2_DBRX = 0x0000000000000010ULL,
+    PPC2_ISA205 = 0x0000000000000020ULL,
+    PPC2_VSX207 = 0x0000000000000040ULL,
+    PPC2_PERM_ISA206 = 0x0000000000000080ULL,
+    PPC2_DIVE_ISA206 = 0x0000000000000100ULL,
+    PPC2_ATOMIC_ISA206 = 0x0000000000000200ULL,
+    PPC2_FP_CVT_ISA206 = 0x0000000000000400ULL,
+    PPC2_FP_TST_ISA206 = 0x0000000000000800ULL,
+    PPC2_BCTAR_ISA207 = 0x0000000000001000ULL,
+    PPC2_LSQ_ISA207 = 0x0000000000002000ULL,
+    PPC2_ALTIVEC_207 = 0x0000000000004000ULL,
+    PPC2_ISA207S = 0x0000000000008000ULL,
+    PPC2_FP_CVT_S64 = 0x0000000000010000ULL,
+    PPC2_TM = 0x0000000000020000ULL,
+    PPC2_PM_ISA206 = 0x0000000000040000ULL,
+    PPC2_ISA300 = 0x0000000000080000ULL,
+    PPC2_ISA310 = 0x0000000000100000ULL,
+    PPC2_MEM_LWSYNC = 0x0000000000200000ULL,
+    PPC2_BCDA_ISA206 = 0x0000000000400000ULL,
 };
-void arm_register_pre_el_change_hook(ARMCPU *cpu, ARMELChangeHookFn *hook,
-                                 void *opaque);
-void arm_register_el_change_hook(ARMCPU *cpu, ARMELChangeHookFn *hook, void
-        *opaque);
-void arm_rebuild_hflags(CPUARMState *env);
-extern const uint64_t pred_esz_masks[5];
+enum {
+    ACCESS_CODE = 0x10,
+    ACCESS_INT = 0x20,
+    ACCESS_FLOAT = 0x30,
+    ACCESS_RES = 0x40,
+    ACCESS_EXT = 0x50,
+    ACCESS_CACHE = 0x60,
+};
+enum {
+    PPC6xx_INPUT_HRESET = 0,
+    PPC6xx_INPUT_SRESET = 1,
+    PPC6xx_INPUT_CKSTP_IN = 2,
+    PPC6xx_INPUT_MCP = 3,
+    PPC6xx_INPUT_SMI = 4,
+    PPC6xx_INPUT_INT = 5,
+    PPC6xx_INPUT_TBEN = 6,
+    PPC6xx_INPUT_WAKEUP = 7,
+    PPC6xx_INPUT_NB,
+};
+enum {
+    PPCBookE_INPUT_HRESET = 0,
+    PPCBookE_INPUT_SRESET = 1,
+    PPCBookE_INPUT_CKSTP_IN = 2,
+    PPCBookE_INPUT_MCP = 3,
+    PPCBookE_INPUT_SMI = 4,
+    PPCBookE_INPUT_INT = 5,
+    PPCBookE_INPUT_CINT = 6,
+    PPCBookE_INPUT_NB,
+};
+enum {
+    PPCE500_INPUT_RESET_CORE = 0,
+    PPCE500_INPUT_MCK = 1,
+    PPCE500_INPUT_CINT = 3,
+    PPCE500_INPUT_INT = 4,
+    PPCE500_INPUT_DEBUG = 6,
+    PPCE500_INPUT_NB,
+};
+enum {
+    PPC40x_INPUT_RESET_CORE = 0,
+    PPC40x_INPUT_RESET_CHIP = 1,
+    PPC40x_INPUT_RESET_SYS = 2,
+    PPC40x_INPUT_CINT = 3,
+    PPC40x_INPUT_INT = 4,
+    PPC40x_INPUT_HALT = 5,
+    PPC40x_INPUT_DEBUG = 6,
+    PPC40x_INPUT_NB,
+};
+enum {
+    PPCRCPU_INPUT_PORESET = 0,
+    PPCRCPU_INPUT_HRESET = 1,
+    PPCRCPU_INPUT_SRESET = 2,
+    PPCRCPU_INPUT_IRQ0 = 3,
+    PPCRCPU_INPUT_IRQ1 = 4,
+    PPCRCPU_INPUT_IRQ2 = 5,
+    PPCRCPU_INPUT_IRQ3 = 6,
+    PPCRCPU_INPUT_IRQ4 = 7,
+    PPCRCPU_INPUT_IRQ5 = 8,
+    PPCRCPU_INPUT_IRQ6 = 9,
+    PPCRCPU_INPUT_IRQ7 = 10,
+    PPCRCPU_INPUT_NB,
+};
+enum {
+    PPC970_INPUT_HRESET = 0,
+    PPC970_INPUT_SRESET = 1,
+    PPC970_INPUT_CKSTP = 2,
+    PPC970_INPUT_TBEN = 3,
+    PPC970_INPUT_MCP = 4,
+    PPC970_INPUT_INT = 5,
+    PPC970_INPUT_THINT = 6,
+    PPC970_INPUT_NB,
+};
+enum {
+    POWER7_INPUT_INT = 0,
+    POWER7_INPUT_NB,
+};
+enum {
+    POWER9_INPUT_INT = 0,
+    POWER9_INPUT_HINT = 1,
+    POWER9_INPUT_NB,
+};
+enum {
+    PPC_INTERRUPT_RESET = 0x00001,
+    PPC_INTERRUPT_WAKEUP = 0x00002,
+    PPC_INTERRUPT_MCK = 0x00004,
+    PPC_INTERRUPT_EXT = 0x00008,
+    PPC_INTERRUPT_SMI = 0x00010,
+    PPC_INTERRUPT_CEXT = 0x00020,
+    PPC_INTERRUPT_DEBUG = 0x00040,
+    PPC_INTERRUPT_THERM = 0x00080,
+    PPC_INTERRUPT_DECR = 0x00100,
+    PPC_INTERRUPT_HDECR = 0x00200,
+    PPC_INTERRUPT_PIT = 0x00400,
+    PPC_INTERRUPT_FIT = 0x00800,
+    PPC_INTERRUPT_WDT = 0x01000,
+    PPC_INTERRUPT_CDOORBELL = 0x02000,
+    PPC_INTERRUPT_DOORBELL = 0x04000,
+    PPC_INTERRUPT_PERFM = 0x08000,
+    PPC_INTERRUPT_HMI = 0x10000,
+    PPC_INTERRUPT_HDOORBELL = 0x20000,
+    PPC_INTERRUPT_HVIRT = 0x40000,
+    PPC_INTERRUPT_EBB = 0x80000,
+};
+enum {
+    PCR_COMPAT_2_05 = 2,
+    PCR_COMPAT_2_06 = 4,
+    PCR_COMPAT_2_07 = 8,
+    PCR_COMPAT_3_00 = 16,
+    PCR_COMPAT_3_10 = 32,
+    PCR_VEC_DIS = 9223372036854775808,
+    PCR_VSX_DIS = 4611686018427387904,
+    PCR_TM_DIS = 2305843009213693952,
+};
+enum {
+    HMER_MALFUNCTION_ALERT = 9223372036854775808,
+    HMER_PROC_RECV_DONE = 2305843009213693952,
+    HMER_PROC_RECV_ERROR_MASKED = 1152921504606846976,
+    HMER_TFAC_ERROR = 576460752303423488,
+    HMER_TFMR_PARITY_ERROR = 288230376151711744,
+    HMER_XSCOM_FAIL = 36028797018963968,
+    HMER_XSCOM_DONE = 18014398509481984,
+    HMER_PROC_RECV_AGAIN = 4503599627370496,
+    HMER_WARN_RISE = 562949953421312,
+    HMER_WARN_FALL = 281474976710656,
+    HMER_SCOM_FIR_HMI = 140737488355328,
+    HMER_TRIG_FIR_HMI = 70368744177664,
+    HMER_HYP_RESOURCE_ERR = 8796093022208,
+    HMER_XSCOM_STATUS_MASK = 7696581394432,
+};
+enum {
+    TFMR_CONTROL_MASK = 18446743523953737728,
+    TFMR_MASK_HMI = 9007199254740992,
+    TFMR_TB_ECLIPZ = 562949953421312,
+    TFMR_LOAD_TOD_MOD = 140737488355328,
+    TFMR_MOVE_CHIP_TOD_TO_TB = 35184372088832,
+    TFMR_CLEAR_TB_ERRORS = 549755813888,
+    TFMR_STATUS_MASK = 549755813887,
+    TFMR_TBST_ENCODED = 64424509440,
+    TFMR_TBST_LAST = 4026531840,
+    TFMR_TB_ENABLED = 8388608,
+    TFMR_TB_VALID = 4194304,
+    TFMR_TB_SYNC_OCCURED = 2097152,
+    TFMR_FIRMWARE_CONTROL_ERROR = 131072,
+};
+enum {
+    TBST_RESET = 0x0,
+    TBST_SEND_TOD_MOD = 0x1,
+    TBST_NOT_SET = 0x2,
+    TBST_SYNC_WAIT = 0x6,
+    TBST_GET_TOD = 0x7,
+    TBST_TB_RUNNING = 0x8,
+    TBST_TB_ERROR = 0x9,
+};
+target_ulong cpu_read_xer(const CPUPPCState *env);
+void cpu_write_xer(CPUPPCState *env, target_ulong xer);
+ void raise_exception(CPUPPCState *env, uint32_t exception);
+ void raise_exception_ra(CPUPPCState *env, uint32_t exception,
+                                   uintptr_t raddr);
+ void raise_exception_err(CPUPPCState *env, uint32_t exception,
+                                    uint32_t error_code);
+ void raise_exception_err_ra(CPUPPCState *env, uint32_t exception,
+                                       uint32_t error_code, uintptr_t raddr);
+void raise_ebb_perfm_exception(CPUPPCState *env);
+void dump_mmu(CPUPPCState *env);
+void ppc_maybe_bswap_register(CPUPPCState *env, uint8_t *mem_buf, int len);
+void ppc_store_vscr(CPUPPCState *env, uint32_t vscr);
+uint32_t ppc_get_vscr(CPUPPCState *env);
+void ppc_set_cr(CPUPPCState *env, uint64_t cr);
+uint64_t ppc_get_cr(const CPUPPCState *env);
 typedef target_ulong target_ptr_t;
 typedef int32_t target_pid_t;
        
@@ -17201,35 +16692,9 @@ extern
 target_ulong panda_current_asid(CPUState *env);
 target_ulong panda_current_pc(CPUState *cpu);
 Int128 panda_find_max_ram_address(void);
-int panda_physical_memory_rw(hwaddr addr, uint8_t *buf, int len, 
-                                                                _Bool 
-                                                                     is_write);
-int panda_physical_memory_read(hwaddr addr, uint8_t *buf, int len);
-int panda_physical_memory_write(hwaddr addr, uint8_t *buf, int len);
-hwaddr panda_virt_to_phys(CPUState * env, target_ulong addr);
 _Bool 
-    enter_priv(CPUState * cpu);
-void exit_priv(CPUState * cpu);
-int panda_virtual_memory_rw(CPUState * cpu, target_ulong addr,
-                            uint8_t * buf, int len, 
-                                                   _Bool 
-                                                        is_write);
-int panda_virtual_memory_read(CPUState * env, target_ulong addr,
-                              uint8_t * buf, int len);
-int panda_virtual_memory_write(CPUState * env, target_ulong addr,
-                               uint8_t * buf, int len);
-void *panda_map_virt_to_host(CPUState * env, target_ulong addr, int len);
-_Bool 
-    panda_in_kernel_mode(const CPUState *cpu);
-_Bool 
-    panda_in_kernel(const CPUState *cpu);
-_Bool 
-    address_in_kernel_code_linux(target_ulong addr);
-_Bool 
-    panda_in_kernel_code_linux(CPUState * cpu);
-target_ulong panda_current_ksp(CPUState * cpu);
-target_ulong panda_current_sp(const CPUState *cpu);
-target_ulong panda_get_retval(const CPUState *cpu);
+    enter_priv(CPUState* cpu);
+void exit_priv(CPUState* cpu);
 typedef enum {
     TCG_MO_LD_LD = 0x01,
     TCG_MO_ST_LD = 0x02,
@@ -17948,6 +17413,7 @@ CPUState* get_cpu(void);
 unsigned long garray_len(GArray *list);
 CPUArchState *panda_cpu_env(CPUState *cpu);
 void panda_cleanup_record(void);
+//void (*panda_external_signal_handler)(int, siginfo_t*,void*);
 CPUState *panda_current_cpu(int index);
 CPUState *panda_cpu_in_translate(void);
 TranslationBlock *panda_get_tb(struct qemu_plugin_tb *tb);
@@ -18012,3652 +17478,3 @@ struct dynamic_symbol_hook {
     char symbol[256];
     dynamic_symbol_hook_func_t cb;
 };
-       
-typedef struct {
-    uint32_t max;
-    uint32_t max_generic;
-    uint32_t max_args;
-} syscall_meta_t;
-typedef enum {
-    SYSCALL_ARG_U64 = 0x00,
-    SYSCALL_ARG_U32,
-    SYSCALL_ARG_U16,
-    SYSCALL_ARG_S64 = 0x10,
-    SYSCALL_ARG_S32,
-    SYSCALL_ARG_S16,
-    SYSCALL_ARG_BUF_PTR = 0x20,
-    SYSCALL_ARG_STRUCT_PTR,
-    SYSCALL_ARG_STR_PTR,
-    SYSCALL_ARG_STRUCT = 0x30,
-    SYSCALL_ARG_ARR
-} syscall_argtype_t;
-typedef struct {
-    int no;
-    const char *name;
-    int nargs;
-    syscall_argtype_t *argt;
-    uint8_t *argsz;
-    const char* const *argn;
-    const char* const *argtn;
-    
-   _Bool 
-        noreturn;
-} syscall_info_t;
-    typedef char gchar;
-    void load_syscall_info(const gchar *arch, syscall_info_t **syscall_info, syscall_meta_t **syscall_meta);
-       
-       
-struct syscall_ctx {
-    int no;
-    target_ptr_t asid;
-    target_ptr_t retaddr;
-    uint8_t args[17]
-                [8];
-    
-   _Bool 
-        double_return;
-    int profile;
-};
-typedef struct syscall_ctx syscall_ctx_t;
-target_long get_return_val(CPUState *env, int profile);
-target_ptr_t mask_retaddr_to_pc(target_ptr_t retaddr, syscall_ctx_t *);
-target_ptr_t calc_retaddr(CPUState *env, syscall_ctx_t*, target_ptr_t pc);
-uint32_t get_32(CPUState *env, syscall_ctx_t*, uint32_t argnum);
-int32_t get_s32(CPUState *env, syscall_ctx_t*, uint32_t argnum);
-uint64_t get_64(CPUState *env, syscall_ctx_t*, uint32_t argnum);
-int64_t get_s64(CPUState *env, syscall_ctx_t*, uint32_t argnum);
-uint32_t get_return_32(CPUState *env, syscall_ctx_t*, uint32_t argnum);
-int32_t get_return_s32(CPUState *env, syscall_ctx_t*, uint32_t argnum);
-uint64_t get_return_64(CPUState *env, syscall_ctx_t*, uint32_t argnum);
-int64_t get_return_s64(CPUState *env, syscall_ctx_t*, uint32_t argnum);
-void sysinfo_load_profile(int profile, syscall_info_t **syscall_info, syscall_meta_t **syscall_meta);
-typedef void (*on_ARM_breakpoint_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_ARM_breakpoint_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_ARM_breakpoint_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_ARM_breakpoint_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_ARM_cacheflush_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t end, uint32_t flags); typedef void (*on_ARM_cacheflush_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t end, uint32_t flags);;
-typedef void (*on_ARM_cacheflush_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t end, uint32_t flags); typedef void (*on_ARM_cacheflush_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t end, uint32_t flags);;
-typedef void (*on_ARM_set_tls_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg); typedef void (*on_ARM_set_tls_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg);;
-typedef void (*on_ARM_set_tls_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg); typedef void (*on_ARM_set_tls_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg);;
-typedef void (*on_ARM_user26_mode_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_ARM_user26_mode_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_ARM_user26_mode_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_ARM_user26_mode_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_ARM_usr32_mode_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_ARM_usr32_mode_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_ARM_usr32_mode_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_ARM_usr32_mode_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_do_mmap2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len, uint32_t prot, uint32_t flags, uint32_t fd, uint32_t pgoff); typedef void (*on_do_mmap2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len, uint32_t prot, uint32_t flags, uint32_t fd, uint32_t pgoff);;
-typedef void (*on_do_mmap2_return_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len, uint32_t prot, uint32_t flags, uint32_t fd, uint32_t pgoff); typedef void (*on_do_mmap2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len, uint32_t prot, uint32_t flags, uint32_t fd, uint32_t pgoff);;
-typedef void (*on_sys_accept_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_accept_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
-typedef void (*on_sys_accept_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_accept_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
-typedef void (*on_sys_accept4_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, int32_t arg3); typedef void (*on_sys_accept4_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, int32_t arg3);;
-typedef void (*on_sys_accept4_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, int32_t arg3); typedef void (*on_sys_accept4_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, int32_t arg3);;
-typedef void (*on_sys_access_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t mode); typedef void (*on_sys_access_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, int32_t mode);;
-typedef void (*on_sys_access_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t mode); typedef void (*on_sys_access_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, int32_t mode);;
-typedef void (*on_sys_acct_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_acct_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
-typedef void (*on_sys_acct_return_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_acct_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
-typedef void (*on_sys_add_key_enter_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _payload, uint32_t plen, uint32_t destringid); typedef void (*on_sys_add_key_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _payload, uint32_t plen, uint32_t destringid);;
-typedef void (*on_sys_add_key_return_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _payload, uint32_t plen, uint32_t destringid); typedef void (*on_sys_add_key_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _payload, uint32_t plen, uint32_t destringid);;
-typedef void (*on_sys_adjtimex_enter_t)(CPUState* cpu, target_ulong pc, uint32_t txc_p); typedef void (*on_sys_adjtimex_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t txc_p);;
-typedef void (*on_sys_adjtimex_return_t)(CPUState* cpu, target_ulong pc, uint32_t txc_p); typedef void (*on_sys_adjtimex_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t txc_p);;
-typedef void (*on_sys_alarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t seconds); typedef void (*on_sys_alarm_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t seconds);;
-typedef void (*on_sys_alarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t seconds); typedef void (*on_sys_alarm_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t seconds);;
-typedef void (*on_sys_arm_fadvise64_64_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t advice, uint64_t offset, uint64_t len); typedef void (*on_sys_arm_fadvise64_64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t advice, uint64_t offset, uint64_t len);;
-typedef void (*on_sys_arm_fadvise64_64_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t advice, uint64_t offset, uint64_t len); typedef void (*on_sys_arm_fadvise64_64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t advice, uint64_t offset, uint64_t len);;
-typedef void (*on_sys_bdflush_enter_t)(CPUState* cpu, target_ulong pc, int32_t func, int32_t _data); typedef void (*on_sys_bdflush_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t func, int32_t _data);;
-typedef void (*on_sys_bdflush_return_t)(CPUState* cpu, target_ulong pc, int32_t func, int32_t _data); typedef void (*on_sys_bdflush_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t func, int32_t _data);;
-typedef void (*on_sys_bind_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2); typedef void (*on_sys_bind_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);;
-typedef void (*on_sys_bind_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2); typedef void (*on_sys_bind_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);;
-typedef void (*on_sys_bpf_enter_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t attr, uint32_t size); typedef void (*on_sys_bpf_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t attr, uint32_t size);;
-typedef void (*on_sys_bpf_return_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t attr, uint32_t size); typedef void (*on_sys_bpf_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t attr, uint32_t size);;
-typedef void (*on_sys_brk_enter_t)(CPUState* cpu, target_ulong pc, uint32_t brk); typedef void (*on_sys_brk_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t brk);;
-typedef void (*on_sys_brk_return_t)(CPUState* cpu, target_ulong pc, uint32_t brk); typedef void (*on_sys_brk_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t brk);;
-typedef void (*on_sys_capget_enter_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t dataptr); typedef void (*on_sys_capget_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t header, uint32_t dataptr);;
-typedef void (*on_sys_capget_return_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t dataptr); typedef void (*on_sys_capget_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t header, uint32_t dataptr);;
-typedef void (*on_sys_capset_enter_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t _data); typedef void (*on_sys_capset_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t header, uint32_t _data);;
-typedef void (*on_sys_capset_return_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t _data); typedef void (*on_sys_capset_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t header, uint32_t _data);;
-typedef void (*on_sys_chdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename); typedef void (*on_sys_chdir_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename);;
-typedef void (*on_sys_chdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename); typedef void (*on_sys_chdir_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename);;
-typedef void (*on_sys_chmod_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode); typedef void (*on_sys_chmod_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode);;
-typedef void (*on_sys_chmod_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode); typedef void (*on_sys_chmod_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode);;
-typedef void (*on_sys_chown_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_chown_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
-typedef void (*on_sys_chown_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_chown_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
-typedef void (*on_sys_chown16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_chown16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
-typedef void (*on_sys_chown16_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_chown16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
-typedef void (*on_sys_chroot_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename); typedef void (*on_sys_chroot_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename);;
-typedef void (*on_sys_chroot_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename); typedef void (*on_sys_chroot_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename);;
-typedef void (*on_sys_clock_adjtime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tx); typedef void (*on_sys_clock_adjtime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tx);;
-typedef void (*on_sys_clock_adjtime_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tx); typedef void (*on_sys_clock_adjtime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tx);;
-typedef void (*on_sys_clock_getres_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp); typedef void (*on_sys_clock_getres_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);;
-typedef void (*on_sys_clock_getres_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp); typedef void (*on_sys_clock_getres_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);;
-typedef void (*on_sys_clock_gettime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp); typedef void (*on_sys_clock_gettime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);;
-typedef void (*on_sys_clock_gettime_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp); typedef void (*on_sys_clock_gettime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);;
-typedef void (*on_sys_clock_nanosleep_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, int32_t flags, uint32_t rqtp, uint32_t rmtp); typedef void (*on_sys_clock_nanosleep_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, int32_t flags, uint32_t rqtp, uint32_t rmtp);;
-typedef void (*on_sys_clock_nanosleep_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, int32_t flags, uint32_t rqtp, uint32_t rmtp); typedef void (*on_sys_clock_nanosleep_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, int32_t flags, uint32_t rqtp, uint32_t rmtp);;
-typedef void (*on_sys_clock_settime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp); typedef void (*on_sys_clock_settime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);;
-typedef void (*on_sys_clock_settime_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp); typedef void (*on_sys_clock_settime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);;
-typedef void (*on_sys_clone_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4); typedef void (*on_sys_clone_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);;
-typedef void (*on_sys_clone_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4); typedef void (*on_sys_clone_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);;
-typedef void (*on_sys_close_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_close_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
-typedef void (*on_sys_close_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_close_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
-typedef void (*on_sys_connect_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2); typedef void (*on_sys_connect_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);;
-typedef void (*on_sys_connect_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2); typedef void (*on_sys_connect_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);;
-typedef void (*on_sys_creat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode); typedef void (*on_sys_creat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);;
-typedef void (*on_sys_creat_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode); typedef void (*on_sys_creat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);;
-typedef void (*on_sys_delete_module_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name_user, uint32_t flags); typedef void (*on_sys_delete_module_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name_user, uint32_t flags);;
-typedef void (*on_sys_delete_module_return_t)(CPUState* cpu, target_ulong pc, uint32_t name_user, uint32_t flags); typedef void (*on_sys_delete_module_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name_user, uint32_t flags);;
-typedef void (*on_sys_dup_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fildes); typedef void (*on_sys_dup_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fildes);;
-typedef void (*on_sys_dup_return_t)(CPUState* cpu, target_ulong pc, uint32_t fildes); typedef void (*on_sys_dup_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fildes);;
-typedef void (*on_sys_dup2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd); typedef void (*on_sys_dup2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd);;
-typedef void (*on_sys_dup2_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd); typedef void (*on_sys_dup2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd);;
-typedef void (*on_sys_dup3_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd, int32_t flags); typedef void (*on_sys_dup3_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd, int32_t flags);;
-typedef void (*on_sys_dup3_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd, int32_t flags); typedef void (*on_sys_dup3_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd, int32_t flags);;
-typedef void (*on_sys_epoll_create_enter_t)(CPUState* cpu, target_ulong pc, int32_t size); typedef void (*on_sys_epoll_create_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t size);;
-typedef void (*on_sys_epoll_create_return_t)(CPUState* cpu, target_ulong pc, int32_t size); typedef void (*on_sys_epoll_create_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t size);;
-typedef void (*on_sys_epoll_create1_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_epoll_create1_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
-typedef void (*on_sys_epoll_create1_return_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_epoll_create1_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
-typedef void (*on_sys_epoll_ctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t epfd, int32_t op, int32_t fd, uint32_t event); typedef void (*on_sys_epoll_ctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t epfd, int32_t op, int32_t fd, uint32_t event);;
-typedef void (*on_sys_epoll_ctl_return_t)(CPUState* cpu, target_ulong pc, int32_t epfd, int32_t op, int32_t fd, uint32_t event); typedef void (*on_sys_epoll_ctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t epfd, int32_t op, int32_t fd, uint32_t event);;
-typedef void (*on_sys_epoll_pwait_enter_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout, uint32_t sigmask, uint32_t sigsetsize); typedef void (*on_sys_epoll_pwait_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout, uint32_t sigmask, uint32_t sigsetsize);;
-typedef void (*on_sys_epoll_pwait_return_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout, uint32_t sigmask, uint32_t sigsetsize); typedef void (*on_sys_epoll_pwait_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout, uint32_t sigmask, uint32_t sigsetsize);;
-typedef void (*on_sys_epoll_wait_enter_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout); typedef void (*on_sys_epoll_wait_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout);;
-typedef void (*on_sys_epoll_wait_return_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout); typedef void (*on_sys_epoll_wait_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout);;
-typedef void (*on_sys_eventfd_enter_t)(CPUState* cpu, target_ulong pc, uint32_t count); typedef void (*on_sys_eventfd_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t count);;
-typedef void (*on_sys_eventfd_return_t)(CPUState* cpu, target_ulong pc, uint32_t count); typedef void (*on_sys_eventfd_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t count);;
-typedef void (*on_sys_eventfd2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t count, int32_t flags); typedef void (*on_sys_eventfd2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t count, int32_t flags);;
-typedef void (*on_sys_eventfd2_return_t)(CPUState* cpu, target_ulong pc, uint32_t count, int32_t flags); typedef void (*on_sys_eventfd2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t count, int32_t flags);;
-typedef void (*on_sys_execve_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t argv, uint32_t envp); typedef void (*on_sys_execve_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t argv, uint32_t envp);;
-typedef void (*on_sys_execve_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t argv, uint32_t envp); typedef void (*on_sys_execve_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t argv, uint32_t envp);;
-typedef void (*on_sys_execveat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t argv, uint32_t envp, int32_t flags); typedef void (*on_sys_execveat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t argv, uint32_t envp, int32_t flags);;
-typedef void (*on_sys_execveat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t argv, uint32_t envp, int32_t flags); typedef void (*on_sys_execveat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t argv, uint32_t envp, int32_t flags);;
-typedef void (*on_sys_exit_enter_t)(CPUState* cpu, target_ulong pc, int32_t error_code); typedef void (*on_sys_exit_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t error_code);;
-typedef void (*on_sys_exit_return_t)(CPUState* cpu, target_ulong pc, int32_t error_code); typedef void (*on_sys_exit_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t error_code);;
-typedef void (*on_sys_exit_group_enter_t)(CPUState* cpu, target_ulong pc, int32_t error_code); typedef void (*on_sys_exit_group_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t error_code);;
-typedef void (*on_sys_exit_group_return_t)(CPUState* cpu, target_ulong pc, int32_t error_code); typedef void (*on_sys_exit_group_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t error_code);;
-typedef void (*on_sys_faccessat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t mode); typedef void (*on_sys_faccessat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t mode);;
-typedef void (*on_sys_faccessat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t mode); typedef void (*on_sys_faccessat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t mode);;
-typedef void (*on_sys_fallocate_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t mode, uint64_t offset, uint64_t len); typedef void (*on_sys_fallocate_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t mode, uint64_t offset, uint64_t len);;
-typedef void (*on_sys_fallocate_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t mode, uint64_t offset, uint64_t len); typedef void (*on_sys_fallocate_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t mode, uint64_t offset, uint64_t len);;
-typedef void (*on_sys_fanotify_init_enter_t)(CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t event_f_flags); typedef void (*on_sys_fanotify_init_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t event_f_flags);;
-typedef void (*on_sys_fanotify_init_return_t)(CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t event_f_flags); typedef void (*on_sys_fanotify_init_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t event_f_flags);;
-typedef void (*on_sys_fanotify_mark_enter_t)(CPUState* cpu, target_ulong pc, int32_t fanotify_fd, uint32_t flags, uint64_t mask, int32_t fd, uint32_t pathname); typedef void (*on_sys_fanotify_mark_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fanotify_fd, uint32_t flags, uint64_t mask, int32_t fd, uint32_t pathname);;
-typedef void (*on_sys_fanotify_mark_return_t)(CPUState* cpu, target_ulong pc, int32_t fanotify_fd, uint32_t flags, uint64_t mask, int32_t fd, uint32_t pathname); typedef void (*on_sys_fanotify_mark_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fanotify_fd, uint32_t flags, uint64_t mask, int32_t fd, uint32_t pathname);;
-typedef void (*on_sys_fchdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_fchdir_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
-typedef void (*on_sys_fchdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_fchdir_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
-typedef void (*on_sys_fchmod_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t mode); typedef void (*on_sys_fchmod_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t mode);;
-typedef void (*on_sys_fchmod_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t mode); typedef void (*on_sys_fchmod_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t mode);;
-typedef void (*on_sys_fchmodat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode); typedef void (*on_sys_fchmodat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode);;
-typedef void (*on_sys_fchmodat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode); typedef void (*on_sys_fchmodat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode);;
-typedef void (*on_sys_fchown_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group); typedef void (*on_sys_fchown_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);;
-typedef void (*on_sys_fchown_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group); typedef void (*on_sys_fchown_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);;
-typedef void (*on_sys_fchown16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group); typedef void (*on_sys_fchown16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);;
-typedef void (*on_sys_fchown16_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group); typedef void (*on_sys_fchown16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);;
-typedef void (*on_sys_fchownat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t user, uint32_t group, int32_t flag); typedef void (*on_sys_fchownat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t user, uint32_t group, int32_t flag);;
-typedef void (*on_sys_fchownat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t user, uint32_t group, int32_t flag); typedef void (*on_sys_fchownat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t user, uint32_t group, int32_t flag);;
-typedef void (*on_sys_fcntl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg); typedef void (*on_sys_fcntl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);;
-typedef void (*on_sys_fcntl_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg); typedef void (*on_sys_fcntl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);;
-typedef void (*on_sys_fcntl64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg); typedef void (*on_sys_fcntl64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);;
-typedef void (*on_sys_fcntl64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg); typedef void (*on_sys_fcntl64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);;
-typedef void (*on_sys_fdatasync_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_fdatasync_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
-typedef void (*on_sys_fdatasync_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_fdatasync_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
-typedef void (*on_sys_fgetxattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size); typedef void (*on_sys_fgetxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size);;
-typedef void (*on_sys_fgetxattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size); typedef void (*on_sys_fgetxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size);;
-typedef void (*on_sys_finit_module_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t uargs, int32_t flags); typedef void (*on_sys_finit_module_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t uargs, int32_t flags);;
-typedef void (*on_sys_finit_module_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t uargs, int32_t flags); typedef void (*on_sys_finit_module_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t uargs, int32_t flags);;
-typedef void (*on_sys_flistxattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t list, uint32_t size); typedef void (*on_sys_flistxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t list, uint32_t size);;
-typedef void (*on_sys_flistxattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t list, uint32_t size); typedef void (*on_sys_flistxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t list, uint32_t size);;
-typedef void (*on_sys_flock_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd); typedef void (*on_sys_flock_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd);;
-typedef void (*on_sys_flock_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd); typedef void (*on_sys_flock_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd);;
-typedef void (*on_sys_fork_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_fork_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_fork_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_fork_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_fremovexattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name); typedef void (*on_sys_fremovexattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name);;
-typedef void (*on_sys_fremovexattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name); typedef void (*on_sys_fremovexattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name);;
-typedef void (*on_sys_fsetxattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size, int32_t flags); typedef void (*on_sys_fsetxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size, int32_t flags);;
-typedef void (*on_sys_fsetxattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size, int32_t flags); typedef void (*on_sys_fsetxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size, int32_t flags);;
-typedef void (*on_sys_fstat64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf); typedef void (*on_sys_fstat64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);;
-typedef void (*on_sys_fstat64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf); typedef void (*on_sys_fstat64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);;
-typedef void (*on_sys_fstatat64_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t statbuf, int32_t flag); typedef void (*on_sys_fstatat64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t statbuf, int32_t flag);;
-typedef void (*on_sys_fstatat64_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t statbuf, int32_t flag); typedef void (*on_sys_fstatat64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t statbuf, int32_t flag);;
-typedef void (*on_sys_fstatfs_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf); typedef void (*on_sys_fstatfs_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf);;
-typedef void (*on_sys_fstatfs_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf); typedef void (*on_sys_fstatfs_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf);;
-typedef void (*on_sys_fstatfs64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t sz, uint32_t buf); typedef void (*on_sys_fstatfs64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t sz, uint32_t buf);;
-typedef void (*on_sys_fstatfs64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t sz, uint32_t buf); typedef void (*on_sys_fstatfs64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t sz, uint32_t buf);;
-typedef void (*on_sys_fsync_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_fsync_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
-typedef void (*on_sys_fsync_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd); typedef void (*on_sys_fsync_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd);;
-typedef void (*on_sys_ftruncate_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t length); typedef void (*on_sys_ftruncate_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t length);;
-typedef void (*on_sys_ftruncate_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t length); typedef void (*on_sys_ftruncate_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t length);;
-typedef void (*on_sys_ftruncate64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint64_t length); typedef void (*on_sys_ftruncate64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint64_t length);;
-typedef void (*on_sys_ftruncate64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint64_t length); typedef void (*on_sys_ftruncate64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint64_t length);;
-typedef void (*on_sys_futex_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uaddr, int32_t op, uint32_t val, uint32_t utime, uint32_t uaddr2, uint32_t val3); typedef void (*on_sys_futex_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uaddr, int32_t op, uint32_t val, uint32_t utime, uint32_t uaddr2, uint32_t val3);;
-typedef void (*on_sys_futex_return_t)(CPUState* cpu, target_ulong pc, uint32_t uaddr, int32_t op, uint32_t val, uint32_t utime, uint32_t uaddr2, uint32_t val3); typedef void (*on_sys_futex_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uaddr, int32_t op, uint32_t val, uint32_t utime, uint32_t uaddr2, uint32_t val3);;
-typedef void (*on_sys_futimesat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes); typedef void (*on_sys_futimesat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes);;
-typedef void (*on_sys_futimesat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes); typedef void (*on_sys_futimesat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes);;
-typedef void (*on_sys_get_mempolicy_enter_t)(CPUState* cpu, target_ulong pc, uint32_t policy, uint32_t nmask, uint32_t maxnode, uint32_t addr, uint32_t flags); typedef void (*on_sys_get_mempolicy_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t policy, uint32_t nmask, uint32_t maxnode, uint32_t addr, uint32_t flags);;
-typedef void (*on_sys_get_mempolicy_return_t)(CPUState* cpu, target_ulong pc, uint32_t policy, uint32_t nmask, uint32_t maxnode, uint32_t addr, uint32_t flags); typedef void (*on_sys_get_mempolicy_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t policy, uint32_t nmask, uint32_t maxnode, uint32_t addr, uint32_t flags);;
-typedef void (*on_sys_get_robust_list_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t head_ptr, uint32_t len_ptr); typedef void (*on_sys_get_robust_list_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t head_ptr, uint32_t len_ptr);;
-typedef void (*on_sys_get_robust_list_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t head_ptr, uint32_t len_ptr); typedef void (*on_sys_get_robust_list_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t head_ptr, uint32_t len_ptr);;
-typedef void (*on_sys_getcpu_enter_t)(CPUState* cpu, target_ulong pc, uint32_t _cpu, uint32_t node, uint32_t cache); typedef void (*on_sys_getcpu_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t _cpu, uint32_t node, uint32_t cache);;
-typedef void (*on_sys_getcpu_return_t)(CPUState* cpu, target_ulong pc, uint32_t _cpu, uint32_t node, uint32_t cache); typedef void (*on_sys_getcpu_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t _cpu, uint32_t node, uint32_t cache);;
-typedef void (*on_sys_getcwd_enter_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t size); typedef void (*on_sys_getcwd_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t size);;
-typedef void (*on_sys_getcwd_return_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t size); typedef void (*on_sys_getcwd_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t size);;
-typedef void (*on_sys_getdents_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count); typedef void (*on_sys_getdents_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);;
-typedef void (*on_sys_getdents_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count); typedef void (*on_sys_getdents_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);;
-typedef void (*on_sys_getdents64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count); typedef void (*on_sys_getdents64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);;
-typedef void (*on_sys_getdents64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count); typedef void (*on_sys_getdents64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);;
-typedef void (*on_sys_getegid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getegid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getegid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getegid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getegid16_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getegid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getegid16_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getegid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_geteuid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_geteuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_geteuid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_geteuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_geteuid16_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_geteuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_geteuid16_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_geteuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getgid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getgid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getgid16_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getgid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getgid16_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getgid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getgroups_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_getgroups_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
-typedef void (*on_sys_getgroups_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_getgroups_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
-typedef void (*on_sys_getgroups16_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_getgroups16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
-typedef void (*on_sys_getgroups16_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_getgroups16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
-typedef void (*on_sys_getitimer_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value); typedef void (*on_sys_getitimer_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, uint32_t value);;
-typedef void (*on_sys_getitimer_return_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value); typedef void (*on_sys_getitimer_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, uint32_t value);;
-typedef void (*on_sys_getpeername_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_getpeername_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
-typedef void (*on_sys_getpeername_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_getpeername_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
-typedef void (*on_sys_getpgid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid); typedef void (*on_sys_getpgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid);;
-typedef void (*on_sys_getpgid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid); typedef void (*on_sys_getpgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid);;
-typedef void (*on_sys_getpgrp_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getpgrp_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getpgrp_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getpgrp_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getpid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getpid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getpid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getpid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getppid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getppid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getppid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getppid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getpriority_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who); typedef void (*on_sys_getpriority_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who);;
-typedef void (*on_sys_getpriority_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who); typedef void (*on_sys_getpriority_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who);;
-typedef void (*on_sys_getrandom_enter_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t count, uint32_t flags); typedef void (*on_sys_getrandom_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t count, uint32_t flags);;
-typedef void (*on_sys_getrandom_return_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t count, uint32_t flags); typedef void (*on_sys_getrandom_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t count, uint32_t flags);;
-typedef void (*on_sys_getresgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_getresgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
-typedef void (*on_sys_getresgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_getresgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
-typedef void (*on_sys_getresgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_getresgid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
-typedef void (*on_sys_getresgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_getresgid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
-typedef void (*on_sys_getresuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_getresuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
-typedef void (*on_sys_getresuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_getresuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
-typedef void (*on_sys_getresuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_getresuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
-typedef void (*on_sys_getresuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_getresuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
-typedef void (*on_sys_getrlimit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim); typedef void (*on_sys_getrlimit_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);;
-typedef void (*on_sys_getrlimit_return_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim); typedef void (*on_sys_getrlimit_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);;
-typedef void (*on_sys_getrusage_enter_t)(CPUState* cpu, target_ulong pc, int32_t who, uint32_t ru); typedef void (*on_sys_getrusage_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t who, uint32_t ru);;
-typedef void (*on_sys_getrusage_return_t)(CPUState* cpu, target_ulong pc, int32_t who, uint32_t ru); typedef void (*on_sys_getrusage_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t who, uint32_t ru);;
-typedef void (*on_sys_getsid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid); typedef void (*on_sys_getsid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid);;
-typedef void (*on_sys_getsid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid); typedef void (*on_sys_getsid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid);;
-typedef void (*on_sys_getsockname_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_getsockname_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
-typedef void (*on_sys_getsockname_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_getsockname_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
-typedef void (*on_sys_getsockopt_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, uint32_t optlen); typedef void (*on_sys_getsockopt_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, uint32_t optlen);;
-typedef void (*on_sys_getsockopt_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, uint32_t optlen); typedef void (*on_sys_getsockopt_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, uint32_t optlen);;
-typedef void (*on_sys_gettid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_gettid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_gettid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_gettid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_gettimeofday_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz); typedef void (*on_sys_gettimeofday_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);;
-typedef void (*on_sys_gettimeofday_return_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz); typedef void (*on_sys_gettimeofday_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);;
-typedef void (*on_sys_getuid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getuid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getuid16_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getuid16_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_getuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_getxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size); typedef void (*on_sys_getxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);;
-typedef void (*on_sys_getxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size); typedef void (*on_sys_getxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);;
-typedef void (*on_sys_init_module_enter_t)(CPUState* cpu, target_ulong pc, uint32_t umod, uint32_t len, uint32_t uargs); typedef void (*on_sys_init_module_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t umod, uint32_t len, uint32_t uargs);;
-typedef void (*on_sys_init_module_return_t)(CPUState* cpu, target_ulong pc, uint32_t umod, uint32_t len, uint32_t uargs); typedef void (*on_sys_init_module_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t umod, uint32_t len, uint32_t uargs);;
-typedef void (*on_sys_inotify_add_watch_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t path, uint32_t mask); typedef void (*on_sys_inotify_add_watch_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t path, uint32_t mask);;
-typedef void (*on_sys_inotify_add_watch_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t path, uint32_t mask); typedef void (*on_sys_inotify_add_watch_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t path, uint32_t mask);;
-typedef void (*on_sys_inotify_init_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_inotify_init_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_inotify_init_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_inotify_init_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_inotify_init1_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_inotify_init1_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
-typedef void (*on_sys_inotify_init1_return_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_inotify_init1_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
-typedef void (*on_sys_inotify_rm_watch_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t wd); typedef void (*on_sys_inotify_rm_watch_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t wd);;
-typedef void (*on_sys_inotify_rm_watch_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t wd); typedef void (*on_sys_inotify_rm_watch_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t wd);;
-typedef void (*on_sys_io_cancel_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, uint32_t iocb, uint32_t result); typedef void (*on_sys_io_cancel_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ctx_id, uint32_t iocb, uint32_t result);;
-typedef void (*on_sys_io_cancel_return_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, uint32_t iocb, uint32_t result); typedef void (*on_sys_io_cancel_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ctx_id, uint32_t iocb, uint32_t result);;
-typedef void (*on_sys_io_destroy_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ctx); typedef void (*on_sys_io_destroy_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ctx);;
-typedef void (*on_sys_io_destroy_return_t)(CPUState* cpu, target_ulong pc, uint32_t ctx); typedef void (*on_sys_io_destroy_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ctx);;
-typedef void (*on_sys_io_getevents_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, int32_t min_nr, int32_t nr, uint32_t events, uint32_t timeout); typedef void (*on_sys_io_getevents_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ctx_id, int32_t min_nr, int32_t nr, uint32_t events, uint32_t timeout);;
-typedef void (*on_sys_io_getevents_return_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, int32_t min_nr, int32_t nr, uint32_t events, uint32_t timeout); typedef void (*on_sys_io_getevents_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ctx_id, int32_t min_nr, int32_t nr, uint32_t events, uint32_t timeout);;
-typedef void (*on_sys_io_setup_enter_t)(CPUState* cpu, target_ulong pc, uint32_t nr_reqs, uint32_t ctx); typedef void (*on_sys_io_setup_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t nr_reqs, uint32_t ctx);;
-typedef void (*on_sys_io_setup_return_t)(CPUState* cpu, target_ulong pc, uint32_t nr_reqs, uint32_t ctx); typedef void (*on_sys_io_setup_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t nr_reqs, uint32_t ctx);;
-typedef void (*on_sys_io_submit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, int32_t arg1, uint32_t arg2); typedef void (*on_sys_io_submit_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, int32_t arg1, uint32_t arg2);;
-typedef void (*on_sys_io_submit_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, int32_t arg1, uint32_t arg2); typedef void (*on_sys_io_submit_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, int32_t arg1, uint32_t arg2);;
-typedef void (*on_sys_ioctl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg); typedef void (*on_sys_ioctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);;
-typedef void (*on_sys_ioctl_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg); typedef void (*on_sys_ioctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);;
-typedef void (*on_sys_ioprio_get_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who); typedef void (*on_sys_ioprio_get_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who);;
-typedef void (*on_sys_ioprio_get_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who); typedef void (*on_sys_ioprio_get_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who);;
-typedef void (*on_sys_ioprio_set_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t ioprio); typedef void (*on_sys_ioprio_set_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t ioprio);;
-typedef void (*on_sys_ioprio_set_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t ioprio); typedef void (*on_sys_ioprio_set_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t ioprio);;
-typedef void (*on_sys_ipc_enter_t)(CPUState* cpu, target_ulong pc, uint32_t call, int32_t first, uint32_t second, uint32_t third, uint32_t ptr, int32_t fifth); typedef void (*on_sys_ipc_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t call, int32_t first, uint32_t second, uint32_t third, uint32_t ptr, int32_t fifth);;
-typedef void (*on_sys_ipc_return_t)(CPUState* cpu, target_ulong pc, uint32_t call, int32_t first, uint32_t second, uint32_t third, uint32_t ptr, int32_t fifth); typedef void (*on_sys_ipc_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t call, int32_t first, uint32_t second, uint32_t third, uint32_t ptr, int32_t fifth);;
-typedef void (*on_sys_kcmp_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid1, int32_t pid2, int32_t type, uint32_t idx1, uint32_t idx2); typedef void (*on_sys_kcmp_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid1, int32_t pid2, int32_t type, uint32_t idx1, uint32_t idx2);;
-typedef void (*on_sys_kcmp_return_t)(CPUState* cpu, target_ulong pc, int32_t pid1, int32_t pid2, int32_t type, uint32_t idx1, uint32_t idx2); typedef void (*on_sys_kcmp_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid1, int32_t pid2, int32_t type, uint32_t idx1, uint32_t idx2);;
-typedef void (*on_sys_kexec_load_enter_t)(CPUState* cpu, target_ulong pc, uint32_t entry, uint32_t nr_segments, uint32_t segments, uint32_t flags); typedef void (*on_sys_kexec_load_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t entry, uint32_t nr_segments, uint32_t segments, uint32_t flags);;
-typedef void (*on_sys_kexec_load_return_t)(CPUState* cpu, target_ulong pc, uint32_t entry, uint32_t nr_segments, uint32_t segments, uint32_t flags); typedef void (*on_sys_kexec_load_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t entry, uint32_t nr_segments, uint32_t segments, uint32_t flags);;
-typedef void (*on_sys_keyctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_keyctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
-typedef void (*on_sys_keyctl_return_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_keyctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
-typedef void (*on_sys_kill_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig); typedef void (*on_sys_kill_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);;
-typedef void (*on_sys_kill_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig); typedef void (*on_sys_kill_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);;
-typedef void (*on_sys_lchown_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_lchown_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
-typedef void (*on_sys_lchown_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_lchown_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
-typedef void (*on_sys_lchown16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_lchown16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
-typedef void (*on_sys_lchown16_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group); typedef void (*on_sys_lchown16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);;
-typedef void (*on_sys_lgetxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size); typedef void (*on_sys_lgetxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);;
-typedef void (*on_sys_lgetxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size); typedef void (*on_sys_lgetxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);;
-typedef void (*on_sys_link_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname); typedef void (*on_sys_link_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);;
-typedef void (*on_sys_link_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname); typedef void (*on_sys_link_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);;
-typedef void (*on_sys_linkat_enter_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, int32_t flags); typedef void (*on_sys_linkat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, int32_t flags);;
-typedef void (*on_sys_linkat_return_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, int32_t flags); typedef void (*on_sys_linkat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, int32_t flags);;
-typedef void (*on_sys_listen_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1); typedef void (*on_sys_listen_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);;
-typedef void (*on_sys_listen_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1); typedef void (*on_sys_listen_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);;
-typedef void (*on_sys_listxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size); typedef void (*on_sys_listxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);;
-typedef void (*on_sys_listxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size); typedef void (*on_sys_listxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);;
-typedef void (*on_sys_llistxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size); typedef void (*on_sys_llistxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);;
-typedef void (*on_sys_llistxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size); typedef void (*on_sys_llistxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);;
-typedef void (*on_sys_llseek_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset_high, uint32_t offset_low, uint32_t result, uint32_t whence); typedef void (*on_sys_llseek_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset_high, uint32_t offset_low, uint32_t result, uint32_t whence);;
-typedef void (*on_sys_llseek_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset_high, uint32_t offset_low, uint32_t result, uint32_t whence); typedef void (*on_sys_llseek_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset_high, uint32_t offset_low, uint32_t result, uint32_t whence);;
-typedef void (*on_sys_lookup_dcookie_enter_t)(CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len); typedef void (*on_sys_lookup_dcookie_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len);;
-typedef void (*on_sys_lookup_dcookie_return_t)(CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len); typedef void (*on_sys_lookup_dcookie_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len);;
-typedef void (*on_sys_lremovexattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name); typedef void (*on_sys_lremovexattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);;
-typedef void (*on_sys_lremovexattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name); typedef void (*on_sys_lremovexattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);;
-typedef void (*on_sys_lseek_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset, uint32_t whence); typedef void (*on_sys_lseek_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset, uint32_t whence);;
-typedef void (*on_sys_lseek_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset, uint32_t whence); typedef void (*on_sys_lseek_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset, uint32_t whence);;
-typedef void (*on_sys_lsetxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags); typedef void (*on_sys_lsetxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);;
-typedef void (*on_sys_lsetxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags); typedef void (*on_sys_lsetxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);;
-typedef void (*on_sys_lstat64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_lstat64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
-typedef void (*on_sys_lstat64_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_lstat64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
-typedef void (*on_sys_madvise_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t behavior); typedef void (*on_sys_madvise_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t behavior);;
-typedef void (*on_sys_madvise_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t behavior); typedef void (*on_sys_madvise_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t behavior);;
-typedef void (*on_sys_mbind_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t mode, uint32_t nmask, uint32_t maxnode, uint32_t flags); typedef void (*on_sys_mbind_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t mode, uint32_t nmask, uint32_t maxnode, uint32_t flags);;
-typedef void (*on_sys_mbind_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t mode, uint32_t nmask, uint32_t maxnode, uint32_t flags); typedef void (*on_sys_mbind_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t mode, uint32_t nmask, uint32_t maxnode, uint32_t flags);;
-typedef void (*on_sys_membarrier_enter_t)(CPUState* cpu, target_ulong pc, int32_t cmd, int32_t flags); typedef void (*on_sys_membarrier_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t cmd, int32_t flags);;
-typedef void (*on_sys_membarrier_return_t)(CPUState* cpu, target_ulong pc, int32_t cmd, int32_t flags); typedef void (*on_sys_membarrier_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t cmd, int32_t flags);;
-typedef void (*on_sys_memfd_create_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uname_ptr, uint32_t flags); typedef void (*on_sys_memfd_create_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uname_ptr, uint32_t flags);;
-typedef void (*on_sys_memfd_create_return_t)(CPUState* cpu, target_ulong pc, uint32_t uname_ptr, uint32_t flags); typedef void (*on_sys_memfd_create_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uname_ptr, uint32_t flags);;
-typedef void (*on_sys_mincore_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t vec); typedef void (*on_sys_mincore_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t vec);;
-typedef void (*on_sys_mincore_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t vec); typedef void (*on_sys_mincore_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t vec);;
-typedef void (*on_sys_mkdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode); typedef void (*on_sys_mkdir_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);;
-typedef void (*on_sys_mkdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode); typedef void (*on_sys_mkdir_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);;
-typedef void (*on_sys_mkdirat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, uint32_t mode); typedef void (*on_sys_mkdirat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, uint32_t mode);;
-typedef void (*on_sys_mkdirat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, uint32_t mode); typedef void (*on_sys_mkdirat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, uint32_t mode);;
-typedef void (*on_sys_mknod_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode, uint32_t dev); typedef void (*on_sys_mknod_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode, uint32_t dev);;
-typedef void (*on_sys_mknod_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode, uint32_t dev); typedef void (*on_sys_mknod_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode, uint32_t dev);;
-typedef void (*on_sys_mknodat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode, uint32_t dev); typedef void (*on_sys_mknodat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode, uint32_t dev);;
-typedef void (*on_sys_mknodat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode, uint32_t dev); typedef void (*on_sys_mknodat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode, uint32_t dev);;
-typedef void (*on_sys_mlock_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len); typedef void (*on_sys_mlock_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);;
-typedef void (*on_sys_mlock_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len); typedef void (*on_sys_mlock_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);;
-typedef void (*on_sys_mlock2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags); typedef void (*on_sys_mlock2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);;
-typedef void (*on_sys_mlock2_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags); typedef void (*on_sys_mlock2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);;
-typedef void (*on_sys_mlockall_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_mlockall_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
-typedef void (*on_sys_mlockall_return_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_mlockall_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
-typedef void (*on_sys_mount_enter_t)(CPUState* cpu, target_ulong pc, uint32_t dev_name, uint32_t dir_name, uint32_t type, uint32_t flags, uint32_t _data); typedef void (*on_sys_mount_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t dev_name, uint32_t dir_name, uint32_t type, uint32_t flags, uint32_t _data);;
-typedef void (*on_sys_mount_return_t)(CPUState* cpu, target_ulong pc, uint32_t dev_name, uint32_t dir_name, uint32_t type, uint32_t flags, uint32_t _data); typedef void (*on_sys_mount_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t dev_name, uint32_t dir_name, uint32_t type, uint32_t flags, uint32_t _data);;
-typedef void (*on_sys_move_pages_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t nr_pages, uint32_t pages, uint32_t nodes, uint32_t status, int32_t flags); typedef void (*on_sys_move_pages_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t nr_pages, uint32_t pages, uint32_t nodes, uint32_t status, int32_t flags);;
-typedef void (*on_sys_move_pages_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t nr_pages, uint32_t pages, uint32_t nodes, uint32_t status, int32_t flags); typedef void (*on_sys_move_pages_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t nr_pages, uint32_t pages, uint32_t nodes, uint32_t status, int32_t flags);;
-typedef void (*on_sys_mprotect_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot); typedef void (*on_sys_mprotect_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot);;
-typedef void (*on_sys_mprotect_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot); typedef void (*on_sys_mprotect_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot);;
-typedef void (*on_sys_mq_getsetattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t mqstat, uint32_t omqstat); typedef void (*on_sys_mq_getsetattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t mqstat, uint32_t omqstat);;
-typedef void (*on_sys_mq_getsetattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t mqstat, uint32_t omqstat); typedef void (*on_sys_mq_getsetattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t mqstat, uint32_t omqstat);;
-typedef void (*on_sys_mq_notify_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t notification); typedef void (*on_sys_mq_notify_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t notification);;
-typedef void (*on_sys_mq_notify_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t notification); typedef void (*on_sys_mq_notify_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t notification);;
-typedef void (*on_sys_mq_open_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t oflag, uint32_t mode, uint32_t attr); typedef void (*on_sys_mq_open_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t oflag, uint32_t mode, uint32_t attr);;
-typedef void (*on_sys_mq_open_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t oflag, uint32_t mode, uint32_t attr); typedef void (*on_sys_mq_open_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t oflag, uint32_t mode, uint32_t attr);;
-typedef void (*on_sys_mq_timedreceive_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout); typedef void (*on_sys_mq_timedreceive_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);;
-typedef void (*on_sys_mq_timedreceive_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout); typedef void (*on_sys_mq_timedreceive_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);;
-typedef void (*on_sys_mq_timedsend_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout); typedef void (*on_sys_mq_timedsend_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);;
-typedef void (*on_sys_mq_timedsend_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout); typedef void (*on_sys_mq_timedsend_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);;
-typedef void (*on_sys_mq_unlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_mq_unlink_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
-typedef void (*on_sys_mq_unlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_mq_unlink_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
-typedef void (*on_sys_mremap_enter_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t old_len, uint32_t new_len, uint32_t flags, uint32_t new_addr); typedef void (*on_sys_mremap_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t old_len, uint32_t new_len, uint32_t flags, uint32_t new_addr);;
-typedef void (*on_sys_mremap_return_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t old_len, uint32_t new_len, uint32_t flags, uint32_t new_addr); typedef void (*on_sys_mremap_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t old_len, uint32_t new_len, uint32_t flags, uint32_t new_addr);;
-typedef void (*on_sys_msgctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t msqid, int32_t cmd, uint32_t buf); typedef void (*on_sys_msgctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t msqid, int32_t cmd, uint32_t buf);;
-typedef void (*on_sys_msgctl_return_t)(CPUState* cpu, target_ulong pc, int32_t msqid, int32_t cmd, uint32_t buf); typedef void (*on_sys_msgctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t msqid, int32_t cmd, uint32_t buf);;
-typedef void (*on_sys_msgget_enter_t)(CPUState* cpu, target_ulong pc, uint32_t key, int32_t msgflg); typedef void (*on_sys_msgget_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t key, int32_t msgflg);;
-typedef void (*on_sys_msgget_return_t)(CPUState* cpu, target_ulong pc, uint32_t key, int32_t msgflg); typedef void (*on_sys_msgget_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t key, int32_t msgflg);;
-typedef void (*on_sys_msgrcv_enter_t)(CPUState* cpu, target_ulong pc, int32_t msqid, uint32_t msgp, uint32_t msgsz, int32_t msgtyp, int32_t msgflg); typedef void (*on_sys_msgrcv_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t msqid, uint32_t msgp, uint32_t msgsz, int32_t msgtyp, int32_t msgflg);;
-typedef void (*on_sys_msgrcv_return_t)(CPUState* cpu, target_ulong pc, int32_t msqid, uint32_t msgp, uint32_t msgsz, int32_t msgtyp, int32_t msgflg); typedef void (*on_sys_msgrcv_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t msqid, uint32_t msgp, uint32_t msgsz, int32_t msgtyp, int32_t msgflg);;
-typedef void (*on_sys_msgsnd_enter_t)(CPUState* cpu, target_ulong pc, int32_t msqid, uint32_t msgp, uint32_t msgsz, int32_t msgflg); typedef void (*on_sys_msgsnd_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t msqid, uint32_t msgp, uint32_t msgsz, int32_t msgflg);;
-typedef void (*on_sys_msgsnd_return_t)(CPUState* cpu, target_ulong pc, int32_t msqid, uint32_t msgp, uint32_t msgsz, int32_t msgflg); typedef void (*on_sys_msgsnd_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t msqid, uint32_t msgp, uint32_t msgsz, int32_t msgflg);;
-typedef void (*on_sys_msync_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags); typedef void (*on_sys_msync_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);;
-typedef void (*on_sys_msync_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags); typedef void (*on_sys_msync_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);;
-typedef void (*on_sys_munlock_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len); typedef void (*on_sys_munlock_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);;
-typedef void (*on_sys_munlock_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len); typedef void (*on_sys_munlock_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);;
-typedef void (*on_sys_munlockall_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_munlockall_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_munlockall_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_munlockall_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_munmap_enter_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len); typedef void (*on_sys_munmap_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len);;
-typedef void (*on_sys_munmap_return_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len); typedef void (*on_sys_munmap_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len);;
-typedef void (*on_sys_name_to_handle_at_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t name, uint32_t handle, uint32_t mnt_id, int32_t flag); typedef void (*on_sys_name_to_handle_at_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t name, uint32_t handle, uint32_t mnt_id, int32_t flag);;
-typedef void (*on_sys_name_to_handle_at_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t name, uint32_t handle, uint32_t mnt_id, int32_t flag); typedef void (*on_sys_name_to_handle_at_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t name, uint32_t handle, uint32_t mnt_id, int32_t flag);;
-typedef void (*on_sys_nanosleep_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rqtp, uint32_t rmtp); typedef void (*on_sys_nanosleep_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rqtp, uint32_t rmtp);;
-typedef void (*on_sys_nanosleep_return_t)(CPUState* cpu, target_ulong pc, uint32_t rqtp, uint32_t rmtp); typedef void (*on_sys_nanosleep_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rqtp, uint32_t rmtp);;
-typedef void (*on_sys_newfstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf); typedef void (*on_sys_newfstat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);;
-typedef void (*on_sys_newfstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf); typedef void (*on_sys_newfstat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);;
-typedef void (*on_sys_newlstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_newlstat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
-typedef void (*on_sys_newlstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_newlstat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
-typedef void (*on_sys_newstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_newstat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
-typedef void (*on_sys_newstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_newstat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
-typedef void (*on_sys_newuname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_newuname_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
-typedef void (*on_sys_newuname_return_t)(CPUState* cpu, target_ulong pc, uint32_t name); typedef void (*on_sys_newuname_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name);;
-typedef void (*on_sys_nice_enter_t)(CPUState* cpu, target_ulong pc, int32_t increment); typedef void (*on_sys_nice_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t increment);;
-typedef void (*on_sys_nice_return_t)(CPUState* cpu, target_ulong pc, int32_t increment); typedef void (*on_sys_nice_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t increment);;
-typedef void (*on_sys_open_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t flags, uint32_t mode); typedef void (*on_sys_open_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, int32_t flags, uint32_t mode);;
-typedef void (*on_sys_open_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t flags, uint32_t mode); typedef void (*on_sys_open_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, int32_t flags, uint32_t mode);;
-typedef void (*on_sys_open_by_handle_at_enter_t)(CPUState* cpu, target_ulong pc, int32_t mountdirfd, uint32_t handle, int32_t flags); typedef void (*on_sys_open_by_handle_at_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t mountdirfd, uint32_t handle, int32_t flags);;
-typedef void (*on_sys_open_by_handle_at_return_t)(CPUState* cpu, target_ulong pc, int32_t mountdirfd, uint32_t handle, int32_t flags); typedef void (*on_sys_open_by_handle_at_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t mountdirfd, uint32_t handle, int32_t flags);;
-typedef void (*on_sys_openat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t flags, uint32_t mode); typedef void (*on_sys_openat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t flags, uint32_t mode);;
-typedef void (*on_sys_openat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t flags, uint32_t mode); typedef void (*on_sys_openat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t flags, uint32_t mode);;
-typedef void (*on_sys_pause_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_pause_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_pause_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_pause_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_pciconfig_iobase_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t bus, uint32_t devfn); typedef void (*on_sys_pciconfig_iobase_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, uint32_t bus, uint32_t devfn);;
-typedef void (*on_sys_pciconfig_iobase_return_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t bus, uint32_t devfn); typedef void (*on_sys_pciconfig_iobase_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, uint32_t bus, uint32_t devfn);;
-typedef void (*on_sys_pciconfig_read_enter_t)(CPUState* cpu, target_ulong pc, uint32_t bus, uint32_t dfn, uint32_t off, uint32_t len, uint32_t buf); typedef void (*on_sys_pciconfig_read_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t bus, uint32_t dfn, uint32_t off, uint32_t len, uint32_t buf);;
-typedef void (*on_sys_pciconfig_read_return_t)(CPUState* cpu, target_ulong pc, uint32_t bus, uint32_t dfn, uint32_t off, uint32_t len, uint32_t buf); typedef void (*on_sys_pciconfig_read_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t bus, uint32_t dfn, uint32_t off, uint32_t len, uint32_t buf);;
-typedef void (*on_sys_pciconfig_write_enter_t)(CPUState* cpu, target_ulong pc, uint32_t bus, uint32_t dfn, uint32_t off, uint32_t len, uint32_t buf); typedef void (*on_sys_pciconfig_write_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t bus, uint32_t dfn, uint32_t off, uint32_t len, uint32_t buf);;
-typedef void (*on_sys_pciconfig_write_return_t)(CPUState* cpu, target_ulong pc, uint32_t bus, uint32_t dfn, uint32_t off, uint32_t len, uint32_t buf); typedef void (*on_sys_pciconfig_write_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t bus, uint32_t dfn, uint32_t off, uint32_t len, uint32_t buf);;
-typedef void (*on_sys_perf_event_open_enter_t)(CPUState* cpu, target_ulong pc, uint32_t attr_uptr, int32_t pid, int32_t _cpu, int32_t group_fd, uint32_t flags); typedef void (*on_sys_perf_event_open_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t attr_uptr, int32_t pid, int32_t _cpu, int32_t group_fd, uint32_t flags);;
-typedef void (*on_sys_perf_event_open_return_t)(CPUState* cpu, target_ulong pc, uint32_t attr_uptr, int32_t pid, int32_t _cpu, int32_t group_fd, uint32_t flags); typedef void (*on_sys_perf_event_open_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t attr_uptr, int32_t pid, int32_t _cpu, int32_t group_fd, uint32_t flags);;
-typedef void (*on_sys_personality_enter_t)(CPUState* cpu, target_ulong pc, uint32_t personality); typedef void (*on_sys_personality_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t personality);;
-typedef void (*on_sys_personality_return_t)(CPUState* cpu, target_ulong pc, uint32_t personality); typedef void (*on_sys_personality_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t personality);;
-typedef void (*on_sys_pipe_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fildes); typedef void (*on_sys_pipe_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fildes);;
-typedef void (*on_sys_pipe_return_t)(CPUState* cpu, target_ulong pc, uint32_t fildes); typedef void (*on_sys_pipe_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fildes);;
-typedef void (*on_sys_pipe2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fildes, int32_t flags); typedef void (*on_sys_pipe2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fildes, int32_t flags);;
-typedef void (*on_sys_pipe2_return_t)(CPUState* cpu, target_ulong pc, uint32_t fildes, int32_t flags); typedef void (*on_sys_pipe2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fildes, int32_t flags);;
-typedef void (*on_sys_pivot_root_enter_t)(CPUState* cpu, target_ulong pc, uint32_t new_root, uint32_t put_old); typedef void (*on_sys_pivot_root_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t new_root, uint32_t put_old);;
-typedef void (*on_sys_pivot_root_return_t)(CPUState* cpu, target_ulong pc, uint32_t new_root, uint32_t put_old); typedef void (*on_sys_pivot_root_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t new_root, uint32_t put_old);;
-typedef void (*on_sys_poll_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ufds, uint32_t nfds, int32_t timeout); typedef void (*on_sys_poll_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ufds, uint32_t nfds, int32_t timeout);;
-typedef void (*on_sys_poll_return_t)(CPUState* cpu, target_ulong pc, uint32_t ufds, uint32_t nfds, int32_t timeout); typedef void (*on_sys_poll_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ufds, uint32_t nfds, int32_t timeout);;
-typedef void (*on_sys_ppoll_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4); typedef void (*on_sys_ppoll_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);;
-typedef void (*on_sys_ppoll_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4); typedef void (*on_sys_ppoll_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);;
-typedef void (*on_sys_prctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_prctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
-typedef void (*on_sys_prctl_return_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_prctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
-typedef void (*on_sys_pread64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos); typedef void (*on_sys_pread64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);;
-typedef void (*on_sys_pread64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos); typedef void (*on_sys_pread64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);;
-typedef void (*on_sys_preadv_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h); typedef void (*on_sys_preadv_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);;
-typedef void (*on_sys_preadv_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h); typedef void (*on_sys_preadv_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);;
-typedef void (*on_sys_prlimit64_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t resource, uint32_t new_rlim, uint32_t old_rlim); typedef void (*on_sys_prlimit64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t resource, uint32_t new_rlim, uint32_t old_rlim);;
-typedef void (*on_sys_prlimit64_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t resource, uint32_t new_rlim, uint32_t old_rlim); typedef void (*on_sys_prlimit64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t resource, uint32_t new_rlim, uint32_t old_rlim);;
-typedef void (*on_sys_process_vm_readv_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags); typedef void (*on_sys_process_vm_readv_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);;
-typedef void (*on_sys_process_vm_readv_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags); typedef void (*on_sys_process_vm_readv_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);;
-typedef void (*on_sys_process_vm_writev_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags); typedef void (*on_sys_process_vm_writev_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);;
-typedef void (*on_sys_process_vm_writev_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags); typedef void (*on_sys_process_vm_writev_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);;
-typedef void (*on_sys_pselect6_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_pselect6_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
-typedef void (*on_sys_pselect6_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_pselect6_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
-typedef void (*on_sys_ptrace_enter_t)(CPUState* cpu, target_ulong pc, int32_t request, int32_t pid, uint32_t addr, uint32_t _data); typedef void (*on_sys_ptrace_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t request, int32_t pid, uint32_t addr, uint32_t _data);;
-typedef void (*on_sys_ptrace_return_t)(CPUState* cpu, target_ulong pc, int32_t request, int32_t pid, uint32_t addr, uint32_t _data); typedef void (*on_sys_ptrace_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t request, int32_t pid, uint32_t addr, uint32_t _data);;
-typedef void (*on_sys_pwrite64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos); typedef void (*on_sys_pwrite64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);;
-typedef void (*on_sys_pwrite64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos); typedef void (*on_sys_pwrite64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);;
-typedef void (*on_sys_pwritev_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h); typedef void (*on_sys_pwritev_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);;
-typedef void (*on_sys_pwritev_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h); typedef void (*on_sys_pwritev_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);;
-typedef void (*on_sys_quotactl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t cmd, uint32_t special, uint32_t id, uint32_t addr); typedef void (*on_sys_quotactl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t cmd, uint32_t special, uint32_t id, uint32_t addr);;
-typedef void (*on_sys_quotactl_return_t)(CPUState* cpu, target_ulong pc, uint32_t cmd, uint32_t special, uint32_t id, uint32_t addr); typedef void (*on_sys_quotactl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t cmd, uint32_t special, uint32_t id, uint32_t addr);;
-typedef void (*on_sys_read_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count); typedef void (*on_sys_read_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);;
-typedef void (*on_sys_read_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count); typedef void (*on_sys_read_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);;
-typedef void (*on_sys_readahead_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t count); typedef void (*on_sys_readahead_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t count);;
-typedef void (*on_sys_readahead_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t count); typedef void (*on_sys_readahead_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t count);;
-typedef void (*on_sys_readlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf, int32_t bufsiz); typedef void (*on_sys_readlink_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf, int32_t bufsiz);;
-typedef void (*on_sys_readlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf, int32_t bufsiz); typedef void (*on_sys_readlink_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf, int32_t bufsiz);;
-typedef void (*on_sys_readlinkat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t buf, int32_t bufsiz); typedef void (*on_sys_readlinkat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t buf, int32_t bufsiz);;
-typedef void (*on_sys_readlinkat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t buf, int32_t bufsiz); typedef void (*on_sys_readlinkat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t buf, int32_t bufsiz);;
-typedef void (*on_sys_readv_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen); typedef void (*on_sys_readv_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);;
-typedef void (*on_sys_readv_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen); typedef void (*on_sys_readv_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);;
-typedef void (*on_sys_reboot_enter_t)(CPUState* cpu, target_ulong pc, int32_t magic1, int32_t magic2, uint32_t cmd, uint32_t arg); typedef void (*on_sys_reboot_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t magic1, int32_t magic2, uint32_t cmd, uint32_t arg);;
-typedef void (*on_sys_reboot_return_t)(CPUState* cpu, target_ulong pc, int32_t magic1, int32_t magic2, uint32_t cmd, uint32_t arg); typedef void (*on_sys_reboot_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t magic1, int32_t magic2, uint32_t cmd, uint32_t arg);;
-typedef void (*on_sys_recv_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3); typedef void (*on_sys_recv_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);;
-typedef void (*on_sys_recv_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3); typedef void (*on_sys_recv_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);;
-typedef void (*on_sys_recvfrom_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_recvfrom_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
-typedef void (*on_sys_recvfrom_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5); typedef void (*on_sys_recvfrom_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);;
-typedef void (*on_sys_recvmmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags, uint32_t timeout); typedef void (*on_sys_recvmmsg_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags, uint32_t timeout);;
-typedef void (*on_sys_recvmmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags, uint32_t timeout); typedef void (*on_sys_recvmmsg_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags, uint32_t timeout);;
-typedef void (*on_sys_recvmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags); typedef void (*on_sys_recvmsg_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);;
-typedef void (*on_sys_recvmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags); typedef void (*on_sys_recvmsg_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);;
-typedef void (*on_sys_remap_file_pages_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t size, uint32_t prot, uint32_t pgoff, uint32_t flags); typedef void (*on_sys_remap_file_pages_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t size, uint32_t prot, uint32_t pgoff, uint32_t flags);;
-typedef void (*on_sys_remap_file_pages_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t size, uint32_t prot, uint32_t pgoff, uint32_t flags); typedef void (*on_sys_remap_file_pages_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t start, uint32_t size, uint32_t prot, uint32_t pgoff, uint32_t flags);;
-typedef void (*on_sys_removexattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name); typedef void (*on_sys_removexattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);;
-typedef void (*on_sys_removexattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name); typedef void (*on_sys_removexattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);;
-typedef void (*on_sys_rename_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname); typedef void (*on_sys_rename_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);;
-typedef void (*on_sys_rename_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname); typedef void (*on_sys_rename_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);;
-typedef void (*on_sys_renameat_enter_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname); typedef void (*on_sys_renameat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname);;
-typedef void (*on_sys_renameat_return_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname); typedef void (*on_sys_renameat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname);;
-typedef void (*on_sys_renameat2_enter_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, uint32_t flags); typedef void (*on_sys_renameat2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, uint32_t flags);;
-typedef void (*on_sys_renameat2_return_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, uint32_t flags); typedef void (*on_sys_renameat2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, uint32_t flags);;
-typedef void (*on_sys_request_key_enter_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _callout_info, uint32_t destringid); typedef void (*on_sys_request_key_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _callout_info, uint32_t destringid);;
-typedef void (*on_sys_request_key_return_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _callout_info, uint32_t destringid); typedef void (*on_sys_request_key_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _callout_info, uint32_t destringid);;
-typedef void (*on_sys_restart_syscall_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_restart_syscall_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_restart_syscall_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_restart_syscall_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_rmdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname); typedef void (*on_sys_rmdir_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname);;
-typedef void (*on_sys_rmdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname); typedef void (*on_sys_rmdir_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname);;
-typedef void (*on_sys_rt_sigaction_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3); typedef void (*on_sys_rt_sigaction_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);;
-typedef void (*on_sys_rt_sigaction_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3); typedef void (*on_sys_rt_sigaction_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);;
-typedef void (*on_sys_rt_sigpending_enter_t)(CPUState* cpu, target_ulong pc, uint32_t set, uint32_t sigsetsize); typedef void (*on_sys_rt_sigpending_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t set, uint32_t sigsetsize);;
-typedef void (*on_sys_rt_sigpending_return_t)(CPUState* cpu, target_ulong pc, uint32_t set, uint32_t sigsetsize); typedef void (*on_sys_rt_sigpending_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t set, uint32_t sigsetsize);;
-typedef void (*on_sys_rt_sigprocmask_enter_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset, uint32_t sigsetsize); typedef void (*on_sys_rt_sigprocmask_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset, uint32_t sigsetsize);;
-typedef void (*on_sys_rt_sigprocmask_return_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset, uint32_t sigsetsize); typedef void (*on_sys_rt_sigprocmask_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset, uint32_t sigsetsize);;
-typedef void (*on_sys_rt_sigqueueinfo_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig, uint32_t uinfo); typedef void (*on_sys_rt_sigqueueinfo_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig, uint32_t uinfo);;
-typedef void (*on_sys_rt_sigqueueinfo_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig, uint32_t uinfo); typedef void (*on_sys_rt_sigqueueinfo_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig, uint32_t uinfo);;
-typedef void (*on_sys_rt_sigreturn_enter_t)(CPUState* cpu, target_ulong pc, uint32_t regs); typedef void (*on_sys_rt_sigreturn_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t regs);;
-typedef void (*on_sys_rt_sigreturn_return_t)(CPUState* cpu, target_ulong pc, uint32_t regs); typedef void (*on_sys_rt_sigreturn_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t regs);;
-typedef void (*on_sys_rt_sigsuspend_enter_t)(CPUState* cpu, target_ulong pc, uint32_t unewset, uint32_t sigsetsize); typedef void (*on_sys_rt_sigsuspend_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t unewset, uint32_t sigsetsize);;
-typedef void (*on_sys_rt_sigsuspend_return_t)(CPUState* cpu, target_ulong pc, uint32_t unewset, uint32_t sigsetsize); typedef void (*on_sys_rt_sigsuspend_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t unewset, uint32_t sigsetsize);;
-typedef void (*on_sys_rt_sigtimedwait_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uthese, uint32_t uinfo, uint32_t uts, uint32_t sigsetsize); typedef void (*on_sys_rt_sigtimedwait_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uthese, uint32_t uinfo, uint32_t uts, uint32_t sigsetsize);;
-typedef void (*on_sys_rt_sigtimedwait_return_t)(CPUState* cpu, target_ulong pc, uint32_t uthese, uint32_t uinfo, uint32_t uts, uint32_t sigsetsize); typedef void (*on_sys_rt_sigtimedwait_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uthese, uint32_t uinfo, uint32_t uts, uint32_t sigsetsize);;
-typedef void (*on_sys_rt_tgsigqueueinfo_enter_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig, uint32_t uinfo); typedef void (*on_sys_rt_tgsigqueueinfo_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig, uint32_t uinfo);;
-typedef void (*on_sys_rt_tgsigqueueinfo_return_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig, uint32_t uinfo); typedef void (*on_sys_rt_tgsigqueueinfo_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig, uint32_t uinfo);;
-typedef void (*on_sys_sched_get_priority_max_enter_t)(CPUState* cpu, target_ulong pc, int32_t policy); typedef void (*on_sys_sched_get_priority_max_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t policy);;
-typedef void (*on_sys_sched_get_priority_max_return_t)(CPUState* cpu, target_ulong pc, int32_t policy); typedef void (*on_sys_sched_get_priority_max_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t policy);;
-typedef void (*on_sys_sched_get_priority_min_enter_t)(CPUState* cpu, target_ulong pc, int32_t policy); typedef void (*on_sys_sched_get_priority_min_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t policy);;
-typedef void (*on_sys_sched_get_priority_min_return_t)(CPUState* cpu, target_ulong pc, int32_t policy); typedef void (*on_sys_sched_get_priority_min_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t policy);;
-typedef void (*on_sys_sched_getaffinity_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr); typedef void (*on_sys_sched_getaffinity_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);;
-typedef void (*on_sys_sched_getaffinity_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr); typedef void (*on_sys_sched_getaffinity_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);;
-typedef void (*on_sys_sched_getattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t size, uint32_t flags); typedef void (*on_sys_sched_getattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t size, uint32_t flags);;
-typedef void (*on_sys_sched_getattr_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t size, uint32_t flags); typedef void (*on_sys_sched_getattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t size, uint32_t flags);;
-typedef void (*on_sys_sched_getparam_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param); typedef void (*on_sys_sched_getparam_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);;
-typedef void (*on_sys_sched_getparam_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param); typedef void (*on_sys_sched_getparam_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);;
-typedef void (*on_sys_sched_getscheduler_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid); typedef void (*on_sys_sched_getscheduler_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid);;
-typedef void (*on_sys_sched_getscheduler_return_t)(CPUState* cpu, target_ulong pc, int32_t pid); typedef void (*on_sys_sched_getscheduler_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid);;
-typedef void (*on_sys_sched_rr_get_interval_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t interval); typedef void (*on_sys_sched_rr_get_interval_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t interval);;
-typedef void (*on_sys_sched_rr_get_interval_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t interval); typedef void (*on_sys_sched_rr_get_interval_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t interval);;
-typedef void (*on_sys_sched_setaffinity_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr); typedef void (*on_sys_sched_setaffinity_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);;
-typedef void (*on_sys_sched_setaffinity_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr); typedef void (*on_sys_sched_setaffinity_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);;
-typedef void (*on_sys_sched_setattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t flags); typedef void (*on_sys_sched_setattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t flags);;
-typedef void (*on_sys_sched_setattr_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t flags); typedef void (*on_sys_sched_setattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t flags);;
-typedef void (*on_sys_sched_setparam_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param); typedef void (*on_sys_sched_setparam_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);;
-typedef void (*on_sys_sched_setparam_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param); typedef void (*on_sys_sched_setparam_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);;
-typedef void (*on_sys_sched_setscheduler_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t policy, uint32_t param); typedef void (*on_sys_sched_setscheduler_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t policy, uint32_t param);;
-typedef void (*on_sys_sched_setscheduler_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t policy, uint32_t param); typedef void (*on_sys_sched_setscheduler_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t policy, uint32_t param);;
-typedef void (*on_sys_sched_yield_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_sched_yield_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_sched_yield_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_sched_yield_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_seccomp_enter_t)(CPUState* cpu, target_ulong pc, uint32_t op, uint32_t flags, uint32_t uargs); typedef void (*on_sys_seccomp_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t op, uint32_t flags, uint32_t uargs);;
-typedef void (*on_sys_seccomp_return_t)(CPUState* cpu, target_ulong pc, uint32_t op, uint32_t flags, uint32_t uargs); typedef void (*on_sys_seccomp_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t op, uint32_t flags, uint32_t uargs);;
-typedef void (*on_sys_select_enter_t)(CPUState* cpu, target_ulong pc, int32_t n, uint32_t inp, uint32_t outp, uint32_t exp, uint32_t tvp); typedef void (*on_sys_select_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t n, uint32_t inp, uint32_t outp, uint32_t exp, uint32_t tvp);;
-typedef void (*on_sys_select_return_t)(CPUState* cpu, target_ulong pc, int32_t n, uint32_t inp, uint32_t outp, uint32_t exp, uint32_t tvp); typedef void (*on_sys_select_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t n, uint32_t inp, uint32_t outp, uint32_t exp, uint32_t tvp);;
-typedef void (*on_sys_semctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t semid, int32_t semnum, int32_t cmd, uint32_t arg); typedef void (*on_sys_semctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t semid, int32_t semnum, int32_t cmd, uint32_t arg);;
-typedef void (*on_sys_semctl_return_t)(CPUState* cpu, target_ulong pc, int32_t semid, int32_t semnum, int32_t cmd, uint32_t arg); typedef void (*on_sys_semctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t semid, int32_t semnum, int32_t cmd, uint32_t arg);;
-typedef void (*on_sys_semget_enter_t)(CPUState* cpu, target_ulong pc, uint32_t key, int32_t nsems, int32_t semflg); typedef void (*on_sys_semget_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t key, int32_t nsems, int32_t semflg);;
-typedef void (*on_sys_semget_return_t)(CPUState* cpu, target_ulong pc, uint32_t key, int32_t nsems, int32_t semflg); typedef void (*on_sys_semget_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t key, int32_t nsems, int32_t semflg);;
-typedef void (*on_sys_semop_enter_t)(CPUState* cpu, target_ulong pc, int32_t semid, uint32_t sops, uint32_t nsops); typedef void (*on_sys_semop_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t semid, uint32_t sops, uint32_t nsops);;
-typedef void (*on_sys_semop_return_t)(CPUState* cpu, target_ulong pc, int32_t semid, uint32_t sops, uint32_t nsops); typedef void (*on_sys_semop_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t semid, uint32_t sops, uint32_t nsops);;
-typedef void (*on_sys_semtimedop_enter_t)(CPUState* cpu, target_ulong pc, int32_t semid, uint32_t sops, uint32_t nsops, uint32_t timeout); typedef void (*on_sys_semtimedop_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t semid, uint32_t sops, uint32_t nsops, uint32_t timeout);;
-typedef void (*on_sys_semtimedop_return_t)(CPUState* cpu, target_ulong pc, int32_t semid, uint32_t sops, uint32_t nsops, uint32_t timeout); typedef void (*on_sys_semtimedop_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t semid, uint32_t sops, uint32_t nsops, uint32_t timeout);;
-typedef void (*on_sys_send_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3); typedef void (*on_sys_send_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);;
-typedef void (*on_sys_send_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3); typedef void (*on_sys_send_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);;
-typedef void (*on_sys_sendfile_enter_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count); typedef void (*on_sys_sendfile_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);;
-typedef void (*on_sys_sendfile_return_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count); typedef void (*on_sys_sendfile_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);;
-typedef void (*on_sys_sendfile64_enter_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count); typedef void (*on_sys_sendfile64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);;
-typedef void (*on_sys_sendfile64_return_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count); typedef void (*on_sys_sendfile64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);;
-typedef void (*on_sys_sendmmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags); typedef void (*on_sys_sendmmsg_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags);;
-typedef void (*on_sys_sendmmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags); typedef void (*on_sys_sendmmsg_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags);;
-typedef void (*on_sys_sendmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags); typedef void (*on_sys_sendmsg_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);;
-typedef void (*on_sys_sendmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags); typedef void (*on_sys_sendmsg_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);;
-typedef void (*on_sys_sendto_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, int32_t arg5); typedef void (*on_sys_sendto_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, int32_t arg5);;
-typedef void (*on_sys_sendto_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, int32_t arg5); typedef void (*on_sys_sendto_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, int32_t arg5);;
-typedef void (*on_sys_set_mempolicy_enter_t)(CPUState* cpu, target_ulong pc, int32_t mode, uint32_t nmask, uint32_t maxnode); typedef void (*on_sys_set_mempolicy_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t mode, uint32_t nmask, uint32_t maxnode);;
-typedef void (*on_sys_set_mempolicy_return_t)(CPUState* cpu, target_ulong pc, int32_t mode, uint32_t nmask, uint32_t maxnode); typedef void (*on_sys_set_mempolicy_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t mode, uint32_t nmask, uint32_t maxnode);;
-typedef void (*on_sys_set_robust_list_enter_t)(CPUState* cpu, target_ulong pc, uint32_t head, uint32_t len); typedef void (*on_sys_set_robust_list_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t head, uint32_t len);;
-typedef void (*on_sys_set_robust_list_return_t)(CPUState* cpu, target_ulong pc, uint32_t head, uint32_t len); typedef void (*on_sys_set_robust_list_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t head, uint32_t len);;
-typedef void (*on_sys_set_tid_address_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tidptr); typedef void (*on_sys_set_tid_address_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tidptr);;
-typedef void (*on_sys_set_tid_address_return_t)(CPUState* cpu, target_ulong pc, uint32_t tidptr); typedef void (*on_sys_set_tid_address_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tidptr);;
-typedef void (*on_sys_setdomainname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len); typedef void (*on_sys_setdomainname_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);;
-typedef void (*on_sys_setdomainname_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len); typedef void (*on_sys_setdomainname_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);;
-typedef void (*on_sys_setfsgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setfsgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
-typedef void (*on_sys_setfsgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setfsgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
-typedef void (*on_sys_setfsgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setfsgid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
-typedef void (*on_sys_setfsgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setfsgid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
-typedef void (*on_sys_setfsuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setfsuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
-typedef void (*on_sys_setfsuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setfsuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
-typedef void (*on_sys_setfsuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setfsuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
-typedef void (*on_sys_setfsuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setfsuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
-typedef void (*on_sys_setgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
-typedef void (*on_sys_setgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
-typedef void (*on_sys_setgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setgid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
-typedef void (*on_sys_setgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid); typedef void (*on_sys_setgid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t gid);;
-typedef void (*on_sys_setgroups_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_setgroups_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
-typedef void (*on_sys_setgroups_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_setgroups_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
-typedef void (*on_sys_setgroups16_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_setgroups16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
-typedef void (*on_sys_setgroups16_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist); typedef void (*on_sys_setgroups16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);;
-typedef void (*on_sys_sethostname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len); typedef void (*on_sys_sethostname_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);;
-typedef void (*on_sys_sethostname_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len); typedef void (*on_sys_sethostname_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);;
-typedef void (*on_sys_setitimer_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value, uint32_t ovalue); typedef void (*on_sys_setitimer_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, uint32_t value, uint32_t ovalue);;
-typedef void (*on_sys_setitimer_return_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value, uint32_t ovalue); typedef void (*on_sys_setitimer_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, uint32_t value, uint32_t ovalue);;
-typedef void (*on_sys_setns_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t nstype); typedef void (*on_sys_setns_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t nstype);;
-typedef void (*on_sys_setns_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t nstype); typedef void (*on_sys_setns_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t nstype);;
-typedef void (*on_sys_setpgid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t pgid); typedef void (*on_sys_setpgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t pgid);;
-typedef void (*on_sys_setpgid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t pgid); typedef void (*on_sys_setpgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t pgid);;
-typedef void (*on_sys_setpriority_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t niceval); typedef void (*on_sys_setpriority_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t niceval);;
-typedef void (*on_sys_setpriority_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t niceval); typedef void (*on_sys_setpriority_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t niceval);;
-typedef void (*on_sys_setregid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid); typedef void (*on_sys_setregid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);;
-typedef void (*on_sys_setregid_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid); typedef void (*on_sys_setregid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);;
-typedef void (*on_sys_setregid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid); typedef void (*on_sys_setregid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);;
-typedef void (*on_sys_setregid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid); typedef void (*on_sys_setregid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);;
-typedef void (*on_sys_setresgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_setresgid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
-typedef void (*on_sys_setresgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_setresgid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
-typedef void (*on_sys_setresgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_setresgid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
-typedef void (*on_sys_setresgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid); typedef void (*on_sys_setresgid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);;
-typedef void (*on_sys_setresuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_setresuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
-typedef void (*on_sys_setresuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_setresuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
-typedef void (*on_sys_setresuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_setresuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
-typedef void (*on_sys_setresuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid); typedef void (*on_sys_setresuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);;
-typedef void (*on_sys_setreuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid); typedef void (*on_sys_setreuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);;
-typedef void (*on_sys_setreuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid); typedef void (*on_sys_setreuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);;
-typedef void (*on_sys_setreuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid); typedef void (*on_sys_setreuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);;
-typedef void (*on_sys_setreuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid); typedef void (*on_sys_setreuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);;
-typedef void (*on_sys_setrlimit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim); typedef void (*on_sys_setrlimit_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);;
-typedef void (*on_sys_setrlimit_return_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim); typedef void (*on_sys_setrlimit_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);;
-typedef void (*on_sys_setsid_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_setsid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_setsid_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_setsid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_setsockopt_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, int32_t optlen); typedef void (*on_sys_setsockopt_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, int32_t optlen);;
-typedef void (*on_sys_setsockopt_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, int32_t optlen); typedef void (*on_sys_setsockopt_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, int32_t optlen);;
-typedef void (*on_sys_settimeofday_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz); typedef void (*on_sys_settimeofday_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);;
-typedef void (*on_sys_settimeofday_return_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz); typedef void (*on_sys_settimeofday_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);;
-typedef void (*on_sys_setuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setuid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
-typedef void (*on_sys_setuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setuid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
-typedef void (*on_sys_setuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setuid16_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
-typedef void (*on_sys_setuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid); typedef void (*on_sys_setuid16_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uid);;
-typedef void (*on_sys_setxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags); typedef void (*on_sys_setxattr_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);;
-typedef void (*on_sys_setxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags); typedef void (*on_sys_setxattr_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);;
-typedef void (*on_sys_shmat_enter_t)(CPUState* cpu, target_ulong pc, int32_t shmid, uint32_t shmaddr, int32_t shmflg); typedef void (*on_sys_shmat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t shmid, uint32_t shmaddr, int32_t shmflg);;
-typedef void (*on_sys_shmat_return_t)(CPUState* cpu, target_ulong pc, int32_t shmid, uint32_t shmaddr, int32_t shmflg); typedef void (*on_sys_shmat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t shmid, uint32_t shmaddr, int32_t shmflg);;
-typedef void (*on_sys_shmctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t shmid, int32_t cmd, uint32_t buf); typedef void (*on_sys_shmctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t shmid, int32_t cmd, uint32_t buf);;
-typedef void (*on_sys_shmctl_return_t)(CPUState* cpu, target_ulong pc, int32_t shmid, int32_t cmd, uint32_t buf); typedef void (*on_sys_shmctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t shmid, int32_t cmd, uint32_t buf);;
-typedef void (*on_sys_shmdt_enter_t)(CPUState* cpu, target_ulong pc, uint32_t shmaddr); typedef void (*on_sys_shmdt_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t shmaddr);;
-typedef void (*on_sys_shmdt_return_t)(CPUState* cpu, target_ulong pc, uint32_t shmaddr); typedef void (*on_sys_shmdt_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t shmaddr);;
-typedef void (*on_sys_shmget_enter_t)(CPUState* cpu, target_ulong pc, uint32_t key, uint32_t size, int32_t flag); typedef void (*on_sys_shmget_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t key, uint32_t size, int32_t flag);;
-typedef void (*on_sys_shmget_return_t)(CPUState* cpu, target_ulong pc, uint32_t key, uint32_t size, int32_t flag); typedef void (*on_sys_shmget_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t key, uint32_t size, int32_t flag);;
-typedef void (*on_sys_shutdown_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1); typedef void (*on_sys_shutdown_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);;
-typedef void (*on_sys_shutdown_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1); typedef void (*on_sys_shutdown_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);;
-typedef void (*on_sys_sigaction_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_sigaction_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
-typedef void (*on_sys_sigaction_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_sigaction_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);;
-typedef void (*on_sys_sigaltstack_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uss, uint32_t uoss); typedef void (*on_sys_sigaltstack_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uss, uint32_t uoss);;
-typedef void (*on_sys_sigaltstack_return_t)(CPUState* cpu, target_ulong pc, uint32_t uss, uint32_t uoss); typedef void (*on_sys_sigaltstack_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t uss, uint32_t uoss);;
-typedef void (*on_sys_signalfd_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask); typedef void (*on_sys_signalfd_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask);;
-typedef void (*on_sys_signalfd_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask); typedef void (*on_sys_signalfd_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask);;
-typedef void (*on_sys_signalfd4_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask, int32_t flags); typedef void (*on_sys_signalfd4_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask, int32_t flags);;
-typedef void (*on_sys_signalfd4_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask, int32_t flags); typedef void (*on_sys_signalfd4_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask, int32_t flags);;
-typedef void (*on_sys_sigpending_enter_t)(CPUState* cpu, target_ulong pc, uint32_t set); typedef void (*on_sys_sigpending_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t set);;
-typedef void (*on_sys_sigpending_return_t)(CPUState* cpu, target_ulong pc, uint32_t set); typedef void (*on_sys_sigpending_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t set);;
-typedef void (*on_sys_sigprocmask_enter_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset); typedef void (*on_sys_sigprocmask_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset);;
-typedef void (*on_sys_sigprocmask_return_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset); typedef void (*on_sys_sigprocmask_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset);;
-typedef void (*on_sys_sigreturn_enter_t)(CPUState* cpu, target_ulong pc, uint32_t regs); typedef void (*on_sys_sigreturn_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t regs);;
-typedef void (*on_sys_sigreturn_return_t)(CPUState* cpu, target_ulong pc, uint32_t regs); typedef void (*on_sys_sigreturn_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t regs);;
-typedef void (*on_sys_sigsuspend_enter_t)(CPUState* cpu, target_ulong pc, int32_t unused1, int32_t unused2, uint32_t mask); typedef void (*on_sys_sigsuspend_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t unused1, int32_t unused2, uint32_t mask);;
-typedef void (*on_sys_sigsuspend_return_t)(CPUState* cpu, target_ulong pc, int32_t unused1, int32_t unused2, uint32_t mask); typedef void (*on_sys_sigsuspend_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t unused1, int32_t unused2, uint32_t mask);;
-typedef void (*on_sys_socket_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2); typedef void (*on_sys_socket_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2);;
-typedef void (*on_sys_socket_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2); typedef void (*on_sys_socket_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2);;
-typedef void (*on_sys_socketcall_enter_t)(CPUState* cpu, target_ulong pc, int32_t call, uint32_t args); typedef void (*on_sys_socketcall_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t call, uint32_t args);;
-typedef void (*on_sys_socketcall_return_t)(CPUState* cpu, target_ulong pc, int32_t call, uint32_t args); typedef void (*on_sys_socketcall_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t call, uint32_t args);;
-typedef void (*on_sys_socketpair_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2, uint32_t arg3); typedef void (*on_sys_socketpair_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2, uint32_t arg3);;
-typedef void (*on_sys_socketpair_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2, uint32_t arg3); typedef void (*on_sys_socketpair_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2, uint32_t arg3);;
-typedef void (*on_sys_splice_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags); typedef void (*on_sys_splice_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags);;
-typedef void (*on_sys_splice_return_t)(CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags); typedef void (*on_sys_splice_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags);;
-typedef void (*on_sys_stat64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_stat64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
-typedef void (*on_sys_stat64_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf); typedef void (*on_sys_stat64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);;
-typedef void (*on_sys_statfs_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf); typedef void (*on_sys_statfs_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf);;
-typedef void (*on_sys_statfs_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf); typedef void (*on_sys_statfs_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf);;
-typedef void (*on_sys_statfs64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t sz, uint32_t buf); typedef void (*on_sys_statfs64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t sz, uint32_t buf);;
-typedef void (*on_sys_statfs64_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t sz, uint32_t buf); typedef void (*on_sys_statfs64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t sz, uint32_t buf);;
-typedef void (*on_sys_statx_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t flags, uint32_t mask, uint32_t buffer); typedef void (*on_sys_statx_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t flags, uint32_t mask, uint32_t buffer);;
-typedef void (*on_sys_statx_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t flags, uint32_t mask, uint32_t buffer); typedef void (*on_sys_statx_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t flags, uint32_t mask, uint32_t buffer);;
-typedef void (*on_sys_stime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tptr); typedef void (*on_sys_stime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tptr);;
-typedef void (*on_sys_stime_return_t)(CPUState* cpu, target_ulong pc, uint32_t tptr); typedef void (*on_sys_stime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tptr);;
-typedef void (*on_sys_swapoff_enter_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile); typedef void (*on_sys_swapoff_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t specialfile);;
-typedef void (*on_sys_swapoff_return_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile); typedef void (*on_sys_swapoff_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t specialfile);;
-typedef void (*on_sys_swapon_enter_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile, int32_t swap_flags); typedef void (*on_sys_swapon_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t specialfile, int32_t swap_flags);;
-typedef void (*on_sys_swapon_return_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile, int32_t swap_flags); typedef void (*on_sys_swapon_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t specialfile, int32_t swap_flags);;
-typedef void (*on_sys_symlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t old, uint32_t _new); typedef void (*on_sys_symlink_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t old, uint32_t _new);;
-typedef void (*on_sys_symlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t old, uint32_t _new); typedef void (*on_sys_symlink_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t old, uint32_t _new);;
-typedef void (*on_sys_symlinkat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, int32_t newdfd, uint32_t newname); typedef void (*on_sys_symlinkat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldname, int32_t newdfd, uint32_t newname);;
-typedef void (*on_sys_symlinkat_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, int32_t newdfd, uint32_t newname); typedef void (*on_sys_symlinkat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t oldname, int32_t newdfd, uint32_t newname);;
-typedef void (*on_sys_sync_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_sync_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_sync_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_sync_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_sync_file_range2_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t flags, uint64_t offset, uint64_t nbytes); typedef void (*on_sys_sync_file_range2_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t flags, uint64_t offset, uint64_t nbytes);;
-typedef void (*on_sys_sync_file_range2_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t flags, uint64_t offset, uint64_t nbytes); typedef void (*on_sys_sync_file_range2_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t flags, uint64_t offset, uint64_t nbytes);;
-typedef void (*on_sys_syncfs_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd); typedef void (*on_sys_syncfs_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd);;
-typedef void (*on_sys_syncfs_return_t)(CPUState* cpu, target_ulong pc, int32_t fd); typedef void (*on_sys_syncfs_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd);;
-typedef void (*on_sys_sysctl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t args); typedef void (*on_sys_sysctl_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t args);;
-typedef void (*on_sys_sysctl_return_t)(CPUState* cpu, target_ulong pc, uint32_t args); typedef void (*on_sys_sysctl_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t args);;
-typedef void (*on_sys_sysfs_enter_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_sysfs_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg1, uint32_t arg2);;
-typedef void (*on_sys_sysfs_return_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg1, uint32_t arg2); typedef void (*on_sys_sysfs_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg1, uint32_t arg2);;
-typedef void (*on_sys_sysinfo_enter_t)(CPUState* cpu, target_ulong pc, uint32_t info); typedef void (*on_sys_sysinfo_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t info);;
-typedef void (*on_sys_sysinfo_return_t)(CPUState* cpu, target_ulong pc, uint32_t info); typedef void (*on_sys_sysinfo_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t info);;
-typedef void (*on_sys_syslog_enter_t)(CPUState* cpu, target_ulong pc, int32_t type, uint32_t buf, int32_t len); typedef void (*on_sys_syslog_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t type, uint32_t buf, int32_t len);;
-typedef void (*on_sys_syslog_return_t)(CPUState* cpu, target_ulong pc, int32_t type, uint32_t buf, int32_t len); typedef void (*on_sys_syslog_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t type, uint32_t buf, int32_t len);;
-typedef void (*on_sys_tee_enter_t)(CPUState* cpu, target_ulong pc, int32_t fdin, int32_t fdout, uint32_t len, uint32_t flags); typedef void (*on_sys_tee_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fdin, int32_t fdout, uint32_t len, uint32_t flags);;
-typedef void (*on_sys_tee_return_t)(CPUState* cpu, target_ulong pc, int32_t fdin, int32_t fdout, uint32_t len, uint32_t flags); typedef void (*on_sys_tee_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fdin, int32_t fdout, uint32_t len, uint32_t flags);;
-typedef void (*on_sys_tgkill_enter_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig); typedef void (*on_sys_tgkill_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig);;
-typedef void (*on_sys_tgkill_return_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig); typedef void (*on_sys_tgkill_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig);;
-typedef void (*on_sys_time_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tloc); typedef void (*on_sys_time_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tloc);;
-typedef void (*on_sys_time_return_t)(CPUState* cpu, target_ulong pc, uint32_t tloc); typedef void (*on_sys_time_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tloc);;
-typedef void (*on_sys_timer_create_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t timer_event_spec, uint32_t created_timer_id); typedef void (*on_sys_timer_create_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t timer_event_spec, uint32_t created_timer_id);;
-typedef void (*on_sys_timer_create_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t timer_event_spec, uint32_t created_timer_id); typedef void (*on_sys_timer_create_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t timer_event_spec, uint32_t created_timer_id);;
-typedef void (*on_sys_timer_delete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id); typedef void (*on_sys_timer_delete_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id);;
-typedef void (*on_sys_timer_delete_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id); typedef void (*on_sys_timer_delete_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id);;
-typedef void (*on_sys_timer_getoverrun_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id); typedef void (*on_sys_timer_getoverrun_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id);;
-typedef void (*on_sys_timer_getoverrun_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id); typedef void (*on_sys_timer_getoverrun_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id);;
-typedef void (*on_sys_timer_gettime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, uint32_t setting); typedef void (*on_sys_timer_gettime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id, uint32_t setting);;
-typedef void (*on_sys_timer_gettime_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, uint32_t setting); typedef void (*on_sys_timer_gettime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id, uint32_t setting);;
-typedef void (*on_sys_timer_settime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, int32_t flags, uint32_t new_setting, uint32_t old_setting); typedef void (*on_sys_timer_settime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id, int32_t flags, uint32_t new_setting, uint32_t old_setting);;
-typedef void (*on_sys_timer_settime_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, int32_t flags, uint32_t new_setting, uint32_t old_setting); typedef void (*on_sys_timer_settime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t timer_id, int32_t flags, uint32_t new_setting, uint32_t old_setting);;
-typedef void (*on_sys_timerfd_create_enter_t)(CPUState* cpu, target_ulong pc, int32_t clockid, int32_t flags); typedef void (*on_sys_timerfd_create_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t clockid, int32_t flags);;
-typedef void (*on_sys_timerfd_create_return_t)(CPUState* cpu, target_ulong pc, int32_t clockid, int32_t flags); typedef void (*on_sys_timerfd_create_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t clockid, int32_t flags);;
-typedef void (*on_sys_timerfd_gettime_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t otmr); typedef void (*on_sys_timerfd_gettime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t otmr);;
-typedef void (*on_sys_timerfd_gettime_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t otmr); typedef void (*on_sys_timerfd_gettime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t otmr);;
-typedef void (*on_sys_timerfd_settime_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, int32_t flags, uint32_t utmr, uint32_t otmr); typedef void (*on_sys_timerfd_settime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, int32_t flags, uint32_t utmr, uint32_t otmr);;
-typedef void (*on_sys_timerfd_settime_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, int32_t flags, uint32_t utmr, uint32_t otmr); typedef void (*on_sys_timerfd_settime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t ufd, int32_t flags, uint32_t utmr, uint32_t otmr);;
-typedef void (*on_sys_times_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tbuf); typedef void (*on_sys_times_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tbuf);;
-typedef void (*on_sys_times_return_t)(CPUState* cpu, target_ulong pc, uint32_t tbuf); typedef void (*on_sys_times_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t tbuf);;
-typedef void (*on_sys_tkill_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig); typedef void (*on_sys_tkill_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);;
-typedef void (*on_sys_tkill_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig); typedef void (*on_sys_tkill_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);;
-typedef void (*on_sys_truncate_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, int32_t length); typedef void (*on_sys_truncate_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, int32_t length);;
-typedef void (*on_sys_truncate_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, int32_t length); typedef void (*on_sys_truncate_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, int32_t length);;
-typedef void (*on_sys_truncate64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint64_t length); typedef void (*on_sys_truncate64_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint64_t length);;
-typedef void (*on_sys_truncate64_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint64_t length); typedef void (*on_sys_truncate64_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t path, uint64_t length);;
-typedef void (*on_sys_umask_enter_t)(CPUState* cpu, target_ulong pc, int32_t mask); typedef void (*on_sys_umask_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t mask);;
-typedef void (*on_sys_umask_return_t)(CPUState* cpu, target_ulong pc, int32_t mask); typedef void (*on_sys_umask_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t mask);;
-typedef void (*on_sys_umount_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t flags); typedef void (*on_sys_umount_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t flags);;
-typedef void (*on_sys_umount_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t flags); typedef void (*on_sys_umount_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t name, int32_t flags);;
-typedef void (*on_sys_unlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname); typedef void (*on_sys_unlink_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname);;
-typedef void (*on_sys_unlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname); typedef void (*on_sys_unlink_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t pathname);;
-typedef void (*on_sys_unlinkat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, int32_t flag); typedef void (*on_sys_unlinkat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, int32_t flag);;
-typedef void (*on_sys_unlinkat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, int32_t flag); typedef void (*on_sys_unlinkat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, int32_t flag);;
-typedef void (*on_sys_unshare_enter_t)(CPUState* cpu, target_ulong pc, uint32_t unshare_flags); typedef void (*on_sys_unshare_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t unshare_flags);;
-typedef void (*on_sys_unshare_return_t)(CPUState* cpu, target_ulong pc, uint32_t unshare_flags); typedef void (*on_sys_unshare_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t unshare_flags);;
-typedef void (*on_sys_uselib_enter_t)(CPUState* cpu, target_ulong pc, uint32_t library); typedef void (*on_sys_uselib_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t library);;
-typedef void (*on_sys_uselib_return_t)(CPUState* cpu, target_ulong pc, uint32_t library); typedef void (*on_sys_uselib_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t library);;
-typedef void (*on_sys_userfaultfd_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_userfaultfd_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
-typedef void (*on_sys_userfaultfd_return_t)(CPUState* cpu, target_ulong pc, int32_t flags); typedef void (*on_sys_userfaultfd_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t flags);;
-typedef void (*on_sys_ustat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t dev, uint32_t ubuf); typedef void (*on_sys_ustat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t dev, uint32_t ubuf);;
-typedef void (*on_sys_ustat_return_t)(CPUState* cpu, target_ulong pc, uint32_t dev, uint32_t ubuf); typedef void (*on_sys_ustat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t dev, uint32_t ubuf);;
-typedef void (*on_sys_utime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t times); typedef void (*on_sys_utime_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t times);;
-typedef void (*on_sys_utime_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t times); typedef void (*on_sys_utime_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t times);;
-typedef void (*on_sys_utimensat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes, int32_t flags); typedef void (*on_sys_utimensat_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes, int32_t flags);;
-typedef void (*on_sys_utimensat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes, int32_t flags); typedef void (*on_sys_utimensat_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes, int32_t flags);;
-typedef void (*on_sys_utimes_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t utimes); typedef void (*on_sys_utimes_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t utimes);;
-typedef void (*on_sys_utimes_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t utimes); typedef void (*on_sys_utimes_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t utimes);;
-typedef void (*on_sys_vfork_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_vfork_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_vfork_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_vfork_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_vhangup_enter_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_vhangup_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_vhangup_return_t)(CPUState* cpu, target_ulong pc); typedef void (*on_sys_vhangup_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc);;
-typedef void (*on_sys_vmsplice_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t iov, uint32_t nr_segs, uint32_t flags); typedef void (*on_sys_vmsplice_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t iov, uint32_t nr_segs, uint32_t flags);;
-typedef void (*on_sys_vmsplice_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t iov, uint32_t nr_segs, uint32_t flags); typedef void (*on_sys_vmsplice_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t fd, uint32_t iov, uint32_t nr_segs, uint32_t flags);;
-typedef void (*on_sys_wait4_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options, uint32_t ru); typedef void (*on_sys_wait4_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options, uint32_t ru);;
-typedef void (*on_sys_wait4_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options, uint32_t ru); typedef void (*on_sys_wait4_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options, uint32_t ru);;
-typedef void (*on_sys_waitid_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t pid, uint32_t infop, int32_t options, uint32_t ru); typedef void (*on_sys_waitid_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t pid, uint32_t infop, int32_t options, uint32_t ru);;
-typedef void (*on_sys_waitid_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t pid, uint32_t infop, int32_t options, uint32_t ru); typedef void (*on_sys_waitid_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, int32_t which, int32_t pid, uint32_t infop, int32_t options, uint32_t ru);;
-typedef void (*on_sys_write_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count); typedef void (*on_sys_write_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);;
-typedef void (*on_sys_write_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count); typedef void (*on_sys_write_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);;
-typedef void (*on_sys_writev_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen); typedef void (*on_sys_writev_enter_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);;
-typedef void (*on_sys_writev_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen); typedef void (*on_sys_writev_return_with_context_t)(void* context, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);;
-typedef void (*on_all_sys_enter_t)(CPUState *cpu, target_ulong pc, target_ulong callno); typedef void (*on_all_sys_enter_with_context_t)(void* context, CPUState *cpu, target_ulong pc, target_ulong callno);;
-typedef void (*on_all_sys_enter2_t)(CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx); typedef void (*on_all_sys_enter2_with_context_t)(void* context, CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx);;
-typedef void (*on_all_sys_return_t)(CPUState *cpu, target_ulong pc, target_ulong callno); typedef void (*on_all_sys_return_with_context_t)(void* context, CPUState *cpu, target_ulong pc, target_ulong callno);;
-typedef void (*on_all_sys_return2_t)(CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx); typedef void (*on_all_sys_return2_with_context_t)(void* context, CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx);;
-typedef void (*on_unknown_sys_enter_t)(CPUState *cpu, target_ulong pc, target_ulong callno); typedef void (*on_unknown_sys_enter_with_context_t)(void* context, CPUState *cpu, target_ulong pc, target_ulong callno);;
-typedef void (*on_unknown_sys_return_t)(CPUState *cpu, target_ulong pc, target_ulong callno); typedef void (*on_unknown_sys_return_with_context_t)(void* context, CPUState *cpu, target_ulong pc, target_ulong callno);;
-typedef void (*on_ARM_breakpoint_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_ARM_breakpoint_enter(on_ARM_breakpoint_enter_t);
-_Bool 
-    ppp_remove_cb_on_ARM_breakpoint_enter(on_ARM_breakpoint_enter_t);
-typedef void (*on_ARM_breakpoint_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_ARM_breakpoint_return(on_ARM_breakpoint_return_t);
-_Bool 
-    ppp_remove_cb_on_ARM_breakpoint_return(on_ARM_breakpoint_return_t);
-typedef void (*on_ARM_cacheflush_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t end, uint32_t flags);
-void ppp_add_cb_on_ARM_cacheflush_enter(on_ARM_cacheflush_enter_t);
-_Bool 
-    ppp_remove_cb_on_ARM_cacheflush_enter(on_ARM_cacheflush_enter_t);
-typedef void (*on_ARM_cacheflush_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t end, uint32_t flags);
-void ppp_add_cb_on_ARM_cacheflush_return(on_ARM_cacheflush_return_t);
-_Bool 
-    ppp_remove_cb_on_ARM_cacheflush_return(on_ARM_cacheflush_return_t);
-typedef void (*on_ARM_set_tls_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg);
-void ppp_add_cb_on_ARM_set_tls_enter(on_ARM_set_tls_enter_t);
-_Bool 
-    ppp_remove_cb_on_ARM_set_tls_enter(on_ARM_set_tls_enter_t);
-typedef void (*on_ARM_set_tls_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg);
-void ppp_add_cb_on_ARM_set_tls_return(on_ARM_set_tls_return_t);
-_Bool 
-    ppp_remove_cb_on_ARM_set_tls_return(on_ARM_set_tls_return_t);
-typedef void (*on_ARM_user26_mode_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_ARM_user26_mode_enter(on_ARM_user26_mode_enter_t);
-_Bool 
-    ppp_remove_cb_on_ARM_user26_mode_enter(on_ARM_user26_mode_enter_t);
-typedef void (*on_ARM_user26_mode_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_ARM_user26_mode_return(on_ARM_user26_mode_return_t);
-_Bool 
-    ppp_remove_cb_on_ARM_user26_mode_return(on_ARM_user26_mode_return_t);
-typedef void (*on_ARM_usr32_mode_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_ARM_usr32_mode_enter(on_ARM_usr32_mode_enter_t);
-_Bool 
-    ppp_remove_cb_on_ARM_usr32_mode_enter(on_ARM_usr32_mode_enter_t);
-typedef void (*on_ARM_usr32_mode_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_ARM_usr32_mode_return(on_ARM_usr32_mode_return_t);
-_Bool 
-    ppp_remove_cb_on_ARM_usr32_mode_return(on_ARM_usr32_mode_return_t);
-typedef void (*on_do_mmap2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len, uint32_t prot, uint32_t flags, uint32_t fd, uint32_t pgoff);
-void ppp_add_cb_on_do_mmap2_enter(on_do_mmap2_enter_t);
-_Bool 
-    ppp_remove_cb_on_do_mmap2_enter(on_do_mmap2_enter_t);
-typedef void (*on_do_mmap2_return_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len, uint32_t prot, uint32_t flags, uint32_t fd, uint32_t pgoff);
-void ppp_add_cb_on_do_mmap2_return(on_do_mmap2_return_t);
-_Bool 
-    ppp_remove_cb_on_do_mmap2_return(on_do_mmap2_return_t);
-typedef void (*on_sys_accept_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
-void ppp_add_cb_on_sys_accept_enter(on_sys_accept_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_accept_enter(on_sys_accept_enter_t);
-typedef void (*on_sys_accept_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
-void ppp_add_cb_on_sys_accept_return(on_sys_accept_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_accept_return(on_sys_accept_return_t);
-typedef void (*on_sys_accept4_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, int32_t arg3);
-void ppp_add_cb_on_sys_accept4_enter(on_sys_accept4_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_accept4_enter(on_sys_accept4_enter_t);
-typedef void (*on_sys_accept4_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, int32_t arg3);
-void ppp_add_cb_on_sys_accept4_return(on_sys_accept4_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_accept4_return(on_sys_accept4_return_t);
-typedef void (*on_sys_access_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t mode);
-void ppp_add_cb_on_sys_access_enter(on_sys_access_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_access_enter(on_sys_access_enter_t);
-typedef void (*on_sys_access_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t mode);
-void ppp_add_cb_on_sys_access_return(on_sys_access_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_access_return(on_sys_access_return_t);
-typedef void (*on_sys_acct_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name);
-void ppp_add_cb_on_sys_acct_enter(on_sys_acct_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_acct_enter(on_sys_acct_enter_t);
-typedef void (*on_sys_acct_return_t)(CPUState* cpu, target_ulong pc, uint32_t name);
-void ppp_add_cb_on_sys_acct_return(on_sys_acct_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_acct_return(on_sys_acct_return_t);
-typedef void (*on_sys_add_key_enter_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _payload, uint32_t plen, uint32_t destringid);
-void ppp_add_cb_on_sys_add_key_enter(on_sys_add_key_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_add_key_enter(on_sys_add_key_enter_t);
-typedef void (*on_sys_add_key_return_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _payload, uint32_t plen, uint32_t destringid);
-void ppp_add_cb_on_sys_add_key_return(on_sys_add_key_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_add_key_return(on_sys_add_key_return_t);
-typedef void (*on_sys_adjtimex_enter_t)(CPUState* cpu, target_ulong pc, uint32_t txc_p);
-void ppp_add_cb_on_sys_adjtimex_enter(on_sys_adjtimex_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_adjtimex_enter(on_sys_adjtimex_enter_t);
-typedef void (*on_sys_adjtimex_return_t)(CPUState* cpu, target_ulong pc, uint32_t txc_p);
-void ppp_add_cb_on_sys_adjtimex_return(on_sys_adjtimex_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_adjtimex_return(on_sys_adjtimex_return_t);
-typedef void (*on_sys_alarm_enter_t)(CPUState* cpu, target_ulong pc, uint32_t seconds);
-void ppp_add_cb_on_sys_alarm_enter(on_sys_alarm_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_alarm_enter(on_sys_alarm_enter_t);
-typedef void (*on_sys_alarm_return_t)(CPUState* cpu, target_ulong pc, uint32_t seconds);
-void ppp_add_cb_on_sys_alarm_return(on_sys_alarm_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_alarm_return(on_sys_alarm_return_t);
-typedef void (*on_sys_arm_fadvise64_64_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t advice, uint64_t offset, uint64_t len);
-void ppp_add_cb_on_sys_arm_fadvise64_64_enter(on_sys_arm_fadvise64_64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_arm_fadvise64_64_enter(on_sys_arm_fadvise64_64_enter_t);
-typedef void (*on_sys_arm_fadvise64_64_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t advice, uint64_t offset, uint64_t len);
-void ppp_add_cb_on_sys_arm_fadvise64_64_return(on_sys_arm_fadvise64_64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_arm_fadvise64_64_return(on_sys_arm_fadvise64_64_return_t);
-typedef void (*on_sys_bdflush_enter_t)(CPUState* cpu, target_ulong pc, int32_t func, int32_t _data);
-void ppp_add_cb_on_sys_bdflush_enter(on_sys_bdflush_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_bdflush_enter(on_sys_bdflush_enter_t);
-typedef void (*on_sys_bdflush_return_t)(CPUState* cpu, target_ulong pc, int32_t func, int32_t _data);
-void ppp_add_cb_on_sys_bdflush_return(on_sys_bdflush_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_bdflush_return(on_sys_bdflush_return_t);
-typedef void (*on_sys_bind_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);
-void ppp_add_cb_on_sys_bind_enter(on_sys_bind_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_bind_enter(on_sys_bind_enter_t);
-typedef void (*on_sys_bind_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);
-void ppp_add_cb_on_sys_bind_return(on_sys_bind_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_bind_return(on_sys_bind_return_t);
-typedef void (*on_sys_bpf_enter_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t attr, uint32_t size);
-void ppp_add_cb_on_sys_bpf_enter(on_sys_bpf_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_bpf_enter(on_sys_bpf_enter_t);
-typedef void (*on_sys_bpf_return_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t attr, uint32_t size);
-void ppp_add_cb_on_sys_bpf_return(on_sys_bpf_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_bpf_return(on_sys_bpf_return_t);
-typedef void (*on_sys_brk_enter_t)(CPUState* cpu, target_ulong pc, uint32_t brk);
-void ppp_add_cb_on_sys_brk_enter(on_sys_brk_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_brk_enter(on_sys_brk_enter_t);
-typedef void (*on_sys_brk_return_t)(CPUState* cpu, target_ulong pc, uint32_t brk);
-void ppp_add_cb_on_sys_brk_return(on_sys_brk_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_brk_return(on_sys_brk_return_t);
-typedef void (*on_sys_capget_enter_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t dataptr);
-void ppp_add_cb_on_sys_capget_enter(on_sys_capget_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_capget_enter(on_sys_capget_enter_t);
-typedef void (*on_sys_capget_return_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t dataptr);
-void ppp_add_cb_on_sys_capget_return(on_sys_capget_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_capget_return(on_sys_capget_return_t);
-typedef void (*on_sys_capset_enter_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t _data);
-void ppp_add_cb_on_sys_capset_enter(on_sys_capset_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_capset_enter(on_sys_capset_enter_t);
-typedef void (*on_sys_capset_return_t)(CPUState* cpu, target_ulong pc, uint32_t header, uint32_t _data);
-void ppp_add_cb_on_sys_capset_return(on_sys_capset_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_capset_return(on_sys_capset_return_t);
-typedef void (*on_sys_chdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename);
-void ppp_add_cb_on_sys_chdir_enter(on_sys_chdir_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_chdir_enter(on_sys_chdir_enter_t);
-typedef void (*on_sys_chdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename);
-void ppp_add_cb_on_sys_chdir_return(on_sys_chdir_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_chdir_return(on_sys_chdir_return_t);
-typedef void (*on_sys_chmod_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode);
-void ppp_add_cb_on_sys_chmod_enter(on_sys_chmod_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_chmod_enter(on_sys_chmod_enter_t);
-typedef void (*on_sys_chmod_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode);
-void ppp_add_cb_on_sys_chmod_return(on_sys_chmod_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_chmod_return(on_sys_chmod_return_t);
-typedef void (*on_sys_chown_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
-void ppp_add_cb_on_sys_chown_enter(on_sys_chown_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_chown_enter(on_sys_chown_enter_t);
-typedef void (*on_sys_chown_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
-void ppp_add_cb_on_sys_chown_return(on_sys_chown_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_chown_return(on_sys_chown_return_t);
-typedef void (*on_sys_chown16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
-void ppp_add_cb_on_sys_chown16_enter(on_sys_chown16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_chown16_enter(on_sys_chown16_enter_t);
-typedef void (*on_sys_chown16_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
-void ppp_add_cb_on_sys_chown16_return(on_sys_chown16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_chown16_return(on_sys_chown16_return_t);
-typedef void (*on_sys_chroot_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename);
-void ppp_add_cb_on_sys_chroot_enter(on_sys_chroot_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_chroot_enter(on_sys_chroot_enter_t);
-typedef void (*on_sys_chroot_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename);
-void ppp_add_cb_on_sys_chroot_return(on_sys_chroot_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_chroot_return(on_sys_chroot_return_t);
-typedef void (*on_sys_clock_adjtime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tx);
-void ppp_add_cb_on_sys_clock_adjtime_enter(on_sys_clock_adjtime_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_clock_adjtime_enter(on_sys_clock_adjtime_enter_t);
-typedef void (*on_sys_clock_adjtime_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tx);
-void ppp_add_cb_on_sys_clock_adjtime_return(on_sys_clock_adjtime_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_clock_adjtime_return(on_sys_clock_adjtime_return_t);
-typedef void (*on_sys_clock_getres_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);
-void ppp_add_cb_on_sys_clock_getres_enter(on_sys_clock_getres_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_clock_getres_enter(on_sys_clock_getres_enter_t);
-typedef void (*on_sys_clock_getres_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);
-void ppp_add_cb_on_sys_clock_getres_return(on_sys_clock_getres_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_clock_getres_return(on_sys_clock_getres_return_t);
-typedef void (*on_sys_clock_gettime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);
-void ppp_add_cb_on_sys_clock_gettime_enter(on_sys_clock_gettime_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_clock_gettime_enter(on_sys_clock_gettime_enter_t);
-typedef void (*on_sys_clock_gettime_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);
-void ppp_add_cb_on_sys_clock_gettime_return(on_sys_clock_gettime_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_clock_gettime_return(on_sys_clock_gettime_return_t);
-typedef void (*on_sys_clock_nanosleep_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, int32_t flags, uint32_t rqtp, uint32_t rmtp);
-void ppp_add_cb_on_sys_clock_nanosleep_enter(on_sys_clock_nanosleep_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_clock_nanosleep_enter(on_sys_clock_nanosleep_enter_t);
-typedef void (*on_sys_clock_nanosleep_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, int32_t flags, uint32_t rqtp, uint32_t rmtp);
-void ppp_add_cb_on_sys_clock_nanosleep_return(on_sys_clock_nanosleep_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_clock_nanosleep_return(on_sys_clock_nanosleep_return_t);
-typedef void (*on_sys_clock_settime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);
-void ppp_add_cb_on_sys_clock_settime_enter(on_sys_clock_settime_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_clock_settime_enter(on_sys_clock_settime_enter_t);
-typedef void (*on_sys_clock_settime_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t tp);
-void ppp_add_cb_on_sys_clock_settime_return(on_sys_clock_settime_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_clock_settime_return(on_sys_clock_settime_return_t);
-typedef void (*on_sys_clone_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);
-void ppp_add_cb_on_sys_clone_enter(on_sys_clone_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_clone_enter(on_sys_clone_enter_t);
-typedef void (*on_sys_clone_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);
-void ppp_add_cb_on_sys_clone_return(on_sys_clone_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_clone_return(on_sys_clone_return_t);
-typedef void (*on_sys_close_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
-void ppp_add_cb_on_sys_close_enter(on_sys_close_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_close_enter(on_sys_close_enter_t);
-typedef void (*on_sys_close_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
-void ppp_add_cb_on_sys_close_return(on_sys_close_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_close_return(on_sys_close_return_t);
-typedef void (*on_sys_connect_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);
-void ppp_add_cb_on_sys_connect_enter(on_sys_connect_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_connect_enter(on_sys_connect_enter_t);
-typedef void (*on_sys_connect_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, int32_t arg2);
-void ppp_add_cb_on_sys_connect_return(on_sys_connect_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_connect_return(on_sys_connect_return_t);
-typedef void (*on_sys_creat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);
-void ppp_add_cb_on_sys_creat_enter(on_sys_creat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_creat_enter(on_sys_creat_enter_t);
-typedef void (*on_sys_creat_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);
-void ppp_add_cb_on_sys_creat_return(on_sys_creat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_creat_return(on_sys_creat_return_t);
-typedef void (*on_sys_delete_module_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name_user, uint32_t flags);
-void ppp_add_cb_on_sys_delete_module_enter(on_sys_delete_module_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_delete_module_enter(on_sys_delete_module_enter_t);
-typedef void (*on_sys_delete_module_return_t)(CPUState* cpu, target_ulong pc, uint32_t name_user, uint32_t flags);
-void ppp_add_cb_on_sys_delete_module_return(on_sys_delete_module_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_delete_module_return(on_sys_delete_module_return_t);
-typedef void (*on_sys_dup_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fildes);
-void ppp_add_cb_on_sys_dup_enter(on_sys_dup_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_dup_enter(on_sys_dup_enter_t);
-typedef void (*on_sys_dup_return_t)(CPUState* cpu, target_ulong pc, uint32_t fildes);
-void ppp_add_cb_on_sys_dup_return(on_sys_dup_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_dup_return(on_sys_dup_return_t);
-typedef void (*on_sys_dup2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd);
-void ppp_add_cb_on_sys_dup2_enter(on_sys_dup2_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_dup2_enter(on_sys_dup2_enter_t);
-typedef void (*on_sys_dup2_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd);
-void ppp_add_cb_on_sys_dup2_return(on_sys_dup2_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_dup2_return(on_sys_dup2_return_t);
-typedef void (*on_sys_dup3_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd, int32_t flags);
-void ppp_add_cb_on_sys_dup3_enter(on_sys_dup3_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_dup3_enter(on_sys_dup3_enter_t);
-typedef void (*on_sys_dup3_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldfd, uint32_t newfd, int32_t flags);
-void ppp_add_cb_on_sys_dup3_return(on_sys_dup3_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_dup3_return(on_sys_dup3_return_t);
-typedef void (*on_sys_epoll_create_enter_t)(CPUState* cpu, target_ulong pc, int32_t size);
-void ppp_add_cb_on_sys_epoll_create_enter(on_sys_epoll_create_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_epoll_create_enter(on_sys_epoll_create_enter_t);
-typedef void (*on_sys_epoll_create_return_t)(CPUState* cpu, target_ulong pc, int32_t size);
-void ppp_add_cb_on_sys_epoll_create_return(on_sys_epoll_create_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_epoll_create_return(on_sys_epoll_create_return_t);
-typedef void (*on_sys_epoll_create1_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags);
-void ppp_add_cb_on_sys_epoll_create1_enter(on_sys_epoll_create1_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_epoll_create1_enter(on_sys_epoll_create1_enter_t);
-typedef void (*on_sys_epoll_create1_return_t)(CPUState* cpu, target_ulong pc, int32_t flags);
-void ppp_add_cb_on_sys_epoll_create1_return(on_sys_epoll_create1_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_epoll_create1_return(on_sys_epoll_create1_return_t);
-typedef void (*on_sys_epoll_ctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t epfd, int32_t op, int32_t fd, uint32_t event);
-void ppp_add_cb_on_sys_epoll_ctl_enter(on_sys_epoll_ctl_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_epoll_ctl_enter(on_sys_epoll_ctl_enter_t);
-typedef void (*on_sys_epoll_ctl_return_t)(CPUState* cpu, target_ulong pc, int32_t epfd, int32_t op, int32_t fd, uint32_t event);
-void ppp_add_cb_on_sys_epoll_ctl_return(on_sys_epoll_ctl_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_epoll_ctl_return(on_sys_epoll_ctl_return_t);
-typedef void (*on_sys_epoll_pwait_enter_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout, uint32_t sigmask, uint32_t sigsetsize);
-void ppp_add_cb_on_sys_epoll_pwait_enter(on_sys_epoll_pwait_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_epoll_pwait_enter(on_sys_epoll_pwait_enter_t);
-typedef void (*on_sys_epoll_pwait_return_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout, uint32_t sigmask, uint32_t sigsetsize);
-void ppp_add_cb_on_sys_epoll_pwait_return(on_sys_epoll_pwait_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_epoll_pwait_return(on_sys_epoll_pwait_return_t);
-typedef void (*on_sys_epoll_wait_enter_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout);
-void ppp_add_cb_on_sys_epoll_wait_enter(on_sys_epoll_wait_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_epoll_wait_enter(on_sys_epoll_wait_enter_t);
-typedef void (*on_sys_epoll_wait_return_t)(CPUState* cpu, target_ulong pc, int32_t epfd, uint32_t events, int32_t maxevents, int32_t timeout);
-void ppp_add_cb_on_sys_epoll_wait_return(on_sys_epoll_wait_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_epoll_wait_return(on_sys_epoll_wait_return_t);
-typedef void (*on_sys_eventfd_enter_t)(CPUState* cpu, target_ulong pc, uint32_t count);
-void ppp_add_cb_on_sys_eventfd_enter(on_sys_eventfd_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_eventfd_enter(on_sys_eventfd_enter_t);
-typedef void (*on_sys_eventfd_return_t)(CPUState* cpu, target_ulong pc, uint32_t count);
-void ppp_add_cb_on_sys_eventfd_return(on_sys_eventfd_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_eventfd_return(on_sys_eventfd_return_t);
-typedef void (*on_sys_eventfd2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t count, int32_t flags);
-void ppp_add_cb_on_sys_eventfd2_enter(on_sys_eventfd2_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_eventfd2_enter(on_sys_eventfd2_enter_t);
-typedef void (*on_sys_eventfd2_return_t)(CPUState* cpu, target_ulong pc, uint32_t count, int32_t flags);
-void ppp_add_cb_on_sys_eventfd2_return(on_sys_eventfd2_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_eventfd2_return(on_sys_eventfd2_return_t);
-typedef void (*on_sys_execve_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t argv, uint32_t envp);
-void ppp_add_cb_on_sys_execve_enter(on_sys_execve_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_execve_enter(on_sys_execve_enter_t);
-typedef void (*on_sys_execve_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t argv, uint32_t envp);
-void ppp_add_cb_on_sys_execve_return(on_sys_execve_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_execve_return(on_sys_execve_return_t);
-typedef void (*on_sys_execveat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t argv, uint32_t envp, int32_t flags);
-void ppp_add_cb_on_sys_execveat_enter(on_sys_execveat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_execveat_enter(on_sys_execveat_enter_t);
-typedef void (*on_sys_execveat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t argv, uint32_t envp, int32_t flags);
-void ppp_add_cb_on_sys_execveat_return(on_sys_execveat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_execveat_return(on_sys_execveat_return_t);
-typedef void (*on_sys_exit_enter_t)(CPUState* cpu, target_ulong pc, int32_t error_code);
-void ppp_add_cb_on_sys_exit_enter(on_sys_exit_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_exit_enter(on_sys_exit_enter_t);
-typedef void (*on_sys_exit_return_t)(CPUState* cpu, target_ulong pc, int32_t error_code);
-void ppp_add_cb_on_sys_exit_return(on_sys_exit_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_exit_return(on_sys_exit_return_t);
-typedef void (*on_sys_exit_group_enter_t)(CPUState* cpu, target_ulong pc, int32_t error_code);
-void ppp_add_cb_on_sys_exit_group_enter(on_sys_exit_group_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_exit_group_enter(on_sys_exit_group_enter_t);
-typedef void (*on_sys_exit_group_return_t)(CPUState* cpu, target_ulong pc, int32_t error_code);
-void ppp_add_cb_on_sys_exit_group_return(on_sys_exit_group_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_exit_group_return(on_sys_exit_group_return_t);
-typedef void (*on_sys_faccessat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t mode);
-void ppp_add_cb_on_sys_faccessat_enter(on_sys_faccessat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_faccessat_enter(on_sys_faccessat_enter_t);
-typedef void (*on_sys_faccessat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t mode);
-void ppp_add_cb_on_sys_faccessat_return(on_sys_faccessat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_faccessat_return(on_sys_faccessat_return_t);
-typedef void (*on_sys_fallocate_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t mode, uint64_t offset, uint64_t len);
-void ppp_add_cb_on_sys_fallocate_enter(on_sys_fallocate_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fallocate_enter(on_sys_fallocate_enter_t);
-typedef void (*on_sys_fallocate_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t mode, uint64_t offset, uint64_t len);
-void ppp_add_cb_on_sys_fallocate_return(on_sys_fallocate_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fallocate_return(on_sys_fallocate_return_t);
-typedef void (*on_sys_fanotify_init_enter_t)(CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t event_f_flags);
-void ppp_add_cb_on_sys_fanotify_init_enter(on_sys_fanotify_init_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fanotify_init_enter(on_sys_fanotify_init_enter_t);
-typedef void (*on_sys_fanotify_init_return_t)(CPUState* cpu, target_ulong pc, uint32_t flags, uint32_t event_f_flags);
-void ppp_add_cb_on_sys_fanotify_init_return(on_sys_fanotify_init_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fanotify_init_return(on_sys_fanotify_init_return_t);
-typedef void (*on_sys_fanotify_mark_enter_t)(CPUState* cpu, target_ulong pc, int32_t fanotify_fd, uint32_t flags, uint64_t mask, int32_t fd, uint32_t pathname);
-void ppp_add_cb_on_sys_fanotify_mark_enter(on_sys_fanotify_mark_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fanotify_mark_enter(on_sys_fanotify_mark_enter_t);
-typedef void (*on_sys_fanotify_mark_return_t)(CPUState* cpu, target_ulong pc, int32_t fanotify_fd, uint32_t flags, uint64_t mask, int32_t fd, uint32_t pathname);
-void ppp_add_cb_on_sys_fanotify_mark_return(on_sys_fanotify_mark_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fanotify_mark_return(on_sys_fanotify_mark_return_t);
-typedef void (*on_sys_fchdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
-void ppp_add_cb_on_sys_fchdir_enter(on_sys_fchdir_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fchdir_enter(on_sys_fchdir_enter_t);
-typedef void (*on_sys_fchdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
-void ppp_add_cb_on_sys_fchdir_return(on_sys_fchdir_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fchdir_return(on_sys_fchdir_return_t);
-typedef void (*on_sys_fchmod_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t mode);
-void ppp_add_cb_on_sys_fchmod_enter(on_sys_fchmod_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fchmod_enter(on_sys_fchmod_enter_t);
-typedef void (*on_sys_fchmod_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t mode);
-void ppp_add_cb_on_sys_fchmod_return(on_sys_fchmod_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fchmod_return(on_sys_fchmod_return_t);
-typedef void (*on_sys_fchmodat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode);
-void ppp_add_cb_on_sys_fchmodat_enter(on_sys_fchmodat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fchmodat_enter(on_sys_fchmodat_enter_t);
-typedef void (*on_sys_fchmodat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode);
-void ppp_add_cb_on_sys_fchmodat_return(on_sys_fchmodat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fchmodat_return(on_sys_fchmodat_return_t);
-typedef void (*on_sys_fchown_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);
-void ppp_add_cb_on_sys_fchown_enter(on_sys_fchown_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fchown_enter(on_sys_fchown_enter_t);
-typedef void (*on_sys_fchown_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);
-void ppp_add_cb_on_sys_fchown_return(on_sys_fchown_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fchown_return(on_sys_fchown_return_t);
-typedef void (*on_sys_fchown16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);
-void ppp_add_cb_on_sys_fchown16_enter(on_sys_fchown16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fchown16_enter(on_sys_fchown16_enter_t);
-typedef void (*on_sys_fchown16_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t user, uint32_t group);
-void ppp_add_cb_on_sys_fchown16_return(on_sys_fchown16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fchown16_return(on_sys_fchown16_return_t);
-typedef void (*on_sys_fchownat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t user, uint32_t group, int32_t flag);
-void ppp_add_cb_on_sys_fchownat_enter(on_sys_fchownat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fchownat_enter(on_sys_fchownat_enter_t);
-typedef void (*on_sys_fchownat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t user, uint32_t group, int32_t flag);
-void ppp_add_cb_on_sys_fchownat_return(on_sys_fchownat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fchownat_return(on_sys_fchownat_return_t);
-typedef void (*on_sys_fcntl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);
-void ppp_add_cb_on_sys_fcntl_enter(on_sys_fcntl_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fcntl_enter(on_sys_fcntl_enter_t);
-typedef void (*on_sys_fcntl_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);
-void ppp_add_cb_on_sys_fcntl_return(on_sys_fcntl_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fcntl_return(on_sys_fcntl_return_t);
-typedef void (*on_sys_fcntl64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);
-void ppp_add_cb_on_sys_fcntl64_enter(on_sys_fcntl64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fcntl64_enter(on_sys_fcntl64_enter_t);
-typedef void (*on_sys_fcntl64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);
-void ppp_add_cb_on_sys_fcntl64_return(on_sys_fcntl64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fcntl64_return(on_sys_fcntl64_return_t);
-typedef void (*on_sys_fdatasync_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
-void ppp_add_cb_on_sys_fdatasync_enter(on_sys_fdatasync_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fdatasync_enter(on_sys_fdatasync_enter_t);
-typedef void (*on_sys_fdatasync_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
-void ppp_add_cb_on_sys_fdatasync_return(on_sys_fdatasync_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fdatasync_return(on_sys_fdatasync_return_t);
-typedef void (*on_sys_fgetxattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size);
-void ppp_add_cb_on_sys_fgetxattr_enter(on_sys_fgetxattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fgetxattr_enter(on_sys_fgetxattr_enter_t);
-typedef void (*on_sys_fgetxattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size);
-void ppp_add_cb_on_sys_fgetxattr_return(on_sys_fgetxattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fgetxattr_return(on_sys_fgetxattr_return_t);
-typedef void (*on_sys_finit_module_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t uargs, int32_t flags);
-void ppp_add_cb_on_sys_finit_module_enter(on_sys_finit_module_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_finit_module_enter(on_sys_finit_module_enter_t);
-typedef void (*on_sys_finit_module_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t uargs, int32_t flags);
-void ppp_add_cb_on_sys_finit_module_return(on_sys_finit_module_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_finit_module_return(on_sys_finit_module_return_t);
-typedef void (*on_sys_flistxattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t list, uint32_t size);
-void ppp_add_cb_on_sys_flistxattr_enter(on_sys_flistxattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_flistxattr_enter(on_sys_flistxattr_enter_t);
-typedef void (*on_sys_flistxattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t list, uint32_t size);
-void ppp_add_cb_on_sys_flistxattr_return(on_sys_flistxattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_flistxattr_return(on_sys_flistxattr_return_t);
-typedef void (*on_sys_flock_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd);
-void ppp_add_cb_on_sys_flock_enter(on_sys_flock_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_flock_enter(on_sys_flock_enter_t);
-typedef void (*on_sys_flock_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd);
-void ppp_add_cb_on_sys_flock_return(on_sys_flock_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_flock_return(on_sys_flock_return_t);
-typedef void (*on_sys_fork_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_fork_enter(on_sys_fork_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fork_enter(on_sys_fork_enter_t);
-typedef void (*on_sys_fork_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_fork_return(on_sys_fork_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fork_return(on_sys_fork_return_t);
-typedef void (*on_sys_fremovexattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name);
-void ppp_add_cb_on_sys_fremovexattr_enter(on_sys_fremovexattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fremovexattr_enter(on_sys_fremovexattr_enter_t);
-typedef void (*on_sys_fremovexattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name);
-void ppp_add_cb_on_sys_fremovexattr_return(on_sys_fremovexattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fremovexattr_return(on_sys_fremovexattr_return_t);
-typedef void (*on_sys_fsetxattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size, int32_t flags);
-void ppp_add_cb_on_sys_fsetxattr_enter(on_sys_fsetxattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fsetxattr_enter(on_sys_fsetxattr_enter_t);
-typedef void (*on_sys_fsetxattr_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t name, uint32_t value, uint32_t size, int32_t flags);
-void ppp_add_cb_on_sys_fsetxattr_return(on_sys_fsetxattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fsetxattr_return(on_sys_fsetxattr_return_t);
-typedef void (*on_sys_fstat64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);
-void ppp_add_cb_on_sys_fstat64_enter(on_sys_fstat64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fstat64_enter(on_sys_fstat64_enter_t);
-typedef void (*on_sys_fstat64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);
-void ppp_add_cb_on_sys_fstat64_return(on_sys_fstat64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fstat64_return(on_sys_fstat64_return_t);
-typedef void (*on_sys_fstatat64_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t statbuf, int32_t flag);
-void ppp_add_cb_on_sys_fstatat64_enter(on_sys_fstatat64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fstatat64_enter(on_sys_fstatat64_enter_t);
-typedef void (*on_sys_fstatat64_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t statbuf, int32_t flag);
-void ppp_add_cb_on_sys_fstatat64_return(on_sys_fstatat64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fstatat64_return(on_sys_fstatat64_return_t);
-typedef void (*on_sys_fstatfs_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf);
-void ppp_add_cb_on_sys_fstatfs_enter(on_sys_fstatfs_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fstatfs_enter(on_sys_fstatfs_enter_t);
-typedef void (*on_sys_fstatfs_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf);
-void ppp_add_cb_on_sys_fstatfs_return(on_sys_fstatfs_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fstatfs_return(on_sys_fstatfs_return_t);
-typedef void (*on_sys_fstatfs64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t sz, uint32_t buf);
-void ppp_add_cb_on_sys_fstatfs64_enter(on_sys_fstatfs64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fstatfs64_enter(on_sys_fstatfs64_enter_t);
-typedef void (*on_sys_fstatfs64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t sz, uint32_t buf);
-void ppp_add_cb_on_sys_fstatfs64_return(on_sys_fstatfs64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fstatfs64_return(on_sys_fstatfs64_return_t);
-typedef void (*on_sys_fsync_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
-void ppp_add_cb_on_sys_fsync_enter(on_sys_fsync_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_fsync_enter(on_sys_fsync_enter_t);
-typedef void (*on_sys_fsync_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd);
-void ppp_add_cb_on_sys_fsync_return(on_sys_fsync_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_fsync_return(on_sys_fsync_return_t);
-typedef void (*on_sys_ftruncate_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t length);
-void ppp_add_cb_on_sys_ftruncate_enter(on_sys_ftruncate_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_ftruncate_enter(on_sys_ftruncate_enter_t);
-typedef void (*on_sys_ftruncate_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t length);
-void ppp_add_cb_on_sys_ftruncate_return(on_sys_ftruncate_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_ftruncate_return(on_sys_ftruncate_return_t);
-typedef void (*on_sys_ftruncate64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint64_t length);
-void ppp_add_cb_on_sys_ftruncate64_enter(on_sys_ftruncate64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_ftruncate64_enter(on_sys_ftruncate64_enter_t);
-typedef void (*on_sys_ftruncate64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint64_t length);
-void ppp_add_cb_on_sys_ftruncate64_return(on_sys_ftruncate64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_ftruncate64_return(on_sys_ftruncate64_return_t);
-typedef void (*on_sys_futex_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uaddr, int32_t op, uint32_t val, uint32_t utime, uint32_t uaddr2, uint32_t val3);
-void ppp_add_cb_on_sys_futex_enter(on_sys_futex_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_futex_enter(on_sys_futex_enter_t);
-typedef void (*on_sys_futex_return_t)(CPUState* cpu, target_ulong pc, uint32_t uaddr, int32_t op, uint32_t val, uint32_t utime, uint32_t uaddr2, uint32_t val3);
-void ppp_add_cb_on_sys_futex_return(on_sys_futex_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_futex_return(on_sys_futex_return_t);
-typedef void (*on_sys_futimesat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes);
-void ppp_add_cb_on_sys_futimesat_enter(on_sys_futimesat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_futimesat_enter(on_sys_futimesat_enter_t);
-typedef void (*on_sys_futimesat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes);
-void ppp_add_cb_on_sys_futimesat_return(on_sys_futimesat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_futimesat_return(on_sys_futimesat_return_t);
-typedef void (*on_sys_get_mempolicy_enter_t)(CPUState* cpu, target_ulong pc, uint32_t policy, uint32_t nmask, uint32_t maxnode, uint32_t addr, uint32_t flags);
-void ppp_add_cb_on_sys_get_mempolicy_enter(on_sys_get_mempolicy_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_get_mempolicy_enter(on_sys_get_mempolicy_enter_t);
-typedef void (*on_sys_get_mempolicy_return_t)(CPUState* cpu, target_ulong pc, uint32_t policy, uint32_t nmask, uint32_t maxnode, uint32_t addr, uint32_t flags);
-void ppp_add_cb_on_sys_get_mempolicy_return(on_sys_get_mempolicy_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_get_mempolicy_return(on_sys_get_mempolicy_return_t);
-typedef void (*on_sys_get_robust_list_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t head_ptr, uint32_t len_ptr);
-void ppp_add_cb_on_sys_get_robust_list_enter(on_sys_get_robust_list_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_get_robust_list_enter(on_sys_get_robust_list_enter_t);
-typedef void (*on_sys_get_robust_list_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t head_ptr, uint32_t len_ptr);
-void ppp_add_cb_on_sys_get_robust_list_return(on_sys_get_robust_list_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_get_robust_list_return(on_sys_get_robust_list_return_t);
-typedef void (*on_sys_getcpu_enter_t)(CPUState* cpu, target_ulong pc, uint32_t _cpu, uint32_t node, uint32_t cache);
-void ppp_add_cb_on_sys_getcpu_enter(on_sys_getcpu_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getcpu_enter(on_sys_getcpu_enter_t);
-typedef void (*on_sys_getcpu_return_t)(CPUState* cpu, target_ulong pc, uint32_t _cpu, uint32_t node, uint32_t cache);
-void ppp_add_cb_on_sys_getcpu_return(on_sys_getcpu_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getcpu_return(on_sys_getcpu_return_t);
-typedef void (*on_sys_getcwd_enter_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t size);
-void ppp_add_cb_on_sys_getcwd_enter(on_sys_getcwd_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getcwd_enter(on_sys_getcwd_enter_t);
-typedef void (*on_sys_getcwd_return_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t size);
-void ppp_add_cb_on_sys_getcwd_return(on_sys_getcwd_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getcwd_return(on_sys_getcwd_return_t);
-typedef void (*on_sys_getdents_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);
-void ppp_add_cb_on_sys_getdents_enter(on_sys_getdents_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getdents_enter(on_sys_getdents_enter_t);
-typedef void (*on_sys_getdents_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);
-void ppp_add_cb_on_sys_getdents_return(on_sys_getdents_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getdents_return(on_sys_getdents_return_t);
-typedef void (*on_sys_getdents64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);
-void ppp_add_cb_on_sys_getdents64_enter(on_sys_getdents64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getdents64_enter(on_sys_getdents64_enter_t);
-typedef void (*on_sys_getdents64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t dirent, uint32_t count);
-void ppp_add_cb_on_sys_getdents64_return(on_sys_getdents64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getdents64_return(on_sys_getdents64_return_t);
-typedef void (*on_sys_getegid_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getegid_enter(on_sys_getegid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getegid_enter(on_sys_getegid_enter_t);
-typedef void (*on_sys_getegid_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getegid_return(on_sys_getegid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getegid_return(on_sys_getegid_return_t);
-typedef void (*on_sys_getegid16_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getegid16_enter(on_sys_getegid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getegid16_enter(on_sys_getegid16_enter_t);
-typedef void (*on_sys_getegid16_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getegid16_return(on_sys_getegid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getegid16_return(on_sys_getegid16_return_t);
-typedef void (*on_sys_geteuid_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_geteuid_enter(on_sys_geteuid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_geteuid_enter(on_sys_geteuid_enter_t);
-typedef void (*on_sys_geteuid_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_geteuid_return(on_sys_geteuid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_geteuid_return(on_sys_geteuid_return_t);
-typedef void (*on_sys_geteuid16_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_geteuid16_enter(on_sys_geteuid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_geteuid16_enter(on_sys_geteuid16_enter_t);
-typedef void (*on_sys_geteuid16_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_geteuid16_return(on_sys_geteuid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_geteuid16_return(on_sys_geteuid16_return_t);
-typedef void (*on_sys_getgid_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getgid_enter(on_sys_getgid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getgid_enter(on_sys_getgid_enter_t);
-typedef void (*on_sys_getgid_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getgid_return(on_sys_getgid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getgid_return(on_sys_getgid_return_t);
-typedef void (*on_sys_getgid16_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getgid16_enter(on_sys_getgid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getgid16_enter(on_sys_getgid16_enter_t);
-typedef void (*on_sys_getgid16_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getgid16_return(on_sys_getgid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getgid16_return(on_sys_getgid16_return_t);
-typedef void (*on_sys_getgroups_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
-void ppp_add_cb_on_sys_getgroups_enter(on_sys_getgroups_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getgroups_enter(on_sys_getgroups_enter_t);
-typedef void (*on_sys_getgroups_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
-void ppp_add_cb_on_sys_getgroups_return(on_sys_getgroups_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getgroups_return(on_sys_getgroups_return_t);
-typedef void (*on_sys_getgroups16_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
-void ppp_add_cb_on_sys_getgroups16_enter(on_sys_getgroups16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getgroups16_enter(on_sys_getgroups16_enter_t);
-typedef void (*on_sys_getgroups16_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
-void ppp_add_cb_on_sys_getgroups16_return(on_sys_getgroups16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getgroups16_return(on_sys_getgroups16_return_t);
-typedef void (*on_sys_getitimer_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value);
-void ppp_add_cb_on_sys_getitimer_enter(on_sys_getitimer_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getitimer_enter(on_sys_getitimer_enter_t);
-typedef void (*on_sys_getitimer_return_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value);
-void ppp_add_cb_on_sys_getitimer_return(on_sys_getitimer_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getitimer_return(on_sys_getitimer_return_t);
-typedef void (*on_sys_getpeername_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
-void ppp_add_cb_on_sys_getpeername_enter(on_sys_getpeername_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getpeername_enter(on_sys_getpeername_enter_t);
-typedef void (*on_sys_getpeername_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
-void ppp_add_cb_on_sys_getpeername_return(on_sys_getpeername_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getpeername_return(on_sys_getpeername_return_t);
-typedef void (*on_sys_getpgid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid);
-void ppp_add_cb_on_sys_getpgid_enter(on_sys_getpgid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getpgid_enter(on_sys_getpgid_enter_t);
-typedef void (*on_sys_getpgid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid);
-void ppp_add_cb_on_sys_getpgid_return(on_sys_getpgid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getpgid_return(on_sys_getpgid_return_t);
-typedef void (*on_sys_getpgrp_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getpgrp_enter(on_sys_getpgrp_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getpgrp_enter(on_sys_getpgrp_enter_t);
-typedef void (*on_sys_getpgrp_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getpgrp_return(on_sys_getpgrp_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getpgrp_return(on_sys_getpgrp_return_t);
-typedef void (*on_sys_getpid_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getpid_enter(on_sys_getpid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getpid_enter(on_sys_getpid_enter_t);
-typedef void (*on_sys_getpid_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getpid_return(on_sys_getpid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getpid_return(on_sys_getpid_return_t);
-typedef void (*on_sys_getppid_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getppid_enter(on_sys_getppid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getppid_enter(on_sys_getppid_enter_t);
-typedef void (*on_sys_getppid_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getppid_return(on_sys_getppid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getppid_return(on_sys_getppid_return_t);
-typedef void (*on_sys_getpriority_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who);
-void ppp_add_cb_on_sys_getpriority_enter(on_sys_getpriority_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getpriority_enter(on_sys_getpriority_enter_t);
-typedef void (*on_sys_getpriority_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who);
-void ppp_add_cb_on_sys_getpriority_return(on_sys_getpriority_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getpriority_return(on_sys_getpriority_return_t);
-typedef void (*on_sys_getrandom_enter_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t count, uint32_t flags);
-void ppp_add_cb_on_sys_getrandom_enter(on_sys_getrandom_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getrandom_enter(on_sys_getrandom_enter_t);
-typedef void (*on_sys_getrandom_return_t)(CPUState* cpu, target_ulong pc, uint32_t buf, uint32_t count, uint32_t flags);
-void ppp_add_cb_on_sys_getrandom_return(on_sys_getrandom_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getrandom_return(on_sys_getrandom_return_t);
-typedef void (*on_sys_getresgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
-void ppp_add_cb_on_sys_getresgid_enter(on_sys_getresgid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getresgid_enter(on_sys_getresgid_enter_t);
-typedef void (*on_sys_getresgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
-void ppp_add_cb_on_sys_getresgid_return(on_sys_getresgid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getresgid_return(on_sys_getresgid_return_t);
-typedef void (*on_sys_getresgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
-void ppp_add_cb_on_sys_getresgid16_enter(on_sys_getresgid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getresgid16_enter(on_sys_getresgid16_enter_t);
-typedef void (*on_sys_getresgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
-void ppp_add_cb_on_sys_getresgid16_return(on_sys_getresgid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getresgid16_return(on_sys_getresgid16_return_t);
-typedef void (*on_sys_getresuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
-void ppp_add_cb_on_sys_getresuid_enter(on_sys_getresuid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getresuid_enter(on_sys_getresuid_enter_t);
-typedef void (*on_sys_getresuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
-void ppp_add_cb_on_sys_getresuid_return(on_sys_getresuid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getresuid_return(on_sys_getresuid_return_t);
-typedef void (*on_sys_getresuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
-void ppp_add_cb_on_sys_getresuid16_enter(on_sys_getresuid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getresuid16_enter(on_sys_getresuid16_enter_t);
-typedef void (*on_sys_getresuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
-void ppp_add_cb_on_sys_getresuid16_return(on_sys_getresuid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getresuid16_return(on_sys_getresuid16_return_t);
-typedef void (*on_sys_getrlimit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);
-void ppp_add_cb_on_sys_getrlimit_enter(on_sys_getrlimit_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getrlimit_enter(on_sys_getrlimit_enter_t);
-typedef void (*on_sys_getrlimit_return_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);
-void ppp_add_cb_on_sys_getrlimit_return(on_sys_getrlimit_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getrlimit_return(on_sys_getrlimit_return_t);
-typedef void (*on_sys_getrusage_enter_t)(CPUState* cpu, target_ulong pc, int32_t who, uint32_t ru);
-void ppp_add_cb_on_sys_getrusage_enter(on_sys_getrusage_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getrusage_enter(on_sys_getrusage_enter_t);
-typedef void (*on_sys_getrusage_return_t)(CPUState* cpu, target_ulong pc, int32_t who, uint32_t ru);
-void ppp_add_cb_on_sys_getrusage_return(on_sys_getrusage_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getrusage_return(on_sys_getrusage_return_t);
-typedef void (*on_sys_getsid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid);
-void ppp_add_cb_on_sys_getsid_enter(on_sys_getsid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getsid_enter(on_sys_getsid_enter_t);
-typedef void (*on_sys_getsid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid);
-void ppp_add_cb_on_sys_getsid_return(on_sys_getsid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getsid_return(on_sys_getsid_return_t);
-typedef void (*on_sys_getsockname_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
-void ppp_add_cb_on_sys_getsockname_enter(on_sys_getsockname_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getsockname_enter(on_sys_getsockname_enter_t);
-typedef void (*on_sys_getsockname_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
-void ppp_add_cb_on_sys_getsockname_return(on_sys_getsockname_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getsockname_return(on_sys_getsockname_return_t);
-typedef void (*on_sys_getsockopt_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, uint32_t optlen);
-void ppp_add_cb_on_sys_getsockopt_enter(on_sys_getsockopt_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getsockopt_enter(on_sys_getsockopt_enter_t);
-typedef void (*on_sys_getsockopt_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, uint32_t optlen);
-void ppp_add_cb_on_sys_getsockopt_return(on_sys_getsockopt_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getsockopt_return(on_sys_getsockopt_return_t);
-typedef void (*on_sys_gettid_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_gettid_enter(on_sys_gettid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_gettid_enter(on_sys_gettid_enter_t);
-typedef void (*on_sys_gettid_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_gettid_return(on_sys_gettid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_gettid_return(on_sys_gettid_return_t);
-typedef void (*on_sys_gettimeofday_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);
-void ppp_add_cb_on_sys_gettimeofday_enter(on_sys_gettimeofday_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_gettimeofday_enter(on_sys_gettimeofday_enter_t);
-typedef void (*on_sys_gettimeofday_return_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);
-void ppp_add_cb_on_sys_gettimeofday_return(on_sys_gettimeofday_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_gettimeofday_return(on_sys_gettimeofday_return_t);
-typedef void (*on_sys_getuid_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getuid_enter(on_sys_getuid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getuid_enter(on_sys_getuid_enter_t);
-typedef void (*on_sys_getuid_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getuid_return(on_sys_getuid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getuid_return(on_sys_getuid_return_t);
-typedef void (*on_sys_getuid16_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getuid16_enter(on_sys_getuid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getuid16_enter(on_sys_getuid16_enter_t);
-typedef void (*on_sys_getuid16_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_getuid16_return(on_sys_getuid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getuid16_return(on_sys_getuid16_return_t);
-typedef void (*on_sys_getxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);
-void ppp_add_cb_on_sys_getxattr_enter(on_sys_getxattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_getxattr_enter(on_sys_getxattr_enter_t);
-typedef void (*on_sys_getxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);
-void ppp_add_cb_on_sys_getxattr_return(on_sys_getxattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_getxattr_return(on_sys_getxattr_return_t);
-typedef void (*on_sys_init_module_enter_t)(CPUState* cpu, target_ulong pc, uint32_t umod, uint32_t len, uint32_t uargs);
-void ppp_add_cb_on_sys_init_module_enter(on_sys_init_module_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_init_module_enter(on_sys_init_module_enter_t);
-typedef void (*on_sys_init_module_return_t)(CPUState* cpu, target_ulong pc, uint32_t umod, uint32_t len, uint32_t uargs);
-void ppp_add_cb_on_sys_init_module_return(on_sys_init_module_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_init_module_return(on_sys_init_module_return_t);
-typedef void (*on_sys_inotify_add_watch_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t path, uint32_t mask);
-void ppp_add_cb_on_sys_inotify_add_watch_enter(on_sys_inotify_add_watch_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_inotify_add_watch_enter(on_sys_inotify_add_watch_enter_t);
-typedef void (*on_sys_inotify_add_watch_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t path, uint32_t mask);
-void ppp_add_cb_on_sys_inotify_add_watch_return(on_sys_inotify_add_watch_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_inotify_add_watch_return(on_sys_inotify_add_watch_return_t);
-typedef void (*on_sys_inotify_init_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_inotify_init_enter(on_sys_inotify_init_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_inotify_init_enter(on_sys_inotify_init_enter_t);
-typedef void (*on_sys_inotify_init_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_inotify_init_return(on_sys_inotify_init_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_inotify_init_return(on_sys_inotify_init_return_t);
-typedef void (*on_sys_inotify_init1_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags);
-void ppp_add_cb_on_sys_inotify_init1_enter(on_sys_inotify_init1_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_inotify_init1_enter(on_sys_inotify_init1_enter_t);
-typedef void (*on_sys_inotify_init1_return_t)(CPUState* cpu, target_ulong pc, int32_t flags);
-void ppp_add_cb_on_sys_inotify_init1_return(on_sys_inotify_init1_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_inotify_init1_return(on_sys_inotify_init1_return_t);
-typedef void (*on_sys_inotify_rm_watch_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t wd);
-void ppp_add_cb_on_sys_inotify_rm_watch_enter(on_sys_inotify_rm_watch_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_inotify_rm_watch_enter(on_sys_inotify_rm_watch_enter_t);
-typedef void (*on_sys_inotify_rm_watch_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t wd);
-void ppp_add_cb_on_sys_inotify_rm_watch_return(on_sys_inotify_rm_watch_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_inotify_rm_watch_return(on_sys_inotify_rm_watch_return_t);
-typedef void (*on_sys_io_cancel_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, uint32_t iocb, uint32_t result);
-void ppp_add_cb_on_sys_io_cancel_enter(on_sys_io_cancel_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_io_cancel_enter(on_sys_io_cancel_enter_t);
-typedef void (*on_sys_io_cancel_return_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, uint32_t iocb, uint32_t result);
-void ppp_add_cb_on_sys_io_cancel_return(on_sys_io_cancel_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_io_cancel_return(on_sys_io_cancel_return_t);
-typedef void (*on_sys_io_destroy_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ctx);
-void ppp_add_cb_on_sys_io_destroy_enter(on_sys_io_destroy_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_io_destroy_enter(on_sys_io_destroy_enter_t);
-typedef void (*on_sys_io_destroy_return_t)(CPUState* cpu, target_ulong pc, uint32_t ctx);
-void ppp_add_cb_on_sys_io_destroy_return(on_sys_io_destroy_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_io_destroy_return(on_sys_io_destroy_return_t);
-typedef void (*on_sys_io_getevents_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, int32_t min_nr, int32_t nr, uint32_t events, uint32_t timeout);
-void ppp_add_cb_on_sys_io_getevents_enter(on_sys_io_getevents_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_io_getevents_enter(on_sys_io_getevents_enter_t);
-typedef void (*on_sys_io_getevents_return_t)(CPUState* cpu, target_ulong pc, uint32_t ctx_id, int32_t min_nr, int32_t nr, uint32_t events, uint32_t timeout);
-void ppp_add_cb_on_sys_io_getevents_return(on_sys_io_getevents_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_io_getevents_return(on_sys_io_getevents_return_t);
-typedef void (*on_sys_io_setup_enter_t)(CPUState* cpu, target_ulong pc, uint32_t nr_reqs, uint32_t ctx);
-void ppp_add_cb_on_sys_io_setup_enter(on_sys_io_setup_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_io_setup_enter(on_sys_io_setup_enter_t);
-typedef void (*on_sys_io_setup_return_t)(CPUState* cpu, target_ulong pc, uint32_t nr_reqs, uint32_t ctx);
-void ppp_add_cb_on_sys_io_setup_return(on_sys_io_setup_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_io_setup_return(on_sys_io_setup_return_t);
-typedef void (*on_sys_io_submit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, int32_t arg1, uint32_t arg2);
-void ppp_add_cb_on_sys_io_submit_enter(on_sys_io_submit_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_io_submit_enter(on_sys_io_submit_enter_t);
-typedef void (*on_sys_io_submit_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, int32_t arg1, uint32_t arg2);
-void ppp_add_cb_on_sys_io_submit_return(on_sys_io_submit_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_io_submit_return(on_sys_io_submit_return_t);
-typedef void (*on_sys_ioctl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);
-void ppp_add_cb_on_sys_ioctl_enter(on_sys_ioctl_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_ioctl_enter(on_sys_ioctl_enter_t);
-typedef void (*on_sys_ioctl_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t cmd, uint32_t arg);
-void ppp_add_cb_on_sys_ioctl_return(on_sys_ioctl_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_ioctl_return(on_sys_ioctl_return_t);
-typedef void (*on_sys_ioprio_get_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who);
-void ppp_add_cb_on_sys_ioprio_get_enter(on_sys_ioprio_get_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_ioprio_get_enter(on_sys_ioprio_get_enter_t);
-typedef void (*on_sys_ioprio_get_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who);
-void ppp_add_cb_on_sys_ioprio_get_return(on_sys_ioprio_get_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_ioprio_get_return(on_sys_ioprio_get_return_t);
-typedef void (*on_sys_ioprio_set_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t ioprio);
-void ppp_add_cb_on_sys_ioprio_set_enter(on_sys_ioprio_set_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_ioprio_set_enter(on_sys_ioprio_set_enter_t);
-typedef void (*on_sys_ioprio_set_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t ioprio);
-void ppp_add_cb_on_sys_ioprio_set_return(on_sys_ioprio_set_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_ioprio_set_return(on_sys_ioprio_set_return_t);
-typedef void (*on_sys_ipc_enter_t)(CPUState* cpu, target_ulong pc, uint32_t call, int32_t first, uint32_t second, uint32_t third, uint32_t ptr, int32_t fifth);
-void ppp_add_cb_on_sys_ipc_enter(on_sys_ipc_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_ipc_enter(on_sys_ipc_enter_t);
-typedef void (*on_sys_ipc_return_t)(CPUState* cpu, target_ulong pc, uint32_t call, int32_t first, uint32_t second, uint32_t third, uint32_t ptr, int32_t fifth);
-void ppp_add_cb_on_sys_ipc_return(on_sys_ipc_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_ipc_return(on_sys_ipc_return_t);
-typedef void (*on_sys_kcmp_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid1, int32_t pid2, int32_t type, uint32_t idx1, uint32_t idx2);
-void ppp_add_cb_on_sys_kcmp_enter(on_sys_kcmp_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_kcmp_enter(on_sys_kcmp_enter_t);
-typedef void (*on_sys_kcmp_return_t)(CPUState* cpu, target_ulong pc, int32_t pid1, int32_t pid2, int32_t type, uint32_t idx1, uint32_t idx2);
-void ppp_add_cb_on_sys_kcmp_return(on_sys_kcmp_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_kcmp_return(on_sys_kcmp_return_t);
-typedef void (*on_sys_kexec_load_enter_t)(CPUState* cpu, target_ulong pc, uint32_t entry, uint32_t nr_segments, uint32_t segments, uint32_t flags);
-void ppp_add_cb_on_sys_kexec_load_enter(on_sys_kexec_load_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_kexec_load_enter(on_sys_kexec_load_enter_t);
-typedef void (*on_sys_kexec_load_return_t)(CPUState* cpu, target_ulong pc, uint32_t entry, uint32_t nr_segments, uint32_t segments, uint32_t flags);
-void ppp_add_cb_on_sys_kexec_load_return(on_sys_kexec_load_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_kexec_load_return(on_sys_kexec_load_return_t);
-typedef void (*on_sys_keyctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
-void ppp_add_cb_on_sys_keyctl_enter(on_sys_keyctl_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_keyctl_enter(on_sys_keyctl_enter_t);
-typedef void (*on_sys_keyctl_return_t)(CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
-void ppp_add_cb_on_sys_keyctl_return(on_sys_keyctl_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_keyctl_return(on_sys_keyctl_return_t);
-typedef void (*on_sys_kill_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);
-void ppp_add_cb_on_sys_kill_enter(on_sys_kill_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_kill_enter(on_sys_kill_enter_t);
-typedef void (*on_sys_kill_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);
-void ppp_add_cb_on_sys_kill_return(on_sys_kill_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_kill_return(on_sys_kill_return_t);
-typedef void (*on_sys_lchown_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
-void ppp_add_cb_on_sys_lchown_enter(on_sys_lchown_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_lchown_enter(on_sys_lchown_enter_t);
-typedef void (*on_sys_lchown_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
-void ppp_add_cb_on_sys_lchown_return(on_sys_lchown_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_lchown_return(on_sys_lchown_return_t);
-typedef void (*on_sys_lchown16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
-void ppp_add_cb_on_sys_lchown16_enter(on_sys_lchown16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_lchown16_enter(on_sys_lchown16_enter_t);
-typedef void (*on_sys_lchown16_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t user, uint32_t group);
-void ppp_add_cb_on_sys_lchown16_return(on_sys_lchown16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_lchown16_return(on_sys_lchown16_return_t);
-typedef void (*on_sys_lgetxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);
-void ppp_add_cb_on_sys_lgetxattr_enter(on_sys_lgetxattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_lgetxattr_enter(on_sys_lgetxattr_enter_t);
-typedef void (*on_sys_lgetxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size);
-void ppp_add_cb_on_sys_lgetxattr_return(on_sys_lgetxattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_lgetxattr_return(on_sys_lgetxattr_return_t);
-typedef void (*on_sys_link_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);
-void ppp_add_cb_on_sys_link_enter(on_sys_link_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_link_enter(on_sys_link_enter_t);
-typedef void (*on_sys_link_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);
-void ppp_add_cb_on_sys_link_return(on_sys_link_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_link_return(on_sys_link_return_t);
-typedef void (*on_sys_linkat_enter_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, int32_t flags);
-void ppp_add_cb_on_sys_linkat_enter(on_sys_linkat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_linkat_enter(on_sys_linkat_enter_t);
-typedef void (*on_sys_linkat_return_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, int32_t flags);
-void ppp_add_cb_on_sys_linkat_return(on_sys_linkat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_linkat_return(on_sys_linkat_return_t);
-typedef void (*on_sys_listen_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);
-void ppp_add_cb_on_sys_listen_enter(on_sys_listen_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_listen_enter(on_sys_listen_enter_t);
-typedef void (*on_sys_listen_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);
-void ppp_add_cb_on_sys_listen_return(on_sys_listen_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_listen_return(on_sys_listen_return_t);
-typedef void (*on_sys_listxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);
-void ppp_add_cb_on_sys_listxattr_enter(on_sys_listxattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_listxattr_enter(on_sys_listxattr_enter_t);
-typedef void (*on_sys_listxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);
-void ppp_add_cb_on_sys_listxattr_return(on_sys_listxattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_listxattr_return(on_sys_listxattr_return_t);
-typedef void (*on_sys_llistxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);
-void ppp_add_cb_on_sys_llistxattr_enter(on_sys_llistxattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_llistxattr_enter(on_sys_llistxattr_enter_t);
-typedef void (*on_sys_llistxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);
-void ppp_add_cb_on_sys_llistxattr_return(on_sys_llistxattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_llistxattr_return(on_sys_llistxattr_return_t);
-typedef void (*on_sys_llseek_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset_high, uint32_t offset_low, uint32_t result, uint32_t whence);
-void ppp_add_cb_on_sys_llseek_enter(on_sys_llseek_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_llseek_enter(on_sys_llseek_enter_t);
-typedef void (*on_sys_llseek_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset_high, uint32_t offset_low, uint32_t result, uint32_t whence);
-void ppp_add_cb_on_sys_llseek_return(on_sys_llseek_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_llseek_return(on_sys_llseek_return_t);
-typedef void (*on_sys_lookup_dcookie_enter_t)(CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len);
-void ppp_add_cb_on_sys_lookup_dcookie_enter(on_sys_lookup_dcookie_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_lookup_dcookie_enter(on_sys_lookup_dcookie_enter_t);
-typedef void (*on_sys_lookup_dcookie_return_t)(CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len);
-void ppp_add_cb_on_sys_lookup_dcookie_return(on_sys_lookup_dcookie_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_lookup_dcookie_return(on_sys_lookup_dcookie_return_t);
-typedef void (*on_sys_lremovexattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);
-void ppp_add_cb_on_sys_lremovexattr_enter(on_sys_lremovexattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_lremovexattr_enter(on_sys_lremovexattr_enter_t);
-typedef void (*on_sys_lremovexattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);
-void ppp_add_cb_on_sys_lremovexattr_return(on_sys_lremovexattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_lremovexattr_return(on_sys_lremovexattr_return_t);
-typedef void (*on_sys_lseek_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset, uint32_t whence);
-void ppp_add_cb_on_sys_lseek_enter(on_sys_lseek_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_lseek_enter(on_sys_lseek_enter_t);
-typedef void (*on_sys_lseek_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t offset, uint32_t whence);
-void ppp_add_cb_on_sys_lseek_return(on_sys_lseek_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_lseek_return(on_sys_lseek_return_t);
-typedef void (*on_sys_lsetxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);
-void ppp_add_cb_on_sys_lsetxattr_enter(on_sys_lsetxattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_lsetxattr_enter(on_sys_lsetxattr_enter_t);
-typedef void (*on_sys_lsetxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);
-void ppp_add_cb_on_sys_lsetxattr_return(on_sys_lsetxattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_lsetxattr_return(on_sys_lsetxattr_return_t);
-typedef void (*on_sys_lstat64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
-void ppp_add_cb_on_sys_lstat64_enter(on_sys_lstat64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_lstat64_enter(on_sys_lstat64_enter_t);
-typedef void (*on_sys_lstat64_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
-void ppp_add_cb_on_sys_lstat64_return(on_sys_lstat64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_lstat64_return(on_sys_lstat64_return_t);
-typedef void (*on_sys_madvise_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t behavior);
-void ppp_add_cb_on_sys_madvise_enter(on_sys_madvise_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_madvise_enter(on_sys_madvise_enter_t);
-typedef void (*on_sys_madvise_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t behavior);
-void ppp_add_cb_on_sys_madvise_return(on_sys_madvise_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_madvise_return(on_sys_madvise_return_t);
-typedef void (*on_sys_mbind_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t mode, uint32_t nmask, uint32_t maxnode, uint32_t flags);
-void ppp_add_cb_on_sys_mbind_enter(on_sys_mbind_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mbind_enter(on_sys_mbind_enter_t);
-typedef void (*on_sys_mbind_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t mode, uint32_t nmask, uint32_t maxnode, uint32_t flags);
-void ppp_add_cb_on_sys_mbind_return(on_sys_mbind_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mbind_return(on_sys_mbind_return_t);
-typedef void (*on_sys_membarrier_enter_t)(CPUState* cpu, target_ulong pc, int32_t cmd, int32_t flags);
-void ppp_add_cb_on_sys_membarrier_enter(on_sys_membarrier_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_membarrier_enter(on_sys_membarrier_enter_t);
-typedef void (*on_sys_membarrier_return_t)(CPUState* cpu, target_ulong pc, int32_t cmd, int32_t flags);
-void ppp_add_cb_on_sys_membarrier_return(on_sys_membarrier_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_membarrier_return(on_sys_membarrier_return_t);
-typedef void (*on_sys_memfd_create_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uname_ptr, uint32_t flags);
-void ppp_add_cb_on_sys_memfd_create_enter(on_sys_memfd_create_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_memfd_create_enter(on_sys_memfd_create_enter_t);
-typedef void (*on_sys_memfd_create_return_t)(CPUState* cpu, target_ulong pc, uint32_t uname_ptr, uint32_t flags);
-void ppp_add_cb_on_sys_memfd_create_return(on_sys_memfd_create_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_memfd_create_return(on_sys_memfd_create_return_t);
-typedef void (*on_sys_mincore_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t vec);
-void ppp_add_cb_on_sys_mincore_enter(on_sys_mincore_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mincore_enter(on_sys_mincore_enter_t);
-typedef void (*on_sys_mincore_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t vec);
-void ppp_add_cb_on_sys_mincore_return(on_sys_mincore_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mincore_return(on_sys_mincore_return_t);
-typedef void (*on_sys_mkdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);
-void ppp_add_cb_on_sys_mkdir_enter(on_sys_mkdir_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mkdir_enter(on_sys_mkdir_enter_t);
-typedef void (*on_sys_mkdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);
-void ppp_add_cb_on_sys_mkdir_return(on_sys_mkdir_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mkdir_return(on_sys_mkdir_return_t);
-typedef void (*on_sys_mkdirat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, uint32_t mode);
-void ppp_add_cb_on_sys_mkdirat_enter(on_sys_mkdirat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mkdirat_enter(on_sys_mkdirat_enter_t);
-typedef void (*on_sys_mkdirat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, uint32_t mode);
-void ppp_add_cb_on_sys_mkdirat_return(on_sys_mkdirat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mkdirat_return(on_sys_mkdirat_return_t);
-typedef void (*on_sys_mknod_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode, uint32_t dev);
-void ppp_add_cb_on_sys_mknod_enter(on_sys_mknod_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mknod_enter(on_sys_mknod_enter_t);
-typedef void (*on_sys_mknod_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t mode, uint32_t dev);
-void ppp_add_cb_on_sys_mknod_return(on_sys_mknod_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mknod_return(on_sys_mknod_return_t);
-typedef void (*on_sys_mknodat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode, uint32_t dev);
-void ppp_add_cb_on_sys_mknodat_enter(on_sys_mknodat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mknodat_enter(on_sys_mknodat_enter_t);
-typedef void (*on_sys_mknodat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t mode, uint32_t dev);
-void ppp_add_cb_on_sys_mknodat_return(on_sys_mknodat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mknodat_return(on_sys_mknodat_return_t);
-typedef void (*on_sys_mlock_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);
-void ppp_add_cb_on_sys_mlock_enter(on_sys_mlock_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mlock_enter(on_sys_mlock_enter_t);
-typedef void (*on_sys_mlock_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);
-void ppp_add_cb_on_sys_mlock_return(on_sys_mlock_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mlock_return(on_sys_mlock_return_t);
-typedef void (*on_sys_mlock2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);
-void ppp_add_cb_on_sys_mlock2_enter(on_sys_mlock2_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mlock2_enter(on_sys_mlock2_enter_t);
-typedef void (*on_sys_mlock2_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);
-void ppp_add_cb_on_sys_mlock2_return(on_sys_mlock2_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mlock2_return(on_sys_mlock2_return_t);
-typedef void (*on_sys_mlockall_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags);
-void ppp_add_cb_on_sys_mlockall_enter(on_sys_mlockall_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mlockall_enter(on_sys_mlockall_enter_t);
-typedef void (*on_sys_mlockall_return_t)(CPUState* cpu, target_ulong pc, int32_t flags);
-void ppp_add_cb_on_sys_mlockall_return(on_sys_mlockall_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mlockall_return(on_sys_mlockall_return_t);
-typedef void (*on_sys_mount_enter_t)(CPUState* cpu, target_ulong pc, uint32_t dev_name, uint32_t dir_name, uint32_t type, uint32_t flags, uint32_t _data);
-void ppp_add_cb_on_sys_mount_enter(on_sys_mount_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mount_enter(on_sys_mount_enter_t);
-typedef void (*on_sys_mount_return_t)(CPUState* cpu, target_ulong pc, uint32_t dev_name, uint32_t dir_name, uint32_t type, uint32_t flags, uint32_t _data);
-void ppp_add_cb_on_sys_mount_return(on_sys_mount_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mount_return(on_sys_mount_return_t);
-typedef void (*on_sys_move_pages_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t nr_pages, uint32_t pages, uint32_t nodes, uint32_t status, int32_t flags);
-void ppp_add_cb_on_sys_move_pages_enter(on_sys_move_pages_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_move_pages_enter(on_sys_move_pages_enter_t);
-typedef void (*on_sys_move_pages_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t nr_pages, uint32_t pages, uint32_t nodes, uint32_t status, int32_t flags);
-void ppp_add_cb_on_sys_move_pages_return(on_sys_move_pages_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_move_pages_return(on_sys_move_pages_return_t);
-typedef void (*on_sys_mprotect_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot);
-void ppp_add_cb_on_sys_mprotect_enter(on_sys_mprotect_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mprotect_enter(on_sys_mprotect_enter_t);
-typedef void (*on_sys_mprotect_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, uint32_t prot);
-void ppp_add_cb_on_sys_mprotect_return(on_sys_mprotect_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mprotect_return(on_sys_mprotect_return_t);
-typedef void (*on_sys_mq_getsetattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t mqstat, uint32_t omqstat);
-void ppp_add_cb_on_sys_mq_getsetattr_enter(on_sys_mq_getsetattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mq_getsetattr_enter(on_sys_mq_getsetattr_enter_t);
-typedef void (*on_sys_mq_getsetattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t mqstat, uint32_t omqstat);
-void ppp_add_cb_on_sys_mq_getsetattr_return(on_sys_mq_getsetattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mq_getsetattr_return(on_sys_mq_getsetattr_return_t);
-typedef void (*on_sys_mq_notify_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t notification);
-void ppp_add_cb_on_sys_mq_notify_enter(on_sys_mq_notify_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mq_notify_enter(on_sys_mq_notify_enter_t);
-typedef void (*on_sys_mq_notify_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t notification);
-void ppp_add_cb_on_sys_mq_notify_return(on_sys_mq_notify_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mq_notify_return(on_sys_mq_notify_return_t);
-typedef void (*on_sys_mq_open_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t oflag, uint32_t mode, uint32_t attr);
-void ppp_add_cb_on_sys_mq_open_enter(on_sys_mq_open_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mq_open_enter(on_sys_mq_open_enter_t);
-typedef void (*on_sys_mq_open_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t oflag, uint32_t mode, uint32_t attr);
-void ppp_add_cb_on_sys_mq_open_return(on_sys_mq_open_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mq_open_return(on_sys_mq_open_return_t);
-typedef void (*on_sys_mq_timedreceive_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);
-void ppp_add_cb_on_sys_mq_timedreceive_enter(on_sys_mq_timedreceive_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mq_timedreceive_enter(on_sys_mq_timedreceive_enter_t);
-typedef void (*on_sys_mq_timedreceive_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);
-void ppp_add_cb_on_sys_mq_timedreceive_return(on_sys_mq_timedreceive_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mq_timedreceive_return(on_sys_mq_timedreceive_return_t);
-typedef void (*on_sys_mq_timedsend_enter_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);
-void ppp_add_cb_on_sys_mq_timedsend_enter(on_sys_mq_timedsend_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mq_timedsend_enter(on_sys_mq_timedsend_enter_t);
-typedef void (*on_sys_mq_timedsend_return_t)(CPUState* cpu, target_ulong pc, uint32_t mqdes, uint32_t msg_ptr, uint32_t msg_len, uint32_t msg_prio, uint32_t abs_timeout);
-void ppp_add_cb_on_sys_mq_timedsend_return(on_sys_mq_timedsend_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mq_timedsend_return(on_sys_mq_timedsend_return_t);
-typedef void (*on_sys_mq_unlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name);
-void ppp_add_cb_on_sys_mq_unlink_enter(on_sys_mq_unlink_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mq_unlink_enter(on_sys_mq_unlink_enter_t);
-typedef void (*on_sys_mq_unlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t name);
-void ppp_add_cb_on_sys_mq_unlink_return(on_sys_mq_unlink_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mq_unlink_return(on_sys_mq_unlink_return_t);
-typedef void (*on_sys_mremap_enter_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t old_len, uint32_t new_len, uint32_t flags, uint32_t new_addr);
-void ppp_add_cb_on_sys_mremap_enter(on_sys_mremap_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_mremap_enter(on_sys_mremap_enter_t);
-typedef void (*on_sys_mremap_return_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t old_len, uint32_t new_len, uint32_t flags, uint32_t new_addr);
-void ppp_add_cb_on_sys_mremap_return(on_sys_mremap_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_mremap_return(on_sys_mremap_return_t);
-typedef void (*on_sys_msgctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t msqid, int32_t cmd, uint32_t buf);
-void ppp_add_cb_on_sys_msgctl_enter(on_sys_msgctl_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_msgctl_enter(on_sys_msgctl_enter_t);
-typedef void (*on_sys_msgctl_return_t)(CPUState* cpu, target_ulong pc, int32_t msqid, int32_t cmd, uint32_t buf);
-void ppp_add_cb_on_sys_msgctl_return(on_sys_msgctl_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_msgctl_return(on_sys_msgctl_return_t);
-typedef void (*on_sys_msgget_enter_t)(CPUState* cpu, target_ulong pc, uint32_t key, int32_t msgflg);
-void ppp_add_cb_on_sys_msgget_enter(on_sys_msgget_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_msgget_enter(on_sys_msgget_enter_t);
-typedef void (*on_sys_msgget_return_t)(CPUState* cpu, target_ulong pc, uint32_t key, int32_t msgflg);
-void ppp_add_cb_on_sys_msgget_return(on_sys_msgget_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_msgget_return(on_sys_msgget_return_t);
-typedef void (*on_sys_msgrcv_enter_t)(CPUState* cpu, target_ulong pc, int32_t msqid, uint32_t msgp, uint32_t msgsz, int32_t msgtyp, int32_t msgflg);
-void ppp_add_cb_on_sys_msgrcv_enter(on_sys_msgrcv_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_msgrcv_enter(on_sys_msgrcv_enter_t);
-typedef void (*on_sys_msgrcv_return_t)(CPUState* cpu, target_ulong pc, int32_t msqid, uint32_t msgp, uint32_t msgsz, int32_t msgtyp, int32_t msgflg);
-void ppp_add_cb_on_sys_msgrcv_return(on_sys_msgrcv_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_msgrcv_return(on_sys_msgrcv_return_t);
-typedef void (*on_sys_msgsnd_enter_t)(CPUState* cpu, target_ulong pc, int32_t msqid, uint32_t msgp, uint32_t msgsz, int32_t msgflg);
-void ppp_add_cb_on_sys_msgsnd_enter(on_sys_msgsnd_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_msgsnd_enter(on_sys_msgsnd_enter_t);
-typedef void (*on_sys_msgsnd_return_t)(CPUState* cpu, target_ulong pc, int32_t msqid, uint32_t msgp, uint32_t msgsz, int32_t msgflg);
-void ppp_add_cb_on_sys_msgsnd_return(on_sys_msgsnd_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_msgsnd_return(on_sys_msgsnd_return_t);
-typedef void (*on_sys_msync_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);
-void ppp_add_cb_on_sys_msync_enter(on_sys_msync_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_msync_enter(on_sys_msync_enter_t);
-typedef void (*on_sys_msync_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len, int32_t flags);
-void ppp_add_cb_on_sys_msync_return(on_sys_msync_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_msync_return(on_sys_msync_return_t);
-typedef void (*on_sys_munlock_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);
-void ppp_add_cb_on_sys_munlock_enter(on_sys_munlock_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_munlock_enter(on_sys_munlock_enter_t);
-typedef void (*on_sys_munlock_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t len);
-void ppp_add_cb_on_sys_munlock_return(on_sys_munlock_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_munlock_return(on_sys_munlock_return_t);
-typedef void (*on_sys_munlockall_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_munlockall_enter(on_sys_munlockall_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_munlockall_enter(on_sys_munlockall_enter_t);
-typedef void (*on_sys_munlockall_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_munlockall_return(on_sys_munlockall_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_munlockall_return(on_sys_munlockall_return_t);
-typedef void (*on_sys_munmap_enter_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len);
-void ppp_add_cb_on_sys_munmap_enter(on_sys_munmap_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_munmap_enter(on_sys_munmap_enter_t);
-typedef void (*on_sys_munmap_return_t)(CPUState* cpu, target_ulong pc, uint32_t addr, uint32_t len);
-void ppp_add_cb_on_sys_munmap_return(on_sys_munmap_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_munmap_return(on_sys_munmap_return_t);
-typedef void (*on_sys_name_to_handle_at_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t name, uint32_t handle, uint32_t mnt_id, int32_t flag);
-void ppp_add_cb_on_sys_name_to_handle_at_enter(on_sys_name_to_handle_at_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_name_to_handle_at_enter(on_sys_name_to_handle_at_enter_t);
-typedef void (*on_sys_name_to_handle_at_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t name, uint32_t handle, uint32_t mnt_id, int32_t flag);
-void ppp_add_cb_on_sys_name_to_handle_at_return(on_sys_name_to_handle_at_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_name_to_handle_at_return(on_sys_name_to_handle_at_return_t);
-typedef void (*on_sys_nanosleep_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rqtp, uint32_t rmtp);
-void ppp_add_cb_on_sys_nanosleep_enter(on_sys_nanosleep_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_nanosleep_enter(on_sys_nanosleep_enter_t);
-typedef void (*on_sys_nanosleep_return_t)(CPUState* cpu, target_ulong pc, uint32_t rqtp, uint32_t rmtp);
-void ppp_add_cb_on_sys_nanosleep_return(on_sys_nanosleep_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_nanosleep_return(on_sys_nanosleep_return_t);
-typedef void (*on_sys_newfstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);
-void ppp_add_cb_on_sys_newfstat_enter(on_sys_newfstat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_newfstat_enter(on_sys_newfstat_enter_t);
-typedef void (*on_sys_newfstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t statbuf);
-void ppp_add_cb_on_sys_newfstat_return(on_sys_newfstat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_newfstat_return(on_sys_newfstat_return_t);
-typedef void (*on_sys_newlstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
-void ppp_add_cb_on_sys_newlstat_enter(on_sys_newlstat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_newlstat_enter(on_sys_newlstat_enter_t);
-typedef void (*on_sys_newlstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
-void ppp_add_cb_on_sys_newlstat_return(on_sys_newlstat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_newlstat_return(on_sys_newlstat_return_t);
-typedef void (*on_sys_newstat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
-void ppp_add_cb_on_sys_newstat_enter(on_sys_newstat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_newstat_enter(on_sys_newstat_enter_t);
-typedef void (*on_sys_newstat_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
-void ppp_add_cb_on_sys_newstat_return(on_sys_newstat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_newstat_return(on_sys_newstat_return_t);
-typedef void (*on_sys_newuname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name);
-void ppp_add_cb_on_sys_newuname_enter(on_sys_newuname_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_newuname_enter(on_sys_newuname_enter_t);
-typedef void (*on_sys_newuname_return_t)(CPUState* cpu, target_ulong pc, uint32_t name);
-void ppp_add_cb_on_sys_newuname_return(on_sys_newuname_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_newuname_return(on_sys_newuname_return_t);
-typedef void (*on_sys_nice_enter_t)(CPUState* cpu, target_ulong pc, int32_t increment);
-void ppp_add_cb_on_sys_nice_enter(on_sys_nice_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_nice_enter(on_sys_nice_enter_t);
-typedef void (*on_sys_nice_return_t)(CPUState* cpu, target_ulong pc, int32_t increment);
-void ppp_add_cb_on_sys_nice_return(on_sys_nice_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_nice_return(on_sys_nice_return_t);
-typedef void (*on_sys_open_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t flags, uint32_t mode);
-void ppp_add_cb_on_sys_open_enter(on_sys_open_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_open_enter(on_sys_open_enter_t);
-typedef void (*on_sys_open_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, int32_t flags, uint32_t mode);
-void ppp_add_cb_on_sys_open_return(on_sys_open_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_open_return(on_sys_open_return_t);
-typedef void (*on_sys_open_by_handle_at_enter_t)(CPUState* cpu, target_ulong pc, int32_t mountdirfd, uint32_t handle, int32_t flags);
-void ppp_add_cb_on_sys_open_by_handle_at_enter(on_sys_open_by_handle_at_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_open_by_handle_at_enter(on_sys_open_by_handle_at_enter_t);
-typedef void (*on_sys_open_by_handle_at_return_t)(CPUState* cpu, target_ulong pc, int32_t mountdirfd, uint32_t handle, int32_t flags);
-void ppp_add_cb_on_sys_open_by_handle_at_return(on_sys_open_by_handle_at_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_open_by_handle_at_return(on_sys_open_by_handle_at_return_t);
-typedef void (*on_sys_openat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t flags, uint32_t mode);
-void ppp_add_cb_on_sys_openat_enter(on_sys_openat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_openat_enter(on_sys_openat_enter_t);
-typedef void (*on_sys_openat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, int32_t flags, uint32_t mode);
-void ppp_add_cb_on_sys_openat_return(on_sys_openat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_openat_return(on_sys_openat_return_t);
-typedef void (*on_sys_pause_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_pause_enter(on_sys_pause_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_pause_enter(on_sys_pause_enter_t);
-typedef void (*on_sys_pause_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_pause_return(on_sys_pause_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_pause_return(on_sys_pause_return_t);
-typedef void (*on_sys_pciconfig_iobase_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t bus, uint32_t devfn);
-void ppp_add_cb_on_sys_pciconfig_iobase_enter(on_sys_pciconfig_iobase_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_pciconfig_iobase_enter(on_sys_pciconfig_iobase_enter_t);
-typedef void (*on_sys_pciconfig_iobase_return_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t bus, uint32_t devfn);
-void ppp_add_cb_on_sys_pciconfig_iobase_return(on_sys_pciconfig_iobase_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_pciconfig_iobase_return(on_sys_pciconfig_iobase_return_t);
-typedef void (*on_sys_pciconfig_read_enter_t)(CPUState* cpu, target_ulong pc, uint32_t bus, uint32_t dfn, uint32_t off, uint32_t len, uint32_t buf);
-void ppp_add_cb_on_sys_pciconfig_read_enter(on_sys_pciconfig_read_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_pciconfig_read_enter(on_sys_pciconfig_read_enter_t);
-typedef void (*on_sys_pciconfig_read_return_t)(CPUState* cpu, target_ulong pc, uint32_t bus, uint32_t dfn, uint32_t off, uint32_t len, uint32_t buf);
-void ppp_add_cb_on_sys_pciconfig_read_return(on_sys_pciconfig_read_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_pciconfig_read_return(on_sys_pciconfig_read_return_t);
-typedef void (*on_sys_pciconfig_write_enter_t)(CPUState* cpu, target_ulong pc, uint32_t bus, uint32_t dfn, uint32_t off, uint32_t len, uint32_t buf);
-void ppp_add_cb_on_sys_pciconfig_write_enter(on_sys_pciconfig_write_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_pciconfig_write_enter(on_sys_pciconfig_write_enter_t);
-typedef void (*on_sys_pciconfig_write_return_t)(CPUState* cpu, target_ulong pc, uint32_t bus, uint32_t dfn, uint32_t off, uint32_t len, uint32_t buf);
-void ppp_add_cb_on_sys_pciconfig_write_return(on_sys_pciconfig_write_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_pciconfig_write_return(on_sys_pciconfig_write_return_t);
-typedef void (*on_sys_perf_event_open_enter_t)(CPUState* cpu, target_ulong pc, uint32_t attr_uptr, int32_t pid, int32_t _cpu, int32_t group_fd, uint32_t flags);
-void ppp_add_cb_on_sys_perf_event_open_enter(on_sys_perf_event_open_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_perf_event_open_enter(on_sys_perf_event_open_enter_t);
-typedef void (*on_sys_perf_event_open_return_t)(CPUState* cpu, target_ulong pc, uint32_t attr_uptr, int32_t pid, int32_t _cpu, int32_t group_fd, uint32_t flags);
-void ppp_add_cb_on_sys_perf_event_open_return(on_sys_perf_event_open_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_perf_event_open_return(on_sys_perf_event_open_return_t);
-typedef void (*on_sys_personality_enter_t)(CPUState* cpu, target_ulong pc, uint32_t personality);
-void ppp_add_cb_on_sys_personality_enter(on_sys_personality_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_personality_enter(on_sys_personality_enter_t);
-typedef void (*on_sys_personality_return_t)(CPUState* cpu, target_ulong pc, uint32_t personality);
-void ppp_add_cb_on_sys_personality_return(on_sys_personality_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_personality_return(on_sys_personality_return_t);
-typedef void (*on_sys_pipe_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fildes);
-void ppp_add_cb_on_sys_pipe_enter(on_sys_pipe_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_pipe_enter(on_sys_pipe_enter_t);
-typedef void (*on_sys_pipe_return_t)(CPUState* cpu, target_ulong pc, uint32_t fildes);
-void ppp_add_cb_on_sys_pipe_return(on_sys_pipe_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_pipe_return(on_sys_pipe_return_t);
-typedef void (*on_sys_pipe2_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fildes, int32_t flags);
-void ppp_add_cb_on_sys_pipe2_enter(on_sys_pipe2_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_pipe2_enter(on_sys_pipe2_enter_t);
-typedef void (*on_sys_pipe2_return_t)(CPUState* cpu, target_ulong pc, uint32_t fildes, int32_t flags);
-void ppp_add_cb_on_sys_pipe2_return(on_sys_pipe2_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_pipe2_return(on_sys_pipe2_return_t);
-typedef void (*on_sys_pivot_root_enter_t)(CPUState* cpu, target_ulong pc, uint32_t new_root, uint32_t put_old);
-void ppp_add_cb_on_sys_pivot_root_enter(on_sys_pivot_root_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_pivot_root_enter(on_sys_pivot_root_enter_t);
-typedef void (*on_sys_pivot_root_return_t)(CPUState* cpu, target_ulong pc, uint32_t new_root, uint32_t put_old);
-void ppp_add_cb_on_sys_pivot_root_return(on_sys_pivot_root_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_pivot_root_return(on_sys_pivot_root_return_t);
-typedef void (*on_sys_poll_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ufds, uint32_t nfds, int32_t timeout);
-void ppp_add_cb_on_sys_poll_enter(on_sys_poll_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_poll_enter(on_sys_poll_enter_t);
-typedef void (*on_sys_poll_return_t)(CPUState* cpu, target_ulong pc, uint32_t ufds, uint32_t nfds, int32_t timeout);
-void ppp_add_cb_on_sys_poll_return(on_sys_poll_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_poll_return(on_sys_poll_return_t);
-typedef void (*on_sys_ppoll_enter_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);
-void ppp_add_cb_on_sys_ppoll_enter(on_sys_ppoll_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_ppoll_enter(on_sys_ppoll_enter_t);
-typedef void (*on_sys_ppoll_return_t)(CPUState* cpu, target_ulong pc, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);
-void ppp_add_cb_on_sys_ppoll_return(on_sys_ppoll_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_ppoll_return(on_sys_ppoll_return_t);
-typedef void (*on_sys_prctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
-void ppp_add_cb_on_sys_prctl_enter(on_sys_prctl_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_prctl_enter(on_sys_prctl_enter_t);
-typedef void (*on_sys_prctl_return_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
-void ppp_add_cb_on_sys_prctl_return(on_sys_prctl_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_prctl_return(on_sys_prctl_return_t);
-typedef void (*on_sys_pread64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);
-void ppp_add_cb_on_sys_pread64_enter(on_sys_pread64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_pread64_enter(on_sys_pread64_enter_t);
-typedef void (*on_sys_pread64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);
-void ppp_add_cb_on_sys_pread64_return(on_sys_pread64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_pread64_return(on_sys_pread64_return_t);
-typedef void (*on_sys_preadv_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);
-void ppp_add_cb_on_sys_preadv_enter(on_sys_preadv_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_preadv_enter(on_sys_preadv_enter_t);
-typedef void (*on_sys_preadv_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);
-void ppp_add_cb_on_sys_preadv_return(on_sys_preadv_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_preadv_return(on_sys_preadv_return_t);
-typedef void (*on_sys_prlimit64_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t resource, uint32_t new_rlim, uint32_t old_rlim);
-void ppp_add_cb_on_sys_prlimit64_enter(on_sys_prlimit64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_prlimit64_enter(on_sys_prlimit64_enter_t);
-typedef void (*on_sys_prlimit64_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t resource, uint32_t new_rlim, uint32_t old_rlim);
-void ppp_add_cb_on_sys_prlimit64_return(on_sys_prlimit64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_prlimit64_return(on_sys_prlimit64_return_t);
-typedef void (*on_sys_process_vm_readv_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);
-void ppp_add_cb_on_sys_process_vm_readv_enter(on_sys_process_vm_readv_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_process_vm_readv_enter(on_sys_process_vm_readv_enter_t);
-typedef void (*on_sys_process_vm_readv_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);
-void ppp_add_cb_on_sys_process_vm_readv_return(on_sys_process_vm_readv_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_process_vm_readv_return(on_sys_process_vm_readv_return_t);
-typedef void (*on_sys_process_vm_writev_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);
-void ppp_add_cb_on_sys_process_vm_writev_enter(on_sys_process_vm_writev_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_process_vm_writev_enter(on_sys_process_vm_writev_enter_t);
-typedef void (*on_sys_process_vm_writev_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t lvec, uint32_t liovcnt, uint32_t rvec, uint32_t riovcnt, uint32_t flags);
-void ppp_add_cb_on_sys_process_vm_writev_return(on_sys_process_vm_writev_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_process_vm_writev_return(on_sys_process_vm_writev_return_t);
-typedef void (*on_sys_pselect6_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
-void ppp_add_cb_on_sys_pselect6_enter(on_sys_pselect6_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_pselect6_enter(on_sys_pselect6_enter_t);
-typedef void (*on_sys_pselect6_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
-void ppp_add_cb_on_sys_pselect6_return(on_sys_pselect6_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_pselect6_return(on_sys_pselect6_return_t);
-typedef void (*on_sys_ptrace_enter_t)(CPUState* cpu, target_ulong pc, int32_t request, int32_t pid, uint32_t addr, uint32_t _data);
-void ppp_add_cb_on_sys_ptrace_enter(on_sys_ptrace_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_ptrace_enter(on_sys_ptrace_enter_t);
-typedef void (*on_sys_ptrace_return_t)(CPUState* cpu, target_ulong pc, int32_t request, int32_t pid, uint32_t addr, uint32_t _data);
-void ppp_add_cb_on_sys_ptrace_return(on_sys_ptrace_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_ptrace_return(on_sys_ptrace_return_t);
-typedef void (*on_sys_pwrite64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);
-void ppp_add_cb_on_sys_pwrite64_enter(on_sys_pwrite64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_pwrite64_enter(on_sys_pwrite64_enter_t);
-typedef void (*on_sys_pwrite64_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count, uint64_t pos);
-void ppp_add_cb_on_sys_pwrite64_return(on_sys_pwrite64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_pwrite64_return(on_sys_pwrite64_return_t);
-typedef void (*on_sys_pwritev_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);
-void ppp_add_cb_on_sys_pwritev_enter(on_sys_pwritev_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_pwritev_enter(on_sys_pwritev_enter_t);
-typedef void (*on_sys_pwritev_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h);
-void ppp_add_cb_on_sys_pwritev_return(on_sys_pwritev_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_pwritev_return(on_sys_pwritev_return_t);
-typedef void (*on_sys_quotactl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t cmd, uint32_t special, uint32_t id, uint32_t addr);
-void ppp_add_cb_on_sys_quotactl_enter(on_sys_quotactl_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_quotactl_enter(on_sys_quotactl_enter_t);
-typedef void (*on_sys_quotactl_return_t)(CPUState* cpu, target_ulong pc, uint32_t cmd, uint32_t special, uint32_t id, uint32_t addr);
-void ppp_add_cb_on_sys_quotactl_return(on_sys_quotactl_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_quotactl_return(on_sys_quotactl_return_t);
-typedef void (*on_sys_read_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);
-void ppp_add_cb_on_sys_read_enter(on_sys_read_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_read_enter(on_sys_read_enter_t);
-typedef void (*on_sys_read_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);
-void ppp_add_cb_on_sys_read_return(on_sys_read_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_read_return(on_sys_read_return_t);
-typedef void (*on_sys_readahead_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t count);
-void ppp_add_cb_on_sys_readahead_enter(on_sys_readahead_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_readahead_enter(on_sys_readahead_enter_t);
-typedef void (*on_sys_readahead_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint64_t offset, uint32_t count);
-void ppp_add_cb_on_sys_readahead_return(on_sys_readahead_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_readahead_return(on_sys_readahead_return_t);
-typedef void (*on_sys_readlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf, int32_t bufsiz);
-void ppp_add_cb_on_sys_readlink_enter(on_sys_readlink_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_readlink_enter(on_sys_readlink_enter_t);
-typedef void (*on_sys_readlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf, int32_t bufsiz);
-void ppp_add_cb_on_sys_readlink_return(on_sys_readlink_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_readlink_return(on_sys_readlink_return_t);
-typedef void (*on_sys_readlinkat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t buf, int32_t bufsiz);
-void ppp_add_cb_on_sys_readlinkat_enter(on_sys_readlinkat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_readlinkat_enter(on_sys_readlinkat_enter_t);
-typedef void (*on_sys_readlinkat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t buf, int32_t bufsiz);
-void ppp_add_cb_on_sys_readlinkat_return(on_sys_readlinkat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_readlinkat_return(on_sys_readlinkat_return_t);
-typedef void (*on_sys_readv_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);
-void ppp_add_cb_on_sys_readv_enter(on_sys_readv_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_readv_enter(on_sys_readv_enter_t);
-typedef void (*on_sys_readv_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);
-void ppp_add_cb_on_sys_readv_return(on_sys_readv_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_readv_return(on_sys_readv_return_t);
-typedef void (*on_sys_reboot_enter_t)(CPUState* cpu, target_ulong pc, int32_t magic1, int32_t magic2, uint32_t cmd, uint32_t arg);
-void ppp_add_cb_on_sys_reboot_enter(on_sys_reboot_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_reboot_enter(on_sys_reboot_enter_t);
-typedef void (*on_sys_reboot_return_t)(CPUState* cpu, target_ulong pc, int32_t magic1, int32_t magic2, uint32_t cmd, uint32_t arg);
-void ppp_add_cb_on_sys_reboot_return(on_sys_reboot_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_reboot_return(on_sys_reboot_return_t);
-typedef void (*on_sys_recv_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);
-void ppp_add_cb_on_sys_recv_enter(on_sys_recv_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_recv_enter(on_sys_recv_enter_t);
-typedef void (*on_sys_recv_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);
-void ppp_add_cb_on_sys_recv_return(on_sys_recv_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_recv_return(on_sys_recv_return_t);
-typedef void (*on_sys_recvfrom_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
-void ppp_add_cb_on_sys_recvfrom_enter(on_sys_recvfrom_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_recvfrom_enter(on_sys_recvfrom_enter_t);
-typedef void (*on_sys_recvfrom_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, uint32_t arg5);
-void ppp_add_cb_on_sys_recvfrom_return(on_sys_recvfrom_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_recvfrom_return(on_sys_recvfrom_return_t);
-typedef void (*on_sys_recvmmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags, uint32_t timeout);
-void ppp_add_cb_on_sys_recvmmsg_enter(on_sys_recvmmsg_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_recvmmsg_enter(on_sys_recvmmsg_enter_t);
-typedef void (*on_sys_recvmmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags, uint32_t timeout);
-void ppp_add_cb_on_sys_recvmmsg_return(on_sys_recvmmsg_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_recvmmsg_return(on_sys_recvmmsg_return_t);
-typedef void (*on_sys_recvmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);
-void ppp_add_cb_on_sys_recvmsg_enter(on_sys_recvmsg_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_recvmsg_enter(on_sys_recvmsg_enter_t);
-typedef void (*on_sys_recvmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);
-void ppp_add_cb_on_sys_recvmsg_return(on_sys_recvmsg_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_recvmsg_return(on_sys_recvmsg_return_t);
-typedef void (*on_sys_remap_file_pages_enter_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t size, uint32_t prot, uint32_t pgoff, uint32_t flags);
-void ppp_add_cb_on_sys_remap_file_pages_enter(on_sys_remap_file_pages_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_remap_file_pages_enter(on_sys_remap_file_pages_enter_t);
-typedef void (*on_sys_remap_file_pages_return_t)(CPUState* cpu, target_ulong pc, uint32_t start, uint32_t size, uint32_t prot, uint32_t pgoff, uint32_t flags);
-void ppp_add_cb_on_sys_remap_file_pages_return(on_sys_remap_file_pages_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_remap_file_pages_return(on_sys_remap_file_pages_return_t);
-typedef void (*on_sys_removexattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);
-void ppp_add_cb_on_sys_removexattr_enter(on_sys_removexattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_removexattr_enter(on_sys_removexattr_enter_t);
-typedef void (*on_sys_removexattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);
-void ppp_add_cb_on_sys_removexattr_return(on_sys_removexattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_removexattr_return(on_sys_removexattr_return_t);
-typedef void (*on_sys_rename_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);
-void ppp_add_cb_on_sys_rename_enter(on_sys_rename_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_rename_enter(on_sys_rename_enter_t);
-typedef void (*on_sys_rename_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, uint32_t newname);
-void ppp_add_cb_on_sys_rename_return(on_sys_rename_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_rename_return(on_sys_rename_return_t);
-typedef void (*on_sys_renameat_enter_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname);
-void ppp_add_cb_on_sys_renameat_enter(on_sys_renameat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_renameat_enter(on_sys_renameat_enter_t);
-typedef void (*on_sys_renameat_return_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname);
-void ppp_add_cb_on_sys_renameat_return(on_sys_renameat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_renameat_return(on_sys_renameat_return_t);
-typedef void (*on_sys_renameat2_enter_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, uint32_t flags);
-void ppp_add_cb_on_sys_renameat2_enter(on_sys_renameat2_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_renameat2_enter(on_sys_renameat2_enter_t);
-typedef void (*on_sys_renameat2_return_t)(CPUState* cpu, target_ulong pc, int32_t olddfd, uint32_t oldname, int32_t newdfd, uint32_t newname, uint32_t flags);
-void ppp_add_cb_on_sys_renameat2_return(on_sys_renameat2_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_renameat2_return(on_sys_renameat2_return_t);
-typedef void (*on_sys_request_key_enter_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _callout_info, uint32_t destringid);
-void ppp_add_cb_on_sys_request_key_enter(on_sys_request_key_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_request_key_enter(on_sys_request_key_enter_t);
-typedef void (*on_sys_request_key_return_t)(CPUState* cpu, target_ulong pc, uint32_t _type, uint32_t _description, uint32_t _callout_info, uint32_t destringid);
-void ppp_add_cb_on_sys_request_key_return(on_sys_request_key_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_request_key_return(on_sys_request_key_return_t);
-typedef void (*on_sys_restart_syscall_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_restart_syscall_enter(on_sys_restart_syscall_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_restart_syscall_enter(on_sys_restart_syscall_enter_t);
-typedef void (*on_sys_restart_syscall_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_restart_syscall_return(on_sys_restart_syscall_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_restart_syscall_return(on_sys_restart_syscall_return_t);
-typedef void (*on_sys_rmdir_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname);
-void ppp_add_cb_on_sys_rmdir_enter(on_sys_rmdir_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_rmdir_enter(on_sys_rmdir_enter_t);
-typedef void (*on_sys_rmdir_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname);
-void ppp_add_cb_on_sys_rmdir_return(on_sys_rmdir_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_rmdir_return(on_sys_rmdir_return_t);
-typedef void (*on_sys_rt_sigaction_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);
-void ppp_add_cb_on_sys_rt_sigaction_enter(on_sys_rt_sigaction_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigaction_enter(on_sys_rt_sigaction_enter_t);
-typedef void (*on_sys_rt_sigaction_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);
-void ppp_add_cb_on_sys_rt_sigaction_return(on_sys_rt_sigaction_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigaction_return(on_sys_rt_sigaction_return_t);
-typedef void (*on_sys_rt_sigpending_enter_t)(CPUState* cpu, target_ulong pc, uint32_t set, uint32_t sigsetsize);
-void ppp_add_cb_on_sys_rt_sigpending_enter(on_sys_rt_sigpending_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigpending_enter(on_sys_rt_sigpending_enter_t);
-typedef void (*on_sys_rt_sigpending_return_t)(CPUState* cpu, target_ulong pc, uint32_t set, uint32_t sigsetsize);
-void ppp_add_cb_on_sys_rt_sigpending_return(on_sys_rt_sigpending_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigpending_return(on_sys_rt_sigpending_return_t);
-typedef void (*on_sys_rt_sigprocmask_enter_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset, uint32_t sigsetsize);
-void ppp_add_cb_on_sys_rt_sigprocmask_enter(on_sys_rt_sigprocmask_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigprocmask_enter(on_sys_rt_sigprocmask_enter_t);
-typedef void (*on_sys_rt_sigprocmask_return_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset, uint32_t sigsetsize);
-void ppp_add_cb_on_sys_rt_sigprocmask_return(on_sys_rt_sigprocmask_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigprocmask_return(on_sys_rt_sigprocmask_return_t);
-typedef void (*on_sys_rt_sigqueueinfo_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig, uint32_t uinfo);
-void ppp_add_cb_on_sys_rt_sigqueueinfo_enter(on_sys_rt_sigqueueinfo_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigqueueinfo_enter(on_sys_rt_sigqueueinfo_enter_t);
-typedef void (*on_sys_rt_sigqueueinfo_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig, uint32_t uinfo);
-void ppp_add_cb_on_sys_rt_sigqueueinfo_return(on_sys_rt_sigqueueinfo_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigqueueinfo_return(on_sys_rt_sigqueueinfo_return_t);
-typedef void (*on_sys_rt_sigreturn_enter_t)(CPUState* cpu, target_ulong pc, uint32_t regs);
-void ppp_add_cb_on_sys_rt_sigreturn_enter(on_sys_rt_sigreturn_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigreturn_enter(on_sys_rt_sigreturn_enter_t);
-typedef void (*on_sys_rt_sigreturn_return_t)(CPUState* cpu, target_ulong pc, uint32_t regs);
-void ppp_add_cb_on_sys_rt_sigreturn_return(on_sys_rt_sigreturn_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigreturn_return(on_sys_rt_sigreturn_return_t);
-typedef void (*on_sys_rt_sigsuspend_enter_t)(CPUState* cpu, target_ulong pc, uint32_t unewset, uint32_t sigsetsize);
-void ppp_add_cb_on_sys_rt_sigsuspend_enter(on_sys_rt_sigsuspend_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigsuspend_enter(on_sys_rt_sigsuspend_enter_t);
-typedef void (*on_sys_rt_sigsuspend_return_t)(CPUState* cpu, target_ulong pc, uint32_t unewset, uint32_t sigsetsize);
-void ppp_add_cb_on_sys_rt_sigsuspend_return(on_sys_rt_sigsuspend_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigsuspend_return(on_sys_rt_sigsuspend_return_t);
-typedef void (*on_sys_rt_sigtimedwait_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uthese, uint32_t uinfo, uint32_t uts, uint32_t sigsetsize);
-void ppp_add_cb_on_sys_rt_sigtimedwait_enter(on_sys_rt_sigtimedwait_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigtimedwait_enter(on_sys_rt_sigtimedwait_enter_t);
-typedef void (*on_sys_rt_sigtimedwait_return_t)(CPUState* cpu, target_ulong pc, uint32_t uthese, uint32_t uinfo, uint32_t uts, uint32_t sigsetsize);
-void ppp_add_cb_on_sys_rt_sigtimedwait_return(on_sys_rt_sigtimedwait_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_sigtimedwait_return(on_sys_rt_sigtimedwait_return_t);
-typedef void (*on_sys_rt_tgsigqueueinfo_enter_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig, uint32_t uinfo);
-void ppp_add_cb_on_sys_rt_tgsigqueueinfo_enter(on_sys_rt_tgsigqueueinfo_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_tgsigqueueinfo_enter(on_sys_rt_tgsigqueueinfo_enter_t);
-typedef void (*on_sys_rt_tgsigqueueinfo_return_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig, uint32_t uinfo);
-void ppp_add_cb_on_sys_rt_tgsigqueueinfo_return(on_sys_rt_tgsigqueueinfo_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_rt_tgsigqueueinfo_return(on_sys_rt_tgsigqueueinfo_return_t);
-typedef void (*on_sys_sched_get_priority_max_enter_t)(CPUState* cpu, target_ulong pc, int32_t policy);
-void ppp_add_cb_on_sys_sched_get_priority_max_enter(on_sys_sched_get_priority_max_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_get_priority_max_enter(on_sys_sched_get_priority_max_enter_t);
-typedef void (*on_sys_sched_get_priority_max_return_t)(CPUState* cpu, target_ulong pc, int32_t policy);
-void ppp_add_cb_on_sys_sched_get_priority_max_return(on_sys_sched_get_priority_max_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_get_priority_max_return(on_sys_sched_get_priority_max_return_t);
-typedef void (*on_sys_sched_get_priority_min_enter_t)(CPUState* cpu, target_ulong pc, int32_t policy);
-void ppp_add_cb_on_sys_sched_get_priority_min_enter(on_sys_sched_get_priority_min_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_get_priority_min_enter(on_sys_sched_get_priority_min_enter_t);
-typedef void (*on_sys_sched_get_priority_min_return_t)(CPUState* cpu, target_ulong pc, int32_t policy);
-void ppp_add_cb_on_sys_sched_get_priority_min_return(on_sys_sched_get_priority_min_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_get_priority_min_return(on_sys_sched_get_priority_min_return_t);
-typedef void (*on_sys_sched_getaffinity_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);
-void ppp_add_cb_on_sys_sched_getaffinity_enter(on_sys_sched_getaffinity_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_getaffinity_enter(on_sys_sched_getaffinity_enter_t);
-typedef void (*on_sys_sched_getaffinity_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);
-void ppp_add_cb_on_sys_sched_getaffinity_return(on_sys_sched_getaffinity_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_getaffinity_return(on_sys_sched_getaffinity_return_t);
-typedef void (*on_sys_sched_getattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t size, uint32_t flags);
-void ppp_add_cb_on_sys_sched_getattr_enter(on_sys_sched_getattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_getattr_enter(on_sys_sched_getattr_enter_t);
-typedef void (*on_sys_sched_getattr_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t size, uint32_t flags);
-void ppp_add_cb_on_sys_sched_getattr_return(on_sys_sched_getattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_getattr_return(on_sys_sched_getattr_return_t);
-typedef void (*on_sys_sched_getparam_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);
-void ppp_add_cb_on_sys_sched_getparam_enter(on_sys_sched_getparam_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_getparam_enter(on_sys_sched_getparam_enter_t);
-typedef void (*on_sys_sched_getparam_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);
-void ppp_add_cb_on_sys_sched_getparam_return(on_sys_sched_getparam_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_getparam_return(on_sys_sched_getparam_return_t);
-typedef void (*on_sys_sched_getscheduler_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid);
-void ppp_add_cb_on_sys_sched_getscheduler_enter(on_sys_sched_getscheduler_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_getscheduler_enter(on_sys_sched_getscheduler_enter_t);
-typedef void (*on_sys_sched_getscheduler_return_t)(CPUState* cpu, target_ulong pc, int32_t pid);
-void ppp_add_cb_on_sys_sched_getscheduler_return(on_sys_sched_getscheduler_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_getscheduler_return(on_sys_sched_getscheduler_return_t);
-typedef void (*on_sys_sched_rr_get_interval_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t interval);
-void ppp_add_cb_on_sys_sched_rr_get_interval_enter(on_sys_sched_rr_get_interval_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_rr_get_interval_enter(on_sys_sched_rr_get_interval_enter_t);
-typedef void (*on_sys_sched_rr_get_interval_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t interval);
-void ppp_add_cb_on_sys_sched_rr_get_interval_return(on_sys_sched_rr_get_interval_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_rr_get_interval_return(on_sys_sched_rr_get_interval_return_t);
-typedef void (*on_sys_sched_setaffinity_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);
-void ppp_add_cb_on_sys_sched_setaffinity_enter(on_sys_sched_setaffinity_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_setaffinity_enter(on_sys_sched_setaffinity_enter_t);
-typedef void (*on_sys_sched_setaffinity_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t len, uint32_t user_mask_ptr);
-void ppp_add_cb_on_sys_sched_setaffinity_return(on_sys_sched_setaffinity_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_setaffinity_return(on_sys_sched_setaffinity_return_t);
-typedef void (*on_sys_sched_setattr_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t flags);
-void ppp_add_cb_on_sys_sched_setattr_enter(on_sys_sched_setattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_setattr_enter(on_sys_sched_setattr_enter_t);
-typedef void (*on_sys_sched_setattr_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t attr, uint32_t flags);
-void ppp_add_cb_on_sys_sched_setattr_return(on_sys_sched_setattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_setattr_return(on_sys_sched_setattr_return_t);
-typedef void (*on_sys_sched_setparam_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);
-void ppp_add_cb_on_sys_sched_setparam_enter(on_sys_sched_setparam_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_setparam_enter(on_sys_sched_setparam_enter_t);
-typedef void (*on_sys_sched_setparam_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t param);
-void ppp_add_cb_on_sys_sched_setparam_return(on_sys_sched_setparam_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_setparam_return(on_sys_sched_setparam_return_t);
-typedef void (*on_sys_sched_setscheduler_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t policy, uint32_t param);
-void ppp_add_cb_on_sys_sched_setscheduler_enter(on_sys_sched_setscheduler_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_setscheduler_enter(on_sys_sched_setscheduler_enter_t);
-typedef void (*on_sys_sched_setscheduler_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t policy, uint32_t param);
-void ppp_add_cb_on_sys_sched_setscheduler_return(on_sys_sched_setscheduler_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_setscheduler_return(on_sys_sched_setscheduler_return_t);
-typedef void (*on_sys_sched_yield_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_sched_yield_enter(on_sys_sched_yield_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_yield_enter(on_sys_sched_yield_enter_t);
-typedef void (*on_sys_sched_yield_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_sched_yield_return(on_sys_sched_yield_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sched_yield_return(on_sys_sched_yield_return_t);
-typedef void (*on_sys_seccomp_enter_t)(CPUState* cpu, target_ulong pc, uint32_t op, uint32_t flags, uint32_t uargs);
-void ppp_add_cb_on_sys_seccomp_enter(on_sys_seccomp_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_seccomp_enter(on_sys_seccomp_enter_t);
-typedef void (*on_sys_seccomp_return_t)(CPUState* cpu, target_ulong pc, uint32_t op, uint32_t flags, uint32_t uargs);
-void ppp_add_cb_on_sys_seccomp_return(on_sys_seccomp_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_seccomp_return(on_sys_seccomp_return_t);
-typedef void (*on_sys_select_enter_t)(CPUState* cpu, target_ulong pc, int32_t n, uint32_t inp, uint32_t outp, uint32_t exp, uint32_t tvp);
-void ppp_add_cb_on_sys_select_enter(on_sys_select_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_select_enter(on_sys_select_enter_t);
-typedef void (*on_sys_select_return_t)(CPUState* cpu, target_ulong pc, int32_t n, uint32_t inp, uint32_t outp, uint32_t exp, uint32_t tvp);
-void ppp_add_cb_on_sys_select_return(on_sys_select_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_select_return(on_sys_select_return_t);
-typedef void (*on_sys_semctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t semid, int32_t semnum, int32_t cmd, uint32_t arg);
-void ppp_add_cb_on_sys_semctl_enter(on_sys_semctl_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_semctl_enter(on_sys_semctl_enter_t);
-typedef void (*on_sys_semctl_return_t)(CPUState* cpu, target_ulong pc, int32_t semid, int32_t semnum, int32_t cmd, uint32_t arg);
-void ppp_add_cb_on_sys_semctl_return(on_sys_semctl_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_semctl_return(on_sys_semctl_return_t);
-typedef void (*on_sys_semget_enter_t)(CPUState* cpu, target_ulong pc, uint32_t key, int32_t nsems, int32_t semflg);
-void ppp_add_cb_on_sys_semget_enter(on_sys_semget_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_semget_enter(on_sys_semget_enter_t);
-typedef void (*on_sys_semget_return_t)(CPUState* cpu, target_ulong pc, uint32_t key, int32_t nsems, int32_t semflg);
-void ppp_add_cb_on_sys_semget_return(on_sys_semget_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_semget_return(on_sys_semget_return_t);
-typedef void (*on_sys_semop_enter_t)(CPUState* cpu, target_ulong pc, int32_t semid, uint32_t sops, uint32_t nsops);
-void ppp_add_cb_on_sys_semop_enter(on_sys_semop_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_semop_enter(on_sys_semop_enter_t);
-typedef void (*on_sys_semop_return_t)(CPUState* cpu, target_ulong pc, int32_t semid, uint32_t sops, uint32_t nsops);
-void ppp_add_cb_on_sys_semop_return(on_sys_semop_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_semop_return(on_sys_semop_return_t);
-typedef void (*on_sys_semtimedop_enter_t)(CPUState* cpu, target_ulong pc, int32_t semid, uint32_t sops, uint32_t nsops, uint32_t timeout);
-void ppp_add_cb_on_sys_semtimedop_enter(on_sys_semtimedop_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_semtimedop_enter(on_sys_semtimedop_enter_t);
-typedef void (*on_sys_semtimedop_return_t)(CPUState* cpu, target_ulong pc, int32_t semid, uint32_t sops, uint32_t nsops, uint32_t timeout);
-void ppp_add_cb_on_sys_semtimedop_return(on_sys_semtimedop_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_semtimedop_return(on_sys_semtimedop_return_t);
-typedef void (*on_sys_send_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);
-void ppp_add_cb_on_sys_send_enter(on_sys_send_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_send_enter(on_sys_send_enter_t);
-typedef void (*on_sys_send_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);
-void ppp_add_cb_on_sys_send_return(on_sys_send_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_send_return(on_sys_send_return_t);
-typedef void (*on_sys_sendfile_enter_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);
-void ppp_add_cb_on_sys_sendfile_enter(on_sys_sendfile_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sendfile_enter(on_sys_sendfile_enter_t);
-typedef void (*on_sys_sendfile_return_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);
-void ppp_add_cb_on_sys_sendfile_return(on_sys_sendfile_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sendfile_return(on_sys_sendfile_return_t);
-typedef void (*on_sys_sendfile64_enter_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);
-void ppp_add_cb_on_sys_sendfile64_enter(on_sys_sendfile64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sendfile64_enter(on_sys_sendfile64_enter_t);
-typedef void (*on_sys_sendfile64_return_t)(CPUState* cpu, target_ulong pc, int32_t out_fd, int32_t in_fd, uint32_t offset, uint32_t count);
-void ppp_add_cb_on_sys_sendfile64_return(on_sys_sendfile64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sendfile64_return(on_sys_sendfile64_return_t);
-typedef void (*on_sys_sendmmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags);
-void ppp_add_cb_on_sys_sendmmsg_enter(on_sys_sendmmsg_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sendmmsg_enter(on_sys_sendmmsg_enter_t);
-typedef void (*on_sys_sendmmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t vlen, uint32_t flags);
-void ppp_add_cb_on_sys_sendmmsg_return(on_sys_sendmmsg_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sendmmsg_return(on_sys_sendmmsg_return_t);
-typedef void (*on_sys_sendmsg_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);
-void ppp_add_cb_on_sys_sendmsg_enter(on_sys_sendmsg_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sendmsg_enter(on_sys_sendmsg_enter_t);
-typedef void (*on_sys_sendmsg_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t msg, uint32_t flags);
-void ppp_add_cb_on_sys_sendmsg_return(on_sys_sendmsg_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sendmsg_return(on_sys_sendmsg_return_t);
-typedef void (*on_sys_sendto_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, int32_t arg5);
-void ppp_add_cb_on_sys_sendto_enter(on_sys_sendto_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sendto_enter(on_sys_sendto_enter_t);
-typedef void (*on_sys_sendto_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, int32_t arg5);
-void ppp_add_cb_on_sys_sendto_return(on_sys_sendto_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sendto_return(on_sys_sendto_return_t);
-typedef void (*on_sys_set_mempolicy_enter_t)(CPUState* cpu, target_ulong pc, int32_t mode, uint32_t nmask, uint32_t maxnode);
-void ppp_add_cb_on_sys_set_mempolicy_enter(on_sys_set_mempolicy_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_set_mempolicy_enter(on_sys_set_mempolicy_enter_t);
-typedef void (*on_sys_set_mempolicy_return_t)(CPUState* cpu, target_ulong pc, int32_t mode, uint32_t nmask, uint32_t maxnode);
-void ppp_add_cb_on_sys_set_mempolicy_return(on_sys_set_mempolicy_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_set_mempolicy_return(on_sys_set_mempolicy_return_t);
-typedef void (*on_sys_set_robust_list_enter_t)(CPUState* cpu, target_ulong pc, uint32_t head, uint32_t len);
-void ppp_add_cb_on_sys_set_robust_list_enter(on_sys_set_robust_list_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_set_robust_list_enter(on_sys_set_robust_list_enter_t);
-typedef void (*on_sys_set_robust_list_return_t)(CPUState* cpu, target_ulong pc, uint32_t head, uint32_t len);
-void ppp_add_cb_on_sys_set_robust_list_return(on_sys_set_robust_list_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_set_robust_list_return(on_sys_set_robust_list_return_t);
-typedef void (*on_sys_set_tid_address_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tidptr);
-void ppp_add_cb_on_sys_set_tid_address_enter(on_sys_set_tid_address_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_set_tid_address_enter(on_sys_set_tid_address_enter_t);
-typedef void (*on_sys_set_tid_address_return_t)(CPUState* cpu, target_ulong pc, uint32_t tidptr);
-void ppp_add_cb_on_sys_set_tid_address_return(on_sys_set_tid_address_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_set_tid_address_return(on_sys_set_tid_address_return_t);
-typedef void (*on_sys_setdomainname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);
-void ppp_add_cb_on_sys_setdomainname_enter(on_sys_setdomainname_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setdomainname_enter(on_sys_setdomainname_enter_t);
-typedef void (*on_sys_setdomainname_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);
-void ppp_add_cb_on_sys_setdomainname_return(on_sys_setdomainname_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setdomainname_return(on_sys_setdomainname_return_t);
-typedef void (*on_sys_setfsgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
-void ppp_add_cb_on_sys_setfsgid_enter(on_sys_setfsgid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setfsgid_enter(on_sys_setfsgid_enter_t);
-typedef void (*on_sys_setfsgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
-void ppp_add_cb_on_sys_setfsgid_return(on_sys_setfsgid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setfsgid_return(on_sys_setfsgid_return_t);
-typedef void (*on_sys_setfsgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
-void ppp_add_cb_on_sys_setfsgid16_enter(on_sys_setfsgid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setfsgid16_enter(on_sys_setfsgid16_enter_t);
-typedef void (*on_sys_setfsgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
-void ppp_add_cb_on_sys_setfsgid16_return(on_sys_setfsgid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setfsgid16_return(on_sys_setfsgid16_return_t);
-typedef void (*on_sys_setfsuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
-void ppp_add_cb_on_sys_setfsuid_enter(on_sys_setfsuid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setfsuid_enter(on_sys_setfsuid_enter_t);
-typedef void (*on_sys_setfsuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
-void ppp_add_cb_on_sys_setfsuid_return(on_sys_setfsuid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setfsuid_return(on_sys_setfsuid_return_t);
-typedef void (*on_sys_setfsuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
-void ppp_add_cb_on_sys_setfsuid16_enter(on_sys_setfsuid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setfsuid16_enter(on_sys_setfsuid16_enter_t);
-typedef void (*on_sys_setfsuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
-void ppp_add_cb_on_sys_setfsuid16_return(on_sys_setfsuid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setfsuid16_return(on_sys_setfsuid16_return_t);
-typedef void (*on_sys_setgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
-void ppp_add_cb_on_sys_setgid_enter(on_sys_setgid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setgid_enter(on_sys_setgid_enter_t);
-typedef void (*on_sys_setgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
-void ppp_add_cb_on_sys_setgid_return(on_sys_setgid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setgid_return(on_sys_setgid_return_t);
-typedef void (*on_sys_setgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
-void ppp_add_cb_on_sys_setgid16_enter(on_sys_setgid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setgid16_enter(on_sys_setgid16_enter_t);
-typedef void (*on_sys_setgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t gid);
-void ppp_add_cb_on_sys_setgid16_return(on_sys_setgid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setgid16_return(on_sys_setgid16_return_t);
-typedef void (*on_sys_setgroups_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
-void ppp_add_cb_on_sys_setgroups_enter(on_sys_setgroups_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setgroups_enter(on_sys_setgroups_enter_t);
-typedef void (*on_sys_setgroups_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
-void ppp_add_cb_on_sys_setgroups_return(on_sys_setgroups_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setgroups_return(on_sys_setgroups_return_t);
-typedef void (*on_sys_setgroups16_enter_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
-void ppp_add_cb_on_sys_setgroups16_enter(on_sys_setgroups16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setgroups16_enter(on_sys_setgroups16_enter_t);
-typedef void (*on_sys_setgroups16_return_t)(CPUState* cpu, target_ulong pc, int32_t gidsetsize, uint32_t grouplist);
-void ppp_add_cb_on_sys_setgroups16_return(on_sys_setgroups16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setgroups16_return(on_sys_setgroups16_return_t);
-typedef void (*on_sys_sethostname_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);
-void ppp_add_cb_on_sys_sethostname_enter(on_sys_sethostname_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sethostname_enter(on_sys_sethostname_enter_t);
-typedef void (*on_sys_sethostname_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t len);
-void ppp_add_cb_on_sys_sethostname_return(on_sys_sethostname_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sethostname_return(on_sys_sethostname_return_t);
-typedef void (*on_sys_setitimer_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value, uint32_t ovalue);
-void ppp_add_cb_on_sys_setitimer_enter(on_sys_setitimer_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setitimer_enter(on_sys_setitimer_enter_t);
-typedef void (*on_sys_setitimer_return_t)(CPUState* cpu, target_ulong pc, int32_t which, uint32_t value, uint32_t ovalue);
-void ppp_add_cb_on_sys_setitimer_return(on_sys_setitimer_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setitimer_return(on_sys_setitimer_return_t);
-typedef void (*on_sys_setns_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t nstype);
-void ppp_add_cb_on_sys_setns_enter(on_sys_setns_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setns_enter(on_sys_setns_enter_t);
-typedef void (*on_sys_setns_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t nstype);
-void ppp_add_cb_on_sys_setns_return(on_sys_setns_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setns_return(on_sys_setns_return_t);
-typedef void (*on_sys_setpgid_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t pgid);
-void ppp_add_cb_on_sys_setpgid_enter(on_sys_setpgid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setpgid_enter(on_sys_setpgid_enter_t);
-typedef void (*on_sys_setpgid_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t pgid);
-void ppp_add_cb_on_sys_setpgid_return(on_sys_setpgid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setpgid_return(on_sys_setpgid_return_t);
-typedef void (*on_sys_setpriority_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t niceval);
-void ppp_add_cb_on_sys_setpriority_enter(on_sys_setpriority_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setpriority_enter(on_sys_setpriority_enter_t);
-typedef void (*on_sys_setpriority_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t who, int32_t niceval);
-void ppp_add_cb_on_sys_setpriority_return(on_sys_setpriority_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setpriority_return(on_sys_setpriority_return_t);
-typedef void (*on_sys_setregid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);
-void ppp_add_cb_on_sys_setregid_enter(on_sys_setregid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setregid_enter(on_sys_setregid_enter_t);
-typedef void (*on_sys_setregid_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);
-void ppp_add_cb_on_sys_setregid_return(on_sys_setregid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setregid_return(on_sys_setregid_return_t);
-typedef void (*on_sys_setregid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);
-void ppp_add_cb_on_sys_setregid16_enter(on_sys_setregid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setregid16_enter(on_sys_setregid16_enter_t);
-typedef void (*on_sys_setregid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid);
-void ppp_add_cb_on_sys_setregid16_return(on_sys_setregid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setregid16_return(on_sys_setregid16_return_t);
-typedef void (*on_sys_setresgid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
-void ppp_add_cb_on_sys_setresgid_enter(on_sys_setresgid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setresgid_enter(on_sys_setresgid_enter_t);
-typedef void (*on_sys_setresgid_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
-void ppp_add_cb_on_sys_setresgid_return(on_sys_setresgid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setresgid_return(on_sys_setresgid_return_t);
-typedef void (*on_sys_setresgid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
-void ppp_add_cb_on_sys_setresgid16_enter(on_sys_setresgid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setresgid16_enter(on_sys_setresgid16_enter_t);
-typedef void (*on_sys_setresgid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t rgid, uint32_t egid, uint32_t sgid);
-void ppp_add_cb_on_sys_setresgid16_return(on_sys_setresgid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setresgid16_return(on_sys_setresgid16_return_t);
-typedef void (*on_sys_setresuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
-void ppp_add_cb_on_sys_setresuid_enter(on_sys_setresuid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setresuid_enter(on_sys_setresuid_enter_t);
-typedef void (*on_sys_setresuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
-void ppp_add_cb_on_sys_setresuid_return(on_sys_setresuid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setresuid_return(on_sys_setresuid_return_t);
-typedef void (*on_sys_setresuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
-void ppp_add_cb_on_sys_setresuid16_enter(on_sys_setresuid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setresuid16_enter(on_sys_setresuid16_enter_t);
-typedef void (*on_sys_setresuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid, uint32_t suid);
-void ppp_add_cb_on_sys_setresuid16_return(on_sys_setresuid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setresuid16_return(on_sys_setresuid16_return_t);
-typedef void (*on_sys_setreuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);
-void ppp_add_cb_on_sys_setreuid_enter(on_sys_setreuid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setreuid_enter(on_sys_setreuid_enter_t);
-typedef void (*on_sys_setreuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);
-void ppp_add_cb_on_sys_setreuid_return(on_sys_setreuid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setreuid_return(on_sys_setreuid_return_t);
-typedef void (*on_sys_setreuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);
-void ppp_add_cb_on_sys_setreuid16_enter(on_sys_setreuid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setreuid16_enter(on_sys_setreuid16_enter_t);
-typedef void (*on_sys_setreuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t ruid, uint32_t euid);
-void ppp_add_cb_on_sys_setreuid16_return(on_sys_setreuid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setreuid16_return(on_sys_setreuid16_return_t);
-typedef void (*on_sys_setrlimit_enter_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);
-void ppp_add_cb_on_sys_setrlimit_enter(on_sys_setrlimit_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setrlimit_enter(on_sys_setrlimit_enter_t);
-typedef void (*on_sys_setrlimit_return_t)(CPUState* cpu, target_ulong pc, uint32_t resource, uint32_t rlim);
-void ppp_add_cb_on_sys_setrlimit_return(on_sys_setrlimit_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setrlimit_return(on_sys_setrlimit_return_t);
-typedef void (*on_sys_setsid_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_setsid_enter(on_sys_setsid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setsid_enter(on_sys_setsid_enter_t);
-typedef void (*on_sys_setsid_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_setsid_return(on_sys_setsid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setsid_return(on_sys_setsid_return_t);
-typedef void (*on_sys_setsockopt_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, int32_t optlen);
-void ppp_add_cb_on_sys_setsockopt_enter(on_sys_setsockopt_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setsockopt_enter(on_sys_setsockopt_enter_t);
-typedef void (*on_sys_setsockopt_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, int32_t level, int32_t optname, uint32_t optval, int32_t optlen);
-void ppp_add_cb_on_sys_setsockopt_return(on_sys_setsockopt_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setsockopt_return(on_sys_setsockopt_return_t);
-typedef void (*on_sys_settimeofday_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);
-void ppp_add_cb_on_sys_settimeofday_enter(on_sys_settimeofday_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_settimeofday_enter(on_sys_settimeofday_enter_t);
-typedef void (*on_sys_settimeofday_return_t)(CPUState* cpu, target_ulong pc, uint32_t tv, uint32_t tz);
-void ppp_add_cb_on_sys_settimeofday_return(on_sys_settimeofday_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_settimeofday_return(on_sys_settimeofday_return_t);
-typedef void (*on_sys_setuid_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
-void ppp_add_cb_on_sys_setuid_enter(on_sys_setuid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setuid_enter(on_sys_setuid_enter_t);
-typedef void (*on_sys_setuid_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
-void ppp_add_cb_on_sys_setuid_return(on_sys_setuid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setuid_return(on_sys_setuid_return_t);
-typedef void (*on_sys_setuid16_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
-void ppp_add_cb_on_sys_setuid16_enter(on_sys_setuid16_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setuid16_enter(on_sys_setuid16_enter_t);
-typedef void (*on_sys_setuid16_return_t)(CPUState* cpu, target_ulong pc, uint32_t uid);
-void ppp_add_cb_on_sys_setuid16_return(on_sys_setuid16_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setuid16_return(on_sys_setuid16_return_t);
-typedef void (*on_sys_setxattr_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);
-void ppp_add_cb_on_sys_setxattr_enter(on_sys_setxattr_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_setxattr_enter(on_sys_setxattr_enter_t);
-typedef void (*on_sys_setxattr_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name, uint32_t value, uint32_t size, int32_t flags);
-void ppp_add_cb_on_sys_setxattr_return(on_sys_setxattr_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_setxattr_return(on_sys_setxattr_return_t);
-typedef void (*on_sys_shmat_enter_t)(CPUState* cpu, target_ulong pc, int32_t shmid, uint32_t shmaddr, int32_t shmflg);
-void ppp_add_cb_on_sys_shmat_enter(on_sys_shmat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_shmat_enter(on_sys_shmat_enter_t);
-typedef void (*on_sys_shmat_return_t)(CPUState* cpu, target_ulong pc, int32_t shmid, uint32_t shmaddr, int32_t shmflg);
-void ppp_add_cb_on_sys_shmat_return(on_sys_shmat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_shmat_return(on_sys_shmat_return_t);
-typedef void (*on_sys_shmctl_enter_t)(CPUState* cpu, target_ulong pc, int32_t shmid, int32_t cmd, uint32_t buf);
-void ppp_add_cb_on_sys_shmctl_enter(on_sys_shmctl_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_shmctl_enter(on_sys_shmctl_enter_t);
-typedef void (*on_sys_shmctl_return_t)(CPUState* cpu, target_ulong pc, int32_t shmid, int32_t cmd, uint32_t buf);
-void ppp_add_cb_on_sys_shmctl_return(on_sys_shmctl_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_shmctl_return(on_sys_shmctl_return_t);
-typedef void (*on_sys_shmdt_enter_t)(CPUState* cpu, target_ulong pc, uint32_t shmaddr);
-void ppp_add_cb_on_sys_shmdt_enter(on_sys_shmdt_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_shmdt_enter(on_sys_shmdt_enter_t);
-typedef void (*on_sys_shmdt_return_t)(CPUState* cpu, target_ulong pc, uint32_t shmaddr);
-void ppp_add_cb_on_sys_shmdt_return(on_sys_shmdt_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_shmdt_return(on_sys_shmdt_return_t);
-typedef void (*on_sys_shmget_enter_t)(CPUState* cpu, target_ulong pc, uint32_t key, uint32_t size, int32_t flag);
-void ppp_add_cb_on_sys_shmget_enter(on_sys_shmget_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_shmget_enter(on_sys_shmget_enter_t);
-typedef void (*on_sys_shmget_return_t)(CPUState* cpu, target_ulong pc, uint32_t key, uint32_t size, int32_t flag);
-void ppp_add_cb_on_sys_shmget_return(on_sys_shmget_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_shmget_return(on_sys_shmget_return_t);
-typedef void (*on_sys_shutdown_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);
-void ppp_add_cb_on_sys_shutdown_enter(on_sys_shutdown_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_shutdown_enter(on_sys_shutdown_enter_t);
-typedef void (*on_sys_shutdown_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1);
-void ppp_add_cb_on_sys_shutdown_return(on_sys_shutdown_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_shutdown_return(on_sys_shutdown_return_t);
-typedef void (*on_sys_sigaction_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
-void ppp_add_cb_on_sys_sigaction_enter(on_sys_sigaction_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sigaction_enter(on_sys_sigaction_enter_t);
-typedef void (*on_sys_sigaction_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint32_t arg1, uint32_t arg2);
-void ppp_add_cb_on_sys_sigaction_return(on_sys_sigaction_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sigaction_return(on_sys_sigaction_return_t);
-typedef void (*on_sys_sigaltstack_enter_t)(CPUState* cpu, target_ulong pc, uint32_t uss, uint32_t uoss);
-void ppp_add_cb_on_sys_sigaltstack_enter(on_sys_sigaltstack_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sigaltstack_enter(on_sys_sigaltstack_enter_t);
-typedef void (*on_sys_sigaltstack_return_t)(CPUState* cpu, target_ulong pc, uint32_t uss, uint32_t uoss);
-void ppp_add_cb_on_sys_sigaltstack_return(on_sys_sigaltstack_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sigaltstack_return(on_sys_sigaltstack_return_t);
-typedef void (*on_sys_signalfd_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask);
-void ppp_add_cb_on_sys_signalfd_enter(on_sys_signalfd_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_signalfd_enter(on_sys_signalfd_enter_t);
-typedef void (*on_sys_signalfd_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask);
-void ppp_add_cb_on_sys_signalfd_return(on_sys_signalfd_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_signalfd_return(on_sys_signalfd_return_t);
-typedef void (*on_sys_signalfd4_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask, int32_t flags);
-void ppp_add_cb_on_sys_signalfd4_enter(on_sys_signalfd4_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_signalfd4_enter(on_sys_signalfd4_enter_t);
-typedef void (*on_sys_signalfd4_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t user_mask, uint32_t sizemask, int32_t flags);
-void ppp_add_cb_on_sys_signalfd4_return(on_sys_signalfd4_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_signalfd4_return(on_sys_signalfd4_return_t);
-typedef void (*on_sys_sigpending_enter_t)(CPUState* cpu, target_ulong pc, uint32_t set);
-void ppp_add_cb_on_sys_sigpending_enter(on_sys_sigpending_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sigpending_enter(on_sys_sigpending_enter_t);
-typedef void (*on_sys_sigpending_return_t)(CPUState* cpu, target_ulong pc, uint32_t set);
-void ppp_add_cb_on_sys_sigpending_return(on_sys_sigpending_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sigpending_return(on_sys_sigpending_return_t);
-typedef void (*on_sys_sigprocmask_enter_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset);
-void ppp_add_cb_on_sys_sigprocmask_enter(on_sys_sigprocmask_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sigprocmask_enter(on_sys_sigprocmask_enter_t);
-typedef void (*on_sys_sigprocmask_return_t)(CPUState* cpu, target_ulong pc, int32_t how, uint32_t set, uint32_t oset);
-void ppp_add_cb_on_sys_sigprocmask_return(on_sys_sigprocmask_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sigprocmask_return(on_sys_sigprocmask_return_t);
-typedef void (*on_sys_sigreturn_enter_t)(CPUState* cpu, target_ulong pc, uint32_t regs);
-void ppp_add_cb_on_sys_sigreturn_enter(on_sys_sigreturn_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sigreturn_enter(on_sys_sigreturn_enter_t);
-typedef void (*on_sys_sigreturn_return_t)(CPUState* cpu, target_ulong pc, uint32_t regs);
-void ppp_add_cb_on_sys_sigreturn_return(on_sys_sigreturn_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sigreturn_return(on_sys_sigreturn_return_t);
-typedef void (*on_sys_sigsuspend_enter_t)(CPUState* cpu, target_ulong pc, int32_t unused1, int32_t unused2, uint32_t mask);
-void ppp_add_cb_on_sys_sigsuspend_enter(on_sys_sigsuspend_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sigsuspend_enter(on_sys_sigsuspend_enter_t);
-typedef void (*on_sys_sigsuspend_return_t)(CPUState* cpu, target_ulong pc, int32_t unused1, int32_t unused2, uint32_t mask);
-void ppp_add_cb_on_sys_sigsuspend_return(on_sys_sigsuspend_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sigsuspend_return(on_sys_sigsuspend_return_t);
-typedef void (*on_sys_socket_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2);
-void ppp_add_cb_on_sys_socket_enter(on_sys_socket_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_socket_enter(on_sys_socket_enter_t);
-typedef void (*on_sys_socket_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2);
-void ppp_add_cb_on_sys_socket_return(on_sys_socket_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_socket_return(on_sys_socket_return_t);
-typedef void (*on_sys_socketcall_enter_t)(CPUState* cpu, target_ulong pc, int32_t call, uint32_t args);
-void ppp_add_cb_on_sys_socketcall_enter(on_sys_socketcall_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_socketcall_enter(on_sys_socketcall_enter_t);
-typedef void (*on_sys_socketcall_return_t)(CPUState* cpu, target_ulong pc, int32_t call, uint32_t args);
-void ppp_add_cb_on_sys_socketcall_return(on_sys_socketcall_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_socketcall_return(on_sys_socketcall_return_t);
-typedef void (*on_sys_socketpair_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2, uint32_t arg3);
-void ppp_add_cb_on_sys_socketpair_enter(on_sys_socketpair_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_socketpair_enter(on_sys_socketpair_enter_t);
-typedef void (*on_sys_socketpair_return_t)(CPUState* cpu, target_ulong pc, int32_t arg0, int32_t arg1, int32_t arg2, uint32_t arg3);
-void ppp_add_cb_on_sys_socketpair_return(on_sys_socketpair_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_socketpair_return(on_sys_socketpair_return_t);
-typedef void (*on_sys_splice_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags);
-void ppp_add_cb_on_sys_splice_enter(on_sys_splice_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_splice_enter(on_sys_splice_enter_t);
-typedef void (*on_sys_splice_return_t)(CPUState* cpu, target_ulong pc, int32_t fd_in, uint32_t off_in, int32_t fd_out, uint32_t off_out, uint32_t len, uint32_t flags);
-void ppp_add_cb_on_sys_splice_return(on_sys_splice_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_splice_return(on_sys_splice_return_t);
-typedef void (*on_sys_stat64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
-void ppp_add_cb_on_sys_stat64_enter(on_sys_stat64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_stat64_enter(on_sys_stat64_enter_t);
-typedef void (*on_sys_stat64_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t statbuf);
-void ppp_add_cb_on_sys_stat64_return(on_sys_stat64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_stat64_return(on_sys_stat64_return_t);
-typedef void (*on_sys_statfs_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf);
-void ppp_add_cb_on_sys_statfs_enter(on_sys_statfs_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_statfs_enter(on_sys_statfs_enter_t);
-typedef void (*on_sys_statfs_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t buf);
-void ppp_add_cb_on_sys_statfs_return(on_sys_statfs_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_statfs_return(on_sys_statfs_return_t);
-typedef void (*on_sys_statfs64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t sz, uint32_t buf);
-void ppp_add_cb_on_sys_statfs64_enter(on_sys_statfs64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_statfs64_enter(on_sys_statfs64_enter_t);
-typedef void (*on_sys_statfs64_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint32_t sz, uint32_t buf);
-void ppp_add_cb_on_sys_statfs64_return(on_sys_statfs64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_statfs64_return(on_sys_statfs64_return_t);
-typedef void (*on_sys_statx_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t flags, uint32_t mask, uint32_t buffer);
-void ppp_add_cb_on_sys_statx_enter(on_sys_statx_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_statx_enter(on_sys_statx_enter_t);
-typedef void (*on_sys_statx_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t path, uint32_t flags, uint32_t mask, uint32_t buffer);
-void ppp_add_cb_on_sys_statx_return(on_sys_statx_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_statx_return(on_sys_statx_return_t);
-typedef void (*on_sys_stime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tptr);
-void ppp_add_cb_on_sys_stime_enter(on_sys_stime_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_stime_enter(on_sys_stime_enter_t);
-typedef void (*on_sys_stime_return_t)(CPUState* cpu, target_ulong pc, uint32_t tptr);
-void ppp_add_cb_on_sys_stime_return(on_sys_stime_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_stime_return(on_sys_stime_return_t);
-typedef void (*on_sys_swapoff_enter_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile);
-void ppp_add_cb_on_sys_swapoff_enter(on_sys_swapoff_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_swapoff_enter(on_sys_swapoff_enter_t);
-typedef void (*on_sys_swapoff_return_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile);
-void ppp_add_cb_on_sys_swapoff_return(on_sys_swapoff_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_swapoff_return(on_sys_swapoff_return_t);
-typedef void (*on_sys_swapon_enter_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile, int32_t swap_flags);
-void ppp_add_cb_on_sys_swapon_enter(on_sys_swapon_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_swapon_enter(on_sys_swapon_enter_t);
-typedef void (*on_sys_swapon_return_t)(CPUState* cpu, target_ulong pc, uint32_t specialfile, int32_t swap_flags);
-void ppp_add_cb_on_sys_swapon_return(on_sys_swapon_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_swapon_return(on_sys_swapon_return_t);
-typedef void (*on_sys_symlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t old, uint32_t _new);
-void ppp_add_cb_on_sys_symlink_enter(on_sys_symlink_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_symlink_enter(on_sys_symlink_enter_t);
-typedef void (*on_sys_symlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t old, uint32_t _new);
-void ppp_add_cb_on_sys_symlink_return(on_sys_symlink_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_symlink_return(on_sys_symlink_return_t);
-typedef void (*on_sys_symlinkat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, int32_t newdfd, uint32_t newname);
-void ppp_add_cb_on_sys_symlinkat_enter(on_sys_symlinkat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_symlinkat_enter(on_sys_symlinkat_enter_t);
-typedef void (*on_sys_symlinkat_return_t)(CPUState* cpu, target_ulong pc, uint32_t oldname, int32_t newdfd, uint32_t newname);
-void ppp_add_cb_on_sys_symlinkat_return(on_sys_symlinkat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_symlinkat_return(on_sys_symlinkat_return_t);
-typedef void (*on_sys_sync_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_sync_enter(on_sys_sync_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sync_enter(on_sys_sync_enter_t);
-typedef void (*on_sys_sync_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_sync_return(on_sys_sync_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sync_return(on_sys_sync_return_t);
-typedef void (*on_sys_sync_file_range2_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t flags, uint64_t offset, uint64_t nbytes);
-void ppp_add_cb_on_sys_sync_file_range2_enter(on_sys_sync_file_range2_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sync_file_range2_enter(on_sys_sync_file_range2_enter_t);
-typedef void (*on_sys_sync_file_range2_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t flags, uint64_t offset, uint64_t nbytes);
-void ppp_add_cb_on_sys_sync_file_range2_return(on_sys_sync_file_range2_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sync_file_range2_return(on_sys_sync_file_range2_return_t);
-typedef void (*on_sys_syncfs_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd);
-void ppp_add_cb_on_sys_syncfs_enter(on_sys_syncfs_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_syncfs_enter(on_sys_syncfs_enter_t);
-typedef void (*on_sys_syncfs_return_t)(CPUState* cpu, target_ulong pc, int32_t fd);
-void ppp_add_cb_on_sys_syncfs_return(on_sys_syncfs_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_syncfs_return(on_sys_syncfs_return_t);
-typedef void (*on_sys_sysctl_enter_t)(CPUState* cpu, target_ulong pc, uint32_t args);
-void ppp_add_cb_on_sys_sysctl_enter(on_sys_sysctl_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sysctl_enter(on_sys_sysctl_enter_t);
-typedef void (*on_sys_sysctl_return_t)(CPUState* cpu, target_ulong pc, uint32_t args);
-void ppp_add_cb_on_sys_sysctl_return(on_sys_sysctl_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sysctl_return(on_sys_sysctl_return_t);
-typedef void (*on_sys_sysfs_enter_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg1, uint32_t arg2);
-void ppp_add_cb_on_sys_sysfs_enter(on_sys_sysfs_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sysfs_enter(on_sys_sysfs_enter_t);
-typedef void (*on_sys_sysfs_return_t)(CPUState* cpu, target_ulong pc, int32_t option, uint32_t arg1, uint32_t arg2);
-void ppp_add_cb_on_sys_sysfs_return(on_sys_sysfs_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sysfs_return(on_sys_sysfs_return_t);
-typedef void (*on_sys_sysinfo_enter_t)(CPUState* cpu, target_ulong pc, uint32_t info);
-void ppp_add_cb_on_sys_sysinfo_enter(on_sys_sysinfo_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_sysinfo_enter(on_sys_sysinfo_enter_t);
-typedef void (*on_sys_sysinfo_return_t)(CPUState* cpu, target_ulong pc, uint32_t info);
-void ppp_add_cb_on_sys_sysinfo_return(on_sys_sysinfo_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_sysinfo_return(on_sys_sysinfo_return_t);
-typedef void (*on_sys_syslog_enter_t)(CPUState* cpu, target_ulong pc, int32_t type, uint32_t buf, int32_t len);
-void ppp_add_cb_on_sys_syslog_enter(on_sys_syslog_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_syslog_enter(on_sys_syslog_enter_t);
-typedef void (*on_sys_syslog_return_t)(CPUState* cpu, target_ulong pc, int32_t type, uint32_t buf, int32_t len);
-void ppp_add_cb_on_sys_syslog_return(on_sys_syslog_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_syslog_return(on_sys_syslog_return_t);
-typedef void (*on_sys_tee_enter_t)(CPUState* cpu, target_ulong pc, int32_t fdin, int32_t fdout, uint32_t len, uint32_t flags);
-void ppp_add_cb_on_sys_tee_enter(on_sys_tee_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_tee_enter(on_sys_tee_enter_t);
-typedef void (*on_sys_tee_return_t)(CPUState* cpu, target_ulong pc, int32_t fdin, int32_t fdout, uint32_t len, uint32_t flags);
-void ppp_add_cb_on_sys_tee_return(on_sys_tee_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_tee_return(on_sys_tee_return_t);
-typedef void (*on_sys_tgkill_enter_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig);
-void ppp_add_cb_on_sys_tgkill_enter(on_sys_tgkill_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_tgkill_enter(on_sys_tgkill_enter_t);
-typedef void (*on_sys_tgkill_return_t)(CPUState* cpu, target_ulong pc, int32_t tgid, int32_t pid, int32_t sig);
-void ppp_add_cb_on_sys_tgkill_return(on_sys_tgkill_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_tgkill_return(on_sys_tgkill_return_t);
-typedef void (*on_sys_time_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tloc);
-void ppp_add_cb_on_sys_time_enter(on_sys_time_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_time_enter(on_sys_time_enter_t);
-typedef void (*on_sys_time_return_t)(CPUState* cpu, target_ulong pc, uint32_t tloc);
-void ppp_add_cb_on_sys_time_return(on_sys_time_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_time_return(on_sys_time_return_t);
-typedef void (*on_sys_timer_create_enter_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t timer_event_spec, uint32_t created_timer_id);
-void ppp_add_cb_on_sys_timer_create_enter(on_sys_timer_create_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_timer_create_enter(on_sys_timer_create_enter_t);
-typedef void (*on_sys_timer_create_return_t)(CPUState* cpu, target_ulong pc, uint32_t which_clock, uint32_t timer_event_spec, uint32_t created_timer_id);
-void ppp_add_cb_on_sys_timer_create_return(on_sys_timer_create_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_timer_create_return(on_sys_timer_create_return_t);
-typedef void (*on_sys_timer_delete_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id);
-void ppp_add_cb_on_sys_timer_delete_enter(on_sys_timer_delete_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_timer_delete_enter(on_sys_timer_delete_enter_t);
-typedef void (*on_sys_timer_delete_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id);
-void ppp_add_cb_on_sys_timer_delete_return(on_sys_timer_delete_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_timer_delete_return(on_sys_timer_delete_return_t);
-typedef void (*on_sys_timer_getoverrun_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id);
-void ppp_add_cb_on_sys_timer_getoverrun_enter(on_sys_timer_getoverrun_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_timer_getoverrun_enter(on_sys_timer_getoverrun_enter_t);
-typedef void (*on_sys_timer_getoverrun_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id);
-void ppp_add_cb_on_sys_timer_getoverrun_return(on_sys_timer_getoverrun_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_timer_getoverrun_return(on_sys_timer_getoverrun_return_t);
-typedef void (*on_sys_timer_gettime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, uint32_t setting);
-void ppp_add_cb_on_sys_timer_gettime_enter(on_sys_timer_gettime_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_timer_gettime_enter(on_sys_timer_gettime_enter_t);
-typedef void (*on_sys_timer_gettime_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, uint32_t setting);
-void ppp_add_cb_on_sys_timer_gettime_return(on_sys_timer_gettime_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_timer_gettime_return(on_sys_timer_gettime_return_t);
-typedef void (*on_sys_timer_settime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, int32_t flags, uint32_t new_setting, uint32_t old_setting);
-void ppp_add_cb_on_sys_timer_settime_enter(on_sys_timer_settime_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_timer_settime_enter(on_sys_timer_settime_enter_t);
-typedef void (*on_sys_timer_settime_return_t)(CPUState* cpu, target_ulong pc, uint32_t timer_id, int32_t flags, uint32_t new_setting, uint32_t old_setting);
-void ppp_add_cb_on_sys_timer_settime_return(on_sys_timer_settime_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_timer_settime_return(on_sys_timer_settime_return_t);
-typedef void (*on_sys_timerfd_create_enter_t)(CPUState* cpu, target_ulong pc, int32_t clockid, int32_t flags);
-void ppp_add_cb_on_sys_timerfd_create_enter(on_sys_timerfd_create_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_timerfd_create_enter(on_sys_timerfd_create_enter_t);
-typedef void (*on_sys_timerfd_create_return_t)(CPUState* cpu, target_ulong pc, int32_t clockid, int32_t flags);
-void ppp_add_cb_on_sys_timerfd_create_return(on_sys_timerfd_create_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_timerfd_create_return(on_sys_timerfd_create_return_t);
-typedef void (*on_sys_timerfd_gettime_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t otmr);
-void ppp_add_cb_on_sys_timerfd_gettime_enter(on_sys_timerfd_gettime_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_timerfd_gettime_enter(on_sys_timerfd_gettime_enter_t);
-typedef void (*on_sys_timerfd_gettime_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, uint32_t otmr);
-void ppp_add_cb_on_sys_timerfd_gettime_return(on_sys_timerfd_gettime_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_timerfd_gettime_return(on_sys_timerfd_gettime_return_t);
-typedef void (*on_sys_timerfd_settime_enter_t)(CPUState* cpu, target_ulong pc, int32_t ufd, int32_t flags, uint32_t utmr, uint32_t otmr);
-void ppp_add_cb_on_sys_timerfd_settime_enter(on_sys_timerfd_settime_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_timerfd_settime_enter(on_sys_timerfd_settime_enter_t);
-typedef void (*on_sys_timerfd_settime_return_t)(CPUState* cpu, target_ulong pc, int32_t ufd, int32_t flags, uint32_t utmr, uint32_t otmr);
-void ppp_add_cb_on_sys_timerfd_settime_return(on_sys_timerfd_settime_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_timerfd_settime_return(on_sys_timerfd_settime_return_t);
-typedef void (*on_sys_times_enter_t)(CPUState* cpu, target_ulong pc, uint32_t tbuf);
-void ppp_add_cb_on_sys_times_enter(on_sys_times_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_times_enter(on_sys_times_enter_t);
-typedef void (*on_sys_times_return_t)(CPUState* cpu, target_ulong pc, uint32_t tbuf);
-void ppp_add_cb_on_sys_times_return(on_sys_times_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_times_return(on_sys_times_return_t);
-typedef void (*on_sys_tkill_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);
-void ppp_add_cb_on_sys_tkill_enter(on_sys_tkill_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_tkill_enter(on_sys_tkill_enter_t);
-typedef void (*on_sys_tkill_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, int32_t sig);
-void ppp_add_cb_on_sys_tkill_return(on_sys_tkill_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_tkill_return(on_sys_tkill_return_t);
-typedef void (*on_sys_truncate_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, int32_t length);
-void ppp_add_cb_on_sys_truncate_enter(on_sys_truncate_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_truncate_enter(on_sys_truncate_enter_t);
-typedef void (*on_sys_truncate_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, int32_t length);
-void ppp_add_cb_on_sys_truncate_return(on_sys_truncate_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_truncate_return(on_sys_truncate_return_t);
-typedef void (*on_sys_truncate64_enter_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint64_t length);
-void ppp_add_cb_on_sys_truncate64_enter(on_sys_truncate64_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_truncate64_enter(on_sys_truncate64_enter_t);
-typedef void (*on_sys_truncate64_return_t)(CPUState* cpu, target_ulong pc, uint32_t path, uint64_t length);
-void ppp_add_cb_on_sys_truncate64_return(on_sys_truncate64_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_truncate64_return(on_sys_truncate64_return_t);
-typedef void (*on_sys_umask_enter_t)(CPUState* cpu, target_ulong pc, int32_t mask);
-void ppp_add_cb_on_sys_umask_enter(on_sys_umask_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_umask_enter(on_sys_umask_enter_t);
-typedef void (*on_sys_umask_return_t)(CPUState* cpu, target_ulong pc, int32_t mask);
-void ppp_add_cb_on_sys_umask_return(on_sys_umask_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_umask_return(on_sys_umask_return_t);
-typedef void (*on_sys_umount_enter_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t flags);
-void ppp_add_cb_on_sys_umount_enter(on_sys_umount_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_umount_enter(on_sys_umount_enter_t);
-typedef void (*on_sys_umount_return_t)(CPUState* cpu, target_ulong pc, uint32_t name, int32_t flags);
-void ppp_add_cb_on_sys_umount_return(on_sys_umount_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_umount_return(on_sys_umount_return_t);
-typedef void (*on_sys_unlink_enter_t)(CPUState* cpu, target_ulong pc, uint32_t pathname);
-void ppp_add_cb_on_sys_unlink_enter(on_sys_unlink_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_unlink_enter(on_sys_unlink_enter_t);
-typedef void (*on_sys_unlink_return_t)(CPUState* cpu, target_ulong pc, uint32_t pathname);
-void ppp_add_cb_on_sys_unlink_return(on_sys_unlink_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_unlink_return(on_sys_unlink_return_t);
-typedef void (*on_sys_unlinkat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, int32_t flag);
-void ppp_add_cb_on_sys_unlinkat_enter(on_sys_unlinkat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_unlinkat_enter(on_sys_unlinkat_enter_t);
-typedef void (*on_sys_unlinkat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t pathname, int32_t flag);
-void ppp_add_cb_on_sys_unlinkat_return(on_sys_unlinkat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_unlinkat_return(on_sys_unlinkat_return_t);
-typedef void (*on_sys_unshare_enter_t)(CPUState* cpu, target_ulong pc, uint32_t unshare_flags);
-void ppp_add_cb_on_sys_unshare_enter(on_sys_unshare_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_unshare_enter(on_sys_unshare_enter_t);
-typedef void (*on_sys_unshare_return_t)(CPUState* cpu, target_ulong pc, uint32_t unshare_flags);
-void ppp_add_cb_on_sys_unshare_return(on_sys_unshare_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_unshare_return(on_sys_unshare_return_t);
-typedef void (*on_sys_uselib_enter_t)(CPUState* cpu, target_ulong pc, uint32_t library);
-void ppp_add_cb_on_sys_uselib_enter(on_sys_uselib_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_uselib_enter(on_sys_uselib_enter_t);
-typedef void (*on_sys_uselib_return_t)(CPUState* cpu, target_ulong pc, uint32_t library);
-void ppp_add_cb_on_sys_uselib_return(on_sys_uselib_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_uselib_return(on_sys_uselib_return_t);
-typedef void (*on_sys_userfaultfd_enter_t)(CPUState* cpu, target_ulong pc, int32_t flags);
-void ppp_add_cb_on_sys_userfaultfd_enter(on_sys_userfaultfd_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_userfaultfd_enter(on_sys_userfaultfd_enter_t);
-typedef void (*on_sys_userfaultfd_return_t)(CPUState* cpu, target_ulong pc, int32_t flags);
-void ppp_add_cb_on_sys_userfaultfd_return(on_sys_userfaultfd_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_userfaultfd_return(on_sys_userfaultfd_return_t);
-typedef void (*on_sys_ustat_enter_t)(CPUState* cpu, target_ulong pc, uint32_t dev, uint32_t ubuf);
-void ppp_add_cb_on_sys_ustat_enter(on_sys_ustat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_ustat_enter(on_sys_ustat_enter_t);
-typedef void (*on_sys_ustat_return_t)(CPUState* cpu, target_ulong pc, uint32_t dev, uint32_t ubuf);
-void ppp_add_cb_on_sys_ustat_return(on_sys_ustat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_ustat_return(on_sys_ustat_return_t);
-typedef void (*on_sys_utime_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t times);
-void ppp_add_cb_on_sys_utime_enter(on_sys_utime_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_utime_enter(on_sys_utime_enter_t);
-typedef void (*on_sys_utime_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t times);
-void ppp_add_cb_on_sys_utime_return(on_sys_utime_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_utime_return(on_sys_utime_return_t);
-typedef void (*on_sys_utimensat_enter_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes, int32_t flags);
-void ppp_add_cb_on_sys_utimensat_enter(on_sys_utimensat_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_utimensat_enter(on_sys_utimensat_enter_t);
-typedef void (*on_sys_utimensat_return_t)(CPUState* cpu, target_ulong pc, int32_t dfd, uint32_t filename, uint32_t utimes, int32_t flags);
-void ppp_add_cb_on_sys_utimensat_return(on_sys_utimensat_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_utimensat_return(on_sys_utimensat_return_t);
-typedef void (*on_sys_utimes_enter_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t utimes);
-void ppp_add_cb_on_sys_utimes_enter(on_sys_utimes_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_utimes_enter(on_sys_utimes_enter_t);
-typedef void (*on_sys_utimes_return_t)(CPUState* cpu, target_ulong pc, uint32_t filename, uint32_t utimes);
-void ppp_add_cb_on_sys_utimes_return(on_sys_utimes_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_utimes_return(on_sys_utimes_return_t);
-typedef void (*on_sys_vfork_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_vfork_enter(on_sys_vfork_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_vfork_enter(on_sys_vfork_enter_t);
-typedef void (*on_sys_vfork_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_vfork_return(on_sys_vfork_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_vfork_return(on_sys_vfork_return_t);
-typedef void (*on_sys_vhangup_enter_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_vhangup_enter(on_sys_vhangup_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_vhangup_enter(on_sys_vhangup_enter_t);
-typedef void (*on_sys_vhangup_return_t)(CPUState* cpu, target_ulong pc);
-void ppp_add_cb_on_sys_vhangup_return(on_sys_vhangup_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_vhangup_return(on_sys_vhangup_return_t);
-typedef void (*on_sys_vmsplice_enter_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t iov, uint32_t nr_segs, uint32_t flags);
-void ppp_add_cb_on_sys_vmsplice_enter(on_sys_vmsplice_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_vmsplice_enter(on_sys_vmsplice_enter_t);
-typedef void (*on_sys_vmsplice_return_t)(CPUState* cpu, target_ulong pc, int32_t fd, uint32_t iov, uint32_t nr_segs, uint32_t flags);
-void ppp_add_cb_on_sys_vmsplice_return(on_sys_vmsplice_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_vmsplice_return(on_sys_vmsplice_return_t);
-typedef void (*on_sys_wait4_enter_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options, uint32_t ru);
-void ppp_add_cb_on_sys_wait4_enter(on_sys_wait4_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_wait4_enter(on_sys_wait4_enter_t);
-typedef void (*on_sys_wait4_return_t)(CPUState* cpu, target_ulong pc, int32_t pid, uint32_t stat_addr, int32_t options, uint32_t ru);
-void ppp_add_cb_on_sys_wait4_return(on_sys_wait4_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_wait4_return(on_sys_wait4_return_t);
-typedef void (*on_sys_waitid_enter_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t pid, uint32_t infop, int32_t options, uint32_t ru);
-void ppp_add_cb_on_sys_waitid_enter(on_sys_waitid_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_waitid_enter(on_sys_waitid_enter_t);
-typedef void (*on_sys_waitid_return_t)(CPUState* cpu, target_ulong pc, int32_t which, int32_t pid, uint32_t infop, int32_t options, uint32_t ru);
-void ppp_add_cb_on_sys_waitid_return(on_sys_waitid_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_waitid_return(on_sys_waitid_return_t);
-typedef void (*on_sys_write_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);
-void ppp_add_cb_on_sys_write_enter(on_sys_write_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_write_enter(on_sys_write_enter_t);
-typedef void (*on_sys_write_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t buf, uint32_t count);
-void ppp_add_cb_on_sys_write_return(on_sys_write_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_write_return(on_sys_write_return_t);
-typedef void (*on_sys_writev_enter_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);
-void ppp_add_cb_on_sys_writev_enter(on_sys_writev_enter_t);
-_Bool 
-    ppp_remove_cb_on_sys_writev_enter(on_sys_writev_enter_t);
-typedef void (*on_sys_writev_return_t)(CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen);
-void ppp_add_cb_on_sys_writev_return(on_sys_writev_return_t);
-_Bool 
-    ppp_remove_cb_on_sys_writev_return(on_sys_writev_return_t);
-typedef void (*on_all_sys_enter_t)(CPUState *cpu, target_ulong pc, target_ulong callno);
-void ppp_add_cb_on_all_sys_enter(on_all_sys_enter_t);
-_Bool 
-    ppp_remove_cb_on_all_sys_enter(on_all_sys_enter_t);
-typedef void (*on_all_sys_enter2_t)(CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx);
-void ppp_add_cb_on_all_sys_enter2(on_all_sys_enter2_t);
-_Bool 
-    ppp_remove_cb_on_all_sys_enter2(on_all_sys_enter2_t);
-typedef void (*on_all_sys_return_t)(CPUState *cpu, target_ulong pc, target_ulong callno);
-void ppp_add_cb_on_all_sys_return(on_all_sys_return_t);
-_Bool 
-    ppp_remove_cb_on_all_sys_return(on_all_sys_return_t);
-typedef void (*on_all_sys_return2_t)(CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx);
-void ppp_add_cb_on_all_sys_return2(on_all_sys_return2_t);
-_Bool 
-    ppp_remove_cb_on_all_sys_return2(on_all_sys_return2_t);
-typedef void (*on_unknown_sys_enter_t)(CPUState *cpu, target_ulong pc, target_ulong callno);
-void ppp_add_cb_on_unknown_sys_enter(on_unknown_sys_enter_t);
-_Bool 
-    ppp_remove_cb_on_unknown_sys_enter(on_unknown_sys_enter_t);
-typedef void (*on_unknown_sys_return_t)(CPUState *cpu, target_ulong pc, target_ulong callno);
-void ppp_add_cb_on_unknown_sys_return(on_unknown_sys_return_t);
-_Bool 
-    ppp_remove_cb_on_unknown_sys_return(on_unknown_sys_return_t);

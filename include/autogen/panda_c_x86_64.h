@@ -1,5 +1,6 @@
        
        
+       
 typedef __int128_t Int128;
 typedef __int128_t __attribute__((aligned(16))) Int128Aligned;
 typedef union {
@@ -1232,7 +1233,9 @@ void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
 HotplugHandler *qdev_get_bus_hotplug_handler(DeviceState *dev);
 HotplugHandler *qdev_get_machine_hotplug_handler(DeviceState *dev);
 _Bool 
-    qdev_hotplug_allowed(DeviceState *dev, Error **errp);
+    qdev_hotplug_allowed(DeviceState *dev, BusState *bus, Error **errp);
+_Bool 
+    qdev_hotunplug_allowed(DeviceState *dev, Error **errp);
 HotplugHandler *qdev_get_hotplug_handler(DeviceState *dev);
 void qdev_unplug(DeviceState *dev, Error **errp);
 int qdev_sync_config(DeviceState *dev, Error **errp);
@@ -1539,7 +1542,7 @@ typedef struct CPUBreakpoint {
     union { struct CPUBreakpoint *tqe_next; QTailQLink tqe_circ; } entry;
 } CPUBreakpoint;
 typedef struct CPUWatchpoint {
-    vaddr vaddr_;
+    vaddr vaddr;
     vaddr len;
     vaddr hitaddr;
     MemTxAttrs hitattrs;
@@ -2860,7 +2863,6 @@ struct qemu_work_item;
 struct CPUState {
     DeviceState parent_obj;
     CPUClass *cc;
-    int nr_cores;
     int nr_threads;
     struct QemuThread *thread;
     int thread_id;
@@ -4241,6 +4243,42 @@ int qemu_poll_ns(GPollFD *fds, guint nfds, int64_t timeout);
 void init_clocks(QEMUTimerListNotifyCB *notify_cb);
 extern int64_t clock_start;
 extern int use_rt_clock;
+struct kvm_steal_time {
+ uint64_t steal;
+ uint32_t version;
+ uint32_t flags;
+ uint8_t preempted;
+ uint8_t uint8_t_pad[3];
+ uint32_t pad[11];
+};
+struct kvm_clock_pairing {
+ int64_t sec;
+ int64_t nsec;
+ uint64_t tsc;
+ uint32_t flags;
+ uint32_t pad[9];
+};
+struct kvm_mmu_op_header {
+ uint32_t op;
+ uint32_t pad;
+};
+struct kvm_mmu_op_write_pte {
+ struct kvm_mmu_op_header header;
+ uint64_t pte_phys;
+ uint64_t pte_val;
+};
+struct kvm_mmu_op_flush_tlb {
+ struct kvm_mmu_op_header header;
+};
+struct kvm_mmu_op_release_pt {
+ struct kvm_mmu_op_header header;
+ uint64_t pt_phys;
+};
+struct kvm_vcpu_pv_apf_data {
+ uint32_t flags;
+ uint32_t token;
+ uint8_t pad[56];
+};
 enum {
     R_EAX = 0,
     R_ECX = 1,
@@ -4594,7 +4632,7 @@ typedef struct CPUArchState {
     BNDCSReg bndcs_regs;
     uint64_t msr_bndcfgs;
     uint64_t efer;
-    uint8_t start_init_save[0];
+    struct {} start_init_save;
     unsigned int fpstt;
     uint16_t fpus;
     uint16_t fpuc;
@@ -4658,7 +4696,7 @@ typedef struct CPUArchState {
     uint64_t spec_ctrl;
     uint64_t amd_tsc_scale_msr;
     uint64_t virt_ssbd;
-    uint8_t end_init_save[0];
+    struct {} end_init_save;
     uint64_t system_time_msr;
     uint64_t wall_clock_msr;
     uint64_t steal_time_msr;
@@ -4725,7 +4763,7 @@ typedef struct CPUArchState {
     uintptr_t retaddr;
     uint64_t msr_rapl_power_unit;
     uint64_t msr_pkg_energy_status;
-    uint8_t end_reset_fields[0];
+    struct {} end_reset_fields;
     uint32_t cpuid_level_func7;
     uint32_t cpuid_min_level_func7;
     uint32_t cpuid_min_level, cpuid_min_xlevel, cpuid_min_xlevel2;
@@ -4792,49 +4830,9 @@ typedef struct CPUArchState {
     uint64_t xss;
     uint32_t umwait;
     TPRAccess tpr_access_type;
-    unsigned nr_dies;
-    unsigned nr_modules;
+    X86CPUTopoInfo topo_info;
     unsigned long avail_cpu_topo[(((CPU_TOPOLOGY_LEVEL__MAX) + (8 * sizeof(long)) - 1) / (8 * sizeof(long)))];
 } CPUX86State;
-_Static_assert(
-              __builtin_offsetof (
-              CPUX86State
-              , 
-              start_init_save
-              ) 
-                                                      == 
-                                                         __builtin_offsetof (
-                                                         CPUX86State
-                                                         , 
-                                                         fpstt
-                                                         )
-                                                                                     , "start_init_save has non-zero size");
-_Static_assert(
-              __builtin_offsetof (
-              CPUX86State
-              , 
-              end_init_save
-              ) 
-                                                      == 
-                                                         __builtin_offsetof (
-                                                         CPUX86State
-                                                         , 
-                                                         system_time_msr
-                                                         )
-                                                                                               , "end_init_save has non-zero size");
-_Static_assert(
-              __builtin_offsetof (
-              CPUX86State
-              , 
-              end_reset_fields
-              ) 
-                                                      == 
-                                                         __builtin_offsetof (
-                                                         CPUX86State
-                                                         , 
-                                                         cpuid_level_func7
-                                                         )
-                                                                                                 , "end_reset_fields has non-zero size");
 struct kvm_msrs;
 struct ArchCPU {
     CPUState parent_obj;
@@ -5008,6 +5006,7 @@ void fpu_check_raise_ferr_irq(CPUX86State *s);
 void cpu_set_ignne(void);
 void cpu_clear_ignne(void);
 void cpu_sync_bndcs_hflags(CPUX86State *env);
+uint64_t cpu_x86_get_msr_core_thread_count(X86CPU *cpu);
 int cpu_x86_get_descr_debug(CPUX86State *env, unsigned int selector,
                             target_ulong *base, unsigned int *limit,
                             unsigned int *flags);
@@ -5334,9 +5333,6 @@ struct MemoryRegion {
     
    _Bool 
         enabled;
-    
-   _Bool 
-        warning_printed;
     uint8_t vga_logging_count;
     MemoryRegion *alias;
     hwaddr alias_offset;
@@ -6507,9 +6503,35 @@ extern
 target_ulong panda_current_asid(CPUState *env);
 target_ulong panda_current_pc(CPUState *cpu);
 Int128 panda_find_max_ram_address(void);
+int panda_physical_memory_rw(hwaddr addr, uint8_t *buf, int len, 
+                                                                _Bool 
+                                                                     is_write);
+int panda_physical_memory_read(hwaddr addr, uint8_t *buf, int len);
+int panda_physical_memory_write(hwaddr addr, uint8_t *buf, int len);
+hwaddr panda_virt_to_phys(CPUState * env, target_ulong addr);
 _Bool 
-    enter_priv(CPUState* cpu);
-void exit_priv(CPUState* cpu);
+    enter_priv(CPUState * cpu);
+void exit_priv(CPUState * cpu);
+int panda_virtual_memory_rw(CPUState * cpu, target_ulong addr,
+                            uint8_t * buf, int len, 
+                                                   _Bool 
+                                                        is_write);
+int panda_virtual_memory_read(CPUState * env, target_ulong addr,
+                              uint8_t * buf, int len);
+int panda_virtual_memory_write(CPUState * env, target_ulong addr,
+                               uint8_t * buf, int len);
+void *panda_map_virt_to_host(CPUState * env, target_ulong addr, int len);
+_Bool 
+    panda_in_kernel_mode(const CPUState *cpu);
+_Bool 
+    panda_in_kernel(const CPUState *cpu);
+_Bool 
+    address_in_kernel_code_linux(target_ulong addr);
+_Bool 
+    panda_in_kernel_code_linux(CPUState * cpu);
+target_ulong panda_current_ksp(CPUState * cpu);
+target_ulong panda_current_sp(const CPUState *cpu);
+target_ulong panda_get_retval(const CPUState *cpu);
 typedef enum {
     TCG_MO_LD_LD = 0x01,
     TCG_MO_ST_LD = 0x02,
@@ -6520,8 +6542,6 @@ typedef enum {
     TCG_BAR_STRL = 0x20,
     TCG_BAR_SC = 0x30,
 } TCGBar;
-extern unsigned cpuinfo;
-unsigned cpuinfo_init(void);
 typedef enum {
     TCG_REG_EAX = 0,
     TCG_REG_ECX,
@@ -6988,7 +7008,6 @@ enum {
     TCG_OPF_BB_END = 0x02,
     TCG_OPF_CALL_CLOBBER = 0x04,
     TCG_OPF_SIDE_EFFECTS = 0x08,
-    TCG_OPF_64BIT = 0x10,
     TCG_OPF_NOT_PRESENT = 0x20,
     TCG_OPF_VECTOR = 0x40,
     TCG_OPF_COND_BRANCH = 0x80
@@ -6997,16 +7016,13 @@ typedef struct TCGOpDef {
     const char *name;
     uint8_t nb_oargs, nb_iargs, nb_cargs, nb_args;
     uint8_t flags;
-    TCGArgConstraint *args_ct;
 } TCGOpDef;
-extern TCGOpDef tcg_op_defs[];
+extern const TCGOpDef tcg_op_defs[];
 extern const size_t tcg_op_defs_max;
-typedef struct TCGTargetOpDef {
-    TCGOpcode op;
-    const char *args_ct_str[16];
-} TCGTargetOpDef;
 _Bool 
-    tcg_op_supported(TCGOpcode op);
+    tcg_op_supported(TCGOpcode op, TCGType type, unsigned flags);
+_Bool 
+    tcg_op_deposit_valid(TCGType type, unsigned ofs, unsigned len);
 void tcg_gen_call0(void *func, TCGHelperInfo *, TCGTemp *ret);
 void tcg_gen_call1(void *func, TCGHelperInfo *, TCGTemp *ret, TCGTemp *);
 void tcg_gen_call2(void *func, TCGHelperInfo *, TCGTemp *ret,
@@ -7025,10 +7041,6 @@ void tcg_gen_call7(void *func, TCGHelperInfo *, TCGTemp *ret,
                    TCGTemp *, TCGTemp *, TCGTemp *);
 TCGOp *tcg_emit_op(TCGOpcode opc, unsigned nargs);
 void tcg_op_remove(TCGContext *s, TCGOp *op);
-TCGOp *tcg_op_insert_before(TCGContext *s, TCGOp *op,
-                            TCGOpcode opc, unsigned nargs);
-TCGOp *tcg_op_insert_after(TCGContext *s, TCGOp *op,
-                           TCGOpcode opc, unsigned nargs);
 void tcg_remove_ops_after(TCGOp *op);
 void tcg_optimize(TCGContext *s);
 TCGLabel *gen_new_label(void);
@@ -7238,7 +7250,6 @@ CPUState* get_cpu(void);
 unsigned long garray_len(GArray *list);
 CPUArchState *panda_cpu_env(CPUState *cpu);
 void panda_cleanup_record(void);
-void (*panda_external_signal_handler)(int, siginfo_t*,void*);
 CPUState *panda_current_cpu(int index);
 CPUState *panda_cpu_in_translate(void);
 TranslationBlock *panda_get_tb(struct qemu_plugin_tb *tb);
