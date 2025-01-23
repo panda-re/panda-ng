@@ -1,9 +1,11 @@
 #ifndef __HOOKS_INT_FNS_H__
 #define __HOOKS_INT_FNS_H__
 
-#include "dynamic_symbols/dynamic_symbols_int_fns.h"
+// #include "dynamic_symbols/dynamic_symbols_int_fns.h"
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 // BEGIN_PYPANDA_NEEDS_THIS -- do not delete this comment bc pypanda
 // api autogen needs it.  And don't put any compiler directives
@@ -45,7 +47,7 @@ typedef struct hook {
     hooks_panda_cb cb;
     enum kernel_mode km;
     bool enabled;
-    struct symbol sym; //if an associated symbol exists
+    // struct symbol sym; //if an associated symbol exists
     void* context;
 } hook;
 
@@ -59,10 +61,10 @@ struct symbol_hook {
     hooks_panda_cb cb;
 };
 
-extern "C" void add_hook(struct hook* h);
-extern "C" void enable_hooking();
-extern "C" void disable_hooking();
-extern "C" void add_symbol_hook(struct symbol_hook* h);
+void add_hook(struct hook* h);
+void enable_hooking();
+void disable_hooking();
+void add_symbol_hook(struct symbol_hook* h);
 
 struct dynamic_symbol_hook {
     char library_name[MAX_PATH_LEN];
@@ -72,5 +74,7 @@ struct dynamic_symbol_hook {
 
 // END_PYPANDA_NEEDS_THIS -- do not delete this comment!
 
+#ifdef __cplusplus
 }
+#endif
 #endif
