@@ -28,7 +28,6 @@
 #include "kernelinfo_downloader.h"
 #include "endian_helpers.h"
 
-#include "panda/tcg-utils.h"
 #include "osi/osi_ext.h"
 
 #define KERNEL_CONF "/" TARGET_NAME "-softmmu/panda/plugins/osi_linux/kernelinfo.conf"
