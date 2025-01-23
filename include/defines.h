@@ -1,0 +1,1 @@
+#define MEMTX_OK 0

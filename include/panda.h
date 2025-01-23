@@ -22,7 +22,7 @@ extern "C" {
 #include PANDA_HEADER
 #include "plugin_plugin.h"
 #include "debug.h"
-#include CONFIG_TARGET
+#include "defines.h"
 
 #ifdef __cplusplus
 }
