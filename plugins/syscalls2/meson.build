@@ -1,4 +1,15 @@
-dso_info = run_command('find', 'generated', '-name', 'dso_info_*.c').stdout().strip().split('\n')
-syscall_switch = run_command('find', 'generated', '-name', 'syscall_switch_*.cpp').stdout().strip().split('\n')
+# dso_info = run_command('find', 'generated', '-name', 'dso_info_*.c').stdout().strip().split('\n')
 
-sources += files(dso_info) + files(syscall_switch) + files('syscalls2.cpp')
+# foreach dso: dso_info
+
+#     shared_library('dso'+dso,
+#         dso
+#     )
+# endforeach
+
+# I don't think there's harm to capturing OABI syscalls on new arm guests, so let's leave this on
+# CFLAGS += -DCAPTURE_ARM_OABI
+syscall_switch = run_command('find', 'generated', '-name', 'syscall_switch_*.cpp').stdout().strip().split('\n')
+plugin_cflags += ['-DCAPTURE_ARM_OABI']
+
+sources += files('syscalls2.cpp', 'syscalls2_info.c') + files(syscall_switch)

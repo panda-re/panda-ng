@@ -34,12 +34,17 @@ PANDAENDCOMMENT */
 #include <vector>
 #include <iostream>
 #include <sstream>
+#include <limits>
 
 #include "syscalls2.h"
 #include "syscalls2_info.h"
 #include "hw_proc_id/hw_proc_id_ext.h"
 
-void syscall_callback(TranslationBlock* tb, target_ulong pc, enum ProfileType, int static_callno);
+target_ulong syscalls_get_id(CPUState *cpu){
+    return get_id(cpu);
+}
+
+void syscall_callback(unsigned int vcpu_index, void* sysinfo);
 
 void (*hooks_add_hook)(struct hook*);
 extern "C" {
@@ -345,7 +350,7 @@ target_long get_return_val_x86(CPUState *cpu){
 #if defined(TARGET_I386)
     // this should work for X86_64 as well, as PANDA uses R_EAX to access RAX
 	// and target_ulong changes size based on the target
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     return static_cast<target_long>(env->regs[R_EAX]);
 #endif
     return 0;
@@ -357,7 +362,7 @@ target_long get_return_val_x64(CPUState *cpu){
 
 target_long get_return_val_arm(CPUState *cpu){
 #if defined(TARGET_ARM)
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
 #if !defined(TARGET_AARCH64)
     // arm: reg[0]
     return static_cast<target_long>(env->regs[0]);
@@ -376,7 +381,7 @@ target_long get_return_val_mips(CPUState *cpu){
     // $v0 only for almost all for Linux syscalls
     // $v1 returns 2nd file descriptor only for pipe(2) - we'll just ignore this edge case
     // See: https://www.linux-mips.org/wiki/Syscall
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     return static_cast<target_long>(env->active_tc.gpr[2]);
 #endif
     return 0;
@@ -390,7 +395,7 @@ target_ulong mask_retaddr_to_pc(target_ulong retaddr){
 // Return address calculations
 target_ulong calc_retaddr_windows_x86(CPUState* cpu, target_ulong pc) {
 #if defined(TARGET_I386)
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     target_ulong retaddr = 0;
     assert(profiles[default_profile].windows_return_addr_register >= 0);
     panda_virtual_memory_rw(cpu, env->regs[profiles[default_profile].windows_return_addr_register], (uint8_t *) &retaddr, 4, false);
@@ -424,7 +429,7 @@ target_ulong calc_retaddr_linux_x86(CPUState* cpu, target_ulong pc) {
         // https://reverseengineering.stackexchange.com/questions/2869/how-to-use-sysenter-under-linux
         target_ulong ret = 0x0;
         target_ulong ret_ptr =
-            ((CPUX86State *)cpu->env_ptr)->regs[R_ESP] + 0x0C;
+            ((CPUX86State *)panda_cpu_env(cpu))->regs[R_ESP] + 0x0C;
         panda_virtual_memory_read(cpu, ret_ptr, (uint8_t *)&ret, sizeof(ret));
         assert(ret != 0x0);
         return ret;
@@ -475,7 +480,7 @@ target_ulong calc_retaddr_linux_arm(CPUState* cpu, target_ulong pc) {
 
     // 32-bit and 64-bit ARM both have thumb field in CPUARMState
     uint8_t offset = 0;
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     bool in_thumb_mode = (env->thumb == 1);
     if(in_thumb_mode){
         offset = 2;
@@ -530,7 +535,7 @@ target_ulong calc_retaddr_linux_mips(CPUState* cpu, target_ulong pc) {
 // Argument getting (at syscall entry)
 uint32_t get_linux_x86_argnum(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 #if defined(TARGET_I386)
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     switch (argnum) {
     case 0:
         return env->regs[R_EBX];
@@ -559,7 +564,7 @@ uint32_t get_linux_x86_argnum(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) 
 // Argument getting (at syscall entry)
 uint64_t get_linux_x64_argnum(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 #if defined(TARGET_X86_64)
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
 
     // PANDA uses x86 register names to get at the x64 registers
     switch (argnum) {
@@ -597,7 +602,7 @@ static uint32_t get_win_syscall_arg(CPUState* cpu, syscall_ctx* ctx, int nr) {
 #if defined(TARGET_I386) && !defined(TARGET_X86_64)
     // At sysenter on 32-bit Windows7, args start at env->regs[R_EDX]+8
     // At INT 0x2E on Windows 2000, args start at env->regs[R_EDX]
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     uint32_t arg = 0;
     assert(profiles[default_profile].windows_arg_offset >= 0);
     panda_virtual_memory_rw(cpu, env->regs[R_EDX] + profiles[default_profile].windows_arg_offset + (4*nr),
@@ -617,7 +622,7 @@ uint32_t get_32_linux_x64 (CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 }
 uint32_t get_32_linux_arm (CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 #ifdef TARGET_ARM
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
 
 #if defined(TARGET_AARCH64)
     // aarch64 regs in x0-x5
@@ -636,7 +641,7 @@ uint32_t get_32_linux_arm (CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 
 uint32_t get_32_linux_mips (CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 #ifdef TARGET_MIPS
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
 
     assert (argnum < 8);
     if (ctx->no >= 4000 && ctx->no < 5000) {
@@ -679,7 +684,7 @@ uint32_t get_32_windows_x86 (CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 
 uint32_t get_32_windows_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 #if defined(TARGET_I386)
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     uint32_t argval = 0;
     // haven't seen any structures in first 4 args to a system call, or any
     // floating point values, so don't have to worry about those special cases
@@ -722,7 +727,7 @@ uint64_t get_64_linux_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 
 uint64_t get_64_linux_arm(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 #ifdef TARGET_ARM
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
 #if !defined(TARGET_AARCH64)
     // arm32 regs in r0-r6
     assert (argnum < 7);
@@ -743,7 +748,7 @@ uint64_t get_64_linux_mips(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
     // Args 1-8 in $a0-$a7 which are regs 4-11 in gpr
     // With N32 ABI we should only return 32 bits worth of data
     assert (argnum < 8);
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     return (uint64_t) env->active_tc.gpr[argnum+4];
 #else
     return 0;
@@ -757,7 +762,7 @@ uint64_t get_64_windows_x86(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 
 uint64_t get_64_windows_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 #if defined(TARGET_X86_64)
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     uint64_t argval = 0;
     // haven't seen any structures in first 4 args to a system call, or any
     // floating point values, so don't have to worry about those special cases
@@ -790,7 +795,7 @@ uint64_t get_64_windows_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 static uint32_t get_win_syscall_return_arg(CPUState* cpu, syscall_ctx *ctx, int nr) {
 #if defined(TARGET_I386)
     // At sysenter on Windows7, args start at env->regs[R_EDX]+8
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     uint32_t arg = 0;
     panda_virtual_memory_rw(cpu, env->regs[R_ESP] + 4 + (4*nr),
                             (uint8_t *) &arg, 4, false);
@@ -929,7 +934,7 @@ void sysinfo_load_profile(int profile, syscall_info_t **syscall_info, syscall_me
 void syscall_enter_linux_mips64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno) {
     #if defined(TARGET_MIPS) && defined(TARGET_MIPS64)
     if (static_callno == -1){
-        CPUArchState *env = (CPUArchState*) cpu->env_ptr;
+        CPUArchState *env = (CPUArchState*) panda_cpu_env(cpu);
         static_callno = env->active_tc.gpr[2]; 
     }
     if (static_callno >= 4000 && static_callno <= 4999) {
@@ -1013,13 +1018,13 @@ static inline std::string context_map_t_dump(context_map_t &cm) {
 void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
     auto k = std::make_pair(tb->pc, get_id(cpu));
     auto ctxi = running_syscalls.find(k);
-    int UNUSED(no) = -1;
-    if (unlikely(ctxi == running_syscalls.end())) {
+    [[maybe_unused]] int no = -1;
+    if (ctxi == running_syscalls.end()) { [[unlikely]]
         k = std::make_pair(tb->pc, 0);
         ctxi = running_syscalls.find(k);
     }
-    if (likely(ctxi != running_syscalls.end())) {
-        syscall_ctx_t *ctx = &ctxi->second;
+    if (ctxi != running_syscalls.end()) {
+        syscall_ctx_t *ctx = &ctxi->second; 
         no = ctx->no;
         profiles[ctx->profile].return_switch(cpu, tb->pc, ctx);
         if (ctx->double_return){
@@ -1053,10 +1058,10 @@ static uint32_t impossibleToReadPCs = 0;
 
 // Check if the instruction is sysenter (0F 34),
 // syscall (0F 05) or int 0x80 (CD 80)
-target_ulong doesBlockContainSyscall(CPUState *cpu, TranslationBlock *tb, int* static_callno, enum ProfileType* type) {
+target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, int* static_callno, enum ProfileType* type) {
 #if defined(TARGET_I386)
     unsigned char buf[2] = {};
-    target_ulong pc = tb->pc + tb->size - sizeof(buf);
+    target_ulong pc = qemu_plugin_tb_vaddr(tb) + qemu_plugin_tb_size(tb) - sizeof(buf);
     int res = panda_virtual_memory_rw(cpu, pc, buf, 2, 0);
     if(res <0){
         return -1;
@@ -1095,7 +1100,7 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, TranslationBlock *tb, int* s
     }
 #elif defined(TARGET_ARM)
     unsigned char buf[4] = {};
-    target_ulong pc = tb->pc + tb->size - sizeof(buf);
+    target_ulong pc = qemu_plugin_tb_vaddr(tb) + qemu_plugin_tb_size(tb) - sizeof(buf);
 
 #if defined(TARGET_AARCH64)
     // AARCH64 - No thumb mode, syscall is 01 00 00 d4
@@ -1109,7 +1114,7 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, TranslationBlock *tb, int* s
 #endif
     // ARM32
     // Check for ARM mode syscall
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = panda_cpu_env(cpu);
     if(env->thumb == 0) {
         panda_virtual_memory_rw(cpu, pc, buf, 4, 0);
         // EABI
@@ -1151,7 +1156,7 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, TranslationBlock *tb, int* s
 #elif defined(TARGET_MIPS)
 
     unsigned char buf[4] = {};
-    target_ulong pc = tb->pc + tb->size - sizeof(buf);
+    target_ulong pc = qemu_plugin_tb_vaddr(tb) + qemu_plugin_tb_size(tb) - sizeof(buf);
 
     int res = panda_virtual_memory_read(cpu, pc, buf, 4);
     if(res < 0){
@@ -1178,8 +1183,14 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, TranslationBlock *tb, int* s
 #endif
 }
 
+struct sysinfo {
+    enum ProfileType profile;
+    int callno;
+};
 
-void before_tcg_codegen(CPUState *cpu, TranslationBlock *tb){
+std::map<target_ulong, struct sysinfo> syscall_info_map;
+
+void block_translate(CPUState *cpu, struct qemu_plugin_tb *tb){
     int static_callno = -1; // Set to non -1 if syscall num can be
                             // statically identified
     enum ProfileType profile = default_profile;
@@ -1191,19 +1202,29 @@ void before_tcg_codegen(CPUState *cpu, TranslationBlock *tb){
     }
 #endif
     if(res != 0 && res != (target_ulong) -1){
-        TCGOp *op = find_guest_insn_by_addr(res);
-        insert_call(&op, syscall_callback, tb, res, profile, static_callno);
+        struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn_by_vaddr(tb, res);
+        if (insn != NULL){
+            syscall_info_map[res] = {profile, static_callno};
+            qemu_plugin_register_vcpu_insn_exec_cb(insn, syscall_callback, QEMU_PLUGIN_CB_NO_REGS, (void*) (uint64_t)res);
+        }
     }
 }
 
 // This will be called directly from the TCG stream for blocks that contain a
 // syscall (as identified by doesBlockContainSyscall). Inserted into TCG by
 // before_tcg_codegen.
-void syscall_callback(TranslationBlock *tb, target_ulong pc, enum ProfileType profile, int callno) {
-    CPUState *cpu = first_cpu;
+void syscall_callback(unsigned int vcpu_index, void *sysinfo){
+    CPUState *cpu = panda_current_cpu(vcpu_index);
+    target_ulong pc = (target_ulong) (uint64_t)sysinfo;
+    enum ProfileType profile = syscall_info_map[pc].profile;
+    int callno = syscall_info_map[pc].callno;
 #if defined(TARGET_I386) && defined(TARGET_X86_64)
+#define MSR_EFER_SCE   (1 << 0)
+#define MSR_EFER_LMA   (1 << 10)
+#define DESC_L_SHIFT    21 /* x86_64 only : 64 bit code segment */
+#define DESC_L_MASK     (1 << DESC_L_SHIFT)
     if (panda_os_familyno == OS_WINDOWS) {
-        CPUArchState *env = (CPUArchState *)cpu->env_ptr;
+        CPUArchState *env = (CPUArchState *)panda_cpu_env(cpu);
         if ((env->efer & MSR_EFER_SCE) && (env->efer & MSR_EFER_LMA)) {
             // shouldn't happen, as WOW should covert the system calls and
             // leave compatibility mode before executing them, but just in case...
@@ -1219,7 +1240,7 @@ void syscall_callback(TranslationBlock *tb, target_ulong pc, enum ProfileType pr
 #endif
 
 #if defined(SYSCALL_RETURN_DEBUG) && defined(TARGET_I386)
-    CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     int no = env->regs[R_EAX];
     const syscall_info_t *si = syscall_info;
     const syscall_meta_t *sm = syscall_meta;
@@ -1242,6 +1263,7 @@ void syscall_callback(TranslationBlock *tb, target_ulong pc, enum ProfileType pr
 #ifdef DEBUG
         syscallCounter[get_id(cpu)]++;
 #endif
+    // free(sysinfo);
 }
 
 
@@ -1289,7 +1311,7 @@ bool init_plugin(void *self) {
     panda_arg_list *plugin_args = panda_get_args(PLUGIN_NAME);
 
     // Unused in some architectures
-    const char *UNUSED(abi) = panda_parse_string_opt(plugin_args, "abi", NULL, "Syscall ABI if a nonstandard value is used. Currently supported for mips(64) with values: n64, n32, and o32");
+    [[maybe_unused]]const char *abi = panda_parse_string_opt(plugin_args, "abi", NULL, "Syscall ABI if a nonstandard value is used. Currently supported for mips(64) with values: n64, n32, and o32");
 
     default_profile = PROFILE_LAST;
     if (panda_os_familyno == OS_UNKNOWN)
@@ -1376,8 +1398,8 @@ bool init_plugin(void *self) {
 
     // parse arguments and initialize callbacks & info api
     panda_cb pcb;
-    pcb.before_tcg_codegen = before_tcg_codegen;
-    panda_register_callback(self, PANDA_CB_BEFORE_TCG_CODEGEN, pcb);
+    pcb.block_translate = block_translate;
+    panda_register_callback(self, PANDA_CB_BLOCK_TRANSLATE, pcb);
 
     // load system call info
     if (panda_parse_bool_opt(plugin_args, "load-info", "Load systemcall information for the selected os.")) {
@@ -1398,7 +1420,11 @@ bool init_plugin(void *self) {
 		hooks = panda_get_plugin_by_name("hooks");
 	}
     hooks_add_hook = (void(*)(struct hook*)) dlsym(hooks, "add_hook");
+#elif defined(TARGET_PPC)
+    fprintf(stderr,"The syscalls plugin is not currently supported on this platform.\n");
+    return false;
 #else //not x86/arm/mips
+    #error
     fprintf(stderr,"The syscalls plugin is not currently supported on this platform.\n");
     return false;
 #endif // x86/arm/mips
