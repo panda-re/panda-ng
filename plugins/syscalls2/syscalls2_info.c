@@ -18,17 +18,17 @@ void load_syscall_info(const gchar *arch, syscall_info_t **syscall_info, syscall
 
     	// Windows 7 is special - SP 0 and 1 are in same file
     	if (0 == strncmp(panda_os_variant, "7", 1)) {
-    	    syscall_info_dlname = g_strdup_printf("%s_dso_info_%s_7_%s" ".so", PLUGIN_NAME, panda_os_family, arch);
+    	    syscall_info_dlname = g_strdup_printf("lib%s_dso_info_%s_7_%s" ".so", PLUGIN_NAME, panda_os_family, arch);
     	} else {
             // for windows, take into account the panda_os_variant
-            syscall_info_dlname = g_strdup_printf("%s_dso_info_%s_%s_%s" ".so", PLUGIN_NAME, panda_os_family, panda_os_variant, arch);
+            syscall_info_dlname = g_strdup_printf("lib%s_dso_info_%s_%s_%s" ".so", PLUGIN_NAME, panda_os_family, panda_os_variant, arch);
     	}
     }
     else {
     	assert((panda_os_bits == 32) || (panda_os_bits == 64));
 
         // for everything else (i.e. linux), only use panda_os_family
-        syscall_info_dlname = g_strdup_printf("%s_dso_info_%s_%s" ".so", PLUGIN_NAME, panda_os_family, arch);
+        syscall_info_dlname = g_strdup_printf("lib%s_dso_info_%s_%s" ".so", PLUGIN_NAME, panda_os_family, arch);
     }
 
     dlerror();  // clear errors

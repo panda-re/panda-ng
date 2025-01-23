@@ -1,11 +1,12 @@
-# dso_info = run_command('find', 'generated', '-name', 'dso_info_*.c').stdout().strip().split('\n')
+dso_info = run_command('find', 'generated', '-name', 'dso_info_*.c').stdout().strip().split('\n')
 
-# foreach dso: dso_info
+foreach dso: dso_info
+    dso_basename = dso.split('/')[-1].split('.')[0]
 
-#     shared_library('dso'+dso,
-#         dso
-#     )
-# endforeach
+    shared_library('syscalls2_'+dso_basename,
+        dso
+    )
+endforeach
 
 # I don't think there's harm to capturing OABI syscalls on new arm guests, so let's leave this on
 # CFLAGS += -DCAPTURE_ARM_OABI
