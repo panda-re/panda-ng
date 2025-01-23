@@ -8,7 +8,6 @@ foreach plugin: plugin_list
         build = meson.current_build_dir()
         in_h =  plugin / (plugin+'_int.h')
         out_h =  plugin+'_ext.h'
-        run_command(['mkdir', 'plugin/'+plugin])
         
         # Store the custom target in the dictionary
         plugin_ext += {plugin: custom_target(plugin+'_ext_h',
@@ -45,6 +44,7 @@ foreach plugin: plugin_list
     includes = [
         include_directories(plugin),
         include_directories('../include'),
+        include_directories('../include/config'),
         include_directories('.'),
     ]
     link_args = [
@@ -59,6 +59,7 @@ foreach plugin: plugin_list
     endif
     
     if fs.exists(join_paths(plugin, 'meson.build'))
+        plugin_cflags = []
         subdir(plugin)
         foreach target: target_dirs
             # message('building plugin @0@ for target @1@'.format(plugin, target))
@@ -74,13 +75,14 @@ foreach plugin: plugin_list
                 '-DPANDA_TGT=@0@'.format(config_target['TARGET_ARCH']),
                 '-DPLUGIN_MAIN',
                 '-D_GNU_SOURCE',
+                '-DTARGET_@0@=1'.format(config_target['TARGET_ARCH'].to_upper())
             ]
             target_link_args = ['-Lpanda-'+target]
             
             shared_library('panda-@0@_@1@'.format(plugin, target),
                 sources,
-                c_args: c_args + target_c_args,
-                cpp_args: c_args + target_c_args + cpp_args,
+                c_args: c_args + target_c_args + plugin_cflags,
+                cpp_args: c_args + target_c_args + cpp_args + plugin_cflags,
                 link_args: link_args + target_link_args,
                 include_directories: includes,
                 dependencies: dependencies,
