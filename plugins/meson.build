@@ -6,18 +6,19 @@ plugin_ext = {}
 foreach plugin: plugin_list
     if fs.exists(join_paths(plugin, plugin+'_int.h'))
         build = meson.current_build_dir()
-        
-        in_h = meson.current_source_dir() / plugin / (plugin+'_int.h')
-        out_h = plugin+'_ext.h'
+        in_h =  plugin / (plugin+'_int.h')
+        out_h =  plugin+'_ext.h'
+        run_command(['mkdir', 'plugin/'+plugin])
         
         # Store the custom target in the dictionary
         plugin_ext += {plugin: custom_target(plugin+'_ext_h',
-            output: [out_h],
             input: [in_h],
-            install_dir: plugin,
-            command: [python_exe, '../utils/scripts/apigen.py', 
+            output: [out_h],
+            install_dir: 'plugin/' + plugin,
+            install: true,
+            command: [python_exe, '../utils/scripts/apigen.py',
                 '@INPUT@', 
-                '@OUTPUT@', 
+                join_paths('plugins', plugin, out_h),
                 '-I' + fake_libc_include])}
     endif
 endforeach
@@ -30,7 +31,7 @@ foreach plugin: plugin_list
     build = meson.current_build_dir()
     plugin_build = build / plugin
     
-    message('building plugin ' + plugin)
+    # message('building plugin ' + plugin)
     
     c_args = [
         '-DCOMPILING_PER_TARGET',
@@ -60,7 +61,7 @@ foreach plugin: plugin_list
     if fs.exists(join_paths(plugin, 'meson.build'))
         subdir(plugin)
         foreach target: target_dirs
-            message('building plugin @0@ for target @1@'.format(plugin, target))
+            # message('building plugin @0@ for target @1@'.format(plugin, target))
             config_target = keyval.load(panda_path + '/configs/targets' / target + '.mak')
             if 'TARGET_BASE_ARCH' not in config_target
                 config_target += {'TARGET_BASE_ARCH': config_target['TARGET_ARCH']}
@@ -71,6 +72,7 @@ foreach plugin: plugin_list
                 '-DCONFIG_DEVICES="@0@-config-devices.h"'.format(target),
                 '-DPLUGIN_NAME="@0@"'.format(plugin),
                 '-DPANDA_TGT=@0@'.format(config_target['TARGET_ARCH']),
+                '-DPLUGIN_MAIN',
                 '-D_GNU_SOURCE',
             ]
             target_link_args = ['-Lpanda-'+target]
