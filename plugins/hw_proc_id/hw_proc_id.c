@@ -44,12 +44,12 @@ bool initialized = false;
 static inline void check_cache_r28(CPUState *cpu) {
   CPUMIPSState *mips_env = (CPUMIPSState *)panda_cpu_env(cpu);
   target_ulong r28_value = mips_env->active_tc.gpr[28] & STACK_MASK;
-  if (panda_in_kernel(cpu) && unlikely(r28_value != last_r28)) {
+  if (panda_in_kernel(cpu) && (r28_value != last_r28)) {
     // XXX: af: While in kernel mode, r28 may be used to contain non-pointer
     // values
     // Make sure we don't cache one of those, so we check if r28 contains
     // a pointer to kernel memory
-    if (likely(address_in_kernel_code_linux(r28_value))) {
+    if (address_in_kernel_code_linux(r28_value)){
       last_r28 = r28_value;
       initialized = true;
     }
