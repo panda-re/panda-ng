@@ -13,6 +13,7 @@
 #define _Static_assert(...)
 #define PANDA_HEADER MAKE_HEADER(autogen/panda_cpp_, PANDA_TGT)
 #undef typename
+extern "C" {
 #else
 #include "c_sys_includes.h"
 #define PANDA_HEADER MAKE_HEADER(autogen/panda_c_, PANDA_TGT)
@@ -21,4 +22,7 @@
 #include PANDA_HEADER
 #include "plugin_plugin.h"
 #include "debug.h"
+#ifdef __cplusplus
+}
+#endif
 #endif
