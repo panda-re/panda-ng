@@ -3,7 +3,7 @@
 #include "syscalls2.h"
 #include "syscalls2_info.h"
 #include "hooks/hooks_int_fns.h"
-#include "hw_proc_id/hw_proc_id_ext.h"
+//#include "hw_proc_id/hw_proc_id_ext.h"
 
 extern bool load_info;
 #if defined(TARGET_ARM)
@@ -20,6 +20,8 @@ extern "C" {
 extern Profile profiles[];
 }
 
+target_ulong syscalls_get_id(CPUState* cpu);
+
 /**
  * @brief Called when a system call invocation is identified.
  * Invokes all registered callbacks that should run for the call.
@@ -30,7 +32,7 @@ extern Profile profiles[];
  */
 void syscall_enter_switch_linux_arm(CPUState *cpu, int profile, target_ptr_t pc, int static_callno) {
 #if defined(TARGET_ARM)
-	CPUArchState *env = (CPUArchState*)cpu->env_ptr;
+	CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
 	syscall_ctx_t ctx = {0};
 	ctx.profile = profile;
 	if (static_callno == -1) {
@@ -38,7 +40,7 @@ void syscall_enter_switch_linux_arm(CPUState *cpu, int profile, target_ptr_t pc,
 	} else {
 	  ctx.no = static_callno;
 	}
-	ctx.asid = get_id(cpu);
+	ctx.asid = syscalls_get_id(cpu);
 	ctx.retaddr = calc_retaddr(cpu, &ctx, pc);
 	ctx.double_return = false;
 	bool panda_noreturn;	// true if PANDA should not track the return of this system call
