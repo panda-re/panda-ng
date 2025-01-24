@@ -22,7 +22,7 @@ jobs:
         uses: reecetech/version-increment@2023.10.2
         id: version
         with:
-          release_branch: dev
+          release_branch: main
           use_api: true
       
       - name: 'Login to Docker Registry'
