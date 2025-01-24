@@ -42,10 +42,9 @@ jobs:
             pandare/panda-ng-plugins:latest
       
       - name: Build package
-        working-directory: panda/debian
-        run: |
-            docker run --rm -v $(pwd):/out packager bash -c "tar -czvf /out/plugins.tar.gz /panda-ng/build"
-
+        working-directory: debian
+        run: ./setup.sh Ubuntu 22.04
+      
       - name: Upload wheel and debian packages to release
         uses: softprops/action-gh-release@v2
         env:
@@ -53,4 +52,5 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.v-version }}
           files: |
-            plugins.tar.gz
+            debian/pandare*.deb
+            debian/pandare2*.whl
