@@ -27,7 +27,9 @@ PANDAENDCOMMENT */
 #include <string.h>
 
 
+#include "panda.h"
 #include "osi_types.h"
+#include "plugin_plugin.h"
 #include "osi_int_fns.h"
 #include "os_intro.h"
 
