@@ -28,7 +28,6 @@ PANDAENDCOMMENT */
 extern "C" {
 bool init_plugin(void *);
 void uninit_plugin(void *);
-#include "dynamic_symbols/dynamic_symbols_int_fns.h"
 #include "hooks_int_fns.h"
 #include "hw_proc_id/hw_proc_id_ext.h"
 }
