@@ -1,5 +1,6 @@
        
        
+       
 typedef __int128_t Int128;
 typedef __int128_t __attribute__((aligned(16))) Int128Aligned;
 typedef union {
@@ -3217,6 +3218,30 @@ void qemu_system_guest_crashloaded(GuestPanicInformation *info);
 void qemu_system_guest_pvshutdown(void);
 _Bool 
     qemu_system_dump_in_progress(void);
+enum {
+    QEMU_ARCH_ALL = -1,
+    QEMU_ARCH_ALPHA = (1 << 0),
+    QEMU_ARCH_ARM = (1 << 1),
+    QEMU_ARCH_I386 = (1 << 3),
+    QEMU_ARCH_M68K = (1 << 4),
+    QEMU_ARCH_MICROBLAZE = (1 << 6),
+    QEMU_ARCH_MIPS = (1 << 7),
+    QEMU_ARCH_PPC = (1 << 8),
+    QEMU_ARCH_S390X = (1 << 9),
+    QEMU_ARCH_SH4 = (1 << 10),
+    QEMU_ARCH_SPARC = (1 << 11),
+    QEMU_ARCH_XTENSA = (1 << 12),
+    QEMU_ARCH_OPENRISC = (1 << 13),
+    QEMU_ARCH_TRICORE = (1 << 16),
+    QEMU_ARCH_HPPA = (1 << 18),
+    QEMU_ARCH_RISCV = (1 << 19),
+    QEMU_ARCH_RX = (1 << 20),
+    QEMU_ARCH_AVR = (1 << 21),
+    QEMU_ARCH_HEXAGON = (1 << 22),
+    QEMU_ARCH_LOONGARCH = (1 << 23),
+};
+extern const uint32_t arch_type;
+void qemu_init_arch_modules(void);
 typedef void QEMUConfigCB(const char *group, QDict *qdict, void *opaque, Error **errp);
 void qemu_load_module_for_opts(const char *group);
 QemuOptsList *qemu_find_opts(const char *group);
@@ -6255,9 +6280,35 @@ extern
 target_ulong panda_current_asid(CPUState *env);
 target_ulong panda_current_pc(CPUState *cpu);
 Int128 panda_find_max_ram_address(void);
+int panda_physical_memory_rw(hwaddr addr, uint8_t *buf, int len, 
+                                                                _Bool 
+                                                                     is_write);
+int panda_physical_memory_read(hwaddr addr, uint8_t *buf, int len);
+int panda_physical_memory_write(hwaddr addr, uint8_t *buf, int len);
+hwaddr panda_virt_to_phys(CPUState * env, target_ulong addr);
 _Bool 
-    enter_priv(CPUState* cpu);
-void exit_priv(CPUState* cpu);
+    enter_priv(CPUState * cpu);
+void exit_priv(CPUState * cpu);
+int panda_virtual_memory_rw(CPUState * cpu, target_ulong addr,
+                            uint8_t * buf, int len, 
+                                                   _Bool 
+                                                        is_write);
+int panda_virtual_memory_read(CPUState * env, target_ulong addr,
+                              uint8_t * buf, int len);
+int panda_virtual_memory_write(CPUState * env, target_ulong addr,
+                               uint8_t * buf, int len);
+void *panda_map_virt_to_host(CPUState * env, target_ulong addr, int len);
+_Bool 
+    panda_in_kernel_mode(const CPUState *cpu);
+_Bool 
+    panda_in_kernel(const CPUState *cpu);
+_Bool 
+    address_in_kernel_code_linux(target_ulong addr);
+_Bool 
+    panda_in_kernel_code_linux(CPUState * cpu);
+target_ulong panda_current_ksp(CPUState * cpu);
+target_ulong panda_current_sp(const CPUState *cpu);
+target_ulong panda_get_retval(const CPUState *cpu);
 typedef enum {
     TCG_MO_LD_LD = 0x01,
     TCG_MO_ST_LD = 0x02,
@@ -6976,8 +7027,24 @@ CPUState* get_cpu(void);
 unsigned long garray_len(GArray *list);
 CPUArchState *panda_cpu_env(CPUState *cpu);
 void panda_cleanup_record(void);
-//void (*panda_external_signal_handler)(int, siginfo_t*,void*);
 CPUState *panda_current_cpu(int index);
 CPUState *panda_cpu_in_translate(void);
 TranslationBlock *panda_get_tb(struct qemu_plugin_tb *tb);
 int panda_get_memcb_status(void);
+#define CONFIG_I386_DIS 1
+#define CONFIG_PPC_DIS 1
+#define CONFIG_SOFTMMU 1
+#define CONFIG_SYSTEM_ONLY 1
+#define CONFIG_TCG 1
+#define CONFIG_TCG_BUILTIN 1
+#define QEMU_ARCH QEMU_ARCH_PPC
+#define TARGET_BIG_ENDIAN 1
+#define TARGET_KVM_HAVE_GUEST_DEBUG 1
+#define TARGET_NAME "ppc"
+#define TARGET_PPC 1
+#define PPC_CPU_PARAM_H 
+#define TARGET_LONG_BITS 32
+#define TARGET_PHYS_ADDR_SPACE_BITS 36
+#define TARGET_VIRT_ADDR_SPACE_BITS 32
+#define TARGET_PAGE_BITS 12
+#define TCG_GUEST_DEFAULT_MO 0

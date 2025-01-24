@@ -3218,6 +3218,30 @@ void qemu_system_guest_crashloaded(GuestPanicInformation *info);
 void qemu_system_guest_pvshutdown(void);
 _Bool 
     qemu_system_dump_in_progress(void);
+enum {
+    QEMU_ARCH_ALL = -1,
+    QEMU_ARCH_ALPHA = (1 << 0),
+    QEMU_ARCH_ARM = (1 << 1),
+    QEMU_ARCH_I386 = (1 << 3),
+    QEMU_ARCH_M68K = (1 << 4),
+    QEMU_ARCH_MICROBLAZE = (1 << 6),
+    QEMU_ARCH_MIPS = (1 << 7),
+    QEMU_ARCH_PPC = (1 << 8),
+    QEMU_ARCH_S390X = (1 << 9),
+    QEMU_ARCH_SH4 = (1 << 10),
+    QEMU_ARCH_SPARC = (1 << 11),
+    QEMU_ARCH_XTENSA = (1 << 12),
+    QEMU_ARCH_OPENRISC = (1 << 13),
+    QEMU_ARCH_TRICORE = (1 << 16),
+    QEMU_ARCH_HPPA = (1 << 18),
+    QEMU_ARCH_RISCV = (1 << 19),
+    QEMU_ARCH_RX = (1 << 20),
+    QEMU_ARCH_AVR = (1 << 21),
+    QEMU_ARCH_HEXAGON = (1 << 22),
+    QEMU_ARCH_LOONGARCH = (1 << 23),
+};
+extern const uint32_t arch_type;
+void qemu_init_arch_modules(void);
 typedef void QEMUConfigCB(const char *group, QDict *qdict, void *opaque, Error **errp);
 void qemu_load_module_for_opts(const char *group);
 QemuOptsList *qemu_find_opts(const char *group);
@@ -7254,3 +7278,24 @@ CPUState *panda_current_cpu(int index);
 CPUState *panda_cpu_in_translate(void);
 TranslationBlock *panda_get_tb(struct qemu_plugin_tb *tb);
 int panda_get_memcb_status(void);
+#define CONFIG_I386_DIS 1
+#define CONFIG_KVM 1
+#define CONFIG_SOFTMMU 1
+#define CONFIG_SYSTEM_ONLY 1
+#define CONFIG_TCG 1
+#define CONFIG_TCG_MODULAR 1
+#define CONFIG_XEN 1
+#define QEMU_ARCH QEMU_ARCH_I386
+#define TARGET_BIG_ENDIAN 0
+#define TARGET_I386 1
+#define TARGET_KVM_HAVE_GUEST_DEBUG 1
+#define TARGET_KVM_HAVE_RESET_PARKED_VCPU 1
+#define TARGET_NAME "x86_64"
+#define TARGET_SUPPORTS_MTTCG 1
+#define TARGET_X86_64 1
+#define I386_CPU_PARAM_H 
+#define TARGET_LONG_BITS 64
+#define TARGET_PHYS_ADDR_SPACE_BITS 52
+#define TARGET_VIRT_ADDR_SPACE_BITS 47
+#define TARGET_PAGE_BITS 12
+#define TCG_GUEST_DEFAULT_MO (TCG_MO_ALL & ~TCG_MO_ST_LD)

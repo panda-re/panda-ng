@@ -13623,6 +13623,30 @@ void qemu_system_guest_crashloaded(GuestPanicInformation *info);
 void qemu_system_guest_pvshutdown(void);
 _Bool 
     qemu_system_dump_in_progress(void);
+enum {
+    QEMU_ARCH_ALL = -1,
+    QEMU_ARCH_ALPHA = 1,
+    QEMU_ARCH_ARM = 2,
+    QEMU_ARCH_I386 = 8,
+    QEMU_ARCH_M68K = 16,
+    QEMU_ARCH_MICROBLAZE = 64,
+    QEMU_ARCH_MIPS = 128,
+    QEMU_ARCH_PPC = 256,
+    QEMU_ARCH_S390X = 512,
+    QEMU_ARCH_SH4 = 1024,
+    QEMU_ARCH_SPARC = 2048,
+    QEMU_ARCH_XTENSA = 4096,
+    QEMU_ARCH_OPENRISC = 8192,
+    QEMU_ARCH_TRICORE = 65536,
+    QEMU_ARCH_HPPA = 262144,
+    QEMU_ARCH_RISCV = 524288,
+    QEMU_ARCH_RX = 1048576,
+    QEMU_ARCH_AVR = 2097152,
+    QEMU_ARCH_HEXAGON = 4194304,
+    QEMU_ARCH_LOONGARCH = 8388608,
+};
+extern const uint32_t arch_type;
+void qemu_init_arch_modules(void);
 typedef void QEMUConfigCB(const char *group, QDict *qdict, void *opaque, Error **errp);
 void qemu_load_module_for_opts(const char *group);
 QemuOptsList *qemu_find_opts(const char *group);
@@ -17953,66 +17977,6 @@ CPUState *panda_cpu_in_translate(void);
 TranslationBlock *panda_get_tb(struct qemu_plugin_tb *tb);
 int panda_get_memcb_status(void);
        
-target_ulong get_id(CPUState *cpu);
-_Bool 
-    id_is_initialized(void);
-struct hook;
-struct symbol;
-typedef 
-       _Bool 
-            (*hook_func_t)(CPUState *, TranslationBlock *, struct hook* h);
-typedef 
-       _Bool 
-            (*dynamic_symbol_hook_func_t)(CPUState *, TranslationBlock *, struct hook* h);
-typedef union hooks_panda_cb {
-    void (*before_tcg_codegen)(CPUState *env, TranslationBlock *tb, struct hook*);
-    void (*before_block_translate)(CPUState *env, target_ptr_t pc, struct hook*);
-    void (*block_translate)(CPUState *env, struct qemu_plugin_tb *tb, struct hook*);
-    void (*after_block_translate)(CPUState *env, TranslationBlock *tb, struct hook*);
-    
-   _Bool 
-        (*before_block_exec_invalidate_opt)(CPUState *env, TranslationBlock *tb, struct hook*);
-    void (*before_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
-    void (*after_block_exec)(CPUState *env, TranslationBlock *tb, uint8_t exitCode, struct hook*);
-    void (*start_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
-    void (*end_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
-} hooks_panda_cb;
-enum kernel_mode{
-    MODE_ANY,
-    MODE_KERNEL_ONLY,
-    MODE_USER_ONLY,
-};
-typedef struct hook {
-    uint64_t addr;
-    uint64_t asid;
-    panda_cb_type type;
-    hooks_panda_cb cb;
-    enum kernel_mode km;
-    
-   _Bool 
-        enabled;
-    void* context;
-} hook;
-struct symbol_hook {
-    char name[256];
-    uint64_t offset;
-    
-   _Bool 
-        hook_offset;
-    char section[256];
-    panda_cb_type type;
-    hooks_panda_cb cb;
-};
-void add_hook(struct hook* h);
-void enable_hooking();
-void disable_hooking();
-void add_symbol_hook(struct symbol_hook* h);
-struct dynamic_symbol_hook {
-    char library_name[256];
-    char symbol[256];
-    dynamic_symbol_hook_func_t cb;
-};
-       
 typedef struct {
     uint32_t max;
     uint32_t max_generic;
@@ -18789,6 +18753,51 @@ typedef void (*on_all_sys_return_t)(CPUState *cpu, target_ulong pc, target_ulong
 typedef void (*on_all_sys_return2_t)(CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx); typedef void (*on_all_sys_return2_with_context_t)(void* context, CPUState *cpu, target_ulong pc, const syscall_info_t *call, const syscall_ctx_t *ctx);;
 typedef void (*on_unknown_sys_enter_t)(CPUState *cpu, target_ulong pc, target_ulong callno); typedef void (*on_unknown_sys_enter_with_context_t)(void* context, CPUState *cpu, target_ulong pc, target_ulong callno);;
 typedef void (*on_unknown_sys_return_t)(CPUState *cpu, target_ulong pc, target_ulong callno); typedef void (*on_unknown_sys_return_with_context_t)(void* context, CPUState *cpu, target_ulong pc, target_ulong callno);;
+       
+typedef struct osi_proc_mem {
+    target_ptr_t start_brk;
+    target_ptr_t brk;
+} OsiProcMem;
+typedef struct osi_proc_handle_struct {
+    target_ptr_t taskd;
+    target_ptr_t asid;
+} OsiProcHandle;
+typedef struct osi_thread_struct {
+    target_pid_t pid;
+    target_pid_t tid;
+} OsiThread;
+typedef struct osi_page_struct {
+    target_ptr_t start;
+    target_ulong len;
+} OsiPage;
+typedef struct osi_module_struct {
+    target_ptr_t modd;
+    target_ptr_t base;
+    target_ptr_t size;
+    char *file;
+    char *name;
+    target_ulong offset;
+    target_ulong flags;
+} OsiModule;
+typedef struct osi_proc_struct {
+    target_ptr_t taskd;
+    target_ptr_t pgd;
+    target_ptr_t asid;
+    target_pid_t pid;
+    target_pid_t ppid;
+    char *name;
+    OsiPage *pages;
+    uint64_t create_time;
+} OsiProc;
+static void (*free_osiprochandle_contents)(OsiProcHandle *) = 
+                                                                                     ((void *)0)
+                                                                                         ;
+static void (*free_osithread_contents)(OsiThread *) = 
+                                                                             ((void *)0)
+                                                                                 ;
+static void (*free_osipage_contents)(OsiPage *) = 
+                                                                         ((void *)0)
+                                                                             ;
 typedef void (*on_ARM_breakpoint_enter_t)(CPUState* cpu, target_ulong pc);
 void ppp_add_cb_on_ARM_breakpoint_enter(on_ARM_breakpoint_enter_t);
 _Bool 
@@ -21661,3 +21670,180 @@ typedef void (*on_unknown_sys_return_t)(CPUState *cpu, target_ulong pc, target_u
 void ppp_add_cb_on_unknown_sys_return(on_unknown_sys_return_t);
 _Bool 
     ppp_remove_cb_on_unknown_sys_return(on_unknown_sys_return_t);
+typedef void (*on_get_processes_t)(CPUState *, GArray **);
+void ppp_add_cb_on_get_processes(on_get_processes_t);
+_Bool 
+    ppp_remove_cb_on_get_processes(on_get_processes_t);
+typedef void (*on_get_process_handles_t)(CPUState *, GArray **);
+void ppp_add_cb_on_get_process_handles(on_get_process_handles_t);
+_Bool 
+    ppp_remove_cb_on_get_process_handles(on_get_process_handles_t);
+typedef void (*on_get_current_process_t)(CPUState *, OsiProc **);
+void ppp_add_cb_on_get_current_process(on_get_current_process_t);
+_Bool 
+    ppp_remove_cb_on_get_current_process(on_get_current_process_t);
+typedef void (*on_get_current_process_handle_t)(CPUState *, OsiProcHandle **);
+void ppp_add_cb_on_get_current_process_handle(on_get_current_process_handle_t);
+_Bool 
+    ppp_remove_cb_on_get_current_process_handle(on_get_current_process_handle_t);
+typedef void (*on_get_process_t)(CPUState *, const OsiProcHandle *, OsiProc **);
+void ppp_add_cb_on_get_process(on_get_process_t);
+_Bool 
+    ppp_remove_cb_on_get_process(on_get_process_t);
+typedef void (*on_get_proc_mem_t)(CPUState *cpu, const OsiProc *p, OsiProcMem **);
+void ppp_add_cb_on_get_proc_mem(on_get_proc_mem_t);
+_Bool 
+    ppp_remove_cb_on_get_proc_mem(on_get_proc_mem_t);
+typedef void (*on_get_modules_t)(CPUState *, GArray **);
+void ppp_add_cb_on_get_modules(on_get_modules_t);
+_Bool 
+    ppp_remove_cb_on_get_modules(on_get_modules_t);
+typedef void (*on_get_mappings_t)(CPUState *, OsiProc *, GArray**);
+void ppp_add_cb_on_get_mappings(on_get_mappings_t);
+_Bool 
+    ppp_remove_cb_on_get_mappings(on_get_mappings_t);
+typedef void (*on_get_file_mappings_t)(CPUState *, OsiProc *, GArray**);
+void ppp_add_cb_on_get_file_mappings(on_get_file_mappings_t);
+_Bool 
+    ppp_remove_cb_on_get_file_mappings(on_get_file_mappings_t);
+typedef void (*on_get_heap_mappings_t)(CPUState *, OsiProc *, GArray**);
+void ppp_add_cb_on_get_heap_mappings(on_get_heap_mappings_t);
+_Bool 
+    ppp_remove_cb_on_get_heap_mappings(on_get_heap_mappings_t);
+typedef void (*on_get_stack_mappings_t)(CPUState *, OsiProc *, GArray**);
+void ppp_add_cb_on_get_stack_mappings(on_get_stack_mappings_t);
+_Bool 
+    ppp_remove_cb_on_get_stack_mappings(on_get_stack_mappings_t);
+typedef void (*on_get_unknown_mappings_t)(CPUState *, OsiProc *, GArray**);
+void ppp_add_cb_on_get_unknown_mappings(on_get_unknown_mappings_t);
+_Bool 
+    ppp_remove_cb_on_get_unknown_mappings(on_get_unknown_mappings_t);
+typedef void (*on_get_mapping_by_addr_t)(CPUState *, OsiProc *, const target_ptr_t, OsiModule **);
+void ppp_add_cb_on_get_mapping_by_addr(on_get_mapping_by_addr_t);
+_Bool 
+    ppp_remove_cb_on_get_mapping_by_addr(on_get_mapping_by_addr_t);
+typedef void (*on_get_mapping_base_address_by_name_t)(CPUState *, OsiProc *, const char *, target_ptr_t *);
+void ppp_add_cb_on_get_mapping_base_address_by_name(on_get_mapping_base_address_by_name_t);
+_Bool 
+    ppp_remove_cb_on_get_mapping_base_address_by_name(on_get_mapping_base_address_by_name_t);
+typedef void (*on_has_mapping_prefix_t)(CPUState *, OsiProc *, const char *, 
+                                                                            _Bool 
+                                                                                 *);
+void ppp_add_cb_on_has_mapping_prefix(on_has_mapping_prefix_t);
+_Bool 
+    ppp_remove_cb_on_has_mapping_prefix(on_has_mapping_prefix_t);
+typedef void (*on_get_current_thread_t)(CPUState *, OsiThread **);
+void ppp_add_cb_on_get_current_thread(on_get_current_thread_t);
+_Bool 
+    ppp_remove_cb_on_get_current_thread(on_get_current_thread_t);
+typedef void (*on_get_process_pid_t)(CPUState *, const OsiProcHandle *, target_pid_t *);
+void ppp_add_cb_on_get_process_pid(on_get_process_pid_t);
+_Bool 
+    ppp_remove_cb_on_get_process_pid(on_get_process_pid_t);
+typedef void (*on_get_process_ppid_t)(CPUState *, const OsiProcHandle *, target_pid_t *);
+void ppp_add_cb_on_get_process_ppid(on_get_process_ppid_t);
+_Bool 
+    ppp_remove_cb_on_get_process_ppid(on_get_process_ppid_t);
+typedef void (*on_task_change_t)(CPUState *);
+void ppp_add_cb_on_task_change(on_task_change_t);
+_Bool 
+    ppp_remove_cb_on_task_change(on_task_change_t);
+       
+char *osi_linux_fd_to_filename(CPUState *env, OsiProc *p, int fd);
+target_ulong walk_page_table(CPUState *cpu, target_ulong virtual_address);
+unsigned long long osi_linux_fd_to_pos(CPUState *env, OsiProc *p, int fd);
+target_ptr_t ext_get_file_struct_ptr(CPUState *env, target_ptr_t task_struct, int fd);
+target_ptr_t ext_get_file_dentry(CPUState *env, target_ptr_t file_struct);
+target_ulong osi_linux_virt_to_phys(CPUState *cpu, target_ulong addr);
+int osi_linux_virtual_memory_read(CPUState *cpu, target_ulong addr, uint8_t *buf, int len);
+int osi_linux_virtual_memory_write(CPUState *cpu, target_ulong addr, uint8_t *buf, int len);
+struct hook;
+struct symbol;
+typedef 
+       _Bool 
+            (*hook_func_t)(CPUState *, TranslationBlock *, struct hook* h);
+typedef 
+       _Bool 
+            (*dynamic_symbol_hook_func_t)(CPUState *, TranslationBlock *, struct hook* h);
+typedef union hooks_panda_cb {
+    void (*before_tcg_codegen)(CPUState *env, TranslationBlock *tb, struct hook*);
+    void (*before_block_translate)(CPUState *env, target_ptr_t pc, struct hook*);
+    void (*block_translate)(CPUState *env, struct qemu_plugin_tb *tb, struct hook*);
+    void (*after_block_translate)(CPUState *env, TranslationBlock *tb, struct hook*);
+    
+   _Bool 
+        (*before_block_exec_invalidate_opt)(CPUState *env, TranslationBlock *tb, struct hook*);
+    void (*before_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
+    void (*after_block_exec)(CPUState *env, TranslationBlock *tb, uint8_t exitCode, struct hook*);
+    void (*start_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
+    void (*end_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
+} hooks_panda_cb;
+enum kernel_mode{
+    MODE_ANY,
+    MODE_KERNEL_ONLY,
+    MODE_USER_ONLY,
+};
+typedef struct hook {
+    uint64_t addr;
+    uint64_t asid;
+    panda_cb_type type;
+    hooks_panda_cb cb;
+    enum kernel_mode km;
+    
+   _Bool 
+        enabled;
+    void* context;
+} hook;
+struct symbol_hook {
+    char name[256];
+    uint64_t offset;
+    
+   _Bool 
+        hook_offset;
+    char section[256];
+    panda_cb_type type;
+    hooks_panda_cb cb;
+};
+void add_hook(struct hook* h);
+void enable_hooking();
+void disable_hooking();
+void add_symbol_hook(struct symbol_hook* h);
+struct dynamic_symbol_hook {
+    char library_name[256];
+    char symbol[256];
+    dynamic_symbol_hook_func_t cb;
+};
+       
+target_ulong get_id(CPUState *cpu);
+_Bool 
+    id_is_initialized(void);
+       
+const syscall_info_t *get_syscall_info(uint32_t callno);
+const syscall_meta_t *get_syscall_meta(void);
+target_long get_syscall_retval(CPUState *cpu);
+       
+GArray *get_process_handles(CPUState *cpu);
+OsiThread *get_current_thread(CPUState *cpu);
+GArray *get_modules(CPUState *cpu);
+GArray *get_mappings(CPUState *cpu, OsiProc *p);
+OsiProcMem *get_proc_mem(CPUState *cpu, const OsiProc *p);
+GArray *get_file_mappings(CPUState *cpu, OsiProc *p);
+GArray *get_heap_mappings(CPUState *cpu, OsiProc *p);
+GArray *get_stack_mappings(CPUState *cpu, OsiProc *p);
+GArray *get_unknown_mappings(CPUState *cpu, OsiProc *p);
+OsiModule *get_mapping_by_addr(CPUState *cpu, OsiProc *p, const target_ptr_t addr);
+target_ptr_t get_mapping_base_address_by_name(CPUState *cpu, OsiProc *p, const char *name);
+_Bool 
+    has_mapping_prefix(CPUState *cpu, OsiProc *p, const char *prefix);
+GArray *get_processes(CPUState *cpu);
+OsiProc *get_current_process(CPUState *cpu);
+OsiModule* get_one_module(GArray *osimodules, unsigned int idx);
+OsiProc* get_one_proc(GArray *osiprocs, unsigned int idx);
+void cleanup_garray(GArray *g);
+_Bool 
+    in_shared_object(CPUState *cpu, OsiProc *p);
+OsiProcHandle *get_current_process_handle(CPUState *cpu);
+OsiProc *get_process(CPUState *cpu, const OsiProcHandle *h);
+target_pid_t get_process_pid(CPUState *cpu, const OsiProcHandle *h);
+target_pid_t get_process_ppid(CPUState *cpu, const OsiProcHandle *h);
+void notify_task_change(CPUState *cpu);
