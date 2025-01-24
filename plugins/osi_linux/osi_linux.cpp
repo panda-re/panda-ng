@@ -1214,8 +1214,6 @@ bool init_plugin(void *self) {
     pagewalk_enabled = panda_parse_bool_opt(plugin_args, "pagewalk", "Use pagewalk to find physical addresses for this target");
     panda_free_args(plugin_args);
 
-    kconf_file = "/home/luke/workspace/panda/panda/plugins/osi_linux/kernelinfo.conf";
-
     if (!kconf_file) {
         // Search build dir and installed location for kernelinfo.conf
         gchar *progname = realpath(qemu_file, NULL);
