@@ -64,7 +64,6 @@ class Panda():
             libpanda_path=None,
             biospath=None,
             plugin_path=None,
-            extra_plugin_path=None,
             nproc=1,
             ):
         '''
@@ -186,9 +185,12 @@ class Panda():
         if self.os:
             self.set_os_name(self.os)
         
+        local_build_plugins_dir = realpath(pjoin(__file__, "../../../../build/plugins"))
         if plugin_path is not None:
-            pp = self.ffi.new("char[]", bytes(plugin_path, "utf-8"))
-            self.libpanda.panda_set_extra_plugin_path(pp)
+            self._set_extra_plugin_path(plugin_path)
+        elif exists(local_build_plugins_dir):
+            self.plugin_path = local_build_plugins_dir
+            self._set_extra_plugin_path(local_build_plugins_dir)
 
         # Setup argv for panda
         self.panda_args = [self.panda]
@@ -997,6 +999,11 @@ class Panda():
         for pc in callers:
             c.append(pc)
         return c
+    
+    def _set_extra_plugin_path(self, path):
+        pp = self.ffi.new("char[]", bytes(path, "utf-8"))
+        self.libpanda.panda_set_extra_plugin_path(pp)
+
 
     def _load_plugin_library(self, name):
         if hasattr(self,"__did_load_libpanda"):
