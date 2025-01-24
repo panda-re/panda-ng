@@ -1,0 +1,56 @@
+name: Build and Publish Docker Container and Pypanda Docs # Only for main panda-re repo, not forks
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_release_assets:
+    if: github.repository  == 'panda-re/panda-ng' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install git
+        run: sudo apt-get -qq update -y && sudo apt-get -qq install git curl jq -y
+      
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get next version
+        uses: reecetech/version-increment@2023.10.2
+        id: version
+        with:
+          release_branch: dev
+          use_api: true
+      
+      - name: 'Login to Docker Registry'
+        uses: docker/login-action@v3
+        with:
+          username: pandare
+          password: ${{secrets.pandare_dockerhub}}
+      
+      - name: Build panda:latest
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          context: ${{ github.workspace }}
+          tags: |
+            pandare/panda-ng-plugins:${{ github.sha }}
+            pandare/panda-ng-plugins:${{ steps.version.outputs.v-version }}
+            pandare/panda-ng-plugins:latest
+      
+      - name: Build package
+        working-directory: panda/debian
+        run: |
+            docker run --rm -v $(pwd):/out packager bash -c "tar -czvf /out/plugins.tar.gz /panda-ng/build"
+
+      - name: Upload wheel and debian packages to release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.v-version }}
+          files: |
+            plugins.tar.gz
