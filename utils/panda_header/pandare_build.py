@@ -5,6 +5,8 @@ import re
 import tree_sitter_c as tsc
 from tree_sitter import Language, Parser
 import functools
+from glob import glob
+from pathlib import Path
 
 root = "../../qemu"
 C_LANGUAGE = Language(tsc.language())
@@ -107,7 +109,7 @@ def arch_to_generic(arch):
 		return "ppc"
 	return arch
 
-def preprocess(arch, source): #,fake_sysroot=True):
+def preprocess(arch, source, include_defines=False): #,fake_sysroot=True):
 	from subprocess import check_output
 	from os.path import realpath
 	
@@ -135,7 +137,9 @@ def preprocess(arch, source): #,fake_sysroot=True):
 		f.write(source)
 	includes = " ".join([f"-I{realpath(join(root, include))}" for include in includes])
 
-	cmd = f"/usr/bin/gcc -E -pthread -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -fPIC -UNDEBUG {includes} /tmp/simple.c -o /tmp/simple.out -m64 -Wall -Winvalid-pch -std=gnu11 -O2 -g -fstack-protector-strong -Wempty-body -Wendif-labels -Wexpansion-to-defined -Wformat-security -Wformat-y2k -Wignored-qualifiers -Wimplicit-fallthrough=2 -Winit-self -Wmissing-format-attribute -Wmissing-prototypes -Wnested-externs -Wold-style-declaration -Wold-style-definition -Wredundant-decls -Wshadow=local -Wstrict-prototypes -Wtype-limits -Wundef -Wvla -Wwrite-strings -Wno-missing-include-dirs -Wno-psabi -Wno-shift-negative-value"
+	defines = '-dD' if include_defines else ''
+
+	cmd = f"/usr/bin/gcc -E {defines} -pthread -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -fPIC -UNDEBUG {includes} /tmp/simple.c -o /tmp/simple.out -m64 -Wall -Winvalid-pch -std=gnu11 -O2 -g -fstack-protector-strong -Wempty-body -Wendif-labels -Wexpansion-to-defined -Wformat-security -Wformat-y2k -Wignored-qualifiers -Wimplicit-fallthrough=2 -Winit-self -Wmissing-format-attribute -Wmissing-prototypes -Wnested-externs -Wold-style-declaration -Wold-style-definition -Wredundant-decls -Wshadow=local -Wstrict-prototypes -Wtype-limits -Wundef -Wvla -Wwrite-strings -Wno-missing-include-dirs -Wno-psabi -Wno-shift-negative-value"
 	print(cmd)
 	check_output(cmd, shell=True)
 	
@@ -169,6 +173,8 @@ def compile_target(arch, target):
 	#include "target/{arch_to_generic(arch)}/cpu-param.h"
 	#include "exec/target_long.h"
 	#include "system/runstate.h"
+	#include "system/arch_init.h"
+
 	#include "qemu/plugin.h"
 	#include "qemu/plugin-event.h"
 	#include "qemu/qemu-plugin.h"
@@ -182,12 +188,21 @@ def compile_target(arch, target):
 	"""
 	
 	c_cpp_source = preprocess(arch, source)
+	target_info = f"""
+	{break_header}
+	#include "{arch}-{target}-config-target.h"
+	#include "cpu-param.h"
+"""	
+	target_defines = just_defines(remove_break_header(preprocess(arch, target_info, include_defines=True)))
 	handle_python(arch, source)
-	handle_c(arch, c_cpp_source)
-	handle_cpp(arch, c_cpp_source)
+	handle_c(arch, c_cpp_source, target_defines)
+	handle_cpp(arch, c_cpp_source, target_defines)
 
 def remove_hash_lines(total):
 	return "\n".join([x for x in total.split("\n") if x and not x.startswith("#")])
+
+def just_defines(total):
+	return "\n".join([x for x in total.split("\n") if x.startswith("#define")])
 
 def remove_break_header(total):
 	lines = total.split("\n")
@@ -199,14 +214,16 @@ def remove_break_header(total):
 	total = "\n".join(lines[l+1:])
 	return total
 
-def handle_c(arch, total):
+def handle_c(arch, total, target_defines):
 	# total = preprocess(arch, total)
 	total = remove_break_header(total)
 	with open(f"panda_c_{arch}.h","w") as f:
 		total = remove_functions(remove_hash_lines(total))
 		f.write(total)
+		f.write("\n")
+		f.write(target_defines)
 
-def handle_cpp(arch, total):
+def handle_cpp(arch, total, target_defines):
 	# total = preprocess(arch, total)
 	total = remove_break_header(total)
 	with open(f"panda_cpp_{arch}.h","w") as f:
@@ -216,6 +233,8 @@ def handle_cpp(arch, total):
 		total = total.replace("*typename", "*_typename")
 		total = total.replace("vaddr vaddr;", "vaddr _vaddr;")
 		f.write(total)
+		f.write("\n")
+		f.write(target_defines)
 
 def ppp_cb_typedef_regex():
 	return re.compile(r"PPP_CB_TYPEDEF\( *(void|bool|int) *, *([a-zA-Z0-9_-]+) *, *(.*)\).*")
@@ -296,8 +315,17 @@ def handle_python(arch, total):
 	{total}
 	#include "includes/python_plugin_includes.h"
 	"""
-	total += copy_ppp_header(join(plugin_dir, f"syscalls2/generated/{syscalls2_lookup[arch]}"))
-	total += copy_ppp_header(join(plugin_dir, f"syscalls2/generated/syscalls_ext_typedefs.h"))
+
+	syscalls2_val = syscalls2_lookup.get(arch, None)
+	if syscalls2_val:
+		total += copy_ppp_header(join(plugin_dir, f"syscalls2/generated/{syscalls2_lookup[arch]}"))
+	total += copy_ppp_header(join(plugin_dir, "syscalls2/generated/syscalls_ext_typedefs.h"))
+	total += copy_ppp_header(join(plugin_dir, "osi/os_intro.h"))
+
+	int_fns = glob(f"{plugin_dir}/**/*_int_fns.h", recursive=True)
+	for ints in int_fns:
+		pdir = Path(ints).relative_to(plugin_dir)
+		total += f'#include "{pdir}"\n'
 	total = preprocess(arch, total)
 	total = "\n".join([process_line(x) for x in total.split("\n") if x and not x.startswith("#")])
 	total = remove_functions(total)
