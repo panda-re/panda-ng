@@ -1,6 +1,6 @@
 project('panda', ['c', 'cpp', 'rust'])
 
-panda_path = '/home/luke/workspace/qemu'
+panda_path = 'qemu'
 build = panda_path+'/build'
 
 keyval = import('keyval')
