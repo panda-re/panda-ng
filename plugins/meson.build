@@ -44,7 +44,6 @@ foreach plugin: plugin_list
     includes = [
         include_directories(plugin),
         include_directories('../include'),
-        include_directories('../include/config'),
         include_directories('.'),
     ]
     link_args = [
@@ -73,20 +72,50 @@ foreach plugin: plugin_list
                 '-DCONFIG_DEVICES="@0@-config-devices.h"'.format(target),
                 '-DPLUGIN_NAME="@0@"'.format(plugin),
                 '-DPANDA_TGT=@0@'.format(config_target['TARGET_ARCH']),
-                '-DPLUGIN_MAIN',
                 '-D_GNU_SOURCE',
                 '-DTARGET_@0@=1'.format(config_target['TARGET_ARCH'].to_upper())
             ]
             target_link_args = ['-Lpanda-'+target]
-            
-            shared_library('panda-@0@_@1@'.format(plugin, target),
-                sources,
-                c_args: c_args + target_c_args + plugin_cflags,
-                cpp_args: c_args + target_c_args + cpp_args + plugin_cflags,
-                link_args: link_args + target_link_args,
-                include_directories: includes,
-                dependencies: dependencies,
-                override_options: ['b_lundef=false', 'werror=false'])
+
+            filtered_sources = []
+            foreach file: sources
+                fpath = file.full_path()
+                if fpath.endswith(plugin + '.c') or fpath.endswith(plugin + '.cpp')
+                    main_src = file
+                else
+                    filtered_sources += file
+                endif
+            endforeach
+
+            if filtered_sources.length() == 0
+                shared_library('panda-@0@_@1@'.format(plugin, target),
+                    sources,
+                    c_args: c_args + target_c_args + plugin_cflags,
+                    cpp_args: c_args + target_c_args + cpp_args + plugin_cflags + ['-DPLUGIN_MAIN'],
+                    link_args: link_args + target_link_args,
+                    include_directories: includes,
+                    dependencies: dependencies,
+                    override_options: ['b_lundef=false', 'werror=false'])
+            else
+                main_obj = static_library('panda-@0@_@1@_main'.format(plugin,target),
+                   main_src,
+                   c_args: c_args + target_c_args + plugin_cflags,
+                   cpp_args: c_args + target_c_args + cpp_args + plugin_cflags + ['-DPLUGIN_MAIN'],
+                   link_args: link_args + target_link_args,
+                   include_directories: includes,
+                   dependencies: dependencies,
+                   override_options: ['b_lundef=false', 'werror=false'])
+
+                shared_library('panda-@0@_@1@'.format(plugin, target),
+                    filtered_sources,
+                    c_args: c_args + target_c_args + plugin_cflags,
+                    cpp_args: c_args + target_c_args + cpp_args + plugin_cflags,
+                    link_args: link_args + target_link_args,
+                    include_directories: includes,
+                    link_with: main_obj,
+                    dependencies: dependencies,
+                    override_options: ['b_lundef=false', 'werror=false'])
+            endif
         endforeach
     else
         error('meson.build not found in plugin ' + plugin)
