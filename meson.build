@@ -1,4 +1,4 @@
-project('panda', ['c', 'cpp', 'rust'])
+project('panda', ['c', 'cpp'])
 
 panda_path = 'qemu'
 build = panda_path+'/build'
