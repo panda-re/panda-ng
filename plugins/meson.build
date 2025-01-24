@@ -62,7 +62,7 @@ foreach plugin: plugin_list
         subdir(plugin)
         foreach target: target_dirs
             # message('building plugin @0@ for target @1@'.format(plugin, target))
-            config_target = keyval.load(panda_path + '/configs/targets' / target + '.mak')
+            config_target = keyval.load(join_paths(configs, target + '.mak'))
             if 'TARGET_BASE_ARCH' not in config_target
                 config_target += {'TARGET_BASE_ARCH': config_target['TARGET_ARCH']}
             endif
@@ -78,12 +78,12 @@ foreach plugin: plugin_list
             target_link_args = ['-Lpanda-'+target]
 
             filtered_sources = []
-            foreach file: sources
-                fpath = file.full_path()
+            foreach f: sources
+                fpath = f.full_path()
                 if fpath.endswith(plugin + '.c') or fpath.endswith(plugin + '.cpp')
-                    main_src = file
+                    main_src = f
                 else
-                    filtered_sources += file
+                    filtered_sources += f
                 endif
             endforeach
 

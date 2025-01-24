@@ -1,12 +1,12 @@
 project('panda', ['c', 'cpp'])
 
 panda_path = 'qemu'
-build = panda_path+'/build'
+configs = 'configs'
 
 keyval = import('keyval')
 fs = import('fs')
 
-config_host = keyval.load(build / 'config-host.mak')
+config_host = keyval.load(join_paths(configs, 'panda-ng.mak'))
 
 cpu = host_machine.cpu_family()
 if cpu == 'x86'

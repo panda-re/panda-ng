@@ -1,0 +1,1 @@
+TARGET_DIRS=x86_64-softmmu i386-softmmu arm-softmmu aarch64-softmmu ppc-softmmu ppc64-softmmu mips-softmmu mipsel-softmmu mips64-softmmu mips64el-softmmu
