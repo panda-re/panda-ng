@@ -1,6 +1,7 @@
 project('panda', ['c', 'cpp'])
 
-panda_path = 'qemu'
+panda_path = meson.current_source_dir()+'/qemu'
+build = panda_path+'/build'
 configs = 'configs'
 
 keyval = import('keyval')
