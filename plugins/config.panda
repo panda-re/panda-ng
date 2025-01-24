@@ -1,6 +1,9 @@
 cskeleton
 cppskeleton
-hw_proc_id
-osi
 hooks
-#syscalls2
+hw_proc_id
+hypercaller
+osi
+osi_linux
+proc_start_linux
+syscalls2
