@@ -224,10 +224,10 @@ static bool fill_osimodule(CPUState *env, OsiModule *m, target_ptr_t vma_addr,
     target_ptr_t mm_addr, start_brk, brk, start_stack;
     bool populated = false;
 
-    static uint64_t last_instr_count;
-    static target_ptr_t last_dentry;
-    static char *last_file;
-    static char *last_name;
+    // static uint64_t last_instr_count;
+    // static target_ptr_t last_dentry;
+    // static char *last_file;
+    // static char *last_name;
 
     memset(m, 0, sizeof(OsiModule));
 
@@ -241,22 +241,22 @@ static bool fill_osimodule(CPUState *env, OsiModule *m, target_ptr_t vma_addr,
             populated = true;
             vma_dentry = get_vma_dentry(env, vma_addr);
 
-            if((env->rr_guest_instr_count == last_instr_count) &&
-                    (vma_dentry == last_dentry)) {
-                m->file = g_strdup(last_file);
-                m->name = g_strdup(last_name);
-            } else {
-                m->file = read_dentry_name(env, vma_dentry);
-                m->name = g_strrstr(m->file, "/");
-                if (m->name != NULL) m->name = g_strdup(m->name + 1);
+            // if((env->rr_guest_instr_count == last_instr_count) &&
+            //         (vma_dentry == last_dentry)) {
+            //     m->file = g_strdup(last_file);
+            //     m->name = g_strdup(last_name);
+            // } else {
+            //     m->file = read_dentry_name(env, vma_dentry);
+            //     m->name = g_strrstr(m->file, "/");
+            //     if (m->name != NULL) m->name = g_strdup(m->name + 1);
 
-                // Save the results from calling read_dentry_name
-                // Next request may be able to reuse these
-                last_instr_count = env->rr_guest_instr_count;
-                last_dentry = vma_dentry;
-                last_file = m->file;
-                last_name = m->name;
-            }
+            //     // Save the results from calling read_dentry_name
+            //     // Next request may be able to reuse these
+            //     last_instr_count = env->rr_guest_instr_count;
+            //     last_dentry = vma_dentry;
+            //     last_file = m->file;
+            //     last_name = m->name;
+            // }
 
             // Get offset in pages, then *= with PAGE_SIZE to translate into bytes
             get_vma_pgoff(env, vma_addr, &m->offset);
@@ -354,7 +354,7 @@ bool aarch64_initialized = false;
 
 void aarch64_sbe(CPUState *cpu, TranslationBlock *tb);
 void aarch64_sbe(CPUState *cpu, TranslationBlock *tb) {
-    target_ulong pos = ((CPUARMState *)cpu->env_ptr)->sp_el[0];
+    target_ulong pos = ((CPUARMState *)panda_cpu_env(cpu))->sp_el[0];
     if (unlikely(panda_in_kernel_code_linux(cpu)) 
         && address_in_kernel_code_linux(pos))
     {
@@ -1214,6 +1214,8 @@ bool init_plugin(void *self) {
     pagewalk_enabled = panda_parse_bool_opt(plugin_args, "pagewalk", "Use pagewalk to find physical addresses for this target");
     panda_free_args(plugin_args);
 
+    kconf_file = "/home/luke/workspace/panda/panda/plugins/osi_linux/kernelinfo.conf";
+
     if (!kconf_file) {
         // Search build dir and installed location for kernelinfo.conf
         gchar *progname = realpath(qemu_file, NULL);
@@ -1229,12 +1231,12 @@ bool init_plugin(void *self) {
             LOG_INFO("Looking for kconf_file attempt %u: %s", 1, kconf_file);
             kconffile_canon = realpath(kconf_file, NULL);
         }
-        if (kconffile_canon == NULL) {  // from etc dir (installed location)
-            if (kconf_file != NULL) g_free(kconf_file);
-            kconf_file = g_build_filename(CONFIG_QEMU_CONFDIR, "osi_linux", "kernelinfo.conf", NULL);
-            LOG_INFO("Looking for kconf_file attempt %u: %s", 2, kconf_file);
-            kconffile_canon = realpath(kconf_file, NULL);
-        }
+        // if (kconffile_canon == NULL) {  // from etc dir (installed location)
+        //     if (kconf_file != NULL) g_free(kconf_file);
+        //     kconf_file = g_build_filename(CONFIG_QEMU_CONFDIR, "osi_linux", "kernelinfo.conf", NULL);
+        //     LOG_INFO("Looking for kconf_file attempt %u: %s", 2, kconf_file);
+        //     kconffile_canon = realpath(kconf_file, NULL);
+        // }
         if (kconffile_canon == NULL) { // from PANDA_DIR
             if (kconf_file != NULL) g_free(kconf_file);
             const char* panda_dir = g_getenv("PANDA_DIR");
@@ -1272,7 +1274,7 @@ bool init_plugin(void *self) {
         }
     }
     LOG_INFO("Read kernel info from group \"%s\" of file \"%s\".", kconf_group, kconf_file);
-    g_free(kconf_file);
+    // g_free(kconf_file);
     g_free(kconf_group);
 
     if (PROFILE_KVER_LE(ki, 2, 4, 254)) {

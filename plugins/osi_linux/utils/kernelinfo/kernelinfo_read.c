@@ -32,7 +32,7 @@ struct kernelinfo_errors {
 
 /* make sure PANDA_MSG is defined somewhere */
 #if defined(PLUGIN_NAME)
-#include "panda/debug.h"
+#include "debug.h"
 #else
 #define PANDA_MSG
 #endif

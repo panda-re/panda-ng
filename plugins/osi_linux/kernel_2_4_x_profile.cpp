@@ -1,3 +1,4 @@
+#include "panda.h"
 #include "osi_linux.h"
 #include "kernel_2_4_x_profile.h"
 
