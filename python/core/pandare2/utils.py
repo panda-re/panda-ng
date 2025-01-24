@@ -182,7 +182,8 @@ def _find_build_dir(arch_name, find_executable=False, mode="softmmu"):
 
     system_build = "/usr/local/bin/"
     python_package = pjoin(*[dirname(__file__), "data"])
-    local_build = realpath(pjoin(dirname(__file__), "../../../../build"))
+    local_build = realpath(pjoin(dirname(__file__), "../../../build/plugins"))
+    local_build = realpath(pjoin(dirname(__file__), "../../../qemu/build"))
 
 
     arch_dir = f"{arch_name}-softmmu"
@@ -192,7 +193,8 @@ def _find_build_dir(arch_name, find_executable=False, mode="softmmu"):
     # system path could have panda-system-X or libpanda-X.so. Others would have an arch_name - softmmu directory
     pot_paths = [system_build,
                  pjoin(python_package, arch_dir),
-                 pjoin(local_build)]
+                 pjoin(local_build),
+                 "/usr/local/lib/x86_64-linux-gnu/"]
 
     if find_executable and 'PATH' in environ:
         # If we're looking for the panda executable, also search the user's path
