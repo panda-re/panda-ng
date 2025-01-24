@@ -13,8 +13,8 @@ RUN mkdir /plugins
 COPY --from=panda /panda-ng/build/plugins /plugins
 # Set up /package-root with files from panda we'll package
 RUN cd /plugins && rm -rf *.a *.o *.so.p && \
-    mkdir -p /usr/local/lib/x86_64-linux-gnu/panda/plugins && \
-    cp -r /plugins/* /usr/local/lib/x86_64-linux-gnu/panda/plugins
+    mkdir -p /package-root/usr/local/lib/x86_64-linux-gnu/panda/plugins && \
+    cp -r /plugins/* /package-root/usr/local/lib/x86_64-linux-gnu/panda/plugins
 
 # Create DEBIAN directory and control file
 COPY control /package-root/DEBIAN/control
