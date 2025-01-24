@@ -1,0 +1,9 @@
+# base dependency
+libglib2.0-0
+libglib2.0-dev
+libcurl3-gnutls
+
+# osi_linux
+wget
+libcurl4-gnutls-dev
+curl
