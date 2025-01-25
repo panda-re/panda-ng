@@ -36,6 +36,8 @@ jobs:
         with:
           push: true
           context: ${{ github.workspace }}
+          cache-from: type=registry,ref=pandare/panda-ng-plugins:latest
+          cache-to: type=inline
           tags: |
             pandare/panda-ng-plugins:${{ github.sha }}
             pandare/panda-ng-plugins:${{ steps.version.outputs.v-version }}
@@ -43,7 +45,7 @@ jobs:
       
       - name: Build package
         working-directory: debian
-        run: ./setup.sh Ubuntu 22.04
+        run: ./setup.sh Ubuntu 22.04 ${{ steps.version.outputs.version }}
       
       - name: Upload wheel and debian packages to release
         uses: softprops/action-gh-release@v2
