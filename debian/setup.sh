@@ -29,15 +29,21 @@ if [[ $# -eq 1 ]]; then
 	exit 1
 fi
 
-if [[ $# -eq 2 ]]; then
+if [[ $# -ge 2 ]]; then
 	version=$2
 
 else
 	version=$(lsb_release -r | awk '{print $2}')
 fi
 
+if [[ $# -eq 3 ]]; then
+	pretend_version=$3
+else
+	pretend_version=''
+fi
+
 # Build the installer to generate the wheel file
-DOCKER_BUILDKIT=1 docker build --target cleanup -t panda --build-arg BASE_IMAGE="ubuntu:${version}" ../
+DOCKER_BUILDKIT=1 docker build --target cleanup -t panda --build-arg BASE_IMAGE="ubuntu:${version}"  --build-arg OVERRIDE_VERSION="${pretend_version}" ../
 
 # Copy wheel file out of container to host
 # this also preserves wheel name, which is important as pip install WILL fail if you arbitarily change the generated wheel file name
