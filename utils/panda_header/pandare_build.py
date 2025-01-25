@@ -321,6 +321,7 @@ def handle_python(arch, total):
 		total += copy_ppp_header(join(plugin_dir, f"syscalls2/generated/{syscalls2_lookup[arch]}"))
 	total += copy_ppp_header(join(plugin_dir, "syscalls2/generated/syscalls_ext_typedefs.h"))
 	total += copy_ppp_header(join(plugin_dir, "osi/os_intro.h"))
+	total += copy_ppp_header(join(plugin_dir, "proc_start_linux/proc_start_linux_ppp.h"))
 
 	int_fns = glob(f"{plugin_dir}/**/*_int_fns.h", recursive=True)
 	for ints in int_fns:
