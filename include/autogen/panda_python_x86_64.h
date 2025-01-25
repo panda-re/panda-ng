@@ -20167,6 +20167,40 @@ static void (*free_osithread_contents)(OsiThread *) =
 static void (*free_osipage_contents)(OsiPage *) = 
                                                                          ((void *)0)
                                                                              ;
+struct auxv_values {
+    int argc;
+    target_ulong argv_ptr_ptr;
+    target_ulong arg_ptr[10];
+    char argv[10][256];
+    int envc;
+    target_ulong env_ptr_ptr;
+    target_ulong env_ptr[20];
+    char envp[20][256];
+    target_ulong execfn_ptr;
+    char execfn[256];
+    target_ulong phdr;
+    target_ulong entry;
+    target_ulong ehdr;
+    target_ulong hwcap;
+    target_ulong hwcap2;
+    target_ulong pagesz;
+    target_ulong clktck;
+    target_ulong phent;
+    target_ulong phnum;
+    target_ulong base;
+    target_ulong flags;
+    target_ulong uid;
+    target_ulong euid;
+    target_ulong gid;
+    target_ulong egid;
+    
+   _Bool 
+        secure;
+    target_ulong random;
+    target_ulong platform;
+    target_ulong program_header;
+    target_ulong minsigstksz;
+};
 typedef void (*on___acl_aclcheck_fd_enter_t)(CPUState* cpu, target_ulong pc, int32_t filedes, uint32_t type, uint64_t aclp);
 void ppp_add_cb_on___acl_aclcheck_fd_enter(on___acl_aclcheck_fd_enter_t);
 _Bool 
@@ -29333,6 +29367,10 @@ typedef void (*on_task_change_t)(CPUState *);
 void ppp_add_cb_on_task_change(on_task_change_t);
 _Bool 
     ppp_remove_cb_on_task_change(on_task_change_t);
+typedef void (*on_rec_auxv_t)(CPUState *env, TranslationBlock *tb, struct auxv_values * av);
+void ppp_add_cb_on_rec_auxv(on_rec_auxv_t);
+_Bool 
+    ppp_remove_cb_on_rec_auxv(on_rec_auxv_t);
        
 char *osi_linux_fd_to_filename(CPUState *env, OsiProc *p, int fd);
 target_ulong walk_page_table(CPUState *cpu, target_ulong virtual_address);
