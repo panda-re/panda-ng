@@ -40,6 +40,12 @@ RUN mkdir -p /panda-ng/build && \
     ninja
 
 COPY ./python /panda-ng/python
+ARG OVERRIDE_VERSION=""
+RUN if [ ! -z "${OVERRIDE_VERSION}" ]; then \
+        echo ${OVERRIDE_VERSION} > /panda-ng/python/core/pandare2/version.txt; \
+        echo "Pretending version is ${OVERRIDE_VERSION}"; \
+    fi;
+
 RUN cd /panda-ng/python/core/ &&  \
     python3 setup.py develop
 
