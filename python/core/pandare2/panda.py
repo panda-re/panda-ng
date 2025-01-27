@@ -204,6 +204,7 @@ class Panda():
             possible_biospaths = [
                 # hack since pc-bios is in the core not build now
                 realpath(pjoin(self.get_build_dir(), "..", "pc-bios")), # XXX: necessary for network drivers for arm/mips, so 'pc-bios' is a misleading name
+                "/usr/local/share/panda",
                 "/usr/local/share/qemu",
             ]
 

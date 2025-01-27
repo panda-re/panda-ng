@@ -194,7 +194,10 @@ def _find_build_dir(arch_name, find_executable=False, mode="softmmu"):
     pot_paths = [system_build,
                  pjoin(python_package, arch_dir),
                  pjoin(local_build),
-                 "/usr/local/lib/x86_64-linux-gnu/"]
+                 "/usr/local/lib/x86_64-linux-gnu/",
+                 "/usr/local/lib/panda/",
+                 "/usr/local/lib/qemu/",
+                 ]
 
     if find_executable and 'PATH' in environ:
         # If we're looking for the panda executable, also search the user's path
