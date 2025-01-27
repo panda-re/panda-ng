@@ -201,8 +201,17 @@ class Panda():
             self.panda_args.extend(["-smp", str(nproc)])
 
         if biospath is None:
-            # hack since pc-bios is in the core not build now
-            biospath = realpath(pjoin(self.get_build_dir(), "..", "pc-bios")) # XXX: necessary for network drivers for arm/mips, so 'pc-bios' is a misleading name
+            possible_biospaths = [
+                # hack since pc-bios is in the core not build now
+                realpath(pjoin(self.get_build_dir(), "..", "pc-bios")), # XXX: necessary for network drivers for arm/mips, so 'pc-bios' is a misleading name
+                "/usr/local/share/qemu",
+            ]
+
+            for bp in possible_biospaths:
+                if exists(bp):
+                    biospath = bp
+                    break
+        assert(biospath is not None, "biospath cannot be found")
         self.panda_args.append("-L")
         self.panda_args.append(biospath)
 
