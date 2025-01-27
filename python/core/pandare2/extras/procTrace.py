@@ -17,7 +17,7 @@ Multiple modes supported:
     user@host:~/panda/panda/plugins/proc_trace$ python3 graph.py /tmp/graph.plog
 '''
 
-from pandare import PyPlugin
+from pandare2 import PyPlugin
 
 def render_graph(procinfo, time_data, total_insns, n_cols=120, show_ranges=True, show_graph=True):
     col_size = total_insns / n_cols

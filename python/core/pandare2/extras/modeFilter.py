@@ -14,7 +14,7 @@ class ModeFilter:
     before_block_exec as this is a pure-Python plugin.
 
     Example:
-        from pandare import Panda
+        from pandare2 import Panda
         from pandare.extras import ModeFilter
 
         class MyClass(ModeFilter):
@@ -117,7 +117,7 @@ class Tester(ModeFilter):
         self.panda.run()
 
 if __name__ == "__main__":
-    from pandare import Panda
+    from pandare2 import Panda
     # Note the test is architecture-specific, otherwise different syscalls are issued
     panda = Panda(generic="i386")
     test = Tester(panda)

@@ -250,7 +250,7 @@ if __name__ == "__main__":
     Bash will issue ioctls on /dev/ttys0 - this is just a simple test to make sure they're being captured
     '''
 
-    from pandare import Panda
+    from pandare2 import Panda
 
     # No arguments, x86_64. Otherwise argument should be guest arch
     generic_type = sys.argv[1] if len(sys.argv) > 1 else "x86_64"

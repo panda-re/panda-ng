@@ -14,7 +14,7 @@ High-level idea:
 
 
 if __name__ == '__main__': # Script run directly
-    from pandare.extras import FileHook
+    from pandare2.extras import FileHook
 else: # Load from module
     from .fileHook import FileHook
 
@@ -349,7 +349,7 @@ class FileFaker(FileHook):
 
 
 if __name__ == '__main__':
-    from pandare import Panda
+    from pandare2 import Panda
 
     panda = Panda(generic="x86_64")
 

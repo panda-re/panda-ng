@@ -248,7 +248,7 @@ class FileHook:
         pass
 
 if __name__ == '__main__':
-    from pandare import Panda
+    from pandare2 import Panda
 
     panda = Panda(generic="x86_64")
 

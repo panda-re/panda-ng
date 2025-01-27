@@ -117,7 +117,7 @@ class ProcWriteCapture():
 
 if __name__ == "__main__":
     import os
-    from pandare import Panda
+    from pandare2 import Panda
     panda = Panda(generic="x86_64")
     test = ProcWriteCapture(panda, console_capture = True)
 

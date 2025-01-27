@@ -4,7 +4,7 @@
 Class to manage loading Panda PyPlugins. See docs/pyplugins.md for details.
 """
 from pathlib import Path
-from pandare import PyPlugin
+from pandare2 import PyPlugin
 import datetime
 import inspect
 import importlib.util
@@ -122,7 +122,7 @@ class PyPluginManager:
         generate an uninstantiated instance of that class and return
         that object.
 
-        Note you can also just add `from pandare import PyPlugin` to
+        Note you can also just add `from pandare2 import PyPlugin` to
         the plugin file and then just import the class(es) you want and pass them
         directly to panda.pyplugins.register()
 
@@ -314,7 +314,7 @@ class PyPluginManager:
         self.app.run(host=self.host, port=self.port)
 
 if __name__ == '__main__':
-    from pandare import Panda
+    from pandare2 import Panda
     panda = Panda(generic="x86_64")
 
     globals()['_test_class_init_ran'] = False
