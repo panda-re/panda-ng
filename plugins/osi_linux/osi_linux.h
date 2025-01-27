@@ -135,7 +135,7 @@ static inline _retType _name(CPUState* env, target_ptr_t _paramName) { \
 #define IMPLEMENT_OPTIONAL_OFFSET_GET(_name, _paramName, _retType, _offset, _errorRetValue) \
 static inline _retType _name(CPUState* env, target_ptr_t _paramName) { \
     _retType _t; \
-    if (_offset == NULL)\
+    if (_offset == 0)\
         return 0; \
     if (-1 == panda_virtual_memory_read(env, _paramName + _offset, (uint8_t *)&_t, sizeof(_retType))) { \
         return (_errorRetValue); \
@@ -461,7 +461,7 @@ static inline char *read_dentry_name(CPUState *env, target_ptr_t dentry) {
         //
         // For little endian guests, we skip always read `len` at offset 8. For big endian guests we read at offset 0 if kernel >=3.15, else offset 8.
 
-#if defined (TARGET_WORDS_BIGENDIAN)
+#if TARGET_BIG_ENDIAN == 1
         // Big endian, if kernel >= 3.5 then pcomp length is first field so offset=0. Otherwise it will be second so offset=8
         if (ki.version.a > 3 || (ki.version.a == 3 && ki.version.b > 5)) {
           pcomp_length = *(uint32_t *)(d_name);
