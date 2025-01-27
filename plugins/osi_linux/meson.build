@@ -1,3 +1,7 @@
+configure_file(input : 'kernelinfo.conf',
+  output : 'kernelinfo.conf',
+  copy: true)
+
 dependencies += dependency('libcurl')
 
 sources += files('osi_linux.cpp',
