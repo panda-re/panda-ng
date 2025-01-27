@@ -1,4 +1,6 @@
-project('panda', ['c', 'cpp'])
+project('panda', ['c', 'cpp'],
+        meson_version: '1.6.1'
+        )
 
 panda_path = meson.current_source_dir()+'/qemu'
 build = panda_path+'/build'
