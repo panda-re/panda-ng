@@ -91,6 +91,7 @@ uint32_t get_32_windows_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 target_ulong calc_retaddr_windows_x86(CPUState *cpu, target_ulong pc);
 target_ulong calc_retaddr_windows_x64(CPUState *cpu, target_ulong pc);
 target_ulong calc_retaddr_linux_x86(CPUState *cpu, target_ulong pc);
+target_ulong calc_retaddr_linux_x86_int80(CPUState *cpu, target_ulong pc);
 target_ulong calc_retaddr_linux_x64(CPUState *cpu, target_ulong pc);
 target_ulong calc_retaddr_linux_arm(CPUState *cpu, target_ulong pc);
 target_ulong calc_retaddr_linux_mips(CPUState *cpu, target_ulong pc); // TODO
@@ -104,6 +105,23 @@ Profile profiles[PROFILE_LAST] = {
         .return_switch = syscall_return_switch_linux_x86,
         .get_return_val = get_return_val_x86,
         .calc_retaddr = calc_retaddr_linux_x86,
+        .get_32 = get_32_linux_x86,
+        .get_s32 = get_s32_generic,
+        .get_64 = get_64_linux_x86,
+        .get_s64 = get_s64_generic,
+        .get_return_32 = get_32_linux_x86,
+        .get_return_s32 = get_return_s32_generic,
+        .get_return_64 = get_64_linux_x86,
+        .get_return_s64 = get_return_s64_generic,
+        .windows_return_addr_register = -1,
+        .windows_arg_offset = -1,
+        .syscall_interrupt_number = 0x80,
+    },
+    { /* PROFILE_LINUX_X86_INT80 */
+        .enter_switch = syscall_enter_switch_linux_x86,
+        .return_switch = syscall_return_switch_linux_x86,
+        .get_return_val = get_return_val_x86,
+        .calc_retaddr = calc_retaddr_linux_x86_int80,
         .get_32 = get_32_linux_x86,
         .get_s32 = get_s32_generic,
         .get_64 = get_64_linux_x86,
@@ -421,27 +439,23 @@ target_ulong calc_retaddr_windows_x64(CPUState* cpu, target_ulong pc) {
 
 target_ulong calc_retaddr_linux_x86(CPUState* cpu, target_ulong pc) {
 #if defined(TARGET_I386)
-    unsigned char buf[2] = {};
-    panda_virtual_memory_rw(cpu, pc, buf, 2, 0);
-    // Check if the instruction is syscall (0F 05) or  sysenter (0F 34)
-    if ((buf[0]== 0x0F && buf[1] == 0x05) || (buf[0]== 0x0F && buf[1] == 0x34)) {
-        // For Linux system calls using sysenter, we need to look on the stack.
-        // https://reverseengineering.stackexchange.com/questions/2869/how-to-use-sysenter-under-linux
-        target_ulong ret = 0x0;
-        target_ulong ret_ptr =
-            ((CPUX86State *)panda_cpu_env(cpu))->regs[R_ESP] + 0x0C;
-        panda_virtual_memory_read(cpu, ret_ptr, (uint8_t *)&ret, sizeof(ret));
-        assert(ret != 0x0);
-        return ret;
-    }
-    // Check if the instruction is int 0x80 (CD 80)
-    else if (buf[0]== 0xCD && buf[1] == 0x80) {
-        return pc+2;
-    }
+    // For Linux system calls using sysenter, we need to look on the stack.
+    // https://reverseengineering.stackexchange.com/questions/2869/how-to-use-sysenter-under-linux
+    target_ulong ret = 0x0;
+    target_ulong ret_ptr =
+        ((CPUX86State *)panda_cpu_env(cpu))->regs[R_ESP] + 0x0C;
+    panda_virtual_memory_read(cpu, ret_ptr, (uint8_t *)&ret, sizeof(ret));
+    assert(ret != 0x0);
+    return ret;
+#else
     // shouldn't happen
-    else {
-        assert(1==0);
-    }
+    assert (1==0);
+#endif
+}
+
+target_ulong calc_retaddr_linux_x86_int80(CPUState* cpu, target_ulong pc) {
+#if defined(TARGET_I386)
+    return pc+2;
 #else
     // shouldn't happen
     assert (1==0);
@@ -450,20 +464,19 @@ target_ulong calc_retaddr_linux_x86(CPUState* cpu, target_ulong pc) {
 
 target_ulong calc_retaddr_linux_x64(CPUState* cpu, target_ulong pc) {
 #if defined(TARGET_X86_64)
-    unsigned char buf[2] = {};
-    panda_virtual_memory_rw(cpu, pc, buf, 2, 0);
+    // no reason to check because 0x0f 0x05 is the only way here
+    // unsigned char buf[2] = {};
+    // panda_virtual_memory_rw(cpu, pc, buf, 2, 0);
     // Check if the instruction is syscall (0F 05)
-    if ((0x0F == buf[0]) && (0x05 == buf[1])) {
+    // if ((0x0F == buf[0]) && (0x05 == buf[1])) {
         // syscall expects the return address to be in RCX, but sometimes RCX is
     	// still 0 at this point; so calculate the return address from the pc
-        target_ulong ret = pc + 2;
-        assert(ret != 0x0);
-        return ret;
-    }
+    return pc  + 2;
+    // }
     // shouldn't happen
-    else {
-        assert(1==0);
-    }
+    // else {
+        // assert(1==0);
+    // }
 #else
     // shouldn't happen
     assert (1==0);
@@ -1073,14 +1086,15 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, i
     }
     // Check if the instruction is int 0x80 (CD 80)
     else if (buf[0]== 0xCD && buf[1] == profiles[default_profile].syscall_interrupt_number) {
-#if defined(TARGET_X86_64)
-        if (*type == PROFILE_LINUX_X64){
-            *type = PROFILE_LINUX_X86;
-        }else{
-            LOG_WARNING("32-bit sysenter found in 64-bit replay - ignoring\n");
-            return 0;
-        }
-#endif
+// #if defined(TARGET_X86_64)
+//         if (*type == PROFILE_LINUX_X64){
+//             *type = PROFILE_LINUX_X86_INT80;
+//         }else{
+//             LOG_WARNING("32-bit sysenter found in 64-bit replay - ignoring\n");
+//             return 0;
+//         }
+// #endif
+        *type = PROFILE_LINUX_X86_INT80;
         return pc;
     }
     // Check if the instruction is sysenter (0F 34)

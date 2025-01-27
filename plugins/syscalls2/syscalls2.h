@@ -11,6 +11,7 @@ void hook_syscall_return(CPUState *cpu, TranslationBlock* tb, struct hook* h);
 
 enum ProfileType {
     PROFILE_LINUX_X86,
+    PROFILE_LINUX_X86_INT80,
     PROFILE_LINUX_ARM,
     PROFILE_LINUX_AARCH64,
     PROFILE_LINUX_MIPS32,
