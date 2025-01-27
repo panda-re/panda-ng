@@ -11,7 +11,7 @@ static inline void fixupendian_impl(void* px, size_t size) {
     }
 }
 
-#if defined(TARGET_WORDS_BIGENDIAN) != defined(HOST_WORDS_BIGENDIAN)
+#if TARGET_BIG_ENDIAN == 1
 // If guest and host endianness don't match:
 // fixupendian will flip a dword in place
 #define fixupendian(x)         {x=bswap32((target_ptr_t)x);}

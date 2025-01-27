@@ -67,7 +67,7 @@ extern "C" {
 
 template<class T>
 void fixupendian(T& x) {
-#if defined(TARGET_WORDS_BIGENDIAN)
+#if TARGET_BIG_ENDIAN == 1
     switch(sizeof(T)) {
        case 4:
            x=bswap_32(x);

@@ -197,7 +197,7 @@ void fill_osiproc(CPUState *cpu, OsiProc *p, target_ptr_t task_addr) {
         uint64_t tmp = get_start_time(cpu, task_addr);
 
         //if there's an endianness mismatch
-        #if defined(TARGET_WORDS_BIGENDIAN) != defined(HOST_WORDS_BIGENDIAN)
+        #if TARGET_BIG_ENDIAN == 1
             //convert the most significant half into nanoseconds, then add the rest of the nanoseconds
             p->create_time = (((tmp & 0xFFFFFFFF00000000) >> 32) * 1000000000) + (tmp & 0x00000000FFFFFFFF);
         #else
@@ -246,16 +246,16 @@ static bool fill_osimodule(CPUState *env, OsiModule *m, target_ptr_t vma_addr,
             //     m->file = g_strdup(last_file);
             //     m->name = g_strdup(last_name);
             // } else {
-            //     m->file = read_dentry_name(env, vma_dentry);
-            //     m->name = g_strrstr(m->file, "/");
-            //     if (m->name != NULL) m->name = g_strdup(m->name + 1);
+                m->file = read_dentry_name(env, vma_dentry);
+                m->name = g_strrstr(m->file, "/");
+                if (m->name != NULL) m->name = g_strdup(m->name + 1);
 
-            //     // Save the results from calling read_dentry_name
-            //     // Next request may be able to reuse these
-            //     last_instr_count = env->rr_guest_instr_count;
-            //     last_dentry = vma_dentry;
-            //     last_file = m->file;
-            //     last_name = m->name;
+                // Save the results from calling read_dentry_name
+                // Next request may be able to reuse these
+                // last_instr_count = env->rr_guest_instr_count;
+                // last_dentry = vma_dentry;
+                // last_file = m->file;
+                // last_name = m->name;
             // }
 
             // Get offset in pages, then *= with PAGE_SIZE to translate into bytes
@@ -795,7 +795,7 @@ void on_get_current_thread(CPUState *env, OsiThread **out) {
 void on_get_process_pid(CPUState *env, const OsiProcHandle *h, target_pid_t *pid) {
     if (!osi_guest_is_ready(env, (void**)pid)) return;
 
-    if (h->taskd == NULL || h->taskd == (target_ptr_t)-1) {
+    if (h->taskd == 0 || h->taskd == (target_ptr_t)-1) {
         *pid = (target_pid_t)-1;
     } else {
         *pid = get_tgid(env, h->taskd);
@@ -1240,6 +1240,21 @@ bool init_plugin(void *self) {
             const char* panda_dir = g_getenv("PANDA_DIR");
             kconf_file = g_strdup_printf("%s%s", panda_dir, KERNEL_CONF);
             kconffile_canon = realpath(kconf_file, NULL);
+        }
+
+        if (kconffile_canon == NULL){
+            Dl_info dl_info;
+            // Use an address in the current shared object, such as the address of this function
+            if (dladdr((void *)restore_after_snapshot, &dl_info)) {
+                // printf("Path of current shared object: %s\n", dl_info.dli_fname);
+                const char * bname = g_path_get_dirname(dl_info.dli_fname);
+                kconf_file = g_strdup_printf("%s/%s", bname, "osi_linux/kernelinfo.conf");
+                kconffile_canon = realpath(kconf_file, NULL);
+                // printf("found kconf_file %s kconffile_canon %s\n", kconf_file, kconffile_canon);
+            } else {
+                // printf("Failed to get shared object information.\n");
+            }
+
         }
 
         g_free(progdir);

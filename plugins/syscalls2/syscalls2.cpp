@@ -1164,7 +1164,7 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, i
     }
 
     // ifdef guard prevents us from misinterpreting "syscall" as "jal 0x0000" or "ehb"
-    #if defined(TARGET_WORDS_BIGENDIAN)
+    #if TARGET_BIG_ENDIAN == 1
         // 32-bit MIPS "syscall" instruction - big endian
         if ((buf[0] == 0x00) && (buf[1] == 0x00) && (buf[2] == 0x00) && (buf[3] == 0x0c))
             return pc;
