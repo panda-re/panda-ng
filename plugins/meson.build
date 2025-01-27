@@ -1,4 +1,4 @@
-plugin_list = run_command('cat', 'config.panda').stdout().strip().split('\n')
+plugin_list = run_command('cat', 'config.panda', check: true, capture: true).stdout().strip().split('\n')
 fake_libc_include = '../utils/fake_libc_include'
 plugin_ext = {}
 
@@ -66,12 +66,13 @@ foreach plugin: plugin_list
             if 'TARGET_BASE_ARCH' not in config_target
                 config_target += {'TARGET_BASE_ARCH': config_target['TARGET_ARCH']}
             endif
+            tgt = target.split('-')[0]
             
             target_c_args = [
                 '-DCONFIG_TARGET="@0@-config-target.h"'.format(target),
                 '-DCONFIG_DEVICES="@0@-config-devices.h"'.format(target),
                 '-DPLUGIN_NAME="@0@"'.format(plugin),
-                '-DPANDA_TGT=@0@'.format(config_target['TARGET_ARCH']),
+                '-DPANDA_TGT=@0@'.format(tgt),
                 '-D_GNU_SOURCE',
                 '-DTARGET_@0@=1'.format(config_target['TARGET_ARCH'].to_upper())
             ]
