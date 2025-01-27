@@ -18901,6 +18901,9 @@ struct auxv_values {
     target_ulong program_header;
     target_ulong minsigstksz;
 };
+typedef void (*hypercall_t)(CPUState *cpu);
+void register_hypercall(uint32_t magic, hypercall_t);
+void unregister_hypercall(uint32_t magic);
 typedef void (*on_sys_accept_enter_t)(CPUState* cpu, target_ulong pc, int32_t arg0, uint64_t arg1, uint64_t arg2);
 void ppp_add_cb_on_sys_accept_enter(on_sys_accept_enter_t);
 _Bool 

@@ -19326,6 +19326,9 @@ struct auxv_values {
     target_ulong program_header;
     target_ulong minsigstksz;
 };
+typedef void (*hypercall_t)(CPUState *cpu);
+void register_hypercall(uint32_t magic, hypercall_t);
+void unregister_hypercall(uint32_t magic);
 typedef void (*on_NtAcceptConnectPort_enter_t)(CPUState* cpu, target_ulong pc, uint32_t PortHandle, uint32_t PortContext, uint32_t ConnectionRequest, uint32_t AcceptConnection, uint32_t ServerView, uint32_t ClientView);
 void ppp_add_cb_on_NtAcceptConnectPort_enter(on_NtAcceptConnectPort_enter_t);
 _Bool 
