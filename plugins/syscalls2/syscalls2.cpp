@@ -35,6 +35,7 @@ PANDAENDCOMMENT */
 #include <iostream>
 #include <sstream>
 #include <limits>
+#include <threads.h>
 
 #include "syscalls2.h"
 #include "syscalls2_info.h"
@@ -1072,28 +1073,23 @@ static uint32_t impossibleToReadPCs = 0;
 // Check if the instruction is sysenter (0F 34),
 // syscall (0F 05) or int 0x80 (CD 80)
 target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, int* static_callno, enum ProfileType* type) {
-#if defined(TARGET_I386)
-    unsigned char buf[2] = {};
-    target_ulong pc = qemu_plugin_tb_vaddr(tb) + qemu_plugin_tb_size(tb) - sizeof(buf);
-    int res = panda_virtual_memory_rw(cpu, pc, buf, 2, 0);
-    if(res <0){
-        return -1;
+    unsigned char buf[4] = {};
+    int n = qemu_plugin_tb_n_insns(tb);
+    struct qemu_plugin_insn *last = qemu_plugin_tb_get_insn(tb, n - 1);
+    target_ulong UNUSED(pc) = qemu_plugin_insn_vaddr(last);
+    int size = qemu_plugin_insn_size(last);
+    // syscalls are at most 4 bytes long
+    if (size > 4) {
+        return 0;
     }
-
+    qemu_plugin_insn_data(last, &buf, size);
+#if defined(TARGET_I386)
     // Check if the instruction is syscall (0F 05)
     if (buf[0]== 0x0F && buf[1] == 0x05) {
         return pc;
     }
     // Check if the instruction is int 0x80 (CD 80)
     else if (buf[0]== 0xCD && buf[1] == profiles[default_profile].syscall_interrupt_number) {
-// #if defined(TARGET_X86_64)
-//         if (*type == PROFILE_LINUX_X64){
-//             *type = PROFILE_LINUX_X86_INT80;
-//         }else{
-//             LOG_WARNING("32-bit sysenter found in 64-bit replay - ignoring\n");
-//             return 0;
-//         }
-// #endif
         *type = PROFILE_LINUX_X86_INT80;
         return pc;
     }
@@ -1113,14 +1109,10 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, i
         return 0;
     }
 #elif defined(TARGET_ARM)
-    unsigned char buf[4] = {};
-    target_ulong pc = qemu_plugin_tb_vaddr(tb) + qemu_plugin_tb_size(tb) - sizeof(buf);
 
 #if defined(TARGET_AARCH64)
     // AARCH64 - No thumb mode, syscall is 01 00 00 d4
     // Check for ARM mode syscall
-    panda_virtual_memory_rw(cpu, pc, buf, 4, 0);
-
     if ( (buf[0] == 0x01)  && (buf[1] == 0) && (buf[2] == 0) && (buf[3] == 0xd4) ) {
         return pc;
     }
@@ -1130,7 +1122,6 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, i
     // Check for ARM mode syscall
     CPUArchState *env = panda_cpu_env(cpu);
     if(env->thumb == 0) {
-        panda_virtual_memory_rw(cpu, pc, buf, 4, 0);
         // EABI
         if ( ((buf[3] & 0x0F) ==  0x0F)  && (buf[2] == 0) && (buf[1] == 0) && (buf[0] == 0) ) {
 #ifdef TARGET_AARCH64
@@ -1155,8 +1146,6 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, i
     else {
         // the buffer size is 4, but the read size is 2. Adjust for that
         // in thumb mode.
-        pc += 2;
-        panda_virtual_memory_rw(cpu, pc, buf, 2, 0);
         // check for Thumb mode syscall
         if (buf[1] == 0xDF && buf[0] == 0){
 #ifdef TARGET_AARCH64
@@ -1169,13 +1158,6 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, i
     return 0;
 #elif defined(TARGET_MIPS)
 
-    unsigned char buf[4] = {};
-    target_ulong pc = qemu_plugin_tb_vaddr(tb) + qemu_plugin_tb_size(tb) - sizeof(buf);
-
-    int res = panda_virtual_memory_read(cpu, pc, buf, 4);
-    if(res < 0){
-        return -1; // TODO: does caller even handle error case? Not every arch does it...
-    }
 
     // ifdef guard prevents us from misinterpreting "syscall" as "jal 0x0000" or "ehb"
     #if TARGET_BIG_ENDIAN == 1
@@ -1202,7 +1184,7 @@ struct sysinfo {
     int callno;
 };
 
-std::map<target_ulong, struct sysinfo> syscall_info_map;
+thread_local std::map<target_ulong, struct sysinfo> syscall_info_map;
 
 void block_translate(CPUState *cpu, struct qemu_plugin_tb *tb){
     int static_callno = -1; // Set to non -1 if syscall num can be
@@ -1228,7 +1210,7 @@ void block_translate(CPUState *cpu, struct qemu_plugin_tb *tb){
 // syscall (as identified by doesBlockContainSyscall). Inserted into TCG by
 // before_tcg_codegen.
 void syscall_callback(unsigned int vcpu_index, void *sysinfo){
-    CPUState *cpu = panda_current_cpu(vcpu_index);
+    CPUState *cpu = panda_cpu_by_index(vcpu_index);
     target_ulong pc = (target_ulong) (uint64_t)sysinfo;
     enum ProfileType profile = syscall_info_map[pc].profile;
     int callno = syscall_info_map[pc].callno;
