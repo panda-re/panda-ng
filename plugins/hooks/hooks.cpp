@@ -22,6 +22,7 @@ PANDAENDCOMMENT */
 #include <set>
 #include <queue>
 #include <vector>
+#include <threads.h>
 
 // These need to be extern "C" so that the ABI is compatible with
 // QEMU/PANDA, which is written in C
@@ -47,8 +48,9 @@ bool operator<(const struct hook &a, const struct hook &b){
     return tie(a.addr, a.asid, a.type, a.cb.before_block_exec) < tie(b.addr, b.asid, b.type, b.cb.before_block_exec);//, b.km, b.enabled);
 }
 
-vector<struct hook> temp_hooks;
-unordered_map<uint64_t, set<struct hook>> hooks;
+
+thread_local vector<struct hook> temp_hooks;
+thread_local unordered_map<uint64_t, set<struct hook>> hooks;
 panda_cb block_translate_cb;
 
 // Handle to self
@@ -70,7 +72,7 @@ void add_hook(struct hook* h) {
 }
 
 void cb_tcg_codegen_middle_filter(unsigned int vcpu_index, void *_tb) {
-    CPUState *cpu = panda_current_cpu(vcpu_index);
+    CPUState *cpu = panda_cpu_by_index(vcpu_index);
     TranslationBlock *tb = (TranslationBlock *)_tb;
     uint64_t pc = panda_current_pc(cpu);
     if (! temp_hooks.empty()){ 
@@ -168,10 +170,6 @@ void cb_block_translate_callback (CPUState* cpu, struct qemu_plugin_tb *tb) {
     }
 }
 
-
-void erase_asid(target_ulong asid){
-    hooks.erase(asid);
-}
 
 bool init_plugin(void *_self) {
     // On init, register a callback but don't enable it
