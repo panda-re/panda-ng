@@ -1,0 +1,18 @@
+[package]
+name = "panda"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[features]
+aarch64 = []
+arm = []
+i386 = []
+mips64el = []
+mips64 = []
+mipsel = []
+mips = []
+ppc64 = []
+ppc = []
+x86_64 = []
