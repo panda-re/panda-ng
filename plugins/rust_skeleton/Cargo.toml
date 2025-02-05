@@ -1,0 +1,24 @@
+[package]
+name = "rust_skeleton"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+panda = { path = "./panda-bindings" }
+
+[features]
+default = ["x86_64"]
+
+aarch64 = ["panda/aarch64"]
+arm = ["panda/arm"]
+i386 = ["panda/i386"]
+mips64el = ["panda/mips64el"]
+mips64 = ["panda/mips64"]
+mipsel = ["panda/mipsel"]
+mips = ["panda/mips"]
+ppc64 = ["panda/ppc64"]
+ppc = ["panda/ppc"]
+x86_64 = ["panda/x86_64"]
