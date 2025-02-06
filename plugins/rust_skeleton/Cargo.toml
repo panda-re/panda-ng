@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-panda = { path = "./panda-bindings" }
+panda = { path = "../../rust/panda-bindings" }
 
 [features]
 default = ["x86_64"]

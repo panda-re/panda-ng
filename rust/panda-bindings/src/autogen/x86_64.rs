@@ -167,59 +167,123 @@ impl<T> ::std::fmt::Debug for __IncompleteArrayField<T> {
         fmt.write_str("__IncompleteArrayField")
     }
 }
+#[repr(C)]
+pub struct __BindgenUnionField<T>(::std::marker::PhantomData<T>);
+impl<T> __BindgenUnionField<T> {
+    #[inline]
+    pub const fn new() -> Self {
+        __BindgenUnionField(::std::marker::PhantomData)
+    }
+    #[inline]
+    pub unsafe fn as_ref(&self) -> &T {
+        ::std::mem::transmute(self)
+    }
+    #[inline]
+    pub unsafe fn as_mut(&mut self) -> &mut T {
+        ::std::mem::transmute(self)
+    }
+}
+impl<T> ::std::default::Default for __BindgenUnionField<T> {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl<T> ::std::clone::Clone for __BindgenUnionField<T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<T> ::std::marker::Copy for __BindgenUnionField<T> {}
+impl<T> ::std::fmt::Debug for __BindgenUnionField<T> {
+    fn fmt(&self, fmt: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        fmt.write_str("__BindgenUnionField")
+    }
+}
+impl<T> ::std::hash::Hash for __BindgenUnionField<T> {
+    fn hash<H: ::std::hash::Hasher>(&self, _state: &mut H) {}
+}
+impl<T> ::std::cmp::PartialEq for __BindgenUnionField<T> {
+    fn eq(&self, _other: &__BindgenUnionField<T>) -> bool {
+        true
+    }
+}
+impl<T> ::std::cmp::Eq for __BindgenUnionField<T> {}
 pub const __GNUC_VA_LIST: u32 = 1;
 pub const true_: u32 = 1;
 pub const false_: u32 = 0;
 pub const __bool_true_false_are_defined: u32 = 1;
 pub const _STDINT_H: u32 = 1;
 pub const _FEATURES_H: u32 = 1;
+pub const _ISOC95_SOURCE: u32 = 1;
+pub const _ISOC99_SOURCE: u32 = 1;
+pub const _ISOC11_SOURCE: u32 = 1;
+pub const _ISOC2X_SOURCE: u32 = 1;
+pub const _POSIX_SOURCE: u32 = 1;
+pub const _POSIX_C_SOURCE: u32 = 200809;
+pub const _XOPEN_SOURCE: u32 = 700;
+pub const _XOPEN_SOURCE_EXTENDED: u32 = 1;
+pub const _LARGEFILE64_SOURCE: u32 = 1;
 pub const _DEFAULT_SOURCE: u32 = 1;
-pub const __GLIBC_USE_ISOC2X: u32 = 0;
+pub const _ATFILE_SOURCE: u32 = 1;
+pub const _DYNAMIC_STACK_SIZE_SOURCE: u32 = 1;
+pub const __GLIBC_USE_ISOC2X: u32 = 1;
 pub const __USE_ISOC11: u32 = 1;
 pub const __USE_ISOC99: u32 = 1;
 pub const __USE_ISOC95: u32 = 1;
-pub const __USE_POSIX_IMPLICITLY: u32 = 1;
-pub const _POSIX_SOURCE: u32 = 1;
-pub const _POSIX_C_SOURCE: u32 = 200809;
 pub const __USE_POSIX: u32 = 1;
 pub const __USE_POSIX2: u32 = 1;
 pub const __USE_POSIX199309: u32 = 1;
 pub const __USE_POSIX199506: u32 = 1;
 pub const __USE_XOPEN2K: u32 = 1;
 pub const __USE_XOPEN2K8: u32 = 1;
-pub const _ATFILE_SOURCE: u32 = 1;
+pub const __USE_XOPEN: u32 = 1;
+pub const __USE_XOPEN_EXTENDED: u32 = 1;
+pub const __USE_UNIX98: u32 = 1;
+pub const _LARGEFILE_SOURCE: u32 = 1;
+pub const __USE_XOPEN2K8XSI: u32 = 1;
+pub const __USE_XOPEN2KXSI: u32 = 1;
+pub const __USE_LARGEFILE: u32 = 1;
+pub const __USE_LARGEFILE64: u32 = 1;
+pub const __WORDSIZE: u32 = 64;
+pub const __WORDSIZE_TIME64_COMPAT32: u32 = 1;
+pub const __SYSCALL_WORDSIZE: u32 = 64;
+pub const __TIMESIZE: u32 = 64;
 pub const __USE_MISC: u32 = 1;
 pub const __USE_ATFILE: u32 = 1;
+pub const __USE_DYNAMIC_STACK_SIZE: u32 = 1;
+pub const __USE_GNU: u32 = 1;
 pub const __USE_FORTIFY_LEVEL: u32 = 0;
 pub const __GLIBC_USE_DEPRECATED_GETS: u32 = 0;
 pub const __GLIBC_USE_DEPRECATED_SCANF: u32 = 0;
 pub const _STDC_PREDEF_H: u32 = 1;
 pub const __STDC_IEC_559__: u32 = 1;
+pub const __STDC_IEC_60559_BFP__: u32 = 201404;
 pub const __STDC_IEC_559_COMPLEX__: u32 = 1;
+pub const __STDC_IEC_60559_COMPLEX__: u32 = 201404;
 pub const __STDC_ISO_10646__: u32 = 201706;
 pub const __GNU_LIBRARY__: u32 = 6;
 pub const __GLIBC__: u32 = 2;
-pub const __GLIBC_MINOR__: u32 = 31;
+pub const __GLIBC_MINOR__: u32 = 35;
 pub const _SYS_CDEFS_H: u32 = 1;
 pub const __glibc_c99_flexarr_available: u32 = 1;
-pub const __WORDSIZE: u32 = 64;
-pub const __WORDSIZE_TIME64_COMPAT32: u32 = 1;
-pub const __SYSCALL_WORDSIZE: u32 = 64;
-pub const __LONG_DOUBLE_USES_FLOAT128: u32 = 0;
+pub const __LDOUBLE_REDIRECTS_TO_FLOAT128_ABI: u32 = 0;
 pub const __HAVE_GENERIC_SELECTION: u32 = 1;
-pub const __GLIBC_USE_LIB_EXT2: u32 = 0;
-pub const __GLIBC_USE_IEC_60559_BFP_EXT: u32 = 0;
-pub const __GLIBC_USE_IEC_60559_BFP_EXT_C2X: u32 = 0;
-pub const __GLIBC_USE_IEC_60559_FUNCS_EXT: u32 = 0;
-pub const __GLIBC_USE_IEC_60559_FUNCS_EXT_C2X: u32 = 0;
-pub const __GLIBC_USE_IEC_60559_TYPES_EXT: u32 = 0;
+pub const __GLIBC_USE_LIB_EXT2: u32 = 1;
+pub const __GLIBC_USE_IEC_60559_BFP_EXT: u32 = 1;
+pub const __GLIBC_USE_IEC_60559_BFP_EXT_C2X: u32 = 1;
+pub const __GLIBC_USE_IEC_60559_EXT: u32 = 1;
+pub const __GLIBC_USE_IEC_60559_FUNCS_EXT: u32 = 1;
+pub const __GLIBC_USE_IEC_60559_FUNCS_EXT_C2X: u32 = 1;
+pub const __GLIBC_USE_IEC_60559_TYPES_EXT: u32 = 1;
 pub const _BITS_TYPES_H: u32 = 1;
-pub const __TIMESIZE: u32 = 64;
 pub const _BITS_TYPESIZES_H: u32 = 1;
 pub const __OFF_T_MATCHES_OFF64_T: u32 = 1;
 pub const __INO_T_MATCHES_INO64_T: u32 = 1;
 pub const __RLIM_T_MATCHES_RLIM64_T: u32 = 1;
 pub const __STATFS_MATCHES_STATFS64: u32 = 1;
+pub const __KERNEL_OLD_TIMEVAL_MATCHES_TIMEVAL64: u32 = 1;
 pub const __FD_SETSIZE: u32 = 1024;
 pub const _BITS_TIME64_H: u32 = 1;
 pub const _BITS_WCHAR_H: u32 = 1;
@@ -262,6 +326,39 @@ pub const SIG_ATOMIC_MAX: u32 = 2147483647;
 pub const SIZE_MAX: i32 = -1;
 pub const WINT_MIN: u32 = 0;
 pub const WINT_MAX: u32 = 4294967295;
+pub const INT8_WIDTH: u32 = 8;
+pub const UINT8_WIDTH: u32 = 8;
+pub const INT16_WIDTH: u32 = 16;
+pub const UINT16_WIDTH: u32 = 16;
+pub const INT32_WIDTH: u32 = 32;
+pub const UINT32_WIDTH: u32 = 32;
+pub const INT64_WIDTH: u32 = 64;
+pub const UINT64_WIDTH: u32 = 64;
+pub const INT_LEAST8_WIDTH: u32 = 8;
+pub const UINT_LEAST8_WIDTH: u32 = 8;
+pub const INT_LEAST16_WIDTH: u32 = 16;
+pub const UINT_LEAST16_WIDTH: u32 = 16;
+pub const INT_LEAST32_WIDTH: u32 = 32;
+pub const UINT_LEAST32_WIDTH: u32 = 32;
+pub const INT_LEAST64_WIDTH: u32 = 64;
+pub const UINT_LEAST64_WIDTH: u32 = 64;
+pub const INT_FAST8_WIDTH: u32 = 8;
+pub const UINT_FAST8_WIDTH: u32 = 8;
+pub const INT_FAST16_WIDTH: u32 = 64;
+pub const UINT_FAST16_WIDTH: u32 = 64;
+pub const INT_FAST32_WIDTH: u32 = 64;
+pub const UINT_FAST32_WIDTH: u32 = 64;
+pub const INT_FAST64_WIDTH: u32 = 64;
+pub const UINT_FAST64_WIDTH: u32 = 64;
+pub const INTPTR_WIDTH: u32 = 64;
+pub const UINTPTR_WIDTH: u32 = 64;
+pub const INTMAX_WIDTH: u32 = 64;
+pub const UINTMAX_WIDTH: u32 = 64;
+pub const PTRDIFF_WIDTH: u32 = 64;
+pub const SIG_ATOMIC_WIDTH: u32 = 32;
+pub const SIZE_WIDTH: u32 = 64;
+pub const WCHAR_WIDTH: u32 = 32;
+pub const WINT_WIDTH: u32 = 32;
 pub const _STDLIB_H: u32 = 1;
 pub const WNOHANG: u32 = 1;
 pub const WUNTRACED: u32 = 2;
@@ -272,7 +369,6 @@ pub const WNOWAIT: u32 = 16777216;
 pub const __WNOTHREAD: u32 = 536870912;
 pub const __WALL: u32 = 1073741824;
 pub const __WCLONE: u32 = 2147483648;
-pub const __ENUM_IDTYPE_T: u32 = 1;
 pub const __W_CONTINUED: u32 = 65535;
 pub const __WCOREFLAG: u32 = 128;
 pub const __HAVE_FLOAT128: u32 = 0;
@@ -296,6 +392,8 @@ pub const __lldiv_t_defined: u32 = 1;
 pub const RAND_MAX: u32 = 2147483647;
 pub const EXIT_FAILURE: u32 = 1;
 pub const EXIT_SUCCESS: u32 = 0;
+pub const _BITS_TYPES_LOCALE_T_H: u32 = 1;
+pub const _BITS_TYPES___LOCALE_T_H: u32 = 1;
 pub const _SYS_TYPES_H: u32 = 1;
 pub const __clock_t_defined: u32 = 1;
 pub const __clockid_t_defined: u32 = 1;
@@ -317,7 +415,6 @@ pub const BYTE_ORDER: u32 = 1234;
 pub const _BITS_BYTESWAP_H: u32 = 1;
 pub const _BITS_UINTN_IDENTITY_H: u32 = 1;
 pub const _SYS_SELECT_H: u32 = 1;
-pub const __FD_ZERO_STOS: &[u8; 6] = b"stosq\0";
 pub const __sigset_t_defined: u32 = 1;
 pub const __timeval_defined: u32 = 1;
 pub const _STRUCT_TIMESPEC: u32 = 1;
@@ -348,6 +445,7 @@ pub const __struct_FILE_defined: u32 = 1;
 pub const _IO_EOF_SEEN: u32 = 16;
 pub const _IO_ERR_SEEN: u32 = 32;
 pub const _IO_USER_LOCK: u32 = 32768;
+pub const __cookie_io_functions_t_defined: u32 = 1;
 pub const _IOFBF: u32 = 0;
 pub const _IOLBF: u32 = 1;
 pub const _IONBF: u32 = 2;
@@ -356,16 +454,21 @@ pub const EOF: i32 = -1;
 pub const SEEK_SET: u32 = 0;
 pub const SEEK_CUR: u32 = 1;
 pub const SEEK_END: u32 = 2;
+pub const SEEK_DATA: u32 = 3;
+pub const SEEK_HOLE: u32 = 4;
 pub const P_tmpdir: &[u8; 5] = b"/tmp\0";
 pub const _BITS_STDIO_LIM_H: u32 = 1;
 pub const L_tmpnam: u32 = 20;
 pub const TMP_MAX: u32 = 238328;
 pub const FILENAME_MAX: u32 = 4096;
 pub const L_ctermid: u32 = 9;
+pub const L_cuserid: u32 = 9;
 pub const FOPEN_MAX: u32 = 16;
+pub const _PRINTF_NAN_LEN_MAX: u32 = 4;
+pub const RENAME_NOREPLACE: u32 = 1;
+pub const RENAME_EXCHANGE: u32 = 2;
+pub const RENAME_WHITEOUT: u32 = 4;
 pub const _STRING_H: u32 = 1;
-pub const _BITS_TYPES_LOCALE_T_H: u32 = 1;
-pub const _BITS_TYPES___LOCALE_T_H: u32 = 1;
 pub const _STRINGS_H: u32 = 1;
 pub const _INTTYPES_H: u32 = 1;
 pub const ____gwchar_t_defined: u32 = 1;
@@ -527,6 +630,19 @@ pub const SCNuPTR: &[u8; 3] = b"lu\0";
 pub const SCNxPTR: &[u8; 3] = b"lx\0";
 pub const _LIBC_LIMITS_H_: u32 = 1;
 pub const MB_LEN_MAX: u32 = 16;
+pub const CHAR_WIDTH: u32 = 8;
+pub const SCHAR_WIDTH: u32 = 8;
+pub const UCHAR_WIDTH: u32 = 8;
+pub const SHRT_WIDTH: u32 = 16;
+pub const USHRT_WIDTH: u32 = 16;
+pub const INT_WIDTH: u32 = 32;
+pub const UINT_WIDTH: u32 = 32;
+pub const LONG_WIDTH: u32 = 64;
+pub const ULONG_WIDTH: u32 = 64;
+pub const LLONG_WIDTH: u32 = 64;
+pub const ULLONG_WIDTH: u32 = 64;
+pub const BOOL_MAX: u32 = 1;
+pub const BOOL_WIDTH: u32 = 1;
 pub const _BITS_POSIX1_LIM_H: u32 = 1;
 pub const _POSIX_AIO_LISTIO_MAX: u32 = 2;
 pub const _POSIX_AIO_MAX: u32 = 1;
@@ -543,6 +659,7 @@ pub const _POSIX_MQ_PRIO_MAX: u32 = 32;
 pub const _POSIX_NAME_MAX: u32 = 14;
 pub const _POSIX_NGROUPS_MAX: u32 = 8;
 pub const _POSIX_OPEN_MAX: u32 = 20;
+pub const _POSIX_FD_SETSIZE: u32 = 20;
 pub const _POSIX_PATH_MAX: u32 = 256;
 pub const _POSIX_PIPE_BUF: u32 = 512;
 pub const _POSIX_RE_DUP_MAX: u32 = 255;
@@ -557,6 +674,9 @@ pub const _POSIX_SYMLOOP_MAX: u32 = 8;
 pub const _POSIX_TIMER_MAX: u32 = 32;
 pub const _POSIX_TTY_NAME_MAX: u32 = 9;
 pub const _POSIX_TZNAME_MAX: u32 = 6;
+pub const _POSIX_QLIMIT: u32 = 1;
+pub const _POSIX_HIWAT: u32 = 512;
+pub const _POSIX_UIO_MAXIOV: u32 = 16;
 pub const _POSIX_CLOCKRES_MIN: u32 = 20000000;
 pub const NR_OPEN: u32 = 1024;
 pub const NGROUPS_MAX: u32 = 65536;
@@ -577,7 +697,7 @@ pub const _POSIX_THREAD_DESTRUCTOR_ITERATIONS: u32 = 4;
 pub const PTHREAD_DESTRUCTOR_ITERATIONS: u32 = 4;
 pub const _POSIX_THREAD_THREADS_MAX: u32 = 64;
 pub const AIO_PRIO_DELTA_MAX: u32 = 20;
-pub const PTHREAD_STACK_MIN: u32 = 16384;
+pub const __SC_THREAD_STACK_MIN_VALUE: u32 = 75;
 pub const DELAYTIMER_MAX: u32 = 2147483647;
 pub const TTY_NAME_MAX: u32 = 32;
 pub const LOGIN_NAME_MAX: u32 = 256;
@@ -603,6 +723,16 @@ pub const EXPR_NEST_MAX: u32 = 32;
 pub const LINE_MAX: u32 = 2048;
 pub const CHARCLASS_NAME_MAX: u32 = 2048;
 pub const RE_DUP_MAX: u32 = 32767;
+pub const _XOPEN_LIM_H: u32 = 1;
+pub const _XOPEN_IOV_MAX: u32 = 16;
+pub const _BITS_UIO_LIM_H: u32 = 1;
+pub const __IOV_MAX: u32 = 1024;
+pub const IOV_MAX: u32 = 1024;
+pub const NL_ARGMAX: u32 = 4096;
+pub const NL_LANGMAX: u32 = 2048;
+pub const NZERO: u32 = 20;
+pub const WORD_BIT: u32 = 32;
+pub const LONG_BIT: u32 = 64;
 pub const _UNISTD_H: u32 = 1;
 pub const _POSIX_VERSION: u32 = 200809;
 pub const __POSIX2_THIS_VERSION: u32 = 200809;
@@ -710,6 +840,8 @@ pub const F_ULOCK: u32 = 0;
 pub const F_LOCK: u32 = 1;
 pub const F_TLOCK: u32 = 2;
 pub const F_TEST: u32 = 3;
+pub const CLOSE_RANGE_UNSHARE: u32 = 2;
+pub const CLOSE_RANGE_CLOEXEC: u32 = 4;
 pub const _TIME_H: u32 = 1;
 pub const _BITS_TIME_H: u32 = 1;
 pub const CLOCK_REALTIME: u32 = 0;
@@ -724,6 +856,48 @@ pub const CLOCK_REALTIME_ALARM: u32 = 8;
 pub const CLOCK_BOOTTIME_ALARM: u32 = 9;
 pub const CLOCK_TAI: u32 = 11;
 pub const TIMER_ABSTIME: u32 = 1;
+pub const _BITS_TIMEX_H: u32 = 1;
+pub const ADJ_OFFSET: u32 = 1;
+pub const ADJ_FREQUENCY: u32 = 2;
+pub const ADJ_MAXERROR: u32 = 4;
+pub const ADJ_ESTERROR: u32 = 8;
+pub const ADJ_STATUS: u32 = 16;
+pub const ADJ_TIMECONST: u32 = 32;
+pub const ADJ_TAI: u32 = 128;
+pub const ADJ_SETOFFSET: u32 = 256;
+pub const ADJ_MICRO: u32 = 4096;
+pub const ADJ_NANO: u32 = 8192;
+pub const ADJ_TICK: u32 = 16384;
+pub const ADJ_OFFSET_SINGLESHOT: u32 = 32769;
+pub const ADJ_OFFSET_SS_READ: u32 = 40961;
+pub const MOD_OFFSET: u32 = 1;
+pub const MOD_FREQUENCY: u32 = 2;
+pub const MOD_MAXERROR: u32 = 4;
+pub const MOD_ESTERROR: u32 = 8;
+pub const MOD_STATUS: u32 = 16;
+pub const MOD_TIMECONST: u32 = 32;
+pub const MOD_CLKB: u32 = 16384;
+pub const MOD_CLKA: u32 = 32769;
+pub const MOD_TAI: u32 = 128;
+pub const MOD_MICRO: u32 = 4096;
+pub const MOD_NANO: u32 = 8192;
+pub const STA_PLL: u32 = 1;
+pub const STA_PPSFREQ: u32 = 2;
+pub const STA_PPSTIME: u32 = 4;
+pub const STA_FLL: u32 = 8;
+pub const STA_INS: u32 = 16;
+pub const STA_DEL: u32 = 32;
+pub const STA_UNSYNC: u32 = 64;
+pub const STA_FREQHOLD: u32 = 128;
+pub const STA_PPSSIGNAL: u32 = 256;
+pub const STA_PPSJITTER: u32 = 512;
+pub const STA_PPSWANDER: u32 = 1024;
+pub const STA_PPSERROR: u32 = 2048;
+pub const STA_CLOCKERR: u32 = 4096;
+pub const STA_NANO: u32 = 8192;
+pub const STA_MODE: u32 = 16384;
+pub const STA_CLK: u32 = 32768;
+pub const STA_RONLY: u32 = 65280;
 pub const __struct_tm_defined: u32 = 1;
 pub const __itimerspec_defined: u32 = 1;
 pub const TIME_UTC: u32 = 1;
@@ -864,11 +1038,13 @@ pub const ENOTRECOVERABLE: u32 = 131;
 pub const ERFKILL: u32 = 132;
 pub const EHWPOISON: u32 = 133;
 pub const ENOTSUP: u32 = 95;
+pub const __error_t_defined: u32 = 1;
 pub const _FCNTL_H: u32 = 1;
 pub const __O_LARGEFILE: u32 = 0;
 pub const F_GETLK64: u32 = 5;
 pub const F_SETLK64: u32 = 6;
 pub const F_SETLKW64: u32 = 7;
+pub const __iovec_defined: u32 = 1;
 pub const O_ACCMODE: u32 = 3;
 pub const O_RDONLY: u32 = 0;
 pub const O_WRONLY: u32 = 1;
@@ -894,9 +1070,17 @@ pub const __O_TMPFILE: u32 = 4259840;
 pub const F_GETLK: u32 = 5;
 pub const F_SETLK: u32 = 6;
 pub const F_SETLKW: u32 = 7;
+pub const F_OFD_GETLK: u32 = 36;
+pub const F_OFD_SETLK: u32 = 37;
+pub const F_OFD_SETLKW: u32 = 38;
+pub const O_LARGEFILE: u32 = 0;
 pub const O_DIRECTORY: u32 = 65536;
 pub const O_NOFOLLOW: u32 = 131072;
 pub const O_CLOEXEC: u32 = 524288;
+pub const O_DIRECT: u32 = 16384;
+pub const O_NOATIME: u32 = 262144;
+pub const O_PATH: u32 = 2097152;
+pub const O_TMPFILE: u32 = 4259840;
 pub const O_DSYNC: u32 = 4096;
 pub const O_RSYNC: u32 = 1052672;
 pub const F_DUPFD: u32 = 0;
@@ -912,6 +1096,21 @@ pub const __F_SETSIG: u32 = 10;
 pub const __F_GETSIG: u32 = 11;
 pub const __F_SETOWN_EX: u32 = 15;
 pub const __F_GETOWN_EX: u32 = 16;
+pub const F_SETSIG: u32 = 10;
+pub const F_GETSIG: u32 = 11;
+pub const F_SETOWN_EX: u32 = 15;
+pub const F_GETOWN_EX: u32 = 16;
+pub const F_SETLEASE: u32 = 1024;
+pub const F_GETLEASE: u32 = 1025;
+pub const F_NOTIFY: u32 = 1026;
+pub const F_SETPIPE_SZ: u32 = 1031;
+pub const F_GETPIPE_SZ: u32 = 1032;
+pub const F_ADD_SEALS: u32 = 1033;
+pub const F_GET_SEALS: u32 = 1034;
+pub const F_GET_RW_HINT: u32 = 1035;
+pub const F_SET_RW_HINT: u32 = 1036;
+pub const F_GET_FILE_RW_HINT: u32 = 1037;
+pub const F_SET_FILE_RW_HINT: u32 = 1038;
 pub const F_DUPFD_CLOEXEC: u32 = 1030;
 pub const FD_CLOEXEC: u32 = 1;
 pub const F_RDLCK: u32 = 0;
@@ -923,6 +1122,29 @@ pub const LOCK_SH: u32 = 1;
 pub const LOCK_EX: u32 = 2;
 pub const LOCK_NB: u32 = 4;
 pub const LOCK_UN: u32 = 8;
+pub const LOCK_MAND: u32 = 32;
+pub const LOCK_READ: u32 = 64;
+pub const LOCK_WRITE: u32 = 128;
+pub const LOCK_RW: u32 = 192;
+pub const DN_ACCESS: u32 = 1;
+pub const DN_MODIFY: u32 = 2;
+pub const DN_CREATE: u32 = 4;
+pub const DN_DELETE: u32 = 8;
+pub const DN_RENAME: u32 = 16;
+pub const DN_ATTRIB: u32 = 32;
+pub const DN_MULTISHOT: u32 = 2147483648;
+pub const F_SEAL_SEAL: u32 = 1;
+pub const F_SEAL_SHRINK: u32 = 2;
+pub const F_SEAL_GROW: u32 = 4;
+pub const F_SEAL_WRITE: u32 = 8;
+pub const F_SEAL_FUTURE_WRITE: u32 = 16;
+pub const RWH_WRITE_LIFE_NOT_SET: u32 = 0;
+pub const RWF_WRITE_LIFE_NOT_SET: u32 = 0;
+pub const RWH_WRITE_LIFE_NONE: u32 = 1;
+pub const RWH_WRITE_LIFE_SHORT: u32 = 2;
+pub const RWH_WRITE_LIFE_MEDIUM: u32 = 3;
+pub const RWH_WRITE_LIFE_LONG: u32 = 4;
+pub const RWH_WRITE_LIFE_EXTREME: u32 = 5;
 pub const FAPPEND: u32 = 1024;
 pub const FFSYNC: u32 = 1052672;
 pub const FASYNC: u32 = 8192;
@@ -936,16 +1158,36 @@ pub const POSIX_FADV_SEQUENTIAL: u32 = 2;
 pub const POSIX_FADV_WILLNEED: u32 = 3;
 pub const POSIX_FADV_DONTNEED: u32 = 4;
 pub const POSIX_FADV_NOREUSE: u32 = 5;
+pub const SYNC_FILE_RANGE_WAIT_BEFORE: u32 = 1;
+pub const SYNC_FILE_RANGE_WRITE: u32 = 2;
+pub const SYNC_FILE_RANGE_WAIT_AFTER: u32 = 4;
+pub const SYNC_FILE_RANGE_WRITE_AND_WAIT: u32 = 7;
+pub const SPLICE_F_MOVE: u32 = 1;
+pub const SPLICE_F_NONBLOCK: u32 = 2;
+pub const SPLICE_F_MORE: u32 = 4;
+pub const SPLICE_F_GIFT: u32 = 8;
+pub const FALLOC_FL_KEEP_SIZE: u32 = 1;
+pub const FALLOC_FL_PUNCH_HOLE: u32 = 2;
+pub const FALLOC_FL_NO_HIDE_STALE: u32 = 4;
+pub const FALLOC_FL_COLLAPSE_RANGE: u32 = 8;
+pub const FALLOC_FL_ZERO_RANGE: u32 = 16;
+pub const FALLOC_FL_INSERT_RANGE: u32 = 32;
+pub const FALLOC_FL_UNSHARE_RANGE: u32 = 64;
+pub const MAX_HANDLE_SZ: u32 = 128;
 pub const AT_FDCWD: i32 = -100;
 pub const AT_SYMLINK_NOFOLLOW: u32 = 256;
 pub const AT_REMOVEDIR: u32 = 512;
 pub const AT_SYMLINK_FOLLOW: u32 = 1024;
+pub const AT_NO_AUTOMOUNT: u32 = 2048;
+pub const AT_EMPTY_PATH: u32 = 4096;
+pub const AT_STATX_SYNC_TYPE: u32 = 24576;
+pub const AT_STATX_SYNC_AS_STAT: u32 = 0;
+pub const AT_STATX_FORCE_SYNC: u32 = 8192;
+pub const AT_STATX_DONT_SYNC: u32 = 16384;
+pub const AT_RECURSIVE: u32 = 32768;
 pub const AT_EACCESS: u32 = 512;
 pub const _BITS_STAT_H: u32 = 1;
-pub const _STAT_VER_KERNEL: u32 = 0;
-pub const _STAT_VER_LINUX: u32 = 1;
-pub const _MKNOD_VER_LINUX: u32 = 0;
-pub const _STAT_VER: u32 = 1;
+pub const _BITS_STRUCT_STAT_H: u32 = 1;
 pub const __S_IFMT: u32 = 61440;
 pub const __S_IFDIR: u32 = 16384;
 pub const __S_IFCHR: u32 = 8192;
@@ -992,7 +1234,6 @@ pub const required_argument: u32 = 1;
 pub const optional_argument: u32 = 2;
 pub const _NETINET_IN_H: u32 = 1;
 pub const _SYS_SOCKET_H: u32 = 1;
-pub const __iovec_defined: u32 = 1;
 pub const PF_UNSPEC: u32 = 0;
 pub const PF_LOCAL: u32 = 1;
 pub const PF_UNIX: u32 = 1;
@@ -1041,7 +1282,8 @@ pub const PF_KCM: u32 = 41;
 pub const PF_QIPCRTR: u32 = 42;
 pub const PF_SMC: u32 = 43;
 pub const PF_XDP: u32 = 44;
-pub const PF_MAX: u32 = 45;
+pub const PF_MCTP: u32 = 45;
+pub const PF_MAX: u32 = 46;
 pub const AF_UNSPEC: u32 = 0;
 pub const AF_LOCAL: u32 = 1;
 pub const AF_UNIX: u32 = 1;
@@ -1090,7 +1332,8 @@ pub const AF_KCM: u32 = 41;
 pub const AF_QIPCRTR: u32 = 42;
 pub const AF_SMC: u32 = 43;
 pub const AF_XDP: u32 = 44;
-pub const AF_MAX: u32 = 45;
+pub const AF_MCTP: u32 = 45;
+pub const AF_MAX: u32 = 46;
 pub const SOL_RAW: u32 = 255;
 pub const SOL_DECNET: u32 = 261;
 pub const SOL_X25: u32 = 262;
@@ -1199,6 +1442,10 @@ pub const SO_TIMESTAMPING_NEW: u32 = 65;
 pub const SO_RCVTIMEO_NEW: u32 = 66;
 pub const SO_SNDTIMEO_NEW: u32 = 67;
 pub const SO_DETACH_REUSEPORT_BPF: u32 = 68;
+pub const SO_PREFER_BUSY_POLL: u32 = 69;
+pub const SO_BUSY_POLL_BUDGET: u32 = 70;
+pub const SO_NETNS_COOKIE: u32 = 71;
+pub const SO_BUF_LOCK: u32 = 72;
 pub const SO_TIMESTAMP: u32 = 29;
 pub const SO_TIMESTAMPNS: u32 = 35;
 pub const SO_TIMESTAMPING: u32 = 37;
@@ -1257,6 +1504,7 @@ pub const IP_NODEFRAG: u32 = 22;
 pub const IP_CHECKSUM: u32 = 23;
 pub const IP_BIND_ADDRESS_NO_PORT: u32 = 24;
 pub const IP_RECVFRAGSIZE: u32 = 25;
+pub const IP_RECVERR_RFC4884: u32 = 26;
 pub const IP_PMTUDISC_DONT: u32 = 0;
 pub const IP_PMTUDISC_WANT: u32 = 1;
 pub const IP_PMTUDISC_DO: u32 = 2;
@@ -1292,6 +1540,7 @@ pub const IPV6_JOIN_ANYCAST: u32 = 27;
 pub const IPV6_LEAVE_ANYCAST: u32 = 28;
 pub const IPV6_MULTICAST_ALL: u32 = 29;
 pub const IPV6_ROUTER_ALERT_ISOLATE: u32 = 30;
+pub const IPV6_RECVERR_RFC4884: u32 = 31;
 pub const IPV6_IPSEC_POLICY: u32 = 34;
 pub const IPV6_XFRM_POLICY: u32 = 35;
 pub const IPV6_HDRINCL: u32 = 36;
@@ -1446,8 +1695,14 @@ pub const RTLD_DEEPBIND: u32 = 8;
 pub const RTLD_GLOBAL: u32 = 256;
 pub const RTLD_LOCAL: u32 = 0;
 pub const RTLD_NODELETE: u32 = 4096;
+pub const DLFO_STRUCT_HAS_EH_DBASE: u32 = 0;
+pub const DLFO_STRUCT_HAS_EH_COUNT: u32 = 0;
+pub const LM_ID_BASE: u32 = 0;
+pub const LM_ID_NEWLM: i32 = -1;
 pub const _NETDB_H: u32 = 1;
 pub const _RPC_NETDB_H: u32 = 1;
+pub const __sigevent_t_defined: u32 = 1;
+pub const __SIGEV_MAX_SIZE: u32 = 64;
 pub const _PATH_HEQUIV: &[u8; 17] = b"/etc/hosts.equiv\0";
 pub const _PATH_HOSTS: &[u8; 11] = b"/etc/hosts\0";
 pub const _PATH_NETWORKS: &[u8; 14] = b"/etc/networks\0";
@@ -1461,12 +1716,17 @@ pub const NO_DATA: u32 = 4;
 pub const NETDB_INTERNAL: i32 = -1;
 pub const NETDB_SUCCESS: u32 = 0;
 pub const NO_ADDRESS: u32 = 4;
+pub const SCOPE_DELIMITER: u8 = 37u8;
+pub const GAI_WAIT: u32 = 0;
+pub const GAI_NOWAIT: u32 = 1;
 pub const AI_PASSIVE: u32 = 1;
 pub const AI_CANONNAME: u32 = 2;
 pub const AI_NUMERICHOST: u32 = 4;
 pub const AI_V4MAPPED: u32 = 8;
 pub const AI_ALL: u32 = 16;
 pub const AI_ADDRCONFIG: u32 = 32;
+pub const AI_IDN: u32 = 64;
+pub const AI_CANONIDN: u32 = 128;
 pub const AI_NUMERICSERV: u32 = 1024;
 pub const EAI_BADFLAGS: i32 = -1;
 pub const EAI_NONAME: i32 = -2;
@@ -1478,6 +1738,14 @@ pub const EAI_SERVICE: i32 = -8;
 pub const EAI_MEMORY: i32 = -10;
 pub const EAI_SYSTEM: i32 = -11;
 pub const EAI_OVERFLOW: i32 = -12;
+pub const EAI_NODATA: i32 = -5;
+pub const EAI_ADDRFAMILY: i32 = -9;
+pub const EAI_INPROGRESS: i32 = -100;
+pub const EAI_CANCELED: i32 = -101;
+pub const EAI_NOTCANCELED: i32 = -102;
+pub const EAI_ALLDONE: i32 = -103;
+pub const EAI_INTR: i32 = -104;
+pub const EAI_IDN_ENCODE: i32 = -105;
 pub const NI_MAXHOST: u32 = 1025;
 pub const NI_MAXSERV: u32 = 32;
 pub const NI_NUMERICHOST: u32 = 1;
@@ -1485,12 +1753,13 @@ pub const NI_NUMERICSERV: u32 = 2;
 pub const NI_NOFQDN: u32 = 4;
 pub const NI_NAMEREQD: u32 = 8;
 pub const NI_DGRAM: u32 = 16;
+pub const NI_IDN: u32 = 32;
 pub const _PWD_H: u32 = 1;
 pub const NSS_BUFLEN_PASSWD: u32 = 1024;
 pub const _ASSERT_H: u32 = 1;
 pub const _SETJMP_H: u32 = 1;
 pub const _BITS_SETJMP_H: u32 = 1;
-pub const _BITS_SIGNUM_H: u32 = 1;
+pub const __jmp_buf_tag_defined: u32 = 1;
 pub const _BITS_SIGNUM_GENERIC_H: u32 = 1;
 pub const SIGINT: u32 = 2;
 pub const SIGILL: u32 = 4;
@@ -1502,33 +1771,34 @@ pub const SIGHUP: u32 = 1;
 pub const SIGQUIT: u32 = 3;
 pub const SIGTRAP: u32 = 5;
 pub const SIGKILL: u32 = 9;
-pub const SIGBUS: u32 = 10;
-pub const SIGSYS: u32 = 12;
 pub const SIGPIPE: u32 = 13;
 pub const SIGALRM: u32 = 14;
-pub const SIGURG: u32 = 16;
-pub const SIGSTOP: u32 = 17;
-pub const SIGTSTP: u32 = 18;
-pub const SIGCONT: u32 = 19;
-pub const SIGCHLD: u32 = 20;
-pub const SIGTTIN: u32 = 21;
-pub const SIGTTOU: u32 = 22;
-pub const SIGPOLL: u32 = 23;
-pub const SIGXCPU: u32 = 24;
-pub const SIGXFSZ: u32 = 25;
-pub const SIGVTALRM: u32 = 26;
-pub const SIGPROF: u32 = 27;
-pub const SIGUSR1: u32 = 30;
-pub const SIGUSR2: u32 = 31;
-pub const SIGWINCH: u32 = 28;
-pub const SIGIO: u32 = 23;
 pub const SIGIOT: u32 = 6;
-pub const SIGCLD: u32 = 20;
-pub const __SIGRTMIN: u32 = 32;
-pub const __SIGRTMAX: u32 = 32;
-pub const _NSIG: u32 = 33;
+pub const _BITS_SIGNUM_ARCH_H: u32 = 1;
 pub const SIGSTKFLT: u32 = 16;
 pub const SIGPWR: u32 = 30;
+pub const SIGBUS: u32 = 7;
+pub const SIGSYS: u32 = 31;
+pub const SIGURG: u32 = 23;
+pub const SIGSTOP: u32 = 19;
+pub const SIGTSTP: u32 = 20;
+pub const SIGCONT: u32 = 18;
+pub const SIGCHLD: u32 = 17;
+pub const SIGTTIN: u32 = 21;
+pub const SIGTTOU: u32 = 22;
+pub const SIGPOLL: u32 = 29;
+pub const SIGXFSZ: u32 = 25;
+pub const SIGXCPU: u32 = 24;
+pub const SIGVTALRM: u32 = 26;
+pub const SIGPROF: u32 = 27;
+pub const SIGUSR1: u32 = 10;
+pub const SIGUSR2: u32 = 12;
+pub const SIGWINCH: u32 = 28;
+pub const SIGIO: u32 = 29;
+pub const SIGCLD: u32 = 17;
+pub const __SIGRTMIN: u32 = 32;
+pub const __SIGRTMAX: u32 = 64;
+pub const _NSIG: u32 = 65;
 pub const __sig_atomic_t_defined: u32 = 1;
 pub const __siginfo_t_defined: u32 = 1;
 pub const __SI_MAX_SIZE: u32 = 128;
@@ -1537,10 +1807,9 @@ pub const __SI_ERRNO_THEN_CODE: u32 = 1;
 pub const __SI_HAVE_SIGSYS: u32 = 1;
 pub const _BITS_SIGINFO_CONSTS_H: u32 = 1;
 pub const __SI_ASYNCIO_AFTER_SIGIO: u32 = 1;
-pub const __sigevent_t_defined: u32 = 1;
-pub const __SIGEV_MAX_SIZE: u32 = 64;
+pub const _BITS_SIGINFO_CONSTS_ARCH_H: u32 = 1;
 pub const _BITS_SIGEVENT_CONSTS_H: u32 = 1;
-pub const NSIG: u32 = 33;
+pub const NSIG: u32 = 65;
 pub const _BITS_SIGACTION_H: u32 = 1;
 pub const SA_NOCLDSTOP: u32 = 1;
 pub const SA_NOCLDWAIT: u32 = 2;
@@ -1570,9 +1839,13 @@ pub const _BITS_SS_FLAGS_H: u32 = 1;
 pub const __sigstack_defined: u32 = 1;
 pub const _BITS_SIGTHREAD_H: u32 = 1;
 pub const _SYS_UIO_H: u32 = 1;
-pub const _BITS_UIO_LIM_H: u32 = 1;
-pub const __IOV_MAX: u32 = 1024;
 pub const UIO_MAXIOV: u32 = 1024;
+pub const _BITS_UIO_EXT_H: u32 = 1;
+pub const RWF_HIPRI: u32 = 1;
+pub const RWF_DSYNC: u32 = 2;
+pub const RWF_SYNC: u32 = 4;
+pub const RWF_NOWAIT: u32 = 8;
+pub const RWF_APPEND: u32 = 16;
 pub const _SYS_WAIT_H: u32 = 1;
 pub const WCOREFLAG: u32 = 128;
 pub const WAIT_ANY: i32 = -1;
@@ -1585,7 +1858,33 @@ pub const ACCESSPERMS: u32 = 511;
 pub const ALLPERMS: u32 = 4095;
 pub const DEFFILEMODE: u32 = 438;
 pub const S_BLKSIZE: u32 = 512;
-pub const _MKNOD_VER: u32 = 0;
+pub const STATX_TYPE: u32 = 1;
+pub const STATX_MODE: u32 = 2;
+pub const STATX_NLINK: u32 = 4;
+pub const STATX_UID: u32 = 8;
+pub const STATX_GID: u32 = 16;
+pub const STATX_ATIME: u32 = 32;
+pub const STATX_MTIME: u32 = 64;
+pub const STATX_CTIME: u32 = 128;
+pub const STATX_INO: u32 = 256;
+pub const STATX_SIZE: u32 = 512;
+pub const STATX_BLOCKS: u32 = 1024;
+pub const STATX_BASIC_STATS: u32 = 2047;
+pub const STATX_BTIME: u32 = 2048;
+pub const STATX_MNT_ID: u32 = 4096;
+pub const STATX__RESERVED: u32 = 2147483648;
+pub const STATX_ALL: u32 = 4095;
+pub const STATX_ATTR_COMPRESSED: u32 = 4;
+pub const STATX_ATTR_IMMUTABLE: u32 = 16;
+pub const STATX_ATTR_APPEND: u32 = 32;
+pub const STATX_ATTR_NODUMP: u32 = 64;
+pub const STATX_ATTR_ENCRYPTED: u32 = 2048;
+pub const STATX_ATTR_AUTOMOUNT: u32 = 4096;
+pub const STATX_ATTR_MOUNT_ROOT: u32 = 8192;
+pub const STATX_ATTR_VERITY: u32 = 1048576;
+pub const STATX_ATTR_DAX: u32 = 2097152;
+pub const __statx_timestamp_defined: u32 = 1;
+pub const __statx_defined: u32 = 1;
 pub const _SYS_TIME_H: u32 = 1;
 pub const _SYS_MMAN_H: u32 = 1;
 pub const MAP_32BIT: u32 = 64;
@@ -1638,6 +1937,8 @@ pub const MADV_WIPEONFORK: u32 = 18;
 pub const MADV_KEEPONFORK: u32 = 19;
 pub const MADV_COLD: u32 = 20;
 pub const MADV_PAGEOUT: u32 = 21;
+pub const MADV_POPULATE_READ: u32 = 22;
+pub const MADV_POPULATE_WRITE: u32 = 23;
 pub const MADV_HWPOISON: u32 = 100;
 pub const POSIX_MADV_NORMAL: u32 = 0;
 pub const POSIX_MADV_RANDOM: u32 = 1;
@@ -1647,6 +1948,15 @@ pub const POSIX_MADV_DONTNEED: u32 = 4;
 pub const MCL_CURRENT: u32 = 1;
 pub const MCL_FUTURE: u32 = 2;
 pub const MCL_ONFAULT: u32 = 4;
+pub const MREMAP_MAYMOVE: u32 = 1;
+pub const MREMAP_FIXED: u32 = 2;
+pub const MREMAP_DONTUNMAP: u32 = 4;
+pub const MFD_CLOEXEC: u32 = 1;
+pub const MFD_ALLOW_SEALING: u32 = 2;
+pub const MFD_HUGETLB: u32 = 4;
+pub const MLOCK_ONFAULT: u32 = 1;
+pub const PKEY_DISABLE_ACCESS: u32 = 1;
+pub const PKEY_DISABLE_WRITE: u32 = 2;
 pub const G_ANALYZER_ANALYZING: u32 = 0;
 pub const FALSE: u32 = 0;
 pub const G_GINT16_MODIFIER: &[u8; 2] = b"h\0";
@@ -1674,8 +1984,8 @@ pub const G_GINTPTR_MODIFIER: &[u8; 2] = b"l\0";
 pub const G_GINTPTR_FORMAT: &[u8; 3] = b"li\0";
 pub const G_GUINTPTR_FORMAT: &[u8; 3] = b"lu\0";
 pub const GLIB_MAJOR_VERSION: u32 = 2;
-pub const GLIB_MINOR_VERSION: u32 = 66;
-pub const GLIB_MICRO_VERSION: u32 = 7;
+pub const GLIB_MINOR_VERSION: u32 = 72;
+pub const GLIB_MICRO_VERSION: u32 = 4;
 pub const G_VA_COPY_AS_ARRAY: u32 = 1;
 pub const G_HAVE_ISO_VARARGS: u32 = 1;
 pub const G_HAVE_GROWING_STACK: u32 = 0;
@@ -1774,29 +2084,61 @@ pub const _BITS_SCHED_H: u32 = 1;
 pub const SCHED_OTHER: u32 = 0;
 pub const SCHED_FIFO: u32 = 1;
 pub const SCHED_RR: u32 = 2;
+pub const SCHED_BATCH: u32 = 3;
+pub const SCHED_ISO: u32 = 4;
+pub const SCHED_IDLE: u32 = 5;
+pub const SCHED_DEADLINE: u32 = 6;
+pub const SCHED_RESET_ON_FORK: u32 = 1073741824;
+pub const CSIGNAL: u32 = 255;
+pub const CLONE_VM: u32 = 256;
+pub const CLONE_FS: u32 = 512;
+pub const CLONE_FILES: u32 = 1024;
+pub const CLONE_SIGHAND: u32 = 2048;
+pub const CLONE_PIDFD: u32 = 4096;
+pub const CLONE_PTRACE: u32 = 8192;
+pub const CLONE_VFORK: u32 = 16384;
+pub const CLONE_PARENT: u32 = 32768;
+pub const CLONE_THREAD: u32 = 65536;
+pub const CLONE_NEWNS: u32 = 131072;
+pub const CLONE_SYSVSEM: u32 = 262144;
+pub const CLONE_SETTLS: u32 = 524288;
+pub const CLONE_PARENT_SETTID: u32 = 1048576;
+pub const CLONE_CHILD_CLEARTID: u32 = 2097152;
+pub const CLONE_DETACHED: u32 = 4194304;
+pub const CLONE_UNTRACED: u32 = 8388608;
+pub const CLONE_CHILD_SETTID: u32 = 16777216;
+pub const CLONE_NEWCGROUP: u32 = 33554432;
+pub const CLONE_NEWUTS: u32 = 67108864;
+pub const CLONE_NEWIPC: u32 = 134217728;
+pub const CLONE_NEWUSER: u32 = 268435456;
+pub const CLONE_NEWPID: u32 = 536870912;
+pub const CLONE_NEWNET: u32 = 1073741824;
+pub const CLONE_IO: u32 = 2147483648;
 pub const _BITS_TYPES_STRUCT_SCHED_PARAM: u32 = 1;
 pub const _BITS_CPU_SET_H: u32 = 1;
 pub const __CPU_SETSIZE: u32 = 1024;
+pub const CPU_SETSIZE: u32 = 1024;
 pub const PTHREAD_ONCE_INIT: u32 = 0;
 pub const PTHREAD_BARRIER_SERIAL_THREAD: i32 = -1;
+pub const PTHREAD_ATTR_NO_SIGMASK_NP: i32 = -1;
 pub const CONFIG_I386_DIS: u32 = 1;
-pub const CONFIG_PPC_DIS: u32 = 1;
+pub const CONFIG_KVM: u32 = 1;
 pub const CONFIG_SOFTMMU: u32 = 1;
 pub const CONFIG_SYSTEM_ONLY: u32 = 1;
 pub const CONFIG_TCG: u32 = 1;
-pub const CONFIG_TCG_BUILTIN: u32 = 1;
-pub const TARGET_BIG_ENDIAN: u32 = 1;
+pub const CONFIG_TCG_MODULAR: u32 = 1;
+pub const CONFIG_XEN: u32 = 1;
+pub const TARGET_BIG_ENDIAN: u32 = 0;
+pub const TARGET_I386: u32 = 1;
 pub const TARGET_KVM_HAVE_GUEST_DEBUG: u32 = 1;
-pub const TARGET_NAME: &[u8; 6] = b"ppc64\0";
-pub const TARGET_NEED_FDT: u32 = 1;
-pub const TARGET_PPC: u32 = 1;
-pub const TARGET_PPC64: u32 = 1;
+pub const TARGET_KVM_HAVE_RESET_PARKED_VCPU: u32 = 1;
+pub const TARGET_NAME: &[u8; 7] = b"x86_64\0";
 pub const TARGET_SUPPORTS_MTTCG: u32 = 1;
+pub const TARGET_X86_64: u32 = 1;
 pub const TARGET_LONG_BITS: u32 = 64;
-pub const TARGET_PHYS_ADDR_SPACE_BITS: u32 = 62;
-pub const TARGET_VIRT_ADDR_SPACE_BITS: u32 = 64;
+pub const TARGET_PHYS_ADDR_SPACE_BITS: u32 = 52;
+pub const TARGET_VIRT_ADDR_SPACE_BITS: u32 = 47;
 pub const TARGET_PAGE_BITS: u32 = 12;
-pub const TCG_GUEST_DEFAULT_MO: u32 = 0;
 pub const PPP_MAX_CB: u32 = 256;
 pub const PANDA_CORE_NAME: &[u8; 5] = b"core\0";
 pub const PANDA_MSG_PREFIX: &[u8; 7] = b"PANDA[\0";
@@ -1810,6 +2152,11 @@ pub const PANDA_LOG_INFO: u32 = 3;
 pub const PANDA_LOG_DEBUG: u32 = 4;
 pub const PANDA_LOG_LEVEL: u32 = 2;
 pub const MEMTX_OK: u32 = 0;
+pub const TARGET_LONG_SIZE: u32 = 8;
+pub const TARGET_FMT_lx: &[u8; 7] = b"%016lx\0";
+pub const TARGET_FMT_ld: &[u8; 4] = b"%ld\0";
+pub const TARGET_FMT_lu: &[u8; 4] = b"%lu\0";
+pub const TARGET_PTR_FMT: &[u8; 7] = b"%016lx\0";
 pub type va_list = __builtin_va_list;
 pub type __gnuc_va_list = __builtin_va_list;
 pub type wchar_t = ::std::os::raw::c_int;
@@ -1882,6 +2229,7 @@ pub type __id_t = ::std::os::raw::c_uint;
 pub type __time_t = ::std::os::raw::c_long;
 pub type __useconds_t = ::std::os::raw::c_uint;
 pub type __suseconds_t = ::std::os::raw::c_long;
+pub type __suseconds64_t = ::std::os::raw::c_long;
 pub type __daddr_t = ::std::os::raw::c_int;
 pub type __key_t = ::std::os::raw::c_int;
 pub type __clockid_t = ::std::os::raw::c_int;
@@ -1920,10 +2268,6 @@ pub type uint_fast32_t = ::std::os::raw::c_ulong;
 pub type uint_fast64_t = ::std::os::raw::c_ulong;
 pub type intmax_t = __intmax_t;
 pub type uintmax_t = __uintmax_t;
-pub const P_ALL: idtype_t = 0;
-pub const P_PID: idtype_t = 1;
-pub const P_PGID: idtype_t = 2;
-pub type idtype_t = ::std::os::raw::c_uint;
 pub type _Float32 = f32;
 pub type _Float64 = f64;
 pub type _Float32x = f64;
@@ -2001,6 +2345,30 @@ unsafe extern "C" {
     ) -> u128;
 }
 unsafe extern "C" {
+    pub fn strtof32(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+    ) -> _Float32;
+}
+unsafe extern "C" {
+    pub fn strtof64(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+    ) -> _Float64;
+}
+unsafe extern "C" {
+    pub fn strtof32x(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+    ) -> _Float32x;
+}
+unsafe extern "C" {
+    pub fn strtof64x(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+    ) -> _Float64x;
+}
+unsafe extern "C" {
     pub fn strtol(
         __nptr: *const ::std::os::raw::c_char,
         __endptr: *mut *mut ::std::os::raw::c_char,
@@ -2043,6 +2411,169 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_ulonglong;
 }
 unsafe extern "C" {
+    pub fn strfromd(
+        __dest: *mut ::std::os::raw::c_char,
+        __size: usize,
+        __format: *const ::std::os::raw::c_char,
+        __f: f64,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn strfromf(
+        __dest: *mut ::std::os::raw::c_char,
+        __size: usize,
+        __format: *const ::std::os::raw::c_char,
+        __f: f32,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn strfroml(
+        __dest: *mut ::std::os::raw::c_char,
+        __size: usize,
+        __format: *const ::std::os::raw::c_char,
+        __f: u128,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn strfromf32(
+        __dest: *mut ::std::os::raw::c_char,
+        __size: usize,
+        __format: *const ::std::os::raw::c_char,
+        __f: _Float32,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn strfromf64(
+        __dest: *mut ::std::os::raw::c_char,
+        __size: usize,
+        __format: *const ::std::os::raw::c_char,
+        __f: _Float64,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn strfromf32x(
+        __dest: *mut ::std::os::raw::c_char,
+        __size: usize,
+        __format: *const ::std::os::raw::c_char,
+        __f: _Float32x,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn strfromf64x(
+        __dest: *mut ::std::os::raw::c_char,
+        __size: usize,
+        __format: *const ::std::os::raw::c_char,
+        __f: _Float64x,
+    ) -> ::std::os::raw::c_int;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct __locale_struct {
+    pub __locales: [*mut __locale_data; 13usize],
+    pub __ctype_b: *const ::std::os::raw::c_ushort,
+    pub __ctype_tolower: *const ::std::os::raw::c_int,
+    pub __ctype_toupper: *const ::std::os::raw::c_int,
+    pub __names: [*const ::std::os::raw::c_char; 13usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of __locale_struct"][::std::mem::size_of::<__locale_struct>() - 232usize];
+    ["Alignment of __locale_struct"][::std::mem::align_of::<__locale_struct>() - 8usize];
+    ["Offset of field: __locale_struct::__locales"]
+        [::std::mem::offset_of!(__locale_struct, __locales) - 0usize];
+    ["Offset of field: __locale_struct::__ctype_b"]
+        [::std::mem::offset_of!(__locale_struct, __ctype_b) - 104usize];
+    ["Offset of field: __locale_struct::__ctype_tolower"]
+        [::std::mem::offset_of!(__locale_struct, __ctype_tolower) - 112usize];
+    ["Offset of field: __locale_struct::__ctype_toupper"]
+        [::std::mem::offset_of!(__locale_struct, __ctype_toupper) - 120usize];
+    ["Offset of field: __locale_struct::__names"]
+        [::std::mem::offset_of!(__locale_struct, __names) - 128usize];
+};
+pub type __locale_t = *mut __locale_struct;
+pub type locale_t = __locale_t;
+unsafe extern "C" {
+    pub fn strtol_l(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+        __base: ::std::os::raw::c_int,
+        __loc: locale_t,
+    ) -> ::std::os::raw::c_long;
+}
+unsafe extern "C" {
+    pub fn strtoul_l(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+        __base: ::std::os::raw::c_int,
+        __loc: locale_t,
+    ) -> ::std::os::raw::c_ulong;
+}
+unsafe extern "C" {
+    pub fn strtoll_l(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+        __base: ::std::os::raw::c_int,
+        __loc: locale_t,
+    ) -> ::std::os::raw::c_longlong;
+}
+unsafe extern "C" {
+    pub fn strtoull_l(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+        __base: ::std::os::raw::c_int,
+        __loc: locale_t,
+    ) -> ::std::os::raw::c_ulonglong;
+}
+unsafe extern "C" {
+    pub fn strtod_l(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+        __loc: locale_t,
+    ) -> f64;
+}
+unsafe extern "C" {
+    pub fn strtof_l(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+        __loc: locale_t,
+    ) -> f32;
+}
+unsafe extern "C" {
+    pub fn strtold_l(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+        __loc: locale_t,
+    ) -> u128;
+}
+unsafe extern "C" {
+    pub fn strtof32_l(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+        __loc: locale_t,
+    ) -> _Float32;
+}
+unsafe extern "C" {
+    pub fn strtof64_l(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+        __loc: locale_t,
+    ) -> _Float64;
+}
+unsafe extern "C" {
+    pub fn strtof32x_l(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+        __loc: locale_t,
+    ) -> _Float32x;
+}
+unsafe extern "C" {
+    pub fn strtof64x_l(
+        __nptr: *const ::std::os::raw::c_char,
+        __endptr: *mut *mut ::std::os::raw::c_char,
+        __loc: locale_t,
+    ) -> _Float64x;
+}
+unsafe extern "C" {
     pub fn l64a(__n: ::std::os::raw::c_long) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
@@ -2057,12 +2588,14 @@ pub type u_quad_t = __u_quad_t;
 pub type fsid_t = __fsid_t;
 pub type loff_t = __loff_t;
 pub type ino_t = __ino_t;
+pub type ino64_t = __ino64_t;
 pub type dev_t = __dev_t;
 pub type gid_t = __gid_t;
 pub type mode_t = __mode_t;
 pub type nlink_t = __nlink_t;
 pub type uid_t = __uid_t;
 pub type off_t = __off_t;
+pub type off64_t = __off64_t;
 pub type pid_t = __pid_t;
 pub type id_t = __id_t;
 pub type daddr_t = __daddr_t;
@@ -2072,6 +2605,8 @@ pub type clock_t = __clock_t;
 pub type clockid_t = __clockid_t;
 pub type time_t = __time_t;
 pub type timer_t = __timer_t;
+pub type useconds_t = __useconds_t;
+pub type suseconds_t = __suseconds_t;
 pub type ulong = ::std::os::raw::c_ulong;
 pub type ushort = ::std::os::raw::c_ushort;
 pub type uint = ::std::os::raw::c_uint;
@@ -2118,18 +2653,17 @@ const _: () = {
     ["Offset of field: timespec::tv_sec"][::std::mem::offset_of!(timespec, tv_sec) - 0usize];
     ["Offset of field: timespec::tv_nsec"][::std::mem::offset_of!(timespec, tv_nsec) - 8usize];
 };
-pub type suseconds_t = __suseconds_t;
 pub type __fd_mask = ::std::os::raw::c_long;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct fd_set {
-    pub __fds_bits: [__fd_mask; 16usize],
+    pub fds_bits: [__fd_mask; 16usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
     ["Size of fd_set"][::std::mem::size_of::<fd_set>() - 128usize];
     ["Alignment of fd_set"][::std::mem::align_of::<fd_set>() - 8usize];
-    ["Offset of field: fd_set::__fds_bits"][::std::mem::offset_of!(fd_set, __fds_bits) - 0usize];
+    ["Offset of field: fd_set::fds_bits"][::std::mem::offset_of!(fd_set, fds_bits) - 0usize];
 };
 pub type fd_mask = __fd_mask;
 unsafe extern "C" {
@@ -2155,6 +2689,42 @@ pub type blksize_t = __blksize_t;
 pub type blkcnt_t = __blkcnt_t;
 pub type fsblkcnt_t = __fsblkcnt_t;
 pub type fsfilcnt_t = __fsfilcnt_t;
+pub type blkcnt64_t = __blkcnt64_t;
+pub type fsblkcnt64_t = __fsblkcnt64_t;
+pub type fsfilcnt64_t = __fsfilcnt64_t;
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union __atomic_wide_counter {
+    pub __value64: ::std::os::raw::c_ulonglong,
+    pub __value32: __atomic_wide_counter__bindgen_ty_1,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct __atomic_wide_counter__bindgen_ty_1 {
+    pub __low: ::std::os::raw::c_uint,
+    pub __high: ::std::os::raw::c_uint,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of __atomic_wide_counter__bindgen_ty_1"]
+        [::std::mem::size_of::<__atomic_wide_counter__bindgen_ty_1>() - 8usize];
+    ["Alignment of __atomic_wide_counter__bindgen_ty_1"]
+        [::std::mem::align_of::<__atomic_wide_counter__bindgen_ty_1>() - 4usize];
+    ["Offset of field: __atomic_wide_counter__bindgen_ty_1::__low"]
+        [::std::mem::offset_of!(__atomic_wide_counter__bindgen_ty_1, __low) - 0usize];
+    ["Offset of field: __atomic_wide_counter__bindgen_ty_1::__high"]
+        [::std::mem::offset_of!(__atomic_wide_counter__bindgen_ty_1, __high) - 4usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of __atomic_wide_counter"][::std::mem::size_of::<__atomic_wide_counter>() - 8usize];
+    ["Alignment of __atomic_wide_counter"]
+        [::std::mem::align_of::<__atomic_wide_counter>() - 8usize];
+    ["Offset of field: __atomic_wide_counter::__value64"]
+        [::std::mem::offset_of!(__atomic_wide_counter, __value64) - 0usize];
+    ["Offset of field: __atomic_wide_counter::__value32"]
+        [::std::mem::offset_of!(__atomic_wide_counter, __value32) - 0usize];
+};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct __pthread_internal_list {
@@ -2269,86 +2839,22 @@ const _: () = {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct __pthread_cond_s {
-    pub __bindgen_anon_1: __pthread_cond_s__bindgen_ty_1,
-    pub __bindgen_anon_2: __pthread_cond_s__bindgen_ty_2,
+    pub __wseq: __atomic_wide_counter,
+    pub __g1_start: __atomic_wide_counter,
     pub __g_refs: [::std::os::raw::c_uint; 2usize],
     pub __g_size: [::std::os::raw::c_uint; 2usize],
     pub __g1_orig_size: ::std::os::raw::c_uint,
     pub __wrefs: ::std::os::raw::c_uint,
     pub __g_signals: [::std::os::raw::c_uint; 2usize],
 }
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union __pthread_cond_s__bindgen_ty_1 {
-    pub __wseq: ::std::os::raw::c_ulonglong,
-    pub __wseq32: __pthread_cond_s__bindgen_ty_1__bindgen_ty_1,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct __pthread_cond_s__bindgen_ty_1__bindgen_ty_1 {
-    pub __low: ::std::os::raw::c_uint,
-    pub __high: ::std::os::raw::c_uint,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of __pthread_cond_s__bindgen_ty_1__bindgen_ty_1"]
-        [::std::mem::size_of::<__pthread_cond_s__bindgen_ty_1__bindgen_ty_1>() - 8usize];
-    ["Alignment of __pthread_cond_s__bindgen_ty_1__bindgen_ty_1"]
-        [::std::mem::align_of::<__pthread_cond_s__bindgen_ty_1__bindgen_ty_1>() - 4usize];
-    ["Offset of field: __pthread_cond_s__bindgen_ty_1__bindgen_ty_1::__low"]
-        [::std::mem::offset_of!(__pthread_cond_s__bindgen_ty_1__bindgen_ty_1, __low) - 0usize];
-    ["Offset of field: __pthread_cond_s__bindgen_ty_1__bindgen_ty_1::__high"]
-        [::std::mem::offset_of!(__pthread_cond_s__bindgen_ty_1__bindgen_ty_1, __high) - 4usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of __pthread_cond_s__bindgen_ty_1"]
-        [::std::mem::size_of::<__pthread_cond_s__bindgen_ty_1>() - 8usize];
-    ["Alignment of __pthread_cond_s__bindgen_ty_1"]
-        [::std::mem::align_of::<__pthread_cond_s__bindgen_ty_1>() - 8usize];
-    ["Offset of field: __pthread_cond_s__bindgen_ty_1::__wseq"]
-        [::std::mem::offset_of!(__pthread_cond_s__bindgen_ty_1, __wseq) - 0usize];
-    ["Offset of field: __pthread_cond_s__bindgen_ty_1::__wseq32"]
-        [::std::mem::offset_of!(__pthread_cond_s__bindgen_ty_1, __wseq32) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union __pthread_cond_s__bindgen_ty_2 {
-    pub __g1_start: ::std::os::raw::c_ulonglong,
-    pub __g1_start32: __pthread_cond_s__bindgen_ty_2__bindgen_ty_1,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct __pthread_cond_s__bindgen_ty_2__bindgen_ty_1 {
-    pub __low: ::std::os::raw::c_uint,
-    pub __high: ::std::os::raw::c_uint,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of __pthread_cond_s__bindgen_ty_2__bindgen_ty_1"]
-        [::std::mem::size_of::<__pthread_cond_s__bindgen_ty_2__bindgen_ty_1>() - 8usize];
-    ["Alignment of __pthread_cond_s__bindgen_ty_2__bindgen_ty_1"]
-        [::std::mem::align_of::<__pthread_cond_s__bindgen_ty_2__bindgen_ty_1>() - 4usize];
-    ["Offset of field: __pthread_cond_s__bindgen_ty_2__bindgen_ty_1::__low"]
-        [::std::mem::offset_of!(__pthread_cond_s__bindgen_ty_2__bindgen_ty_1, __low) - 0usize];
-    ["Offset of field: __pthread_cond_s__bindgen_ty_2__bindgen_ty_1::__high"]
-        [::std::mem::offset_of!(__pthread_cond_s__bindgen_ty_2__bindgen_ty_1, __high) - 4usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of __pthread_cond_s__bindgen_ty_2"]
-        [::std::mem::size_of::<__pthread_cond_s__bindgen_ty_2>() - 8usize];
-    ["Alignment of __pthread_cond_s__bindgen_ty_2"]
-        [::std::mem::align_of::<__pthread_cond_s__bindgen_ty_2>() - 8usize];
-    ["Offset of field: __pthread_cond_s__bindgen_ty_2::__g1_start"]
-        [::std::mem::offset_of!(__pthread_cond_s__bindgen_ty_2, __g1_start) - 0usize];
-    ["Offset of field: __pthread_cond_s__bindgen_ty_2::__g1_start32"]
-        [::std::mem::offset_of!(__pthread_cond_s__bindgen_ty_2, __g1_start32) - 0usize];
-};
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
     ["Size of __pthread_cond_s"][::std::mem::size_of::<__pthread_cond_s>() - 48usize];
     ["Alignment of __pthread_cond_s"][::std::mem::align_of::<__pthread_cond_s>() - 8usize];
+    ["Offset of field: __pthread_cond_s::__wseq"]
+        [::std::mem::offset_of!(__pthread_cond_s, __wseq) - 0usize];
+    ["Offset of field: __pthread_cond_s::__g1_start"]
+        [::std::mem::offset_of!(__pthread_cond_s, __g1_start) - 8usize];
     ["Offset of field: __pthread_cond_s::__g_refs"]
         [::std::mem::offset_of!(__pthread_cond_s, __g_refs) - 16usize];
     ["Offset of field: __pthread_cond_s::__g_size"]
@@ -2359,6 +2865,19 @@ const _: () = {
         [::std::mem::offset_of!(__pthread_cond_s, __wrefs) - 36usize];
     ["Offset of field: __pthread_cond_s::__g_signals"]
         [::std::mem::offset_of!(__pthread_cond_s, __g_signals) - 40usize];
+};
+pub type __tss_t = ::std::os::raw::c_uint;
+pub type __thrd_t = ::std::os::raw::c_ulong;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct __once_flag {
+    pub __data: ::std::os::raw::c_int,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of __once_flag"][::std::mem::size_of::<__once_flag>() - 4usize];
+    ["Alignment of __once_flag"][::std::mem::align_of::<__once_flag>() - 4usize];
+    ["Offset of field: __once_flag::__data"][::std::mem::offset_of!(__once_flag, __data) - 0usize];
 };
 pub type pthread_t = ::std::os::raw::c_ulong;
 #[repr(C)]
@@ -2702,14 +3221,14 @@ unsafe extern "C" {
     ) -> *mut ::std::os::raw::c_void;
 }
 unsafe extern "C" {
+    pub fn free(__ptr: *mut ::std::os::raw::c_void);
+}
+unsafe extern "C" {
     pub fn reallocarray(
         __ptr: *mut ::std::os::raw::c_void,
         __nmemb: usize,
         __size: usize,
     ) -> *mut ::std::os::raw::c_void;
-}
-unsafe extern "C" {
-    pub fn free(__ptr: *mut ::std::os::raw::c_void);
 }
 unsafe extern "C" {
     pub fn alloca(__size: ::std::os::raw::c_ulong) -> *mut ::std::os::raw::c_void;
@@ -2725,7 +3244,10 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
-    pub fn aligned_alloc(__alignment: usize, __size: usize) -> *mut ::std::os::raw::c_void;
+    pub fn aligned_alloc(
+        __alignment: ::std::os::raw::c_ulong,
+        __size: ::std::os::raw::c_ulong,
+    ) -> *mut ::std::os::raw::c_void;
 }
 unsafe extern "C" {
     pub fn abort() -> !;
@@ -2762,6 +3284,9 @@ unsafe extern "C" {
     pub fn getenv(__name: *const ::std::os::raw::c_char) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
+    pub fn secure_getenv(__name: *const ::std::os::raw::c_char) -> *mut ::std::os::raw::c_char;
+}
+unsafe extern "C" {
     pub fn putenv(__string: *mut ::std::os::raw::c_char) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -2784,7 +3309,16 @@ unsafe extern "C" {
     pub fn mkstemp(__template: *mut ::std::os::raw::c_char) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn mkstemp64(__template: *mut ::std::os::raw::c_char) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn mkstemps(
+        __template: *mut ::std::os::raw::c_char,
+        __suffixlen: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn mkstemps64(
         __template: *mut ::std::os::raw::c_char,
         __suffixlen: ::std::os::raw::c_int,
     ) -> ::std::os::raw::c_int;
@@ -2793,7 +3327,38 @@ unsafe extern "C" {
     pub fn mkdtemp(__template: *mut ::std::os::raw::c_char) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
+    pub fn mkostemp(
+        __template: *mut ::std::os::raw::c_char,
+        __flags: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn mkostemp64(
+        __template: *mut ::std::os::raw::c_char,
+        __flags: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn mkostemps(
+        __template: *mut ::std::os::raw::c_char,
+        __suffixlen: ::std::os::raw::c_int,
+        __flags: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn mkostemps64(
+        __template: *mut ::std::os::raw::c_char,
+        __suffixlen: ::std::os::raw::c_int,
+        __flags: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn system(__command: *const ::std::os::raw::c_char) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn canonicalize_file_name(
+        __name: *const ::std::os::raw::c_char,
+    ) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
     pub fn realpath(
@@ -2805,6 +3370,14 @@ pub type __compar_fn_t = ::std::option::Option<
     unsafe extern "C" fn(
         arg1: *const ::std::os::raw::c_void,
         arg2: *const ::std::os::raw::c_void,
+    ) -> ::std::os::raw::c_int,
+>;
+pub type comparison_fn_t = __compar_fn_t;
+pub type __compar_d_fn_t = ::std::option::Option<
+    unsafe extern "C" fn(
+        arg1: *const ::std::os::raw::c_void,
+        arg2: *const ::std::os::raw::c_void,
+        arg3: *mut ::std::os::raw::c_void,
     ) -> ::std::os::raw::c_int,
 >;
 unsafe extern "C" {
@@ -2822,6 +3395,15 @@ unsafe extern "C" {
         __nmemb: usize,
         __size: usize,
         __compar: __compar_fn_t,
+    );
+}
+unsafe extern "C" {
+    pub fn qsort_r(
+        __base: *mut ::std::os::raw::c_void,
+        __nmemb: usize,
+        __size: usize,
+        __compar: __compar_d_fn_t,
+        __arg: *mut ::std::os::raw::c_void,
     );
 }
 unsafe extern "C" {
@@ -2959,6 +3541,28 @@ unsafe extern "C" {
         __tokens: *const *mut ::std::os::raw::c_char,
         __valuep: *mut *mut ::std::os::raw::c_char,
     ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn posix_openpt(__oflag: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn grantpt(__fd: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn unlockpt(__fd: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn ptsname(__fd: ::std::os::raw::c_int) -> *mut ::std::os::raw::c_char;
+}
+unsafe extern "C" {
+    pub fn ptsname_r(
+        __fd: ::std::os::raw::c_int,
+        __buf: *mut ::std::os::raw::c_char,
+        __buflen: usize,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn getpt() -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn getloadavg(__loadavg: *mut f64, __nelem: ::std::os::raw::c_int)
@@ -3128,7 +3732,56 @@ const _: () = {
     ["Offset of field: _IO_FILE::_mode"][::std::mem::offset_of!(_IO_FILE, _mode) - 192usize];
     ["Offset of field: _IO_FILE::_unused2"][::std::mem::offset_of!(_IO_FILE, _unused2) - 196usize];
 };
+pub type cookie_read_function_t = ::std::option::Option<
+    unsafe extern "C" fn(
+        __cookie: *mut ::std::os::raw::c_void,
+        __buf: *mut ::std::os::raw::c_char,
+        __nbytes: usize,
+    ) -> __ssize_t,
+>;
+pub type cookie_write_function_t = ::std::option::Option<
+    unsafe extern "C" fn(
+        __cookie: *mut ::std::os::raw::c_void,
+        __buf: *const ::std::os::raw::c_char,
+        __nbytes: usize,
+    ) -> __ssize_t,
+>;
+pub type cookie_seek_function_t = ::std::option::Option<
+    unsafe extern "C" fn(
+        __cookie: *mut ::std::os::raw::c_void,
+        __pos: *mut __off64_t,
+        __w: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int,
+>;
+pub type cookie_close_function_t = ::std::option::Option<
+    unsafe extern "C" fn(__cookie: *mut ::std::os::raw::c_void) -> ::std::os::raw::c_int,
+>;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _IO_cookie_io_functions_t {
+    pub read: cookie_read_function_t,
+    pub write: cookie_write_function_t,
+    pub seek: cookie_seek_function_t,
+    pub close: cookie_close_function_t,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of _IO_cookie_io_functions_t"]
+        [::std::mem::size_of::<_IO_cookie_io_functions_t>() - 32usize];
+    ["Alignment of _IO_cookie_io_functions_t"]
+        [::std::mem::align_of::<_IO_cookie_io_functions_t>() - 8usize];
+    ["Offset of field: _IO_cookie_io_functions_t::read"]
+        [::std::mem::offset_of!(_IO_cookie_io_functions_t, read) - 0usize];
+    ["Offset of field: _IO_cookie_io_functions_t::write"]
+        [::std::mem::offset_of!(_IO_cookie_io_functions_t, write) - 8usize];
+    ["Offset of field: _IO_cookie_io_functions_t::seek"]
+        [::std::mem::offset_of!(_IO_cookie_io_functions_t, seek) - 16usize];
+    ["Offset of field: _IO_cookie_io_functions_t::close"]
+        [::std::mem::offset_of!(_IO_cookie_io_functions_t, close) - 24usize];
+};
+pub type cookie_io_functions_t = _IO_cookie_io_functions_t;
 pub type fpos_t = __fpos_t;
+pub type fpos64_t = __fpos64_t;
 unsafe extern "C" {
     pub static mut stdin: *mut FILE;
 }
@@ -3156,10 +3809,25 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn renameat2(
+        __oldfd: ::std::os::raw::c_int,
+        __old: *const ::std::os::raw::c_char,
+        __newfd: ::std::os::raw::c_int,
+        __new: *const ::std::os::raw::c_char,
+        __flags: ::std::os::raw::c_uint,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn fclose(__stream: *mut FILE) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn tmpfile() -> *mut FILE;
 }
 unsafe extern "C" {
-    pub fn tmpnam(__s: *mut ::std::os::raw::c_char) -> *mut ::std::os::raw::c_char;
+    pub fn tmpfile64() -> *mut FILE;
+}
+unsafe extern "C" {
+    pub fn tmpnam(arg1: *mut ::std::os::raw::c_char) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
     pub fn tmpnam_r(__s: *mut ::std::os::raw::c_char) -> *mut ::std::os::raw::c_char;
@@ -3171,13 +3839,13 @@ unsafe extern "C" {
     ) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
-    pub fn fclose(__stream: *mut FILE) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
     pub fn fflush(__stream: *mut FILE) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn fflush_unlocked(__stream: *mut FILE) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn fcloseall() -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn fopen(
@@ -3193,8 +3861,28 @@ unsafe extern "C" {
     ) -> *mut FILE;
 }
 unsafe extern "C" {
+    pub fn fopen64(
+        __filename: *const ::std::os::raw::c_char,
+        __modes: *const ::std::os::raw::c_char,
+    ) -> *mut FILE;
+}
+unsafe extern "C" {
+    pub fn freopen64(
+        __filename: *const ::std::os::raw::c_char,
+        __modes: *const ::std::os::raw::c_char,
+        __stream: *mut FILE,
+    ) -> *mut FILE;
+}
+unsafe extern "C" {
     pub fn fdopen(__fd: ::std::os::raw::c_int, __modes: *const ::std::os::raw::c_char)
         -> *mut FILE;
+}
+unsafe extern "C" {
+    pub fn fopencookie(
+        __magic_cookie: *mut ::std::os::raw::c_void,
+        __modes: *const ::std::os::raw::c_char,
+        __io_funcs: cookie_io_functions_t,
+    ) -> *mut FILE;
 }
 unsafe extern "C" {
     pub fn fmemopen(
@@ -3277,6 +3965,27 @@ unsafe extern "C" {
         __maxlen: ::std::os::raw::c_ulong,
         __format: *const ::std::os::raw::c_char,
         __arg: *mut __va_list_tag,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn vasprintf(
+        __ptr: *mut *mut ::std::os::raw::c_char,
+        __f: *const ::std::os::raw::c_char,
+        __arg: *mut __va_list_tag,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn __asprintf(
+        __ptr: *mut *mut ::std::os::raw::c_char,
+        __fmt: *const ::std::os::raw::c_char,
+        ...
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn asprintf(
+        __ptr: *mut *mut ::std::os::raw::c_char,
+        __fmt: *const ::std::os::raw::c_char,
+        ...
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -3424,6 +4133,13 @@ unsafe extern "C" {
     ) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
+    pub fn fgets_unlocked(
+        __s: *mut ::std::os::raw::c_char,
+        __n: ::std::os::raw::c_int,
+        __stream: *mut FILE,
+    ) -> *mut ::std::os::raw::c_char;
+}
+unsafe extern "C" {
     pub fn __getdelim(
         __lineptr: *mut *mut ::std::os::raw::c_char,
         __n: *mut usize,
@@ -3472,6 +4188,12 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_ulong;
 }
 unsafe extern "C" {
+    pub fn fputs_unlocked(
+        __s: *const ::std::os::raw::c_char,
+        __stream: *mut FILE,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn fread_unlocked(
         __ptr: *mut ::std::os::raw::c_void,
         __size: usize,
@@ -3517,6 +4239,22 @@ unsafe extern "C" {
     pub fn fsetpos(__stream: *mut FILE, __pos: *const fpos_t) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn fseeko64(
+        __stream: *mut FILE,
+        __off: __off64_t,
+        __whence: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn ftello64(__stream: *mut FILE) -> __off64_t;
+}
+unsafe extern "C" {
+    pub fn fgetpos64(__stream: *mut FILE, __pos: *mut fpos64_t) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn fsetpos64(__stream: *mut FILE, __pos: *const fpos64_t) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn clearerr(__stream: *mut FILE);
 }
 unsafe extern "C" {
@@ -3538,16 +4276,13 @@ unsafe extern "C" {
     pub fn perror(__s: *const ::std::os::raw::c_char);
 }
 unsafe extern "C" {
-    pub static mut sys_nerr: ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub static sys_errlist: [*const ::std::os::raw::c_char; 0usize];
-}
-unsafe extern "C" {
     pub fn fileno(__stream: *mut FILE) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn fileno_unlocked(__stream: *mut FILE) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pclose(__stream: *mut FILE) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn popen(
@@ -3556,10 +4291,29 @@ unsafe extern "C" {
     ) -> *mut FILE;
 }
 unsafe extern "C" {
-    pub fn pclose(__stream: *mut FILE) -> ::std::os::raw::c_int;
+    pub fn ctermid(__s: *mut ::std::os::raw::c_char) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
-    pub fn ctermid(__s: *mut ::std::os::raw::c_char) -> *mut ::std::os::raw::c_char;
+    pub fn cuserid(__s: *mut ::std::os::raw::c_char) -> *mut ::std::os::raw::c_char;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct obstack {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn obstack_printf(
+        __obstack: *mut obstack,
+        __format: *const ::std::os::raw::c_char,
+        ...
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn obstack_vprintf(
+        __obstack: *mut obstack,
+        __format: *const ::std::os::raw::c_char,
+        __args: *mut __va_list_tag,
+    ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn flockfile(__stream: *mut FILE);
@@ -3613,10 +4367,30 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn __memcmpeq(
+        __s1: *const ::std::os::raw::c_void,
+        __s2: *const ::std::os::raw::c_void,
+        __n: usize,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn memchr(
         __s: *const ::std::os::raw::c_void,
         __c: ::std::os::raw::c_int,
         __n: ::std::os::raw::c_ulong,
+    ) -> *mut ::std::os::raw::c_void;
+}
+unsafe extern "C" {
+    pub fn rawmemchr(
+        __s: *const ::std::os::raw::c_void,
+        __c: ::std::os::raw::c_int,
+    ) -> *mut ::std::os::raw::c_void;
+}
+unsafe extern "C" {
+    pub fn memrchr(
+        __s: *const ::std::os::raw::c_void,
+        __c: ::std::os::raw::c_int,
+        __n: usize,
     ) -> *mut ::std::os::raw::c_void;
 }
 unsafe extern "C" {
@@ -3671,32 +4445,6 @@ unsafe extern "C" {
         __n: ::std::os::raw::c_ulong,
     ) -> ::std::os::raw::c_ulong;
 }
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct __locale_struct {
-    pub __locales: [*mut __locale_data; 13usize],
-    pub __ctype_b: *const ::std::os::raw::c_ushort,
-    pub __ctype_tolower: *const ::std::os::raw::c_int,
-    pub __ctype_toupper: *const ::std::os::raw::c_int,
-    pub __names: [*const ::std::os::raw::c_char; 13usize],
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of __locale_struct"][::std::mem::size_of::<__locale_struct>() - 232usize];
-    ["Alignment of __locale_struct"][::std::mem::align_of::<__locale_struct>() - 8usize];
-    ["Offset of field: __locale_struct::__locales"]
-        [::std::mem::offset_of!(__locale_struct, __locales) - 0usize];
-    ["Offset of field: __locale_struct::__ctype_b"]
-        [::std::mem::offset_of!(__locale_struct, __ctype_b) - 104usize];
-    ["Offset of field: __locale_struct::__ctype_tolower"]
-        [::std::mem::offset_of!(__locale_struct, __ctype_tolower) - 112usize];
-    ["Offset of field: __locale_struct::__ctype_toupper"]
-        [::std::mem::offset_of!(__locale_struct, __ctype_toupper) - 120usize];
-    ["Offset of field: __locale_struct::__names"]
-        [::std::mem::offset_of!(__locale_struct, __names) - 128usize];
-};
-pub type __locale_t = *mut __locale_struct;
-pub type locale_t = __locale_t;
 unsafe extern "C" {
     pub fn strcoll_l(
         __s1: *const ::std::os::raw::c_char,
@@ -3729,6 +4477,12 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn strrchr(
+        __s: *const ::std::os::raw::c_char,
+        __c: ::std::os::raw::c_int,
+    ) -> *mut ::std::os::raw::c_char;
+}
+unsafe extern "C" {
+    pub fn strchrnul(
         __s: *const ::std::os::raw::c_char,
         __c: ::std::os::raw::c_int,
     ) -> *mut ::std::os::raw::c_char;
@@ -3778,6 +4532,34 @@ unsafe extern "C" {
     ) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
+    pub fn strcasestr(
+        __haystack: *const ::std::os::raw::c_char,
+        __needle: *const ::std::os::raw::c_char,
+    ) -> *mut ::std::os::raw::c_char;
+}
+unsafe extern "C" {
+    pub fn memmem(
+        __haystack: *const ::std::os::raw::c_void,
+        __haystacklen: usize,
+        __needle: *const ::std::os::raw::c_void,
+        __needlelen: usize,
+    ) -> *mut ::std::os::raw::c_void;
+}
+unsafe extern "C" {
+    pub fn __mempcpy(
+        __dest: *mut ::std::os::raw::c_void,
+        __src: *const ::std::os::raw::c_void,
+        __n: usize,
+    ) -> *mut ::std::os::raw::c_void;
+}
+unsafe extern "C" {
+    pub fn mempcpy(
+        __dest: *mut ::std::os::raw::c_void,
+        __src: *const ::std::os::raw::c_void,
+        __n: ::std::os::raw::c_ulong,
+    ) -> *mut ::std::os::raw::c_void;
+}
+unsafe extern "C" {
     pub fn strlen(__s: *const ::std::os::raw::c_char) -> ::std::os::raw::c_ulong;
 }
 unsafe extern "C" {
@@ -3787,12 +4569,17 @@ unsafe extern "C" {
     pub fn strerror(__errnum: ::std::os::raw::c_int) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
-    #[link_name = "\u{1}__xpg_strerror_r"]
     pub fn strerror_r(
         __errnum: ::std::os::raw::c_int,
         __buf: *mut ::std::os::raw::c_char,
         __buflen: usize,
-    ) -> ::std::os::raw::c_int;
+    ) -> *mut ::std::os::raw::c_char;
+}
+unsafe extern "C" {
+    pub fn strerrordesc_np(__err: ::std::os::raw::c_int) -> *const ::std::os::raw::c_char;
+}
+unsafe extern "C" {
+    pub fn strerrorname_np(__err: ::std::os::raw::c_int) -> *const ::std::os::raw::c_char;
 }
 unsafe extern "C" {
     pub fn strerror_l(
@@ -3811,7 +4598,7 @@ unsafe extern "C" {
     pub fn bcopy(
         __src: *const ::std::os::raw::c_void,
         __dest: *mut ::std::os::raw::c_void,
-        __n: usize,
+        __n: ::std::os::raw::c_ulong,
     );
 }
 unsafe extern "C" {
@@ -3879,6 +4666,12 @@ unsafe extern "C" {
     pub fn strsignal(__sig: ::std::os::raw::c_int) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
+    pub fn sigabbrev_np(__sig: ::std::os::raw::c_int) -> *const ::std::os::raw::c_char;
+}
+unsafe extern "C" {
+    pub fn sigdescr_np(__sig: ::std::os::raw::c_int) -> *const ::std::os::raw::c_char;
+}
+unsafe extern "C" {
     pub fn __stpcpy(
         __dest: *mut ::std::os::raw::c_char,
         __src: *const ::std::os::raw::c_char,
@@ -3903,6 +4696,21 @@ unsafe extern "C" {
         __src: *const ::std::os::raw::c_char,
         __n: ::std::os::raw::c_ulong,
     ) -> *mut ::std::os::raw::c_char;
+}
+unsafe extern "C" {
+    pub fn strverscmp(
+        __s1: *const ::std::os::raw::c_char,
+        __s2: *const ::std::os::raw::c_char,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn strfry(__string: *mut ::std::os::raw::c_char) -> *mut ::std::os::raw::c_char;
+}
+unsafe extern "C" {
+    pub fn memfrob(__s: *mut ::std::os::raw::c_void, __n: usize) -> *mut ::std::os::raw::c_void;
+}
+unsafe extern "C" {
+    pub fn basename(__filename: *const ::std::os::raw::c_char) -> *mut ::std::os::raw::c_char;
 }
 pub type __gwchar_t = ::std::os::raw::c_int;
 #[repr(C)]
@@ -3952,12 +4760,35 @@ unsafe extern "C" {
         __base: ::std::os::raw::c_int,
     ) -> uintmax_t;
 }
-pub type useconds_t = __useconds_t;
+unsafe extern "C" {
+    pub fn __sysconf(__name: ::std::os::raw::c_int) -> ::std::os::raw::c_long;
+}
 pub type socklen_t = __socklen_t;
 unsafe extern "C" {
     pub fn access(
         __name: *const ::std::os::raw::c_char,
         __type: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn euidaccess(
+        __name: *const ::std::os::raw::c_char,
+        __type: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn eaccess(
+        __name: *const ::std::os::raw::c_char,
+        __type: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn execveat(
+        __fd: ::std::os::raw::c_int,
+        __path: *const ::std::os::raw::c_char,
+        __argv: *const *mut ::std::os::raw::c_char,
+        __envp: *const *mut ::std::os::raw::c_char,
+        __flags: ::std::os::raw::c_int,
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -3976,7 +4807,17 @@ unsafe extern "C" {
     ) -> __off_t;
 }
 unsafe extern "C" {
+    pub fn lseek64(
+        __fd: ::std::os::raw::c_int,
+        __offset: __off64_t,
+        __whence: ::std::os::raw::c_int,
+    ) -> __off64_t;
+}
+unsafe extern "C" {
     pub fn close(__fd: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn closefrom(__lowfd: ::std::os::raw::c_int);
 }
 unsafe extern "C" {
     pub fn read(
@@ -4009,7 +4850,29 @@ unsafe extern "C" {
     ) -> isize;
 }
 unsafe extern "C" {
+    pub fn pread64(
+        __fd: ::std::os::raw::c_int,
+        __buf: *mut ::std::os::raw::c_void,
+        __nbytes: usize,
+        __offset: __off64_t,
+    ) -> isize;
+}
+unsafe extern "C" {
+    pub fn pwrite64(
+        __fd: ::std::os::raw::c_int,
+        __buf: *const ::std::os::raw::c_void,
+        __n: usize,
+        __offset: __off64_t,
+    ) -> isize;
+}
+unsafe extern "C" {
     pub fn pipe(__pipedes: *mut ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pipe2(
+        __pipedes: *mut ::std::os::raw::c_int,
+        __flags: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn alarm(__seconds: ::std::os::raw::c_uint) -> ::std::os::raw::c_uint;
@@ -4067,6 +4930,9 @@ unsafe extern "C" {
         -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
+    pub fn get_current_dir_name() -> *mut ::std::os::raw::c_char;
+}
+unsafe extern "C" {
     pub fn getwd(__buf: *mut ::std::os::raw::c_char) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
@@ -4077,7 +4943,17 @@ unsafe extern "C" {
         -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn dup3(
+        __fd: ::std::os::raw::c_int,
+        __fd2: ::std::os::raw::c_int,
+        __flags: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub static mut __environ: *mut *mut ::std::os::raw::c_char;
+}
+unsafe extern "C" {
+    pub static mut environ: *mut *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
     pub fn execve(
@@ -4124,6 +5000,13 @@ unsafe extern "C" {
         __file: *const ::std::os::raw::c_char,
         __arg: *const ::std::os::raw::c_char,
         ...
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn execvpe(
+        __file: *const ::std::os::raw::c_char,
+        __argv: *const *mut ::std::os::raw::c_char,
+        __envp: *const *mut ::std::os::raw::c_char,
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -4369,6 +5252,8 @@ pub const _SC_TRACE_USER_EVENT_MAX: _bindgen_ty_2 = 245;
 pub const _SC_XOPEN_STREAMS: _bindgen_ty_2 = 246;
 pub const _SC_THREAD_ROBUST_PRIO_INHERIT: _bindgen_ty_2 = 247;
 pub const _SC_THREAD_ROBUST_PRIO_PROTECT: _bindgen_ty_2 = 248;
+pub const _SC_MINSIGSTKSZ: _bindgen_ty_2 = 249;
+pub const _SC_SIGSTKSZ: _bindgen_ty_2 = 250;
 pub type _bindgen_ty_2 = ::std::os::raw::c_uint;
 pub const _CS_PATH: _bindgen_ty_3 = 0;
 pub const _CS_V6_WIDTH_RESTRICTED_ENVS: _bindgen_ty_3 = 1;
@@ -4500,6 +5385,9 @@ unsafe extern "C" {
     pub fn getgroups(__size: ::std::os::raw::c_int, __list: *mut __gid_t) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn group_member(__gid: __gid_t) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn setuid(__uid: __uid_t) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -4518,10 +5406,33 @@ unsafe extern "C" {
     pub fn setegid(__gid: __gid_t) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn getresuid(
+        __ruid: *mut __uid_t,
+        __euid: *mut __uid_t,
+        __suid: *mut __uid_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn getresgid(
+        __rgid: *mut __gid_t,
+        __egid: *mut __gid_t,
+        __sgid: *mut __gid_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn setresuid(__ruid: __uid_t, __euid: __uid_t, __suid: __uid_t) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn setresgid(__rgid: __gid_t, __egid: __gid_t, __sgid: __gid_t) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn fork() -> __pid_t;
 }
 unsafe extern "C" {
     pub fn vfork() -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn _Fork() -> __pid_t;
 }
 unsafe extern "C" {
     pub fn ttyname(__fd: ::std::os::raw::c_int) -> *mut ::std::os::raw::c_char;
@@ -4698,6 +5609,9 @@ unsafe extern "C" {
     pub fn fsync(__fd: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn syncfs(__fd: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn gethostid() -> ::std::os::raw::c_long;
 }
 unsafe extern "C" {
@@ -4716,7 +5630,16 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn truncate64(
+        __file: *const ::std::os::raw::c_char,
+        __length: __off64_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn ftruncate(__fd: ::std::os::raw::c_int, __length: __off_t) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn ftruncate64(__fd: ::std::os::raw::c_int, __length: __off64_t) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn brk(__addr: *mut ::std::os::raw::c_void) -> ::std::os::raw::c_int;
@@ -4735,6 +5658,23 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn lockf64(
+        __fd: ::std::os::raw::c_int,
+        __cmd: ::std::os::raw::c_int,
+        __len: __off64_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn copy_file_range(
+        __infd: ::std::os::raw::c_int,
+        __pinoff: *mut __off64_t,
+        __outfd: ::std::os::raw::c_int,
+        __poutoff: *mut __off64_t,
+        __length: usize,
+        __flags: ::std::os::raw::c_uint,
+    ) -> isize;
+}
+unsafe extern "C" {
     pub fn fdatasync(__fildes: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -4744,10 +5684,81 @@ unsafe extern "C" {
     ) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
+    pub fn swab(
+        __from: *const ::std::os::raw::c_void,
+        __to: *mut ::std::os::raw::c_void,
+        __n: isize,
+    );
+}
+unsafe extern "C" {
     pub fn getentropy(
         __buffer: *mut ::std::os::raw::c_void,
         __length: usize,
     ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn close_range(
+        __fd: ::std::os::raw::c_uint,
+        __max_fd: ::std::os::raw::c_uint,
+        __flags: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn gettid() -> __pid_t;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct timex {
+    pub modes: ::std::os::raw::c_uint,
+    pub offset: __syscall_slong_t,
+    pub freq: __syscall_slong_t,
+    pub maxerror: __syscall_slong_t,
+    pub esterror: __syscall_slong_t,
+    pub status: ::std::os::raw::c_int,
+    pub constant: __syscall_slong_t,
+    pub precision: __syscall_slong_t,
+    pub tolerance: __syscall_slong_t,
+    pub time: timeval,
+    pub tick: __syscall_slong_t,
+    pub ppsfreq: __syscall_slong_t,
+    pub jitter: __syscall_slong_t,
+    pub shift: ::std::os::raw::c_int,
+    pub stabil: __syscall_slong_t,
+    pub jitcnt: __syscall_slong_t,
+    pub calcnt: __syscall_slong_t,
+    pub errcnt: __syscall_slong_t,
+    pub stbcnt: __syscall_slong_t,
+    pub tai: ::std::os::raw::c_int,
+    pub _bitfield_align_1: [u8; 0],
+    pub _bitfield_1: __BindgenBitfieldUnit<[u8; 44usize]>,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of timex"][::std::mem::size_of::<timex>() - 208usize];
+    ["Alignment of timex"][::std::mem::align_of::<timex>() - 8usize];
+    ["Offset of field: timex::modes"][::std::mem::offset_of!(timex, modes) - 0usize];
+    ["Offset of field: timex::offset"][::std::mem::offset_of!(timex, offset) - 8usize];
+    ["Offset of field: timex::freq"][::std::mem::offset_of!(timex, freq) - 16usize];
+    ["Offset of field: timex::maxerror"][::std::mem::offset_of!(timex, maxerror) - 24usize];
+    ["Offset of field: timex::esterror"][::std::mem::offset_of!(timex, esterror) - 32usize];
+    ["Offset of field: timex::status"][::std::mem::offset_of!(timex, status) - 40usize];
+    ["Offset of field: timex::constant"][::std::mem::offset_of!(timex, constant) - 48usize];
+    ["Offset of field: timex::precision"][::std::mem::offset_of!(timex, precision) - 56usize];
+    ["Offset of field: timex::tolerance"][::std::mem::offset_of!(timex, tolerance) - 64usize];
+    ["Offset of field: timex::time"][::std::mem::offset_of!(timex, time) - 72usize];
+    ["Offset of field: timex::tick"][::std::mem::offset_of!(timex, tick) - 88usize];
+    ["Offset of field: timex::ppsfreq"][::std::mem::offset_of!(timex, ppsfreq) - 96usize];
+    ["Offset of field: timex::jitter"][::std::mem::offset_of!(timex, jitter) - 104usize];
+    ["Offset of field: timex::shift"][::std::mem::offset_of!(timex, shift) - 112usize];
+    ["Offset of field: timex::stabil"][::std::mem::offset_of!(timex, stabil) - 120usize];
+    ["Offset of field: timex::jitcnt"][::std::mem::offset_of!(timex, jitcnt) - 128usize];
+    ["Offset of field: timex::calcnt"][::std::mem::offset_of!(timex, calcnt) - 136usize];
+    ["Offset of field: timex::errcnt"][::std::mem::offset_of!(timex, errcnt) - 144usize];
+    ["Offset of field: timex::stbcnt"][::std::mem::offset_of!(timex, stbcnt) - 152usize];
+    ["Offset of field: timex::tai"][::std::mem::offset_of!(timex, tai) - 160usize];
+};
+unsafe extern "C" {
+    pub fn clock_adjtime(__clock_id: __clockid_t, __utx: *mut timex) -> ::std::os::raw::c_int;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -4816,6 +5827,13 @@ unsafe extern "C" {
     ) -> usize;
 }
 unsafe extern "C" {
+    pub fn strptime(
+        __s: *const ::std::os::raw::c_char,
+        __fmt: *const ::std::os::raw::c_char,
+        __tp: *mut tm,
+    ) -> *mut ::std::os::raw::c_char;
+}
+unsafe extern "C" {
     pub fn strftime_l(
         __s: *mut ::std::os::raw::c_char,
         __maxsize: usize,
@@ -4823,6 +5841,14 @@ unsafe extern "C" {
         __tp: *const tm,
         __loc: locale_t,
     ) -> usize;
+}
+unsafe extern "C" {
+    pub fn strptime_l(
+        __s: *const ::std::os::raw::c_char,
+        __fmt: *const ::std::os::raw::c_char,
+        __tp: *mut tm,
+        __loc: locale_t,
+    ) -> *mut ::std::os::raw::c_char;
 }
 unsafe extern "C" {
     pub fn gmtime(__timer: *const time_t) -> *mut tm;
@@ -4940,6 +5966,24 @@ unsafe extern "C" {
         __base: ::std::os::raw::c_int,
     ) -> ::std::os::raw::c_int;
 }
+unsafe extern "C" {
+    pub fn timespec_getres(
+        __ts: *mut timespec,
+        __base: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub static mut getdate_err: ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn getdate(__string: *const ::std::os::raw::c_char) -> *mut tm;
+}
+unsafe extern "C" {
+    pub fn getdate_r(
+        __string: *const ::std::os::raw::c_char,
+        __resbufp: *mut tm,
+    ) -> ::std::os::raw::c_int;
+}
 pub const _ISupper: _bindgen_ty_4 = 256;
 pub const _ISlower: _bindgen_ty_4 = 512;
 pub const _ISalpha: _bindgen_ty_4 = 1024;
@@ -5005,6 +6049,12 @@ unsafe extern "C" {
     pub fn isblank(arg1: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn isctype(
+        __c: ::std::os::raw::c_int,
+        __mask: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn isascii(__c: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -5067,6 +6117,13 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn __errno_location() -> *mut ::std::os::raw::c_int;
 }
+unsafe extern "C" {
+    pub static mut program_invocation_name: *mut ::std::os::raw::c_char;
+}
+unsafe extern "C" {
+    pub static mut program_invocation_short_name: *mut ::std::os::raw::c_char;
+}
+pub type error_t = ::std::os::raw::c_int;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct flock {
@@ -5086,6 +6143,144 @@ const _: () = {
     ["Offset of field: flock::l_len"][::std::mem::offset_of!(flock, l_len) - 16usize];
     ["Offset of field: flock::l_pid"][::std::mem::offset_of!(flock, l_pid) - 24usize];
 };
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct flock64 {
+    pub l_type: ::std::os::raw::c_short,
+    pub l_whence: ::std::os::raw::c_short,
+    pub l_start: __off64_t,
+    pub l_len: __off64_t,
+    pub l_pid: __pid_t,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of flock64"][::std::mem::size_of::<flock64>() - 32usize];
+    ["Alignment of flock64"][::std::mem::align_of::<flock64>() - 8usize];
+    ["Offset of field: flock64::l_type"][::std::mem::offset_of!(flock64, l_type) - 0usize];
+    ["Offset of field: flock64::l_whence"][::std::mem::offset_of!(flock64, l_whence) - 2usize];
+    ["Offset of field: flock64::l_start"][::std::mem::offset_of!(flock64, l_start) - 8usize];
+    ["Offset of field: flock64::l_len"][::std::mem::offset_of!(flock64, l_len) - 16usize];
+    ["Offset of field: flock64::l_pid"][::std::mem::offset_of!(flock64, l_pid) - 24usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct iovec {
+    pub iov_base: *mut ::std::os::raw::c_void,
+    pub iov_len: usize,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of iovec"][::std::mem::size_of::<iovec>() - 16usize];
+    ["Alignment of iovec"][::std::mem::align_of::<iovec>() - 8usize];
+    ["Offset of field: iovec::iov_base"][::std::mem::offset_of!(iovec, iov_base) - 0usize];
+    ["Offset of field: iovec::iov_len"][::std::mem::offset_of!(iovec, iov_len) - 8usize];
+};
+pub const F_OWNER_TID: __pid_type = 0;
+pub const F_OWNER_PID: __pid_type = 1;
+pub const F_OWNER_PGRP: __pid_type = 2;
+pub const F_OWNER_GID: __pid_type = 2;
+pub type __pid_type = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct f_owner_ex {
+    pub type_: __pid_type,
+    pub pid: __pid_t,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of f_owner_ex"][::std::mem::size_of::<f_owner_ex>() - 8usize];
+    ["Alignment of f_owner_ex"][::std::mem::align_of::<f_owner_ex>() - 4usize];
+    ["Offset of field: f_owner_ex::type_"][::std::mem::offset_of!(f_owner_ex, type_) - 0usize];
+    ["Offset of field: f_owner_ex::pid"][::std::mem::offset_of!(f_owner_ex, pid) - 4usize];
+};
+#[repr(C)]
+#[derive(Debug)]
+pub struct file_handle {
+    pub handle_bytes: ::std::os::raw::c_uint,
+    pub handle_type: ::std::os::raw::c_int,
+    pub f_handle: __IncompleteArrayField<::std::os::raw::c_uchar>,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of file_handle"][::std::mem::size_of::<file_handle>() - 8usize];
+    ["Alignment of file_handle"][::std::mem::align_of::<file_handle>() - 4usize];
+    ["Offset of field: file_handle::handle_bytes"]
+        [::std::mem::offset_of!(file_handle, handle_bytes) - 0usize];
+    ["Offset of field: file_handle::handle_type"]
+        [::std::mem::offset_of!(file_handle, handle_type) - 4usize];
+    ["Offset of field: file_handle::f_handle"]
+        [::std::mem::offset_of!(file_handle, f_handle) - 8usize];
+};
+unsafe extern "C" {
+    pub fn readahead(__fd: ::std::os::raw::c_int, __offset: __off64_t, __count: usize)
+        -> __ssize_t;
+}
+unsafe extern "C" {
+    pub fn sync_file_range(
+        __fd: ::std::os::raw::c_int,
+        __offset: __off64_t,
+        __count: __off64_t,
+        __flags: ::std::os::raw::c_uint,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn vmsplice(
+        __fdout: ::std::os::raw::c_int,
+        __iov: *const iovec,
+        __count: usize,
+        __flags: ::std::os::raw::c_uint,
+    ) -> __ssize_t;
+}
+unsafe extern "C" {
+    pub fn splice(
+        __fdin: ::std::os::raw::c_int,
+        __offin: *mut __off64_t,
+        __fdout: ::std::os::raw::c_int,
+        __offout: *mut __off64_t,
+        __len: usize,
+        __flags: ::std::os::raw::c_uint,
+    ) -> __ssize_t;
+}
+unsafe extern "C" {
+    pub fn tee(
+        __fdin: ::std::os::raw::c_int,
+        __fdout: ::std::os::raw::c_int,
+        __len: usize,
+        __flags: ::std::os::raw::c_uint,
+    ) -> __ssize_t;
+}
+unsafe extern "C" {
+    pub fn fallocate(
+        __fd: ::std::os::raw::c_int,
+        __mode: ::std::os::raw::c_int,
+        __offset: __off_t,
+        __len: __off_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn fallocate64(
+        __fd: ::std::os::raw::c_int,
+        __mode: ::std::os::raw::c_int,
+        __offset: __off64_t,
+        __len: __off64_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn name_to_handle_at(
+        __dfd: ::std::os::raw::c_int,
+        __name: *const ::std::os::raw::c_char,
+        __handle: *mut file_handle,
+        __mnt_id: *mut ::std::os::raw::c_int,
+        __flags: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn open_by_handle_at(
+        __mountdirfd: ::std::os::raw::c_int,
+        __handle: *mut file_handle,
+        __flags: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct stat {
@@ -5126,6 +6321,46 @@ const _: () = {
     ["Offset of field: stat::__glibc_reserved"]
         [::std::mem::offset_of!(stat, __glibc_reserved) - 120usize];
 };
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct stat64 {
+    pub st_dev: __dev_t,
+    pub st_ino: __ino64_t,
+    pub st_nlink: __nlink_t,
+    pub st_mode: __mode_t,
+    pub st_uid: __uid_t,
+    pub st_gid: __gid_t,
+    pub __pad0: ::std::os::raw::c_int,
+    pub st_rdev: __dev_t,
+    pub st_size: __off_t,
+    pub st_blksize: __blksize_t,
+    pub st_blocks: __blkcnt64_t,
+    pub st_atim: timespec,
+    pub st_mtim: timespec,
+    pub st_ctim: timespec,
+    pub __glibc_reserved: [__syscall_slong_t; 3usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of stat64"][::std::mem::size_of::<stat64>() - 144usize];
+    ["Alignment of stat64"][::std::mem::align_of::<stat64>() - 8usize];
+    ["Offset of field: stat64::st_dev"][::std::mem::offset_of!(stat64, st_dev) - 0usize];
+    ["Offset of field: stat64::st_ino"][::std::mem::offset_of!(stat64, st_ino) - 8usize];
+    ["Offset of field: stat64::st_nlink"][::std::mem::offset_of!(stat64, st_nlink) - 16usize];
+    ["Offset of field: stat64::st_mode"][::std::mem::offset_of!(stat64, st_mode) - 24usize];
+    ["Offset of field: stat64::st_uid"][::std::mem::offset_of!(stat64, st_uid) - 28usize];
+    ["Offset of field: stat64::st_gid"][::std::mem::offset_of!(stat64, st_gid) - 32usize];
+    ["Offset of field: stat64::__pad0"][::std::mem::offset_of!(stat64, __pad0) - 36usize];
+    ["Offset of field: stat64::st_rdev"][::std::mem::offset_of!(stat64, st_rdev) - 40usize];
+    ["Offset of field: stat64::st_size"][::std::mem::offset_of!(stat64, st_size) - 48usize];
+    ["Offset of field: stat64::st_blksize"][::std::mem::offset_of!(stat64, st_blksize) - 56usize];
+    ["Offset of field: stat64::st_blocks"][::std::mem::offset_of!(stat64, st_blocks) - 64usize];
+    ["Offset of field: stat64::st_atim"][::std::mem::offset_of!(stat64, st_atim) - 72usize];
+    ["Offset of field: stat64::st_mtim"][::std::mem::offset_of!(stat64, st_mtim) - 88usize];
+    ["Offset of field: stat64::st_ctim"][::std::mem::offset_of!(stat64, st_ctim) - 104usize];
+    ["Offset of field: stat64::__glibc_reserved"]
+        [::std::mem::offset_of!(stat64, __glibc_reserved) - 120usize];
+};
 unsafe extern "C" {
     pub fn fcntl(
         __fd: ::std::os::raw::c_int,
@@ -5134,7 +6369,21 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn fcntl64(
+        __fd: ::std::os::raw::c_int,
+        __cmd: ::std::os::raw::c_int,
+        ...
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn open(
+        __file: *const ::std::os::raw::c_char,
+        __oflag: ::std::os::raw::c_int,
+        ...
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn open64(
         __file: *const ::std::os::raw::c_char,
         __oflag: ::std::os::raw::c_int,
         ...
@@ -5149,7 +6398,18 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn openat64(
+        __fd: ::std::os::raw::c_int,
+        __file: *const ::std::os::raw::c_char,
+        __oflag: ::std::os::raw::c_int,
+        ...
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn creat(__file: *const ::std::os::raw::c_char, __mode: mode_t) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn creat64(__file: *const ::std::os::raw::c_char, __mode: mode_t) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn posix_fadvise(
@@ -5160,10 +6420,25 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn posix_fadvise64(
+        __fd: ::std::os::raw::c_int,
+        __offset: off64_t,
+        __len: off64_t,
+        __advise: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn posix_fallocate(
         __fd: ::std::os::raw::c_int,
         __offset: off_t,
         __len: off_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn posix_fallocate64(
+        __fd: ::std::os::raw::c_int,
+        __offset: off64_t,
+        __len: off64_t,
     ) -> ::std::os::raw::c_int;
 }
 #[repr(C)]
@@ -5201,19 +6476,6 @@ unsafe extern "C" {
         __longind: *mut ::std::os::raw::c_int,
     ) -> ::std::os::raw::c_int;
 }
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct iovec {
-    pub iov_base: *mut ::std::os::raw::c_void,
-    pub iov_len: usize,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of iovec"][::std::mem::size_of::<iovec>() - 16usize];
-    ["Alignment of iovec"][::std::mem::align_of::<iovec>() - 8usize];
-    ["Offset of field: iovec::iov_base"][::std::mem::offset_of!(iovec, iov_base) - 0usize];
-    ["Offset of field: iovec::iov_len"][::std::mem::offset_of!(iovec, iov_len) - 8usize];
-};
 pub const SOCK_STREAM: __socket_type = 1;
 pub const SOCK_DGRAM: __socket_type = 2;
 pub const SOCK_RAW: __socket_type = 3;
@@ -5259,6 +6521,7 @@ const _: () = {
 pub const MSG_OOB: _bindgen_ty_5 = 1;
 pub const MSG_PEEK: _bindgen_ty_5 = 2;
 pub const MSG_DONTROUTE: _bindgen_ty_5 = 4;
+pub const MSG_TRYHARD: _bindgen_ty_5 = 4;
 pub const MSG_CTRUNC: _bindgen_ty_5 = 8;
 pub const MSG_PROXY: _bindgen_ty_5 = 16;
 pub const MSG_TRUNC: _bindgen_ty_5 = 32;
@@ -5324,7 +6587,23 @@ unsafe extern "C" {
     pub fn __cmsg_nxthdr(__mhdr: *mut msghdr, __cmsg: *mut cmsghdr) -> *mut cmsghdr;
 }
 pub const SCM_RIGHTS: _bindgen_ty_6 = 1;
+pub const SCM_CREDENTIALS: _bindgen_ty_6 = 2;
 pub type _bindgen_ty_6 = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ucred {
+    pub pid: pid_t,
+    pub uid: uid_t,
+    pub gid: gid_t,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of ucred"][::std::mem::size_of::<ucred>() - 12usize];
+    ["Alignment of ucred"][::std::mem::align_of::<ucred>() - 4usize];
+    ["Offset of field: ucred::pid"][::std::mem::offset_of!(ucred, pid) - 0usize];
+    ["Offset of field: ucred::uid"][::std::mem::offset_of!(ucred, uid) - 4usize];
+    ["Offset of field: ucred::gid"][::std::mem::offset_of!(ucred, gid) - 8usize];
+};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct __kernel_fd_set {
@@ -5373,6 +6652,7 @@ const _: () = {
 };
 pub type __kernel_off_t = __kernel_long_t;
 pub type __kernel_loff_t = ::std::os::raw::c_longlong;
+pub type __kernel_old_time_t = __kernel_long_t;
 pub type __kernel_time_t = __kernel_long_t;
 pub type __kernel_time64_t = ::std::os::raw::c_longlong;
 pub type __kernel_clock_t = __kernel_long_t;
@@ -5412,6 +6692,115 @@ pub const SHUT_RD: _bindgen_ty_7 = 0;
 pub const SHUT_WR: _bindgen_ty_7 = 1;
 pub const SHUT_RDWR: _bindgen_ty_7 = 2;
 pub type _bindgen_ty_7 = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union __SOCKADDR_ARG {
+    pub __sockaddr__: *mut sockaddr,
+    pub __sockaddr_at__: *mut sockaddr_at,
+    pub __sockaddr_ax25__: *mut sockaddr_ax25,
+    pub __sockaddr_dl__: *mut sockaddr_dl,
+    pub __sockaddr_eon__: *mut sockaddr_eon,
+    pub __sockaddr_in__: *mut sockaddr_in,
+    pub __sockaddr_in6__: *mut sockaddr_in6,
+    pub __sockaddr_inarp__: *mut sockaddr_inarp,
+    pub __sockaddr_ipx__: *mut sockaddr_ipx,
+    pub __sockaddr_iso__: *mut sockaddr_iso,
+    pub __sockaddr_ns__: *mut sockaddr_ns,
+    pub __sockaddr_un__: *mut sockaddr_un,
+    pub __sockaddr_x25__: *mut sockaddr_x25,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of __SOCKADDR_ARG"][::std::mem::size_of::<__SOCKADDR_ARG>() - 8usize];
+    ["Alignment of __SOCKADDR_ARG"][::std::mem::align_of::<__SOCKADDR_ARG>() - 8usize];
+    ["Offset of field: __SOCKADDR_ARG::__sockaddr__"]
+        [::std::mem::offset_of!(__SOCKADDR_ARG, __sockaddr__) - 0usize];
+    ["Offset of field: __SOCKADDR_ARG::__sockaddr_at__"]
+        [::std::mem::offset_of!(__SOCKADDR_ARG, __sockaddr_at__) - 0usize];
+    ["Offset of field: __SOCKADDR_ARG::__sockaddr_ax25__"]
+        [::std::mem::offset_of!(__SOCKADDR_ARG, __sockaddr_ax25__) - 0usize];
+    ["Offset of field: __SOCKADDR_ARG::__sockaddr_dl__"]
+        [::std::mem::offset_of!(__SOCKADDR_ARG, __sockaddr_dl__) - 0usize];
+    ["Offset of field: __SOCKADDR_ARG::__sockaddr_eon__"]
+        [::std::mem::offset_of!(__SOCKADDR_ARG, __sockaddr_eon__) - 0usize];
+    ["Offset of field: __SOCKADDR_ARG::__sockaddr_in__"]
+        [::std::mem::offset_of!(__SOCKADDR_ARG, __sockaddr_in__) - 0usize];
+    ["Offset of field: __SOCKADDR_ARG::__sockaddr_in6__"]
+        [::std::mem::offset_of!(__SOCKADDR_ARG, __sockaddr_in6__) - 0usize];
+    ["Offset of field: __SOCKADDR_ARG::__sockaddr_inarp__"]
+        [::std::mem::offset_of!(__SOCKADDR_ARG, __sockaddr_inarp__) - 0usize];
+    ["Offset of field: __SOCKADDR_ARG::__sockaddr_ipx__"]
+        [::std::mem::offset_of!(__SOCKADDR_ARG, __sockaddr_ipx__) - 0usize];
+    ["Offset of field: __SOCKADDR_ARG::__sockaddr_iso__"]
+        [::std::mem::offset_of!(__SOCKADDR_ARG, __sockaddr_iso__) - 0usize];
+    ["Offset of field: __SOCKADDR_ARG::__sockaddr_ns__"]
+        [::std::mem::offset_of!(__SOCKADDR_ARG, __sockaddr_ns__) - 0usize];
+    ["Offset of field: __SOCKADDR_ARG::__sockaddr_un__"]
+        [::std::mem::offset_of!(__SOCKADDR_ARG, __sockaddr_un__) - 0usize];
+    ["Offset of field: __SOCKADDR_ARG::__sockaddr_x25__"]
+        [::std::mem::offset_of!(__SOCKADDR_ARG, __sockaddr_x25__) - 0usize];
+};
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union __CONST_SOCKADDR_ARG {
+    pub __sockaddr__: *const sockaddr,
+    pub __sockaddr_at__: *const sockaddr_at,
+    pub __sockaddr_ax25__: *const sockaddr_ax25,
+    pub __sockaddr_dl__: *const sockaddr_dl,
+    pub __sockaddr_eon__: *const sockaddr_eon,
+    pub __sockaddr_in__: *const sockaddr_in,
+    pub __sockaddr_in6__: *const sockaddr_in6,
+    pub __sockaddr_inarp__: *const sockaddr_inarp,
+    pub __sockaddr_ipx__: *const sockaddr_ipx,
+    pub __sockaddr_iso__: *const sockaddr_iso,
+    pub __sockaddr_ns__: *const sockaddr_ns,
+    pub __sockaddr_un__: *const sockaddr_un,
+    pub __sockaddr_x25__: *const sockaddr_x25,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of __CONST_SOCKADDR_ARG"][::std::mem::size_of::<__CONST_SOCKADDR_ARG>() - 8usize];
+    ["Alignment of __CONST_SOCKADDR_ARG"][::std::mem::align_of::<__CONST_SOCKADDR_ARG>() - 8usize];
+    ["Offset of field: __CONST_SOCKADDR_ARG::__sockaddr__"]
+        [::std::mem::offset_of!(__CONST_SOCKADDR_ARG, __sockaddr__) - 0usize];
+    ["Offset of field: __CONST_SOCKADDR_ARG::__sockaddr_at__"]
+        [::std::mem::offset_of!(__CONST_SOCKADDR_ARG, __sockaddr_at__) - 0usize];
+    ["Offset of field: __CONST_SOCKADDR_ARG::__sockaddr_ax25__"]
+        [::std::mem::offset_of!(__CONST_SOCKADDR_ARG, __sockaddr_ax25__) - 0usize];
+    ["Offset of field: __CONST_SOCKADDR_ARG::__sockaddr_dl__"]
+        [::std::mem::offset_of!(__CONST_SOCKADDR_ARG, __sockaddr_dl__) - 0usize];
+    ["Offset of field: __CONST_SOCKADDR_ARG::__sockaddr_eon__"]
+        [::std::mem::offset_of!(__CONST_SOCKADDR_ARG, __sockaddr_eon__) - 0usize];
+    ["Offset of field: __CONST_SOCKADDR_ARG::__sockaddr_in__"]
+        [::std::mem::offset_of!(__CONST_SOCKADDR_ARG, __sockaddr_in__) - 0usize];
+    ["Offset of field: __CONST_SOCKADDR_ARG::__sockaddr_in6__"]
+        [::std::mem::offset_of!(__CONST_SOCKADDR_ARG, __sockaddr_in6__) - 0usize];
+    ["Offset of field: __CONST_SOCKADDR_ARG::__sockaddr_inarp__"]
+        [::std::mem::offset_of!(__CONST_SOCKADDR_ARG, __sockaddr_inarp__) - 0usize];
+    ["Offset of field: __CONST_SOCKADDR_ARG::__sockaddr_ipx__"]
+        [::std::mem::offset_of!(__CONST_SOCKADDR_ARG, __sockaddr_ipx__) - 0usize];
+    ["Offset of field: __CONST_SOCKADDR_ARG::__sockaddr_iso__"]
+        [::std::mem::offset_of!(__CONST_SOCKADDR_ARG, __sockaddr_iso__) - 0usize];
+    ["Offset of field: __CONST_SOCKADDR_ARG::__sockaddr_ns__"]
+        [::std::mem::offset_of!(__CONST_SOCKADDR_ARG, __sockaddr_ns__) - 0usize];
+    ["Offset of field: __CONST_SOCKADDR_ARG::__sockaddr_un__"]
+        [::std::mem::offset_of!(__CONST_SOCKADDR_ARG, __sockaddr_un__) - 0usize];
+    ["Offset of field: __CONST_SOCKADDR_ARG::__sockaddr_x25__"]
+        [::std::mem::offset_of!(__CONST_SOCKADDR_ARG, __sockaddr_x25__) - 0usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct mmsghdr {
+    pub msg_hdr: msghdr,
+    pub msg_len: ::std::os::raw::c_uint,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of mmsghdr"][::std::mem::size_of::<mmsghdr>() - 64usize];
+    ["Alignment of mmsghdr"][::std::mem::align_of::<mmsghdr>() - 8usize];
+    ["Offset of field: mmsghdr::msg_hdr"][::std::mem::offset_of!(mmsghdr, msg_hdr) - 0usize];
+    ["Offset of field: mmsghdr::msg_len"][::std::mem::offset_of!(mmsghdr, msg_len) - 56usize];
+};
 unsafe extern "C" {
     pub fn socket(
         __domain: ::std::os::raw::c_int,
@@ -5430,28 +6819,28 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn bind(
         __fd: ::std::os::raw::c_int,
-        __addr: *const sockaddr,
+        __addr: __CONST_SOCKADDR_ARG,
         __len: socklen_t,
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn getsockname(
         __fd: ::std::os::raw::c_int,
-        __addr: *mut sockaddr,
+        __addr: __SOCKADDR_ARG,
         __len: *mut socklen_t,
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn connect(
         __fd: ::std::os::raw::c_int,
-        __addr: *const sockaddr,
+        __addr: __CONST_SOCKADDR_ARG,
         __len: socklen_t,
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn getpeername(
         __fd: ::std::os::raw::c_int,
-        __addr: *mut sockaddr,
+        __addr: __SOCKADDR_ARG,
         __len: *mut socklen_t,
     ) -> ::std::os::raw::c_int;
 }
@@ -5477,7 +6866,7 @@ unsafe extern "C" {
         __buf: *const ::std::os::raw::c_void,
         __n: usize,
         __flags: ::std::os::raw::c_int,
-        __addr: *const sockaddr,
+        __addr: __CONST_SOCKADDR_ARG,
         __addr_len: socklen_t,
     ) -> isize;
 }
@@ -5487,7 +6876,7 @@ unsafe extern "C" {
         __buf: *mut ::std::os::raw::c_void,
         __n: usize,
         __flags: ::std::os::raw::c_int,
-        __addr: *mut sockaddr,
+        __addr: __SOCKADDR_ARG,
         __addr_len: *mut socklen_t,
     ) -> isize;
 }
@@ -5499,11 +6888,28 @@ unsafe extern "C" {
     ) -> isize;
 }
 unsafe extern "C" {
+    pub fn sendmmsg(
+        __fd: ::std::os::raw::c_int,
+        __vmessages: *mut mmsghdr,
+        __vlen: ::std::os::raw::c_uint,
+        __flags: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn recvmsg(
         __fd: ::std::os::raw::c_int,
         __message: *mut msghdr,
         __flags: ::std::os::raw::c_int,
     ) -> isize;
+}
+unsafe extern "C" {
+    pub fn recvmmsg(
+        __fd: ::std::os::raw::c_int,
+        __vmessages: *mut mmsghdr,
+        __vlen: ::std::os::raw::c_uint,
+        __flags: ::std::os::raw::c_int,
+        __tmo: *mut timespec,
+    ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn getsockopt(
@@ -5530,8 +6936,16 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn accept(
         __fd: ::std::os::raw::c_int,
-        __addr: *mut sockaddr,
+        __addr: __SOCKADDR_ARG,
         __addr_len: *mut socklen_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn accept4(
+        __fd: ::std::os::raw::c_int,
+        __addr: __SOCKADDR_ARG,
+        __addr_len: *mut socklen_t,
+        __flags: ::std::os::raw::c_int,
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -5634,8 +7048,10 @@ pub const IPPROTO_COMP: _bindgen_ty_8 = 108;
 pub const IPPROTO_SCTP: _bindgen_ty_8 = 132;
 pub const IPPROTO_UDPLITE: _bindgen_ty_8 = 136;
 pub const IPPROTO_MPLS: _bindgen_ty_8 = 137;
+pub const IPPROTO_ETHERNET: _bindgen_ty_8 = 143;
 pub const IPPROTO_RAW: _bindgen_ty_8 = 255;
-pub const IPPROTO_MAX: _bindgen_ty_8 = 256;
+pub const IPPROTO_MPTCP: _bindgen_ty_8 = 262;
+pub const IPPROTO_MAX: _bindgen_ty_8 = 263;
 pub type _bindgen_ty_8 = ::std::os::raw::c_uint;
 pub const IPPROTO_HOPOPTS: _bindgen_ty_9 = 0;
 pub const IPPROTO_ROUTING: _bindgen_ty_9 = 43;
@@ -5904,6 +7320,212 @@ unsafe extern "C" {
     pub fn bindresvport6(
         __sockfd: ::std::os::raw::c_int,
         __sock_in: *mut sockaddr_in6,
+    ) -> ::std::os::raw::c_int;
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct in6_pktinfo {
+    pub ipi6_addr: in6_addr,
+    pub ipi6_ifindex: ::std::os::raw::c_uint,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of in6_pktinfo"][::std::mem::size_of::<in6_pktinfo>() - 20usize];
+    ["Alignment of in6_pktinfo"][::std::mem::align_of::<in6_pktinfo>() - 4usize];
+    ["Offset of field: in6_pktinfo::ipi6_addr"]
+        [::std::mem::offset_of!(in6_pktinfo, ipi6_addr) - 0usize];
+    ["Offset of field: in6_pktinfo::ipi6_ifindex"]
+        [::std::mem::offset_of!(in6_pktinfo, ipi6_ifindex) - 16usize];
+};
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct ip6_mtuinfo {
+    pub ip6m_addr: sockaddr_in6,
+    pub ip6m_mtu: u32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of ip6_mtuinfo"][::std::mem::size_of::<ip6_mtuinfo>() - 32usize];
+    ["Alignment of ip6_mtuinfo"][::std::mem::align_of::<ip6_mtuinfo>() - 4usize];
+    ["Offset of field: ip6_mtuinfo::ip6m_addr"]
+        [::std::mem::offset_of!(ip6_mtuinfo, ip6m_addr) - 0usize];
+    ["Offset of field: ip6_mtuinfo::ip6m_mtu"]
+        [::std::mem::offset_of!(ip6_mtuinfo, ip6m_mtu) - 28usize];
+};
+unsafe extern "C" {
+    pub fn inet6_option_space(__nbytes: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_option_init(
+        __bp: *mut ::std::os::raw::c_void,
+        __cmsgp: *mut *mut cmsghdr,
+        __type: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_option_append(
+        __cmsg: *mut cmsghdr,
+        __typep: *const u8,
+        __multx: ::std::os::raw::c_int,
+        __plusy: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_option_alloc(
+        __cmsg: *mut cmsghdr,
+        __datalen: ::std::os::raw::c_int,
+        __multx: ::std::os::raw::c_int,
+        __plusy: ::std::os::raw::c_int,
+    ) -> *mut u8;
+}
+unsafe extern "C" {
+    pub fn inet6_option_next(
+        __cmsg: *const cmsghdr,
+        __tptrp: *mut *mut u8,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_option_find(
+        __cmsg: *const cmsghdr,
+        __tptrp: *mut *mut u8,
+        __type: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_opt_init(
+        __extbuf: *mut ::std::os::raw::c_void,
+        __extlen: socklen_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_opt_append(
+        __extbuf: *mut ::std::os::raw::c_void,
+        __extlen: socklen_t,
+        __offset: ::std::os::raw::c_int,
+        __type: u8,
+        __len: socklen_t,
+        __align: u8,
+        __databufp: *mut *mut ::std::os::raw::c_void,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_opt_finish(
+        __extbuf: *mut ::std::os::raw::c_void,
+        __extlen: socklen_t,
+        __offset: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_opt_set_val(
+        __databuf: *mut ::std::os::raw::c_void,
+        __offset: ::std::os::raw::c_int,
+        __val: *mut ::std::os::raw::c_void,
+        __vallen: socklen_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_opt_next(
+        __extbuf: *mut ::std::os::raw::c_void,
+        __extlen: socklen_t,
+        __offset: ::std::os::raw::c_int,
+        __typep: *mut u8,
+        __lenp: *mut socklen_t,
+        __databufp: *mut *mut ::std::os::raw::c_void,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_opt_find(
+        __extbuf: *mut ::std::os::raw::c_void,
+        __extlen: socklen_t,
+        __offset: ::std::os::raw::c_int,
+        __type: u8,
+        __lenp: *mut socklen_t,
+        __databufp: *mut *mut ::std::os::raw::c_void,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_opt_get_val(
+        __databuf: *mut ::std::os::raw::c_void,
+        __offset: ::std::os::raw::c_int,
+        __val: *mut ::std::os::raw::c_void,
+        __vallen: socklen_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_rth_space(
+        __type: ::std::os::raw::c_int,
+        __segments: ::std::os::raw::c_int,
+    ) -> socklen_t;
+}
+unsafe extern "C" {
+    pub fn inet6_rth_init(
+        __bp: *mut ::std::os::raw::c_void,
+        __bp_len: socklen_t,
+        __type: ::std::os::raw::c_int,
+        __segments: ::std::os::raw::c_int,
+    ) -> *mut ::std::os::raw::c_void;
+}
+unsafe extern "C" {
+    pub fn inet6_rth_add(
+        __bp: *mut ::std::os::raw::c_void,
+        __addr: *const in6_addr,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_rth_reverse(
+        __in: *const ::std::os::raw::c_void,
+        __out: *mut ::std::os::raw::c_void,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_rth_segments(__bp: *const ::std::os::raw::c_void) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn inet6_rth_getaddr(
+        __bp: *const ::std::os::raw::c_void,
+        __index: ::std::os::raw::c_int,
+    ) -> *mut in6_addr;
+}
+unsafe extern "C" {
+    pub fn getipv4sourcefilter(
+        __s: ::std::os::raw::c_int,
+        __interface_addr: in_addr,
+        __group: in_addr,
+        __fmode: *mut u32,
+        __numsrc: *mut u32,
+        __slist: *mut in_addr,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn setipv4sourcefilter(
+        __s: ::std::os::raw::c_int,
+        __interface_addr: in_addr,
+        __group: in_addr,
+        __fmode: u32,
+        __numsrc: u32,
+        __slist: *const in_addr,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn getsourcefilter(
+        __s: ::std::os::raw::c_int,
+        __interface_addr: u32,
+        __group: *const sockaddr,
+        __grouplen: socklen_t,
+        __fmode: *mut u32,
+        __numsrc: *mut u32,
+        __slist: *mut sockaddr_storage,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn setsourcefilter(
+        __s: ::std::os::raw::c_int,
+        __interface_addr: u32,
+        __group: *const sockaddr,
+        __grouplen: socklen_t,
+        __fmode: u32,
+        __numsrc: u32,
+        __slist: *const sockaddr_storage,
     ) -> ::std::os::raw::c_int;
 }
 pub type tcp_seq = u32;
@@ -6893,6 +8515,13 @@ unsafe extern "C" {
     pub fn sem_timedwait(__sem: *mut sem_t, __abstime: *const timespec) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn sem_clockwait(
+        __sem: *mut sem_t,
+        clock: clockid_t,
+        __abstime: *const timespec,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn sem_trywait(__sem: *mut sem_t) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -6904,6 +8533,10 @@ unsafe extern "C" {
         __sval: *mut ::std::os::raw::c_int,
     ) -> ::std::os::raw::c_int;
 }
+unsafe extern "C" {
+    pub fn _dl_mcount_wrapper_check(__selfpc: *mut ::std::os::raw::c_void);
+}
+pub type Lmid_t = ::std::os::raw::c_long;
 unsafe extern "C" {
     pub fn dlopen(
         __file: *const ::std::os::raw::c_char,
@@ -6920,7 +8553,153 @@ unsafe extern "C" {
     ) -> *mut ::std::os::raw::c_void;
 }
 unsafe extern "C" {
+    pub fn dlmopen(
+        __nsid: Lmid_t,
+        __file: *const ::std::os::raw::c_char,
+        __mode: ::std::os::raw::c_int,
+    ) -> *mut ::std::os::raw::c_void;
+}
+unsafe extern "C" {
+    pub fn dlvsym(
+        __handle: *mut ::std::os::raw::c_void,
+        __name: *const ::std::os::raw::c_char,
+        __version: *const ::std::os::raw::c_char,
+    ) -> *mut ::std::os::raw::c_void;
+}
+unsafe extern "C" {
     pub fn dlerror() -> *mut ::std::os::raw::c_char;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct Dl_info {
+    pub dli_fname: *const ::std::os::raw::c_char,
+    pub dli_fbase: *mut ::std::os::raw::c_void,
+    pub dli_sname: *const ::std::os::raw::c_char,
+    pub dli_saddr: *mut ::std::os::raw::c_void,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of Dl_info"][::std::mem::size_of::<Dl_info>() - 32usize];
+    ["Alignment of Dl_info"][::std::mem::align_of::<Dl_info>() - 8usize];
+    ["Offset of field: Dl_info::dli_fname"][::std::mem::offset_of!(Dl_info, dli_fname) - 0usize];
+    ["Offset of field: Dl_info::dli_fbase"][::std::mem::offset_of!(Dl_info, dli_fbase) - 8usize];
+    ["Offset of field: Dl_info::dli_sname"][::std::mem::offset_of!(Dl_info, dli_sname) - 16usize];
+    ["Offset of field: Dl_info::dli_saddr"][::std::mem::offset_of!(Dl_info, dli_saddr) - 24usize];
+};
+unsafe extern "C" {
+    pub fn dladdr(
+        __address: *const ::std::os::raw::c_void,
+        __info: *mut Dl_info,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn dladdr1(
+        __address: *const ::std::os::raw::c_void,
+        __info: *mut Dl_info,
+        __extra_info: *mut *mut ::std::os::raw::c_void,
+        __flags: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+pub const RTLD_DL_SYMENT: _bindgen_ty_13 = 1;
+pub const RTLD_DL_LINKMAP: _bindgen_ty_13 = 2;
+pub type _bindgen_ty_13 = ::std::os::raw::c_uint;
+unsafe extern "C" {
+    pub fn dlinfo(
+        __handle: *mut ::std::os::raw::c_void,
+        __request: ::std::os::raw::c_int,
+        __arg: *mut ::std::os::raw::c_void,
+    ) -> ::std::os::raw::c_int;
+}
+pub const RTLD_DI_LMID: _bindgen_ty_14 = 1;
+pub const RTLD_DI_LINKMAP: _bindgen_ty_14 = 2;
+pub const RTLD_DI_CONFIGADDR: _bindgen_ty_14 = 3;
+pub const RTLD_DI_SERINFO: _bindgen_ty_14 = 4;
+pub const RTLD_DI_SERINFOSIZE: _bindgen_ty_14 = 5;
+pub const RTLD_DI_ORIGIN: _bindgen_ty_14 = 6;
+pub const RTLD_DI_PROFILENAME: _bindgen_ty_14 = 7;
+pub const RTLD_DI_PROFILEOUT: _bindgen_ty_14 = 8;
+pub const RTLD_DI_TLS_MODID: _bindgen_ty_14 = 9;
+pub const RTLD_DI_TLS_DATA: _bindgen_ty_14 = 10;
+pub const RTLD_DI_MAX: _bindgen_ty_14 = 10;
+pub type _bindgen_ty_14 = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct Dl_serpath {
+    pub dls_name: *mut ::std::os::raw::c_char,
+    pub dls_flags: ::std::os::raw::c_uint,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of Dl_serpath"][::std::mem::size_of::<Dl_serpath>() - 16usize];
+    ["Alignment of Dl_serpath"][::std::mem::align_of::<Dl_serpath>() - 8usize];
+    ["Offset of field: Dl_serpath::dls_name"]
+        [::std::mem::offset_of!(Dl_serpath, dls_name) - 0usize];
+    ["Offset of field: Dl_serpath::dls_flags"]
+        [::std::mem::offset_of!(Dl_serpath, dls_flags) - 8usize];
+};
+#[repr(C)]
+pub struct Dl_serinfo {
+    pub dls_size: usize,
+    pub dls_cnt: ::std::os::raw::c_uint,
+    pub __bindgen_anon_1: Dl_serinfo__bindgen_ty_1,
+}
+#[repr(C)]
+pub struct Dl_serinfo__bindgen_ty_1 {
+    pub dls_serpath: __BindgenUnionField<[Dl_serpath; 0usize]>,
+    pub __dls_serpath_pad: __BindgenUnionField<[Dl_serpath; 1usize]>,
+    pub bindgen_union_field: [u64; 2usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of Dl_serinfo__bindgen_ty_1"]
+        [::std::mem::size_of::<Dl_serinfo__bindgen_ty_1>() - 16usize];
+    ["Alignment of Dl_serinfo__bindgen_ty_1"]
+        [::std::mem::align_of::<Dl_serinfo__bindgen_ty_1>() - 8usize];
+    ["Offset of field: Dl_serinfo__bindgen_ty_1::dls_serpath"]
+        [::std::mem::offset_of!(Dl_serinfo__bindgen_ty_1, dls_serpath) - 0usize];
+    ["Offset of field: Dl_serinfo__bindgen_ty_1::__dls_serpath_pad"]
+        [::std::mem::offset_of!(Dl_serinfo__bindgen_ty_1, __dls_serpath_pad) - 0usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of Dl_serinfo"][::std::mem::size_of::<Dl_serinfo>() - 32usize];
+    ["Alignment of Dl_serinfo"][::std::mem::align_of::<Dl_serinfo>() - 8usize];
+    ["Offset of field: Dl_serinfo::dls_size"]
+        [::std::mem::offset_of!(Dl_serinfo, dls_size) - 0usize];
+    ["Offset of field: Dl_serinfo::dls_cnt"][::std::mem::offset_of!(Dl_serinfo, dls_cnt) - 8usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct dl_find_object {
+    pub dlfo_flags: ::std::os::raw::c_ulonglong,
+    pub dlfo_map_start: *mut ::std::os::raw::c_void,
+    pub dlfo_map_end: *mut ::std::os::raw::c_void,
+    pub dlfo_link_map: *mut link_map,
+    pub dlfo_eh_frame: *mut ::std::os::raw::c_void,
+    pub __dflo_reserved: [::std::os::raw::c_ulonglong; 7usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of dl_find_object"][::std::mem::size_of::<dl_find_object>() - 96usize];
+    ["Alignment of dl_find_object"][::std::mem::align_of::<dl_find_object>() - 8usize];
+    ["Offset of field: dl_find_object::dlfo_flags"]
+        [::std::mem::offset_of!(dl_find_object, dlfo_flags) - 0usize];
+    ["Offset of field: dl_find_object::dlfo_map_start"]
+        [::std::mem::offset_of!(dl_find_object, dlfo_map_start) - 8usize];
+    ["Offset of field: dl_find_object::dlfo_map_end"]
+        [::std::mem::offset_of!(dl_find_object, dlfo_map_end) - 16usize];
+    ["Offset of field: dl_find_object::dlfo_link_map"]
+        [::std::mem::offset_of!(dl_find_object, dlfo_link_map) - 24usize];
+    ["Offset of field: dl_find_object::dlfo_eh_frame"]
+        [::std::mem::offset_of!(dl_find_object, dlfo_eh_frame) - 32usize];
+    ["Offset of field: dl_find_object::__dflo_reserved"]
+        [::std::mem::offset_of!(dl_find_object, __dflo_reserved) - 40usize];
+};
+unsafe extern "C" {
+    pub fn _dl_find_object(
+        __address: *mut ::std::os::raw::c_void,
+        __result: *mut dl_find_object,
+    ) -> ::std::os::raw::c_int;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -6978,6 +8757,77 @@ unsafe extern "C" {
         __result: *mut *mut rpcent,
     ) -> ::std::os::raw::c_int;
 }
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union sigval {
+    pub sival_int: ::std::os::raw::c_int,
+    pub sival_ptr: *mut ::std::os::raw::c_void,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of sigval"][::std::mem::size_of::<sigval>() - 8usize];
+    ["Alignment of sigval"][::std::mem::align_of::<sigval>() - 8usize];
+    ["Offset of field: sigval::sival_int"][::std::mem::offset_of!(sigval, sival_int) - 0usize];
+    ["Offset of field: sigval::sival_ptr"][::std::mem::offset_of!(sigval, sival_ptr) - 0usize];
+};
+pub type __sigval_t = sigval;
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct sigevent {
+    pub sigev_value: __sigval_t,
+    pub sigev_signo: ::std::os::raw::c_int,
+    pub sigev_notify: ::std::os::raw::c_int,
+    pub _sigev_un: sigevent__bindgen_ty_1,
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union sigevent__bindgen_ty_1 {
+    pub _pad: [::std::os::raw::c_int; 12usize],
+    pub _tid: __pid_t,
+    pub _sigev_thread: sigevent__bindgen_ty_1__bindgen_ty_1,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sigevent__bindgen_ty_1__bindgen_ty_1 {
+    pub _function: ::std::option::Option<unsafe extern "C" fn(arg1: __sigval_t)>,
+    pub _attribute: *mut pthread_attr_t,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of sigevent__bindgen_ty_1__bindgen_ty_1"]
+        [::std::mem::size_of::<sigevent__bindgen_ty_1__bindgen_ty_1>() - 16usize];
+    ["Alignment of sigevent__bindgen_ty_1__bindgen_ty_1"]
+        [::std::mem::align_of::<sigevent__bindgen_ty_1__bindgen_ty_1>() - 8usize];
+    ["Offset of field: sigevent__bindgen_ty_1__bindgen_ty_1::_function"]
+        [::std::mem::offset_of!(sigevent__bindgen_ty_1__bindgen_ty_1, _function) - 0usize];
+    ["Offset of field: sigevent__bindgen_ty_1__bindgen_ty_1::_attribute"]
+        [::std::mem::offset_of!(sigevent__bindgen_ty_1__bindgen_ty_1, _attribute) - 8usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of sigevent__bindgen_ty_1"][::std::mem::size_of::<sigevent__bindgen_ty_1>() - 48usize];
+    ["Alignment of sigevent__bindgen_ty_1"]
+        [::std::mem::align_of::<sigevent__bindgen_ty_1>() - 8usize];
+    ["Offset of field: sigevent__bindgen_ty_1::_pad"]
+        [::std::mem::offset_of!(sigevent__bindgen_ty_1, _pad) - 0usize];
+    ["Offset of field: sigevent__bindgen_ty_1::_tid"]
+        [::std::mem::offset_of!(sigevent__bindgen_ty_1, _tid) - 0usize];
+    ["Offset of field: sigevent__bindgen_ty_1::_sigev_thread"]
+        [::std::mem::offset_of!(sigevent__bindgen_ty_1, _sigev_thread) - 0usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of sigevent"][::std::mem::size_of::<sigevent>() - 64usize];
+    ["Alignment of sigevent"][::std::mem::align_of::<sigevent>() - 8usize];
+    ["Offset of field: sigevent::sigev_value"]
+        [::std::mem::offset_of!(sigevent, sigev_value) - 0usize];
+    ["Offset of field: sigevent::sigev_signo"]
+        [::std::mem::offset_of!(sigevent, sigev_signo) - 8usize];
+    ["Offset of field: sigevent::sigev_notify"]
+        [::std::mem::offset_of!(sigevent, sigev_notify) - 12usize];
+    ["Offset of field: sigevent::_sigev_un"][::std::mem::offset_of!(sigevent, _sigev_un) - 16usize];
+};
+pub type sigevent_t = sigevent;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct netent {
@@ -7402,6 +9252,28 @@ const _: () = {
         [::std::mem::offset_of!(addrinfo, ai_canonname) - 32usize];
     ["Offset of field: addrinfo::ai_next"][::std::mem::offset_of!(addrinfo, ai_next) - 40usize];
 };
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct gaicb {
+    pub ar_name: *const ::std::os::raw::c_char,
+    pub ar_service: *const ::std::os::raw::c_char,
+    pub ar_request: *const addrinfo,
+    pub ar_result: *mut addrinfo,
+    pub __return: ::std::os::raw::c_int,
+    pub __glibc_reserved: [::std::os::raw::c_int; 5usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of gaicb"][::std::mem::size_of::<gaicb>() - 56usize];
+    ["Alignment of gaicb"][::std::mem::align_of::<gaicb>() - 8usize];
+    ["Offset of field: gaicb::ar_name"][::std::mem::offset_of!(gaicb, ar_name) - 0usize];
+    ["Offset of field: gaicb::ar_service"][::std::mem::offset_of!(gaicb, ar_service) - 8usize];
+    ["Offset of field: gaicb::ar_request"][::std::mem::offset_of!(gaicb, ar_request) - 16usize];
+    ["Offset of field: gaicb::ar_result"][::std::mem::offset_of!(gaicb, ar_result) - 24usize];
+    ["Offset of field: gaicb::__return"][::std::mem::offset_of!(gaicb, __return) - 32usize];
+    ["Offset of field: gaicb::__glibc_reserved"]
+        [::std::mem::offset_of!(gaicb, __glibc_reserved) - 36usize];
+};
 unsafe extern "C" {
     pub fn getaddrinfo(
         __name: *const ::std::os::raw::c_char,
@@ -7426,6 +9298,27 @@ unsafe extern "C" {
         __servlen: socklen_t,
         __flags: ::std::os::raw::c_int,
     ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn getaddrinfo_a(
+        __mode: ::std::os::raw::c_int,
+        __list: *mut *mut gaicb,
+        __ent: ::std::os::raw::c_int,
+        __sig: *mut sigevent,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn gai_suspend(
+        __list: *const *const gaicb,
+        __ent: ::std::os::raw::c_int,
+        __timeout: *const timespec,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn gai_error(__req: *mut gaicb) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn gai_cancel(__gaicbp: *mut gaicb) -> ::std::os::raw::c_int;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -7507,6 +9400,9 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn getpw(__uid: __uid_t, __buffer: *mut ::std::os::raw::c_char) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn __assert_fail(
         __assertion: *const ::std::os::raw::c_char,
         __file: *const ::std::os::raw::c_char,
@@ -7572,20 +9468,6 @@ unsafe extern "C" {
     pub fn siglongjmp(__env: *mut __jmp_buf_tag, __val: ::std::os::raw::c_int) -> !;
 }
 pub type sig_atomic_t = __sig_atomic_t;
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union sigval {
-    pub sival_int: ::std::os::raw::c_int,
-    pub sival_ptr: *mut ::std::os::raw::c_void,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of sigval"][::std::mem::size_of::<sigval>() - 8usize];
-    ["Alignment of sigval"][::std::mem::align_of::<sigval>() - 8usize];
-    ["Offset of field: sigval::sival_int"][::std::mem::offset_of!(sigval, sival_int) - 0usize];
-    ["Offset of field: sigval::sival_ptr"][::std::mem::offset_of!(sigval, sival_ptr) - 0usize];
-};
-pub type __sigval_t = sigval;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct siginfo_t {
@@ -7819,133 +9701,87 @@ const _: () = {
     ["Offset of field: siginfo_t::_sifields"]
         [::std::mem::offset_of!(siginfo_t, _sifields) - 16usize];
 };
-pub const SI_ASYNCNL: _bindgen_ty_13 = -60;
-pub const SI_DETHREAD: _bindgen_ty_13 = -7;
-pub const SI_TKILL: _bindgen_ty_13 = -6;
-pub const SI_SIGIO: _bindgen_ty_13 = -5;
-pub const SI_ASYNCIO: _bindgen_ty_13 = -4;
-pub const SI_MESGQ: _bindgen_ty_13 = -3;
-pub const SI_TIMER: _bindgen_ty_13 = -2;
-pub const SI_QUEUE: _bindgen_ty_13 = -1;
-pub const SI_USER: _bindgen_ty_13 = 0;
-pub const SI_KERNEL: _bindgen_ty_13 = 128;
-pub type _bindgen_ty_13 = ::std::os::raw::c_int;
-pub const ILL_ILLOPC: _bindgen_ty_14 = 1;
-pub const ILL_ILLOPN: _bindgen_ty_14 = 2;
-pub const ILL_ILLADR: _bindgen_ty_14 = 3;
-pub const ILL_ILLTRP: _bindgen_ty_14 = 4;
-pub const ILL_PRVOPC: _bindgen_ty_14 = 5;
-pub const ILL_PRVREG: _bindgen_ty_14 = 6;
-pub const ILL_COPROC: _bindgen_ty_14 = 7;
-pub const ILL_BADSTK: _bindgen_ty_14 = 8;
-pub const ILL_BADIADDR: _bindgen_ty_14 = 9;
-pub type _bindgen_ty_14 = ::std::os::raw::c_uint;
-pub const FPE_INTDIV: _bindgen_ty_15 = 1;
-pub const FPE_INTOVF: _bindgen_ty_15 = 2;
-pub const FPE_FLTDIV: _bindgen_ty_15 = 3;
-pub const FPE_FLTOVF: _bindgen_ty_15 = 4;
-pub const FPE_FLTUND: _bindgen_ty_15 = 5;
-pub const FPE_FLTRES: _bindgen_ty_15 = 6;
-pub const FPE_FLTINV: _bindgen_ty_15 = 7;
-pub const FPE_FLTSUB: _bindgen_ty_15 = 8;
-pub const FPE_FLTUNK: _bindgen_ty_15 = 14;
-pub const FPE_CONDTRAP: _bindgen_ty_15 = 15;
-pub type _bindgen_ty_15 = ::std::os::raw::c_uint;
-pub const SEGV_MAPERR: _bindgen_ty_16 = 1;
-pub const SEGV_ACCERR: _bindgen_ty_16 = 2;
-pub const SEGV_BNDERR: _bindgen_ty_16 = 3;
-pub const SEGV_PKUERR: _bindgen_ty_16 = 4;
-pub const SEGV_ACCADI: _bindgen_ty_16 = 5;
-pub const SEGV_ADIDERR: _bindgen_ty_16 = 6;
-pub const SEGV_ADIPERR: _bindgen_ty_16 = 7;
+pub const SI_ASYNCNL: _bindgen_ty_15 = -60;
+pub const SI_DETHREAD: _bindgen_ty_15 = -7;
+pub const SI_TKILL: _bindgen_ty_15 = -6;
+pub const SI_SIGIO: _bindgen_ty_15 = -5;
+pub const SI_ASYNCIO: _bindgen_ty_15 = -4;
+pub const SI_MESGQ: _bindgen_ty_15 = -3;
+pub const SI_TIMER: _bindgen_ty_15 = -2;
+pub const SI_QUEUE: _bindgen_ty_15 = -1;
+pub const SI_USER: _bindgen_ty_15 = 0;
+pub const SI_KERNEL: _bindgen_ty_15 = 128;
+pub type _bindgen_ty_15 = ::std::os::raw::c_int;
+pub const ILL_ILLOPC: _bindgen_ty_16 = 1;
+pub const ILL_ILLOPN: _bindgen_ty_16 = 2;
+pub const ILL_ILLADR: _bindgen_ty_16 = 3;
+pub const ILL_ILLTRP: _bindgen_ty_16 = 4;
+pub const ILL_PRVOPC: _bindgen_ty_16 = 5;
+pub const ILL_PRVREG: _bindgen_ty_16 = 6;
+pub const ILL_COPROC: _bindgen_ty_16 = 7;
+pub const ILL_BADSTK: _bindgen_ty_16 = 8;
+pub const ILL_BADIADDR: _bindgen_ty_16 = 9;
 pub type _bindgen_ty_16 = ::std::os::raw::c_uint;
-pub const BUS_ADRALN: _bindgen_ty_17 = 1;
-pub const BUS_ADRERR: _bindgen_ty_17 = 2;
-pub const BUS_OBJERR: _bindgen_ty_17 = 3;
-pub const BUS_MCEERR_AR: _bindgen_ty_17 = 4;
-pub const BUS_MCEERR_AO: _bindgen_ty_17 = 5;
+pub const FPE_INTDIV: _bindgen_ty_17 = 1;
+pub const FPE_INTOVF: _bindgen_ty_17 = 2;
+pub const FPE_FLTDIV: _bindgen_ty_17 = 3;
+pub const FPE_FLTOVF: _bindgen_ty_17 = 4;
+pub const FPE_FLTUND: _bindgen_ty_17 = 5;
+pub const FPE_FLTRES: _bindgen_ty_17 = 6;
+pub const FPE_FLTINV: _bindgen_ty_17 = 7;
+pub const FPE_FLTSUB: _bindgen_ty_17 = 8;
+pub const FPE_FLTUNK: _bindgen_ty_17 = 14;
+pub const FPE_CONDTRAP: _bindgen_ty_17 = 15;
 pub type _bindgen_ty_17 = ::std::os::raw::c_uint;
-pub const CLD_EXITED: _bindgen_ty_18 = 1;
-pub const CLD_KILLED: _bindgen_ty_18 = 2;
-pub const CLD_DUMPED: _bindgen_ty_18 = 3;
-pub const CLD_TRAPPED: _bindgen_ty_18 = 4;
-pub const CLD_STOPPED: _bindgen_ty_18 = 5;
-pub const CLD_CONTINUED: _bindgen_ty_18 = 6;
+pub const SEGV_MAPERR: _bindgen_ty_18 = 1;
+pub const SEGV_ACCERR: _bindgen_ty_18 = 2;
+pub const SEGV_BNDERR: _bindgen_ty_18 = 3;
+pub const SEGV_PKUERR: _bindgen_ty_18 = 4;
+pub const SEGV_ACCADI: _bindgen_ty_18 = 5;
+pub const SEGV_ADIDERR: _bindgen_ty_18 = 6;
+pub const SEGV_ADIPERR: _bindgen_ty_18 = 7;
+pub const SEGV_MTEAERR: _bindgen_ty_18 = 8;
+pub const SEGV_MTESERR: _bindgen_ty_18 = 9;
 pub type _bindgen_ty_18 = ::std::os::raw::c_uint;
-pub const POLL_IN: _bindgen_ty_19 = 1;
-pub const POLL_OUT: _bindgen_ty_19 = 2;
-pub const POLL_MSG: _bindgen_ty_19 = 3;
-pub const POLL_ERR: _bindgen_ty_19 = 4;
-pub const POLL_PRI: _bindgen_ty_19 = 5;
-pub const POLL_HUP: _bindgen_ty_19 = 6;
+pub const BUS_ADRALN: _bindgen_ty_19 = 1;
+pub const BUS_ADRERR: _bindgen_ty_19 = 2;
+pub const BUS_OBJERR: _bindgen_ty_19 = 3;
+pub const BUS_MCEERR_AR: _bindgen_ty_19 = 4;
+pub const BUS_MCEERR_AO: _bindgen_ty_19 = 5;
 pub type _bindgen_ty_19 = ::std::os::raw::c_uint;
-pub type sigval_t = __sigval_t;
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct sigevent {
-    pub sigev_value: __sigval_t,
-    pub sigev_signo: ::std::os::raw::c_int,
-    pub sigev_notify: ::std::os::raw::c_int,
-    pub _sigev_un: sigevent__bindgen_ty_1,
-}
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union sigevent__bindgen_ty_1 {
-    pub _pad: [::std::os::raw::c_int; 12usize],
-    pub _tid: __pid_t,
-    pub _sigev_thread: sigevent__bindgen_ty_1__bindgen_ty_1,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct sigevent__bindgen_ty_1__bindgen_ty_1 {
-    pub _function: ::std::option::Option<unsafe extern "C" fn(arg1: __sigval_t)>,
-    pub _attribute: *mut pthread_attr_t,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of sigevent__bindgen_ty_1__bindgen_ty_1"]
-        [::std::mem::size_of::<sigevent__bindgen_ty_1__bindgen_ty_1>() - 16usize];
-    ["Alignment of sigevent__bindgen_ty_1__bindgen_ty_1"]
-        [::std::mem::align_of::<sigevent__bindgen_ty_1__bindgen_ty_1>() - 8usize];
-    ["Offset of field: sigevent__bindgen_ty_1__bindgen_ty_1::_function"]
-        [::std::mem::offset_of!(sigevent__bindgen_ty_1__bindgen_ty_1, _function) - 0usize];
-    ["Offset of field: sigevent__bindgen_ty_1__bindgen_ty_1::_attribute"]
-        [::std::mem::offset_of!(sigevent__bindgen_ty_1__bindgen_ty_1, _attribute) - 8usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of sigevent__bindgen_ty_1"][::std::mem::size_of::<sigevent__bindgen_ty_1>() - 48usize];
-    ["Alignment of sigevent__bindgen_ty_1"]
-        [::std::mem::align_of::<sigevent__bindgen_ty_1>() - 8usize];
-    ["Offset of field: sigevent__bindgen_ty_1::_pad"]
-        [::std::mem::offset_of!(sigevent__bindgen_ty_1, _pad) - 0usize];
-    ["Offset of field: sigevent__bindgen_ty_1::_tid"]
-        [::std::mem::offset_of!(sigevent__bindgen_ty_1, _tid) - 0usize];
-    ["Offset of field: sigevent__bindgen_ty_1::_sigev_thread"]
-        [::std::mem::offset_of!(sigevent__bindgen_ty_1, _sigev_thread) - 0usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of sigevent"][::std::mem::size_of::<sigevent>() - 64usize];
-    ["Alignment of sigevent"][::std::mem::align_of::<sigevent>() - 8usize];
-    ["Offset of field: sigevent::sigev_value"]
-        [::std::mem::offset_of!(sigevent, sigev_value) - 0usize];
-    ["Offset of field: sigevent::sigev_signo"]
-        [::std::mem::offset_of!(sigevent, sigev_signo) - 8usize];
-    ["Offset of field: sigevent::sigev_notify"]
-        [::std::mem::offset_of!(sigevent, sigev_notify) - 12usize];
-    ["Offset of field: sigevent::_sigev_un"][::std::mem::offset_of!(sigevent, _sigev_un) - 16usize];
-};
-pub type sigevent_t = sigevent;
-pub const SIGEV_SIGNAL: _bindgen_ty_20 = 0;
-pub const SIGEV_NONE: _bindgen_ty_20 = 1;
-pub const SIGEV_THREAD: _bindgen_ty_20 = 2;
-pub const SIGEV_THREAD_ID: _bindgen_ty_20 = 4;
+pub const TRAP_BRKPT: _bindgen_ty_20 = 1;
+pub const TRAP_TRACE: _bindgen_ty_20 = 2;
+pub const TRAP_BRANCH: _bindgen_ty_20 = 3;
+pub const TRAP_HWBKPT: _bindgen_ty_20 = 4;
+pub const TRAP_UNK: _bindgen_ty_20 = 5;
 pub type _bindgen_ty_20 = ::std::os::raw::c_uint;
+pub const CLD_EXITED: _bindgen_ty_21 = 1;
+pub const CLD_KILLED: _bindgen_ty_21 = 2;
+pub const CLD_DUMPED: _bindgen_ty_21 = 3;
+pub const CLD_TRAPPED: _bindgen_ty_21 = 4;
+pub const CLD_STOPPED: _bindgen_ty_21 = 5;
+pub const CLD_CONTINUED: _bindgen_ty_21 = 6;
+pub type _bindgen_ty_21 = ::std::os::raw::c_uint;
+pub const POLL_IN: _bindgen_ty_22 = 1;
+pub const POLL_OUT: _bindgen_ty_22 = 2;
+pub const POLL_MSG: _bindgen_ty_22 = 3;
+pub const POLL_ERR: _bindgen_ty_22 = 4;
+pub const POLL_PRI: _bindgen_ty_22 = 5;
+pub const POLL_HUP: _bindgen_ty_22 = 6;
+pub type _bindgen_ty_22 = ::std::os::raw::c_uint;
+pub type sigval_t = __sigval_t;
+pub const SIGEV_SIGNAL: _bindgen_ty_23 = 0;
+pub const SIGEV_NONE: _bindgen_ty_23 = 1;
+pub const SIGEV_THREAD: _bindgen_ty_23 = 2;
+pub const SIGEV_THREAD_ID: _bindgen_ty_23 = 4;
+pub type _bindgen_ty_23 = ::std::os::raw::c_uint;
 pub type __sighandler_t = ::std::option::Option<unsafe extern "C" fn(arg1: ::std::os::raw::c_int)>;
 unsafe extern "C" {
     pub fn __sysv_signal(__sig: ::std::os::raw::c_int, __handler: __sighandler_t)
         -> __sighandler_t;
+}
+unsafe extern "C" {
+    pub fn sysv_signal(__sig: ::std::os::raw::c_int, __handler: __sighandler_t) -> __sighandler_t;
 }
 unsafe extern "C" {
     pub fn signal(__sig: ::std::os::raw::c_int, __handler: __sighandler_t) -> __sighandler_t;
@@ -7972,6 +9808,10 @@ unsafe extern "C" {
     pub fn psiginfo(__pinfo: *const siginfo_t, __s: *const ::std::os::raw::c_char);
 }
 unsafe extern "C" {
+    #[link_name = "\u{1}__xpg_sigpause"]
+    pub fn sigpause(__sig: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn sigblock(__mask: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -7980,6 +9820,7 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn siggetmask() -> ::std::os::raw::c_int;
 }
+pub type sighandler_t = __sighandler_t;
 pub type sig_t = __sighandler_t;
 unsafe extern "C" {
     pub fn sigemptyset(__set: *mut sigset_t) -> ::std::os::raw::c_int;
@@ -7999,6 +9840,23 @@ unsafe extern "C" {
     pub fn sigismember(
         __set: *const sigset_t,
         __signo: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn sigisemptyset(__set: *const sigset_t) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn sigandset(
+        __set: *mut sigset_t,
+        __left: *const sigset_t,
+        __right: *const sigset_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn sigorset(
+        __set: *mut sigset_t,
+        __left: *const sigset_t,
+        __right: *const sigset_t,
     ) -> ::std::os::raw::c_int;
 }
 #[repr(C)]
@@ -8085,12 +9943,6 @@ unsafe extern "C" {
         __sig: ::std::os::raw::c_int,
         __val: sigval,
     ) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub static _sys_siglist: [*const ::std::os::raw::c_char; 65usize];
-}
-unsafe extern "C" {
-    pub static sys_siglist: [*const ::std::os::raw::c_char; 65usize];
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -8338,6 +10190,30 @@ const _: () = {
 };
 pub type greg_t = ::std::os::raw::c_longlong;
 pub type gregset_t = [greg_t; 23usize];
+pub const REG_R8: _bindgen_ty_24 = 0;
+pub const REG_R9: _bindgen_ty_24 = 1;
+pub const REG_R10: _bindgen_ty_24 = 2;
+pub const REG_R11: _bindgen_ty_24 = 3;
+pub const REG_R12: _bindgen_ty_24 = 4;
+pub const REG_R13: _bindgen_ty_24 = 5;
+pub const REG_R14: _bindgen_ty_24 = 6;
+pub const REG_R15: _bindgen_ty_24 = 7;
+pub const REG_RDI: _bindgen_ty_24 = 8;
+pub const REG_RSI: _bindgen_ty_24 = 9;
+pub const REG_RBP: _bindgen_ty_24 = 10;
+pub const REG_RBX: _bindgen_ty_24 = 11;
+pub const REG_RDX: _bindgen_ty_24 = 12;
+pub const REG_RAX: _bindgen_ty_24 = 13;
+pub const REG_RCX: _bindgen_ty_24 = 14;
+pub const REG_RSP: _bindgen_ty_24 = 15;
+pub const REG_RIP: _bindgen_ty_24 = 16;
+pub const REG_EFL: _bindgen_ty_24 = 17;
+pub const REG_CSGSFS: _bindgen_ty_24 = 18;
+pub const REG_ERR: _bindgen_ty_24 = 19;
+pub const REG_TRAPNO: _bindgen_ty_24 = 20;
+pub const REG_OLDMASK: _bindgen_ty_24 = 21;
+pub const REG_CR2: _bindgen_ty_24 = 22;
+pub type _bindgen_ty_24 = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _libc_fpxreg {
@@ -8454,9 +10330,9 @@ unsafe extern "C" {
         __interrupt: ::std::os::raw::c_int,
     ) -> ::std::os::raw::c_int;
 }
-pub const SS_ONSTACK: _bindgen_ty_21 = 1;
-pub const SS_DISABLE: _bindgen_ty_21 = 2;
-pub type _bindgen_ty_21 = ::std::os::raw::c_uint;
+pub const SS_ONSTACK: _bindgen_ty_25 = 1;
+pub const SS_DISABLE: _bindgen_ty_25 = 2;
+pub type _bindgen_ty_25 = ::std::os::raw::c_uint;
 unsafe extern "C" {
     pub fn sigaltstack(__ss: *const stack_t, __oss: *mut stack_t) -> ::std::os::raw::c_int;
 }
@@ -8478,6 +10354,18 @@ unsafe extern "C" {
     pub fn sigstack(__ss: *mut sigstack, __oss: *mut sigstack) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn sighold(__sig: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn sigrelse(__sig: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn sigignore(__sig: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn sigset(__sig: ::std::os::raw::c_int, __disp: __sighandler_t) -> __sighandler_t;
+}
+unsafe extern "C" {
     pub fn pthread_sigmask(
         __how: ::std::os::raw::c_int,
         __newmask: *const __sigset_t,
@@ -8491,10 +10379,24 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn pthread_sigqueue(
+        __threadid: pthread_t,
+        __signo: ::std::os::raw::c_int,
+        __value: sigval,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn __libc_current_sigrtmin() -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn __libc_current_sigrtmax() -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn tgkill(
+        __tgid: __pid_t,
+        __tid: __pid_t,
+        __signal: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn readv(
@@ -8526,6 +10428,82 @@ unsafe extern "C" {
         __offset: __off_t,
     ) -> isize;
 }
+unsafe extern "C" {
+    pub fn preadv64(
+        __fd: ::std::os::raw::c_int,
+        __iovec: *const iovec,
+        __count: ::std::os::raw::c_int,
+        __offset: __off64_t,
+    ) -> isize;
+}
+unsafe extern "C" {
+    pub fn pwritev64(
+        __fd: ::std::os::raw::c_int,
+        __iovec: *const iovec,
+        __count: ::std::os::raw::c_int,
+        __offset: __off64_t,
+    ) -> isize;
+}
+unsafe extern "C" {
+    pub fn preadv2(
+        __fp: ::std::os::raw::c_int,
+        __iovec: *const iovec,
+        __count: ::std::os::raw::c_int,
+        __offset: __off_t,
+        ___flags: ::std::os::raw::c_int,
+    ) -> isize;
+}
+unsafe extern "C" {
+    pub fn pwritev2(
+        __fd: ::std::os::raw::c_int,
+        __iodev: *const iovec,
+        __count: ::std::os::raw::c_int,
+        __offset: __off_t,
+        __flags: ::std::os::raw::c_int,
+    ) -> isize;
+}
+unsafe extern "C" {
+    pub fn preadv64v2(
+        __fp: ::std::os::raw::c_int,
+        __iovec: *const iovec,
+        __count: ::std::os::raw::c_int,
+        __offset: __off64_t,
+        ___flags: ::std::os::raw::c_int,
+    ) -> isize;
+}
+unsafe extern "C" {
+    pub fn pwritev64v2(
+        __fd: ::std::os::raw::c_int,
+        __iodev: *const iovec,
+        __count: ::std::os::raw::c_int,
+        __offset: __off64_t,
+        __flags: ::std::os::raw::c_int,
+    ) -> isize;
+}
+unsafe extern "C" {
+    pub fn process_vm_readv(
+        __pid: pid_t,
+        __lvec: *const iovec,
+        __liovcnt: ::std::os::raw::c_ulong,
+        __rvec: *const iovec,
+        __riovcnt: ::std::os::raw::c_ulong,
+        __flags: ::std::os::raw::c_ulong,
+    ) -> isize;
+}
+unsafe extern "C" {
+    pub fn process_vm_writev(
+        __pid: pid_t,
+        __lvec: *const iovec,
+        __liovcnt: ::std::os::raw::c_ulong,
+        __rvec: *const iovec,
+        __riovcnt: ::std::os::raw::c_ulong,
+        __flags: ::std::os::raw::c_ulong,
+    ) -> isize;
+}
+pub const P_ALL: idtype_t = 0;
+pub const P_PID: idtype_t = 1;
+pub const P_PGID: idtype_t = 2;
+pub type idtype_t = ::std::os::raw::c_uint;
 unsafe extern "C" {
     pub fn wait(__stat_loc: *mut ::std::os::raw::c_int) -> __pid_t;
 }
@@ -8571,6 +10549,15 @@ unsafe extern "C" {
     pub fn fstat(__fd: ::std::os::raw::c_int, __buf: *mut stat) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn stat64(
+        __file: *const ::std::os::raw::c_char,
+        __buf: *mut stat64,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn fstat64(__fd: ::std::os::raw::c_int, __buf: *mut stat64) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn fstatat(
         __fd: ::std::os::raw::c_int,
         __file: *const ::std::os::raw::c_char,
@@ -8579,7 +10566,21 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn fstatat64(
+        __fd: ::std::os::raw::c_int,
+        __file: *const ::std::os::raw::c_char,
+        __buf: *mut stat64,
+        __flag: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn lstat(__file: *const ::std::os::raw::c_char, __buf: *mut stat) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn lstat64(
+        __file: *const ::std::os::raw::c_char,
+        __buf: *mut stat64,
+    ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn chmod(__file: *const ::std::os::raw::c_char, __mode: __mode_t) -> ::std::os::raw::c_int;
@@ -8601,6 +10602,9 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn umask(__mask: __mode_t) -> __mode_t;
+}
+unsafe extern "C" {
+    pub fn getumask() -> __mode_t;
 }
 unsafe extern "C" {
     pub fn mkdir(__path: *const ::std::os::raw::c_char, __mode: __mode_t) -> ::std::os::raw::c_int;
@@ -8650,51 +10654,109 @@ unsafe extern "C" {
     pub fn futimens(__fd: ::std::os::raw::c_int, __times: *const timespec)
         -> ::std::os::raw::c_int;
 }
-unsafe extern "C" {
-    pub fn __fxstat(
-        __ver: ::std::os::raw::c_int,
-        __fildes: ::std::os::raw::c_int,
-        __stat_buf: *mut stat,
-    ) -> ::std::os::raw::c_int;
+pub type __s8 = ::std::os::raw::c_schar;
+pub type __u8 = ::std::os::raw::c_uchar;
+pub type __s16 = ::std::os::raw::c_short;
+pub type __u16 = ::std::os::raw::c_ushort;
+pub type __s32 = ::std::os::raw::c_int;
+pub type __u32 = ::std::os::raw::c_uint;
+pub type __s64 = ::std::os::raw::c_longlong;
+pub type __u64 = ::std::os::raw::c_ulonglong;
+pub type __le16 = __u16;
+pub type __be16 = __u16;
+pub type __le32 = __u32;
+pub type __be32 = __u32;
+pub type __le64 = __u64;
+pub type __be64 = __u64;
+pub type __sum16 = __u16;
+pub type __wsum = __u32;
+pub type __poll_t = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct statx_timestamp {
+    pub tv_sec: __s64,
+    pub tv_nsec: __u32,
+    pub __reserved: __s32,
 }
-unsafe extern "C" {
-    pub fn __xstat(
-        __ver: ::std::os::raw::c_int,
-        __filename: *const ::std::os::raw::c_char,
-        __stat_buf: *mut stat,
-    ) -> ::std::os::raw::c_int;
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of statx_timestamp"][::std::mem::size_of::<statx_timestamp>() - 16usize];
+    ["Alignment of statx_timestamp"][::std::mem::align_of::<statx_timestamp>() - 8usize];
+    ["Offset of field: statx_timestamp::tv_sec"]
+        [::std::mem::offset_of!(statx_timestamp, tv_sec) - 0usize];
+    ["Offset of field: statx_timestamp::tv_nsec"]
+        [::std::mem::offset_of!(statx_timestamp, tv_nsec) - 8usize];
+    ["Offset of field: statx_timestamp::__reserved"]
+        [::std::mem::offset_of!(statx_timestamp, __reserved) - 12usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct statx {
+    pub stx_mask: __u32,
+    pub stx_blksize: __u32,
+    pub stx_attributes: __u64,
+    pub stx_nlink: __u32,
+    pub stx_uid: __u32,
+    pub stx_gid: __u32,
+    pub stx_mode: __u16,
+    pub __spare0: [__u16; 1usize],
+    pub stx_ino: __u64,
+    pub stx_size: __u64,
+    pub stx_blocks: __u64,
+    pub stx_attributes_mask: __u64,
+    pub stx_atime: statx_timestamp,
+    pub stx_btime: statx_timestamp,
+    pub stx_ctime: statx_timestamp,
+    pub stx_mtime: statx_timestamp,
+    pub stx_rdev_major: __u32,
+    pub stx_rdev_minor: __u32,
+    pub stx_dev_major: __u32,
+    pub stx_dev_minor: __u32,
+    pub stx_mnt_id: __u64,
+    pub __spare2: __u64,
+    pub __spare3: [__u64; 12usize],
 }
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of statx"][::std::mem::size_of::<statx>() - 256usize];
+    ["Alignment of statx"][::std::mem::align_of::<statx>() - 8usize];
+    ["Offset of field: statx::stx_mask"][::std::mem::offset_of!(statx, stx_mask) - 0usize];
+    ["Offset of field: statx::stx_blksize"][::std::mem::offset_of!(statx, stx_blksize) - 4usize];
+    ["Offset of field: statx::stx_attributes"]
+        [::std::mem::offset_of!(statx, stx_attributes) - 8usize];
+    ["Offset of field: statx::stx_nlink"][::std::mem::offset_of!(statx, stx_nlink) - 16usize];
+    ["Offset of field: statx::stx_uid"][::std::mem::offset_of!(statx, stx_uid) - 20usize];
+    ["Offset of field: statx::stx_gid"][::std::mem::offset_of!(statx, stx_gid) - 24usize];
+    ["Offset of field: statx::stx_mode"][::std::mem::offset_of!(statx, stx_mode) - 28usize];
+    ["Offset of field: statx::__spare0"][::std::mem::offset_of!(statx, __spare0) - 30usize];
+    ["Offset of field: statx::stx_ino"][::std::mem::offset_of!(statx, stx_ino) - 32usize];
+    ["Offset of field: statx::stx_size"][::std::mem::offset_of!(statx, stx_size) - 40usize];
+    ["Offset of field: statx::stx_blocks"][::std::mem::offset_of!(statx, stx_blocks) - 48usize];
+    ["Offset of field: statx::stx_attributes_mask"]
+        [::std::mem::offset_of!(statx, stx_attributes_mask) - 56usize];
+    ["Offset of field: statx::stx_atime"][::std::mem::offset_of!(statx, stx_atime) - 64usize];
+    ["Offset of field: statx::stx_btime"][::std::mem::offset_of!(statx, stx_btime) - 80usize];
+    ["Offset of field: statx::stx_ctime"][::std::mem::offset_of!(statx, stx_ctime) - 96usize];
+    ["Offset of field: statx::stx_mtime"][::std::mem::offset_of!(statx, stx_mtime) - 112usize];
+    ["Offset of field: statx::stx_rdev_major"]
+        [::std::mem::offset_of!(statx, stx_rdev_major) - 128usize];
+    ["Offset of field: statx::stx_rdev_minor"]
+        [::std::mem::offset_of!(statx, stx_rdev_minor) - 132usize];
+    ["Offset of field: statx::stx_dev_major"]
+        [::std::mem::offset_of!(statx, stx_dev_major) - 136usize];
+    ["Offset of field: statx::stx_dev_minor"]
+        [::std::mem::offset_of!(statx, stx_dev_minor) - 140usize];
+    ["Offset of field: statx::stx_mnt_id"][::std::mem::offset_of!(statx, stx_mnt_id) - 144usize];
+    ["Offset of field: statx::__spare2"][::std::mem::offset_of!(statx, __spare2) - 152usize];
+    ["Offset of field: statx::__spare3"][::std::mem::offset_of!(statx, __spare3) - 160usize];
+};
 unsafe extern "C" {
-    pub fn __lxstat(
-        __ver: ::std::os::raw::c_int,
-        __filename: *const ::std::os::raw::c_char,
-        __stat_buf: *mut stat,
-    ) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn __fxstatat(
-        __ver: ::std::os::raw::c_int,
-        __fildes: ::std::os::raw::c_int,
-        __filename: *const ::std::os::raw::c_char,
-        __stat_buf: *mut stat,
-        __flag: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn __xmknod(
-        __ver: ::std::os::raw::c_int,
+    pub fn statx(
+        __dirfd: ::std::os::raw::c_int,
         __path: *const ::std::os::raw::c_char,
-        __mode: __mode_t,
-        __dev: *mut __dev_t,
-    ) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn __xmknodat(
-        __ver: ::std::os::raw::c_int,
-        __fd: ::std::os::raw::c_int,
-        __path: *const ::std::os::raw::c_char,
-        __mode: __mode_t,
-        __dev: *mut __dev_t,
+        __flags: ::std::os::raw::c_int,
+        __mask: ::std::os::raw::c_uint,
+        __buf: *mut statx,
     ) -> ::std::os::raw::c_int;
 }
 #[repr(C)]
@@ -8742,7 +10804,7 @@ const _: () = {
         [::std::mem::offset_of!(itimerval, it_interval) - 0usize];
     ["Offset of field: itimerval::it_value"][::std::mem::offset_of!(itimerval, it_value) - 16usize];
 };
-pub type __itimer_which_t = ::std::os::raw::c_int;
+pub use self::__itimer_which as __itimer_which_t;
 unsafe extern "C" {
     pub fn getitimer(__which: __itimer_which_t, __value: *mut itimerval) -> ::std::os::raw::c_int;
 }
@@ -8769,6 +10831,52 @@ unsafe extern "C" {
     pub fn futimes(__fd: ::std::os::raw::c_int, __tvp: *const timeval) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn futimesat(
+        __fd: ::std::os::raw::c_int,
+        __file: *const ::std::os::raw::c_char,
+        __tvp: *const timeval,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn memfd_create(
+        __name: *const ::std::os::raw::c_char,
+        __flags: ::std::os::raw::c_uint,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn mlock2(
+        __addr: *const ::std::os::raw::c_void,
+        __length: usize,
+        __flags: ::std::os::raw::c_uint,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pkey_alloc(
+        __flags: ::std::os::raw::c_uint,
+        __access_rights: ::std::os::raw::c_uint,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pkey_set(
+        __key: ::std::os::raw::c_int,
+        __access_rights: ::std::os::raw::c_uint,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pkey_get(__key: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pkey_free(__key: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pkey_mprotect(
+        __addr: *mut ::std::os::raw::c_void,
+        __len: usize,
+        __prot: ::std::os::raw::c_int,
+        __pkey: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn mmap(
         __addr: *mut ::std::os::raw::c_void,
         __len: usize,
@@ -8776,6 +10884,16 @@ unsafe extern "C" {
         __flags: ::std::os::raw::c_int,
         __fd: ::std::os::raw::c_int,
         __offset: __off_t,
+    ) -> *mut ::std::os::raw::c_void;
+}
+unsafe extern "C" {
+    pub fn mmap64(
+        __addr: *mut ::std::os::raw::c_void,
+        __len: usize,
+        __prot: ::std::os::raw::c_int,
+        __flags: ::std::os::raw::c_int,
+        __fd: ::std::os::raw::c_int,
+        __offset: __off64_t,
     ) -> *mut ::std::os::raw::c_void;
 }
 unsafe extern "C" {
@@ -8826,6 +10944,24 @@ unsafe extern "C" {
         __start: *mut ::std::os::raw::c_void,
         __len: usize,
         __vec: *mut ::std::os::raw::c_uchar,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn mremap(
+        __addr: *mut ::std::os::raw::c_void,
+        __old_len: usize,
+        __new_len: usize,
+        __flags: ::std::os::raw::c_int,
+        ...
+    ) -> *mut ::std::os::raw::c_void;
+}
+unsafe extern "C" {
+    pub fn remap_file_pages(
+        __start: *mut ::std::os::raw::c_void,
+        __size: usize,
+        __prot: ::std::os::raw::c_int,
+        __pgoff: usize,
+        __flags: ::std::os::raw::c_int,
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -9623,7 +11759,7 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn g_intern_static_string(string: *const gchar) -> *const gchar;
 }
-#[doc = " GError:\n @domain: error domain, e.g. #G_FILE_ERROR\n @code: error code, e.g. %G_FILE_ERROR_NOENT\n @message: human-readable informative error message\n\n The `GError` structure contains information about\n an error that has occurred."]
+#[doc = " GError:\n @domain: error domain, e.g. %G_FILE_ERROR\n @code: error code, e.g. %G_FILE_ERROR_NOENT\n @message: human-readable informative error message\n\n The `GError` structure contains information about\n an error that has occurred."]
 pub type GError = _GError;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -9640,6 +11776,31 @@ const _: () = {
     ["Offset of field: _GError::code"][::std::mem::offset_of!(_GError, code) - 4usize];
     ["Offset of field: _GError::message"][::std::mem::offset_of!(_GError, message) - 8usize];
 };
+#[doc = " GErrorInitFunc:\n @error: extended error\n\n Specifies the type of function which is called just after an\n extended error instance is created and its fields filled. It should\n only initialize the fields in the private data, which can be\n received with the generated `*_get_private()` function.\n\n Normally, it is better to use G_DEFINE_EXTENDED_ERROR(), as it\n already takes care of getting the private data from @error.\n\n Since: 2.68"]
+pub type GErrorInitFunc = ::std::option::Option<unsafe extern "C" fn(error: *mut GError)>;
+#[doc = " GErrorCopyFunc:\n @src_error: source extended error\n @dest_error: destination extended error\n\n Specifies the type of function which is called when an extended\n error instance is copied. It is passed the pointer to the\n destination error and source error, and should copy only the fields\n of the private data from @src_error to @dest_error.\n\n Normally, it is better to use G_DEFINE_EXTENDED_ERROR(), as it\n already takes care of getting the private data from @src_error and\n @dest_error.\n\n Since: 2.68"]
+pub type GErrorCopyFunc =
+    ::std::option::Option<unsafe extern "C" fn(src_error: *const GError, dest_error: *mut GError)>;
+#[doc = " GErrorClearFunc:\n @error: extended error to clear\n\n Specifies the type of function which is called when an extended\n error instance is freed. It is passed the error pointer about to be\n freed, and should free the error's private data fields.\n\n Normally, it is better to use G_DEFINE_EXTENDED_ERROR(), as it\n already takes care of getting the private data from @error.\n\n Since: 2.68"]
+pub type GErrorClearFunc = ::std::option::Option<unsafe extern "C" fn(error: *mut GError)>;
+unsafe extern "C" {
+    pub fn g_error_domain_register_static(
+        error_type_name: *const ::std::os::raw::c_char,
+        error_type_private_size: gsize,
+        error_type_init: GErrorInitFunc,
+        error_type_copy: GErrorCopyFunc,
+        error_type_clear: GErrorClearFunc,
+    ) -> GQuark;
+}
+unsafe extern "C" {
+    pub fn g_error_domain_register(
+        error_type_name: *const ::std::os::raw::c_char,
+        error_type_private_size: gsize,
+        error_type_init: GErrorInitFunc,
+        error_type_copy: GErrorCopyFunc,
+        error_type_clear: GErrorClearFunc,
+    ) -> GQuark;
+}
 unsafe extern "C" {
     pub fn g_error_new(domain: GQuark, code: gint, format: *const gchar, ...) -> *mut GError;
 }
@@ -9690,6 +11851,9 @@ unsafe extern "C" {
     pub fn g_prefix_error(err: *mut *mut GError, format: *const gchar, ...);
 }
 unsafe extern "C" {
+    pub fn g_prefix_error_literal(err: *mut *mut GError, prefix: *const gchar);
+}
+unsafe extern "C" {
     pub fn g_propagate_prefixed_error(
         dest: *mut *mut GError,
         src: *mut GError,
@@ -9738,6 +11902,9 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn g_get_user_cache_dir() -> *const gchar;
+}
+unsafe extern "C" {
+    pub fn g_get_user_state_dir() -> *const gchar;
 }
 unsafe extern "C" {
     pub fn g_get_system_data_dirs() -> *const *const gchar;
@@ -10241,6 +12408,9 @@ unsafe extern "C" {
     pub fn g_time_zone_new(identifier: *const gchar) -> *mut GTimeZone;
 }
 unsafe extern "C" {
+    pub fn g_time_zone_new_identifier(identifier: *const gchar) -> *mut GTimeZone;
+}
+unsafe extern "C" {
     pub fn g_time_zone_new_utc() -> *mut GTimeZone;
 }
 unsafe extern "C" {
@@ -10284,7 +12454,7 @@ pub type GTimeSpan = gint64;
 pub struct _GDateTime {
     _unused: [u8; 0],
 }
-#[doc = " GDateTime:\n\n `GDateTime` is an opaque structure whose members\n cannot be accessed directly.\n\n Since: 2.26"]
+#[doc = " GDateTime:\n\n An opaque structure that represents a date and time, including a time zone.\n\n Since: 2.26"]
 pub type GDateTime = _GDateTime;
 unsafe extern "C" {
     pub fn g_date_time_unref(datetime: *mut GDateTime);
@@ -10492,7 +12662,7 @@ unsafe extern "C" {
 pub struct _GBookmarkFile {
     _unused: [u8; 0],
 }
-#[doc = " GBookmarkFile:\n\n The `GBookmarkFile` structure contains only\n private data and should not be directly accessed."]
+#[doc = " GBookmarkFile:\n\n An opaque data structure representing a set of bookmarks."]
 pub type GBookmarkFile = _GBookmarkFile;
 unsafe extern "C" {
     pub fn g_bookmark_file_new() -> *mut GBookmarkFile;
@@ -10884,6 +13054,14 @@ unsafe extern "C" {
     pub fn g_bytes_compare(bytes1: gconstpointer, bytes2: gconstpointer) -> gint;
 }
 unsafe extern "C" {
+    pub fn g_bytes_get_region(
+        bytes: *mut GBytes,
+        element_size: gsize,
+        offset: gsize,
+        n_elements: gsize,
+    ) -> gconstpointer;
+}
+unsafe extern "C" {
     pub fn g_get_charset(charset: *mut *const ::std::os::raw::c_char) -> gboolean;
 }
 unsafe extern "C" {
@@ -10913,7 +13091,7 @@ pub type GChecksumType = ::std::os::raw::c_uint;
 pub struct _GChecksum {
     _unused: [u8; 0],
 }
-#[doc = " GChecksum:\n\n An opaque structure representing a checksumming operation.\n To create a new GChecksum, use g_checksum_new(). To free\n a GChecksum, use g_checksum_free().\n\n Since: 2.16"]
+#[doc = " GChecksum:\n\n An opaque structure representing a checksumming operation.\n\n To create a new GChecksum, use g_checksum_new(). To free\n a GChecksum, use g_checksum_free().\n\n Since: 2.16"]
 pub type GChecksum = _GChecksum;
 unsafe extern "C" {
     pub fn g_checksum_type_get_length(checksum_type: GChecksumType) -> gssize;
@@ -11637,16 +13815,35 @@ const _: () = {
     ["Offset of field: dirent::d_type"][::std::mem::offset_of!(dirent, d_type) - 18usize];
     ["Offset of field: dirent::d_name"][::std::mem::offset_of!(dirent, d_name) - 19usize];
 };
-pub const DT_UNKNOWN: _bindgen_ty_22 = 0;
-pub const DT_FIFO: _bindgen_ty_22 = 1;
-pub const DT_CHR: _bindgen_ty_22 = 2;
-pub const DT_DIR: _bindgen_ty_22 = 4;
-pub const DT_BLK: _bindgen_ty_22 = 6;
-pub const DT_REG: _bindgen_ty_22 = 8;
-pub const DT_LNK: _bindgen_ty_22 = 10;
-pub const DT_SOCK: _bindgen_ty_22 = 12;
-pub const DT_WHT: _bindgen_ty_22 = 14;
-pub type _bindgen_ty_22 = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct dirent64 {
+    pub d_ino: __ino64_t,
+    pub d_off: __off64_t,
+    pub d_reclen: ::std::os::raw::c_ushort,
+    pub d_type: ::std::os::raw::c_uchar,
+    pub d_name: [::std::os::raw::c_char; 256usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of dirent64"][::std::mem::size_of::<dirent64>() - 280usize];
+    ["Alignment of dirent64"][::std::mem::align_of::<dirent64>() - 8usize];
+    ["Offset of field: dirent64::d_ino"][::std::mem::offset_of!(dirent64, d_ino) - 0usize];
+    ["Offset of field: dirent64::d_off"][::std::mem::offset_of!(dirent64, d_off) - 8usize];
+    ["Offset of field: dirent64::d_reclen"][::std::mem::offset_of!(dirent64, d_reclen) - 16usize];
+    ["Offset of field: dirent64::d_type"][::std::mem::offset_of!(dirent64, d_type) - 18usize];
+    ["Offset of field: dirent64::d_name"][::std::mem::offset_of!(dirent64, d_name) - 19usize];
+};
+pub const DT_UNKNOWN: _bindgen_ty_26 = 0;
+pub const DT_FIFO: _bindgen_ty_26 = 1;
+pub const DT_CHR: _bindgen_ty_26 = 2;
+pub const DT_DIR: _bindgen_ty_26 = 4;
+pub const DT_BLK: _bindgen_ty_26 = 6;
+pub const DT_REG: _bindgen_ty_26 = 8;
+pub const DT_LNK: _bindgen_ty_26 = 10;
+pub const DT_SOCK: _bindgen_ty_26 = 12;
+pub const DT_WHT: _bindgen_ty_26 = 14;
+pub type _bindgen_ty_26 = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct __dirstream {
@@ -11666,10 +13863,20 @@ unsafe extern "C" {
     pub fn readdir(__dirp: *mut DIR) -> *mut dirent;
 }
 unsafe extern "C" {
+    pub fn readdir64(__dirp: *mut DIR) -> *mut dirent64;
+}
+unsafe extern "C" {
     pub fn readdir_r(
         __dirp: *mut DIR,
         __entry: *mut dirent,
         __result: *mut *mut dirent,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn readdir64_r(
+        __dirp: *mut DIR,
+        __entry: *mut dirent64,
+        __result: *mut *mut dirent64,
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -11700,7 +13907,60 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn scandir64(
+        __dir: *const ::std::os::raw::c_char,
+        __namelist: *mut *mut *mut dirent64,
+        __selector: ::std::option::Option<
+            unsafe extern "C" fn(arg1: *const dirent64) -> ::std::os::raw::c_int,
+        >,
+        __cmp: ::std::option::Option<
+            unsafe extern "C" fn(
+                arg1: *mut *const dirent64,
+                arg2: *mut *const dirent64,
+            ) -> ::std::os::raw::c_int,
+        >,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn scandirat(
+        __dfd: ::std::os::raw::c_int,
+        __dir: *const ::std::os::raw::c_char,
+        __namelist: *mut *mut *mut dirent,
+        __selector: ::std::option::Option<
+            unsafe extern "C" fn(arg1: *const dirent) -> ::std::os::raw::c_int,
+        >,
+        __cmp: ::std::option::Option<
+            unsafe extern "C" fn(
+                arg1: *mut *const dirent,
+                arg2: *mut *const dirent,
+            ) -> ::std::os::raw::c_int,
+        >,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn scandirat64(
+        __dfd: ::std::os::raw::c_int,
+        __dir: *const ::std::os::raw::c_char,
+        __namelist: *mut *mut *mut dirent64,
+        __selector: ::std::option::Option<
+            unsafe extern "C" fn(arg1: *const dirent64) -> ::std::os::raw::c_int,
+        >,
+        __cmp: ::std::option::Option<
+            unsafe extern "C" fn(
+                arg1: *mut *const dirent64,
+                arg2: *mut *const dirent64,
+            ) -> ::std::os::raw::c_int,
+        >,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn alphasort(__e1: *mut *const dirent, __e2: *mut *const dirent) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn alphasort64(
+        __e1: *mut *const dirent64,
+        __e2: *mut *const dirent64,
+    ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn getdirentries(
@@ -11708,6 +13968,31 @@ unsafe extern "C" {
         __buf: *mut ::std::os::raw::c_char,
         __nbytes: usize,
         __basep: *mut __off_t,
+    ) -> __ssize_t;
+}
+unsafe extern "C" {
+    pub fn getdirentries64(
+        __fd: ::std::os::raw::c_int,
+        __buf: *mut ::std::os::raw::c_char,
+        __nbytes: usize,
+        __basep: *mut __off64_t,
+    ) -> __ssize_t;
+}
+unsafe extern "C" {
+    pub fn versionsort(__e1: *mut *const dirent, __e2: *mut *const dirent)
+        -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn versionsort64(
+        __e1: *mut *const dirent64,
+        __e2: *mut *const dirent64,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn getdents64(
+        __fd: ::std::os::raw::c_int,
+        __buffer: *mut ::std::os::raw::c_void,
+        __length: usize,
     ) -> __ssize_t;
 }
 #[repr(C)]
@@ -11793,7 +14078,7 @@ pub const G_FILE_SET_CONTENTS_NONE: GFileSetContentsFlags = 0;
 pub const G_FILE_SET_CONTENTS_CONSISTENT: GFileSetContentsFlags = 1;
 pub const G_FILE_SET_CONTENTS_DURABLE: GFileSetContentsFlags = 2;
 pub const G_FILE_SET_CONTENTS_ONLY_EXISTING: GFileSetContentsFlags = 4;
-#[doc = " GFileSetContentsFlags:\n @G_FILE_SET_CONTENTS_NONE: No guarantees about file consistency or durability.\n    The most dangerous setting, which is slightly faster than other settings.\n @G_FILE_SET_CONTENTS_CONSISTENT: Guarantee file consistency: after a crash,\n    either the old version of the file or the new version of the file will be\n    available, but not a mixture. On Unix systems this equates to an `fsync()`\n    on the file and use of an atomic `rename()` of the new version of the file\n    over the old.\n @G_FILE_SET_CONTENTS_DURABLE: Guarantee file durability: after a crash, the\n    new version of the file will be available. On Unix systems this equates to\n    an `fsync()` on the file (if %G_FILE_SET_CONTENTS_CONSISTENT is unset), or\n    the effects of %G_FILE_SET_CONTENTS_CONSISTENT plus an `fsync()` on the\n    directory containing the file after calling `rename()`.\n @G_FILE_SET_CONTENTS_ONLY_EXISTING: Only apply consistency and durability\n    guarantees if the file already exists. This may speed up file operations\n    if the file doesn’t currently exist, but may result in a corrupted version\n    of the new file if the system crashes while writing it.\n\n Flags to pass to g_file_set_contents_full() to affect its safety and\n performance.\n\n Since: 2.66"]
+#[doc = " GFileSetContentsFlags:\n @G_FILE_SET_CONTENTS_NONE: No guarantees about file consistency or durability.\n   The most dangerous setting, which is slightly faster than other settings.\n @G_FILE_SET_CONTENTS_CONSISTENT: Guarantee file consistency: after a crash,\n   either the old version of the file or the new version of the file will be\n   available, but not a mixture. On Unix systems this equates to an `fsync()`\n   on the file and use of an atomic `rename()` of the new version of the file\n   over the old.\n @G_FILE_SET_CONTENTS_DURABLE: Guarantee file durability: after a crash, the\n   new version of the file will be available. On Unix systems this equates to\n   an `fsync()` on the file (if %G_FILE_SET_CONTENTS_CONSISTENT is unset), or\n   the effects of %G_FILE_SET_CONTENTS_CONSISTENT plus an `fsync()` on the\n   directory containing the file after calling `rename()`.\n @G_FILE_SET_CONTENTS_ONLY_EXISTING: Only apply consistency and durability\n   guarantees if the file already exists. This may speed up file operations\n   if the file doesn’t currently exist, but may result in a corrupted version\n   of the new file if the system crashes while writing it.\n\n Flags to pass to g_file_set_contents_full() to affect its safety and\n performance.\n\n Since: 2.66"]
 pub type GFileSetContentsFlags = ::std::os::raw::c_uint;
 unsafe extern "C" {
     pub fn g_file_error_quark() -> GQuark;
@@ -11969,6 +14254,15 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn g_try_realloc_n(mem: gpointer, n_blocks: gsize, n_block_bytes: gsize) -> gpointer;
+}
+unsafe extern "C" {
+    pub fn g_aligned_alloc(n_blocks: gsize, n_block_bytes: gsize, alignment: gsize) -> gpointer;
+}
+unsafe extern "C" {
+    pub fn g_aligned_alloc0(n_blocks: gsize, n_block_bytes: gsize, alignment: gsize) -> gpointer;
+}
+unsafe extern "C" {
+    pub fn g_aligned_free(mem: gpointer);
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -12337,6 +14631,9 @@ unsafe extern "C" {
         key_destroy_func: GDestroyNotify,
         value_destroy_func: GDestroyNotify,
     ) -> *mut GHashTable;
+}
+unsafe extern "C" {
+    pub fn g_hash_table_new_similar(other_hash_table: *mut GHashTable) -> *mut GHashTable;
 }
 unsafe extern "C" {
     pub fn g_hash_table_destroy(hash_table: *mut GHashTable);
@@ -12975,6 +15272,10 @@ pub const G_IO_ERR: GIOCondition = 8;
 pub const G_IO_HUP: GIOCondition = 16;
 pub const G_IO_NVAL: GIOCondition = 32;
 pub type GIOCondition = ::std::os::raw::c_uint;
+pub const G_MAIN_CONTEXT_FLAGS_NONE: GMainContextFlags = 0;
+pub const G_MAIN_CONTEXT_FLAGS_OWNERLESS_POLLING: GMainContextFlags = 1;
+#[doc = " GMainContextFlags:\n @G_MAIN_CONTEXT_FLAGS_NONE: Default behaviour.\n @G_MAIN_CONTEXT_FLAGS_OWNERLESS_POLLING: Assume that polling for events will\n free the thread to process other jobs. That's useful if you're using\n `g_main_context_{prepare,query,check,dispatch}` to integrate GMainContext in\n other event loops.\n\n Flags to pass to g_main_context_new_with_flags() which affect the behaviour\n of a #GMainContext.\n\n Since: 2.72"]
+pub type GMainContextFlags = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _GMainContext {
@@ -12999,13 +15300,13 @@ pub struct _GSourcePrivate {
 pub type GSourcePrivate = _GSourcePrivate;
 #[doc = " GSourceCallbackFuncs:\n @ref: Called when a reference is added to the callback object\n @unref: Called when a reference to the callback object is dropped\n @get: Called to extract the callback function and data from the\n     callback object.\n\n The `GSourceCallbackFuncs` struct contains\n functions for managing callback objects."]
 pub type GSourceCallbackFuncs = _GSourceCallbackFuncs;
-#[doc = " GSourceFuncs:\n @prepare: Called before all the file descriptors are polled. If the\n     source can determine that it is ready here (without waiting for the\n     results of the poll() call) it should return %TRUE. It can also return\n     a @timeout_ value which should be the maximum timeout (in milliseconds)\n     which should be passed to the poll() call. The actual timeout used will\n     be -1 if all sources returned -1, or it will be the minimum of all\n     the @timeout_ values returned which were >= 0.  Since 2.36 this may\n     be %NULL, in which case the effect is as if the function always returns\n     %FALSE with a timeout of -1.  If @prepare returns a\n     timeout and the source also has a ready time set, then the\n     lower of the two will be used.\n @check: Called after all the file descriptors are polled. The source\n     should return %TRUE if it is ready to be dispatched. Note that some\n     time may have passed since the previous prepare function was called,\n     so the source should be checked again here.  Since 2.36 this may\n     be %NULL, in which case the effect is as if the function always returns\n     %FALSE.\n @dispatch: Called to dispatch the event source, after it has returned\n     %TRUE in either its @prepare or its @check function, or if a ready time\n     has been reached. The @dispatch function receives a callback function and\n     user data. The callback function may be %NULL if the source was never\n     connected to a callback using g_source_set_callback(). The @dispatch\n     function should call the callback function with @user_data and whatever\n     additional parameters are needed for this type of event source. The\n     return value of the @dispatch function should be #G_SOURCE_REMOVE if the\n     source should be removed or #G_SOURCE_CONTINUE to keep it.\n @finalize: Called when the source is finalized. At this point, the source\n     will have been destroyed, had its callback cleared, and have been removed\n     from its #GMainContext, but it will still have its final reference count,\n     so methods can be called on it from within this function.\n\n The `GSourceFuncs` struct contains a table of\n functions used to handle event sources in a generic manner.\n\n For idle sources, the prepare and check functions always return %TRUE\n to indicate that the source is always ready to be processed. The prepare\n function also returns a timeout value of 0 to ensure that the poll() call\n doesn't block (since that would be time wasted which could have been spent\n running the idle function).\n\n For timeout sources, the prepare and check functions both return %TRUE\n if the timeout interval has expired. The prepare function also returns\n a timeout value to ensure that the poll() call doesn't block too long\n and miss the next timeout.\n\n For file descriptor sources, the prepare function typically returns %FALSE,\n since it must wait until poll() has been called before it knows whether\n any events need to be processed. It sets the returned timeout to -1 to\n indicate that it doesn't mind how long the poll() call blocks. In the\n check function, it tests the results of the poll() call to see if the\n required condition has been met, and returns %TRUE if so."]
+#[doc = " GSourceFuncs:\n @prepare: Called before all the file descriptors are polled. If the\n     source can determine that it is ready here (without waiting for the\n     results of the poll() call) it should return %TRUE. It can also return\n     a @timeout_ value which should be the maximum timeout (in milliseconds)\n     which should be passed to the poll() call. The actual timeout used will\n     be -1 if all sources returned -1, or it will be the minimum of all\n     the @timeout_ values returned which were >= 0.  Since 2.36 this may\n     be %NULL, in which case the effect is as if the function always returns\n     %FALSE with a timeout of -1.  If @prepare returns a\n     timeout and the source also has a ready time set, then the\n     lower of the two will be used.\n @check: Called after all the file descriptors are polled. The source\n     should return %TRUE if it is ready to be dispatched. Note that some\n     time may have passed since the previous prepare function was called,\n     so the source should be checked again here.  Since 2.36 this may\n     be %NULL, in which case the effect is as if the function always returns\n     %FALSE.\n @dispatch: Called to dispatch the event source, after it has returned\n     %TRUE in either its @prepare or its @check function, or if a ready time\n     has been reached. The @dispatch function receives a callback function and\n     user data. The callback function may be %NULL if the source was never\n     connected to a callback using g_source_set_callback(). The @dispatch\n     function should call the callback function with @user_data and whatever\n     additional parameters are needed for this type of event source. The\n     return value of the @dispatch function should be %G_SOURCE_REMOVE if the\n     source should be removed or %G_SOURCE_CONTINUE to keep it.\n @finalize: Called when the source is finalized. At this point, the source\n     will have been destroyed, had its callback cleared, and have been removed\n     from its #GMainContext, but it will still have its final reference count,\n     so methods can be called on it from within this function.\n\n The `GSourceFuncs` struct contains a table of\n functions used to handle event sources in a generic manner.\n\n For idle sources, the prepare and check functions always return %TRUE\n to indicate that the source is always ready to be processed. The prepare\n function also returns a timeout value of 0 to ensure that the poll() call\n doesn't block (since that would be time wasted which could have been spent\n running the idle function).\n\n For timeout sources, the prepare and check functions both return %TRUE\n if the timeout interval has expired. The prepare function also returns\n a timeout value to ensure that the poll() call doesn't block too long\n and miss the next timeout.\n\n For file descriptor sources, the prepare function typically returns %FALSE,\n since it must wait until poll() has been called before it knows whether\n any events need to be processed. It sets the returned timeout to -1 to\n indicate that it doesn't mind how long the poll() call blocks. In the\n check function, it tests the results of the poll() call to see if the\n required condition has been met, and returns %TRUE if so."]
 pub type GSourceFuncs = _GSourceFuncs;
-#[doc = " GSourceFunc:\n @user_data: data passed to the function, set when the source was\n     created with one of the above functions\n\n Specifies the type of function passed to g_timeout_add(),\n g_timeout_add_full(), g_idle_add(), and g_idle_add_full().\n\n When calling g_source_set_callback(), you may need to cast a function of a\n different type to this type. Use G_SOURCE_FUNC() to avoid warnings about\n incompatible function types.\n\n Returns: %FALSE if the source should be removed. #G_SOURCE_CONTINUE and\n #G_SOURCE_REMOVE are more memorable names for the return value."]
+#[doc = " GSourceFunc:\n @user_data: data passed to the function, set when the source was\n     created with one of the above functions\n\n Specifies the type of function passed to g_timeout_add(),\n g_timeout_add_full(), g_idle_add(), and g_idle_add_full().\n\n When calling g_source_set_callback(), you may need to cast a function of a\n different type to this type. Use G_SOURCE_FUNC() to avoid warnings about\n incompatible function types.\n\n Returns: %FALSE if the source should be removed. %G_SOURCE_CONTINUE and\n %G_SOURCE_REMOVE are more memorable names for the return value."]
 pub type GSourceFunc = ::std::option::Option<unsafe extern "C" fn(user_data: gpointer) -> gboolean>;
-#[doc = " GChildWatchFunc:\n @pid: the process id of the child process\n @status: Status information about the child process, encoded\n     in a platform-specific manner\n @user_data: user data passed to g_child_watch_add()\n\n Prototype of a #GChildWatchSource callback, called when a child\n process has exited.  To interpret @status, see the documentation\n for g_spawn_check_exit_status()."]
+#[doc = " GChildWatchFunc:\n @pid: the process id of the child process\n @wait_status: Status information about the child process, encoded\n               in a platform-specific manner\n @user_data: user data passed to g_child_watch_add()\n\n Prototype of a #GChildWatchSource callback, called when a child\n process has exited.\n\n To interpret @wait_status, see the documentation\n for g_spawn_check_wait_status(). In particular,\n on Unix platforms, note that it is usually not equal\n to the integer passed to `exit()` or returned from `main()`."]
 pub type GChildWatchFunc =
-    ::std::option::Option<unsafe extern "C" fn(pid: GPid, status: gint, user_data: gpointer)>;
+    ::std::option::Option<unsafe extern "C" fn(pid: GPid, wait_status: gint, user_data: gpointer)>;
 #[doc = " GSourceDisposeFunc:\n @source: #GSource that is currently being disposed\n\n Dispose function for @source. See g_source_set_dispose_function() for\n details.\n\n Since: 2.64"]
 pub type GSourceDisposeFunc = ::std::option::Option<unsafe extern "C" fn(source: *mut GSource)>;
 #[repr(C)]
@@ -13111,6 +15412,9 @@ const _: () = {
 };
 unsafe extern "C" {
     pub fn g_main_context_new() -> *mut GMainContext;
+}
+unsafe extern "C" {
+    pub fn g_main_context_new_with_flags(flags: GMainContextFlags) -> *mut GMainContext;
 }
 unsafe extern "C" {
     pub fn g_main_context_ref(context: *mut GMainContext) -> *mut GMainContext;
@@ -13293,6 +15597,9 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn g_source_set_name(source: *mut GSource, name: *const ::std::os::raw::c_char);
+}
+unsafe extern "C" {
+    pub fn g_source_set_static_name(source: *mut GSource, name: *const ::std::os::raw::c_char);
 }
 unsafe extern "C" {
     pub fn g_source_get_name(source: *mut GSource) -> *const ::std::os::raw::c_char;
@@ -13531,13 +15838,14 @@ pub const G_UNICODE_BREAK_HANGUL_T_JAMO: GUnicodeBreakType = 33;
 pub const G_UNICODE_BREAK_HANGUL_LV_SYLLABLE: GUnicodeBreakType = 34;
 pub const G_UNICODE_BREAK_HANGUL_LVT_SYLLABLE: GUnicodeBreakType = 35;
 pub const G_UNICODE_BREAK_CLOSE_PARANTHESIS: GUnicodeBreakType = 36;
+pub const G_UNICODE_BREAK_CLOSE_PARENTHESIS: GUnicodeBreakType = 36;
 pub const G_UNICODE_BREAK_CONDITIONAL_JAPANESE_STARTER: GUnicodeBreakType = 37;
 pub const G_UNICODE_BREAK_HEBREW_LETTER: GUnicodeBreakType = 38;
 pub const G_UNICODE_BREAK_REGIONAL_INDICATOR: GUnicodeBreakType = 39;
 pub const G_UNICODE_BREAK_EMOJI_BASE: GUnicodeBreakType = 40;
 pub const G_UNICODE_BREAK_EMOJI_MODIFIER: GUnicodeBreakType = 41;
 pub const G_UNICODE_BREAK_ZERO_WIDTH_JOINER: GUnicodeBreakType = 42;
-#[doc = " GUnicodeBreakType:\n @G_UNICODE_BREAK_MANDATORY: Mandatory Break (BK)\n @G_UNICODE_BREAK_CARRIAGE_RETURN: Carriage Return (CR)\n @G_UNICODE_BREAK_LINE_FEED: Line Feed (LF)\n @G_UNICODE_BREAK_COMBINING_MARK: Attached Characters and Combining Marks (CM)\n @G_UNICODE_BREAK_SURROGATE: Surrogates (SG)\n @G_UNICODE_BREAK_ZERO_WIDTH_SPACE: Zero Width Space (ZW)\n @G_UNICODE_BREAK_INSEPARABLE: Inseparable (IN)\n @G_UNICODE_BREAK_NON_BREAKING_GLUE: Non-breaking (\"Glue\") (GL)\n @G_UNICODE_BREAK_CONTINGENT: Contingent Break Opportunity (CB)\n @G_UNICODE_BREAK_SPACE: Space (SP)\n @G_UNICODE_BREAK_AFTER: Break Opportunity After (BA)\n @G_UNICODE_BREAK_BEFORE: Break Opportunity Before (BB)\n @G_UNICODE_BREAK_BEFORE_AND_AFTER: Break Opportunity Before and After (B2)\n @G_UNICODE_BREAK_HYPHEN: Hyphen (HY)\n @G_UNICODE_BREAK_NON_STARTER: Nonstarter (NS)\n @G_UNICODE_BREAK_OPEN_PUNCTUATION: Opening Punctuation (OP)\n @G_UNICODE_BREAK_CLOSE_PUNCTUATION: Closing Punctuation (CL)\n @G_UNICODE_BREAK_QUOTATION: Ambiguous Quotation (QU)\n @G_UNICODE_BREAK_EXCLAMATION: Exclamation/Interrogation (EX)\n @G_UNICODE_BREAK_IDEOGRAPHIC: Ideographic (ID)\n @G_UNICODE_BREAK_NUMERIC: Numeric (NU)\n @G_UNICODE_BREAK_INFIX_SEPARATOR: Infix Separator (Numeric) (IS)\n @G_UNICODE_BREAK_SYMBOL: Symbols Allowing Break After (SY)\n @G_UNICODE_BREAK_ALPHABETIC: Ordinary Alphabetic and Symbol Characters (AL)\n @G_UNICODE_BREAK_PREFIX: Prefix (Numeric) (PR)\n @G_UNICODE_BREAK_POSTFIX: Postfix (Numeric) (PO)\n @G_UNICODE_BREAK_COMPLEX_CONTEXT: Complex Content Dependent (South East Asian) (SA)\n @G_UNICODE_BREAK_AMBIGUOUS: Ambiguous (Alphabetic or Ideographic) (AI)\n @G_UNICODE_BREAK_UNKNOWN: Unknown (XX)\n @G_UNICODE_BREAK_NEXT_LINE: Next Line (NL)\n @G_UNICODE_BREAK_WORD_JOINER: Word Joiner (WJ)\n @G_UNICODE_BREAK_HANGUL_L_JAMO: Hangul L Jamo (JL)\n @G_UNICODE_BREAK_HANGUL_V_JAMO: Hangul V Jamo (JV)\n @G_UNICODE_BREAK_HANGUL_T_JAMO: Hangul T Jamo (JT)\n @G_UNICODE_BREAK_HANGUL_LV_SYLLABLE: Hangul LV Syllable (H2)\n @G_UNICODE_BREAK_HANGUL_LVT_SYLLABLE: Hangul LVT Syllable (H3)\n @G_UNICODE_BREAK_CLOSE_PARANTHESIS: Closing Parenthesis (CP). Since 2.28\n @G_UNICODE_BREAK_CONDITIONAL_JAPANESE_STARTER: Conditional Japanese Starter (CJ). Since: 2.32\n @G_UNICODE_BREAK_HEBREW_LETTER: Hebrew Letter (HL). Since: 2.32\n @G_UNICODE_BREAK_REGIONAL_INDICATOR: Regional Indicator (RI). Since: 2.36\n @G_UNICODE_BREAK_EMOJI_BASE: Emoji Base (EB). Since: 2.50\n @G_UNICODE_BREAK_EMOJI_MODIFIER: Emoji Modifier (EM). Since: 2.50\n @G_UNICODE_BREAK_ZERO_WIDTH_JOINER: Zero Width Joiner (ZWJ). Since: 2.50\n\n These are the possible line break classifications.\n\n Since new unicode versions may add new types here, applications should be ready\n to handle unknown values. They may be regarded as %G_UNICODE_BREAK_UNKNOWN.\n\n See [Unicode Line Breaking Algorithm](http://www.unicode.org/unicode/reports/tr14/)."]
+#[doc = " GUnicodeBreakType:\n @G_UNICODE_BREAK_MANDATORY: Mandatory Break (BK)\n @G_UNICODE_BREAK_CARRIAGE_RETURN: Carriage Return (CR)\n @G_UNICODE_BREAK_LINE_FEED: Line Feed (LF)\n @G_UNICODE_BREAK_COMBINING_MARK: Attached Characters and Combining Marks (CM)\n @G_UNICODE_BREAK_SURROGATE: Surrogates (SG)\n @G_UNICODE_BREAK_ZERO_WIDTH_SPACE: Zero Width Space (ZW)\n @G_UNICODE_BREAK_INSEPARABLE: Inseparable (IN)\n @G_UNICODE_BREAK_NON_BREAKING_GLUE: Non-breaking (\"Glue\") (GL)\n @G_UNICODE_BREAK_CONTINGENT: Contingent Break Opportunity (CB)\n @G_UNICODE_BREAK_SPACE: Space (SP)\n @G_UNICODE_BREAK_AFTER: Break Opportunity After (BA)\n @G_UNICODE_BREAK_BEFORE: Break Opportunity Before (BB)\n @G_UNICODE_BREAK_BEFORE_AND_AFTER: Break Opportunity Before and After (B2)\n @G_UNICODE_BREAK_HYPHEN: Hyphen (HY)\n @G_UNICODE_BREAK_NON_STARTER: Nonstarter (NS)\n @G_UNICODE_BREAK_OPEN_PUNCTUATION: Opening Punctuation (OP)\n @G_UNICODE_BREAK_CLOSE_PUNCTUATION: Closing Punctuation (CL)\n @G_UNICODE_BREAK_QUOTATION: Ambiguous Quotation (QU)\n @G_UNICODE_BREAK_EXCLAMATION: Exclamation/Interrogation (EX)\n @G_UNICODE_BREAK_IDEOGRAPHIC: Ideographic (ID)\n @G_UNICODE_BREAK_NUMERIC: Numeric (NU)\n @G_UNICODE_BREAK_INFIX_SEPARATOR: Infix Separator (Numeric) (IS)\n @G_UNICODE_BREAK_SYMBOL: Symbols Allowing Break After (SY)\n @G_UNICODE_BREAK_ALPHABETIC: Ordinary Alphabetic and Symbol Characters (AL)\n @G_UNICODE_BREAK_PREFIX: Prefix (Numeric) (PR)\n @G_UNICODE_BREAK_POSTFIX: Postfix (Numeric) (PO)\n @G_UNICODE_BREAK_COMPLEX_CONTEXT: Complex Content Dependent (South East Asian) (SA)\n @G_UNICODE_BREAK_AMBIGUOUS: Ambiguous (Alphabetic or Ideographic) (AI)\n @G_UNICODE_BREAK_UNKNOWN: Unknown (XX)\n @G_UNICODE_BREAK_NEXT_LINE: Next Line (NL)\n @G_UNICODE_BREAK_WORD_JOINER: Word Joiner (WJ)\n @G_UNICODE_BREAK_HANGUL_L_JAMO: Hangul L Jamo (JL)\n @G_UNICODE_BREAK_HANGUL_V_JAMO: Hangul V Jamo (JV)\n @G_UNICODE_BREAK_HANGUL_T_JAMO: Hangul T Jamo (JT)\n @G_UNICODE_BREAK_HANGUL_LV_SYLLABLE: Hangul LV Syllable (H2)\n @G_UNICODE_BREAK_HANGUL_LVT_SYLLABLE: Hangul LVT Syllable (H3)\n @G_UNICODE_BREAK_CLOSE_PARANTHESIS: Closing Parenthesis (CP). Since 2.28. Deprecated: 2.70: Use %G_UNICODE_BREAK_CLOSE_PARENTHESIS instead.\n @G_UNICODE_BREAK_CLOSE_PARENTHESIS: Closing Parenthesis (CP). Since 2.70\n @G_UNICODE_BREAK_CONDITIONAL_JAPANESE_STARTER: Conditional Japanese Starter (CJ). Since: 2.32\n @G_UNICODE_BREAK_HEBREW_LETTER: Hebrew Letter (HL). Since: 2.32\n @G_UNICODE_BREAK_REGIONAL_INDICATOR: Regional Indicator (RI). Since: 2.36\n @G_UNICODE_BREAK_EMOJI_BASE: Emoji Base (EB). Since: 2.50\n @G_UNICODE_BREAK_EMOJI_MODIFIER: Emoji Modifier (EM). Since: 2.50\n @G_UNICODE_BREAK_ZERO_WIDTH_JOINER: Zero Width Joiner (ZWJ). Since: 2.50\n\n These are the possible line break classifications.\n\n Since new unicode versions may add new types here, applications should be ready\n to handle unknown values. They may be regarded as %G_UNICODE_BREAK_UNKNOWN.\n\n See [Unicode Line Breaking Algorithm](http://www.unicode.org/unicode/reports/tr14/)."]
 pub type GUnicodeBreakType = ::std::os::raw::c_uint;
 pub const G_UNICODE_SCRIPT_INVALID_CODE: GUnicodeScript = -1;
 pub const G_UNICODE_SCRIPT_COMMON: GUnicodeScript = 0;
@@ -13697,7 +16005,13 @@ pub const G_UNICODE_SCRIPT_CHORASMIAN: GUnicodeScript = 153;
 pub const G_UNICODE_SCRIPT_DIVES_AKURU: GUnicodeScript = 154;
 pub const G_UNICODE_SCRIPT_KHITAN_SMALL_SCRIPT: GUnicodeScript = 155;
 pub const G_UNICODE_SCRIPT_YEZIDI: GUnicodeScript = 156;
-#[doc = " GUnicodeScript:\n @G_UNICODE_SCRIPT_INVALID_CODE:\n                               a value never returned from g_unichar_get_script()\n @G_UNICODE_SCRIPT_COMMON:     a character used by multiple different scripts\n @G_UNICODE_SCRIPT_INHERITED:  a mark glyph that takes its script from the\n                               base glyph to which it is attached\n @G_UNICODE_SCRIPT_ARABIC:     Arabic\n @G_UNICODE_SCRIPT_ARMENIAN:   Armenian\n @G_UNICODE_SCRIPT_BENGALI:    Bengali\n @G_UNICODE_SCRIPT_BOPOMOFO:   Bopomofo\n @G_UNICODE_SCRIPT_CHEROKEE:   Cherokee\n @G_UNICODE_SCRIPT_COPTIC:     Coptic\n @G_UNICODE_SCRIPT_CYRILLIC:   Cyrillic\n @G_UNICODE_SCRIPT_DESERET:    Deseret\n @G_UNICODE_SCRIPT_DEVANAGARI: Devanagari\n @G_UNICODE_SCRIPT_ETHIOPIC:   Ethiopic\n @G_UNICODE_SCRIPT_GEORGIAN:   Georgian\n @G_UNICODE_SCRIPT_GOTHIC:     Gothic\n @G_UNICODE_SCRIPT_GREEK:      Greek\n @G_UNICODE_SCRIPT_GUJARATI:   Gujarati\n @G_UNICODE_SCRIPT_GURMUKHI:   Gurmukhi\n @G_UNICODE_SCRIPT_HAN:        Han\n @G_UNICODE_SCRIPT_HANGUL:     Hangul\n @G_UNICODE_SCRIPT_HEBREW:     Hebrew\n @G_UNICODE_SCRIPT_HIRAGANA:   Hiragana\n @G_UNICODE_SCRIPT_KANNADA:    Kannada\n @G_UNICODE_SCRIPT_KATAKANA:   Katakana\n @G_UNICODE_SCRIPT_KHMER:      Khmer\n @G_UNICODE_SCRIPT_LAO:        Lao\n @G_UNICODE_SCRIPT_LATIN:      Latin\n @G_UNICODE_SCRIPT_MALAYALAM:  Malayalam\n @G_UNICODE_SCRIPT_MONGOLIAN:  Mongolian\n @G_UNICODE_SCRIPT_MYANMAR:    Myanmar\n @G_UNICODE_SCRIPT_OGHAM:      Ogham\n @G_UNICODE_SCRIPT_OLD_ITALIC: Old Italic\n @G_UNICODE_SCRIPT_ORIYA:      Oriya\n @G_UNICODE_SCRIPT_RUNIC:      Runic\n @G_UNICODE_SCRIPT_SINHALA:    Sinhala\n @G_UNICODE_SCRIPT_SYRIAC:     Syriac\n @G_UNICODE_SCRIPT_TAMIL:      Tamil\n @G_UNICODE_SCRIPT_TELUGU:     Telugu\n @G_UNICODE_SCRIPT_THAANA:     Thaana\n @G_UNICODE_SCRIPT_THAI:       Thai\n @G_UNICODE_SCRIPT_TIBETAN:    Tibetan\n @G_UNICODE_SCRIPT_CANADIAN_ABORIGINAL:\n                               Canadian Aboriginal\n @G_UNICODE_SCRIPT_YI:         Yi\n @G_UNICODE_SCRIPT_TAGALOG:    Tagalog\n @G_UNICODE_SCRIPT_HANUNOO:    Hanunoo\n @G_UNICODE_SCRIPT_BUHID:      Buhid\n @G_UNICODE_SCRIPT_TAGBANWA:   Tagbanwa\n @G_UNICODE_SCRIPT_BRAILLE:    Braille\n @G_UNICODE_SCRIPT_CYPRIOT:    Cypriot\n @G_UNICODE_SCRIPT_LIMBU:      Limbu\n @G_UNICODE_SCRIPT_OSMANYA:    Osmanya\n @G_UNICODE_SCRIPT_SHAVIAN:    Shavian\n @G_UNICODE_SCRIPT_LINEAR_B:   Linear B\n @G_UNICODE_SCRIPT_TAI_LE:     Tai Le\n @G_UNICODE_SCRIPT_UGARITIC:   Ugaritic\n @G_UNICODE_SCRIPT_NEW_TAI_LUE:\n                               New Tai Lue\n @G_UNICODE_SCRIPT_BUGINESE:   Buginese\n @G_UNICODE_SCRIPT_GLAGOLITIC: Glagolitic\n @G_UNICODE_SCRIPT_TIFINAGH:   Tifinagh\n @G_UNICODE_SCRIPT_SYLOTI_NAGRI:\n                               Syloti Nagri\n @G_UNICODE_SCRIPT_OLD_PERSIAN:\n                               Old Persian\n @G_UNICODE_SCRIPT_KHAROSHTHI: Kharoshthi\n @G_UNICODE_SCRIPT_UNKNOWN:    an unassigned code point\n @G_UNICODE_SCRIPT_BALINESE:   Balinese\n @G_UNICODE_SCRIPT_CUNEIFORM:  Cuneiform\n @G_UNICODE_SCRIPT_PHOENICIAN: Phoenician\n @G_UNICODE_SCRIPT_PHAGS_PA:   Phags-pa\n @G_UNICODE_SCRIPT_NKO:        N'Ko\n @G_UNICODE_SCRIPT_KAYAH_LI:   Kayah Li. Since 2.16.3\n @G_UNICODE_SCRIPT_LEPCHA:     Lepcha. Since 2.16.3\n @G_UNICODE_SCRIPT_REJANG:     Rejang. Since 2.16.3\n @G_UNICODE_SCRIPT_SUNDANESE:  Sundanese. Since 2.16.3\n @G_UNICODE_SCRIPT_SAURASHTRA: Saurashtra. Since 2.16.3\n @G_UNICODE_SCRIPT_CHAM:       Cham. Since 2.16.3\n @G_UNICODE_SCRIPT_OL_CHIKI:   Ol Chiki. Since 2.16.3\n @G_UNICODE_SCRIPT_VAI:        Vai. Since 2.16.3\n @G_UNICODE_SCRIPT_CARIAN:     Carian. Since 2.16.3\n @G_UNICODE_SCRIPT_LYCIAN:     Lycian. Since 2.16.3\n @G_UNICODE_SCRIPT_LYDIAN:     Lydian. Since 2.16.3\n @G_UNICODE_SCRIPT_AVESTAN:    Avestan. Since 2.26\n @G_UNICODE_SCRIPT_BAMUM:      Bamum. Since 2.26\n @G_UNICODE_SCRIPT_EGYPTIAN_HIEROGLYPHS:\n                               Egyptian Hieroglpyhs. Since 2.26\n @G_UNICODE_SCRIPT_IMPERIAL_ARAMAIC:\n                               Imperial Aramaic. Since 2.26\n @G_UNICODE_SCRIPT_INSCRIPTIONAL_PAHLAVI:\n                               Inscriptional Pahlavi. Since 2.26\n @G_UNICODE_SCRIPT_INSCRIPTIONAL_PARTHIAN:\n                               Inscriptional Parthian. Since 2.26\n @G_UNICODE_SCRIPT_JAVANESE:   Javanese. Since 2.26\n @G_UNICODE_SCRIPT_KAITHI:     Kaithi. Since 2.26\n @G_UNICODE_SCRIPT_LISU:       Lisu. Since 2.26\n @G_UNICODE_SCRIPT_MEETEI_MAYEK:\n                               Meetei Mayek. Since 2.26\n @G_UNICODE_SCRIPT_OLD_SOUTH_ARABIAN:\n                               Old South Arabian. Since 2.26\n @G_UNICODE_SCRIPT_OLD_TURKIC: Old Turkic. Since 2.28\n @G_UNICODE_SCRIPT_SAMARITAN:  Samaritan. Since 2.26\n @G_UNICODE_SCRIPT_TAI_THAM:   Tai Tham. Since 2.26\n @G_UNICODE_SCRIPT_TAI_VIET:   Tai Viet. Since 2.26\n @G_UNICODE_SCRIPT_BATAK:      Batak. Since 2.28\n @G_UNICODE_SCRIPT_BRAHMI:     Brahmi. Since 2.28\n @G_UNICODE_SCRIPT_MANDAIC:    Mandaic. Since 2.28\n @G_UNICODE_SCRIPT_CHAKMA:               Chakma. Since: 2.32\n @G_UNICODE_SCRIPT_MEROITIC_CURSIVE:     Meroitic Cursive. Since: 2.32\n @G_UNICODE_SCRIPT_MEROITIC_HIEROGLYPHS: Meroitic Hieroglyphs. Since: 2.32\n @G_UNICODE_SCRIPT_MIAO:                 Miao. Since: 2.32\n @G_UNICODE_SCRIPT_SHARADA:              Sharada. Since: 2.32\n @G_UNICODE_SCRIPT_SORA_SOMPENG:         Sora Sompeng. Since: 2.32\n @G_UNICODE_SCRIPT_TAKRI:                Takri. Since: 2.32\n @G_UNICODE_SCRIPT_BASSA_VAH:            Bassa. Since: 2.42\n @G_UNICODE_SCRIPT_CAUCASIAN_ALBANIAN:   Caucasian Albanian. Since: 2.42\n @G_UNICODE_SCRIPT_DUPLOYAN:             Duployan. Since: 2.42\n @G_UNICODE_SCRIPT_ELBASAN:              Elbasan. Since: 2.42\n @G_UNICODE_SCRIPT_GRANTHA:              Grantha. Since: 2.42\n @G_UNICODE_SCRIPT_KHOJKI:               Kjohki. Since: 2.42\n @G_UNICODE_SCRIPT_KHUDAWADI:            Khudawadi, Sindhi. Since: 2.42\n @G_UNICODE_SCRIPT_LINEAR_A:             Linear A. Since: 2.42\n @G_UNICODE_SCRIPT_MAHAJANI:             Mahajani. Since: 2.42\n @G_UNICODE_SCRIPT_MANICHAEAN:           Manichaean. Since: 2.42\n @G_UNICODE_SCRIPT_MENDE_KIKAKUI:        Mende Kikakui. Since: 2.42\n @G_UNICODE_SCRIPT_MODI:                 Modi. Since: 2.42\n @G_UNICODE_SCRIPT_MRO:                  Mro. Since: 2.42\n @G_UNICODE_SCRIPT_NABATAEAN:            Nabataean. Since: 2.42\n @G_UNICODE_SCRIPT_OLD_NORTH_ARABIAN:    Old North Arabian. Since: 2.42\n @G_UNICODE_SCRIPT_OLD_PERMIC:           Old Permic. Since: 2.42\n @G_UNICODE_SCRIPT_PAHAWH_HMONG:         Pahawh Hmong. Since: 2.42\n @G_UNICODE_SCRIPT_PALMYRENE:            Palmyrene. Since: 2.42\n @G_UNICODE_SCRIPT_PAU_CIN_HAU:          Pau Cin Hau. Since: 2.42\n @G_UNICODE_SCRIPT_PSALTER_PAHLAVI:      Psalter Pahlavi. Since: 2.42\n @G_UNICODE_SCRIPT_SIDDHAM:              Siddham. Since: 2.42\n @G_UNICODE_SCRIPT_TIRHUTA:              Tirhuta. Since: 2.42\n @G_UNICODE_SCRIPT_WARANG_CITI:          Warang Citi. Since: 2.42\n @G_UNICODE_SCRIPT_AHOM:                 Ahom. Since: 2.48\n @G_UNICODE_SCRIPT_ANATOLIAN_HIEROGLYPHS: Anatolian Hieroglyphs. Since: 2.48\n @G_UNICODE_SCRIPT_HATRAN:               Hatran. Since: 2.48\n @G_UNICODE_SCRIPT_MULTANI:              Multani. Since: 2.48\n @G_UNICODE_SCRIPT_OLD_HUNGARIAN:        Old Hungarian. Since: 2.48\n @G_UNICODE_SCRIPT_SIGNWRITING:          Signwriting. Since: 2.48\n @G_UNICODE_SCRIPT_ADLAM:                Adlam. Since: 2.50\n @G_UNICODE_SCRIPT_BHAIKSUKI:            Bhaiksuki. Since: 2.50\n @G_UNICODE_SCRIPT_MARCHEN:              Marchen. Since: 2.50\n @G_UNICODE_SCRIPT_NEWA:                 Newa. Since: 2.50\n @G_UNICODE_SCRIPT_OSAGE:                Osage. Since: 2.50\n @G_UNICODE_SCRIPT_TANGUT:               Tangut. Since: 2.50\n @G_UNICODE_SCRIPT_MASARAM_GONDI:        Masaram Gondi. Since: 2.54\n @G_UNICODE_SCRIPT_NUSHU:                Nushu. Since: 2.54\n @G_UNICODE_SCRIPT_SOYOMBO:              Soyombo. Since: 2.54\n @G_UNICODE_SCRIPT_ZANABAZAR_SQUARE:     Zanabazar Square. Since: 2.54\n @G_UNICODE_SCRIPT_DOGRA:                Dogra. Since: 2.58\n @G_UNICODE_SCRIPT_GUNJALA_GONDI:        Gunjala Gondi. Since: 2.58\n @G_UNICODE_SCRIPT_HANIFI_ROHINGYA:      Hanifi Rohingya. Since: 2.58\n @G_UNICODE_SCRIPT_MAKASAR:              Makasar. Since: 2.58\n @G_UNICODE_SCRIPT_MEDEFAIDRIN:          Medefaidrin. Since: 2.58\n @G_UNICODE_SCRIPT_OLD_SOGDIAN:          Old Sogdian. Since: 2.58\n @G_UNICODE_SCRIPT_SOGDIAN:              Sogdian. Since: 2.58\n @G_UNICODE_SCRIPT_ELYMAIC:              Elym. Since: 2.62\n @G_UNICODE_SCRIPT_NANDINAGARI:          Nand. Since: 2.62\n @G_UNICODE_SCRIPT_NYIAKENG_PUACHUE_HMONG: Rohg. Since: 2.62\n @G_UNICODE_SCRIPT_WANCHO:               Wcho. Since: 2.62\n @G_UNICODE_SCRIPT_CHORASMIAN:           Chorasmian. Since: 2.66\n @G_UNICODE_SCRIPT_DIVES_AKURU:          Dives Akuru. Since: 2.66\n @G_UNICODE_SCRIPT_KHITAN_SMALL_SCRIPT:  Khitan small script. Since: 2.66\n @G_UNICODE_SCRIPT_YEZIDI:               Yezidi. Since: 2.66\n\n The #GUnicodeScript enumeration identifies different writing\n systems. The values correspond to the names as defined in the\n Unicode standard. The enumeration has been added in GLib 2.14,\n and is interchangeable with #PangoScript.\n\n Note that new types may be added in the future. Applications\n should be ready to handle unknown values.\n See [Unicode Standard Annex #24: Script names](http://www.unicode.org/reports/tr24/)."]
+pub const G_UNICODE_SCRIPT_CYPRO_MINOAN: GUnicodeScript = 157;
+pub const G_UNICODE_SCRIPT_OLD_UYGHUR: GUnicodeScript = 158;
+pub const G_UNICODE_SCRIPT_TANGSA: GUnicodeScript = 159;
+pub const G_UNICODE_SCRIPT_TOTO: GUnicodeScript = 160;
+pub const G_UNICODE_SCRIPT_VITHKUQI: GUnicodeScript = 161;
+pub const G_UNICODE_SCRIPT_MATH: GUnicodeScript = 162;
+#[doc = " GUnicodeScript:\n @G_UNICODE_SCRIPT_INVALID_CODE:\n                               a value never returned from g_unichar_get_script()\n @G_UNICODE_SCRIPT_COMMON:     a character used by multiple different scripts\n @G_UNICODE_SCRIPT_INHERITED:  a mark glyph that takes its script from the\n                               base glyph to which it is attached\n @G_UNICODE_SCRIPT_ARABIC:     Arabic\n @G_UNICODE_SCRIPT_ARMENIAN:   Armenian\n @G_UNICODE_SCRIPT_BENGALI:    Bengali\n @G_UNICODE_SCRIPT_BOPOMOFO:   Bopomofo\n @G_UNICODE_SCRIPT_CHEROKEE:   Cherokee\n @G_UNICODE_SCRIPT_COPTIC:     Coptic\n @G_UNICODE_SCRIPT_CYRILLIC:   Cyrillic\n @G_UNICODE_SCRIPT_DESERET:    Deseret\n @G_UNICODE_SCRIPT_DEVANAGARI: Devanagari\n @G_UNICODE_SCRIPT_ETHIOPIC:   Ethiopic\n @G_UNICODE_SCRIPT_GEORGIAN:   Georgian\n @G_UNICODE_SCRIPT_GOTHIC:     Gothic\n @G_UNICODE_SCRIPT_GREEK:      Greek\n @G_UNICODE_SCRIPT_GUJARATI:   Gujarati\n @G_UNICODE_SCRIPT_GURMUKHI:   Gurmukhi\n @G_UNICODE_SCRIPT_HAN:        Han\n @G_UNICODE_SCRIPT_HANGUL:     Hangul\n @G_UNICODE_SCRIPT_HEBREW:     Hebrew\n @G_UNICODE_SCRIPT_HIRAGANA:   Hiragana\n @G_UNICODE_SCRIPT_KANNADA:    Kannada\n @G_UNICODE_SCRIPT_KATAKANA:   Katakana\n @G_UNICODE_SCRIPT_KHMER:      Khmer\n @G_UNICODE_SCRIPT_LAO:        Lao\n @G_UNICODE_SCRIPT_LATIN:      Latin\n @G_UNICODE_SCRIPT_MALAYALAM:  Malayalam\n @G_UNICODE_SCRIPT_MONGOLIAN:  Mongolian\n @G_UNICODE_SCRIPT_MYANMAR:    Myanmar\n @G_UNICODE_SCRIPT_OGHAM:      Ogham\n @G_UNICODE_SCRIPT_OLD_ITALIC: Old Italic\n @G_UNICODE_SCRIPT_ORIYA:      Oriya\n @G_UNICODE_SCRIPT_RUNIC:      Runic\n @G_UNICODE_SCRIPT_SINHALA:    Sinhala\n @G_UNICODE_SCRIPT_SYRIAC:     Syriac\n @G_UNICODE_SCRIPT_TAMIL:      Tamil\n @G_UNICODE_SCRIPT_TELUGU:     Telugu\n @G_UNICODE_SCRIPT_THAANA:     Thaana\n @G_UNICODE_SCRIPT_THAI:       Thai\n @G_UNICODE_SCRIPT_TIBETAN:    Tibetan\n @G_UNICODE_SCRIPT_CANADIAN_ABORIGINAL:\n                               Canadian Aboriginal\n @G_UNICODE_SCRIPT_YI:         Yi\n @G_UNICODE_SCRIPT_TAGALOG:    Tagalog\n @G_UNICODE_SCRIPT_HANUNOO:    Hanunoo\n @G_UNICODE_SCRIPT_BUHID:      Buhid\n @G_UNICODE_SCRIPT_TAGBANWA:   Tagbanwa\n @G_UNICODE_SCRIPT_BRAILLE:    Braille\n @G_UNICODE_SCRIPT_CYPRIOT:    Cypriot\n @G_UNICODE_SCRIPT_LIMBU:      Limbu\n @G_UNICODE_SCRIPT_OSMANYA:    Osmanya\n @G_UNICODE_SCRIPT_SHAVIAN:    Shavian\n @G_UNICODE_SCRIPT_LINEAR_B:   Linear B\n @G_UNICODE_SCRIPT_TAI_LE:     Tai Le\n @G_UNICODE_SCRIPT_UGARITIC:   Ugaritic\n @G_UNICODE_SCRIPT_NEW_TAI_LUE:\n                               New Tai Lue\n @G_UNICODE_SCRIPT_BUGINESE:   Buginese\n @G_UNICODE_SCRIPT_GLAGOLITIC: Glagolitic\n @G_UNICODE_SCRIPT_TIFINAGH:   Tifinagh\n @G_UNICODE_SCRIPT_SYLOTI_NAGRI:\n                               Syloti Nagri\n @G_UNICODE_SCRIPT_OLD_PERSIAN:\n                               Old Persian\n @G_UNICODE_SCRIPT_KHAROSHTHI: Kharoshthi\n @G_UNICODE_SCRIPT_UNKNOWN:    an unassigned code point\n @G_UNICODE_SCRIPT_BALINESE:   Balinese\n @G_UNICODE_SCRIPT_CUNEIFORM:  Cuneiform\n @G_UNICODE_SCRIPT_PHOENICIAN: Phoenician\n @G_UNICODE_SCRIPT_PHAGS_PA:   Phags-pa\n @G_UNICODE_SCRIPT_NKO:        N'Ko\n @G_UNICODE_SCRIPT_KAYAH_LI:   Kayah Li. Since 2.16.3\n @G_UNICODE_SCRIPT_LEPCHA:     Lepcha. Since 2.16.3\n @G_UNICODE_SCRIPT_REJANG:     Rejang. Since 2.16.3\n @G_UNICODE_SCRIPT_SUNDANESE:  Sundanese. Since 2.16.3\n @G_UNICODE_SCRIPT_SAURASHTRA: Saurashtra. Since 2.16.3\n @G_UNICODE_SCRIPT_CHAM:       Cham. Since 2.16.3\n @G_UNICODE_SCRIPT_OL_CHIKI:   Ol Chiki. Since 2.16.3\n @G_UNICODE_SCRIPT_VAI:        Vai. Since 2.16.3\n @G_UNICODE_SCRIPT_CARIAN:     Carian. Since 2.16.3\n @G_UNICODE_SCRIPT_LYCIAN:     Lycian. Since 2.16.3\n @G_UNICODE_SCRIPT_LYDIAN:     Lydian. Since 2.16.3\n @G_UNICODE_SCRIPT_AVESTAN:    Avestan. Since 2.26\n @G_UNICODE_SCRIPT_BAMUM:      Bamum. Since 2.26\n @G_UNICODE_SCRIPT_EGYPTIAN_HIEROGLYPHS:\n                               Egyptian Hieroglpyhs. Since 2.26\n @G_UNICODE_SCRIPT_IMPERIAL_ARAMAIC:\n                               Imperial Aramaic. Since 2.26\n @G_UNICODE_SCRIPT_INSCRIPTIONAL_PAHLAVI:\n                               Inscriptional Pahlavi. Since 2.26\n @G_UNICODE_SCRIPT_INSCRIPTIONAL_PARTHIAN:\n                               Inscriptional Parthian. Since 2.26\n @G_UNICODE_SCRIPT_JAVANESE:   Javanese. Since 2.26\n @G_UNICODE_SCRIPT_KAITHI:     Kaithi. Since 2.26\n @G_UNICODE_SCRIPT_LISU:       Lisu. Since 2.26\n @G_UNICODE_SCRIPT_MEETEI_MAYEK:\n                               Meetei Mayek. Since 2.26\n @G_UNICODE_SCRIPT_OLD_SOUTH_ARABIAN:\n                               Old South Arabian. Since 2.26\n @G_UNICODE_SCRIPT_OLD_TURKIC: Old Turkic. Since 2.28\n @G_UNICODE_SCRIPT_SAMARITAN:  Samaritan. Since 2.26\n @G_UNICODE_SCRIPT_TAI_THAM:   Tai Tham. Since 2.26\n @G_UNICODE_SCRIPT_TAI_VIET:   Tai Viet. Since 2.26\n @G_UNICODE_SCRIPT_BATAK:      Batak. Since 2.28\n @G_UNICODE_SCRIPT_BRAHMI:     Brahmi. Since 2.28\n @G_UNICODE_SCRIPT_MANDAIC:    Mandaic. Since 2.28\n @G_UNICODE_SCRIPT_CHAKMA:               Chakma. Since: 2.32\n @G_UNICODE_SCRIPT_MEROITIC_CURSIVE:     Meroitic Cursive. Since: 2.32\n @G_UNICODE_SCRIPT_MEROITIC_HIEROGLYPHS: Meroitic Hieroglyphs. Since: 2.32\n @G_UNICODE_SCRIPT_MIAO:                 Miao. Since: 2.32\n @G_UNICODE_SCRIPT_SHARADA:              Sharada. Since: 2.32\n @G_UNICODE_SCRIPT_SORA_SOMPENG:         Sora Sompeng. Since: 2.32\n @G_UNICODE_SCRIPT_TAKRI:                Takri. Since: 2.32\n @G_UNICODE_SCRIPT_BASSA_VAH:            Bassa. Since: 2.42\n @G_UNICODE_SCRIPT_CAUCASIAN_ALBANIAN:   Caucasian Albanian. Since: 2.42\n @G_UNICODE_SCRIPT_DUPLOYAN:             Duployan. Since: 2.42\n @G_UNICODE_SCRIPT_ELBASAN:              Elbasan. Since: 2.42\n @G_UNICODE_SCRIPT_GRANTHA:              Grantha. Since: 2.42\n @G_UNICODE_SCRIPT_KHOJKI:               Kjohki. Since: 2.42\n @G_UNICODE_SCRIPT_KHUDAWADI:            Khudawadi, Sindhi. Since: 2.42\n @G_UNICODE_SCRIPT_LINEAR_A:             Linear A. Since: 2.42\n @G_UNICODE_SCRIPT_MAHAJANI:             Mahajani. Since: 2.42\n @G_UNICODE_SCRIPT_MANICHAEAN:           Manichaean. Since: 2.42\n @G_UNICODE_SCRIPT_MENDE_KIKAKUI:        Mende Kikakui. Since: 2.42\n @G_UNICODE_SCRIPT_MODI:                 Modi. Since: 2.42\n @G_UNICODE_SCRIPT_MRO:                  Mro. Since: 2.42\n @G_UNICODE_SCRIPT_NABATAEAN:            Nabataean. Since: 2.42\n @G_UNICODE_SCRIPT_OLD_NORTH_ARABIAN:    Old North Arabian. Since: 2.42\n @G_UNICODE_SCRIPT_OLD_PERMIC:           Old Permic. Since: 2.42\n @G_UNICODE_SCRIPT_PAHAWH_HMONG:         Pahawh Hmong. Since: 2.42\n @G_UNICODE_SCRIPT_PALMYRENE:            Palmyrene. Since: 2.42\n @G_UNICODE_SCRIPT_PAU_CIN_HAU:          Pau Cin Hau. Since: 2.42\n @G_UNICODE_SCRIPT_PSALTER_PAHLAVI:      Psalter Pahlavi. Since: 2.42\n @G_UNICODE_SCRIPT_SIDDHAM:              Siddham. Since: 2.42\n @G_UNICODE_SCRIPT_TIRHUTA:              Tirhuta. Since: 2.42\n @G_UNICODE_SCRIPT_WARANG_CITI:          Warang Citi. Since: 2.42\n @G_UNICODE_SCRIPT_AHOM:                 Ahom. Since: 2.48\n @G_UNICODE_SCRIPT_ANATOLIAN_HIEROGLYPHS: Anatolian Hieroglyphs. Since: 2.48\n @G_UNICODE_SCRIPT_HATRAN:               Hatran. Since: 2.48\n @G_UNICODE_SCRIPT_MULTANI:              Multani. Since: 2.48\n @G_UNICODE_SCRIPT_OLD_HUNGARIAN:        Old Hungarian. Since: 2.48\n @G_UNICODE_SCRIPT_SIGNWRITING:          Signwriting. Since: 2.48\n @G_UNICODE_SCRIPT_ADLAM:                Adlam. Since: 2.50\n @G_UNICODE_SCRIPT_BHAIKSUKI:            Bhaiksuki. Since: 2.50\n @G_UNICODE_SCRIPT_MARCHEN:              Marchen. Since: 2.50\n @G_UNICODE_SCRIPT_NEWA:                 Newa. Since: 2.50\n @G_UNICODE_SCRIPT_OSAGE:                Osage. Since: 2.50\n @G_UNICODE_SCRIPT_TANGUT:               Tangut. Since: 2.50\n @G_UNICODE_SCRIPT_MASARAM_GONDI:        Masaram Gondi. Since: 2.54\n @G_UNICODE_SCRIPT_NUSHU:                Nushu. Since: 2.54\n @G_UNICODE_SCRIPT_SOYOMBO:              Soyombo. Since: 2.54\n @G_UNICODE_SCRIPT_ZANABAZAR_SQUARE:     Zanabazar Square. Since: 2.54\n @G_UNICODE_SCRIPT_DOGRA:                Dogra. Since: 2.58\n @G_UNICODE_SCRIPT_GUNJALA_GONDI:        Gunjala Gondi. Since: 2.58\n @G_UNICODE_SCRIPT_HANIFI_ROHINGYA:      Hanifi Rohingya. Since: 2.58\n @G_UNICODE_SCRIPT_MAKASAR:              Makasar. Since: 2.58\n @G_UNICODE_SCRIPT_MEDEFAIDRIN:          Medefaidrin. Since: 2.58\n @G_UNICODE_SCRIPT_OLD_SOGDIAN:          Old Sogdian. Since: 2.58\n @G_UNICODE_SCRIPT_SOGDIAN:              Sogdian. Since: 2.58\n @G_UNICODE_SCRIPT_ELYMAIC:              Elym. Since: 2.62\n @G_UNICODE_SCRIPT_NANDINAGARI:          Nand. Since: 2.62\n @G_UNICODE_SCRIPT_NYIAKENG_PUACHUE_HMONG: Rohg. Since: 2.62\n @G_UNICODE_SCRIPT_WANCHO:               Wcho. Since: 2.62\n @G_UNICODE_SCRIPT_CHORASMIAN:           Chorasmian. Since: 2.66\n @G_UNICODE_SCRIPT_DIVES_AKURU:          Dives Akuru. Since: 2.66\n @G_UNICODE_SCRIPT_KHITAN_SMALL_SCRIPT:  Khitan small script. Since: 2.66\n @G_UNICODE_SCRIPT_YEZIDI:               Yezidi. Since: 2.66\n @G_UNICODE_SCRIPT_CYPRO_MINOAN:         Cypro-Minoan. Since: 2.72\n @G_UNICODE_SCRIPT_OLD_UYGHUR:           Old Uyghur. Since: 2.72\n @G_UNICODE_SCRIPT_TANGSA:               Tangsa. Since: 2.72\n @G_UNICODE_SCRIPT_TOTO:                 Toto. Since: 2.72\n @G_UNICODE_SCRIPT_VITHKUQI:             Vithkuqi. Since: 2.72\n @G_UNICODE_SCRIPT_MATH:                 Mathematical notation. Since: 2.72\n\n The #GUnicodeScript enumeration identifies different writing\n systems. The values correspond to the names as defined in the\n Unicode standard. The enumeration has been added in GLib 2.14,\n and is interchangeable with #PangoScript.\n\n Note that new types may be added in the future. Applications\n should be ready to handle unknown values.\n See [Unicode Standard Annex #24: Script names](http://www.unicode.org/reports/tr24/)."]
 pub type GUnicodeScript = ::std::os::raw::c_int;
 unsafe extern "C" {
     pub fn g_unicode_script_to_iso15924(script: GUnicodeScript) -> guint32;
@@ -14071,6 +16385,14 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn g_string_erase(string: *mut GString, pos: gssize, len: gssize) -> *mut GString;
+}
+unsafe extern "C" {
+    pub fn g_string_replace(
+        string: *mut GString,
+        find: *const gchar,
+        replace: *const gchar,
+        limit: guint,
+    ) -> guint;
 }
 unsafe extern "C" {
     pub fn g_string_ascii_down(string: *mut GString) -> *mut GString;
@@ -16140,7 +18462,7 @@ const _: () = {
     ["Offset of field: _GLogField::value"][::std::mem::offset_of!(_GLogField, value) - 8usize];
     ["Offset of field: _GLogField::length"][::std::mem::offset_of!(_GLogField, length) - 16usize];
 };
-#[doc = " GLogWriterFunc:\n @log_level: log level of the message\n @fields: (array length=n_fields): fields forming the message\n @n_fields: number of @fields\n @user_data: user data passed to g_log_set_writer_func()\n\n Writer function for log entries. A log entry is a collection of one or more\n #GLogFields, using the standard [field names from journal\n specification](https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html).\n See g_log_structured() for more information.\n\n Writer functions must ignore fields which they do not recognise, unless they\n can write arbitrary binary output, as field values may be arbitrary binary.\n\n @log_level is guaranteed to be included in @fields as the `PRIORITY` field,\n but is provided separately for convenience of deciding whether or where to\n output the log entry.\n\n Writer functions should return %G_LOG_WRITER_HANDLED if they handled the log\n message successfully or if they deliberately ignored it. If there was an\n error handling the message (for example, if the writer function is meant to\n send messages to a remote logging server and there is a network error), it\n should return %G_LOG_WRITER_UNHANDLED. This allows writer functions to be\n chained and fall back to simpler handlers in case of failure.\n\n Returns: %G_LOG_WRITER_HANDLED if the log entry was handled successfully;\n    %G_LOG_WRITER_UNHANDLED otherwise\n Since: 2.50"]
+#[doc = " GLogWriterFunc:\n @log_level: log level of the message\n @fields: (array length=n_fields): fields forming the message\n @n_fields: number of @fields\n @user_data: user data passed to g_log_set_writer_func()\n\n Writer function for log entries. A log entry is a collection of one or more\n #GLogFields, using the standard [field names from journal\n specification](https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html).\n See g_log_structured() for more information.\n\n Writer functions must ignore fields which they do not recognise, unless they\n can write arbitrary binary output, as field values may be arbitrary binary.\n\n @log_level is guaranteed to be included in @fields as the `PRIORITY` field,\n but is provided separately for convenience of deciding whether or where to\n output the log entry.\n\n Writer functions should return %G_LOG_WRITER_HANDLED if they handled the log\n message successfully or if they deliberately ignored it. If there was an\n error handling the message (for example, if the writer function is meant to\n send messages to a remote logging server and there is a network error), it\n should return %G_LOG_WRITER_UNHANDLED. This allows writer functions to be\n chained and fall back to simpler handlers in case of failure.\n\n Returns: %G_LOG_WRITER_HANDLED if the log entry was handled successfully;\n   %G_LOG_WRITER_UNHANDLED otherwise\n\n Since: 2.50"]
 pub type GLogWriterFunc = ::std::option::Option<
     unsafe extern "C" fn(
         log_level: GLogLevelFlags,
@@ -16210,6 +18532,21 @@ unsafe extern "C" {
         n_fields: gsize,
         user_data: gpointer,
     ) -> GLogWriterOutput;
+}
+unsafe extern "C" {
+    pub fn g_log_writer_default_set_use_stderr(use_stderr: gboolean);
+}
+unsafe extern "C" {
+    pub fn g_log_writer_default_would_drop(
+        log_level: GLogLevelFlags,
+        log_domain: *const ::std::os::raw::c_char,
+    ) -> gboolean;
+}
+unsafe extern "C" {
+    pub fn g_log_get_debug_enabled() -> gboolean;
+}
+unsafe extern "C" {
+    pub fn g_log_set_debug_enabled(enabled: gboolean);
 }
 unsafe extern "C" {
     pub fn _g_log_fallback_handler(
@@ -16520,7 +18857,21 @@ unsafe extern "C" {
     pub fn g_pattern_spec_free(pspec: *mut GPatternSpec);
 }
 unsafe extern "C" {
+    pub fn g_pattern_spec_copy(pspec: *mut GPatternSpec) -> *mut GPatternSpec;
+}
+unsafe extern "C" {
     pub fn g_pattern_spec_equal(pspec1: *mut GPatternSpec, pspec2: *mut GPatternSpec) -> gboolean;
+}
+unsafe extern "C" {
+    pub fn g_pattern_spec_match(
+        pspec: *mut GPatternSpec,
+        string_length: gsize,
+        string: *const gchar,
+        string_reversed: *const gchar,
+    ) -> gboolean;
+}
+unsafe extern "C" {
+    pub fn g_pattern_spec_match_string(pspec: *mut GPatternSpec, string: *const gchar) -> gboolean;
 }
 unsafe extern "C" {
     pub fn g_pattern_match(
@@ -16929,7 +19280,7 @@ pub const G_REGEX_NEWLINE_CRLF: GRegexCompileFlags = 3145728;
 pub const G_REGEX_NEWLINE_ANYCRLF: GRegexCompileFlags = 5242880;
 pub const G_REGEX_BSR_ANYCRLF: GRegexCompileFlags = 8388608;
 pub const G_REGEX_JAVASCRIPT_COMPAT: GRegexCompileFlags = 33554432;
-#[doc = " GRegexCompileFlags:\n @G_REGEX_CASELESS: Letters in the pattern match both upper- and\n     lowercase letters. This option can be changed within a pattern\n     by a \"(?i)\" option setting.\n @G_REGEX_MULTILINE: By default, GRegex treats the strings as consisting\n     of a single line of characters (even if it actually contains\n     newlines). The \"start of line\" metacharacter (\"^\") matches only\n     at the start of the string, while the \"end of line\" metacharacter\n     (\"$\") matches only at the end of the string, or before a terminating\n     newline (unless #G_REGEX_DOLLAR_ENDONLY is set). When\n     #G_REGEX_MULTILINE is set, the \"start of line\" and \"end of line\"\n     constructs match immediately following or immediately before any\n     newline in the string, respectively, as well as at the very start\n     and end. This can be changed within a pattern by a \"(?m)\" option\n     setting.\n @G_REGEX_DOTALL: A dot metacharacter (\".\") in the pattern matches all\n     characters, including newlines. Without it, newlines are excluded.\n     This option can be changed within a pattern by a (\"?s\") option setting.\n @G_REGEX_EXTENDED: Whitespace data characters in the pattern are\n     totally ignored except when escaped or inside a character class.\n     Whitespace does not include the VT character (code 11). In addition,\n     characters between an unescaped \"#\" outside a character class and\n     the next newline character, inclusive, are also ignored. This can\n     be changed within a pattern by a \"(?x)\" option setting.\n @G_REGEX_ANCHORED: The pattern is forced to be \"anchored\", that is,\n     it is constrained to match only at the first matching point in the\n     string that is being searched. This effect can also be achieved by\n     appropriate constructs in the pattern itself such as the \"^\"\n     metacharacter.\n @G_REGEX_DOLLAR_ENDONLY: A dollar metacharacter (\"$\") in the pattern\n     matches only at the end of the string. Without this option, a\n     dollar also matches immediately before the final character if\n     it is a newline (but not before any other newlines). This option\n     is ignored if #G_REGEX_MULTILINE is set.\n @G_REGEX_UNGREEDY: Inverts the \"greediness\" of the quantifiers so that\n     they are not greedy by default, but become greedy if followed by \"?\".\n     It can also be set by a \"(?U)\" option setting within the pattern.\n @G_REGEX_RAW: Usually strings must be valid UTF-8 strings, using this\n     flag they are considered as a raw sequence of bytes.\n @G_REGEX_NO_AUTO_CAPTURE: Disables the use of numbered capturing\n     parentheses in the pattern. Any opening parenthesis that is not\n     followed by \"?\" behaves as if it were followed by \"?:\" but named\n     parentheses can still be used for capturing (and they acquire numbers\n     in the usual way).\n @G_REGEX_OPTIMIZE: Optimize the regular expression. If the pattern will\n     be used many times, then it may be worth the effort to optimize it\n     to improve the speed of matches.\n @G_REGEX_FIRSTLINE: Limits an unanchored pattern to match before (or at) the\n     first newline. Since: 2.34\n @G_REGEX_DUPNAMES: Names used to identify capturing subpatterns need not\n     be unique. This can be helpful for certain types of pattern when it\n     is known that only one instance of the named subpattern can ever be\n     matched.\n @G_REGEX_NEWLINE_CR: Usually any newline character or character sequence is\n     recognized. If this option is set, the only recognized newline character\n     is '\\r'.\n @G_REGEX_NEWLINE_LF: Usually any newline character or character sequence is\n     recognized. If this option is set, the only recognized newline character\n     is '\\n'.\n @G_REGEX_NEWLINE_CRLF: Usually any newline character or character sequence is\n     recognized. If this option is set, the only recognized newline character\n     sequence is '\\r\\n'.\n @G_REGEX_NEWLINE_ANYCRLF: Usually any newline character or character sequence\n     is recognized. If this option is set, the only recognized newline character\n     sequences are '\\r', '\\n', and '\\r\\n'. Since: 2.34\n @G_REGEX_BSR_ANYCRLF: Usually any newline character or character sequence\n     is recognised. If this option is set, then \"\\R\" only recognizes the newline\n    characters '\\r', '\\n' and '\\r\\n'. Since: 2.34\n @G_REGEX_JAVASCRIPT_COMPAT: Changes behaviour so that it is compatible with\n     JavaScript rather than PCRE. Since: 2.34\n\n Flags specifying compile-time options.\n\n Since: 2.14"]
+#[doc = " GRegexCompileFlags:\n @G_REGEX_CASELESS: Letters in the pattern match both upper- and\n     lowercase letters. This option can be changed within a pattern\n     by a \"(?i)\" option setting.\n @G_REGEX_MULTILINE: By default, GRegex treats the strings as consisting\n     of a single line of characters (even if it actually contains\n     newlines). The \"start of line\" metacharacter (\"^\") matches only\n     at the start of the string, while the \"end of line\" metacharacter\n     (\"$\") matches only at the end of the string, or before a terminating\n     newline (unless %G_REGEX_DOLLAR_ENDONLY is set). When\n     %G_REGEX_MULTILINE is set, the \"start of line\" and \"end of line\"\n     constructs match immediately following or immediately before any\n     newline in the string, respectively, as well as at the very start\n     and end. This can be changed within a pattern by a \"(?m)\" option\n     setting.\n @G_REGEX_DOTALL: A dot metacharacter (\".\") in the pattern matches all\n     characters, including newlines. Without it, newlines are excluded.\n     This option can be changed within a pattern by a (\"?s\") option setting.\n @G_REGEX_EXTENDED: Whitespace data characters in the pattern are\n     totally ignored except when escaped or inside a character class.\n     Whitespace does not include the VT character (code 11). In addition,\n     characters between an unescaped \"#\" outside a character class and\n     the next newline character, inclusive, are also ignored. This can\n     be changed within a pattern by a \"(?x)\" option setting.\n @G_REGEX_ANCHORED: The pattern is forced to be \"anchored\", that is,\n     it is constrained to match only at the first matching point in the\n     string that is being searched. This effect can also be achieved by\n     appropriate constructs in the pattern itself such as the \"^\"\n     metacharacter.\n @G_REGEX_DOLLAR_ENDONLY: A dollar metacharacter (\"$\") in the pattern\n     matches only at the end of the string. Without this option, a\n     dollar also matches immediately before the final character if\n     it is a newline (but not before any other newlines). This option\n     is ignored if %G_REGEX_MULTILINE is set.\n @G_REGEX_UNGREEDY: Inverts the \"greediness\" of the quantifiers so that\n     they are not greedy by default, but become greedy if followed by \"?\".\n     It can also be set by a \"(?U)\" option setting within the pattern.\n @G_REGEX_RAW: Usually strings must be valid UTF-8 strings, using this\n     flag they are considered as a raw sequence of bytes.\n @G_REGEX_NO_AUTO_CAPTURE: Disables the use of numbered capturing\n     parentheses in the pattern. Any opening parenthesis that is not\n     followed by \"?\" behaves as if it were followed by \"?:\" but named\n     parentheses can still be used for capturing (and they acquire numbers\n     in the usual way).\n @G_REGEX_OPTIMIZE: Optimize the regular expression. If the pattern will\n     be used many times, then it may be worth the effort to optimize it\n     to improve the speed of matches.\n @G_REGEX_FIRSTLINE: Limits an unanchored pattern to match before (or at) the\n     first newline. Since: 2.34\n @G_REGEX_DUPNAMES: Names used to identify capturing subpatterns need not\n     be unique. This can be helpful for certain types of pattern when it\n     is known that only one instance of the named subpattern can ever be\n     matched.\n @G_REGEX_NEWLINE_CR: Usually any newline character or character sequence is\n     recognized. If this option is set, the only recognized newline character\n     is '\\r'.\n @G_REGEX_NEWLINE_LF: Usually any newline character or character sequence is\n     recognized. If this option is set, the only recognized newline character\n     is '\\n'.\n @G_REGEX_NEWLINE_CRLF: Usually any newline character or character sequence is\n     recognized. If this option is set, the only recognized newline character\n     sequence is '\\r\\n'.\n @G_REGEX_NEWLINE_ANYCRLF: Usually any newline character or character sequence\n     is recognized. If this option is set, the only recognized newline character\n     sequences are '\\r', '\\n', and '\\r\\n'. Since: 2.34\n @G_REGEX_BSR_ANYCRLF: Usually any newline character or character sequence\n     is recognised. If this option is set, then \"\\R\" only recognizes the newline\n    characters '\\r', '\\n' and '\\r\\n'. Since: 2.34\n @G_REGEX_JAVASCRIPT_COMPAT: Changes behaviour so that it is compatible with\n     JavaScript rather than PCRE. Since: 2.34\n\n Flags specifying compile-time options.\n\n Since: 2.14"]
 pub type GRegexCompileFlags = ::std::os::raw::c_uint;
 pub const G_REGEX_MATCH_ANCHORED: GRegexMatchFlags = 16;
 pub const G_REGEX_MATCH_NOTBOL: GRegexMatchFlags = 128;
@@ -16946,7 +19297,7 @@ pub const G_REGEX_MATCH_BSR_ANY: GRegexMatchFlags = 16777216;
 pub const G_REGEX_MATCH_PARTIAL_SOFT: GRegexMatchFlags = 32768;
 pub const G_REGEX_MATCH_PARTIAL_HARD: GRegexMatchFlags = 134217728;
 pub const G_REGEX_MATCH_NOTEMPTY_ATSTART: GRegexMatchFlags = 268435456;
-#[doc = " GRegexMatchFlags:\n @G_REGEX_MATCH_ANCHORED: The pattern is forced to be \"anchored\", that is,\n     it is constrained to match only at the first matching point in the\n     string that is being searched. This effect can also be achieved by\n     appropriate constructs in the pattern itself such as the \"^\"\n     metacharacter.\n @G_REGEX_MATCH_NOTBOL: Specifies that first character of the string is\n     not the beginning of a line, so the circumflex metacharacter should\n     not match before it. Setting this without #G_REGEX_MULTILINE (at\n     compile time) causes circumflex never to match. This option affects\n     only the behaviour of the circumflex metacharacter, it does not\n     affect \"\\A\".\n @G_REGEX_MATCH_NOTEOL: Specifies that the end of the subject string is\n     not the end of a line, so the dollar metacharacter should not match\n     it nor (except in multiline mode) a newline immediately before it.\n     Setting this without #G_REGEX_MULTILINE (at compile time) causes\n     dollar never to match. This option affects only the behaviour of\n     the dollar metacharacter, it does not affect \"\\Z\" or \"\\z\".\n @G_REGEX_MATCH_NOTEMPTY: An empty string is not considered to be a valid\n     match if this option is set. If there are alternatives in the pattern,\n     they are tried. If all the alternatives match the empty string, the\n     entire match fails. For example, if the pattern \"a?b?\" is applied to\n     a string not beginning with \"a\" or \"b\", it matches the empty string\n     at the start of the string. With this flag set, this match is not\n     valid, so GRegex searches further into the string for occurrences\n     of \"a\" or \"b\".\n @G_REGEX_MATCH_PARTIAL: Turns on the partial matching feature, for more\n     documentation on partial matching see g_match_info_is_partial_match().\n @G_REGEX_MATCH_NEWLINE_CR: Overrides the newline definition set when\n     creating a new #GRegex, setting the '\\r' character as line terminator.\n @G_REGEX_MATCH_NEWLINE_LF: Overrides the newline definition set when\n     creating a new #GRegex, setting the '\\n' character as line terminator.\n @G_REGEX_MATCH_NEWLINE_CRLF: Overrides the newline definition set when\n     creating a new #GRegex, setting the '\\r\\n' characters sequence as line terminator.\n @G_REGEX_MATCH_NEWLINE_ANY: Overrides the newline definition set when\n     creating a new #GRegex, any Unicode newline sequence\n     is recognised as a newline. These are '\\r', '\\n' and '\\rn', and the\n     single characters U+000B LINE TABULATION, U+000C FORM FEED (FF),\n     U+0085 NEXT LINE (NEL), U+2028 LINE SEPARATOR and\n     U+2029 PARAGRAPH SEPARATOR.\n @G_REGEX_MATCH_NEWLINE_ANYCRLF: Overrides the newline definition set when\n     creating a new #GRegex; any '\\r', '\\n', or '\\r\\n' character sequence\n     is recognized as a newline. Since: 2.34\n @G_REGEX_MATCH_BSR_ANYCRLF: Overrides the newline definition for \"\\R\" set when\n     creating a new #GRegex; only '\\r', '\\n', or '\\r\\n' character sequences\n     are recognized as a newline by \"\\R\". Since: 2.34\n @G_REGEX_MATCH_BSR_ANY: Overrides the newline definition for \"\\R\" set when\n     creating a new #GRegex; any Unicode newline character or character sequence\n     are recognized as a newline by \"\\R\". These are '\\r', '\\n' and '\\rn', and the\n     single characters U+000B LINE TABULATION, U+000C FORM FEED (FF),\n     U+0085 NEXT LINE (NEL), U+2028 LINE SEPARATOR and\n     U+2029 PARAGRAPH SEPARATOR. Since: 2.34\n @G_REGEX_MATCH_PARTIAL_SOFT: An alias for #G_REGEX_MATCH_PARTIAL. Since: 2.34\n @G_REGEX_MATCH_PARTIAL_HARD: Turns on the partial matching feature. In contrast to\n     to #G_REGEX_MATCH_PARTIAL_SOFT, this stops matching as soon as a partial match\n     is found, without continuing to search for a possible complete match. See\n     g_match_info_is_partial_match() for more information. Since: 2.34\n @G_REGEX_MATCH_NOTEMPTY_ATSTART: Like #G_REGEX_MATCH_NOTEMPTY, but only applied to\n     the start of the matched string. For anchored\n     patterns this can only happen for pattern containing \"\\K\". Since: 2.34\n\n Flags specifying match-time options.\n\n Since: 2.14"]
+#[doc = " GRegexMatchFlags:\n @G_REGEX_MATCH_ANCHORED: The pattern is forced to be \"anchored\", that is,\n     it is constrained to match only at the first matching point in the\n     string that is being searched. This effect can also be achieved by\n     appropriate constructs in the pattern itself such as the \"^\"\n     metacharacter.\n @G_REGEX_MATCH_NOTBOL: Specifies that first character of the string is\n     not the beginning of a line, so the circumflex metacharacter should\n     not match before it. Setting this without %G_REGEX_MULTILINE (at\n     compile time) causes circumflex never to match. This option affects\n     only the behaviour of the circumflex metacharacter, it does not\n     affect \"\\A\".\n @G_REGEX_MATCH_NOTEOL: Specifies that the end of the subject string is\n     not the end of a line, so the dollar metacharacter should not match\n     it nor (except in multiline mode) a newline immediately before it.\n     Setting this without %G_REGEX_MULTILINE (at compile time) causes\n     dollar never to match. This option affects only the behaviour of\n     the dollar metacharacter, it does not affect \"\\Z\" or \"\\z\".\n @G_REGEX_MATCH_NOTEMPTY: An empty string is not considered to be a valid\n     match if this option is set. If there are alternatives in the pattern,\n     they are tried. If all the alternatives match the empty string, the\n     entire match fails. For example, if the pattern \"a?b?\" is applied to\n     a string not beginning with \"a\" or \"b\", it matches the empty string\n     at the start of the string. With this flag set, this match is not\n     valid, so GRegex searches further into the string for occurrences\n     of \"a\" or \"b\".\n @G_REGEX_MATCH_PARTIAL: Turns on the partial matching feature, for more\n     documentation on partial matching see g_match_info_is_partial_match().\n @G_REGEX_MATCH_NEWLINE_CR: Overrides the newline definition set when\n     creating a new #GRegex, setting the '\\r' character as line terminator.\n @G_REGEX_MATCH_NEWLINE_LF: Overrides the newline definition set when\n     creating a new #GRegex, setting the '\\n' character as line terminator.\n @G_REGEX_MATCH_NEWLINE_CRLF: Overrides the newline definition set when\n     creating a new #GRegex, setting the '\\r\\n' characters sequence as line terminator.\n @G_REGEX_MATCH_NEWLINE_ANY: Overrides the newline definition set when\n     creating a new #GRegex, any Unicode newline sequence\n     is recognised as a newline. These are '\\r', '\\n' and '\\rn', and the\n     single characters U+000B LINE TABULATION, U+000C FORM FEED (FF),\n     U+0085 NEXT LINE (NEL), U+2028 LINE SEPARATOR and\n     U+2029 PARAGRAPH SEPARATOR.\n @G_REGEX_MATCH_NEWLINE_ANYCRLF: Overrides the newline definition set when\n     creating a new #GRegex; any '\\r', '\\n', or '\\r\\n' character sequence\n     is recognized as a newline. Since: 2.34\n @G_REGEX_MATCH_BSR_ANYCRLF: Overrides the newline definition for \"\\R\" set when\n     creating a new #GRegex; only '\\r', '\\n', or '\\r\\n' character sequences\n     are recognized as a newline by \"\\R\". Since: 2.34\n @G_REGEX_MATCH_BSR_ANY: Overrides the newline definition for \"\\R\" set when\n     creating a new #GRegex; any Unicode newline character or character sequence\n     are recognized as a newline by \"\\R\". These are '\\r', '\\n' and '\\rn', and the\n     single characters U+000B LINE TABULATION, U+000C FORM FEED (FF),\n     U+0085 NEXT LINE (NEL), U+2028 LINE SEPARATOR and\n     U+2029 PARAGRAPH SEPARATOR. Since: 2.34\n @G_REGEX_MATCH_PARTIAL_SOFT: An alias for %G_REGEX_MATCH_PARTIAL. Since: 2.34\n @G_REGEX_MATCH_PARTIAL_HARD: Turns on the partial matching feature. In contrast to\n     to %G_REGEX_MATCH_PARTIAL_SOFT, this stops matching as soon as a partial match\n     is found, without continuing to search for a possible complete match. See\n     g_match_info_is_partial_match() for more information. Since: 2.34\n @G_REGEX_MATCH_NOTEMPTY_ATSTART: Like %G_REGEX_MATCH_NOTEMPTY, but only applied to\n     the start of the matched string. For anchored\n     patterns this can only happen for pattern containing \"\\K\". Since: 2.34\n\n Flags specifying match-time options.\n\n Since: 2.14"]
 pub type GRegexMatchFlags = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -18610,6 +20961,27 @@ unsafe extern "C" {
     ) -> gboolean;
 }
 unsafe extern "C" {
+    pub fn g_spawn_async_with_pipes_and_fds(
+        working_directory: *const gchar,
+        argv: *const *const gchar,
+        envp: *const *const gchar,
+        flags: GSpawnFlags,
+        child_setup: GSpawnChildSetupFunc,
+        user_data: gpointer,
+        stdin_fd: gint,
+        stdout_fd: gint,
+        stderr_fd: gint,
+        source_fds: *const gint,
+        target_fds: *const gint,
+        n_fds: gsize,
+        child_pid_out: *mut GPid,
+        stdin_pipe_out: *mut gint,
+        stdout_pipe_out: *mut gint,
+        stderr_pipe_out: *mut gint,
+        error: *mut *mut GError,
+    ) -> gboolean;
+}
+unsafe extern "C" {
     pub fn g_spawn_async_with_fds(
         working_directory: *const gchar,
         argv: *mut *mut gchar,
@@ -18634,7 +21006,7 @@ unsafe extern "C" {
         user_data: gpointer,
         standard_output: *mut *mut gchar,
         standard_error: *mut *mut gchar,
-        exit_status: *mut gint,
+        wait_status: *mut gint,
         error: *mut *mut GError,
     ) -> gboolean;
 }
@@ -18643,7 +21015,7 @@ unsafe extern "C" {
         command_line: *const gchar,
         standard_output: *mut *mut gchar,
         standard_error: *mut *mut gchar,
-        exit_status: *mut gint,
+        wait_status: *mut gint,
         error: *mut *mut GError,
     ) -> gboolean;
 }
@@ -18654,7 +21026,10 @@ unsafe extern "C" {
     ) -> gboolean;
 }
 unsafe extern "C" {
-    pub fn g_spawn_check_exit_status(exit_status: gint, error: *mut *mut GError) -> gboolean;
+    pub fn g_spawn_check_wait_status(wait_status: gint, error: *mut *mut GError) -> gboolean;
+}
+unsafe extern "C" {
+    pub fn g_spawn_check_exit_status(wait_status: gint, error: *mut *mut GError) -> gboolean;
 }
 unsafe extern "C" {
     pub fn g_spawn_close_pid(pid: GPid);
@@ -18824,6 +21199,9 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn g_memdup(mem: gconstpointer, byte_size: guint) -> gpointer;
 }
+unsafe extern "C" {
+    pub fn g_memdup2(mem: gconstpointer, byte_size: gsize) -> gpointer;
+}
 pub type GStrv = *mut *mut gchar;
 unsafe extern "C" {
     pub fn g_strsplit(
@@ -18937,6 +21315,37 @@ unsafe extern "C" {
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
+pub struct _GStrvBuilder {
+    _unused: [u8; 0],
+}
+#[doc = " GStrvBuilder:\n\n A helper object to build a %NULL-terminated string array\n by appending. See g_strv_builder_new().\n\n Since: 2.68"]
+pub type GStrvBuilder = _GStrvBuilder;
+unsafe extern "C" {
+    pub fn g_strv_builder_new() -> *mut GStrvBuilder;
+}
+unsafe extern "C" {
+    pub fn g_strv_builder_unref(builder: *mut GStrvBuilder);
+}
+unsafe extern "C" {
+    pub fn g_strv_builder_ref(builder: *mut GStrvBuilder) -> *mut GStrvBuilder;
+}
+unsafe extern "C" {
+    pub fn g_strv_builder_add(builder: *mut GStrvBuilder, value: *const ::std::os::raw::c_char);
+}
+unsafe extern "C" {
+    pub fn g_strv_builder_addv(
+        builder: *mut GStrvBuilder,
+        value: *mut *const ::std::os::raw::c_char,
+    );
+}
+unsafe extern "C" {
+    pub fn g_strv_builder_add_many(builder: *mut GStrvBuilder, ...);
+}
+unsafe extern "C" {
+    pub fn g_strv_builder_end(builder: *mut GStrvBuilder) -> GStrv;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
 pub struct GTestCase {
     _unused: [u8; 0],
 }
@@ -19001,13 +21410,25 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    pub fn g_test_get_path() -> *const ::std::os::raw::c_char;
+}
+unsafe extern "C" {
     pub fn g_test_fail();
+}
+unsafe extern "C" {
+    pub fn g_test_fail_printf(format: *const ::std::os::raw::c_char, ...);
 }
 unsafe extern "C" {
     pub fn g_test_incomplete(msg: *const gchar);
 }
 unsafe extern "C" {
+    pub fn g_test_incomplete_printf(format: *const ::std::os::raw::c_char, ...);
+}
+unsafe extern "C" {
     pub fn g_test_skip(msg: *const gchar);
+}
+unsafe extern "C" {
+    pub fn g_test_skip_printf(format: *const ::std::os::raw::c_char, ...);
 }
 unsafe extern "C" {
     pub fn g_test_failed() -> gboolean;
@@ -19105,6 +21526,12 @@ unsafe extern "C" {
     pub fn g_test_run_suite(suite: *mut GTestSuite) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn g_test_case_free(test_case: *mut GTestCase);
+}
+unsafe extern "C" {
+    pub fn g_test_suite_free(suite: *mut GTestSuite);
+}
+unsafe extern "C" {
     pub fn g_test_trap_assertions(
         domain: *const ::std::os::raw::c_char,
         file: *const ::std::os::raw::c_char,
@@ -19142,6 +21569,18 @@ unsafe extern "C" {
         arg1: *const ::std::os::raw::c_char,
         cmp: *const ::std::os::raw::c_char,
         arg2: *const ::std::os::raw::c_char,
+    );
+}
+unsafe extern "C" {
+    pub fn g_assertion_message_cmpstrv(
+        domain: *const ::std::os::raw::c_char,
+        file: *const ::std::os::raw::c_char,
+        line: ::std::os::raw::c_int,
+        func: *const ::std::os::raw::c_char,
+        expr: *const ::std::os::raw::c_char,
+        arg1: *const *const ::std::os::raw::c_char,
+        arg2: *const *const ::std::os::raw::c_char,
+        first_wrong_idx: gsize,
     );
 }
 unsafe extern "C" {
@@ -19361,6 +21800,16 @@ unsafe extern "C" {
     ) -> *mut GThreadPool;
 }
 unsafe extern "C" {
+    pub fn g_thread_pool_new_full(
+        func: GFunc,
+        user_data: gpointer,
+        item_free_func: GDestroyNotify,
+        max_threads: gint,
+        exclusive: gboolean,
+        error: *mut *mut GError,
+    ) -> *mut GThreadPool;
+}
+unsafe extern "C" {
     pub fn g_thread_pool_free(pool: *mut GThreadPool, immediate: gboolean, wait_: gboolean);
 }
 unsafe extern "C" {
@@ -19486,9 +21935,19 @@ pub struct _GTree {
     _unused: [u8; 0],
 }
 pub type GTree = _GTree;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _GTreeNode {
+    _unused: [u8; 0],
+}
+#[doc = " GTreeNode:\n\n An opaque type which identifies a specific node in a #GTree.\n\n Since: 2.68"]
+pub type GTreeNode = _GTreeNode;
 pub type GTraverseFunc = ::std::option::Option<
     unsafe extern "C" fn(key: gpointer, value: gpointer, data: gpointer) -> gboolean,
 >;
+#[doc = " GTraverseNodeFunc:\n @node: a #GTreeNode\n @data: user data passed to g_tree_foreach_node()\n\n Specifies the type of function passed to g_tree_foreach_node(). It is\n passed each node, together with the @user_data parameter passed to\n g_tree_foreach_node(). If the function returns %TRUE, the traversal is\n stopped.\n\n Returns: %TRUE to stop the traversal\n Since: 2.68"]
+pub type GTraverseNodeFunc =
+    ::std::option::Option<unsafe extern "C" fn(node: *mut GTreeNode, data: gpointer) -> gboolean>;
 unsafe extern "C" {
     pub fn g_tree_new(key_compare_func: GCompareFunc) -> *mut GTree;
 }
@@ -19507,6 +21966,18 @@ unsafe extern "C" {
     ) -> *mut GTree;
 }
 unsafe extern "C" {
+    pub fn g_tree_node_first(tree: *mut GTree) -> *mut GTreeNode;
+}
+unsafe extern "C" {
+    pub fn g_tree_node_last(tree: *mut GTree) -> *mut GTreeNode;
+}
+unsafe extern "C" {
+    pub fn g_tree_node_previous(node: *mut GTreeNode) -> *mut GTreeNode;
+}
+unsafe extern "C" {
+    pub fn g_tree_node_next(node: *mut GTreeNode) -> *mut GTreeNode;
+}
+unsafe extern "C" {
     pub fn g_tree_ref(tree: *mut GTree) -> *mut GTree;
 }
 unsafe extern "C" {
@@ -19516,7 +21987,13 @@ unsafe extern "C" {
     pub fn g_tree_destroy(tree: *mut GTree);
 }
 unsafe extern "C" {
+    pub fn g_tree_insert_node(tree: *mut GTree, key: gpointer, value: gpointer) -> *mut GTreeNode;
+}
+unsafe extern "C" {
     pub fn g_tree_insert(tree: *mut GTree, key: gpointer, value: gpointer);
+}
+unsafe extern "C" {
+    pub fn g_tree_replace_node(tree: *mut GTree, key: gpointer, value: gpointer) -> *mut GTreeNode;
 }
 unsafe extern "C" {
     pub fn g_tree_replace(tree: *mut GTree, key: gpointer, value: gpointer);
@@ -19525,7 +22002,19 @@ unsafe extern "C" {
     pub fn g_tree_remove(tree: *mut GTree, key: gconstpointer) -> gboolean;
 }
 unsafe extern "C" {
+    pub fn g_tree_remove_all(tree: *mut GTree);
+}
+unsafe extern "C" {
     pub fn g_tree_steal(tree: *mut GTree, key: gconstpointer) -> gboolean;
+}
+unsafe extern "C" {
+    pub fn g_tree_node_key(node: *mut GTreeNode) -> gpointer;
+}
+unsafe extern "C" {
+    pub fn g_tree_node_value(node: *mut GTreeNode) -> gpointer;
+}
+unsafe extern "C" {
+    pub fn g_tree_lookup_node(tree: *mut GTree, key: gconstpointer) -> *mut GTreeNode;
 }
 unsafe extern "C" {
     pub fn g_tree_lookup(tree: *mut GTree, key: gconstpointer) -> gpointer;
@@ -19542,6 +22031,9 @@ unsafe extern "C" {
     pub fn g_tree_foreach(tree: *mut GTree, func: GTraverseFunc, user_data: gpointer);
 }
 unsafe extern "C" {
+    pub fn g_tree_foreach_node(tree: *mut GTree, func: GTraverseNodeFunc, user_data: gpointer);
+}
+unsafe extern "C" {
     pub fn g_tree_traverse(
         tree: *mut GTree,
         traverse_func: GTraverseFunc,
@@ -19550,11 +22042,24 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    pub fn g_tree_search_node(
+        tree: *mut GTree,
+        search_func: GCompareFunc,
+        user_data: gconstpointer,
+    ) -> *mut GTreeNode;
+}
+unsafe extern "C" {
     pub fn g_tree_search(
         tree: *mut GTree,
         search_func: GCompareFunc,
         user_data: gconstpointer,
     ) -> gpointer;
+}
+unsafe extern "C" {
+    pub fn g_tree_lower_bound(tree: *mut GTree, key: gconstpointer) -> *mut GTreeNode;
+}
+unsafe extern "C" {
+    pub fn g_tree_upper_bound(tree: *mut GTree, key: gconstpointer) -> *mut GTreeNode;
 }
 unsafe extern "C" {
     pub fn g_tree_height(tree: *mut GTree) -> gint;
@@ -19583,7 +22088,8 @@ pub const G_URI_FLAGS_NON_DNS: GUriFlags = 16;
 pub const G_URI_FLAGS_ENCODED_QUERY: GUriFlags = 32;
 pub const G_URI_FLAGS_ENCODED_PATH: GUriFlags = 64;
 pub const G_URI_FLAGS_ENCODED_FRAGMENT: GUriFlags = 128;
-#[doc = " GUriFlags:\n @G_URI_FLAGS_NONE: No flags set.\n @G_URI_FLAGS_PARSE_RELAXED: Parse the URI more relaxedly than the\n     [RFC 3986](https://tools.ietf.org/html/rfc3986) grammar specifies,\n     fixing up or ignoring common mistakes in URIs coming from external\n     sources. This is also needed for some obscure URI schemes where `;`\n     separates the host from the path. Don’t use this flag unless you need to.\n @G_URI_FLAGS_HAS_PASSWORD: The userinfo field may contain a password,\n     which will be separated from the username by `:`.\n @G_URI_FLAGS_HAS_AUTH_PARAMS: The userinfo may contain additional\n     authentication-related parameters, which will be separated from\n     the username and/or password by `;`.\n @G_URI_FLAGS_NON_DNS: The host component should not be assumed to be a\n     DNS hostname or IP address (for example, for `smb` URIs with NetBIOS\n     hostnames).\n @G_URI_FLAGS_ENCODED: When parsing a URI, this indicates that `%`-encoded\n     characters in the userinfo, path, query, and fragment fields\n     should not be decoded. (And likewise the host field if\n     %G_URI_FLAGS_NON_DNS is also set.) When building a URI, it indicates\n     that you have already `%`-encoded the components, and so #GUri\n     should not do any encoding itself.\n @G_URI_FLAGS_ENCODED_QUERY: Same as %G_URI_FLAGS_ENCODED, for the query\n     field only.\n @G_URI_FLAGS_ENCODED_PATH: Same as %G_URI_FLAGS_ENCODED, for the path only.\n @G_URI_FLAGS_ENCODED_FRAGMENT: Same as %G_URI_FLAGS_ENCODED, for the\n     fragment only.\n\n Flags that describe a URI.\n\n When parsing a URI, if you need to choose different flags based on\n the type of URI, you can use g_uri_peek_scheme() on the URI string\n to check the scheme first, and use that to decide what flags to\n parse it with.\n\n Since: 2.66"]
+pub const G_URI_FLAGS_SCHEME_NORMALIZE: GUriFlags = 256;
+#[doc = " GUriFlags:\n @G_URI_FLAGS_NONE: No flags set.\n @G_URI_FLAGS_PARSE_RELAXED: Parse the URI more relaxedly than the\n     [RFC 3986](https://tools.ietf.org/html/rfc3986) grammar specifies,\n     fixing up or ignoring common mistakes in URIs coming from external\n     sources. This is also needed for some obscure URI schemes where `;`\n     separates the host from the path. Don’t use this flag unless you need to.\n @G_URI_FLAGS_HAS_PASSWORD: The userinfo field may contain a password,\n     which will be separated from the username by `:`.\n @G_URI_FLAGS_HAS_AUTH_PARAMS: The userinfo may contain additional\n     authentication-related parameters, which will be separated from\n     the username and/or password by `;`.\n @G_URI_FLAGS_NON_DNS: The host component should not be assumed to be a\n     DNS hostname or IP address (for example, for `smb` URIs with NetBIOS\n     hostnames).\n @G_URI_FLAGS_ENCODED: When parsing a URI, this indicates that `%`-encoded\n     characters in the userinfo, path, query, and fragment fields\n     should not be decoded. (And likewise the host field if\n     %G_URI_FLAGS_NON_DNS is also set.) When building a URI, it indicates\n     that you have already `%`-encoded the components, and so #GUri\n     should not do any encoding itself.\n @G_URI_FLAGS_ENCODED_QUERY: Same as %G_URI_FLAGS_ENCODED, for the query\n     field only.\n @G_URI_FLAGS_ENCODED_PATH: Same as %G_URI_FLAGS_ENCODED, for the path only.\n @G_URI_FLAGS_ENCODED_FRAGMENT: Same as %G_URI_FLAGS_ENCODED, for the\n     fragment only.\n @G_URI_FLAGS_SCHEME_NORMALIZE: A scheme-based normalization will be applied.\n     For example, when parsing an HTTP URI changing omitted path to `/` and\n     omitted port to `80`; and when building a URI, changing empty path to `/`\n     and default port `80`). This only supports a subset of known schemes. (Since: 2.68)\n\n Flags that describe a URI.\n\n When parsing a URI, if you need to choose different flags based on\n the type of URI, you can use g_uri_peek_scheme() on the URI string\n to check the scheme first, and use that to decide what flags to\n parse it with.\n\n Since: 2.66"]
 pub type GUriFlags = ::std::os::raw::c_uint;
 unsafe extern "C" {
     pub fn g_uri_split(
@@ -20285,6 +22791,35 @@ const _: () = {
     ["Offset of field: sched_param::sched_priority"]
         [::std::mem::offset_of!(sched_param, sched_priority) - 0usize];
 };
+unsafe extern "C" {
+    pub fn clone(
+        __fn: ::std::option::Option<
+            unsafe extern "C" fn(__arg: *mut ::std::os::raw::c_void) -> ::std::os::raw::c_int,
+        >,
+        __child_stack: *mut ::std::os::raw::c_void,
+        __flags: ::std::os::raw::c_int,
+        __arg: *mut ::std::os::raw::c_void,
+        ...
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn unshare(__flags: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn sched_getcpu() -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn getcpu(
+        arg1: *mut ::std::os::raw::c_uint,
+        arg2: *mut ::std::os::raw::c_uint,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn setns(
+        __fd: ::std::os::raw::c_int,
+        __nstype: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
 pub type __cpu_mask = ::std::os::raw::c_ulong;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -20334,41 +22869,56 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn sched_rr_get_interval(__pid: __pid_t, __t: *mut timespec) -> ::std::os::raw::c_int;
 }
-pub const PTHREAD_CREATE_JOINABLE: _bindgen_ty_23 = 0;
-pub const PTHREAD_CREATE_DETACHED: _bindgen_ty_23 = 1;
-pub type _bindgen_ty_23 = ::std::os::raw::c_uint;
-pub const PTHREAD_MUTEX_TIMED_NP: _bindgen_ty_24 = 0;
-pub const PTHREAD_MUTEX_RECURSIVE_NP: _bindgen_ty_24 = 1;
-pub const PTHREAD_MUTEX_ERRORCHECK_NP: _bindgen_ty_24 = 2;
-pub const PTHREAD_MUTEX_ADAPTIVE_NP: _bindgen_ty_24 = 3;
-pub const PTHREAD_MUTEX_NORMAL: _bindgen_ty_24 = 0;
-pub const PTHREAD_MUTEX_RECURSIVE: _bindgen_ty_24 = 1;
-pub const PTHREAD_MUTEX_ERRORCHECK: _bindgen_ty_24 = 2;
-pub const PTHREAD_MUTEX_DEFAULT: _bindgen_ty_24 = 0;
-pub type _bindgen_ty_24 = ::std::os::raw::c_uint;
-pub const PTHREAD_MUTEX_STALLED: _bindgen_ty_25 = 0;
-pub const PTHREAD_MUTEX_STALLED_NP: _bindgen_ty_25 = 0;
-pub const PTHREAD_MUTEX_ROBUST: _bindgen_ty_25 = 1;
-pub const PTHREAD_MUTEX_ROBUST_NP: _bindgen_ty_25 = 1;
-pub type _bindgen_ty_25 = ::std::os::raw::c_uint;
-pub const PTHREAD_PRIO_NONE: _bindgen_ty_26 = 0;
-pub const PTHREAD_PRIO_INHERIT: _bindgen_ty_26 = 1;
-pub const PTHREAD_PRIO_PROTECT: _bindgen_ty_26 = 2;
-pub type _bindgen_ty_26 = ::std::os::raw::c_uint;
-pub const PTHREAD_RWLOCK_PREFER_READER_NP: _bindgen_ty_27 = 0;
-pub const PTHREAD_RWLOCK_PREFER_WRITER_NP: _bindgen_ty_27 = 1;
-pub const PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP: _bindgen_ty_27 = 2;
-pub const PTHREAD_RWLOCK_DEFAULT_NP: _bindgen_ty_27 = 0;
+unsafe extern "C" {
+    pub fn sched_setaffinity(
+        __pid: __pid_t,
+        __cpusetsize: usize,
+        __cpuset: *const cpu_set_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn sched_getaffinity(
+        __pid: __pid_t,
+        __cpusetsize: usize,
+        __cpuset: *mut cpu_set_t,
+    ) -> ::std::os::raw::c_int;
+}
+pub const PTHREAD_CREATE_JOINABLE: _bindgen_ty_27 = 0;
+pub const PTHREAD_CREATE_DETACHED: _bindgen_ty_27 = 1;
 pub type _bindgen_ty_27 = ::std::os::raw::c_uint;
-pub const PTHREAD_INHERIT_SCHED: _bindgen_ty_28 = 0;
-pub const PTHREAD_EXPLICIT_SCHED: _bindgen_ty_28 = 1;
+pub const PTHREAD_MUTEX_TIMED_NP: _bindgen_ty_28 = 0;
+pub const PTHREAD_MUTEX_RECURSIVE_NP: _bindgen_ty_28 = 1;
+pub const PTHREAD_MUTEX_ERRORCHECK_NP: _bindgen_ty_28 = 2;
+pub const PTHREAD_MUTEX_ADAPTIVE_NP: _bindgen_ty_28 = 3;
+pub const PTHREAD_MUTEX_NORMAL: _bindgen_ty_28 = 0;
+pub const PTHREAD_MUTEX_RECURSIVE: _bindgen_ty_28 = 1;
+pub const PTHREAD_MUTEX_ERRORCHECK: _bindgen_ty_28 = 2;
+pub const PTHREAD_MUTEX_DEFAULT: _bindgen_ty_28 = 0;
+pub const PTHREAD_MUTEX_FAST_NP: _bindgen_ty_28 = 0;
 pub type _bindgen_ty_28 = ::std::os::raw::c_uint;
-pub const PTHREAD_SCOPE_SYSTEM: _bindgen_ty_29 = 0;
-pub const PTHREAD_SCOPE_PROCESS: _bindgen_ty_29 = 1;
+pub const PTHREAD_MUTEX_STALLED: _bindgen_ty_29 = 0;
+pub const PTHREAD_MUTEX_STALLED_NP: _bindgen_ty_29 = 0;
+pub const PTHREAD_MUTEX_ROBUST: _bindgen_ty_29 = 1;
+pub const PTHREAD_MUTEX_ROBUST_NP: _bindgen_ty_29 = 1;
 pub type _bindgen_ty_29 = ::std::os::raw::c_uint;
-pub const PTHREAD_PROCESS_PRIVATE: _bindgen_ty_30 = 0;
-pub const PTHREAD_PROCESS_SHARED: _bindgen_ty_30 = 1;
+pub const PTHREAD_PRIO_NONE: _bindgen_ty_30 = 0;
+pub const PTHREAD_PRIO_INHERIT: _bindgen_ty_30 = 1;
+pub const PTHREAD_PRIO_PROTECT: _bindgen_ty_30 = 2;
 pub type _bindgen_ty_30 = ::std::os::raw::c_uint;
+pub const PTHREAD_RWLOCK_PREFER_READER_NP: _bindgen_ty_31 = 0;
+pub const PTHREAD_RWLOCK_PREFER_WRITER_NP: _bindgen_ty_31 = 1;
+pub const PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP: _bindgen_ty_31 = 2;
+pub const PTHREAD_RWLOCK_DEFAULT_NP: _bindgen_ty_31 = 0;
+pub type _bindgen_ty_31 = ::std::os::raw::c_uint;
+pub const PTHREAD_INHERIT_SCHED: _bindgen_ty_32 = 0;
+pub const PTHREAD_EXPLICIT_SCHED: _bindgen_ty_32 = 1;
+pub type _bindgen_ty_32 = ::std::os::raw::c_uint;
+pub const PTHREAD_SCOPE_SYSTEM: _bindgen_ty_33 = 0;
+pub const PTHREAD_SCOPE_PROCESS: _bindgen_ty_33 = 1;
+pub type _bindgen_ty_33 = ::std::os::raw::c_uint;
+pub const PTHREAD_PROCESS_PRIVATE: _bindgen_ty_34 = 0;
+pub const PTHREAD_PROCESS_SHARED: _bindgen_ty_34 = 1;
+pub type _bindgen_ty_34 = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _pthread_cleanup_buffer {
@@ -20391,12 +22941,12 @@ const _: () = {
     ["Offset of field: _pthread_cleanup_buffer::__prev"]
         [::std::mem::offset_of!(_pthread_cleanup_buffer, __prev) - 24usize];
 };
-pub const PTHREAD_CANCEL_ENABLE: _bindgen_ty_31 = 0;
-pub const PTHREAD_CANCEL_DISABLE: _bindgen_ty_31 = 1;
-pub type _bindgen_ty_31 = ::std::os::raw::c_uint;
-pub const PTHREAD_CANCEL_DEFERRED: _bindgen_ty_32 = 0;
-pub const PTHREAD_CANCEL_ASYNCHRONOUS: _bindgen_ty_32 = 1;
-pub type _bindgen_ty_32 = ::std::os::raw::c_uint;
+pub const PTHREAD_CANCEL_ENABLE: _bindgen_ty_35 = 0;
+pub const PTHREAD_CANCEL_DISABLE: _bindgen_ty_35 = 1;
+pub type _bindgen_ty_35 = ::std::os::raw::c_uint;
+pub const PTHREAD_CANCEL_DEFERRED: _bindgen_ty_36 = 0;
+pub const PTHREAD_CANCEL_ASYNCHRONOUS: _bindgen_ty_36 = 1;
+pub type _bindgen_ty_36 = ::std::os::raw::c_uint;
 unsafe extern "C" {
     pub fn pthread_create(
         __newthread: *mut pthread_t,
@@ -20414,6 +22964,27 @@ unsafe extern "C" {
     pub fn pthread_join(
         __th: pthread_t,
         __thread_return: *mut *mut ::std::os::raw::c_void,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_tryjoin_np(
+        __th: pthread_t,
+        __thread_return: *mut *mut ::std::os::raw::c_void,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_timedjoin_np(
+        __th: pthread_t,
+        __thread_return: *mut *mut ::std::os::raw::c_void,
+        __abstime: *const timespec,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_clockjoin_np(
+        __th: pthread_t,
+        __thread_return: *mut *mut ::std::os::raw::c_void,
+        __clockid: clockid_t,
+        __abstime: *const timespec,
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -20542,6 +23113,44 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn pthread_attr_setaffinity_np(
+        __attr: *mut pthread_attr_t,
+        __cpusetsize: usize,
+        __cpuset: *const cpu_set_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_attr_getaffinity_np(
+        __attr: *const pthread_attr_t,
+        __cpusetsize: usize,
+        __cpuset: *mut cpu_set_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_getattr_default_np(__attr: *mut pthread_attr_t) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_attr_setsigmask_np(
+        __attr: *mut pthread_attr_t,
+        sigmask: *const __sigset_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_attr_getsigmask_np(
+        __attr: *const pthread_attr_t,
+        sigmask: *mut __sigset_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_setattr_default_np(__attr: *const pthread_attr_t) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_getattr_np(
+        __th: pthread_t,
+        __attr: *mut pthread_attr_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn pthread_setschedparam(
         __target_thread: pthread_t,
         __policy: ::std::os::raw::c_int,
@@ -20559,6 +23168,42 @@ unsafe extern "C" {
     pub fn pthread_setschedprio(
         __target_thread: pthread_t,
         __prio: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_getname_np(
+        __target_thread: pthread_t,
+        __buf: *mut ::std::os::raw::c_char,
+        __buflen: usize,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_setname_np(
+        __target_thread: pthread_t,
+        __name: *const ::std::os::raw::c_char,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_getconcurrency() -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_setconcurrency(__level: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_yield() -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_setaffinity_np(
+        __th: pthread_t,
+        __cpusetsize: usize,
+        __cpuset: *const cpu_set_t,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_getaffinity_np(
+        __th: pthread_t,
+        __cpusetsize: usize,
+        __cpuset: *mut cpu_set_t,
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -20587,27 +23232,25 @@ unsafe extern "C" {
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct __pthread_unwind_buf_t {
-    pub __cancel_jmp_buf: [__pthread_unwind_buf_t__bindgen_ty_1; 1usize],
-    pub __pad: [*mut ::std::os::raw::c_void; 4usize],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct __pthread_unwind_buf_t__bindgen_ty_1 {
+pub struct __cancel_jmp_buf_tag {
     pub __cancel_jmp_buf: __jmp_buf,
     pub __mask_was_saved: ::std::os::raw::c_int,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of __pthread_unwind_buf_t__bindgen_ty_1"]
-        [::std::mem::size_of::<__pthread_unwind_buf_t__bindgen_ty_1>() - 72usize];
-    ["Alignment of __pthread_unwind_buf_t__bindgen_ty_1"]
-        [::std::mem::align_of::<__pthread_unwind_buf_t__bindgen_ty_1>() - 8usize];
-    ["Offset of field: __pthread_unwind_buf_t__bindgen_ty_1::__cancel_jmp_buf"]
-        [::std::mem::offset_of!(__pthread_unwind_buf_t__bindgen_ty_1, __cancel_jmp_buf) - 0usize];
-    ["Offset of field: __pthread_unwind_buf_t__bindgen_ty_1::__mask_was_saved"]
-        [::std::mem::offset_of!(__pthread_unwind_buf_t__bindgen_ty_1, __mask_was_saved) - 64usize];
+    ["Size of __cancel_jmp_buf_tag"][::std::mem::size_of::<__cancel_jmp_buf_tag>() - 72usize];
+    ["Alignment of __cancel_jmp_buf_tag"][::std::mem::align_of::<__cancel_jmp_buf_tag>() - 8usize];
+    ["Offset of field: __cancel_jmp_buf_tag::__cancel_jmp_buf"]
+        [::std::mem::offset_of!(__cancel_jmp_buf_tag, __cancel_jmp_buf) - 0usize];
+    ["Offset of field: __cancel_jmp_buf_tag::__mask_was_saved"]
+        [::std::mem::offset_of!(__cancel_jmp_buf_tag, __mask_was_saved) - 64usize];
 };
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct __pthread_unwind_buf_t {
+    pub __cancel_jmp_buf: [__cancel_jmp_buf_tag; 1usize],
+    pub __pad: [*mut ::std::os::raw::c_void; 4usize],
+}
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
     ["Size of __pthread_unwind_buf_t"][::std::mem::size_of::<__pthread_unwind_buf_t>() - 104usize];
@@ -20648,6 +23291,12 @@ unsafe extern "C" {
     pub fn __pthread_unregister_cancel(__buf: *mut __pthread_unwind_buf_t);
 }
 unsafe extern "C" {
+    pub fn __pthread_register_cancel_defer(__buf: *mut __pthread_unwind_buf_t);
+}
+unsafe extern "C" {
+    pub fn __pthread_unregister_cancel_restore(__buf: *mut __pthread_unwind_buf_t);
+}
+unsafe extern "C" {
     pub fn __pthread_unwind_next(__buf: *mut __pthread_unwind_buf_t) -> !;
 }
 unsafe extern "C" {
@@ -20668,6 +23317,13 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn pthread_mutex_timedlock(
         __mutex: *mut pthread_mutex_t,
+        __abstime: *const timespec,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_mutex_clocklock(
+        __mutex: *mut pthread_mutex_t,
+        __clockid: clockid_t,
         __abstime: *const timespec,
     ) -> ::std::os::raw::c_int;
 }
@@ -20778,6 +23434,13 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn pthread_rwlock_clockrdlock(
+        __rwlock: *mut pthread_rwlock_t,
+        __clockid: clockid_t,
+        __abstime: *const timespec,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn pthread_rwlock_wrlock(__rwlock: *mut pthread_rwlock_t) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -20786,6 +23449,13 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn pthread_rwlock_timedwrlock(
         __rwlock: *mut pthread_rwlock_t,
+        __abstime: *const timespec,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_rwlock_clockwrlock(
+        __rwlock: *mut pthread_rwlock_t,
+        __clockid: clockid_t,
         __abstime: *const timespec,
     ) -> ::std::os::raw::c_int;
 }
@@ -20847,6 +23517,14 @@ unsafe extern "C" {
     pub fn pthread_cond_timedwait(
         __cond: *mut pthread_cond_t,
         __mutex: *mut pthread_mutex_t,
+        __abstime: *const timespec,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn pthread_cond_clockwait(
+        __cond: *mut pthread_cond_t,
+        __mutex: *mut pthread_mutex_t,
+        __clock_id: __clockid_t,
         __abstime: *const timespec,
     ) -> ::std::os::raw::c_int;
 }
@@ -21304,6 +23982,10 @@ pub type GStringChunk_autoptr = *mut GStringChunk;
 pub type GStringChunk_listautoptr = *mut GList;
 pub type GStringChunk_slistautoptr = *mut GSList;
 pub type GStringChunk_queueautoptr = *mut GQueue;
+pub type GStrvBuilder_autoptr = *mut GStrvBuilder;
+pub type GStrvBuilder_listautoptr = *mut GList;
+pub type GStrvBuilder_slistautoptr = *mut GSList;
+pub type GStrvBuilder_queueautoptr = *mut GQueue;
 pub type GThread_autoptr = *mut GThread;
 pub type GThread_listautoptr = *mut GList;
 pub type GThread_slistautoptr = *mut GSList;
@@ -21436,10 +24118,24 @@ pub type GModuleCheckInit =
     ::std::option::Option<unsafe extern "C" fn(module: *mut GModule) -> *const gchar>;
 pub type GModuleUnload = ::std::option::Option<unsafe extern "C" fn(module: *mut GModule)>;
 unsafe extern "C" {
+    pub fn g_module_error_quark() -> GQuark;
+}
+pub const G_MODULE_ERROR_FAILED: GModuleError = 0;
+pub const G_MODULE_ERROR_CHECK_FAILED: GModuleError = 1;
+#[doc = " GModuleError:\n @G_MODULE_ERROR_FAILED: there was an error loading or opening a module file\n @G_MODULE_ERROR_CHECK_FAILED: a module returned an error from its `g_module_check_init()` function\n\n Errors returned by g_module_open_full().\n\n Since: 2.70"]
+pub type GModuleError = ::std::os::raw::c_uint;
+unsafe extern "C" {
     pub fn g_module_supported() -> gboolean;
 }
 unsafe extern "C" {
     pub fn g_module_open(file_name: *const gchar, flags: GModuleFlags) -> *mut GModule;
+}
+unsafe extern "C" {
+    pub fn g_module_open_full(
+        file_name: *const gchar,
+        flags: GModuleFlags,
+        error: *mut *mut GError,
+    ) -> *mut GModule;
 }
 unsafe extern "C" {
     pub fn g_module_close(module: *mut GModule) -> gboolean;
@@ -21813,16 +24509,6 @@ pub struct QemuOpts {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct QEMUSGList {
-    _unused: [u8; 0],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct QEMUTimer {
-    _unused: [u8; 0],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct QEMUTimerListGroup {
     _unused: [u8; 0],
 }
 #[repr(C)]
@@ -24523,8 +27209,8 @@ unsafe extern "C" {
         parent_phases: *mut ResettablePhases,
     );
 }
-pub const DEV_NVECTORS_UNSPECIFIED: _bindgen_ty_33 = -1;
-pub type _bindgen_ty_33 = ::std::os::raw::c_int;
+pub const DEV_NVECTORS_UNSPECIFIED: _bindgen_ty_37 = -1;
+pub type _bindgen_ty_37 = ::std::os::raw::c_int;
 pub type DeviceState_autoptr = *mut DeviceState;
 pub type DeviceState_listautoptr = *mut GList;
 pub type DeviceState_slistautoptr = *mut GSList;
@@ -25759,55 +28445,31 @@ pub type bfd_boolean = bool;
 pub struct MemTxAttrs {
     pub _bitfield_align_1: [u16; 0],
     pub _bitfield_1: __BindgenBitfieldUnit<[u8; 4usize]>,
+    pub unspecified: bool,
+    pub _reserved1: u8,
+    pub _reserved2: u16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of MemTxAttrs"][::std::mem::size_of::<MemTxAttrs>() - 4usize];
+    ["Size of MemTxAttrs"][::std::mem::size_of::<MemTxAttrs>() - 8usize];
     ["Alignment of MemTxAttrs"][::std::mem::align_of::<MemTxAttrs>() - 4usize];
+    ["Offset of field: MemTxAttrs::unspecified"]
+        [::std::mem::offset_of!(MemTxAttrs, unspecified) - 4usize];
+    ["Offset of field: MemTxAttrs::_reserved1"]
+        [::std::mem::offset_of!(MemTxAttrs, _reserved1) - 5usize];
+    ["Offset of field: MemTxAttrs::_reserved2"]
+        [::std::mem::offset_of!(MemTxAttrs, _reserved2) - 6usize];
 };
 impl MemTxAttrs {
     #[inline]
-    pub fn unspecified(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(0usize, 1u8) as u32) }
-    }
-    #[inline]
-    pub fn set_unspecified(&mut self, val: ::std::os::raw::c_uint) {
-        unsafe {
-            let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(0usize, 1u8, val as u64)
-        }
-    }
-    #[inline]
-    pub unsafe fn unspecified_raw(this: *const Self) -> ::std::os::raw::c_uint {
-        unsafe {
-            ::std::mem::transmute(<__BindgenBitfieldUnit<[u8; 4usize]>>::raw_get(
-                ::std::ptr::addr_of!((*this)._bitfield_1),
-                0usize,
-                1u8,
-            ) as u32)
-        }
-    }
-    #[inline]
-    pub unsafe fn set_unspecified_raw(this: *mut Self, val: ::std::os::raw::c_uint) {
-        unsafe {
-            let val: u32 = ::std::mem::transmute(val);
-            <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_set(
-                ::std::ptr::addr_of_mut!((*this)._bitfield_1),
-                0usize,
-                1u8,
-                val as u64,
-            )
-        }
-    }
-    #[inline]
     pub fn secure(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(1usize, 1u8) as u32) }
+        unsafe { ::std::mem::transmute(self._bitfield_1.get(0usize, 1u8) as u32) }
     }
     #[inline]
     pub fn set_secure(&mut self, val: ::std::os::raw::c_uint) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(1usize, 1u8, val as u64)
+            self._bitfield_1.set(0usize, 1u8, val as u64)
         }
     }
     #[inline]
@@ -25815,7 +28477,7 @@ impl MemTxAttrs {
         unsafe {
             ::std::mem::transmute(<__BindgenBitfieldUnit<[u8; 4usize]>>::raw_get(
                 ::std::ptr::addr_of!((*this)._bitfield_1),
-                1usize,
+                0usize,
                 1u8,
             ) as u32)
         }
@@ -25826,7 +28488,7 @@ impl MemTxAttrs {
             let val: u32 = ::std::mem::transmute(val);
             <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_set(
                 ::std::ptr::addr_of_mut!((*this)._bitfield_1),
-                1usize,
+                0usize,
                 1u8,
                 val as u64,
             )
@@ -25834,13 +28496,13 @@ impl MemTxAttrs {
     }
     #[inline]
     pub fn space(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(2usize, 2u8) as u32) }
+        unsafe { ::std::mem::transmute(self._bitfield_1.get(1usize, 2u8) as u32) }
     }
     #[inline]
     pub fn set_space(&mut self, val: ::std::os::raw::c_uint) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(2usize, 2u8, val as u64)
+            self._bitfield_1.set(1usize, 2u8, val as u64)
         }
     }
     #[inline]
@@ -25848,7 +28510,7 @@ impl MemTxAttrs {
         unsafe {
             ::std::mem::transmute(<__BindgenBitfieldUnit<[u8; 4usize]>>::raw_get(
                 ::std::ptr::addr_of!((*this)._bitfield_1),
-                2usize,
+                1usize,
                 2u8,
             ) as u32)
         }
@@ -25859,7 +28521,7 @@ impl MemTxAttrs {
             let val: u32 = ::std::mem::transmute(val);
             <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_set(
                 ::std::ptr::addr_of_mut!((*this)._bitfield_1),
-                2usize,
+                1usize,
                 2u8,
                 val as u64,
             )
@@ -25867,13 +28529,13 @@ impl MemTxAttrs {
     }
     #[inline]
     pub fn user(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(4usize, 1u8) as u32) }
+        unsafe { ::std::mem::transmute(self._bitfield_1.get(3usize, 1u8) as u32) }
     }
     #[inline]
     pub fn set_user(&mut self, val: ::std::os::raw::c_uint) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(4usize, 1u8, val as u64)
+            self._bitfield_1.set(3usize, 1u8, val as u64)
         }
     }
     #[inline]
@@ -25881,7 +28543,7 @@ impl MemTxAttrs {
         unsafe {
             ::std::mem::transmute(<__BindgenBitfieldUnit<[u8; 4usize]>>::raw_get(
                 ::std::ptr::addr_of!((*this)._bitfield_1),
-                4usize,
+                3usize,
                 1u8,
             ) as u32)
         }
@@ -25892,7 +28554,7 @@ impl MemTxAttrs {
             let val: u32 = ::std::mem::transmute(val);
             <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_set(
                 ::std::ptr::addr_of_mut!((*this)._bitfield_1),
-                4usize,
+                3usize,
                 1u8,
                 val as u64,
             )
@@ -25900,13 +28562,13 @@ impl MemTxAttrs {
     }
     #[inline]
     pub fn memory(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(5usize, 1u8) as u32) }
+        unsafe { ::std::mem::transmute(self._bitfield_1.get(4usize, 1u8) as u32) }
     }
     #[inline]
     pub fn set_memory(&mut self, val: ::std::os::raw::c_uint) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(5usize, 1u8, val as u64)
+            self._bitfield_1.set(4usize, 1u8, val as u64)
         }
     }
     #[inline]
@@ -25914,7 +28576,7 @@ impl MemTxAttrs {
         unsafe {
             ::std::mem::transmute(<__BindgenBitfieldUnit<[u8; 4usize]>>::raw_get(
                 ::std::ptr::addr_of!((*this)._bitfield_1),
-                5usize,
+                4usize,
                 1u8,
             ) as u32)
         }
@@ -25925,7 +28587,7 @@ impl MemTxAttrs {
             let val: u32 = ::std::mem::transmute(val);
             <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_set(
                 ::std::ptr::addr_of_mut!((*this)._bitfield_1),
-                5usize,
+                4usize,
                 1u8,
                 val as u64,
             )
@@ -25933,13 +28595,13 @@ impl MemTxAttrs {
     }
     #[inline]
     pub fn requester_id(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(6usize, 16u8) as u32) }
+        unsafe { ::std::mem::transmute(self._bitfield_1.get(5usize, 16u8) as u32) }
     }
     #[inline]
     pub fn set_requester_id(&mut self, val: ::std::os::raw::c_uint) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(6usize, 16u8, val as u64)
+            self._bitfield_1.set(5usize, 16u8, val as u64)
         }
     }
     #[inline]
@@ -25947,7 +28609,7 @@ impl MemTxAttrs {
         unsafe {
             ::std::mem::transmute(<__BindgenBitfieldUnit<[u8; 4usize]>>::raw_get(
                 ::std::ptr::addr_of!((*this)._bitfield_1),
-                6usize,
+                5usize,
                 16u8,
             ) as u32)
         }
@@ -25958,7 +28620,7 @@ impl MemTxAttrs {
             let val: u32 = ::std::mem::transmute(val);
             <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_set(
                 ::std::ptr::addr_of_mut!((*this)._bitfield_1),
-                6usize,
+                5usize,
                 16u8,
                 val as u64,
             )
@@ -25966,13 +28628,13 @@ impl MemTxAttrs {
     }
     #[inline]
     pub fn pid(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(22usize, 8u8) as u32) }
+        unsafe { ::std::mem::transmute(self._bitfield_1.get(21usize, 8u8) as u32) }
     }
     #[inline]
     pub fn set_pid(&mut self, val: ::std::os::raw::c_uint) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(22usize, 8u8, val as u64)
+            self._bitfield_1.set(21usize, 8u8, val as u64)
         }
     }
     #[inline]
@@ -25980,7 +28642,7 @@ impl MemTxAttrs {
         unsafe {
             ::std::mem::transmute(<__BindgenBitfieldUnit<[u8; 4usize]>>::raw_get(
                 ::std::ptr::addr_of!((*this)._bitfield_1),
-                22usize,
+                21usize,
                 8u8,
             ) as u32)
         }
@@ -25991,7 +28653,7 @@ impl MemTxAttrs {
             let val: u32 = ::std::mem::transmute(val);
             <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_set(
                 ::std::ptr::addr_of_mut!((*this)._bitfield_1),
-                22usize,
+                21usize,
                 8u8,
                 val as u64,
             )
@@ -25999,7 +28661,6 @@ impl MemTxAttrs {
     }
     #[inline]
     pub fn new_bitfield_1(
-        unspecified: ::std::os::raw::c_uint,
         secure: ::std::os::raw::c_uint,
         space: ::std::os::raw::c_uint,
         user: ::std::os::raw::c_uint,
@@ -26009,30 +28670,26 @@ impl MemTxAttrs {
     ) -> __BindgenBitfieldUnit<[u8; 4usize]> {
         let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 4usize]> = Default::default();
         __bindgen_bitfield_unit.set(0usize, 1u8, {
-            let unspecified: u32 = unsafe { ::std::mem::transmute(unspecified) };
-            unspecified as u64
-        });
-        __bindgen_bitfield_unit.set(1usize, 1u8, {
             let secure: u32 = unsafe { ::std::mem::transmute(secure) };
             secure as u64
         });
-        __bindgen_bitfield_unit.set(2usize, 2u8, {
+        __bindgen_bitfield_unit.set(1usize, 2u8, {
             let space: u32 = unsafe { ::std::mem::transmute(space) };
             space as u64
         });
-        __bindgen_bitfield_unit.set(4usize, 1u8, {
+        __bindgen_bitfield_unit.set(3usize, 1u8, {
             let user: u32 = unsafe { ::std::mem::transmute(user) };
             user as u64
         });
-        __bindgen_bitfield_unit.set(5usize, 1u8, {
+        __bindgen_bitfield_unit.set(4usize, 1u8, {
             let memory: u32 = unsafe { ::std::mem::transmute(memory) };
             memory as u64
         });
-        __bindgen_bitfield_unit.set(6usize, 16u8, {
+        __bindgen_bitfield_unit.set(5usize, 16u8, {
             let requester_id: u32 = unsafe { ::std::mem::transmute(requester_id) };
             requester_id as u64
         });
-        __bindgen_bitfield_unit.set(22usize, 8u8, {
+        __bindgen_bitfield_unit.set(21usize, 8u8, {
             let pid: u32 = unsafe { ::std::mem::transmute(pid) };
             pid as u64
         });
@@ -26103,7 +28760,7 @@ const _: () = {
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUWatchpoint"][::std::mem::size_of::<CPUWatchpoint>() - 48usize];
+    ["Size of CPUWatchpoint"][::std::mem::size_of::<CPUWatchpoint>() - 56usize];
     ["Alignment of CPUWatchpoint"][::std::mem::align_of::<CPUWatchpoint>() - 8usize];
     ["Offset of field: CPUWatchpoint::vaddr"]
         [::std::mem::offset_of!(CPUWatchpoint, vaddr) - 0usize];
@@ -26113,9 +28770,9 @@ const _: () = {
     ["Offset of field: CPUWatchpoint::hitattrs"]
         [::std::mem::offset_of!(CPUWatchpoint, hitattrs) - 24usize];
     ["Offset of field: CPUWatchpoint::flags"]
-        [::std::mem::offset_of!(CPUWatchpoint, flags) - 28usize];
+        [::std::mem::offset_of!(CPUWatchpoint, flags) - 32usize];
     ["Offset of field: CPUWatchpoint::entry"]
-        [::std::mem::offset_of!(CPUWatchpoint, entry) - 32usize];
+        [::std::mem::offset_of!(CPUWatchpoint, entry) - 40usize];
 };
 pub const MMU_DATA_LOAD: MMUAccessType = 0;
 pub const MMU_DATA_STORE: MMUAccessType = 1;
@@ -28895,7 +31552,7 @@ const _: () = {
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUTLBEntryFull"][::std::mem::size_of::<CPUTLBEntryFull>() - 32usize];
+    ["Size of CPUTLBEntryFull"][::std::mem::size_of::<CPUTLBEntryFull>() - 40usize];
     ["Alignment of CPUTLBEntryFull"][::std::mem::align_of::<CPUTLBEntryFull>() - 8usize];
     ["Offset of field: CPUTLBEntryFull::xlat_section"]
         [::std::mem::offset_of!(CPUTLBEntryFull, xlat_section) - 0usize];
@@ -28904,15 +31561,15 @@ const _: () = {
     ["Offset of field: CPUTLBEntryFull::attrs"]
         [::std::mem::offset_of!(CPUTLBEntryFull, attrs) - 16usize];
     ["Offset of field: CPUTLBEntryFull::prot"]
-        [::std::mem::offset_of!(CPUTLBEntryFull, prot) - 20usize];
+        [::std::mem::offset_of!(CPUTLBEntryFull, prot) - 24usize];
     ["Offset of field: CPUTLBEntryFull::lg_page_size"]
-        [::std::mem::offset_of!(CPUTLBEntryFull, lg_page_size) - 21usize];
+        [::std::mem::offset_of!(CPUTLBEntryFull, lg_page_size) - 25usize];
     ["Offset of field: CPUTLBEntryFull::tlb_fill_flags"]
-        [::std::mem::offset_of!(CPUTLBEntryFull, tlb_fill_flags) - 22usize];
+        [::std::mem::offset_of!(CPUTLBEntryFull, tlb_fill_flags) - 26usize];
     ["Offset of field: CPUTLBEntryFull::slow_flags"]
-        [::std::mem::offset_of!(CPUTLBEntryFull, slow_flags) - 23usize];
+        [::std::mem::offset_of!(CPUTLBEntryFull, slow_flags) - 27usize];
     ["Offset of field: CPUTLBEntryFull::extra"]
-        [::std::mem::offset_of!(CPUTLBEntryFull, extra) - 26usize];
+        [::std::mem::offset_of!(CPUTLBEntryFull, extra) - 30usize];
 };
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -28929,7 +31586,7 @@ pub struct CPUTLBDesc {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUTLBDesc"][::std::mem::size_of::<CPUTLBDesc>() - 568usize];
+    ["Size of CPUTLBDesc"][::std::mem::size_of::<CPUTLBDesc>() - 632usize];
     ["Alignment of CPUTLBDesc"][::std::mem::align_of::<CPUTLBDesc>() - 8usize];
     ["Offset of field: CPUTLBDesc::large_page_addr"]
         [::std::mem::offset_of!(CPUTLBDesc, large_page_addr) - 0usize];
@@ -28946,7 +31603,7 @@ const _: () = {
     ["Offset of field: CPUTLBDesc::vfulltlb"]
         [::std::mem::offset_of!(CPUTLBDesc, vfulltlb) - 304usize];
     ["Offset of field: CPUTLBDesc::fulltlb"]
-        [::std::mem::offset_of!(CPUTLBDesc, fulltlb) - 560usize];
+        [::std::mem::offset_of!(CPUTLBDesc, fulltlb) - 624usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -28980,11 +31637,11 @@ pub struct CPUTLB {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUTLB"][::std::mem::size_of::<CPUTLB>() - 9376usize];
+    ["Size of CPUTLB"][::std::mem::size_of::<CPUTLB>() - 10400usize];
     ["Alignment of CPUTLB"][::std::mem::align_of::<CPUTLB>() - 16usize];
     ["Offset of field: CPUTLB::c"][::std::mem::offset_of!(CPUTLB, c) - 0usize];
     ["Offset of field: CPUTLB::d"][::std::mem::offset_of!(CPUTLB, d) - 32usize];
-    ["Offset of field: CPUTLB::f"][::std::mem::offset_of!(CPUTLB, f) - 9120usize];
+    ["Offset of field: CPUTLB::f"][::std::mem::offset_of!(CPUTLB, f) - 10144usize];
 };
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -29029,21 +31686,22 @@ pub struct CPUNegativeOffsetState {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUNegativeOffsetState"][::std::mem::size_of::<CPUNegativeOffsetState>() - 9408usize];
+    ["Size of CPUNegativeOffsetState"]
+        [::std::mem::size_of::<CPUNegativeOffsetState>() - 10432usize];
     ["Alignment of CPUNegativeOffsetState"]
         [::std::mem::align_of::<CPUNegativeOffsetState>() - 16usize];
     ["Offset of field: CPUNegativeOffsetState::tlb"]
         [::std::mem::offset_of!(CPUNegativeOffsetState, tlb) - 0usize];
     ["Offset of field: CPUNegativeOffsetState::plugin_mem_cbs"]
-        [::std::mem::offset_of!(CPUNegativeOffsetState, plugin_mem_cbs) - 9376usize];
+        [::std::mem::offset_of!(CPUNegativeOffsetState, plugin_mem_cbs) - 10400usize];
     ["Offset of field: CPUNegativeOffsetState::plugin_mem_value_low"]
-        [::std::mem::offset_of!(CPUNegativeOffsetState, plugin_mem_value_low) - 9384usize];
+        [::std::mem::offset_of!(CPUNegativeOffsetState, plugin_mem_value_low) - 10408usize];
     ["Offset of field: CPUNegativeOffsetState::plugin_mem_value_high"]
-        [::std::mem::offset_of!(CPUNegativeOffsetState, plugin_mem_value_high) - 9392usize];
+        [::std::mem::offset_of!(CPUNegativeOffsetState, plugin_mem_value_high) - 10416usize];
     ["Offset of field: CPUNegativeOffsetState::icount_decr"]
-        [::std::mem::offset_of!(CPUNegativeOffsetState, icount_decr) - 9400usize];
+        [::std::mem::offset_of!(CPUNegativeOffsetState, icount_decr) - 10424usize];
     ["Offset of field: CPUNegativeOffsetState::can_do_io"]
-        [::std::mem::offset_of!(CPUNegativeOffsetState, can_do_io) - 9404usize];
+        [::std::mem::offset_of!(CPUNegativeOffsetState, can_do_io) - 10428usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -29217,7 +31875,7 @@ const _: () = {
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUState"][::std::mem::size_of::<CPUState>() - 10176usize];
+    ["Size of CPUState"][::std::mem::size_of::<CPUState>() - 11200usize];
     ["Alignment of CPUState"][::std::mem::align_of::<CPUState>() - 16usize];
     ["Offset of field: CPUState::parent_obj"]
         [::std::mem::offset_of!(CPUState, parent_obj) - 0usize];
@@ -29988,27 +32646,27 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn qemu_system_dump_in_progress() -> bool;
 }
-pub const QEMU_ARCH_ALL: _bindgen_ty_34 = -1;
-pub const QEMU_ARCH_ALPHA: _bindgen_ty_34 = 1;
-pub const QEMU_ARCH_ARM: _bindgen_ty_34 = 2;
-pub const QEMU_ARCH_I386: _bindgen_ty_34 = 8;
-pub const QEMU_ARCH_M68K: _bindgen_ty_34 = 16;
-pub const QEMU_ARCH_MICROBLAZE: _bindgen_ty_34 = 64;
-pub const QEMU_ARCH_MIPS: _bindgen_ty_34 = 128;
-pub const QEMU_ARCH_PPC: _bindgen_ty_34 = 256;
-pub const QEMU_ARCH_S390X: _bindgen_ty_34 = 512;
-pub const QEMU_ARCH_SH4: _bindgen_ty_34 = 1024;
-pub const QEMU_ARCH_SPARC: _bindgen_ty_34 = 2048;
-pub const QEMU_ARCH_XTENSA: _bindgen_ty_34 = 4096;
-pub const QEMU_ARCH_OPENRISC: _bindgen_ty_34 = 8192;
-pub const QEMU_ARCH_TRICORE: _bindgen_ty_34 = 65536;
-pub const QEMU_ARCH_HPPA: _bindgen_ty_34 = 262144;
-pub const QEMU_ARCH_RISCV: _bindgen_ty_34 = 524288;
-pub const QEMU_ARCH_RX: _bindgen_ty_34 = 1048576;
-pub const QEMU_ARCH_AVR: _bindgen_ty_34 = 2097152;
-pub const QEMU_ARCH_HEXAGON: _bindgen_ty_34 = 4194304;
-pub const QEMU_ARCH_LOONGARCH: _bindgen_ty_34 = 8388608;
-pub type _bindgen_ty_34 = ::std::os::raw::c_int;
+pub const QEMU_ARCH_ALL: _bindgen_ty_38 = -1;
+pub const QEMU_ARCH_ALPHA: _bindgen_ty_38 = 1;
+pub const QEMU_ARCH_ARM: _bindgen_ty_38 = 2;
+pub const QEMU_ARCH_I386: _bindgen_ty_38 = 8;
+pub const QEMU_ARCH_M68K: _bindgen_ty_38 = 16;
+pub const QEMU_ARCH_MICROBLAZE: _bindgen_ty_38 = 64;
+pub const QEMU_ARCH_MIPS: _bindgen_ty_38 = 128;
+pub const QEMU_ARCH_PPC: _bindgen_ty_38 = 256;
+pub const QEMU_ARCH_S390X: _bindgen_ty_38 = 512;
+pub const QEMU_ARCH_SH4: _bindgen_ty_38 = 1024;
+pub const QEMU_ARCH_SPARC: _bindgen_ty_38 = 2048;
+pub const QEMU_ARCH_XTENSA: _bindgen_ty_38 = 4096;
+pub const QEMU_ARCH_OPENRISC: _bindgen_ty_38 = 8192;
+pub const QEMU_ARCH_TRICORE: _bindgen_ty_38 = 65536;
+pub const QEMU_ARCH_HPPA: _bindgen_ty_38 = 262144;
+pub const QEMU_ARCH_RISCV: _bindgen_ty_38 = 524288;
+pub const QEMU_ARCH_RX: _bindgen_ty_38 = 1048576;
+pub const QEMU_ARCH_AVR: _bindgen_ty_38 = 2097152;
+pub const QEMU_ARCH_HEXAGON: _bindgen_ty_38 = 4194304;
+pub const QEMU_ARCH_LOONGARCH: _bindgen_ty_38 = 8388608;
+pub type _bindgen_ty_38 = ::std::os::raw::c_int;
 unsafe extern "C" {
     pub static arch_type: u32;
 }
@@ -31071,7 +33729,7 @@ pub const MO_SIGN: MemOp = 8;
 pub const MO_BSWAP: MemOp = 16;
 pub const MO_LE: MemOp = 0;
 pub const MO_BE: MemOp = 16;
-pub const MO_TE: MemOp = 16;
+pub const MO_TE: MemOp = 0;
 pub const MO_ASHIFT: MemOp = 5;
 pub const MO_AMASK: MemOp = 224;
 pub const MO_UNALN: MemOp = 0;
@@ -31112,13 +33770,13 @@ pub const MO_BEUQ: MemOp = 19;
 pub const MO_BESW: MemOp = 25;
 pub const MO_BESL: MemOp = 26;
 pub const MO_BESQ: MemOp = 27;
-pub const MO_TEUW: MemOp = 17;
-pub const MO_TEUL: MemOp = 18;
-pub const MO_TEUQ: MemOp = 19;
-pub const MO_TEUO: MemOp = 20;
-pub const MO_TESW: MemOp = 25;
-pub const MO_TESL: MemOp = 26;
-pub const MO_TESQ: MemOp = 27;
+pub const MO_TEUW: MemOp = 1;
+pub const MO_TEUL: MemOp = 2;
+pub const MO_TEUQ: MemOp = 3;
+pub const MO_TEUO: MemOp = 4;
+pub const MO_TESW: MemOp = 9;
+pub const MO_TESL: MemOp = 10;
+pub const MO_TESQ: MemOp = 11;
 pub const MO_SSIZE: MemOp = 15;
 pub type MemOp = ::std::os::raw::c_uint;
 pub type MemOpIdx = u32;
@@ -31936,6 +34594,295 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn plugin_scoreboard_free(score: *mut qemu_plugin_scoreboard);
 }
+unsafe extern "C" {
+    pub static mut tcg_allowed: bool;
+}
+pub type X86CPU = ArchCPU;
+pub type ArchCPU_autoptr = *mut ArchCPU;
+pub type ArchCPU_listautoptr = *mut GList;
+pub type ArchCPU_slistautoptr = *mut GSList;
+pub type ArchCPU_queueautoptr = *mut GQueue;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct hyperv_post_message_input {
+    pub connection_id: u32,
+    pub _reserved: u32,
+    pub message_type: u32,
+    pub payload_size: u32,
+    pub payload: [u8; 240usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of hyperv_post_message_input"]
+        [::std::mem::size_of::<hyperv_post_message_input>() - 256usize];
+    ["Alignment of hyperv_post_message_input"]
+        [::std::mem::align_of::<hyperv_post_message_input>() - 4usize];
+    ["Offset of field: hyperv_post_message_input::connection_id"]
+        [::std::mem::offset_of!(hyperv_post_message_input, connection_id) - 0usize];
+    ["Offset of field: hyperv_post_message_input::_reserved"]
+        [::std::mem::offset_of!(hyperv_post_message_input, _reserved) - 4usize];
+    ["Offset of field: hyperv_post_message_input::message_type"]
+        [::std::mem::offset_of!(hyperv_post_message_input, message_type) - 8usize];
+    ["Offset of field: hyperv_post_message_input::payload_size"]
+        [::std::mem::offset_of!(hyperv_post_message_input, payload_size) - 12usize];
+    ["Offset of field: hyperv_post_message_input::payload"]
+        [::std::mem::offset_of!(hyperv_post_message_input, payload) - 16usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct hyperv_signal_event_input {
+    pub connection_id: u32,
+    pub flag_number: u16,
+    pub _reserved_zero: u16,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of hyperv_signal_event_input"]
+        [::std::mem::size_of::<hyperv_signal_event_input>() - 8usize];
+    ["Alignment of hyperv_signal_event_input"]
+        [::std::mem::align_of::<hyperv_signal_event_input>() - 4usize];
+    ["Offset of field: hyperv_signal_event_input::connection_id"]
+        [::std::mem::offset_of!(hyperv_signal_event_input, connection_id) - 0usize];
+    ["Offset of field: hyperv_signal_event_input::flag_number"]
+        [::std::mem::offset_of!(hyperv_signal_event_input, flag_number) - 4usize];
+    ["Offset of field: hyperv_signal_event_input::_reserved_zero"]
+        [::std::mem::offset_of!(hyperv_signal_event_input, _reserved_zero) - 6usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct hyperv_message_header {
+    pub message_type: u32,
+    pub payload_size: u8,
+    pub message_flags: u8,
+    pub _reserved: [u8; 2usize],
+    pub sender: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of hyperv_message_header"][::std::mem::size_of::<hyperv_message_header>() - 16usize];
+    ["Alignment of hyperv_message_header"]
+        [::std::mem::align_of::<hyperv_message_header>() - 8usize];
+    ["Offset of field: hyperv_message_header::message_type"]
+        [::std::mem::offset_of!(hyperv_message_header, message_type) - 0usize];
+    ["Offset of field: hyperv_message_header::payload_size"]
+        [::std::mem::offset_of!(hyperv_message_header, payload_size) - 4usize];
+    ["Offset of field: hyperv_message_header::message_flags"]
+        [::std::mem::offset_of!(hyperv_message_header, message_flags) - 5usize];
+    ["Offset of field: hyperv_message_header::_reserved"]
+        [::std::mem::offset_of!(hyperv_message_header, _reserved) - 6usize];
+    ["Offset of field: hyperv_message_header::sender"]
+        [::std::mem::offset_of!(hyperv_message_header, sender) - 8usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct hyperv_message {
+    pub header: hyperv_message_header,
+    pub payload: [u8; 240usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of hyperv_message"][::std::mem::size_of::<hyperv_message>() - 256usize];
+    ["Alignment of hyperv_message"][::std::mem::align_of::<hyperv_message>() - 8usize];
+    ["Offset of field: hyperv_message::header"]
+        [::std::mem::offset_of!(hyperv_message, header) - 0usize];
+    ["Offset of field: hyperv_message::payload"]
+        [::std::mem::offset_of!(hyperv_message, payload) - 16usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct hyperv_message_page {
+    pub slot: [hyperv_message; 16usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of hyperv_message_page"][::std::mem::size_of::<hyperv_message_page>() - 4096usize];
+    ["Alignment of hyperv_message_page"][::std::mem::align_of::<hyperv_message_page>() - 8usize];
+    ["Offset of field: hyperv_message_page::slot"]
+        [::std::mem::offset_of!(hyperv_message_page, slot) - 0usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct hyperv_event_flags {
+    pub flags: [::std::os::raw::c_ulong; 32usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of hyperv_event_flags"][::std::mem::size_of::<hyperv_event_flags>() - 256usize];
+    ["Alignment of hyperv_event_flags"][::std::mem::align_of::<hyperv_event_flags>() - 8usize];
+    ["Offset of field: hyperv_event_flags::flags"]
+        [::std::mem::offset_of!(hyperv_event_flags, flags) - 0usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct hyperv_event_flags_page {
+    pub slot: [hyperv_event_flags; 16usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of hyperv_event_flags_page"]
+        [::std::mem::size_of::<hyperv_event_flags_page>() - 4096usize];
+    ["Alignment of hyperv_event_flags_page"]
+        [::std::mem::align_of::<hyperv_event_flags_page>() - 8usize];
+    ["Offset of field: hyperv_event_flags_page::slot"]
+        [::std::mem::offset_of!(hyperv_event_flags_page, slot) - 0usize];
+};
+#[repr(C, packed)]
+#[derive(Debug, Copy, Clone)]
+pub struct hyperv_reset_debug_session_input {
+    pub options: u32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of hyperv_reset_debug_session_input"]
+        [::std::mem::size_of::<hyperv_reset_debug_session_input>() - 4usize];
+    ["Alignment of hyperv_reset_debug_session_input"]
+        [::std::mem::align_of::<hyperv_reset_debug_session_input>() - 1usize];
+    ["Offset of field: hyperv_reset_debug_session_input::options"]
+        [::std::mem::offset_of!(hyperv_reset_debug_session_input, options) - 0usize];
+};
+#[repr(C, packed)]
+#[derive(Debug, Copy, Clone)]
+pub struct hyperv_reset_debug_session_output {
+    pub host_ip: u32,
+    pub target_ip: u32,
+    pub host_port: u16,
+    pub target_port: u16,
+    pub host_mac: [u8; 6usize],
+    pub target_mac: [u8; 6usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of hyperv_reset_debug_session_output"]
+        [::std::mem::size_of::<hyperv_reset_debug_session_output>() - 24usize];
+    ["Alignment of hyperv_reset_debug_session_output"]
+        [::std::mem::align_of::<hyperv_reset_debug_session_output>() - 1usize];
+    ["Offset of field: hyperv_reset_debug_session_output::host_ip"]
+        [::std::mem::offset_of!(hyperv_reset_debug_session_output, host_ip) - 0usize];
+    ["Offset of field: hyperv_reset_debug_session_output::target_ip"]
+        [::std::mem::offset_of!(hyperv_reset_debug_session_output, target_ip) - 4usize];
+    ["Offset of field: hyperv_reset_debug_session_output::host_port"]
+        [::std::mem::offset_of!(hyperv_reset_debug_session_output, host_port) - 8usize];
+    ["Offset of field: hyperv_reset_debug_session_output::target_port"]
+        [::std::mem::offset_of!(hyperv_reset_debug_session_output, target_port) - 10usize];
+    ["Offset of field: hyperv_reset_debug_session_output::host_mac"]
+        [::std::mem::offset_of!(hyperv_reset_debug_session_output, host_mac) - 12usize];
+    ["Offset of field: hyperv_reset_debug_session_output::target_mac"]
+        [::std::mem::offset_of!(hyperv_reset_debug_session_output, target_mac) - 18usize];
+};
+#[repr(C, packed)]
+#[derive(Debug, Copy, Clone)]
+pub struct hyperv_post_debug_data_input {
+    pub count: u32,
+    pub options: u32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of hyperv_post_debug_data_input"]
+        [::std::mem::size_of::<hyperv_post_debug_data_input>() - 8usize];
+    ["Alignment of hyperv_post_debug_data_input"]
+        [::std::mem::align_of::<hyperv_post_debug_data_input>() - 1usize];
+    ["Offset of field: hyperv_post_debug_data_input::count"]
+        [::std::mem::offset_of!(hyperv_post_debug_data_input, count) - 0usize];
+    ["Offset of field: hyperv_post_debug_data_input::options"]
+        [::std::mem::offset_of!(hyperv_post_debug_data_input, options) - 4usize];
+};
+#[repr(C, packed)]
+#[derive(Debug, Copy, Clone)]
+pub struct hyperv_post_debug_data_output {
+    pub pending_count: u32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of hyperv_post_debug_data_output"]
+        [::std::mem::size_of::<hyperv_post_debug_data_output>() - 4usize];
+    ["Alignment of hyperv_post_debug_data_output"]
+        [::std::mem::align_of::<hyperv_post_debug_data_output>() - 1usize];
+    ["Offset of field: hyperv_post_debug_data_output::pending_count"]
+        [::std::mem::offset_of!(hyperv_post_debug_data_output, pending_count) - 0usize];
+};
+#[repr(C, packed)]
+#[derive(Debug, Copy, Clone)]
+pub struct hyperv_retrieve_debug_data_input {
+    pub count: u32,
+    pub options: u32,
+    pub timeout: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of hyperv_retrieve_debug_data_input"]
+        [::std::mem::size_of::<hyperv_retrieve_debug_data_input>() - 16usize];
+    ["Alignment of hyperv_retrieve_debug_data_input"]
+        [::std::mem::align_of::<hyperv_retrieve_debug_data_input>() - 1usize];
+    ["Offset of field: hyperv_retrieve_debug_data_input::count"]
+        [::std::mem::offset_of!(hyperv_retrieve_debug_data_input, count) - 0usize];
+    ["Offset of field: hyperv_retrieve_debug_data_input::options"]
+        [::std::mem::offset_of!(hyperv_retrieve_debug_data_input, options) - 4usize];
+    ["Offset of field: hyperv_retrieve_debug_data_input::timeout"]
+        [::std::mem::offset_of!(hyperv_retrieve_debug_data_input, timeout) - 8usize];
+};
+#[repr(C, packed)]
+#[derive(Debug, Copy, Clone)]
+pub struct hyperv_retrieve_debug_data_output {
+    pub retrieved_count: u32,
+    pub remaining_count: u32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of hyperv_retrieve_debug_data_output"]
+        [::std::mem::size_of::<hyperv_retrieve_debug_data_output>() - 8usize];
+    ["Alignment of hyperv_retrieve_debug_data_output"]
+        [::std::mem::align_of::<hyperv_retrieve_debug_data_output>() - 1usize];
+    ["Offset of field: hyperv_retrieve_debug_data_output::retrieved_count"]
+        [::std::mem::offset_of!(hyperv_retrieve_debug_data_output, retrieved_count) - 0usize];
+    ["Offset of field: hyperv_retrieve_debug_data_output::remaining_count"]
+        [::std::mem::offset_of!(hyperv_retrieve_debug_data_output, remaining_count) - 4usize];
+};
+pub type apic_id_t = u32;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct X86CPUTopoIDs {
+    pub pkg_id: ::std::os::raw::c_uint,
+    pub die_id: ::std::os::raw::c_uint,
+    pub module_id: ::std::os::raw::c_uint,
+    pub core_id: ::std::os::raw::c_uint,
+    pub smt_id: ::std::os::raw::c_uint,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of X86CPUTopoIDs"][::std::mem::size_of::<X86CPUTopoIDs>() - 20usize];
+    ["Alignment of X86CPUTopoIDs"][::std::mem::align_of::<X86CPUTopoIDs>() - 4usize];
+    ["Offset of field: X86CPUTopoIDs::pkg_id"]
+        [::std::mem::offset_of!(X86CPUTopoIDs, pkg_id) - 0usize];
+    ["Offset of field: X86CPUTopoIDs::die_id"]
+        [::std::mem::offset_of!(X86CPUTopoIDs, die_id) - 4usize];
+    ["Offset of field: X86CPUTopoIDs::module_id"]
+        [::std::mem::offset_of!(X86CPUTopoIDs, module_id) - 8usize];
+    ["Offset of field: X86CPUTopoIDs::core_id"]
+        [::std::mem::offset_of!(X86CPUTopoIDs, core_id) - 12usize];
+    ["Offset of field: X86CPUTopoIDs::smt_id"]
+        [::std::mem::offset_of!(X86CPUTopoIDs, smt_id) - 16usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct X86CPUTopoInfo {
+    pub dies_per_pkg: ::std::os::raw::c_uint,
+    pub modules_per_die: ::std::os::raw::c_uint,
+    pub cores_per_module: ::std::os::raw::c_uint,
+    pub threads_per_core: ::std::os::raw::c_uint,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of X86CPUTopoInfo"][::std::mem::size_of::<X86CPUTopoInfo>() - 16usize];
+    ["Alignment of X86CPUTopoInfo"][::std::mem::align_of::<X86CPUTopoInfo>() - 4usize];
+    ["Offset of field: X86CPUTopoInfo::dies_per_pkg"]
+        [::std::mem::offset_of!(X86CPUTopoInfo, dies_per_pkg) - 0usize];
+    ["Offset of field: X86CPUTopoInfo::modules_per_die"]
+        [::std::mem::offset_of!(X86CPUTopoInfo, modules_per_die) - 4usize];
+    ["Offset of field: X86CPUTopoInfo::cores_per_module"]
+        [::std::mem::offset_of!(X86CPUTopoInfo, cores_per_module) - 8usize];
+    ["Offset of field: X86CPUTopoInfo::threads_per_core"]
+        [::std::mem::offset_of!(X86CPUTopoInfo, threads_per_core) - 12usize];
+};
 pub type float16 = u16;
 pub type float32 = u32;
 pub type float64 = u64;
@@ -31975,21 +34922,21 @@ pub const float_round_to_odd: FloatRoundMode = 5;
 pub const float_round_to_odd_inf: FloatRoundMode = 6;
 pub const float_round_nearest_even_max: FloatRoundMode = 7;
 pub type FloatRoundMode = ::std::os::raw::c_uchar;
-pub const float_flag_invalid: _bindgen_ty_35 = 1;
-pub const float_flag_divbyzero: _bindgen_ty_35 = 2;
-pub const float_flag_overflow: _bindgen_ty_35 = 4;
-pub const float_flag_underflow: _bindgen_ty_35 = 8;
-pub const float_flag_inexact: _bindgen_ty_35 = 16;
-pub const float_flag_input_denormal: _bindgen_ty_35 = 32;
-pub const float_flag_output_denormal: _bindgen_ty_35 = 64;
-pub const float_flag_invalid_isi: _bindgen_ty_35 = 128;
-pub const float_flag_invalid_imz: _bindgen_ty_35 = 256;
-pub const float_flag_invalid_idi: _bindgen_ty_35 = 512;
-pub const float_flag_invalid_zdz: _bindgen_ty_35 = 1024;
-pub const float_flag_invalid_sqrt: _bindgen_ty_35 = 2048;
-pub const float_flag_invalid_cvti: _bindgen_ty_35 = 4096;
-pub const float_flag_invalid_snan: _bindgen_ty_35 = 8192;
-pub type _bindgen_ty_35 = ::std::os::raw::c_uint;
+pub const float_flag_invalid: _bindgen_ty_39 = 1;
+pub const float_flag_divbyzero: _bindgen_ty_39 = 2;
+pub const float_flag_overflow: _bindgen_ty_39 = 4;
+pub const float_flag_underflow: _bindgen_ty_39 = 8;
+pub const float_flag_inexact: _bindgen_ty_39 = 16;
+pub const float_flag_input_denormal_flushed: _bindgen_ty_39 = 32;
+pub const float_flag_output_denormal_flushed: _bindgen_ty_39 = 64;
+pub const float_flag_invalid_isi: _bindgen_ty_39 = 128;
+pub const float_flag_invalid_imz: _bindgen_ty_39 = 256;
+pub const float_flag_invalid_idi: _bindgen_ty_39 = 512;
+pub const float_flag_invalid_zdz: _bindgen_ty_39 = 1024;
+pub const float_flag_invalid_sqrt: _bindgen_ty_39 = 2048;
+pub const float_flag_invalid_cvti: _bindgen_ty_39 = 4096;
+pub const float_flag_invalid_snan: _bindgen_ty_39 = 8192;
+pub type _bindgen_ty_39 = ::std::os::raw::c_uint;
 pub const floatx80_precision_x: FloatX80RoundPrec = 0;
 pub const floatx80_precision_d: FloatX80RoundPrec = 1;
 pub const floatx80_precision_s: FloatX80RoundPrec = 2;
@@ -32001,30 +34948,30 @@ pub const float_2nan_prop_ab: Float2NaNPropRule = 3;
 pub const float_2nan_prop_ba: Float2NaNPropRule = 4;
 pub const float_2nan_prop_x87: Float2NaNPropRule = 5;
 pub type Float2NaNPropRule = ::std::os::raw::c_uchar;
-pub const R_3NAN_1ST_SHIFT: _bindgen_ty_36 = 0;
-pub type _bindgen_ty_36 = ::std::os::raw::c_uint;
-pub const R_3NAN_1ST_LENGTH: _bindgen_ty_37 = 2;
-pub type _bindgen_ty_37 = ::std::os::raw::c_uint;
-pub const R_3NAN_1ST_MASK: _bindgen_ty_38 = 3;
-pub type _bindgen_ty_38 = ::std::os::raw::c_uint;
-pub const R_3NAN_2ND_SHIFT: _bindgen_ty_39 = 2;
-pub type _bindgen_ty_39 = ::std::os::raw::c_uint;
-pub const R_3NAN_2ND_LENGTH: _bindgen_ty_40 = 2;
+pub const R_3NAN_1ST_SHIFT: _bindgen_ty_40 = 0;
 pub type _bindgen_ty_40 = ::std::os::raw::c_uint;
-pub const R_3NAN_2ND_MASK: _bindgen_ty_41 = 12;
+pub const R_3NAN_1ST_LENGTH: _bindgen_ty_41 = 2;
 pub type _bindgen_ty_41 = ::std::os::raw::c_uint;
-pub const R_3NAN_3RD_SHIFT: _bindgen_ty_42 = 4;
+pub const R_3NAN_1ST_MASK: _bindgen_ty_42 = 3;
 pub type _bindgen_ty_42 = ::std::os::raw::c_uint;
-pub const R_3NAN_3RD_LENGTH: _bindgen_ty_43 = 2;
+pub const R_3NAN_2ND_SHIFT: _bindgen_ty_43 = 2;
 pub type _bindgen_ty_43 = ::std::os::raw::c_uint;
-pub const R_3NAN_3RD_MASK: _bindgen_ty_44 = 48;
+pub const R_3NAN_2ND_LENGTH: _bindgen_ty_44 = 2;
 pub type _bindgen_ty_44 = ::std::os::raw::c_uint;
-pub const R_3NAN_SNAN_SHIFT: _bindgen_ty_45 = 6;
+pub const R_3NAN_2ND_MASK: _bindgen_ty_45 = 12;
 pub type _bindgen_ty_45 = ::std::os::raw::c_uint;
-pub const R_3NAN_SNAN_LENGTH: _bindgen_ty_46 = 1;
+pub const R_3NAN_3RD_SHIFT: _bindgen_ty_46 = 4;
 pub type _bindgen_ty_46 = ::std::os::raw::c_uint;
-pub const R_3NAN_SNAN_MASK: _bindgen_ty_47 = 64;
+pub const R_3NAN_3RD_LENGTH: _bindgen_ty_47 = 2;
 pub type _bindgen_ty_47 = ::std::os::raw::c_uint;
+pub const R_3NAN_3RD_MASK: _bindgen_ty_48 = 48;
+pub type _bindgen_ty_48 = ::std::os::raw::c_uint;
+pub const R_3NAN_SNAN_SHIFT: _bindgen_ty_49 = 6;
+pub type _bindgen_ty_49 = ::std::os::raw::c_uint;
+pub const R_3NAN_SNAN_LENGTH: _bindgen_ty_50 = 1;
+pub type _bindgen_ty_50 = ::std::os::raw::c_uint;
+pub const R_3NAN_SNAN_MASK: _bindgen_ty_51 = 64;
+pub type _bindgen_ty_51 = ::std::os::raw::c_uint;
 pub const float_3nan_prop_none: Float3NaNPropRule = 0;
 pub const float_3nan_prop_abc: Float3NaNPropRule = 36;
 pub const float_3nan_prop_acb: Float3NaNPropRule = 24;
@@ -32226,1827 +35173,2216 @@ const _: () = {
     ["Offset of field: CPU_QuadU::l"][::std::mem::offset_of!(CPU_QuadU, l) - 0usize];
     ["Offset of field: CPU_QuadU::ll"][::std::mem::offset_of!(CPU_QuadU, ll) - 0usize];
 };
+pub const QEMU_CLOCK_REALTIME: QEMUClockType = 0;
+pub const QEMU_CLOCK_VIRTUAL: QEMUClockType = 1;
+pub const QEMU_CLOCK_HOST: QEMUClockType = 2;
+pub const QEMU_CLOCK_VIRTUAL_RT: QEMUClockType = 3;
+pub const QEMU_CLOCK_MAX: QEMUClockType = 4;
+pub type QEMUClockType = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct GDBFeature {
-    pub xmlname: *const ::std::os::raw::c_char,
-    pub xml: *const ::std::os::raw::c_char,
-    pub name: *const ::std::os::raw::c_char,
-    pub regs: *const *const ::std::os::raw::c_char,
-    pub num_regs: ::std::os::raw::c_int,
+pub struct QEMUTimerList {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct QEMUTimerListGroup {
+    pub tl: [*mut QEMUTimerList; 4usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of GDBFeature"][::std::mem::size_of::<GDBFeature>() - 40usize];
-    ["Alignment of GDBFeature"][::std::mem::align_of::<GDBFeature>() - 8usize];
-    ["Offset of field: GDBFeature::xmlname"][::std::mem::offset_of!(GDBFeature, xmlname) - 0usize];
-    ["Offset of field: GDBFeature::xml"][::std::mem::offset_of!(GDBFeature, xml) - 8usize];
-    ["Offset of field: GDBFeature::name"][::std::mem::offset_of!(GDBFeature, name) - 16usize];
-    ["Offset of field: GDBFeature::regs"][::std::mem::offset_of!(GDBFeature, regs) - 24usize];
-    ["Offset of field: GDBFeature::num_regs"]
-        [::std::mem::offset_of!(GDBFeature, num_regs) - 32usize];
+    ["Size of QEMUTimerListGroup"][::std::mem::size_of::<QEMUTimerListGroup>() - 32usize];
+    ["Alignment of QEMUTimerListGroup"][::std::mem::align_of::<QEMUTimerListGroup>() - 8usize];
+    ["Offset of field: QEMUTimerListGroup::tl"]
+        [::std::mem::offset_of!(QEMUTimerListGroup, tl) - 0usize];
 };
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct GDBFeatureBuilder {
-    pub feature: *mut GDBFeature,
-    pub xml: *mut GPtrArray,
-    pub regs: *mut GPtrArray,
-    pub base_reg: ::std::os::raw::c_int,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of GDBFeatureBuilder"][::std::mem::size_of::<GDBFeatureBuilder>() - 32usize];
-    ["Alignment of GDBFeatureBuilder"][::std::mem::align_of::<GDBFeatureBuilder>() - 8usize];
-    ["Offset of field: GDBFeatureBuilder::feature"]
-        [::std::mem::offset_of!(GDBFeatureBuilder, feature) - 0usize];
-    ["Offset of field: GDBFeatureBuilder::xml"]
-        [::std::mem::offset_of!(GDBFeatureBuilder, xml) - 8usize];
-    ["Offset of field: GDBFeatureBuilder::regs"]
-        [::std::mem::offset_of!(GDBFeatureBuilder, regs) - 16usize];
-    ["Offset of field: GDBFeatureBuilder::base_reg"]
-        [::std::mem::offset_of!(GDBFeatureBuilder, base_reg) - 24usize];
-};
-pub type gdb_get_reg_cb = ::std::option::Option<
-    unsafe extern "C" fn(
-        cpu: *mut CPUState,
-        buf: *mut GByteArray,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int,
+pub type QEMUTimerCB =
+    ::std::option::Option<unsafe extern "C" fn(opaque: *mut ::std::os::raw::c_void)>;
+pub type QEMUTimerListNotifyCB = ::std::option::Option<
+    unsafe extern "C" fn(opaque: *mut ::std::os::raw::c_void, type_: QEMUClockType),
 >;
-pub type gdb_set_reg_cb = ::std::option::Option<
-    unsafe extern "C" fn(
-        cpu: *mut CPUState,
-        buf: *mut u8,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int,
->;
-unsafe extern "C" {
-    pub fn gdb_init_cpu(cpu: *mut CPUState);
-}
-unsafe extern "C" {
-    pub fn gdb_register_coprocessor(
-        cpu: *mut CPUState,
-        get_reg: gdb_get_reg_cb,
-        set_reg: gdb_set_reg_cb,
-        feature: *const GDBFeature,
-        g_pos: ::std::os::raw::c_int,
-    );
-}
-unsafe extern "C" {
-    pub fn gdb_unregister_coprocessor_all(cpu: *mut CPUState);
-}
-unsafe extern "C" {
-    pub fn gdbserver_start(
-        port_or_device: *const ::std::os::raw::c_char,
-        errp: *mut *mut Error,
-    ) -> bool;
-}
-unsafe extern "C" {
-    pub fn gdb_feature_builder_init(
-        builder: *mut GDBFeatureBuilder,
-        feature: *mut GDBFeature,
-        name: *const ::std::os::raw::c_char,
-        xmlname: *const ::std::os::raw::c_char,
-        base_reg: ::std::os::raw::c_int,
-    );
-}
-unsafe extern "C" {
-    pub fn gdb_feature_builder_append_tag(
-        builder: *const GDBFeatureBuilder,
-        format: *const ::std::os::raw::c_char,
-        ...
-    );
-}
-unsafe extern "C" {
-    pub fn gdb_feature_builder_append_reg(
-        builder: *const GDBFeatureBuilder,
-        name: *const ::std::os::raw::c_char,
-        bitsize: ::std::os::raw::c_int,
-        regnum: ::std::os::raw::c_int,
-        type_: *const ::std::os::raw::c_char,
-        group: *const ::std::os::raw::c_char,
-    );
-}
-unsafe extern "C" {
-    pub fn gdb_feature_builder_end(builder: *const GDBFeatureBuilder);
-}
-unsafe extern "C" {
-    pub fn gdb_find_static_feature(xmlname: *const ::std::os::raw::c_char) -> *const GDBFeature;
-}
-unsafe extern "C" {
-    pub fn gdb_read_register(
-        cpu: *mut CPUState,
-        buf: *mut GByteArray,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
-}
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct GDBRegDesc {
-    pub gdb_reg: ::std::os::raw::c_int,
-    pub name: *const ::std::os::raw::c_char,
-    pub feature_name: *const ::std::os::raw::c_char,
+pub struct QEMUTimer {
+    pub expire_time: i64,
+    pub timer_list: *mut QEMUTimerList,
+    pub cb: QEMUTimerCB,
+    pub opaque: *mut ::std::os::raw::c_void,
+    pub next: *mut QEMUTimer,
+    pub attributes: ::std::os::raw::c_int,
+    pub scale: ::std::os::raw::c_int,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of GDBRegDesc"][::std::mem::size_of::<GDBRegDesc>() - 24usize];
-    ["Alignment of GDBRegDesc"][::std::mem::align_of::<GDBRegDesc>() - 8usize];
-    ["Offset of field: GDBRegDesc::gdb_reg"][::std::mem::offset_of!(GDBRegDesc, gdb_reg) - 0usize];
-    ["Offset of field: GDBRegDesc::name"][::std::mem::offset_of!(GDBRegDesc, name) - 8usize];
-    ["Offset of field: GDBRegDesc::feature_name"]
-        [::std::mem::offset_of!(GDBRegDesc, feature_name) - 16usize];
+    ["Size of QEMUTimer"][::std::mem::size_of::<QEMUTimer>() - 48usize];
+    ["Alignment of QEMUTimer"][::std::mem::align_of::<QEMUTimer>() - 8usize];
+    ["Offset of field: QEMUTimer::expire_time"]
+        [::std::mem::offset_of!(QEMUTimer, expire_time) - 0usize];
+    ["Offset of field: QEMUTimer::timer_list"]
+        [::std::mem::offset_of!(QEMUTimer, timer_list) - 8usize];
+    ["Offset of field: QEMUTimer::cb"][::std::mem::offset_of!(QEMUTimer, cb) - 16usize];
+    ["Offset of field: QEMUTimer::opaque"][::std::mem::offset_of!(QEMUTimer, opaque) - 24usize];
+    ["Offset of field: QEMUTimer::next"][::std::mem::offset_of!(QEMUTimer, next) - 32usize];
+    ["Offset of field: QEMUTimer::attributes"]
+        [::std::mem::offset_of!(QEMUTimer, attributes) - 40usize];
+    ["Offset of field: QEMUTimer::scale"][::std::mem::offset_of!(QEMUTimer, scale) - 44usize];
 };
 unsafe extern "C" {
-    pub fn gdb_get_register_list(cpu: *mut CPUState) -> *mut GArray;
+    pub static mut main_loop_tlg: QEMUTimerListGroup;
 }
 unsafe extern "C" {
-    pub fn gdb_set_stop_cpu(cpu: *mut CPUState);
+    pub fn qemu_clock_get_ns(type_: QEMUClockType) -> i64;
 }
 unsafe extern "C" {
-    pub static gdb_static_features: [GDBFeature; 0usize];
-}
-pub type PowerPCCPU = ArchCPU;
-pub type ArchCPU_autoptr = *mut ArchCPU;
-pub type ArchCPU_listautoptr = *mut GList;
-pub type ArchCPU_slistautoptr = *mut GSList;
-pub type ArchCPU_queueautoptr = *mut GQueue;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct PPCTimebase {
-    pub guest_timebase: u64,
-    pub time_of_the_day_ns: i64,
-    pub runstate_paused: bool,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of PPCTimebase"][::std::mem::size_of::<PPCTimebase>() - 24usize];
-    ["Alignment of PPCTimebase"][::std::mem::align_of::<PPCTimebase>() - 8usize];
-    ["Offset of field: PPCTimebase::guest_timebase"]
-        [::std::mem::offset_of!(PPCTimebase, guest_timebase) - 0usize];
-    ["Offset of field: PPCTimebase::time_of_the_day_ns"]
-        [::std::mem::offset_of!(PPCTimebase, time_of_the_day_ns) - 8usize];
-    ["Offset of field: PPCTimebase::runstate_paused"]
-        [::std::mem::offset_of!(PPCTimebase, runstate_paused) - 16usize];
-};
-unsafe extern "C" {
-    pub static vmstate_ppc_timebase: VMStateDescription;
+    pub fn qemu_clock_has_timers(type_: QEMUClockType) -> bool;
 }
 unsafe extern "C" {
-    pub fn cpu_ppc_clock_vm_state_change(
+    pub fn qemu_clock_expired(type_: QEMUClockType) -> bool;
+}
+unsafe extern "C" {
+    pub fn qemu_clock_use_for_deadline(type_: QEMUClockType) -> bool;
+}
+unsafe extern "C" {
+    pub fn qemu_clock_deadline_ns_all(
+        type_: QEMUClockType,
+        attr_mask: ::std::os::raw::c_int,
+    ) -> i64;
+}
+unsafe extern "C" {
+    pub fn qemu_clock_notify(type_: QEMUClockType);
+}
+unsafe extern "C" {
+    pub fn qemu_clock_enable(type_: QEMUClockType, enabled: bool);
+}
+unsafe extern "C" {
+    pub fn qemu_clock_run_timers(type_: QEMUClockType) -> bool;
+}
+unsafe extern "C" {
+    pub fn qemu_clock_run_all_timers() -> bool;
+}
+unsafe extern "C" {
+    pub fn qemu_clock_advance_virtual_time(target_ns: i64) -> i64;
+}
+unsafe extern "C" {
+    pub fn timerlist_new(
+        type_: QEMUClockType,
+        cb: QEMUTimerListNotifyCB,
         opaque: *mut ::std::os::raw::c_void,
-        running: bool,
-        state: RunState,
+    ) -> *mut QEMUTimerList;
+}
+unsafe extern "C" {
+    pub fn timerlist_free(timer_list: *mut QEMUTimerList);
+}
+unsafe extern "C" {
+    pub fn timerlist_has_timers(timer_list: *mut QEMUTimerList) -> bool;
+}
+unsafe extern "C" {
+    pub fn timerlist_expired(timer_list: *mut QEMUTimerList) -> bool;
+}
+unsafe extern "C" {
+    pub fn timerlist_deadline_ns(timer_list: *mut QEMUTimerList) -> i64;
+}
+unsafe extern "C" {
+    pub fn timerlist_run_timers(timer_list: *mut QEMUTimerList) -> bool;
+}
+unsafe extern "C" {
+    pub fn timerlist_notify(timer_list: *mut QEMUTimerList);
+}
+unsafe extern "C" {
+    pub fn timerlistgroup_init(
+        tlg: *mut QEMUTimerListGroup,
+        cb: QEMUTimerListNotifyCB,
+        opaque: *mut ::std::os::raw::c_void,
     );
 }
-pub const POWERPC_EXCP_NONE: _bindgen_ty_48 = -1;
-pub const POWERPC_EXCP_CRITICAL: _bindgen_ty_48 = 0;
-pub const POWERPC_EXCP_MCHECK: _bindgen_ty_48 = 1;
-pub const POWERPC_EXCP_DSI: _bindgen_ty_48 = 2;
-pub const POWERPC_EXCP_ISI: _bindgen_ty_48 = 3;
-pub const POWERPC_EXCP_EXTERNAL: _bindgen_ty_48 = 4;
-pub const POWERPC_EXCP_ALIGN: _bindgen_ty_48 = 5;
-pub const POWERPC_EXCP_PROGRAM: _bindgen_ty_48 = 6;
-pub const POWERPC_EXCP_FPU: _bindgen_ty_48 = 7;
-pub const POWERPC_EXCP_SYSCALL: _bindgen_ty_48 = 8;
-pub const POWERPC_EXCP_APU: _bindgen_ty_48 = 9;
-pub const POWERPC_EXCP_DECR: _bindgen_ty_48 = 10;
-pub const POWERPC_EXCP_FIT: _bindgen_ty_48 = 11;
-pub const POWERPC_EXCP_WDT: _bindgen_ty_48 = 12;
-pub const POWERPC_EXCP_DTLB: _bindgen_ty_48 = 13;
-pub const POWERPC_EXCP_ITLB: _bindgen_ty_48 = 14;
-pub const POWERPC_EXCP_DEBUG: _bindgen_ty_48 = 15;
-pub const POWERPC_EXCP_SPEU: _bindgen_ty_48 = 32;
-pub const POWERPC_EXCP_EFPDI: _bindgen_ty_48 = 33;
-pub const POWERPC_EXCP_EFPRI: _bindgen_ty_48 = 34;
-pub const POWERPC_EXCP_EPERFM: _bindgen_ty_48 = 35;
-pub const POWERPC_EXCP_DOORI: _bindgen_ty_48 = 36;
-pub const POWERPC_EXCP_DOORCI: _bindgen_ty_48 = 37;
-pub const POWERPC_EXCP_GDOORI: _bindgen_ty_48 = 38;
-pub const POWERPC_EXCP_GDOORCI: _bindgen_ty_48 = 39;
-pub const POWERPC_EXCP_HYPPRIV: _bindgen_ty_48 = 41;
-pub const POWERPC_EXCP_RESET: _bindgen_ty_48 = 64;
-pub const POWERPC_EXCP_DSEG: _bindgen_ty_48 = 65;
-pub const POWERPC_EXCP_ISEG: _bindgen_ty_48 = 66;
-pub const POWERPC_EXCP_HDECR: _bindgen_ty_48 = 67;
-pub const POWERPC_EXCP_TRACE: _bindgen_ty_48 = 68;
-pub const POWERPC_EXCP_HDSI: _bindgen_ty_48 = 69;
-pub const POWERPC_EXCP_HISI: _bindgen_ty_48 = 70;
-pub const POWERPC_EXCP_HDSEG: _bindgen_ty_48 = 71;
-pub const POWERPC_EXCP_HISEG: _bindgen_ty_48 = 72;
-pub const POWERPC_EXCP_VPU: _bindgen_ty_48 = 73;
-pub const POWERPC_EXCP_PIT: _bindgen_ty_48 = 74;
-pub const POWERPC_EXCP_EMUL: _bindgen_ty_48 = 77;
-pub const POWERPC_EXCP_IFTLB: _bindgen_ty_48 = 78;
-pub const POWERPC_EXCP_DLTLB: _bindgen_ty_48 = 79;
-pub const POWERPC_EXCP_DSTLB: _bindgen_ty_48 = 80;
-pub const POWERPC_EXCP_FPA: _bindgen_ty_48 = 81;
-pub const POWERPC_EXCP_DABR: _bindgen_ty_48 = 82;
-pub const POWERPC_EXCP_IABR: _bindgen_ty_48 = 83;
-pub const POWERPC_EXCP_SMI: _bindgen_ty_48 = 84;
-pub const POWERPC_EXCP_PERFM: _bindgen_ty_48 = 85;
-pub const POWERPC_EXCP_THERM: _bindgen_ty_48 = 86;
-pub const POWERPC_EXCP_VPUA: _bindgen_ty_48 = 87;
-pub const POWERPC_EXCP_SOFTP: _bindgen_ty_48 = 88;
-pub const POWERPC_EXCP_MAINT: _bindgen_ty_48 = 89;
-pub const POWERPC_EXCP_MEXTBR: _bindgen_ty_48 = 90;
-pub const POWERPC_EXCP_NMEXTBR: _bindgen_ty_48 = 91;
-pub const POWERPC_EXCP_ITLBE: _bindgen_ty_48 = 92;
-pub const POWERPC_EXCP_DTLBE: _bindgen_ty_48 = 93;
-pub const POWERPC_EXCP_VSXU: _bindgen_ty_48 = 94;
-pub const POWERPC_EXCP_FU: _bindgen_ty_48 = 95;
-pub const POWERPC_EXCP_HV_EMU: _bindgen_ty_48 = 96;
-pub const POWERPC_EXCP_HV_MAINT: _bindgen_ty_48 = 97;
-pub const POWERPC_EXCP_HV_FU: _bindgen_ty_48 = 98;
-pub const POWERPC_EXCP_SDOOR: _bindgen_ty_48 = 99;
-pub const POWERPC_EXCP_SDOOR_HV: _bindgen_ty_48 = 100;
-pub const POWERPC_EXCP_HVIRT: _bindgen_ty_48 = 101;
-pub const POWERPC_EXCP_SYSCALL_VECTORED: _bindgen_ty_48 = 102;
-pub const POWERPC_EXCP_PERFM_EBB: _bindgen_ty_48 = 103;
-pub const POWERPC_EXCP_EXTERNAL_EBB: _bindgen_ty_48 = 104;
-pub const POWERPC_EXCP_NB: _bindgen_ty_48 = 105;
-pub const POWERPC_EXCP_SYSCALL_USER: _bindgen_ty_48 = 515;
-pub type _bindgen_ty_48 = ::std::os::raw::c_int;
-pub const POWERPC_EXCP_ALIGN_FP: _bindgen_ty_49 = 1;
-pub const POWERPC_EXCP_ALIGN_LST: _bindgen_ty_49 = 2;
-pub const POWERPC_EXCP_ALIGN_LE: _bindgen_ty_49 = 3;
-pub const POWERPC_EXCP_ALIGN_PROT: _bindgen_ty_49 = 4;
-pub const POWERPC_EXCP_ALIGN_BAT: _bindgen_ty_49 = 5;
-pub const POWERPC_EXCP_ALIGN_CACHE: _bindgen_ty_49 = 6;
-pub const POWERPC_EXCP_ALIGN_INSN: _bindgen_ty_49 = 7;
-pub const POWERPC_EXCP_FP: _bindgen_ty_49 = 16;
-pub const POWERPC_EXCP_FP_OX: _bindgen_ty_49 = 1;
-pub const POWERPC_EXCP_FP_UX: _bindgen_ty_49 = 2;
-pub const POWERPC_EXCP_FP_ZX: _bindgen_ty_49 = 3;
-pub const POWERPC_EXCP_FP_XX: _bindgen_ty_49 = 4;
-pub const POWERPC_EXCP_FP_VXSNAN: _bindgen_ty_49 = 5;
-pub const POWERPC_EXCP_FP_VXISI: _bindgen_ty_49 = 6;
-pub const POWERPC_EXCP_FP_VXIDI: _bindgen_ty_49 = 7;
-pub const POWERPC_EXCP_FP_VXZDZ: _bindgen_ty_49 = 8;
-pub const POWERPC_EXCP_FP_VXIMZ: _bindgen_ty_49 = 9;
-pub const POWERPC_EXCP_FP_VXVC: _bindgen_ty_49 = 10;
-pub const POWERPC_EXCP_FP_VXSOFT: _bindgen_ty_49 = 11;
-pub const POWERPC_EXCP_FP_VXSQRT: _bindgen_ty_49 = 12;
-pub const POWERPC_EXCP_FP_VXCVI: _bindgen_ty_49 = 13;
-pub const POWERPC_EXCP_INVAL: _bindgen_ty_49 = 32;
-pub const POWERPC_EXCP_INVAL_INVAL: _bindgen_ty_49 = 1;
-pub const POWERPC_EXCP_INVAL_LSWX: _bindgen_ty_49 = 2;
-pub const POWERPC_EXCP_INVAL_SPR: _bindgen_ty_49 = 3;
-pub const POWERPC_EXCP_INVAL_FP: _bindgen_ty_49 = 4;
-pub const POWERPC_EXCP_PRIV: _bindgen_ty_49 = 48;
-pub const POWERPC_EXCP_PRIV_OPC: _bindgen_ty_49 = 1;
-pub const POWERPC_EXCP_PRIV_REG: _bindgen_ty_49 = 2;
-pub const POWERPC_EXCP_TRAP: _bindgen_ty_49 = 64;
-pub type _bindgen_ty_49 = ::std::os::raw::c_uint;
-pub const POWERPC_EXCP_UNKNOWN: powerpc_excp_t = 0;
-pub const POWERPC_EXCP_STD: powerpc_excp_t = 1;
-pub const POWERPC_EXCP_40x: powerpc_excp_t = 2;
-pub const POWERPC_EXCP_6xx: powerpc_excp_t = 3;
-pub const POWERPC_EXCP_7xx: powerpc_excp_t = 4;
-pub const POWERPC_EXCP_74xx: powerpc_excp_t = 5;
-pub const POWERPC_EXCP_BOOKE: powerpc_excp_t = 6;
-pub const POWERPC_EXCP_970: powerpc_excp_t = 7;
-pub const POWERPC_EXCP_POWER7: powerpc_excp_t = 8;
-pub const POWERPC_EXCP_POWER8: powerpc_excp_t = 9;
-pub const POWERPC_EXCP_POWER9: powerpc_excp_t = 10;
-pub const POWERPC_EXCP_POWER10: powerpc_excp_t = 11;
-pub const POWERPC_EXCP_POWER11: powerpc_excp_t = 12;
-pub type powerpc_excp_t = ::std::os::raw::c_uint;
-pub const POWERPC_MMU_UNKNOWN: powerpc_mmu_t = 0;
-pub const POWERPC_MMU_32B: powerpc_mmu_t = 1;
-pub const POWERPC_MMU_SOFT_6xx: powerpc_mmu_t = 2;
-pub const POWERPC_MMU_SOFT_74xx: powerpc_mmu_t = 3;
-pub const POWERPC_MMU_SOFT_4xx: powerpc_mmu_t = 4;
-pub const POWERPC_MMU_REAL: powerpc_mmu_t = 6;
-pub const POWERPC_MMU_MPC8xx: powerpc_mmu_t = 7;
-pub const POWERPC_MMU_BOOKE: powerpc_mmu_t = 8;
-pub const POWERPC_MMU_BOOKE206: powerpc_mmu_t = 9;
-pub const POWERPC_MMU_64B: powerpc_mmu_t = 65537;
-pub const POWERPC_MMU_2_03: powerpc_mmu_t = 65538;
-pub const POWERPC_MMU_2_06: powerpc_mmu_t = 65539;
-pub const POWERPC_MMU_2_07: powerpc_mmu_t = 65540;
-pub const POWERPC_MMU_3_00: powerpc_mmu_t = 65541;
-pub type powerpc_mmu_t = ::std::os::raw::c_uint;
-pub const PPC_FLAGS_INPUT_UNKNOWN: powerpc_input_t = 0;
-pub const PPC_FLAGS_INPUT_6xx: powerpc_input_t = 1;
-pub const PPC_FLAGS_INPUT_BookE: powerpc_input_t = 2;
-pub const PPC_FLAGS_INPUT_405: powerpc_input_t = 3;
-pub const PPC_FLAGS_INPUT_970: powerpc_input_t = 4;
-pub const PPC_FLAGS_INPUT_POWER7: powerpc_input_t = 5;
-pub const PPC_FLAGS_INPUT_POWER9: powerpc_input_t = 6;
-pub const PPC_FLAGS_INPUT_RCPU: powerpc_input_t = 7;
-pub type powerpc_input_t = ::std::os::raw::c_uint;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct opc_handler_t {
-    _unused: [u8; 0],
+unsafe extern "C" {
+    pub fn timerlistgroup_deinit(tlg: *mut QEMUTimerListGroup);
+}
+unsafe extern "C" {
+    pub fn timerlistgroup_run_timers(tlg: *mut QEMUTimerListGroup) -> bool;
+}
+unsafe extern "C" {
+    pub fn timerlistgroup_deadline_ns(tlg: *mut QEMUTimerListGroup) -> i64;
+}
+unsafe extern "C" {
+    pub fn timer_init_full(
+        ts: *mut QEMUTimer,
+        timer_list_group: *mut QEMUTimerListGroup,
+        type_: QEMUClockType,
+        scale: ::std::os::raw::c_int,
+        attributes: ::std::os::raw::c_int,
+        cb: QEMUTimerCB,
+        opaque: *mut ::std::os::raw::c_void,
+    );
+}
+unsafe extern "C" {
+    pub fn timer_deinit(ts: *mut QEMUTimer);
+}
+unsafe extern "C" {
+    pub fn timer_del(ts: *mut QEMUTimer);
+}
+unsafe extern "C" {
+    pub fn timer_mod_ns(ts: *mut QEMUTimer, expire_time: i64);
+}
+unsafe extern "C" {
+    pub fn timer_mod_anticipate_ns(ts: *mut QEMUTimer, expire_time: i64);
+}
+unsafe extern "C" {
+    pub fn timer_mod(ts: *mut QEMUTimer, expire_timer: i64);
+}
+unsafe extern "C" {
+    pub fn timer_mod_anticipate(ts: *mut QEMUTimer, expire_time: i64);
+}
+unsafe extern "C" {
+    pub fn timer_pending(ts: *mut QEMUTimer) -> bool;
+}
+unsafe extern "C" {
+    pub fn timer_expired(timer_head: *mut QEMUTimer, current_time: i64) -> bool;
+}
+unsafe extern "C" {
+    pub fn timer_expire_time_ns(ts: *mut QEMUTimer) -> u64;
+}
+unsafe extern "C" {
+    pub fn timer_get(f: *mut QEMUFile, ts: *mut QEMUTimer);
+}
+unsafe extern "C" {
+    pub fn timer_put(f: *mut QEMUFile, ts: *mut QEMUTimer);
+}
+unsafe extern "C" {
+    pub fn qemu_timeout_ns_to_ms(ns: i64) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn qemu_poll_ns(fds: *mut GPollFD, nfds: guint, timeout: i64) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn init_clocks(notify_cb: QEMUTimerListNotifyCB);
+}
+unsafe extern "C" {
+    pub static mut clock_start: i64;
+}
+unsafe extern "C" {
+    pub static mut use_rt_clock: ::std::os::raw::c_int;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct DisasContext {
-    _unused: [u8; 0],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ppc_dcr_t {
-    _unused: [u8; 0],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ppc_tb_t {
-    _unused: [u8; 0],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ppc_hash_pte64 {
-    _unused: [u8; 0],
-}
-pub type ppc_hash_pte64_t = ppc_hash_pte64;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct PPCHash64Options {
-    _unused: [u8; 0],
-}
-pub type CPUPPCState = CPUArchState;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ppc_spr_t {
-    pub name: *const ::std::os::raw::c_char,
-    pub default_value: target_ulong,
-    pub gdb_id: ::std::os::raw::c_uint,
-    pub uea_read: ::std::option::Option<
-        unsafe extern "C" fn(
-            ctx: *mut DisasContext,
-            gpr_num: ::std::os::raw::c_int,
-            spr_num: ::std::os::raw::c_int,
-        ),
-    >,
-    pub uea_write: ::std::option::Option<
-        unsafe extern "C" fn(
-            ctx: *mut DisasContext,
-            spr_num: ::std::os::raw::c_int,
-            gpr_num: ::std::os::raw::c_int,
-        ),
-    >,
-    pub oea_read: ::std::option::Option<
-        unsafe extern "C" fn(
-            ctx: *mut DisasContext,
-            gpr_num: ::std::os::raw::c_int,
-            spr_num: ::std::os::raw::c_int,
-        ),
-    >,
-    pub oea_write: ::std::option::Option<
-        unsafe extern "C" fn(
-            ctx: *mut DisasContext,
-            spr_num: ::std::os::raw::c_int,
-            gpr_num: ::std::os::raw::c_int,
-        ),
-    >,
-    pub hea_read: ::std::option::Option<
-        unsafe extern "C" fn(
-            ctx: *mut DisasContext,
-            gpr_num: ::std::os::raw::c_int,
-            spr_num: ::std::os::raw::c_int,
-        ),
-    >,
-    pub hea_write: ::std::option::Option<
-        unsafe extern "C" fn(
-            ctx: *mut DisasContext,
-            spr_num: ::std::os::raw::c_int,
-            gpr_num: ::std::os::raw::c_int,
-        ),
-    >,
+pub struct kvm_steal_time {
+    pub steal: u64,
+    pub version: u32,
+    pub flags: u32,
+    pub preempted: u8,
+    pub uint8_t_pad: [u8; 3usize],
+    pub pad: [u32; 11usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ppc_spr_t"][::std::mem::size_of::<ppc_spr_t>() - 72usize];
-    ["Alignment of ppc_spr_t"][::std::mem::align_of::<ppc_spr_t>() - 8usize];
-    ["Offset of field: ppc_spr_t::name"][::std::mem::offset_of!(ppc_spr_t, name) - 0usize];
-    ["Offset of field: ppc_spr_t::default_value"]
-        [::std::mem::offset_of!(ppc_spr_t, default_value) - 8usize];
-    ["Offset of field: ppc_spr_t::gdb_id"][::std::mem::offset_of!(ppc_spr_t, gdb_id) - 16usize];
-    ["Offset of field: ppc_spr_t::uea_read"][::std::mem::offset_of!(ppc_spr_t, uea_read) - 24usize];
-    ["Offset of field: ppc_spr_t::uea_write"]
-        [::std::mem::offset_of!(ppc_spr_t, uea_write) - 32usize];
-    ["Offset of field: ppc_spr_t::oea_read"][::std::mem::offset_of!(ppc_spr_t, oea_read) - 40usize];
-    ["Offset of field: ppc_spr_t::oea_write"]
-        [::std::mem::offset_of!(ppc_spr_t, oea_write) - 48usize];
-    ["Offset of field: ppc_spr_t::hea_read"][::std::mem::offset_of!(ppc_spr_t, hea_read) - 56usize];
-    ["Offset of field: ppc_spr_t::hea_write"]
-        [::std::mem::offset_of!(ppc_spr_t, hea_write) - 64usize];
+    ["Size of kvm_steal_time"][::std::mem::size_of::<kvm_steal_time>() - 64usize];
+    ["Alignment of kvm_steal_time"][::std::mem::align_of::<kvm_steal_time>() - 8usize];
+    ["Offset of field: kvm_steal_time::steal"]
+        [::std::mem::offset_of!(kvm_steal_time, steal) - 0usize];
+    ["Offset of field: kvm_steal_time::version"]
+        [::std::mem::offset_of!(kvm_steal_time, version) - 8usize];
+    ["Offset of field: kvm_steal_time::flags"]
+        [::std::mem::offset_of!(kvm_steal_time, flags) - 12usize];
+    ["Offset of field: kvm_steal_time::preempted"]
+        [::std::mem::offset_of!(kvm_steal_time, preempted) - 16usize];
+    ["Offset of field: kvm_steal_time::uint8_t_pad"]
+        [::std::mem::offset_of!(kvm_steal_time, uint8_t_pad) - 17usize];
+    ["Offset of field: kvm_steal_time::pad"][::std::mem::offset_of!(kvm_steal_time, pad) - 20usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct kvm_clock_pairing {
+    pub sec: i64,
+    pub nsec: i64,
+    pub tsc: u64,
+    pub flags: u32,
+    pub pad: [u32; 9usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of kvm_clock_pairing"][::std::mem::size_of::<kvm_clock_pairing>() - 64usize];
+    ["Alignment of kvm_clock_pairing"][::std::mem::align_of::<kvm_clock_pairing>() - 8usize];
+    ["Offset of field: kvm_clock_pairing::sec"]
+        [::std::mem::offset_of!(kvm_clock_pairing, sec) - 0usize];
+    ["Offset of field: kvm_clock_pairing::nsec"]
+        [::std::mem::offset_of!(kvm_clock_pairing, nsec) - 8usize];
+    ["Offset of field: kvm_clock_pairing::tsc"]
+        [::std::mem::offset_of!(kvm_clock_pairing, tsc) - 16usize];
+    ["Offset of field: kvm_clock_pairing::flags"]
+        [::std::mem::offset_of!(kvm_clock_pairing, flags) - 24usize];
+    ["Offset of field: kvm_clock_pairing::pad"]
+        [::std::mem::offset_of!(kvm_clock_pairing, pad) - 28usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct kvm_mmu_op_header {
+    pub op: u32,
+    pub pad: u32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of kvm_mmu_op_header"][::std::mem::size_of::<kvm_mmu_op_header>() - 8usize];
+    ["Alignment of kvm_mmu_op_header"][::std::mem::align_of::<kvm_mmu_op_header>() - 4usize];
+    ["Offset of field: kvm_mmu_op_header::op"]
+        [::std::mem::offset_of!(kvm_mmu_op_header, op) - 0usize];
+    ["Offset of field: kvm_mmu_op_header::pad"]
+        [::std::mem::offset_of!(kvm_mmu_op_header, pad) - 4usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct kvm_mmu_op_write_pte {
+    pub header: kvm_mmu_op_header,
+    pub pte_phys: u64,
+    pub pte_val: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of kvm_mmu_op_write_pte"][::std::mem::size_of::<kvm_mmu_op_write_pte>() - 24usize];
+    ["Alignment of kvm_mmu_op_write_pte"][::std::mem::align_of::<kvm_mmu_op_write_pte>() - 8usize];
+    ["Offset of field: kvm_mmu_op_write_pte::header"]
+        [::std::mem::offset_of!(kvm_mmu_op_write_pte, header) - 0usize];
+    ["Offset of field: kvm_mmu_op_write_pte::pte_phys"]
+        [::std::mem::offset_of!(kvm_mmu_op_write_pte, pte_phys) - 8usize];
+    ["Offset of field: kvm_mmu_op_write_pte::pte_val"]
+        [::std::mem::offset_of!(kvm_mmu_op_write_pte, pte_val) - 16usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct kvm_mmu_op_flush_tlb {
+    pub header: kvm_mmu_op_header,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of kvm_mmu_op_flush_tlb"][::std::mem::size_of::<kvm_mmu_op_flush_tlb>() - 8usize];
+    ["Alignment of kvm_mmu_op_flush_tlb"][::std::mem::align_of::<kvm_mmu_op_flush_tlb>() - 4usize];
+    ["Offset of field: kvm_mmu_op_flush_tlb::header"]
+        [::std::mem::offset_of!(kvm_mmu_op_flush_tlb, header) - 0usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct kvm_mmu_op_release_pt {
+    pub header: kvm_mmu_op_header,
+    pub pt_phys: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of kvm_mmu_op_release_pt"][::std::mem::size_of::<kvm_mmu_op_release_pt>() - 16usize];
+    ["Alignment of kvm_mmu_op_release_pt"]
+        [::std::mem::align_of::<kvm_mmu_op_release_pt>() - 8usize];
+    ["Offset of field: kvm_mmu_op_release_pt::header"]
+        [::std::mem::offset_of!(kvm_mmu_op_release_pt, header) - 0usize];
+    ["Offset of field: kvm_mmu_op_release_pt::pt_phys"]
+        [::std::mem::offset_of!(kvm_mmu_op_release_pt, pt_phys) - 8usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct kvm_vcpu_pv_apf_data {
+    pub flags: u32,
+    pub token: u32,
+    pub pad: [u8; 56usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of kvm_vcpu_pv_apf_data"][::std::mem::size_of::<kvm_vcpu_pv_apf_data>() - 64usize];
+    ["Alignment of kvm_vcpu_pv_apf_data"][::std::mem::align_of::<kvm_vcpu_pv_apf_data>() - 4usize];
+    ["Offset of field: kvm_vcpu_pv_apf_data::flags"]
+        [::std::mem::offset_of!(kvm_vcpu_pv_apf_data, flags) - 0usize];
+    ["Offset of field: kvm_vcpu_pv_apf_data::token"]
+        [::std::mem::offset_of!(kvm_vcpu_pv_apf_data, token) - 4usize];
+    ["Offset of field: kvm_vcpu_pv_apf_data::pad"]
+        [::std::mem::offset_of!(kvm_vcpu_pv_apf_data, pad) - 8usize];
+};
+pub const R_EAX: _bindgen_ty_52 = 0;
+pub const R_ECX: _bindgen_ty_52 = 1;
+pub const R_EDX: _bindgen_ty_52 = 2;
+pub const R_EBX: _bindgen_ty_52 = 3;
+pub const R_ESP: _bindgen_ty_52 = 4;
+pub const R_EBP: _bindgen_ty_52 = 5;
+pub const R_ESI: _bindgen_ty_52 = 6;
+pub const R_EDI: _bindgen_ty_52 = 7;
+pub const R_R8: _bindgen_ty_52 = 8;
+pub const R_R9: _bindgen_ty_52 = 9;
+pub const R_R10: _bindgen_ty_52 = 10;
+pub const R_R11: _bindgen_ty_52 = 11;
+pub const R_R12: _bindgen_ty_52 = 12;
+pub const R_R13: _bindgen_ty_52 = 13;
+pub const R_R14: _bindgen_ty_52 = 14;
+pub const R_R15: _bindgen_ty_52 = 15;
+pub const R_AL: _bindgen_ty_52 = 0;
+pub const R_CL: _bindgen_ty_52 = 1;
+pub const R_DL: _bindgen_ty_52 = 2;
+pub const R_BL: _bindgen_ty_52 = 3;
+pub const R_AH: _bindgen_ty_52 = 4;
+pub const R_CH: _bindgen_ty_52 = 5;
+pub const R_DH: _bindgen_ty_52 = 6;
+pub const R_BH: _bindgen_ty_52 = 7;
+pub type _bindgen_ty_52 = ::std::os::raw::c_uint;
+pub const R_ES: X86Seg = 0;
+pub const R_CS: X86Seg = 1;
+pub const R_SS: X86Seg = 2;
+pub const R_DS: X86Seg = 3;
+pub const R_FS: X86Seg = 4;
+pub const R_GS: X86Seg = 5;
+pub const R_LDTR: X86Seg = 6;
+pub const R_TR: X86Seg = 7;
+pub type X86Seg = ::std::os::raw::c_uint;
+pub const FEAT_1_EDX: FeatureWord = 0;
+pub const FEAT_1_ECX: FeatureWord = 1;
+pub const FEAT_7_0_EBX: FeatureWord = 2;
+pub const FEAT_7_0_ECX: FeatureWord = 3;
+pub const FEAT_7_0_EDX: FeatureWord = 4;
+pub const FEAT_7_1_EAX: FeatureWord = 5;
+pub const FEAT_8000_0001_EDX: FeatureWord = 6;
+pub const FEAT_8000_0001_ECX: FeatureWord = 7;
+pub const FEAT_8000_0007_EBX: FeatureWord = 8;
+pub const FEAT_8000_0007_EDX: FeatureWord = 9;
+pub const FEAT_8000_0008_EBX: FeatureWord = 10;
+pub const FEAT_8000_0021_EAX: FeatureWord = 11;
+pub const FEAT_8000_0021_EBX: FeatureWord = 12;
+pub const FEAT_8000_0022_EAX: FeatureWord = 13;
+pub const FEAT_C000_0001_EDX: FeatureWord = 14;
+pub const FEAT_KVM: FeatureWord = 15;
+pub const FEAT_KVM_HINTS: FeatureWord = 16;
+pub const FEAT_SVM: FeatureWord = 17;
+pub const FEAT_XSAVE: FeatureWord = 18;
+pub const FEAT_6_EAX: FeatureWord = 19;
+pub const FEAT_XSAVE_XCR0_LO: FeatureWord = 20;
+pub const FEAT_XSAVE_XCR0_HI: FeatureWord = 21;
+pub const FEAT_ARCH_CAPABILITIES: FeatureWord = 22;
+pub const FEAT_CORE_CAPABILITY: FeatureWord = 23;
+pub const FEAT_PERF_CAPABILITIES: FeatureWord = 24;
+pub const FEAT_VMX_PROCBASED_CTLS: FeatureWord = 25;
+pub const FEAT_VMX_SECONDARY_CTLS: FeatureWord = 26;
+pub const FEAT_VMX_PINBASED_CTLS: FeatureWord = 27;
+pub const FEAT_VMX_EXIT_CTLS: FeatureWord = 28;
+pub const FEAT_VMX_ENTRY_CTLS: FeatureWord = 29;
+pub const FEAT_VMX_MISC: FeatureWord = 30;
+pub const FEAT_VMX_EPT_VPID_CAPS: FeatureWord = 31;
+pub const FEAT_VMX_BASIC: FeatureWord = 32;
+pub const FEAT_VMX_VMFUNC: FeatureWord = 33;
+pub const FEAT_14_0_ECX: FeatureWord = 34;
+pub const FEAT_SGX_12_0_EAX: FeatureWord = 35;
+pub const FEAT_SGX_12_0_EBX: FeatureWord = 36;
+pub const FEAT_SGX_12_1_EAX: FeatureWord = 37;
+pub const FEAT_XSAVE_XSS_LO: FeatureWord = 38;
+pub const FEAT_XSAVE_XSS_HI: FeatureWord = 39;
+pub const FEAT_7_1_EDX: FeatureWord = 40;
+pub const FEAT_7_2_EDX: FeatureWord = 41;
+pub const FEAT_24_0_EBX: FeatureWord = 42;
+pub const FEATURE_WORDS: FeatureWord = 43;
+pub type FeatureWord = ::std::os::raw::c_uint;
+pub type FeatureWordArray = [u64; 43usize];
+unsafe extern "C" {
+    pub fn x86_cpu_get_supported_feature_word(cpu: *mut X86CPU, w: FeatureWord) -> u64;
+}
+pub const CC_OP_EFLAGS: CCOp = 0;
+pub const CC_OP_ADCX: CCOp = 1;
+pub const CC_OP_ADOX: CCOp = 2;
+pub const CC_OP_ADCOX: CCOp = 3;
+pub const CC_OP_MULB: CCOp = 4;
+pub const CC_OP_MULW: CCOp = 5;
+pub const CC_OP_MULL: CCOp = 6;
+pub const CC_OP_MULQ: CCOp = 7;
+pub const CC_OP_ADDB: CCOp = 8;
+pub const CC_OP_ADDW: CCOp = 9;
+pub const CC_OP_ADDL: CCOp = 10;
+pub const CC_OP_ADDQ: CCOp = 11;
+pub const CC_OP_ADCB: CCOp = 12;
+pub const CC_OP_ADCW: CCOp = 13;
+pub const CC_OP_ADCL: CCOp = 14;
+pub const CC_OP_ADCQ: CCOp = 15;
+pub const CC_OP_SUBB: CCOp = 16;
+pub const CC_OP_SUBW: CCOp = 17;
+pub const CC_OP_SUBL: CCOp = 18;
+pub const CC_OP_SUBQ: CCOp = 19;
+pub const CC_OP_SBBB: CCOp = 20;
+pub const CC_OP_SBBW: CCOp = 21;
+pub const CC_OP_SBBL: CCOp = 22;
+pub const CC_OP_SBBQ: CCOp = 23;
+pub const CC_OP_LOGICB: CCOp = 24;
+pub const CC_OP_LOGICW: CCOp = 25;
+pub const CC_OP_LOGICL: CCOp = 26;
+pub const CC_OP_LOGICQ: CCOp = 27;
+pub const CC_OP_INCB: CCOp = 28;
+pub const CC_OP_INCW: CCOp = 29;
+pub const CC_OP_INCL: CCOp = 30;
+pub const CC_OP_INCQ: CCOp = 31;
+pub const CC_OP_DECB: CCOp = 32;
+pub const CC_OP_DECW: CCOp = 33;
+pub const CC_OP_DECL: CCOp = 34;
+pub const CC_OP_DECQ: CCOp = 35;
+pub const CC_OP_SHLB: CCOp = 36;
+pub const CC_OP_SHLW: CCOp = 37;
+pub const CC_OP_SHLL: CCOp = 38;
+pub const CC_OP_SHLQ: CCOp = 39;
+pub const CC_OP_SARB: CCOp = 40;
+pub const CC_OP_SARW: CCOp = 41;
+pub const CC_OP_SARL: CCOp = 42;
+pub const CC_OP_SARQ: CCOp = 43;
+pub const CC_OP_BMILGB: CCOp = 44;
+pub const CC_OP_BMILGW: CCOp = 45;
+pub const CC_OP_BMILGL: CCOp = 46;
+pub const CC_OP_BMILGQ: CCOp = 47;
+pub const CC_OP_BLSIB: CCOp = 48;
+pub const CC_OP_BLSIW: CCOp = 49;
+pub const CC_OP_BLSIL: CCOp = 50;
+pub const CC_OP_BLSIQ: CCOp = 51;
+pub const CC_OP_POPCNTB__: CCOp = 52;
+pub const CC_OP_POPCNTW__: CCOp = 53;
+pub const CC_OP_POPCNTL__: CCOp = 54;
+pub const CC_OP_POPCNTQ__: CCOp = 55;
+pub const CC_OP_POPCNT: CCOp = 55;
+pub const CC_OP_DYNAMIC: CCOp = 56;
+pub type CCOp = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct SegmentCache {
+    pub selector: u32,
+    pub base: target_ulong,
+    pub limit: u32,
+    pub flags: u32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of SegmentCache"][::std::mem::size_of::<SegmentCache>() - 24usize];
+    ["Alignment of SegmentCache"][::std::mem::align_of::<SegmentCache>() - 8usize];
+    ["Offset of field: SegmentCache::selector"]
+        [::std::mem::offset_of!(SegmentCache, selector) - 0usize];
+    ["Offset of field: SegmentCache::base"][::std::mem::offset_of!(SegmentCache, base) - 8usize];
+    ["Offset of field: SegmentCache::limit"][::std::mem::offset_of!(SegmentCache, limit) - 16usize];
+    ["Offset of field: SegmentCache::flags"][::std::mem::offset_of!(SegmentCache, flags) - 20usize];
+};
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union MMXReg {
+    pub _b_MMXReg: [u8; 8usize],
+    pub _w_MMXReg: [u16; 4usize],
+    pub _l_MMXReg: [u32; 2usize],
+    pub _q_MMXReg: [u64; 1usize],
+    pub _s_MMXReg: [float32; 2usize],
+    pub _d_MMXReg: [float64; 1usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of MMXReg"][::std::mem::size_of::<MMXReg>() - 8usize];
+    ["Alignment of MMXReg"][::std::mem::align_of::<MMXReg>() - 8usize];
+    ["Offset of field: MMXReg::_b_MMXReg"][::std::mem::offset_of!(MMXReg, _b_MMXReg) - 0usize];
+    ["Offset of field: MMXReg::_w_MMXReg"][::std::mem::offset_of!(MMXReg, _w_MMXReg) - 0usize];
+    ["Offset of field: MMXReg::_l_MMXReg"][::std::mem::offset_of!(MMXReg, _l_MMXReg) - 0usize];
+    ["Offset of field: MMXReg::_q_MMXReg"][::std::mem::offset_of!(MMXReg, _q_MMXReg) - 0usize];
+    ["Offset of field: MMXReg::_s_MMXReg"][::std::mem::offset_of!(MMXReg, _s_MMXReg) - 0usize];
+    ["Offset of field: MMXReg::_d_MMXReg"][::std::mem::offset_of!(MMXReg, _d_MMXReg) - 0usize];
+};
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union XMMReg {
+    pub _q_XMMReg: [u64; 2usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of XMMReg"][::std::mem::size_of::<XMMReg>() - 16usize];
+    ["Alignment of XMMReg"][::std::mem::align_of::<XMMReg>() - 8usize];
+    ["Offset of field: XMMReg::_q_XMMReg"][::std::mem::offset_of!(XMMReg, _q_XMMReg) - 0usize];
+};
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union YMMReg {
+    pub _q_YMMReg: [u64; 4usize],
+    pub _x_YMMReg: [XMMReg; 2usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of YMMReg"][::std::mem::size_of::<YMMReg>() - 32usize];
+    ["Alignment of YMMReg"][::std::mem::align_of::<YMMReg>() - 8usize];
+    ["Offset of field: YMMReg::_q_YMMReg"][::std::mem::offset_of!(YMMReg, _q_YMMReg) - 0usize];
+    ["Offset of field: YMMReg::_x_YMMReg"][::std::mem::offset_of!(YMMReg, _x_YMMReg) - 0usize];
+};
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union ZMMReg {
+    pub _b_ZMMReg: [u8; 64usize],
+    pub _w_ZMMReg: [u16; 32usize],
+    pub _l_ZMMReg: [u32; 16usize],
+    pub _q_ZMMReg: [u64; 8usize],
+    pub _h_ZMMReg: [float16; 32usize],
+    pub _s_ZMMReg: [float32; 16usize],
+    pub _d_ZMMReg: [float64; 8usize],
+    pub _x_ZMMReg: [XMMReg; 4usize],
+    pub _y_ZMMReg: [YMMReg; 2usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of ZMMReg"][::std::mem::size_of::<ZMMReg>() - 64usize];
+    ["Alignment of ZMMReg"][::std::mem::align_of::<ZMMReg>() - 8usize];
+    ["Offset of field: ZMMReg::_b_ZMMReg"][::std::mem::offset_of!(ZMMReg, _b_ZMMReg) - 0usize];
+    ["Offset of field: ZMMReg::_w_ZMMReg"][::std::mem::offset_of!(ZMMReg, _w_ZMMReg) - 0usize];
+    ["Offset of field: ZMMReg::_l_ZMMReg"][::std::mem::offset_of!(ZMMReg, _l_ZMMReg) - 0usize];
+    ["Offset of field: ZMMReg::_q_ZMMReg"][::std::mem::offset_of!(ZMMReg, _q_ZMMReg) - 0usize];
+    ["Offset of field: ZMMReg::_h_ZMMReg"][::std::mem::offset_of!(ZMMReg, _h_ZMMReg) - 0usize];
+    ["Offset of field: ZMMReg::_s_ZMMReg"][::std::mem::offset_of!(ZMMReg, _s_ZMMReg) - 0usize];
+    ["Offset of field: ZMMReg::_d_ZMMReg"][::std::mem::offset_of!(ZMMReg, _d_ZMMReg) - 0usize];
+    ["Offset of field: ZMMReg::_x_ZMMReg"][::std::mem::offset_of!(ZMMReg, _x_ZMMReg) - 0usize];
+    ["Offset of field: ZMMReg::_y_ZMMReg"][::std::mem::offset_of!(ZMMReg, _y_ZMMReg) - 0usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct BNDReg {
+    pub lb: u64,
+    pub ub: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of BNDReg"][::std::mem::size_of::<BNDReg>() - 16usize];
+    ["Alignment of BNDReg"][::std::mem::align_of::<BNDReg>() - 8usize];
+    ["Offset of field: BNDReg::lb"][::std::mem::offset_of!(BNDReg, lb) - 0usize];
+    ["Offset of field: BNDReg::ub"][::std::mem::offset_of!(BNDReg, ub) - 8usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct BNDCSReg {
+    pub cfgu: u64,
+    pub sts: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of BNDCSReg"][::std::mem::size_of::<BNDCSReg>() - 16usize];
+    ["Alignment of BNDCSReg"][::std::mem::align_of::<BNDCSReg>() - 8usize];
+    ["Offset of field: BNDCSReg::cfgu"][::std::mem::offset_of!(BNDCSReg, cfgu) - 0usize];
+    ["Offset of field: BNDCSReg::sts"][::std::mem::offset_of!(BNDCSReg, sts) - 8usize];
 };
 #[repr(C)]
 #[repr(align(16))]
 #[derive(Copy, Clone)]
-pub union _ppc_vsr_t {
-    pub u8_: [u8; 16usize],
-    pub u16_: [u16; 8usize],
-    pub u32_: [u32; 4usize],
-    pub u64_: [u64; 2usize],
-    pub s8: [i8; 16usize],
-    pub s16: [i16; 8usize],
-    pub s32: [i32; 4usize],
-    pub s64: [i64; 2usize],
-    pub f16: [float16; 8usize],
-    pub f32_: [float32; 4usize],
-    pub f64_: [float64; 2usize],
-    pub f128: float128,
-    pub u128_: Int128Alias___uint128_t,
-    pub s128: Int128,
+pub union FPReg {
+    pub d: floatx80,
+    pub mmx: MMXReg,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of _ppc_vsr_t"][::std::mem::size_of::<_ppc_vsr_t>() - 16usize];
-    ["Alignment of _ppc_vsr_t"][::std::mem::align_of::<_ppc_vsr_t>() - 16usize];
-    ["Offset of field: _ppc_vsr_t::u8_"][::std::mem::offset_of!(_ppc_vsr_t, u8_) - 0usize];
-    ["Offset of field: _ppc_vsr_t::u16_"][::std::mem::offset_of!(_ppc_vsr_t, u16_) - 0usize];
-    ["Offset of field: _ppc_vsr_t::u32_"][::std::mem::offset_of!(_ppc_vsr_t, u32_) - 0usize];
-    ["Offset of field: _ppc_vsr_t::u64_"][::std::mem::offset_of!(_ppc_vsr_t, u64_) - 0usize];
-    ["Offset of field: _ppc_vsr_t::s8"][::std::mem::offset_of!(_ppc_vsr_t, s8) - 0usize];
-    ["Offset of field: _ppc_vsr_t::s16"][::std::mem::offset_of!(_ppc_vsr_t, s16) - 0usize];
-    ["Offset of field: _ppc_vsr_t::s32"][::std::mem::offset_of!(_ppc_vsr_t, s32) - 0usize];
-    ["Offset of field: _ppc_vsr_t::s64"][::std::mem::offset_of!(_ppc_vsr_t, s64) - 0usize];
-    ["Offset of field: _ppc_vsr_t::f16"][::std::mem::offset_of!(_ppc_vsr_t, f16) - 0usize];
-    ["Offset of field: _ppc_vsr_t::f32_"][::std::mem::offset_of!(_ppc_vsr_t, f32_) - 0usize];
-    ["Offset of field: _ppc_vsr_t::f64_"][::std::mem::offset_of!(_ppc_vsr_t, f64_) - 0usize];
-    ["Offset of field: _ppc_vsr_t::f128"][::std::mem::offset_of!(_ppc_vsr_t, f128) - 0usize];
-    ["Offset of field: _ppc_vsr_t::u128_"][::std::mem::offset_of!(_ppc_vsr_t, u128_) - 0usize];
-    ["Offset of field: _ppc_vsr_t::s128"][::std::mem::offset_of!(_ppc_vsr_t, s128) - 0usize];
-};
-pub type ppc_vsr_t = _ppc_vsr_t;
-pub type ppc_avr_t = ppc_vsr_t;
-pub type ppc_fprp_t = ppc_vsr_t;
-pub type ppc_acc_t = ppc_vsr_t;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ppc6xx_tlb_t {
-    pub pte0: target_ulong,
-    pub pte1: target_ulong,
-    pub EPN: target_ulong,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ppc6xx_tlb_t"][::std::mem::size_of::<ppc6xx_tlb_t>() - 24usize];
-    ["Alignment of ppc6xx_tlb_t"][::std::mem::align_of::<ppc6xx_tlb_t>() - 8usize];
-    ["Offset of field: ppc6xx_tlb_t::pte0"][::std::mem::offset_of!(ppc6xx_tlb_t, pte0) - 0usize];
-    ["Offset of field: ppc6xx_tlb_t::pte1"][::std::mem::offset_of!(ppc6xx_tlb_t, pte1) - 8usize];
-    ["Offset of field: ppc6xx_tlb_t::EPN"][::std::mem::offset_of!(ppc6xx_tlb_t, EPN) - 16usize];
+    ["Size of FPReg"][::std::mem::size_of::<FPReg>() - 16usize];
+    ["Alignment of FPReg"][::std::mem::align_of::<FPReg>() - 16usize];
+    ["Offset of field: FPReg::d"][::std::mem::offset_of!(FPReg, d) - 0usize];
+    ["Offset of field: FPReg::mmx"][::std::mem::offset_of!(FPReg, mmx) - 0usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct ppcemb_tlb_t {
-    pub RPN: u64,
-    pub EPN: target_ulong,
-    pub PID: target_ulong,
-    pub size: target_ulong,
-    pub prot: u32,
-    pub attr: u32,
+pub struct MTRRVar {
+    pub base: u64,
+    pub mask: u64,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ppcemb_tlb_t"][::std::mem::size_of::<ppcemb_tlb_t>() - 40usize];
-    ["Alignment of ppcemb_tlb_t"][::std::mem::align_of::<ppcemb_tlb_t>() - 8usize];
-    ["Offset of field: ppcemb_tlb_t::RPN"][::std::mem::offset_of!(ppcemb_tlb_t, RPN) - 0usize];
-    ["Offset of field: ppcemb_tlb_t::EPN"][::std::mem::offset_of!(ppcemb_tlb_t, EPN) - 8usize];
-    ["Offset of field: ppcemb_tlb_t::PID"][::std::mem::offset_of!(ppcemb_tlb_t, PID) - 16usize];
-    ["Offset of field: ppcemb_tlb_t::size"][::std::mem::offset_of!(ppcemb_tlb_t, size) - 24usize];
-    ["Offset of field: ppcemb_tlb_t::prot"][::std::mem::offset_of!(ppcemb_tlb_t, prot) - 32usize];
-    ["Offset of field: ppcemb_tlb_t::attr"][::std::mem::offset_of!(ppcemb_tlb_t, attr) - 36usize];
+    ["Size of MTRRVar"][::std::mem::size_of::<MTRRVar>() - 16usize];
+    ["Alignment of MTRRVar"][::std::mem::align_of::<MTRRVar>() - 8usize];
+    ["Offset of field: MTRRVar::base"][::std::mem::offset_of!(MTRRVar, base) - 0usize];
+    ["Offset of field: MTRRVar::mask"][::std::mem::offset_of!(MTRRVar, mask) - 8usize];
+};
+#[repr(C)]
+#[repr(align(16))]
+#[derive(Copy, Clone)]
+pub struct X86LegacyXSaveArea {
+    pub fcw: u16,
+    pub fsw: u16,
+    pub ftw: u8,
+    pub reserved: u8,
+    pub fpop: u16,
+    pub __bindgen_anon_1: X86LegacyXSaveArea__bindgen_ty_1,
+    pub mxcsr: u32,
+    pub mxcsr_mask: u32,
+    pub fpregs: [FPReg; 8usize],
+    pub xmm_regs: [[u8; 16usize]; 16usize],
+    pub hw_reserved: [u32; 12usize],
+    pub sw_reserved: [u32; 12usize],
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union X86LegacyXSaveArea__bindgen_ty_1 {
+    pub __bindgen_anon_1: X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_1,
+    pub __bindgen_anon_2: X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_1 {
+    pub fpip: u64,
+    pub fpdp: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_1"]
+        [::std::mem::size_of::<X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_1>() - 16usize];
+    ["Alignment of X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_1"]
+        [::std::mem::align_of::<X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_1>() - 8usize];
+    ["Offset of field: X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_1::fpip"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_1, fpip) - 0usize];
+    ["Offset of field: X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_1::fpdp"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_1, fpdp) - 8usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct ppcmas_tlb_t {
-    pub mas8: u32,
-    pub mas1: u32,
-    pub mas2: u64,
-    pub mas7_3: u64,
+pub struct X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2 {
+    pub fip: u32,
+    pub fcs: u32,
+    pub foo: u32,
+    pub fos: u32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ppcmas_tlb_t"][::std::mem::size_of::<ppcmas_tlb_t>() - 24usize];
-    ["Alignment of ppcmas_tlb_t"][::std::mem::align_of::<ppcmas_tlb_t>() - 8usize];
-    ["Offset of field: ppcmas_tlb_t::mas8"][::std::mem::offset_of!(ppcmas_tlb_t, mas8) - 0usize];
-    ["Offset of field: ppcmas_tlb_t::mas1"][::std::mem::offset_of!(ppcmas_tlb_t, mas1) - 4usize];
-    ["Offset of field: ppcmas_tlb_t::mas2"][::std::mem::offset_of!(ppcmas_tlb_t, mas2) - 8usize];
-    ["Offset of field: ppcmas_tlb_t::mas7_3"]
-        [::std::mem::offset_of!(ppcmas_tlb_t, mas7_3) - 16usize];
+    ["Size of X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2"]
+        [::std::mem::size_of::<X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2>() - 16usize];
+    ["Alignment of X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2"]
+        [::std::mem::align_of::<X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2>() - 4usize];
+    ["Offset of field: X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2::fip"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2, fip) - 0usize];
+    ["Offset of field: X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2::fcs"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2, fcs) - 4usize];
+    ["Offset of field: X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2::foo"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2, foo) - 8usize];
+    ["Offset of field: X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2::fos"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea__bindgen_ty_1__bindgen_ty_2, fos) - 12usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of X86LegacyXSaveArea__bindgen_ty_1"]
+        [::std::mem::size_of::<X86LegacyXSaveArea__bindgen_ty_1>() - 16usize];
+    ["Alignment of X86LegacyXSaveArea__bindgen_ty_1"]
+        [::std::mem::align_of::<X86LegacyXSaveArea__bindgen_ty_1>() - 8usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of X86LegacyXSaveArea"][::std::mem::size_of::<X86LegacyXSaveArea>() - 512usize];
+    ["Alignment of X86LegacyXSaveArea"][::std::mem::align_of::<X86LegacyXSaveArea>() - 16usize];
+    ["Offset of field: X86LegacyXSaveArea::fcw"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea, fcw) - 0usize];
+    ["Offset of field: X86LegacyXSaveArea::fsw"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea, fsw) - 2usize];
+    ["Offset of field: X86LegacyXSaveArea::ftw"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea, ftw) - 4usize];
+    ["Offset of field: X86LegacyXSaveArea::reserved"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea, reserved) - 5usize];
+    ["Offset of field: X86LegacyXSaveArea::fpop"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea, fpop) - 6usize];
+    ["Offset of field: X86LegacyXSaveArea::mxcsr"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea, mxcsr) - 24usize];
+    ["Offset of field: X86LegacyXSaveArea::mxcsr_mask"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea, mxcsr_mask) - 28usize];
+    ["Offset of field: X86LegacyXSaveArea::fpregs"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea, fpregs) - 32usize];
+    ["Offset of field: X86LegacyXSaveArea::xmm_regs"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea, xmm_regs) - 160usize];
+    ["Offset of field: X86LegacyXSaveArea::hw_reserved"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea, hw_reserved) - 416usize];
+    ["Offset of field: X86LegacyXSaveArea::sw_reserved"]
+        [::std::mem::offset_of!(X86LegacyXSaveArea, sw_reserved) - 464usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct X86XSaveHeader {
+    pub xstate_bv: u64,
+    pub xcomp_bv: u64,
+    pub reserve0: u64,
+    pub reserved: [u8; 40usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of X86XSaveHeader"][::std::mem::size_of::<X86XSaveHeader>() - 64usize];
+    ["Alignment of X86XSaveHeader"][::std::mem::align_of::<X86XSaveHeader>() - 8usize];
+    ["Offset of field: X86XSaveHeader::xstate_bv"]
+        [::std::mem::offset_of!(X86XSaveHeader, xstate_bv) - 0usize];
+    ["Offset of field: X86XSaveHeader::xcomp_bv"]
+        [::std::mem::offset_of!(X86XSaveHeader, xcomp_bv) - 8usize];
+    ["Offset of field: X86XSaveHeader::reserve0"]
+        [::std::mem::offset_of!(X86XSaveHeader, reserve0) - 16usize];
+    ["Offset of field: X86XSaveHeader::reserved"]
+        [::std::mem::offset_of!(X86XSaveHeader, reserved) - 24usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct XSaveAVX {
+    pub ymmh: [[u8; 16usize]; 16usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of XSaveAVX"][::std::mem::size_of::<XSaveAVX>() - 256usize];
+    ["Alignment of XSaveAVX"][::std::mem::align_of::<XSaveAVX>() - 1usize];
+    ["Offset of field: XSaveAVX::ymmh"][::std::mem::offset_of!(XSaveAVX, ymmh) - 0usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct XSaveBNDREG {
+    pub bnd_regs: [BNDReg; 4usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of XSaveBNDREG"][::std::mem::size_of::<XSaveBNDREG>() - 64usize];
+    ["Alignment of XSaveBNDREG"][::std::mem::align_of::<XSaveBNDREG>() - 8usize];
+    ["Offset of field: XSaveBNDREG::bnd_regs"]
+        [::std::mem::offset_of!(XSaveBNDREG, bnd_regs) - 0usize];
 };
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub union ppc_tlb_t {
-    pub tlb6: *mut ppc6xx_tlb_t,
-    pub tlbe: *mut ppcemb_tlb_t,
-    pub tlbm: *mut ppcmas_tlb_t,
+pub union XSaveBNDCSR {
+    pub bndcsr: BNDCSReg,
+    pub data: [u8; 64usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ppc_tlb_t"][::std::mem::size_of::<ppc_tlb_t>() - 8usize];
-    ["Alignment of ppc_tlb_t"][::std::mem::align_of::<ppc_tlb_t>() - 8usize];
-    ["Offset of field: ppc_tlb_t::tlb6"][::std::mem::offset_of!(ppc_tlb_t, tlb6) - 0usize];
-    ["Offset of field: ppc_tlb_t::tlbe"][::std::mem::offset_of!(ppc_tlb_t, tlbe) - 0usize];
-    ["Offset of field: ppc_tlb_t::tlbm"][::std::mem::offset_of!(ppc_tlb_t, tlbm) - 0usize];
+    ["Size of XSaveBNDCSR"][::std::mem::size_of::<XSaveBNDCSR>() - 64usize];
+    ["Alignment of XSaveBNDCSR"][::std::mem::align_of::<XSaveBNDCSR>() - 8usize];
+    ["Offset of field: XSaveBNDCSR::bndcsr"][::std::mem::offset_of!(XSaveBNDCSR, bndcsr) - 0usize];
+    ["Offset of field: XSaveBNDCSR::data"][::std::mem::offset_of!(XSaveBNDCSR, data) - 0usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct PPCHash64SegmentPageSizes {
-    _unused: [u8; 0],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ppc_slb_t {
-    pub esid: u64,
-    pub vsid: u64,
-    pub sps: *const PPCHash64SegmentPageSizes,
+pub struct XSaveOpmask {
+    pub opmask_regs: [u64; 8usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ppc_slb_t"][::std::mem::size_of::<ppc_slb_t>() - 24usize];
-    ["Alignment of ppc_slb_t"][::std::mem::align_of::<ppc_slb_t>() - 8usize];
-    ["Offset of field: ppc_slb_t::esid"][::std::mem::offset_of!(ppc_slb_t, esid) - 0usize];
-    ["Offset of field: ppc_slb_t::vsid"][::std::mem::offset_of!(ppc_slb_t, vsid) - 8usize];
-    ["Offset of field: ppc_slb_t::sps"][::std::mem::offset_of!(ppc_slb_t, sps) - 16usize];
+    ["Size of XSaveOpmask"][::std::mem::size_of::<XSaveOpmask>() - 64usize];
+    ["Alignment of XSaveOpmask"][::std::mem::align_of::<XSaveOpmask>() - 8usize];
+    ["Offset of field: XSaveOpmask::opmask_regs"]
+        [::std::mem::offset_of!(XSaveOpmask, opmask_regs) - 0usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct ppc_v3_pate_t {
-    pub dw0: u64,
-    pub dw1: u64,
+pub struct XSaveZMM_Hi256 {
+    pub zmm_hi256: [[u8; 32usize]; 16usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ppc_v3_pate_t"][::std::mem::size_of::<ppc_v3_pate_t>() - 16usize];
-    ["Alignment of ppc_v3_pate_t"][::std::mem::align_of::<ppc_v3_pate_t>() - 8usize];
-    ["Offset of field: ppc_v3_pate_t::dw0"][::std::mem::offset_of!(ppc_v3_pate_t, dw0) - 0usize];
-    ["Offset of field: ppc_v3_pate_t::dw1"][::std::mem::offset_of!(ppc_v3_pate_t, dw1) - 8usize];
+    ["Size of XSaveZMM_Hi256"][::std::mem::size_of::<XSaveZMM_Hi256>() - 512usize];
+    ["Alignment of XSaveZMM_Hi256"][::std::mem::align_of::<XSaveZMM_Hi256>() - 1usize];
+    ["Offset of field: XSaveZMM_Hi256::zmm_hi256"]
+        [::std::mem::offset_of!(XSaveZMM_Hi256, zmm_hi256) - 0usize];
 };
-pub const PMU_EVENT_INVALID: PMUEventType = 0;
-pub const PMU_EVENT_INACTIVE: PMUEventType = 1;
-pub const PMU_EVENT_CYCLES: PMUEventType = 2;
-pub const PMU_EVENT_INSTRUCTIONS: PMUEventType = 3;
-pub const PMU_EVENT_INSN_RUN_LATCH: PMUEventType = 4;
-pub type PMUEventType = ::std::os::raw::c_uint;
-pub const R_MSR_SF_SHIFT: _bindgen_ty_50 = 63;
-pub type _bindgen_ty_50 = ::std::os::raw::c_uint;
-pub const R_MSR_SF_LENGTH: _bindgen_ty_51 = 1;
-pub type _bindgen_ty_51 = ::std::os::raw::c_uint;
-pub const R_MSR_SF_MASK: _bindgen_ty_52 = 9223372036854775808;
-pub type _bindgen_ty_52 = ::std::os::raw::c_ulong;
-pub const R_MSR_TAG_SHIFT: _bindgen_ty_53 = 62;
-pub type _bindgen_ty_53 = ::std::os::raw::c_uint;
-pub const R_MSR_TAG_LENGTH: _bindgen_ty_54 = 1;
-pub type _bindgen_ty_54 = ::std::os::raw::c_uint;
-pub const R_MSR_TAG_MASK: _bindgen_ty_55 = 4611686018427387904;
-pub type _bindgen_ty_55 = ::std::os::raw::c_ulong;
-pub const R_MSR_ISF_SHIFT: _bindgen_ty_56 = 61;
-pub type _bindgen_ty_56 = ::std::os::raw::c_uint;
-pub const R_MSR_ISF_LENGTH: _bindgen_ty_57 = 1;
-pub type _bindgen_ty_57 = ::std::os::raw::c_uint;
-pub const R_MSR_ISF_MASK: _bindgen_ty_58 = 2305843009213693952;
-pub type _bindgen_ty_58 = ::std::os::raw::c_ulong;
-pub const R_MSR_HV_SHIFT: _bindgen_ty_59 = 60;
-pub type _bindgen_ty_59 = ::std::os::raw::c_uint;
-pub const R_MSR_HV_LENGTH: _bindgen_ty_60 = 1;
-pub type _bindgen_ty_60 = ::std::os::raw::c_uint;
-pub const R_MSR_HV_MASK: _bindgen_ty_61 = 1152921504606846976;
-pub type _bindgen_ty_61 = ::std::os::raw::c_ulong;
-pub const R_MSR_TS0_SHIFT: _bindgen_ty_62 = 34;
-pub type _bindgen_ty_62 = ::std::os::raw::c_uint;
-pub const R_MSR_TS0_LENGTH: _bindgen_ty_63 = 1;
-pub type _bindgen_ty_63 = ::std::os::raw::c_uint;
-pub const R_MSR_TS0_MASK: _bindgen_ty_64 = 17179869184;
-pub type _bindgen_ty_64 = ::std::os::raw::c_ulong;
-pub const R_MSR_TS1_SHIFT: _bindgen_ty_65 = 33;
-pub type _bindgen_ty_65 = ::std::os::raw::c_uint;
-pub const R_MSR_TS1_LENGTH: _bindgen_ty_66 = 1;
-pub type _bindgen_ty_66 = ::std::os::raw::c_uint;
-pub const R_MSR_TS1_MASK: _bindgen_ty_67 = 8589934592;
-pub type _bindgen_ty_67 = ::std::os::raw::c_ulong;
-pub const R_MSR_TS_SHIFT: _bindgen_ty_68 = 34;
-pub type _bindgen_ty_68 = ::std::os::raw::c_uint;
-pub const R_MSR_TS_LENGTH: _bindgen_ty_69 = 2;
-pub type _bindgen_ty_69 = ::std::os::raw::c_uint;
-pub const R_MSR_TS_MASK: _bindgen_ty_70 = 51539607552;
-pub type _bindgen_ty_70 = ::std::os::raw::c_ulong;
-pub const R_MSR_TM_SHIFT: _bindgen_ty_71 = 32;
-pub type _bindgen_ty_71 = ::std::os::raw::c_uint;
-pub const R_MSR_TM_LENGTH: _bindgen_ty_72 = 1;
-pub type _bindgen_ty_72 = ::std::os::raw::c_uint;
-pub const R_MSR_TM_MASK: _bindgen_ty_73 = 4294967296;
-pub type _bindgen_ty_73 = ::std::os::raw::c_ulong;
-pub const R_MSR_CM_SHIFT: _bindgen_ty_74 = 31;
-pub type _bindgen_ty_74 = ::std::os::raw::c_uint;
-pub const R_MSR_CM_LENGTH: _bindgen_ty_75 = 1;
-pub type _bindgen_ty_75 = ::std::os::raw::c_uint;
-pub const R_MSR_CM_MASK: _bindgen_ty_76 = 2147483648;
-pub type _bindgen_ty_76 = ::std::os::raw::c_uint;
-pub const R_MSR_ICM_SHIFT: _bindgen_ty_77 = 30;
-pub type _bindgen_ty_77 = ::std::os::raw::c_uint;
-pub const R_MSR_ICM_LENGTH: _bindgen_ty_78 = 1;
-pub type _bindgen_ty_78 = ::std::os::raw::c_uint;
-pub const R_MSR_ICM_MASK: _bindgen_ty_79 = 1073741824;
-pub type _bindgen_ty_79 = ::std::os::raw::c_uint;
-pub const R_MSR_GS_SHIFT: _bindgen_ty_80 = 28;
-pub type _bindgen_ty_80 = ::std::os::raw::c_uint;
-pub const R_MSR_GS_LENGTH: _bindgen_ty_81 = 1;
-pub type _bindgen_ty_81 = ::std::os::raw::c_uint;
-pub const R_MSR_GS_MASK: _bindgen_ty_82 = 268435456;
-pub type _bindgen_ty_82 = ::std::os::raw::c_uint;
-pub const R_MSR_UCLE_SHIFT: _bindgen_ty_83 = 26;
-pub type _bindgen_ty_83 = ::std::os::raw::c_uint;
-pub const R_MSR_UCLE_LENGTH: _bindgen_ty_84 = 1;
-pub type _bindgen_ty_84 = ::std::os::raw::c_uint;
-pub const R_MSR_UCLE_MASK: _bindgen_ty_85 = 67108864;
-pub type _bindgen_ty_85 = ::std::os::raw::c_uint;
-pub const R_MSR_VR_SHIFT: _bindgen_ty_86 = 25;
-pub type _bindgen_ty_86 = ::std::os::raw::c_uint;
-pub const R_MSR_VR_LENGTH: _bindgen_ty_87 = 1;
-pub type _bindgen_ty_87 = ::std::os::raw::c_uint;
-pub const R_MSR_VR_MASK: _bindgen_ty_88 = 33554432;
-pub type _bindgen_ty_88 = ::std::os::raw::c_uint;
-pub const R_MSR_SPE_SHIFT: _bindgen_ty_89 = 25;
-pub type _bindgen_ty_89 = ::std::os::raw::c_uint;
-pub const R_MSR_SPE_LENGTH: _bindgen_ty_90 = 1;
-pub type _bindgen_ty_90 = ::std::os::raw::c_uint;
-pub const R_MSR_SPE_MASK: _bindgen_ty_91 = 33554432;
-pub type _bindgen_ty_91 = ::std::os::raw::c_uint;
-pub const R_MSR_VSX_SHIFT: _bindgen_ty_92 = 23;
-pub type _bindgen_ty_92 = ::std::os::raw::c_uint;
-pub const R_MSR_VSX_LENGTH: _bindgen_ty_93 = 1;
-pub type _bindgen_ty_93 = ::std::os::raw::c_uint;
-pub const R_MSR_VSX_MASK: _bindgen_ty_94 = 8388608;
-pub type _bindgen_ty_94 = ::std::os::raw::c_uint;
-pub const R_MSR_S_SHIFT: _bindgen_ty_95 = 22;
-pub type _bindgen_ty_95 = ::std::os::raw::c_uint;
-pub const R_MSR_S_LENGTH: _bindgen_ty_96 = 1;
-pub type _bindgen_ty_96 = ::std::os::raw::c_uint;
-pub const R_MSR_S_MASK: _bindgen_ty_97 = 4194304;
-pub type _bindgen_ty_97 = ::std::os::raw::c_uint;
-pub const R_MSR_KEY_SHIFT: _bindgen_ty_98 = 19;
-pub type _bindgen_ty_98 = ::std::os::raw::c_uint;
-pub const R_MSR_KEY_LENGTH: _bindgen_ty_99 = 1;
-pub type _bindgen_ty_99 = ::std::os::raw::c_uint;
-pub const R_MSR_KEY_MASK: _bindgen_ty_100 = 524288;
-pub type _bindgen_ty_100 = ::std::os::raw::c_uint;
-pub const R_MSR_POW_SHIFT: _bindgen_ty_101 = 18;
-pub type _bindgen_ty_101 = ::std::os::raw::c_uint;
-pub const R_MSR_POW_LENGTH: _bindgen_ty_102 = 1;
-pub type _bindgen_ty_102 = ::std::os::raw::c_uint;
-pub const R_MSR_POW_MASK: _bindgen_ty_103 = 262144;
-pub type _bindgen_ty_103 = ::std::os::raw::c_uint;
-pub const R_MSR_WE_SHIFT: _bindgen_ty_104 = 18;
-pub type _bindgen_ty_104 = ::std::os::raw::c_uint;
-pub const R_MSR_WE_LENGTH: _bindgen_ty_105 = 1;
-pub type _bindgen_ty_105 = ::std::os::raw::c_uint;
-pub const R_MSR_WE_MASK: _bindgen_ty_106 = 262144;
-pub type _bindgen_ty_106 = ::std::os::raw::c_uint;
-pub const R_MSR_TGPR_SHIFT: _bindgen_ty_107 = 17;
-pub type _bindgen_ty_107 = ::std::os::raw::c_uint;
-pub const R_MSR_TGPR_LENGTH: _bindgen_ty_108 = 1;
-pub type _bindgen_ty_108 = ::std::os::raw::c_uint;
-pub const R_MSR_TGPR_MASK: _bindgen_ty_109 = 131072;
-pub type _bindgen_ty_109 = ::std::os::raw::c_uint;
-pub const R_MSR_CE_SHIFT: _bindgen_ty_110 = 17;
-pub type _bindgen_ty_110 = ::std::os::raw::c_uint;
-pub const R_MSR_CE_LENGTH: _bindgen_ty_111 = 1;
-pub type _bindgen_ty_111 = ::std::os::raw::c_uint;
-pub const R_MSR_CE_MASK: _bindgen_ty_112 = 131072;
-pub type _bindgen_ty_112 = ::std::os::raw::c_uint;
-pub const R_MSR_ILE_SHIFT: _bindgen_ty_113 = 16;
-pub type _bindgen_ty_113 = ::std::os::raw::c_uint;
-pub const R_MSR_ILE_LENGTH: _bindgen_ty_114 = 1;
-pub type _bindgen_ty_114 = ::std::os::raw::c_uint;
-pub const R_MSR_ILE_MASK: _bindgen_ty_115 = 65536;
-pub type _bindgen_ty_115 = ::std::os::raw::c_uint;
-pub const R_MSR_EE_SHIFT: _bindgen_ty_116 = 15;
-pub type _bindgen_ty_116 = ::std::os::raw::c_uint;
-pub const R_MSR_EE_LENGTH: _bindgen_ty_117 = 1;
-pub type _bindgen_ty_117 = ::std::os::raw::c_uint;
-pub const R_MSR_EE_MASK: _bindgen_ty_118 = 32768;
-pub type _bindgen_ty_118 = ::std::os::raw::c_uint;
-pub const R_MSR_PR_SHIFT: _bindgen_ty_119 = 14;
-pub type _bindgen_ty_119 = ::std::os::raw::c_uint;
-pub const R_MSR_PR_LENGTH: _bindgen_ty_120 = 1;
-pub type _bindgen_ty_120 = ::std::os::raw::c_uint;
-pub const R_MSR_PR_MASK: _bindgen_ty_121 = 16384;
-pub type _bindgen_ty_121 = ::std::os::raw::c_uint;
-pub const R_MSR_FP_SHIFT: _bindgen_ty_122 = 13;
-pub type _bindgen_ty_122 = ::std::os::raw::c_uint;
-pub const R_MSR_FP_LENGTH: _bindgen_ty_123 = 1;
-pub type _bindgen_ty_123 = ::std::os::raw::c_uint;
-pub const R_MSR_FP_MASK: _bindgen_ty_124 = 8192;
-pub type _bindgen_ty_124 = ::std::os::raw::c_uint;
-pub const R_MSR_ME_SHIFT: _bindgen_ty_125 = 12;
-pub type _bindgen_ty_125 = ::std::os::raw::c_uint;
-pub const R_MSR_ME_LENGTH: _bindgen_ty_126 = 1;
-pub type _bindgen_ty_126 = ::std::os::raw::c_uint;
-pub const R_MSR_ME_MASK: _bindgen_ty_127 = 4096;
-pub type _bindgen_ty_127 = ::std::os::raw::c_uint;
-pub const R_MSR_FE0_SHIFT: _bindgen_ty_128 = 11;
-pub type _bindgen_ty_128 = ::std::os::raw::c_uint;
-pub const R_MSR_FE0_LENGTH: _bindgen_ty_129 = 1;
-pub type _bindgen_ty_129 = ::std::os::raw::c_uint;
-pub const R_MSR_FE0_MASK: _bindgen_ty_130 = 2048;
-pub type _bindgen_ty_130 = ::std::os::raw::c_uint;
-pub const R_MSR_SE_SHIFT: _bindgen_ty_131 = 10;
-pub type _bindgen_ty_131 = ::std::os::raw::c_uint;
-pub const R_MSR_SE_LENGTH: _bindgen_ty_132 = 1;
-pub type _bindgen_ty_132 = ::std::os::raw::c_uint;
-pub const R_MSR_SE_MASK: _bindgen_ty_133 = 1024;
-pub type _bindgen_ty_133 = ::std::os::raw::c_uint;
-pub const R_MSR_DWE_SHIFT: _bindgen_ty_134 = 10;
-pub type _bindgen_ty_134 = ::std::os::raw::c_uint;
-pub const R_MSR_DWE_LENGTH: _bindgen_ty_135 = 1;
-pub type _bindgen_ty_135 = ::std::os::raw::c_uint;
-pub const R_MSR_DWE_MASK: _bindgen_ty_136 = 1024;
-pub type _bindgen_ty_136 = ::std::os::raw::c_uint;
-pub const R_MSR_UBLE_SHIFT: _bindgen_ty_137 = 10;
-pub type _bindgen_ty_137 = ::std::os::raw::c_uint;
-pub const R_MSR_UBLE_LENGTH: _bindgen_ty_138 = 1;
-pub type _bindgen_ty_138 = ::std::os::raw::c_uint;
-pub const R_MSR_UBLE_MASK: _bindgen_ty_139 = 1024;
-pub type _bindgen_ty_139 = ::std::os::raw::c_uint;
-pub const R_MSR_BE_SHIFT: _bindgen_ty_140 = 9;
-pub type _bindgen_ty_140 = ::std::os::raw::c_uint;
-pub const R_MSR_BE_LENGTH: _bindgen_ty_141 = 1;
-pub type _bindgen_ty_141 = ::std::os::raw::c_uint;
-pub const R_MSR_BE_MASK: _bindgen_ty_142 = 512;
-pub type _bindgen_ty_142 = ::std::os::raw::c_uint;
-pub const R_MSR_DE_SHIFT: _bindgen_ty_143 = 9;
-pub type _bindgen_ty_143 = ::std::os::raw::c_uint;
-pub const R_MSR_DE_LENGTH: _bindgen_ty_144 = 1;
-pub type _bindgen_ty_144 = ::std::os::raw::c_uint;
-pub const R_MSR_DE_MASK: _bindgen_ty_145 = 512;
-pub type _bindgen_ty_145 = ::std::os::raw::c_uint;
-pub const R_MSR_FE1_SHIFT: _bindgen_ty_146 = 8;
-pub type _bindgen_ty_146 = ::std::os::raw::c_uint;
-pub const R_MSR_FE1_LENGTH: _bindgen_ty_147 = 1;
-pub type _bindgen_ty_147 = ::std::os::raw::c_uint;
-pub const R_MSR_FE1_MASK: _bindgen_ty_148 = 256;
-pub type _bindgen_ty_148 = ::std::os::raw::c_uint;
-pub const R_MSR_AL_SHIFT: _bindgen_ty_149 = 7;
-pub type _bindgen_ty_149 = ::std::os::raw::c_uint;
-pub const R_MSR_AL_LENGTH: _bindgen_ty_150 = 1;
-pub type _bindgen_ty_150 = ::std::os::raw::c_uint;
-pub const R_MSR_AL_MASK: _bindgen_ty_151 = 128;
-pub type _bindgen_ty_151 = ::std::os::raw::c_uint;
-pub const R_MSR_EP_SHIFT: _bindgen_ty_152 = 6;
-pub type _bindgen_ty_152 = ::std::os::raw::c_uint;
-pub const R_MSR_EP_LENGTH: _bindgen_ty_153 = 1;
-pub type _bindgen_ty_153 = ::std::os::raw::c_uint;
-pub const R_MSR_EP_MASK: _bindgen_ty_154 = 64;
-pub type _bindgen_ty_154 = ::std::os::raw::c_uint;
-pub const R_MSR_IR_SHIFT: _bindgen_ty_155 = 5;
-pub type _bindgen_ty_155 = ::std::os::raw::c_uint;
-pub const R_MSR_IR_LENGTH: _bindgen_ty_156 = 1;
-pub type _bindgen_ty_156 = ::std::os::raw::c_uint;
-pub const R_MSR_IR_MASK: _bindgen_ty_157 = 32;
-pub type _bindgen_ty_157 = ::std::os::raw::c_uint;
-pub const R_MSR_DR_SHIFT: _bindgen_ty_158 = 4;
-pub type _bindgen_ty_158 = ::std::os::raw::c_uint;
-pub const R_MSR_DR_LENGTH: _bindgen_ty_159 = 1;
-pub type _bindgen_ty_159 = ::std::os::raw::c_uint;
-pub const R_MSR_DR_MASK: _bindgen_ty_160 = 16;
-pub type _bindgen_ty_160 = ::std::os::raw::c_uint;
-pub const R_MSR_IS_SHIFT: _bindgen_ty_161 = 5;
-pub type _bindgen_ty_161 = ::std::os::raw::c_uint;
-pub const R_MSR_IS_LENGTH: _bindgen_ty_162 = 1;
-pub type _bindgen_ty_162 = ::std::os::raw::c_uint;
-pub const R_MSR_IS_MASK: _bindgen_ty_163 = 32;
-pub type _bindgen_ty_163 = ::std::os::raw::c_uint;
-pub const R_MSR_DS_SHIFT: _bindgen_ty_164 = 4;
-pub type _bindgen_ty_164 = ::std::os::raw::c_uint;
-pub const R_MSR_DS_LENGTH: _bindgen_ty_165 = 1;
-pub type _bindgen_ty_165 = ::std::os::raw::c_uint;
-pub const R_MSR_DS_MASK: _bindgen_ty_166 = 16;
-pub type _bindgen_ty_166 = ::std::os::raw::c_uint;
-pub const R_MSR_PE_SHIFT: _bindgen_ty_167 = 3;
-pub type _bindgen_ty_167 = ::std::os::raw::c_uint;
-pub const R_MSR_PE_LENGTH: _bindgen_ty_168 = 1;
-pub type _bindgen_ty_168 = ::std::os::raw::c_uint;
-pub const R_MSR_PE_MASK: _bindgen_ty_169 = 8;
-pub type _bindgen_ty_169 = ::std::os::raw::c_uint;
-pub const R_MSR_PX_SHIFT: _bindgen_ty_170 = 2;
-pub type _bindgen_ty_170 = ::std::os::raw::c_uint;
-pub const R_MSR_PX_LENGTH: _bindgen_ty_171 = 1;
-pub type _bindgen_ty_171 = ::std::os::raw::c_uint;
-pub const R_MSR_PX_MASK: _bindgen_ty_172 = 4;
-pub type _bindgen_ty_172 = ::std::os::raw::c_uint;
-pub const R_MSR_PMM_SHIFT: _bindgen_ty_173 = 2;
-pub type _bindgen_ty_173 = ::std::os::raw::c_uint;
-pub const R_MSR_PMM_LENGTH: _bindgen_ty_174 = 1;
-pub type _bindgen_ty_174 = ::std::os::raw::c_uint;
-pub const R_MSR_PMM_MASK: _bindgen_ty_175 = 4;
-pub type _bindgen_ty_175 = ::std::os::raw::c_uint;
-pub const R_MSR_RI_SHIFT: _bindgen_ty_176 = 1;
-pub type _bindgen_ty_176 = ::std::os::raw::c_uint;
-pub const R_MSR_RI_LENGTH: _bindgen_ty_177 = 1;
-pub type _bindgen_ty_177 = ::std::os::raw::c_uint;
-pub const R_MSR_RI_MASK: _bindgen_ty_178 = 2;
-pub type _bindgen_ty_178 = ::std::os::raw::c_uint;
-pub const R_MSR_LE_SHIFT: _bindgen_ty_179 = 0;
-pub type _bindgen_ty_179 = ::std::os::raw::c_uint;
-pub const R_MSR_LE_LENGTH: _bindgen_ty_180 = 1;
-pub type _bindgen_ty_180 = ::std::os::raw::c_uint;
-pub const R_MSR_LE_MASK: _bindgen_ty_181 = 1;
-pub type _bindgen_ty_181 = ::std::os::raw::c_uint;
-pub const POWERPC_FLAG_NONE: _bindgen_ty_182 = 0;
-pub const POWERPC_FLAG_SPE: _bindgen_ty_182 = 1;
-pub const POWERPC_FLAG_VRE: _bindgen_ty_182 = 2;
-pub const POWERPC_FLAG_TGPR: _bindgen_ty_182 = 4;
-pub const POWERPC_FLAG_CE: _bindgen_ty_182 = 8;
-pub const POWERPC_FLAG_SE: _bindgen_ty_182 = 16;
-pub const POWERPC_FLAG_DWE: _bindgen_ty_182 = 32;
-pub const POWERPC_FLAG_UBLE: _bindgen_ty_182 = 64;
-pub const POWERPC_FLAG_BE: _bindgen_ty_182 = 128;
-pub const POWERPC_FLAG_DE: _bindgen_ty_182 = 256;
-pub const POWERPC_FLAG_PX: _bindgen_ty_182 = 512;
-pub const POWERPC_FLAG_PMM: _bindgen_ty_182 = 1024;
-pub const POWERPC_FLAG_BUS_CLK: _bindgen_ty_182 = 131072;
-pub const POWERPC_FLAG_CFAR: _bindgen_ty_182 = 262144;
-pub const POWERPC_FLAG_VSX: _bindgen_ty_182 = 524288;
-pub const POWERPC_FLAG_TM: _bindgen_ty_182 = 1048576;
-pub const POWERPC_FLAG_SCV: _bindgen_ty_182 = 2097152;
-pub const POWERPC_FLAG_SMT: _bindgen_ty_182 = 4194304;
-pub const POWERPC_FLAG_SMT_1LPAR: _bindgen_ty_182 = 8388608;
-pub const POWERPC_FLAG_BHRB: _bindgen_ty_182 = 16777216;
-pub type _bindgen_ty_182 = ::std::os::raw::c_uint;
-pub const HFLAGS_LE: _bindgen_ty_183 = 0;
-pub const HFLAGS_HV: _bindgen_ty_183 = 1;
-pub const HFLAGS_64: _bindgen_ty_183 = 2;
-pub const HFLAGS_GTSE: _bindgen_ty_183 = 3;
-pub const HFLAGS_DR: _bindgen_ty_183 = 4;
-pub const HFLAGS_HR: _bindgen_ty_183 = 5;
-pub const HFLAGS_SPE: _bindgen_ty_183 = 6;
-pub const HFLAGS_TM: _bindgen_ty_183 = 8;
-pub const HFLAGS_BE: _bindgen_ty_183 = 9;
-pub const HFLAGS_SE: _bindgen_ty_183 = 10;
-pub const HFLAGS_FP: _bindgen_ty_183 = 13;
-pub const HFLAGS_PR: _bindgen_ty_183 = 14;
-pub const HFLAGS_PMCC0: _bindgen_ty_183 = 15;
-pub const HFLAGS_PMCC1: _bindgen_ty_183 = 16;
-pub const HFLAGS_PMCJCE: _bindgen_ty_183 = 17;
-pub const HFLAGS_PMC_OTHER: _bindgen_ty_183 = 18;
-pub const HFLAGS_INSN_CNT: _bindgen_ty_183 = 19;
-pub const HFLAGS_BHRB_ENABLE: _bindgen_ty_183 = 20;
-pub const HFLAGS_VSX: _bindgen_ty_183 = 23;
-pub const HFLAGS_VR: _bindgen_ty_183 = 25;
-pub const HFLAGS_IMMU_IDX: _bindgen_ty_183 = 26;
-pub const HFLAGS_DMMU_IDX: _bindgen_ty_183 = 29;
-pub type _bindgen_ty_183 = ::std::os::raw::c_uint;
-pub const R_FPSCR_FI_SHIFT: _bindgen_ty_184 = 17;
-pub type _bindgen_ty_184 = ::std::os::raw::c_uint;
-pub const R_FPSCR_FI_LENGTH: _bindgen_ty_185 = 1;
-pub type _bindgen_ty_185 = ::std::os::raw::c_uint;
-pub const R_FPSCR_FI_MASK: _bindgen_ty_186 = 131072;
-pub type _bindgen_ty_186 = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct ppc_radix_page_info {
-    pub count: u32,
-    pub entries: [u32; 8usize],
+pub struct XSaveHi16_ZMM {
+    pub hi16_zmm: [[u8; 64usize]; 16usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ppc_radix_page_info"][::std::mem::size_of::<ppc_radix_page_info>() - 36usize];
-    ["Alignment of ppc_radix_page_info"][::std::mem::align_of::<ppc_radix_page_info>() - 4usize];
-    ["Offset of field: ppc_radix_page_info::count"]
-        [::std::mem::offset_of!(ppc_radix_page_info, count) - 0usize];
-    ["Offset of field: ppc_radix_page_info::entries"]
-        [::std::mem::offset_of!(ppc_radix_page_info, entries) - 4usize];
+    ["Size of XSaveHi16_ZMM"][::std::mem::size_of::<XSaveHi16_ZMM>() - 1024usize];
+    ["Alignment of XSaveHi16_ZMM"][::std::mem::align_of::<XSaveHi16_ZMM>() - 1usize];
+    ["Offset of field: XSaveHi16_ZMM::hi16_zmm"]
+        [::std::mem::offset_of!(XSaveHi16_ZMM, hi16_zmm) - 0usize];
 };
-pub const R_DEXCR_PNH_SBHE_SHIFT: _bindgen_ty_187 = 63;
-pub type _bindgen_ty_187 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_SBHE_LENGTH: _bindgen_ty_188 = 1;
-pub type _bindgen_ty_188 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_SBHE_MASK: _bindgen_ty_189 = 9223372036854775808;
-pub type _bindgen_ty_189 = ::std::os::raw::c_ulong;
-pub const R_DEXCR_PRO_SBHE_SHIFT: _bindgen_ty_190 = 31;
-pub type _bindgen_ty_190 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PRO_SBHE_LENGTH: _bindgen_ty_191 = 1;
-pub type _bindgen_ty_191 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PRO_SBHE_MASK: _bindgen_ty_192 = 2147483648;
-pub type _bindgen_ty_192 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_SBHE_SHIFT: _bindgen_ty_193 = 63;
-pub type _bindgen_ty_193 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_SBHE_LENGTH: _bindgen_ty_194 = 1;
-pub type _bindgen_ty_194 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_SBHE_MASK: _bindgen_ty_195 = 9223372036854775808;
-pub type _bindgen_ty_195 = ::std::os::raw::c_ulong;
-pub const R_HDEXCR_ENF_SBHE_SHIFT: _bindgen_ty_196 = 31;
-pub type _bindgen_ty_196 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_ENF_SBHE_LENGTH: _bindgen_ty_197 = 1;
-pub type _bindgen_ty_197 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_ENF_SBHE_MASK: _bindgen_ty_198 = 2147483648;
-pub type _bindgen_ty_198 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_IBRTPD_SHIFT: _bindgen_ty_199 = 62;
-pub type _bindgen_ty_199 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_IBRTPD_LENGTH: _bindgen_ty_200 = 1;
-pub type _bindgen_ty_200 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_IBRTPD_MASK: _bindgen_ty_201 = 4611686018427387904;
-pub type _bindgen_ty_201 = ::std::os::raw::c_ulong;
-pub const R_DEXCR_PRO_IBRTPD_SHIFT: _bindgen_ty_202 = 30;
-pub type _bindgen_ty_202 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PRO_IBRTPD_LENGTH: _bindgen_ty_203 = 1;
-pub type _bindgen_ty_203 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PRO_IBRTPD_MASK: _bindgen_ty_204 = 1073741824;
-pub type _bindgen_ty_204 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_IBRTPD_SHIFT: _bindgen_ty_205 = 62;
-pub type _bindgen_ty_205 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_IBRTPD_LENGTH: _bindgen_ty_206 = 1;
-pub type _bindgen_ty_206 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_IBRTPD_MASK: _bindgen_ty_207 = 4611686018427387904;
-pub type _bindgen_ty_207 = ::std::os::raw::c_ulong;
-pub const R_HDEXCR_ENF_IBRTPD_SHIFT: _bindgen_ty_208 = 30;
-pub type _bindgen_ty_208 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_ENF_IBRTPD_LENGTH: _bindgen_ty_209 = 1;
-pub type _bindgen_ty_209 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_ENF_IBRTPD_MASK: _bindgen_ty_210 = 1073741824;
-pub type _bindgen_ty_210 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_SRAPD_SHIFT: _bindgen_ty_211 = 59;
-pub type _bindgen_ty_211 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_SRAPD_LENGTH: _bindgen_ty_212 = 1;
-pub type _bindgen_ty_212 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_SRAPD_MASK: _bindgen_ty_213 = 576460752303423488;
-pub type _bindgen_ty_213 = ::std::os::raw::c_ulong;
-pub const R_DEXCR_PRO_SRAPD_SHIFT: _bindgen_ty_214 = 27;
-pub type _bindgen_ty_214 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PRO_SRAPD_LENGTH: _bindgen_ty_215 = 1;
-pub type _bindgen_ty_215 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PRO_SRAPD_MASK: _bindgen_ty_216 = 134217728;
-pub type _bindgen_ty_216 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_SRAPD_SHIFT: _bindgen_ty_217 = 59;
-pub type _bindgen_ty_217 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_SRAPD_LENGTH: _bindgen_ty_218 = 1;
-pub type _bindgen_ty_218 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_SRAPD_MASK: _bindgen_ty_219 = 576460752303423488;
-pub type _bindgen_ty_219 = ::std::os::raw::c_ulong;
-pub const R_HDEXCR_ENF_SRAPD_SHIFT: _bindgen_ty_220 = 27;
-pub type _bindgen_ty_220 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_ENF_SRAPD_LENGTH: _bindgen_ty_221 = 1;
-pub type _bindgen_ty_221 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_ENF_SRAPD_MASK: _bindgen_ty_222 = 134217728;
-pub type _bindgen_ty_222 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_NPHIE_SHIFT: _bindgen_ty_223 = 58;
-pub type _bindgen_ty_223 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_NPHIE_LENGTH: _bindgen_ty_224 = 1;
-pub type _bindgen_ty_224 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_NPHIE_MASK: _bindgen_ty_225 = 288230376151711744;
-pub type _bindgen_ty_225 = ::std::os::raw::c_ulong;
-pub const R_DEXCR_PRO_NPHIE_SHIFT: _bindgen_ty_226 = 26;
-pub type _bindgen_ty_226 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PRO_NPHIE_LENGTH: _bindgen_ty_227 = 1;
-pub type _bindgen_ty_227 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PRO_NPHIE_MASK: _bindgen_ty_228 = 67108864;
-pub type _bindgen_ty_228 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_NPHIE_SHIFT: _bindgen_ty_229 = 58;
-pub type _bindgen_ty_229 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_NPHIE_LENGTH: _bindgen_ty_230 = 1;
-pub type _bindgen_ty_230 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_NPHIE_MASK: _bindgen_ty_231 = 288230376151711744;
-pub type _bindgen_ty_231 = ::std::os::raw::c_ulong;
-pub const R_HDEXCR_ENF_NPHIE_SHIFT: _bindgen_ty_232 = 26;
-pub type _bindgen_ty_232 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_ENF_NPHIE_LENGTH: _bindgen_ty_233 = 1;
-pub type _bindgen_ty_233 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_ENF_NPHIE_MASK: _bindgen_ty_234 = 67108864;
-pub type _bindgen_ty_234 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_PHIE_SHIFT: _bindgen_ty_235 = 57;
-pub type _bindgen_ty_235 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_PHIE_LENGTH: _bindgen_ty_236 = 1;
-pub type _bindgen_ty_236 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PNH_PHIE_MASK: _bindgen_ty_237 = 144115188075855872;
-pub type _bindgen_ty_237 = ::std::os::raw::c_ulong;
-pub const R_DEXCR_PRO_PHIE_SHIFT: _bindgen_ty_238 = 25;
-pub type _bindgen_ty_238 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PRO_PHIE_LENGTH: _bindgen_ty_239 = 1;
-pub type _bindgen_ty_239 = ::std::os::raw::c_uint;
-pub const R_DEXCR_PRO_PHIE_MASK: _bindgen_ty_240 = 33554432;
-pub type _bindgen_ty_240 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_PHIE_SHIFT: _bindgen_ty_241 = 57;
-pub type _bindgen_ty_241 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_PHIE_LENGTH: _bindgen_ty_242 = 1;
-pub type _bindgen_ty_242 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_HNU_PHIE_MASK: _bindgen_ty_243 = 144115188075855872;
-pub type _bindgen_ty_243 = ::std::os::raw::c_ulong;
-pub const R_HDEXCR_ENF_PHIE_SHIFT: _bindgen_ty_244 = 25;
-pub type _bindgen_ty_244 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_ENF_PHIE_LENGTH: _bindgen_ty_245 = 1;
-pub type _bindgen_ty_245 = ::std::os::raw::c_uint;
-pub const R_HDEXCR_ENF_PHIE_MASK: _bindgen_ty_246 = 33554432;
-pub type _bindgen_ty_246 = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct XSavePKRU {
+    pub pkru: u32,
+    pub padding: u32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of XSavePKRU"][::std::mem::size_of::<XSavePKRU>() - 8usize];
+    ["Alignment of XSavePKRU"][::std::mem::align_of::<XSavePKRU>() - 4usize];
+    ["Offset of field: XSavePKRU::pkru"][::std::mem::offset_of!(XSavePKRU, pkru) - 0usize];
+    ["Offset of field: XSavePKRU::padding"][::std::mem::offset_of!(XSavePKRU, padding) - 4usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct XSaveXTILECFG {
+    pub xtilecfg: [u8; 64usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of XSaveXTILECFG"][::std::mem::size_of::<XSaveXTILECFG>() - 64usize];
+    ["Alignment of XSaveXTILECFG"][::std::mem::align_of::<XSaveXTILECFG>() - 1usize];
+    ["Offset of field: XSaveXTILECFG::xtilecfg"]
+        [::std::mem::offset_of!(XSaveXTILECFG, xtilecfg) - 0usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct XSaveXTILEDATA {
+    pub xtiledata: [[u8; 1024usize]; 8usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of XSaveXTILEDATA"][::std::mem::size_of::<XSaveXTILEDATA>() - 8192usize];
+    ["Alignment of XSaveXTILEDATA"][::std::mem::align_of::<XSaveXTILEDATA>() - 1usize];
+    ["Offset of field: XSaveXTILEDATA::xtiledata"]
+        [::std::mem::offset_of!(XSaveXTILEDATA, xtiledata) - 0usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct LBREntry {
+    pub from: u64,
+    pub to: u64,
+    pub info: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of LBREntry"][::std::mem::size_of::<LBREntry>() - 24usize];
+    ["Alignment of LBREntry"][::std::mem::align_of::<LBREntry>() - 8usize];
+    ["Offset of field: LBREntry::from"][::std::mem::offset_of!(LBREntry, from) - 0usize];
+    ["Offset of field: LBREntry::to"][::std::mem::offset_of!(LBREntry, to) - 8usize];
+    ["Offset of field: LBREntry::info"][::std::mem::offset_of!(LBREntry, info) - 16usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct XSavesArchLBR {
+    pub lbr_ctl: u64,
+    pub lbr_depth: u64,
+    pub ler_from: u64,
+    pub ler_to: u64,
+    pub ler_info: u64,
+    pub lbr_records: [LBREntry; 32usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of XSavesArchLBR"][::std::mem::size_of::<XSavesArchLBR>() - 808usize];
+    ["Alignment of XSavesArchLBR"][::std::mem::align_of::<XSavesArchLBR>() - 8usize];
+    ["Offset of field: XSavesArchLBR::lbr_ctl"]
+        [::std::mem::offset_of!(XSavesArchLBR, lbr_ctl) - 0usize];
+    ["Offset of field: XSavesArchLBR::lbr_depth"]
+        [::std::mem::offset_of!(XSavesArchLBR, lbr_depth) - 8usize];
+    ["Offset of field: XSavesArchLBR::ler_from"]
+        [::std::mem::offset_of!(XSavesArchLBR, ler_from) - 16usize];
+    ["Offset of field: XSavesArchLBR::ler_to"]
+        [::std::mem::offset_of!(XSavesArchLBR, ler_to) - 24usize];
+    ["Offset of field: XSavesArchLBR::ler_info"]
+        [::std::mem::offset_of!(XSavesArchLBR, ler_info) - 32usize];
+    ["Offset of field: XSavesArchLBR::lbr_records"]
+        [::std::mem::offset_of!(XSavesArchLBR, lbr_records) - 40usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ExtSaveArea {
+    pub feature: u32,
+    pub bits: u32,
+    pub offset: u32,
+    pub size: u32,
+    pub ecx: u32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of ExtSaveArea"][::std::mem::size_of::<ExtSaveArea>() - 20usize];
+    ["Alignment of ExtSaveArea"][::std::mem::align_of::<ExtSaveArea>() - 4usize];
+    ["Offset of field: ExtSaveArea::feature"]
+        [::std::mem::offset_of!(ExtSaveArea, feature) - 0usize];
+    ["Offset of field: ExtSaveArea::bits"][::std::mem::offset_of!(ExtSaveArea, bits) - 4usize];
+    ["Offset of field: ExtSaveArea::offset"][::std::mem::offset_of!(ExtSaveArea, offset) - 8usize];
+    ["Offset of field: ExtSaveArea::size"][::std::mem::offset_of!(ExtSaveArea, size) - 12usize];
+    ["Offset of field: ExtSaveArea::ecx"][::std::mem::offset_of!(ExtSaveArea, ecx) - 16usize];
+};
+unsafe extern "C" {
+    pub static mut x86_ext_save_areas: [ExtSaveArea; 19usize];
+}
+pub const TPR_ACCESS_READ: TPRAccess = 0;
+pub const TPR_ACCESS_WRITE: TPRAccess = 1;
+pub type TPRAccess = ::std::os::raw::c_uint;
+pub const DATA_CACHE: CacheType = 0;
+pub const INSTRUCTION_CACHE: CacheType = 1;
+pub const UNIFIED_CACHE: CacheType = 2;
+pub type CacheType = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct CPUCacheInfo {
+    pub type_: CacheType,
+    pub level: u8,
+    pub size: u32,
+    pub line_size: u16,
+    pub associativity: u8,
+    pub partitions: u8,
+    pub sets: u32,
+    pub lines_per_tag: u8,
+    pub self_init: bool,
+    pub no_invd_sharing: bool,
+    pub inclusive: bool,
+    pub complex_indexing: bool,
+    pub share_level: CpuTopologyLevel,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of CPUCacheInfo"][::std::mem::size_of::<CPUCacheInfo>() - 32usize];
+    ["Alignment of CPUCacheInfo"][::std::mem::align_of::<CPUCacheInfo>() - 4usize];
+    ["Offset of field: CPUCacheInfo::type_"][::std::mem::offset_of!(CPUCacheInfo, type_) - 0usize];
+    ["Offset of field: CPUCacheInfo::level"][::std::mem::offset_of!(CPUCacheInfo, level) - 4usize];
+    ["Offset of field: CPUCacheInfo::size"][::std::mem::offset_of!(CPUCacheInfo, size) - 8usize];
+    ["Offset of field: CPUCacheInfo::line_size"]
+        [::std::mem::offset_of!(CPUCacheInfo, line_size) - 12usize];
+    ["Offset of field: CPUCacheInfo::associativity"]
+        [::std::mem::offset_of!(CPUCacheInfo, associativity) - 14usize];
+    ["Offset of field: CPUCacheInfo::partitions"]
+        [::std::mem::offset_of!(CPUCacheInfo, partitions) - 15usize];
+    ["Offset of field: CPUCacheInfo::sets"][::std::mem::offset_of!(CPUCacheInfo, sets) - 16usize];
+    ["Offset of field: CPUCacheInfo::lines_per_tag"]
+        [::std::mem::offset_of!(CPUCacheInfo, lines_per_tag) - 20usize];
+    ["Offset of field: CPUCacheInfo::self_init"]
+        [::std::mem::offset_of!(CPUCacheInfo, self_init) - 21usize];
+    ["Offset of field: CPUCacheInfo::no_invd_sharing"]
+        [::std::mem::offset_of!(CPUCacheInfo, no_invd_sharing) - 22usize];
+    ["Offset of field: CPUCacheInfo::inclusive"]
+        [::std::mem::offset_of!(CPUCacheInfo, inclusive) - 23usize];
+    ["Offset of field: CPUCacheInfo::complex_indexing"]
+        [::std::mem::offset_of!(CPUCacheInfo, complex_indexing) - 24usize];
+    ["Offset of field: CPUCacheInfo::share_level"]
+        [::std::mem::offset_of!(CPUCacheInfo, share_level) - 28usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct CPUCaches {
+    pub l1d_cache: *mut CPUCacheInfo,
+    pub l1i_cache: *mut CPUCacheInfo,
+    pub l2_cache: *mut CPUCacheInfo,
+    pub l3_cache: *mut CPUCacheInfo,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of CPUCaches"][::std::mem::size_of::<CPUCaches>() - 32usize];
+    ["Alignment of CPUCaches"][::std::mem::align_of::<CPUCaches>() - 8usize];
+    ["Offset of field: CPUCaches::l1d_cache"]
+        [::std::mem::offset_of!(CPUCaches, l1d_cache) - 0usize];
+    ["Offset of field: CPUCaches::l1i_cache"]
+        [::std::mem::offset_of!(CPUCaches, l1i_cache) - 8usize];
+    ["Offset of field: CPUCaches::l2_cache"][::std::mem::offset_of!(CPUCaches, l2_cache) - 16usize];
+    ["Offset of field: CPUCaches::l3_cache"][::std::mem::offset_of!(CPUCaches, l3_cache) - 24usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct HVFX86LazyFlags {
+    pub result: target_ulong,
+    pub auxbits: target_ulong,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of HVFX86LazyFlags"][::std::mem::size_of::<HVFX86LazyFlags>() - 16usize];
+    ["Alignment of HVFX86LazyFlags"][::std::mem::align_of::<HVFX86LazyFlags>() - 8usize];
+    ["Offset of field: HVFX86LazyFlags::result"]
+        [::std::mem::offset_of!(HVFX86LazyFlags, result) - 0usize];
+    ["Offset of field: HVFX86LazyFlags::auxbits"]
+        [::std::mem::offset_of!(HVFX86LazyFlags, auxbits) - 8usize];
+};
 #[repr(C)]
 #[repr(align(16))]
 #[derive(Copy, Clone)]
 pub struct CPUArchState {
-    pub gpr: [target_ulong; 32usize],
-    pub gprh: [target_ulong; 32usize],
-    pub lr: target_ulong,
-    pub ctr: target_ulong,
-    pub crf: [u32; 8usize],
-    pub cfar: target_ulong,
-    pub xer: target_ulong,
-    pub so: target_ulong,
-    pub ov: target_ulong,
-    pub ca: target_ulong,
-    pub ov32: target_ulong,
-    pub ca32: target_ulong,
-    pub reserve_addr: target_ulong,
-    pub reserve_length: target_ulong,
-    pub reserve_val: target_ulong,
-    pub reserve_val2: target_ulong,
-    pub msr: target_ulong,
-    pub tgpr: [target_ulong; 4usize],
-    pub nip: target_ulong,
-    pub access_type: ::std::os::raw::c_int,
-    pub has_smt_siblings: bool,
-    pub core_index: ::std::os::raw::c_int,
-    pub chip_index: ::std::os::raw::c_int,
-    pub slb: [ppc_slb_t; 64usize],
-    pub ciabr_breakpoint: *mut CPUBreakpoint,
-    pub dawr0_watchpoint: *mut CPUWatchpoint,
-    pub sr: [target_ulong; 32usize],
-    pub nb_BATs: u32,
-    pub DBAT: [[target_ulong; 8usize]; 2usize],
-    pub IBAT: [[target_ulong; 8usize]; 2usize],
-    pub nb_tlb: i32,
-    pub tlb_per_way: ::std::os::raw::c_int,
-    pub nb_ways: ::std::os::raw::c_int,
-    pub last_way: ::std::os::raw::c_int,
-    pub nb_pids: ::std::os::raw::c_int,
-    pub tlb_type: ::std::os::raw::c_int,
-    pub tlb: ppc_tlb_t,
-    pub tlb_need_flush: u32,
-    pub spr: [target_ulong; 1024usize],
-    pub spr_cb: [ppc_spr_t; 1024usize],
-    pub pmc_ins_cnt: u8,
-    pub pmc_cyc_cnt: u8,
-    pub vscr: u32,
-    pub vsr: [ppc_vsr_t; 64usize],
-    pub vscr_sat: ppc_vsr_t,
-    pub spe_acc: u64,
-    pub spe_fscr: u32,
-    pub vec_status: float_status,
-    pub fp_status: float_status,
-    pub fpscr: target_ulong,
-    pub tb_env: *mut ppc_tb_t,
-    pub dcr_env: *mut ppc_dcr_t,
-    pub dcache_line_size: ::std::os::raw::c_int,
-    pub icache_line_size: ::std::os::raw::c_int,
-    pub bhrb_num_entries: target_ulong,
-    pub bhrb_base: isize,
-    pub bhrb_filter: target_ulong,
-    pub bhrb_offset: target_ulong,
-    pub bhrb_offset_mask: target_ulong,
-    pub bhrb: [u64; 32usize],
-    pub msr_mask: target_ulong,
-    pub mmu_model: powerpc_mmu_t,
-    pub excp_model: powerpc_excp_t,
-    pub bus_model: powerpc_input_t,
-    pub bfd_mach: ::std::os::raw::c_int,
-    pub flags: u32,
-    pub insns_flags: u64,
-    pub insns_flags2: u64,
-    pub error_code: ::std::os::raw::c_int,
-    pub pending_interrupts: u32,
-    pub excp_stats: [u64; 105usize],
-    pub irq_input_state: u32,
-    pub excp_vectors: [target_ulong; 105usize],
-    pub excp_prefix: target_ulong,
-    pub ivor_mask: target_ulong,
-    pub ivpr_mask: target_ulong,
-    pub hreset_vector: target_ulong,
-    pub mpic_iack: hwaddr,
-    pub mpic_proxy: bool,
-    pub has_hv_mode: bool,
-    pub resume_as_sreset: bool,
-    pub quiesced: bool,
+    pub regs: [target_ulong; 16usize],
+    pub eip: target_ulong,
+    pub eflags: target_ulong,
+    pub cc_dst: target_ulong,
+    pub cc_src: target_ulong,
+    pub cc_src2: target_ulong,
+    pub cc_op: u32,
+    pub df: i32,
     pub hflags: u32,
-    pub hflags_compat_nmsr: target_ulong,
-    pub check_pow:
-        ::std::option::Option<unsafe extern "C" fn(env: *mut CPUPPCState) -> ::std::os::raw::c_int>,
-    pub check_attn:
-        ::std::option::Option<unsafe extern "C" fn(env: *mut CPUPPCState) -> ::std::os::raw::c_int>,
-    pub load_info: *mut ::std::os::raw::c_void,
-    pub fit_period: [u8; 4usize],
-    pub wdt_period: [u8; 4usize],
-    pub tm_gpr: [target_ulong; 32usize],
-    pub tm_vsr: [ppc_avr_t; 64usize],
-    pub tm_cr: u64,
-    pub tm_lr: u64,
-    pub tm_ctr: u64,
-    pub tm_fpscr: u64,
-    pub tm_amr: u64,
-    pub tm_ppr: u64,
-    pub tm_vrsave: u64,
-    pub tm_vscr: u32,
-    pub tm_dscr: u64,
-    pub tm_tar: u64,
-    pub pmu_cyc_overflow_timers: [*mut QEMUTimer; 6usize],
-    pub pmu_base_time: u64,
+    pub hflags2: u32,
+    pub segs: [SegmentCache; 6usize],
+    pub ldt: SegmentCache,
+    pub tr: SegmentCache,
+    pub gdt: SegmentCache,
+    pub idt: SegmentCache,
+    pub cr: [target_ulong; 5usize],
+    pub pdptrs_valid: bool,
+    pub pdptrs: [u64; 4usize],
+    pub a20_mask: i32,
+    pub bnd_regs: [BNDReg; 4usize],
+    pub bndcs_regs: BNDCSReg,
+    pub msr_bndcfgs: u64,
+    pub efer: u64,
+    pub start_init_save: CPUArchState__bindgen_ty_1,
+    pub fpstt: ::std::os::raw::c_uint,
+    pub fpus: u16,
+    pub fpuc: u16,
+    pub fptags: [u8; 8usize],
+    pub fpregs: [FPReg; 8usize],
+    pub fpop: u16,
+    pub fpcs: u16,
+    pub fpds: u16,
+    pub fpip: u64,
+    pub fpdp: u64,
+    pub fp_status: float_status,
+    pub ft0: floatx80,
+    pub mmx_status: float_status,
+    pub sse_status: float_status,
+    pub mxcsr: u32,
+    pub xmm_regs: [ZMMReg; 32usize],
+    pub xmm_t0: ZMMReg,
+    pub mmx_t0: MMXReg,
+    pub opmask_regs: [u64; 8usize],
+    pub xtilecfg: [u8; 64usize],
+    pub xtiledata: [u8; 8192usize],
+    pub sysenter_cs: u32,
+    pub sysenter_esp: target_ulong,
+    pub sysenter_eip: target_ulong,
+    pub star: u64,
+    pub vm_hsave: u64,
+    pub lstar: target_ulong,
+    pub cstar: target_ulong,
+    pub fmask: target_ulong,
+    pub kernelgsbase: target_ulong,
+    pub fred_rsp0: u64,
+    pub fred_rsp1: u64,
+    pub fred_rsp2: u64,
+    pub fred_rsp3: u64,
+    pub fred_stklvls: u64,
+    pub fred_ssp1: u64,
+    pub fred_ssp2: u64,
+    pub fred_ssp3: u64,
+    pub fred_config: u64,
+    pub tsc_adjust: u64,
+    pub tsc_deadline: u64,
+    pub tsc_aux: u64,
+    pub xcr0: u64,
+    pub mcg_status: u64,
+    pub msr_ia32_misc_enable: u64,
+    pub msr_ia32_feature_control: u64,
+    pub msr_ia32_sgxlepubkeyhash: [u64; 4usize],
+    pub msr_fixed_ctr_ctrl: u64,
+    pub msr_global_ctrl: u64,
+    pub msr_global_status: u64,
+    pub msr_global_ovf_ctrl: u64,
+    pub msr_fixed_counters: [u64; 3usize],
+    pub msr_gp_counters: [u64; 18usize],
+    pub msr_gp_evtsel: [u64; 18usize],
+    pub pat: u64,
+    pub smbase: u32,
+    pub msr_smi_count: u64,
+    pub pkru: u32,
+    pub pkrs: u32,
+    pub tsx_ctrl: u32,
+    pub spec_ctrl: u64,
+    pub amd_tsc_scale_msr: u64,
+    pub virt_ssbd: u64,
+    pub end_init_save: CPUArchState__bindgen_ty_2,
+    pub system_time_msr: u64,
+    pub wall_clock_msr: u64,
+    pub steal_time_msr: u64,
+    pub async_pf_en_msr: u64,
+    pub async_pf_int_msr: u64,
+    pub pv_eoi_en_msr: u64,
+    pub poll_control_msr: u64,
+    pub msr_hv_hypercall: u64,
+    pub msr_hv_guest_os_id: u64,
+    pub msr_hv_tsc: u64,
+    pub msr_hv_syndbg_control: u64,
+    pub msr_hv_syndbg_status: u64,
+    pub msr_hv_syndbg_send_page: u64,
+    pub msr_hv_syndbg_recv_page: u64,
+    pub msr_hv_syndbg_pending_page: u64,
+    pub msr_hv_syndbg_options: u64,
+    pub msr_hv_vapic: u64,
+    pub msr_hv_crash_params: [u64; 5usize],
+    pub msr_hv_runtime: u64,
+    pub msr_hv_synic_control: u64,
+    pub msr_hv_synic_evt_page: u64,
+    pub msr_hv_synic_msg_page: u64,
+    pub msr_hv_synic_sint: [u64; 16usize],
+    pub msr_hv_stimer_config: [u64; 4usize],
+    pub msr_hv_stimer_count: [u64; 4usize],
+    pub msr_hv_reenlightenment_control: u64,
+    pub msr_hv_tsc_emulation_control: u64,
+    pub msr_hv_tsc_emulation_status: u64,
+    pub msr_rtit_ctrl: u64,
+    pub msr_rtit_status: u64,
+    pub msr_rtit_output_base: u64,
+    pub msr_rtit_output_mask: u64,
+    pub msr_rtit_cr3_match: u64,
+    pub msr_rtit_addrs: [u64; 8usize],
+    pub msr_xfd: u64,
+    pub msr_xfd_err: u64,
+    pub msr_lbr_ctl: u64,
+    pub msr_lbr_depth: u64,
+    pub lbr_records: [LBREntry; 32usize],
+    pub msr_hwcr: u64,
+    pub error_code: ::std::os::raw::c_int,
+    pub exception_is_int: ::std::os::raw::c_int,
+    pub exception_next_eip: target_ulong,
+    pub dr: [target_ulong; 8usize],
+    pub __bindgen_anon_1: CPUArchState__bindgen_ty_3,
+    pub old_exception: ::std::os::raw::c_int,
+    pub vm_vmcb: u64,
+    pub tsc_offset: u64,
+    pub intercept: u64,
+    pub intercept_cr_read: u16,
+    pub intercept_cr_write: u16,
+    pub intercept_dr_read: u16,
+    pub intercept_dr_write: u16,
+    pub intercept_exceptions: u32,
+    pub nested_cr3: u64,
+    pub nested_pg_mode: u32,
+    pub v_tpr: u8,
+    pub int_ctl: u32,
+    pub nmi_injected: u8,
+    pub nmi_pending: u8,
+    pub retaddr: usize,
+    pub msr_rapl_power_unit: u64,
+    pub msr_pkg_energy_status: u64,
+    pub end_reset_fields: CPUArchState__bindgen_ty_4,
+    pub cpuid_level_func7: u32,
+    pub cpuid_min_level_func7: u32,
+    pub cpuid_min_level: u32,
+    pub cpuid_min_xlevel: u32,
+    pub cpuid_min_xlevel2: u32,
+    pub cpuid_max_level: u32,
+    pub cpuid_max_xlevel: u32,
+    pub cpuid_max_xlevel2: u32,
+    pub cpuid_level: u32,
+    pub cpuid_xlevel: u32,
+    pub cpuid_xlevel2: u32,
+    pub cpuid_vendor1: u32,
+    pub cpuid_vendor2: u32,
+    pub cpuid_vendor3: u32,
+    pub cpuid_version: u32,
+    pub features: FeatureWordArray,
+    pub avx10_version: u8,
+    pub user_features: FeatureWordArray,
+    pub cpuid_model: [u32; 12usize],
+    pub cache_info_cpuid2: CPUCaches,
+    pub cache_info_cpuid4: CPUCaches,
+    pub cache_info_amd: CPUCaches,
+    pub mtrr_fixed: [u64; 11usize],
+    pub mtrr_deftype: u64,
+    pub mtrr_var: [MTRRVar; 8usize],
+    pub mp_state: u32,
+    pub exception_nr: i32,
+    pub interrupt_injected: i32,
+    pub soft_interrupt: u8,
+    pub exception_pending: u8,
+    pub exception_injected: u8,
+    pub has_error_code: u8,
+    pub exception_has_payload: u8,
+    pub exception_payload: u64,
+    pub triple_fault_pending: u8,
+    pub ins_len: u32,
+    pub sipi_vector: u32,
+    pub tsc_valid: bool,
+    pub tsc_khz: i64,
+    pub user_tsc_khz: i64,
+    pub apic_bus_freq: u64,
+    pub tsc: u64,
+    pub xsave_buf: *mut ::std::os::raw::c_void,
+    pub xsave_buf_len: u32,
+    pub nested_state: *mut kvm_nested_state,
+    pub xen_vcpu_info_mr: *mut MemoryRegion,
+    pub xen_vcpu_info_hva: *mut ::std::os::raw::c_void,
+    pub xen_vcpu_info_gpa: u64,
+    pub xen_vcpu_info_default_gpa: u64,
+    pub xen_vcpu_time_info_gpa: u64,
+    pub xen_vcpu_runstate_gpa: u64,
+    pub xen_vcpu_callback_vector: u8,
+    pub xen_callback_asserted: bool,
+    pub xen_virq: [u16; 24usize],
+    pub xen_singleshot_timer_ns: u64,
+    pub xen_singleshot_timer: *mut QEMUTimer,
+    pub xen_periodic_timer_period: u64,
+    pub xen_periodic_timer: *mut QEMUTimer,
+    pub xen_timers_lock: QemuMutex,
+    pub mcg_cap: u64,
+    pub mcg_ctl: u64,
+    pub mcg_ext_ctl: u64,
+    pub mce_banks: [u64; 40usize],
+    pub xstate_bv: u64,
+    pub fpus_vmstate: u16,
+    pub fptag_vmstate: u16,
+    pub fpregs_format_vmstate: u16,
+    pub xss: u64,
+    pub umwait: u32,
+    pub tpr_access_type: TPRAccess,
+    pub topo_info: X86CPUTopoInfo,
+    pub avail_cpu_topo: [::std::os::raw::c_ulong; 1usize],
 }
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct CPUArchState__bindgen_ty_1 {}
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUArchState"][::std::mem::size_of::<CPUArchState>() - 89424usize];
-    ["Alignment of CPUArchState"][::std::mem::align_of::<CPUArchState>() - 16usize];
-    ["Offset of field: CPUArchState::gpr"][::std::mem::offset_of!(CPUArchState, gpr) - 0usize];
-    ["Offset of field: CPUArchState::gprh"][::std::mem::offset_of!(CPUArchState, gprh) - 256usize];
-    ["Offset of field: CPUArchState::lr"][::std::mem::offset_of!(CPUArchState, lr) - 512usize];
-    ["Offset of field: CPUArchState::ctr"][::std::mem::offset_of!(CPUArchState, ctr) - 520usize];
-    ["Offset of field: CPUArchState::crf"][::std::mem::offset_of!(CPUArchState, crf) - 528usize];
-    ["Offset of field: CPUArchState::cfar"][::std::mem::offset_of!(CPUArchState, cfar) - 560usize];
-    ["Offset of field: CPUArchState::xer"][::std::mem::offset_of!(CPUArchState, xer) - 568usize];
-    ["Offset of field: CPUArchState::so"][::std::mem::offset_of!(CPUArchState, so) - 576usize];
-    ["Offset of field: CPUArchState::ov"][::std::mem::offset_of!(CPUArchState, ov) - 584usize];
-    ["Offset of field: CPUArchState::ca"][::std::mem::offset_of!(CPUArchState, ca) - 592usize];
-    ["Offset of field: CPUArchState::ov32"][::std::mem::offset_of!(CPUArchState, ov32) - 600usize];
-    ["Offset of field: CPUArchState::ca32"][::std::mem::offset_of!(CPUArchState, ca32) - 608usize];
-    ["Offset of field: CPUArchState::reserve_addr"]
-        [::std::mem::offset_of!(CPUArchState, reserve_addr) - 616usize];
-    ["Offset of field: CPUArchState::reserve_length"]
-        [::std::mem::offset_of!(CPUArchState, reserve_length) - 624usize];
-    ["Offset of field: CPUArchState::reserve_val"]
-        [::std::mem::offset_of!(CPUArchState, reserve_val) - 632usize];
-    ["Offset of field: CPUArchState::reserve_val2"]
-        [::std::mem::offset_of!(CPUArchState, reserve_val2) - 640usize];
-    ["Offset of field: CPUArchState::msr"][::std::mem::offset_of!(CPUArchState, msr) - 648usize];
-    ["Offset of field: CPUArchState::tgpr"][::std::mem::offset_of!(CPUArchState, tgpr) - 656usize];
-    ["Offset of field: CPUArchState::nip"][::std::mem::offset_of!(CPUArchState, nip) - 688usize];
-    ["Offset of field: CPUArchState::access_type"]
-        [::std::mem::offset_of!(CPUArchState, access_type) - 696usize];
-    ["Offset of field: CPUArchState::has_smt_siblings"]
-        [::std::mem::offset_of!(CPUArchState, has_smt_siblings) - 700usize];
-    ["Offset of field: CPUArchState::core_index"]
-        [::std::mem::offset_of!(CPUArchState, core_index) - 704usize];
-    ["Offset of field: CPUArchState::chip_index"]
-        [::std::mem::offset_of!(CPUArchState, chip_index) - 708usize];
-    ["Offset of field: CPUArchState::slb"][::std::mem::offset_of!(CPUArchState, slb) - 712usize];
-    ["Offset of field: CPUArchState::ciabr_breakpoint"]
-        [::std::mem::offset_of!(CPUArchState, ciabr_breakpoint) - 2248usize];
-    ["Offset of field: CPUArchState::dawr0_watchpoint"]
-        [::std::mem::offset_of!(CPUArchState, dawr0_watchpoint) - 2256usize];
-    ["Offset of field: CPUArchState::sr"][::std::mem::offset_of!(CPUArchState, sr) - 2264usize];
-    ["Offset of field: CPUArchState::nb_BATs"]
-        [::std::mem::offset_of!(CPUArchState, nb_BATs) - 2520usize];
-    ["Offset of field: CPUArchState::DBAT"][::std::mem::offset_of!(CPUArchState, DBAT) - 2528usize];
-    ["Offset of field: CPUArchState::IBAT"][::std::mem::offset_of!(CPUArchState, IBAT) - 2656usize];
-    ["Offset of field: CPUArchState::nb_tlb"]
-        [::std::mem::offset_of!(CPUArchState, nb_tlb) - 2784usize];
-    ["Offset of field: CPUArchState::tlb_per_way"]
-        [::std::mem::offset_of!(CPUArchState, tlb_per_way) - 2788usize];
-    ["Offset of field: CPUArchState::nb_ways"]
-        [::std::mem::offset_of!(CPUArchState, nb_ways) - 2792usize];
-    ["Offset of field: CPUArchState::last_way"]
-        [::std::mem::offset_of!(CPUArchState, last_way) - 2796usize];
-    ["Offset of field: CPUArchState::nb_pids"]
-        [::std::mem::offset_of!(CPUArchState, nb_pids) - 2800usize];
-    ["Offset of field: CPUArchState::tlb_type"]
-        [::std::mem::offset_of!(CPUArchState, tlb_type) - 2804usize];
-    ["Offset of field: CPUArchState::tlb"][::std::mem::offset_of!(CPUArchState, tlb) - 2808usize];
-    ["Offset of field: CPUArchState::tlb_need_flush"]
-        [::std::mem::offset_of!(CPUArchState, tlb_need_flush) - 2816usize];
-    ["Offset of field: CPUArchState::spr"][::std::mem::offset_of!(CPUArchState, spr) - 2824usize];
-    ["Offset of field: CPUArchState::spr_cb"]
-        [::std::mem::offset_of!(CPUArchState, spr_cb) - 11016usize];
-    ["Offset of field: CPUArchState::pmc_ins_cnt"]
-        [::std::mem::offset_of!(CPUArchState, pmc_ins_cnt) - 84744usize];
-    ["Offset of field: CPUArchState::pmc_cyc_cnt"]
-        [::std::mem::offset_of!(CPUArchState, pmc_cyc_cnt) - 84745usize];
-    ["Offset of field: CPUArchState::vscr"]
-        [::std::mem::offset_of!(CPUArchState, vscr) - 84748usize];
-    ["Offset of field: CPUArchState::vsr"][::std::mem::offset_of!(CPUArchState, vsr) - 84752usize];
-    ["Offset of field: CPUArchState::vscr_sat"]
-        [::std::mem::offset_of!(CPUArchState, vscr_sat) - 85776usize];
-    ["Offset of field: CPUArchState::spe_acc"]
-        [::std::mem::offset_of!(CPUArchState, spe_acc) - 85792usize];
-    ["Offset of field: CPUArchState::spe_fscr"]
-        [::std::mem::offset_of!(CPUArchState, spe_fscr) - 85800usize];
-    ["Offset of field: CPUArchState::vec_status"]
-        [::std::mem::offset_of!(CPUArchState, vec_status) - 85804usize];
-    ["Offset of field: CPUArchState::fp_status"]
-        [::std::mem::offset_of!(CPUArchState, fp_status) - 85820usize];
-    ["Offset of field: CPUArchState::fpscr"]
-        [::std::mem::offset_of!(CPUArchState, fpscr) - 85840usize];
-    ["Offset of field: CPUArchState::tb_env"]
-        [::std::mem::offset_of!(CPUArchState, tb_env) - 85848usize];
-    ["Offset of field: CPUArchState::dcr_env"]
-        [::std::mem::offset_of!(CPUArchState, dcr_env) - 85856usize];
-    ["Offset of field: CPUArchState::dcache_line_size"]
-        [::std::mem::offset_of!(CPUArchState, dcache_line_size) - 85864usize];
-    ["Offset of field: CPUArchState::icache_line_size"]
-        [::std::mem::offset_of!(CPUArchState, icache_line_size) - 85868usize];
-    ["Offset of field: CPUArchState::bhrb_num_entries"]
-        [::std::mem::offset_of!(CPUArchState, bhrb_num_entries) - 85872usize];
-    ["Offset of field: CPUArchState::bhrb_base"]
-        [::std::mem::offset_of!(CPUArchState, bhrb_base) - 85880usize];
-    ["Offset of field: CPUArchState::bhrb_filter"]
-        [::std::mem::offset_of!(CPUArchState, bhrb_filter) - 85888usize];
-    ["Offset of field: CPUArchState::bhrb_offset"]
-        [::std::mem::offset_of!(CPUArchState, bhrb_offset) - 85896usize];
-    ["Offset of field: CPUArchState::bhrb_offset_mask"]
-        [::std::mem::offset_of!(CPUArchState, bhrb_offset_mask) - 85904usize];
-    ["Offset of field: CPUArchState::bhrb"]
-        [::std::mem::offset_of!(CPUArchState, bhrb) - 85912usize];
-    ["Offset of field: CPUArchState::msr_mask"]
-        [::std::mem::offset_of!(CPUArchState, msr_mask) - 86168usize];
-    ["Offset of field: CPUArchState::mmu_model"]
-        [::std::mem::offset_of!(CPUArchState, mmu_model) - 86176usize];
-    ["Offset of field: CPUArchState::excp_model"]
-        [::std::mem::offset_of!(CPUArchState, excp_model) - 86180usize];
-    ["Offset of field: CPUArchState::bus_model"]
-        [::std::mem::offset_of!(CPUArchState, bus_model) - 86184usize];
-    ["Offset of field: CPUArchState::bfd_mach"]
-        [::std::mem::offset_of!(CPUArchState, bfd_mach) - 86188usize];
-    ["Offset of field: CPUArchState::flags"]
-        [::std::mem::offset_of!(CPUArchState, flags) - 86192usize];
-    ["Offset of field: CPUArchState::insns_flags"]
-        [::std::mem::offset_of!(CPUArchState, insns_flags) - 86200usize];
-    ["Offset of field: CPUArchState::insns_flags2"]
-        [::std::mem::offset_of!(CPUArchState, insns_flags2) - 86208usize];
-    ["Offset of field: CPUArchState::error_code"]
-        [::std::mem::offset_of!(CPUArchState, error_code) - 86216usize];
-    ["Offset of field: CPUArchState::pending_interrupts"]
-        [::std::mem::offset_of!(CPUArchState, pending_interrupts) - 86220usize];
-    ["Offset of field: CPUArchState::excp_stats"]
-        [::std::mem::offset_of!(CPUArchState, excp_stats) - 86224usize];
-    ["Offset of field: CPUArchState::irq_input_state"]
-        [::std::mem::offset_of!(CPUArchState, irq_input_state) - 87064usize];
-    ["Offset of field: CPUArchState::excp_vectors"]
-        [::std::mem::offset_of!(CPUArchState, excp_vectors) - 87072usize];
-    ["Offset of field: CPUArchState::excp_prefix"]
-        [::std::mem::offset_of!(CPUArchState, excp_prefix) - 87912usize];
-    ["Offset of field: CPUArchState::ivor_mask"]
-        [::std::mem::offset_of!(CPUArchState, ivor_mask) - 87920usize];
-    ["Offset of field: CPUArchState::ivpr_mask"]
-        [::std::mem::offset_of!(CPUArchState, ivpr_mask) - 87928usize];
-    ["Offset of field: CPUArchState::hreset_vector"]
-        [::std::mem::offset_of!(CPUArchState, hreset_vector) - 87936usize];
-    ["Offset of field: CPUArchState::mpic_iack"]
-        [::std::mem::offset_of!(CPUArchState, mpic_iack) - 87944usize];
-    ["Offset of field: CPUArchState::mpic_proxy"]
-        [::std::mem::offset_of!(CPUArchState, mpic_proxy) - 87952usize];
-    ["Offset of field: CPUArchState::has_hv_mode"]
-        [::std::mem::offset_of!(CPUArchState, has_hv_mode) - 87953usize];
-    ["Offset of field: CPUArchState::resume_as_sreset"]
-        [::std::mem::offset_of!(CPUArchState, resume_as_sreset) - 87954usize];
-    ["Offset of field: CPUArchState::quiesced"]
-        [::std::mem::offset_of!(CPUArchState, quiesced) - 87955usize];
-    ["Offset of field: CPUArchState::hflags"]
-        [::std::mem::offset_of!(CPUArchState, hflags) - 87956usize];
-    ["Offset of field: CPUArchState::hflags_compat_nmsr"]
-        [::std::mem::offset_of!(CPUArchState, hflags_compat_nmsr) - 87960usize];
-    ["Offset of field: CPUArchState::check_pow"]
-        [::std::mem::offset_of!(CPUArchState, check_pow) - 87968usize];
-    ["Offset of field: CPUArchState::check_attn"]
-        [::std::mem::offset_of!(CPUArchState, check_attn) - 87976usize];
-    ["Offset of field: CPUArchState::load_info"]
-        [::std::mem::offset_of!(CPUArchState, load_info) - 87984usize];
-    ["Offset of field: CPUArchState::fit_period"]
-        [::std::mem::offset_of!(CPUArchState, fit_period) - 87992usize];
-    ["Offset of field: CPUArchState::wdt_period"]
-        [::std::mem::offset_of!(CPUArchState, wdt_period) - 87996usize];
-    ["Offset of field: CPUArchState::tm_gpr"]
-        [::std::mem::offset_of!(CPUArchState, tm_gpr) - 88000usize];
-    ["Offset of field: CPUArchState::tm_vsr"]
-        [::std::mem::offset_of!(CPUArchState, tm_vsr) - 88256usize];
-    ["Offset of field: CPUArchState::tm_cr"]
-        [::std::mem::offset_of!(CPUArchState, tm_cr) - 89280usize];
-    ["Offset of field: CPUArchState::tm_lr"]
-        [::std::mem::offset_of!(CPUArchState, tm_lr) - 89288usize];
-    ["Offset of field: CPUArchState::tm_ctr"]
-        [::std::mem::offset_of!(CPUArchState, tm_ctr) - 89296usize];
-    ["Offset of field: CPUArchState::tm_fpscr"]
-        [::std::mem::offset_of!(CPUArchState, tm_fpscr) - 89304usize];
-    ["Offset of field: CPUArchState::tm_amr"]
-        [::std::mem::offset_of!(CPUArchState, tm_amr) - 89312usize];
-    ["Offset of field: CPUArchState::tm_ppr"]
-        [::std::mem::offset_of!(CPUArchState, tm_ppr) - 89320usize];
-    ["Offset of field: CPUArchState::tm_vrsave"]
-        [::std::mem::offset_of!(CPUArchState, tm_vrsave) - 89328usize];
-    ["Offset of field: CPUArchState::tm_vscr"]
-        [::std::mem::offset_of!(CPUArchState, tm_vscr) - 89336usize];
-    ["Offset of field: CPUArchState::tm_dscr"]
-        [::std::mem::offset_of!(CPUArchState, tm_dscr) - 89344usize];
-    ["Offset of field: CPUArchState::tm_tar"]
-        [::std::mem::offset_of!(CPUArchState, tm_tar) - 89352usize];
-    ["Offset of field: CPUArchState::pmu_cyc_overflow_timers"]
-        [::std::mem::offset_of!(CPUArchState, pmu_cyc_overflow_timers) - 89360usize];
-    ["Offset of field: CPUArchState::pmu_base_time"]
-        [::std::mem::offset_of!(CPUArchState, pmu_base_time) - 89408usize];
+    ["Size of CPUArchState__bindgen_ty_1"]
+        [::std::mem::size_of::<CPUArchState__bindgen_ty_1>() - 0usize];
+    ["Alignment of CPUArchState__bindgen_ty_1"]
+        [::std::mem::align_of::<CPUArchState__bindgen_ty_1>() - 1usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct PPCVirtualHypervisor {
+pub struct CPUArchState__bindgen_ty_2 {}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of CPUArchState__bindgen_ty_2"]
+        [::std::mem::size_of::<CPUArchState__bindgen_ty_2>() - 0usize];
+    ["Alignment of CPUArchState__bindgen_ty_2"]
+        [::std::mem::align_of::<CPUArchState__bindgen_ty_2>() - 1usize];
+};
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union CPUArchState__bindgen_ty_3 {
+    pub cpu_breakpoint: [*mut CPUBreakpoint; 4usize],
+    pub cpu_watchpoint: [*mut CPUWatchpoint; 4usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of CPUArchState__bindgen_ty_3"]
+        [::std::mem::size_of::<CPUArchState__bindgen_ty_3>() - 32usize];
+    ["Alignment of CPUArchState__bindgen_ty_3"]
+        [::std::mem::align_of::<CPUArchState__bindgen_ty_3>() - 8usize];
+    ["Offset of field: CPUArchState__bindgen_ty_3::cpu_breakpoint"]
+        [::std::mem::offset_of!(CPUArchState__bindgen_ty_3, cpu_breakpoint) - 0usize];
+    ["Offset of field: CPUArchState__bindgen_ty_3::cpu_watchpoint"]
+        [::std::mem::offset_of!(CPUArchState__bindgen_ty_3, cpu_watchpoint) - 0usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct CPUArchState__bindgen_ty_4 {}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of CPUArchState__bindgen_ty_4"]
+        [::std::mem::size_of::<CPUArchState__bindgen_ty_4>() - 0usize];
+    ["Alignment of CPUArchState__bindgen_ty_4"]
+        [::std::mem::align_of::<CPUArchState__bindgen_ty_4>() - 1usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of CPUArchState"][::std::mem::size_of::<CPUArchState>() - 15296usize];
+    ["Alignment of CPUArchState"][::std::mem::align_of::<CPUArchState>() - 16usize];
+    ["Offset of field: CPUArchState::regs"][::std::mem::offset_of!(CPUArchState, regs) - 0usize];
+    ["Offset of field: CPUArchState::eip"][::std::mem::offset_of!(CPUArchState, eip) - 128usize];
+    ["Offset of field: CPUArchState::eflags"]
+        [::std::mem::offset_of!(CPUArchState, eflags) - 136usize];
+    ["Offset of field: CPUArchState::cc_dst"]
+        [::std::mem::offset_of!(CPUArchState, cc_dst) - 144usize];
+    ["Offset of field: CPUArchState::cc_src"]
+        [::std::mem::offset_of!(CPUArchState, cc_src) - 152usize];
+    ["Offset of field: CPUArchState::cc_src2"]
+        [::std::mem::offset_of!(CPUArchState, cc_src2) - 160usize];
+    ["Offset of field: CPUArchState::cc_op"]
+        [::std::mem::offset_of!(CPUArchState, cc_op) - 168usize];
+    ["Offset of field: CPUArchState::df"][::std::mem::offset_of!(CPUArchState, df) - 172usize];
+    ["Offset of field: CPUArchState::hflags"]
+        [::std::mem::offset_of!(CPUArchState, hflags) - 176usize];
+    ["Offset of field: CPUArchState::hflags2"]
+        [::std::mem::offset_of!(CPUArchState, hflags2) - 180usize];
+    ["Offset of field: CPUArchState::segs"][::std::mem::offset_of!(CPUArchState, segs) - 184usize];
+    ["Offset of field: CPUArchState::ldt"][::std::mem::offset_of!(CPUArchState, ldt) - 328usize];
+    ["Offset of field: CPUArchState::tr"][::std::mem::offset_of!(CPUArchState, tr) - 352usize];
+    ["Offset of field: CPUArchState::gdt"][::std::mem::offset_of!(CPUArchState, gdt) - 376usize];
+    ["Offset of field: CPUArchState::idt"][::std::mem::offset_of!(CPUArchState, idt) - 400usize];
+    ["Offset of field: CPUArchState::cr"][::std::mem::offset_of!(CPUArchState, cr) - 424usize];
+    ["Offset of field: CPUArchState::pdptrs_valid"]
+        [::std::mem::offset_of!(CPUArchState, pdptrs_valid) - 464usize];
+    ["Offset of field: CPUArchState::pdptrs"]
+        [::std::mem::offset_of!(CPUArchState, pdptrs) - 472usize];
+    ["Offset of field: CPUArchState::a20_mask"]
+        [::std::mem::offset_of!(CPUArchState, a20_mask) - 504usize];
+    ["Offset of field: CPUArchState::bnd_regs"]
+        [::std::mem::offset_of!(CPUArchState, bnd_regs) - 512usize];
+    ["Offset of field: CPUArchState::bndcs_regs"]
+        [::std::mem::offset_of!(CPUArchState, bndcs_regs) - 576usize];
+    ["Offset of field: CPUArchState::msr_bndcfgs"]
+        [::std::mem::offset_of!(CPUArchState, msr_bndcfgs) - 592usize];
+    ["Offset of field: CPUArchState::efer"][::std::mem::offset_of!(CPUArchState, efer) - 600usize];
+    ["Offset of field: CPUArchState::start_init_save"]
+        [::std::mem::offset_of!(CPUArchState, start_init_save) - 608usize];
+    ["Offset of field: CPUArchState::fpstt"]
+        [::std::mem::offset_of!(CPUArchState, fpstt) - 608usize];
+    ["Offset of field: CPUArchState::fpus"][::std::mem::offset_of!(CPUArchState, fpus) - 612usize];
+    ["Offset of field: CPUArchState::fpuc"][::std::mem::offset_of!(CPUArchState, fpuc) - 614usize];
+    ["Offset of field: CPUArchState::fptags"]
+        [::std::mem::offset_of!(CPUArchState, fptags) - 616usize];
+    ["Offset of field: CPUArchState::fpregs"]
+        [::std::mem::offset_of!(CPUArchState, fpregs) - 624usize];
+    ["Offset of field: CPUArchState::fpop"][::std::mem::offset_of!(CPUArchState, fpop) - 752usize];
+    ["Offset of field: CPUArchState::fpcs"][::std::mem::offset_of!(CPUArchState, fpcs) - 754usize];
+    ["Offset of field: CPUArchState::fpds"][::std::mem::offset_of!(CPUArchState, fpds) - 756usize];
+    ["Offset of field: CPUArchState::fpip"][::std::mem::offset_of!(CPUArchState, fpip) - 760usize];
+    ["Offset of field: CPUArchState::fpdp"][::std::mem::offset_of!(CPUArchState, fpdp) - 768usize];
+    ["Offset of field: CPUArchState::fp_status"]
+        [::std::mem::offset_of!(CPUArchState, fp_status) - 776usize];
+    ["Offset of field: CPUArchState::ft0"][::std::mem::offset_of!(CPUArchState, ft0) - 792usize];
+    ["Offset of field: CPUArchState::mmx_status"]
+        [::std::mem::offset_of!(CPUArchState, mmx_status) - 808usize];
+    ["Offset of field: CPUArchState::sse_status"]
+        [::std::mem::offset_of!(CPUArchState, sse_status) - 824usize];
+    ["Offset of field: CPUArchState::mxcsr"]
+        [::std::mem::offset_of!(CPUArchState, mxcsr) - 840usize];
+    ["Offset of field: CPUArchState::xmm_regs"]
+        [::std::mem::offset_of!(CPUArchState, xmm_regs) - 848usize];
+    ["Offset of field: CPUArchState::xmm_t0"]
+        [::std::mem::offset_of!(CPUArchState, xmm_t0) - 2896usize];
+    ["Offset of field: CPUArchState::mmx_t0"]
+        [::std::mem::offset_of!(CPUArchState, mmx_t0) - 2960usize];
+    ["Offset of field: CPUArchState::opmask_regs"]
+        [::std::mem::offset_of!(CPUArchState, opmask_regs) - 2968usize];
+    ["Offset of field: CPUArchState::xtilecfg"]
+        [::std::mem::offset_of!(CPUArchState, xtilecfg) - 3032usize];
+    ["Offset of field: CPUArchState::xtiledata"]
+        [::std::mem::offset_of!(CPUArchState, xtiledata) - 3096usize];
+    ["Offset of field: CPUArchState::sysenter_cs"]
+        [::std::mem::offset_of!(CPUArchState, sysenter_cs) - 11288usize];
+    ["Offset of field: CPUArchState::sysenter_esp"]
+        [::std::mem::offset_of!(CPUArchState, sysenter_esp) - 11296usize];
+    ["Offset of field: CPUArchState::sysenter_eip"]
+        [::std::mem::offset_of!(CPUArchState, sysenter_eip) - 11304usize];
+    ["Offset of field: CPUArchState::star"]
+        [::std::mem::offset_of!(CPUArchState, star) - 11312usize];
+    ["Offset of field: CPUArchState::vm_hsave"]
+        [::std::mem::offset_of!(CPUArchState, vm_hsave) - 11320usize];
+    ["Offset of field: CPUArchState::lstar"]
+        [::std::mem::offset_of!(CPUArchState, lstar) - 11328usize];
+    ["Offset of field: CPUArchState::cstar"]
+        [::std::mem::offset_of!(CPUArchState, cstar) - 11336usize];
+    ["Offset of field: CPUArchState::fmask"]
+        [::std::mem::offset_of!(CPUArchState, fmask) - 11344usize];
+    ["Offset of field: CPUArchState::kernelgsbase"]
+        [::std::mem::offset_of!(CPUArchState, kernelgsbase) - 11352usize];
+    ["Offset of field: CPUArchState::fred_rsp0"]
+        [::std::mem::offset_of!(CPUArchState, fred_rsp0) - 11360usize];
+    ["Offset of field: CPUArchState::fred_rsp1"]
+        [::std::mem::offset_of!(CPUArchState, fred_rsp1) - 11368usize];
+    ["Offset of field: CPUArchState::fred_rsp2"]
+        [::std::mem::offset_of!(CPUArchState, fred_rsp2) - 11376usize];
+    ["Offset of field: CPUArchState::fred_rsp3"]
+        [::std::mem::offset_of!(CPUArchState, fred_rsp3) - 11384usize];
+    ["Offset of field: CPUArchState::fred_stklvls"]
+        [::std::mem::offset_of!(CPUArchState, fred_stklvls) - 11392usize];
+    ["Offset of field: CPUArchState::fred_ssp1"]
+        [::std::mem::offset_of!(CPUArchState, fred_ssp1) - 11400usize];
+    ["Offset of field: CPUArchState::fred_ssp2"]
+        [::std::mem::offset_of!(CPUArchState, fred_ssp2) - 11408usize];
+    ["Offset of field: CPUArchState::fred_ssp3"]
+        [::std::mem::offset_of!(CPUArchState, fred_ssp3) - 11416usize];
+    ["Offset of field: CPUArchState::fred_config"]
+        [::std::mem::offset_of!(CPUArchState, fred_config) - 11424usize];
+    ["Offset of field: CPUArchState::tsc_adjust"]
+        [::std::mem::offset_of!(CPUArchState, tsc_adjust) - 11432usize];
+    ["Offset of field: CPUArchState::tsc_deadline"]
+        [::std::mem::offset_of!(CPUArchState, tsc_deadline) - 11440usize];
+    ["Offset of field: CPUArchState::tsc_aux"]
+        [::std::mem::offset_of!(CPUArchState, tsc_aux) - 11448usize];
+    ["Offset of field: CPUArchState::xcr0"]
+        [::std::mem::offset_of!(CPUArchState, xcr0) - 11456usize];
+    ["Offset of field: CPUArchState::mcg_status"]
+        [::std::mem::offset_of!(CPUArchState, mcg_status) - 11464usize];
+    ["Offset of field: CPUArchState::msr_ia32_misc_enable"]
+        [::std::mem::offset_of!(CPUArchState, msr_ia32_misc_enable) - 11472usize];
+    ["Offset of field: CPUArchState::msr_ia32_feature_control"]
+        [::std::mem::offset_of!(CPUArchState, msr_ia32_feature_control) - 11480usize];
+    ["Offset of field: CPUArchState::msr_ia32_sgxlepubkeyhash"]
+        [::std::mem::offset_of!(CPUArchState, msr_ia32_sgxlepubkeyhash) - 11488usize];
+    ["Offset of field: CPUArchState::msr_fixed_ctr_ctrl"]
+        [::std::mem::offset_of!(CPUArchState, msr_fixed_ctr_ctrl) - 11520usize];
+    ["Offset of field: CPUArchState::msr_global_ctrl"]
+        [::std::mem::offset_of!(CPUArchState, msr_global_ctrl) - 11528usize];
+    ["Offset of field: CPUArchState::msr_global_status"]
+        [::std::mem::offset_of!(CPUArchState, msr_global_status) - 11536usize];
+    ["Offset of field: CPUArchState::msr_global_ovf_ctrl"]
+        [::std::mem::offset_of!(CPUArchState, msr_global_ovf_ctrl) - 11544usize];
+    ["Offset of field: CPUArchState::msr_fixed_counters"]
+        [::std::mem::offset_of!(CPUArchState, msr_fixed_counters) - 11552usize];
+    ["Offset of field: CPUArchState::msr_gp_counters"]
+        [::std::mem::offset_of!(CPUArchState, msr_gp_counters) - 11576usize];
+    ["Offset of field: CPUArchState::msr_gp_evtsel"]
+        [::std::mem::offset_of!(CPUArchState, msr_gp_evtsel) - 11720usize];
+    ["Offset of field: CPUArchState::pat"][::std::mem::offset_of!(CPUArchState, pat) - 11864usize];
+    ["Offset of field: CPUArchState::smbase"]
+        [::std::mem::offset_of!(CPUArchState, smbase) - 11872usize];
+    ["Offset of field: CPUArchState::msr_smi_count"]
+        [::std::mem::offset_of!(CPUArchState, msr_smi_count) - 11880usize];
+    ["Offset of field: CPUArchState::pkru"]
+        [::std::mem::offset_of!(CPUArchState, pkru) - 11888usize];
+    ["Offset of field: CPUArchState::pkrs"]
+        [::std::mem::offset_of!(CPUArchState, pkrs) - 11892usize];
+    ["Offset of field: CPUArchState::tsx_ctrl"]
+        [::std::mem::offset_of!(CPUArchState, tsx_ctrl) - 11896usize];
+    ["Offset of field: CPUArchState::spec_ctrl"]
+        [::std::mem::offset_of!(CPUArchState, spec_ctrl) - 11904usize];
+    ["Offset of field: CPUArchState::amd_tsc_scale_msr"]
+        [::std::mem::offset_of!(CPUArchState, amd_tsc_scale_msr) - 11912usize];
+    ["Offset of field: CPUArchState::virt_ssbd"]
+        [::std::mem::offset_of!(CPUArchState, virt_ssbd) - 11920usize];
+    ["Offset of field: CPUArchState::end_init_save"]
+        [::std::mem::offset_of!(CPUArchState, end_init_save) - 11928usize];
+    ["Offset of field: CPUArchState::system_time_msr"]
+        [::std::mem::offset_of!(CPUArchState, system_time_msr) - 11928usize];
+    ["Offset of field: CPUArchState::wall_clock_msr"]
+        [::std::mem::offset_of!(CPUArchState, wall_clock_msr) - 11936usize];
+    ["Offset of field: CPUArchState::steal_time_msr"]
+        [::std::mem::offset_of!(CPUArchState, steal_time_msr) - 11944usize];
+    ["Offset of field: CPUArchState::async_pf_en_msr"]
+        [::std::mem::offset_of!(CPUArchState, async_pf_en_msr) - 11952usize];
+    ["Offset of field: CPUArchState::async_pf_int_msr"]
+        [::std::mem::offset_of!(CPUArchState, async_pf_int_msr) - 11960usize];
+    ["Offset of field: CPUArchState::pv_eoi_en_msr"]
+        [::std::mem::offset_of!(CPUArchState, pv_eoi_en_msr) - 11968usize];
+    ["Offset of field: CPUArchState::poll_control_msr"]
+        [::std::mem::offset_of!(CPUArchState, poll_control_msr) - 11976usize];
+    ["Offset of field: CPUArchState::msr_hv_hypercall"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_hypercall) - 11984usize];
+    ["Offset of field: CPUArchState::msr_hv_guest_os_id"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_guest_os_id) - 11992usize];
+    ["Offset of field: CPUArchState::msr_hv_tsc"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_tsc) - 12000usize];
+    ["Offset of field: CPUArchState::msr_hv_syndbg_control"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_syndbg_control) - 12008usize];
+    ["Offset of field: CPUArchState::msr_hv_syndbg_status"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_syndbg_status) - 12016usize];
+    ["Offset of field: CPUArchState::msr_hv_syndbg_send_page"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_syndbg_send_page) - 12024usize];
+    ["Offset of field: CPUArchState::msr_hv_syndbg_recv_page"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_syndbg_recv_page) - 12032usize];
+    ["Offset of field: CPUArchState::msr_hv_syndbg_pending_page"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_syndbg_pending_page) - 12040usize];
+    ["Offset of field: CPUArchState::msr_hv_syndbg_options"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_syndbg_options) - 12048usize];
+    ["Offset of field: CPUArchState::msr_hv_vapic"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_vapic) - 12056usize];
+    ["Offset of field: CPUArchState::msr_hv_crash_params"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_crash_params) - 12064usize];
+    ["Offset of field: CPUArchState::msr_hv_runtime"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_runtime) - 12104usize];
+    ["Offset of field: CPUArchState::msr_hv_synic_control"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_synic_control) - 12112usize];
+    ["Offset of field: CPUArchState::msr_hv_synic_evt_page"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_synic_evt_page) - 12120usize];
+    ["Offset of field: CPUArchState::msr_hv_synic_msg_page"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_synic_msg_page) - 12128usize];
+    ["Offset of field: CPUArchState::msr_hv_synic_sint"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_synic_sint) - 12136usize];
+    ["Offset of field: CPUArchState::msr_hv_stimer_config"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_stimer_config) - 12264usize];
+    ["Offset of field: CPUArchState::msr_hv_stimer_count"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_stimer_count) - 12296usize];
+    ["Offset of field: CPUArchState::msr_hv_reenlightenment_control"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_reenlightenment_control) - 12328usize];
+    ["Offset of field: CPUArchState::msr_hv_tsc_emulation_control"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_tsc_emulation_control) - 12336usize];
+    ["Offset of field: CPUArchState::msr_hv_tsc_emulation_status"]
+        [::std::mem::offset_of!(CPUArchState, msr_hv_tsc_emulation_status) - 12344usize];
+    ["Offset of field: CPUArchState::msr_rtit_ctrl"]
+        [::std::mem::offset_of!(CPUArchState, msr_rtit_ctrl) - 12352usize];
+    ["Offset of field: CPUArchState::msr_rtit_status"]
+        [::std::mem::offset_of!(CPUArchState, msr_rtit_status) - 12360usize];
+    ["Offset of field: CPUArchState::msr_rtit_output_base"]
+        [::std::mem::offset_of!(CPUArchState, msr_rtit_output_base) - 12368usize];
+    ["Offset of field: CPUArchState::msr_rtit_output_mask"]
+        [::std::mem::offset_of!(CPUArchState, msr_rtit_output_mask) - 12376usize];
+    ["Offset of field: CPUArchState::msr_rtit_cr3_match"]
+        [::std::mem::offset_of!(CPUArchState, msr_rtit_cr3_match) - 12384usize];
+    ["Offset of field: CPUArchState::msr_rtit_addrs"]
+        [::std::mem::offset_of!(CPUArchState, msr_rtit_addrs) - 12392usize];
+    ["Offset of field: CPUArchState::msr_xfd"]
+        [::std::mem::offset_of!(CPUArchState, msr_xfd) - 12456usize];
+    ["Offset of field: CPUArchState::msr_xfd_err"]
+        [::std::mem::offset_of!(CPUArchState, msr_xfd_err) - 12464usize];
+    ["Offset of field: CPUArchState::msr_lbr_ctl"]
+        [::std::mem::offset_of!(CPUArchState, msr_lbr_ctl) - 12472usize];
+    ["Offset of field: CPUArchState::msr_lbr_depth"]
+        [::std::mem::offset_of!(CPUArchState, msr_lbr_depth) - 12480usize];
+    ["Offset of field: CPUArchState::lbr_records"]
+        [::std::mem::offset_of!(CPUArchState, lbr_records) - 12488usize];
+    ["Offset of field: CPUArchState::msr_hwcr"]
+        [::std::mem::offset_of!(CPUArchState, msr_hwcr) - 13256usize];
+    ["Offset of field: CPUArchState::error_code"]
+        [::std::mem::offset_of!(CPUArchState, error_code) - 13264usize];
+    ["Offset of field: CPUArchState::exception_is_int"]
+        [::std::mem::offset_of!(CPUArchState, exception_is_int) - 13268usize];
+    ["Offset of field: CPUArchState::exception_next_eip"]
+        [::std::mem::offset_of!(CPUArchState, exception_next_eip) - 13272usize];
+    ["Offset of field: CPUArchState::dr"][::std::mem::offset_of!(CPUArchState, dr) - 13280usize];
+    ["Offset of field: CPUArchState::old_exception"]
+        [::std::mem::offset_of!(CPUArchState, old_exception) - 13376usize];
+    ["Offset of field: CPUArchState::vm_vmcb"]
+        [::std::mem::offset_of!(CPUArchState, vm_vmcb) - 13384usize];
+    ["Offset of field: CPUArchState::tsc_offset"]
+        [::std::mem::offset_of!(CPUArchState, tsc_offset) - 13392usize];
+    ["Offset of field: CPUArchState::intercept"]
+        [::std::mem::offset_of!(CPUArchState, intercept) - 13400usize];
+    ["Offset of field: CPUArchState::intercept_cr_read"]
+        [::std::mem::offset_of!(CPUArchState, intercept_cr_read) - 13408usize];
+    ["Offset of field: CPUArchState::intercept_cr_write"]
+        [::std::mem::offset_of!(CPUArchState, intercept_cr_write) - 13410usize];
+    ["Offset of field: CPUArchState::intercept_dr_read"]
+        [::std::mem::offset_of!(CPUArchState, intercept_dr_read) - 13412usize];
+    ["Offset of field: CPUArchState::intercept_dr_write"]
+        [::std::mem::offset_of!(CPUArchState, intercept_dr_write) - 13414usize];
+    ["Offset of field: CPUArchState::intercept_exceptions"]
+        [::std::mem::offset_of!(CPUArchState, intercept_exceptions) - 13416usize];
+    ["Offset of field: CPUArchState::nested_cr3"]
+        [::std::mem::offset_of!(CPUArchState, nested_cr3) - 13424usize];
+    ["Offset of field: CPUArchState::nested_pg_mode"]
+        [::std::mem::offset_of!(CPUArchState, nested_pg_mode) - 13432usize];
+    ["Offset of field: CPUArchState::v_tpr"]
+        [::std::mem::offset_of!(CPUArchState, v_tpr) - 13436usize];
+    ["Offset of field: CPUArchState::int_ctl"]
+        [::std::mem::offset_of!(CPUArchState, int_ctl) - 13440usize];
+    ["Offset of field: CPUArchState::nmi_injected"]
+        [::std::mem::offset_of!(CPUArchState, nmi_injected) - 13444usize];
+    ["Offset of field: CPUArchState::nmi_pending"]
+        [::std::mem::offset_of!(CPUArchState, nmi_pending) - 13445usize];
+    ["Offset of field: CPUArchState::retaddr"]
+        [::std::mem::offset_of!(CPUArchState, retaddr) - 13448usize];
+    ["Offset of field: CPUArchState::msr_rapl_power_unit"]
+        [::std::mem::offset_of!(CPUArchState, msr_rapl_power_unit) - 13456usize];
+    ["Offset of field: CPUArchState::msr_pkg_energy_status"]
+        [::std::mem::offset_of!(CPUArchState, msr_pkg_energy_status) - 13464usize];
+    ["Offset of field: CPUArchState::end_reset_fields"]
+        [::std::mem::offset_of!(CPUArchState, end_reset_fields) - 13472usize];
+    ["Offset of field: CPUArchState::cpuid_level_func7"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_level_func7) - 13472usize];
+    ["Offset of field: CPUArchState::cpuid_min_level_func7"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_min_level_func7) - 13476usize];
+    ["Offset of field: CPUArchState::cpuid_min_level"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_min_level) - 13480usize];
+    ["Offset of field: CPUArchState::cpuid_min_xlevel"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_min_xlevel) - 13484usize];
+    ["Offset of field: CPUArchState::cpuid_min_xlevel2"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_min_xlevel2) - 13488usize];
+    ["Offset of field: CPUArchState::cpuid_max_level"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_max_level) - 13492usize];
+    ["Offset of field: CPUArchState::cpuid_max_xlevel"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_max_xlevel) - 13496usize];
+    ["Offset of field: CPUArchState::cpuid_max_xlevel2"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_max_xlevel2) - 13500usize];
+    ["Offset of field: CPUArchState::cpuid_level"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_level) - 13504usize];
+    ["Offset of field: CPUArchState::cpuid_xlevel"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_xlevel) - 13508usize];
+    ["Offset of field: CPUArchState::cpuid_xlevel2"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_xlevel2) - 13512usize];
+    ["Offset of field: CPUArchState::cpuid_vendor1"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_vendor1) - 13516usize];
+    ["Offset of field: CPUArchState::cpuid_vendor2"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_vendor2) - 13520usize];
+    ["Offset of field: CPUArchState::cpuid_vendor3"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_vendor3) - 13524usize];
+    ["Offset of field: CPUArchState::cpuid_version"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_version) - 13528usize];
+    ["Offset of field: CPUArchState::features"]
+        [::std::mem::offset_of!(CPUArchState, features) - 13536usize];
+    ["Offset of field: CPUArchState::avx10_version"]
+        [::std::mem::offset_of!(CPUArchState, avx10_version) - 13880usize];
+    ["Offset of field: CPUArchState::user_features"]
+        [::std::mem::offset_of!(CPUArchState, user_features) - 13888usize];
+    ["Offset of field: CPUArchState::cpuid_model"]
+        [::std::mem::offset_of!(CPUArchState, cpuid_model) - 14232usize];
+    ["Offset of field: CPUArchState::cache_info_cpuid2"]
+        [::std::mem::offset_of!(CPUArchState, cache_info_cpuid2) - 14280usize];
+    ["Offset of field: CPUArchState::cache_info_cpuid4"]
+        [::std::mem::offset_of!(CPUArchState, cache_info_cpuid4) - 14312usize];
+    ["Offset of field: CPUArchState::cache_info_amd"]
+        [::std::mem::offset_of!(CPUArchState, cache_info_amd) - 14344usize];
+    ["Offset of field: CPUArchState::mtrr_fixed"]
+        [::std::mem::offset_of!(CPUArchState, mtrr_fixed) - 14376usize];
+    ["Offset of field: CPUArchState::mtrr_deftype"]
+        [::std::mem::offset_of!(CPUArchState, mtrr_deftype) - 14464usize];
+    ["Offset of field: CPUArchState::mtrr_var"]
+        [::std::mem::offset_of!(CPUArchState, mtrr_var) - 14472usize];
+    ["Offset of field: CPUArchState::mp_state"]
+        [::std::mem::offset_of!(CPUArchState, mp_state) - 14600usize];
+    ["Offset of field: CPUArchState::exception_nr"]
+        [::std::mem::offset_of!(CPUArchState, exception_nr) - 14604usize];
+    ["Offset of field: CPUArchState::interrupt_injected"]
+        [::std::mem::offset_of!(CPUArchState, interrupt_injected) - 14608usize];
+    ["Offset of field: CPUArchState::soft_interrupt"]
+        [::std::mem::offset_of!(CPUArchState, soft_interrupt) - 14612usize];
+    ["Offset of field: CPUArchState::exception_pending"]
+        [::std::mem::offset_of!(CPUArchState, exception_pending) - 14613usize];
+    ["Offset of field: CPUArchState::exception_injected"]
+        [::std::mem::offset_of!(CPUArchState, exception_injected) - 14614usize];
+    ["Offset of field: CPUArchState::has_error_code"]
+        [::std::mem::offset_of!(CPUArchState, has_error_code) - 14615usize];
+    ["Offset of field: CPUArchState::exception_has_payload"]
+        [::std::mem::offset_of!(CPUArchState, exception_has_payload) - 14616usize];
+    ["Offset of field: CPUArchState::exception_payload"]
+        [::std::mem::offset_of!(CPUArchState, exception_payload) - 14624usize];
+    ["Offset of field: CPUArchState::triple_fault_pending"]
+        [::std::mem::offset_of!(CPUArchState, triple_fault_pending) - 14632usize];
+    ["Offset of field: CPUArchState::ins_len"]
+        [::std::mem::offset_of!(CPUArchState, ins_len) - 14636usize];
+    ["Offset of field: CPUArchState::sipi_vector"]
+        [::std::mem::offset_of!(CPUArchState, sipi_vector) - 14640usize];
+    ["Offset of field: CPUArchState::tsc_valid"]
+        [::std::mem::offset_of!(CPUArchState, tsc_valid) - 14644usize];
+    ["Offset of field: CPUArchState::tsc_khz"]
+        [::std::mem::offset_of!(CPUArchState, tsc_khz) - 14648usize];
+    ["Offset of field: CPUArchState::user_tsc_khz"]
+        [::std::mem::offset_of!(CPUArchState, user_tsc_khz) - 14656usize];
+    ["Offset of field: CPUArchState::apic_bus_freq"]
+        [::std::mem::offset_of!(CPUArchState, apic_bus_freq) - 14664usize];
+    ["Offset of field: CPUArchState::tsc"][::std::mem::offset_of!(CPUArchState, tsc) - 14672usize];
+    ["Offset of field: CPUArchState::xsave_buf"]
+        [::std::mem::offset_of!(CPUArchState, xsave_buf) - 14680usize];
+    ["Offset of field: CPUArchState::xsave_buf_len"]
+        [::std::mem::offset_of!(CPUArchState, xsave_buf_len) - 14688usize];
+    ["Offset of field: CPUArchState::nested_state"]
+        [::std::mem::offset_of!(CPUArchState, nested_state) - 14696usize];
+    ["Offset of field: CPUArchState::xen_vcpu_info_mr"]
+        [::std::mem::offset_of!(CPUArchState, xen_vcpu_info_mr) - 14704usize];
+    ["Offset of field: CPUArchState::xen_vcpu_info_hva"]
+        [::std::mem::offset_of!(CPUArchState, xen_vcpu_info_hva) - 14712usize];
+    ["Offset of field: CPUArchState::xen_vcpu_info_gpa"]
+        [::std::mem::offset_of!(CPUArchState, xen_vcpu_info_gpa) - 14720usize];
+    ["Offset of field: CPUArchState::xen_vcpu_info_default_gpa"]
+        [::std::mem::offset_of!(CPUArchState, xen_vcpu_info_default_gpa) - 14728usize];
+    ["Offset of field: CPUArchState::xen_vcpu_time_info_gpa"]
+        [::std::mem::offset_of!(CPUArchState, xen_vcpu_time_info_gpa) - 14736usize];
+    ["Offset of field: CPUArchState::xen_vcpu_runstate_gpa"]
+        [::std::mem::offset_of!(CPUArchState, xen_vcpu_runstate_gpa) - 14744usize];
+    ["Offset of field: CPUArchState::xen_vcpu_callback_vector"]
+        [::std::mem::offset_of!(CPUArchState, xen_vcpu_callback_vector) - 14752usize];
+    ["Offset of field: CPUArchState::xen_callback_asserted"]
+        [::std::mem::offset_of!(CPUArchState, xen_callback_asserted) - 14753usize];
+    ["Offset of field: CPUArchState::xen_virq"]
+        [::std::mem::offset_of!(CPUArchState, xen_virq) - 14754usize];
+    ["Offset of field: CPUArchState::xen_singleshot_timer_ns"]
+        [::std::mem::offset_of!(CPUArchState, xen_singleshot_timer_ns) - 14808usize];
+    ["Offset of field: CPUArchState::xen_singleshot_timer"]
+        [::std::mem::offset_of!(CPUArchState, xen_singleshot_timer) - 14816usize];
+    ["Offset of field: CPUArchState::xen_periodic_timer_period"]
+        [::std::mem::offset_of!(CPUArchState, xen_periodic_timer_period) - 14824usize];
+    ["Offset of field: CPUArchState::xen_periodic_timer"]
+        [::std::mem::offset_of!(CPUArchState, xen_periodic_timer) - 14832usize];
+    ["Offset of field: CPUArchState::xen_timers_lock"]
+        [::std::mem::offset_of!(CPUArchState, xen_timers_lock) - 14840usize];
+    ["Offset of field: CPUArchState::mcg_cap"]
+        [::std::mem::offset_of!(CPUArchState, mcg_cap) - 14888usize];
+    ["Offset of field: CPUArchState::mcg_ctl"]
+        [::std::mem::offset_of!(CPUArchState, mcg_ctl) - 14896usize];
+    ["Offset of field: CPUArchState::mcg_ext_ctl"]
+        [::std::mem::offset_of!(CPUArchState, mcg_ext_ctl) - 14904usize];
+    ["Offset of field: CPUArchState::mce_banks"]
+        [::std::mem::offset_of!(CPUArchState, mce_banks) - 14912usize];
+    ["Offset of field: CPUArchState::xstate_bv"]
+        [::std::mem::offset_of!(CPUArchState, xstate_bv) - 15232usize];
+    ["Offset of field: CPUArchState::fpus_vmstate"]
+        [::std::mem::offset_of!(CPUArchState, fpus_vmstate) - 15240usize];
+    ["Offset of field: CPUArchState::fptag_vmstate"]
+        [::std::mem::offset_of!(CPUArchState, fptag_vmstate) - 15242usize];
+    ["Offset of field: CPUArchState::fpregs_format_vmstate"]
+        [::std::mem::offset_of!(CPUArchState, fpregs_format_vmstate) - 15244usize];
+    ["Offset of field: CPUArchState::xss"][::std::mem::offset_of!(CPUArchState, xss) - 15248usize];
+    ["Offset of field: CPUArchState::umwait"]
+        [::std::mem::offset_of!(CPUArchState, umwait) - 15256usize];
+    ["Offset of field: CPUArchState::tpr_access_type"]
+        [::std::mem::offset_of!(CPUArchState, tpr_access_type) - 15260usize];
+    ["Offset of field: CPUArchState::topo_info"]
+        [::std::mem::offset_of!(CPUArchState, topo_info) - 15264usize];
+    ["Offset of field: CPUArchState::avail_cpu_topo"]
+        [::std::mem::offset_of!(CPUArchState, avail_cpu_topo) - 15280usize];
+};
+pub type CPUX86State = CPUArchState;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct kvm_msrs {
     _unused: [u8; 0],
 }
 #[repr(C)]
 #[repr(align(16))]
 pub struct ArchCPU {
     pub parent_obj: CPUState,
-    pub env: CPUPPCState,
-    pub vcpu_id: ::std::os::raw::c_int,
-    pub compat_pvr: u32,
-    pub vhyp: *mut PPCVirtualHypervisor,
-    pub vhyp_class: *mut PPCVirtualHypervisorClass,
-    pub machine_data: *mut ::std::os::raw::c_void,
+    pub env: CPUX86State,
+    pub vmsentry: *mut VMChangeStateEntry,
+    pub ucode_rev: u64,
+    pub hyperv_spinlock_attempts: u32,
+    pub hyperv_vendor: *mut ::std::os::raw::c_char,
+    pub hyperv_synic_kvm_only: bool,
+    pub hyperv_features: u64,
+    pub hyperv_passthrough: bool,
+    pub hyperv_no_nonarch_cs: OnOffAuto,
+    pub hyperv_vendor_id: [u32; 3usize],
+    pub hyperv_interface_id: [u32; 4usize],
+    pub hyperv_limits: [u32; 3usize],
+    pub hyperv_enforce_cpuid: bool,
+    pub hyperv_ver_id_build: u32,
+    pub hyperv_ver_id_major: u16,
+    pub hyperv_ver_id_minor: u16,
+    pub hyperv_ver_id_sp: u32,
+    pub hyperv_ver_id_sb: u8,
+    pub hyperv_ver_id_sn: u32,
+    pub check_cpuid: bool,
+    pub enforce_cpuid: bool,
+    pub force_features: bool,
+    pub expose_kvm: bool,
+    pub expose_tcg: bool,
+    pub migratable: bool,
+    pub migrate_smi_count: bool,
+    pub max_features: bool,
+    pub apic_id: u32,
+    pub vmware_cpuid_freq: bool,
+    pub cache_info_passthrough: bool,
+    pub mwait: ArchCPU__bindgen_ty_1,
+    pub filtered_features: FeatureWordArray,
+    pub enable_pmu: bool,
+    pub lbr_fmt: u64,
+    pub enable_lmce: bool,
+    pub enable_l3_cache: bool,
+    pub l1_cache_per_core: bool,
+    pub legacy_cache: bool,
+    pub legacy_multi_node: bool,
+    pub enable_cpuid_0xb: bool,
+    pub full_cpuid_auto_level: bool,
+    pub vendor_cpuid_only: bool,
+    pub amd_topoext_features_only: bool,
+    pub intel_pt_auto_level: bool,
+    pub fill_mtrr_mask: bool,
+    pub host_phys_bits: bool,
+    pub host_phys_bits_limit: u8,
+    pub kvm_pv_enforce_cpuid: bool,
+    pub phys_bits: u32,
+    pub guest_phys_bits: u32,
+    pub apic_state: *mut DeviceState,
+    pub cpu_as_root: *mut MemoryRegion,
+    pub cpu_as_mem: *mut MemoryRegion,
+    pub smram: *mut MemoryRegion,
+    pub machine_done: Notifier,
+    pub kvm_msr_buf: *mut kvm_msrs,
     pub node_id: i32,
-    pub hash64_opts: *mut PPCHash64Options,
-    pub opcodes: [*mut opc_handler_t; 64usize],
+    pub socket_id: i32,
+    pub die_id: i32,
+    pub module_id: i32,
+    pub core_id: i32,
+    pub thread_id: i32,
+    pub hv_max_vps: i32,
+    pub xen_vapic: bool,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ArchCPU__bindgen_ty_1 {
+    pub eax: u32,
+    pub ebx: u32,
+    pub ecx: u32,
+    pub edx: u32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ArchCPU"][::std::mem::size_of::<ArchCPU>() - 100160usize];
+    ["Size of ArchCPU__bindgen_ty_1"][::std::mem::size_of::<ArchCPU__bindgen_ty_1>() - 16usize];
+    ["Alignment of ArchCPU__bindgen_ty_1"]
+        [::std::mem::align_of::<ArchCPU__bindgen_ty_1>() - 4usize];
+    ["Offset of field: ArchCPU__bindgen_ty_1::eax"]
+        [::std::mem::offset_of!(ArchCPU__bindgen_ty_1, eax) - 0usize];
+    ["Offset of field: ArchCPU__bindgen_ty_1::ebx"]
+        [::std::mem::offset_of!(ArchCPU__bindgen_ty_1, ebx) - 4usize];
+    ["Offset of field: ArchCPU__bindgen_ty_1::ecx"]
+        [::std::mem::offset_of!(ArchCPU__bindgen_ty_1, ecx) - 8usize];
+    ["Offset of field: ArchCPU__bindgen_ty_1::edx"]
+        [::std::mem::offset_of!(ArchCPU__bindgen_ty_1, edx) - 12usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of ArchCPU"][::std::mem::size_of::<ArchCPU>() - 27136usize];
     ["Alignment of ArchCPU"][::std::mem::align_of::<ArchCPU>() - 16usize];
     ["Offset of field: ArchCPU::parent_obj"][::std::mem::offset_of!(ArchCPU, parent_obj) - 0usize];
-    ["Offset of field: ArchCPU::env"][::std::mem::offset_of!(ArchCPU, env) - 10176usize];
-    ["Offset of field: ArchCPU::vcpu_id"][::std::mem::offset_of!(ArchCPU, vcpu_id) - 99600usize];
-    ["Offset of field: ArchCPU::compat_pvr"]
-        [::std::mem::offset_of!(ArchCPU, compat_pvr) - 99604usize];
-    ["Offset of field: ArchCPU::vhyp"][::std::mem::offset_of!(ArchCPU, vhyp) - 99608usize];
-    ["Offset of field: ArchCPU::vhyp_class"]
-        [::std::mem::offset_of!(ArchCPU, vhyp_class) - 99616usize];
-    ["Offset of field: ArchCPU::machine_data"]
-        [::std::mem::offset_of!(ArchCPU, machine_data) - 99624usize];
-    ["Offset of field: ArchCPU::node_id"][::std::mem::offset_of!(ArchCPU, node_id) - 99632usize];
-    ["Offset of field: ArchCPU::hash64_opts"]
-        [::std::mem::offset_of!(ArchCPU, hash64_opts) - 99640usize];
-    ["Offset of field: ArchCPU::opcodes"][::std::mem::offset_of!(ArchCPU, opcodes) - 99648usize];
+    ["Offset of field: ArchCPU::env"][::std::mem::offset_of!(ArchCPU, env) - 11200usize];
+    ["Offset of field: ArchCPU::vmsentry"][::std::mem::offset_of!(ArchCPU, vmsentry) - 26496usize];
+    ["Offset of field: ArchCPU::ucode_rev"]
+        [::std::mem::offset_of!(ArchCPU, ucode_rev) - 26504usize];
+    ["Offset of field: ArchCPU::hyperv_spinlock_attempts"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_spinlock_attempts) - 26512usize];
+    ["Offset of field: ArchCPU::hyperv_vendor"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_vendor) - 26520usize];
+    ["Offset of field: ArchCPU::hyperv_synic_kvm_only"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_synic_kvm_only) - 26528usize];
+    ["Offset of field: ArchCPU::hyperv_features"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_features) - 26536usize];
+    ["Offset of field: ArchCPU::hyperv_passthrough"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_passthrough) - 26544usize];
+    ["Offset of field: ArchCPU::hyperv_no_nonarch_cs"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_no_nonarch_cs) - 26548usize];
+    ["Offset of field: ArchCPU::hyperv_vendor_id"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_vendor_id) - 26552usize];
+    ["Offset of field: ArchCPU::hyperv_interface_id"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_interface_id) - 26564usize];
+    ["Offset of field: ArchCPU::hyperv_limits"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_limits) - 26580usize];
+    ["Offset of field: ArchCPU::hyperv_enforce_cpuid"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_enforce_cpuid) - 26592usize];
+    ["Offset of field: ArchCPU::hyperv_ver_id_build"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_build) - 26596usize];
+    ["Offset of field: ArchCPU::hyperv_ver_id_major"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_major) - 26600usize];
+    ["Offset of field: ArchCPU::hyperv_ver_id_minor"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_minor) - 26602usize];
+    ["Offset of field: ArchCPU::hyperv_ver_id_sp"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_sp) - 26604usize];
+    ["Offset of field: ArchCPU::hyperv_ver_id_sb"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_sb) - 26608usize];
+    ["Offset of field: ArchCPU::hyperv_ver_id_sn"]
+        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_sn) - 26612usize];
+    ["Offset of field: ArchCPU::check_cpuid"]
+        [::std::mem::offset_of!(ArchCPU, check_cpuid) - 26616usize];
+    ["Offset of field: ArchCPU::enforce_cpuid"]
+        [::std::mem::offset_of!(ArchCPU, enforce_cpuid) - 26617usize];
+    ["Offset of field: ArchCPU::force_features"]
+        [::std::mem::offset_of!(ArchCPU, force_features) - 26618usize];
+    ["Offset of field: ArchCPU::expose_kvm"]
+        [::std::mem::offset_of!(ArchCPU, expose_kvm) - 26619usize];
+    ["Offset of field: ArchCPU::expose_tcg"]
+        [::std::mem::offset_of!(ArchCPU, expose_tcg) - 26620usize];
+    ["Offset of field: ArchCPU::migratable"]
+        [::std::mem::offset_of!(ArchCPU, migratable) - 26621usize];
+    ["Offset of field: ArchCPU::migrate_smi_count"]
+        [::std::mem::offset_of!(ArchCPU, migrate_smi_count) - 26622usize];
+    ["Offset of field: ArchCPU::max_features"]
+        [::std::mem::offset_of!(ArchCPU, max_features) - 26623usize];
+    ["Offset of field: ArchCPU::apic_id"][::std::mem::offset_of!(ArchCPU, apic_id) - 26624usize];
+    ["Offset of field: ArchCPU::vmware_cpuid_freq"]
+        [::std::mem::offset_of!(ArchCPU, vmware_cpuid_freq) - 26628usize];
+    ["Offset of field: ArchCPU::cache_info_passthrough"]
+        [::std::mem::offset_of!(ArchCPU, cache_info_passthrough) - 26629usize];
+    ["Offset of field: ArchCPU::mwait"][::std::mem::offset_of!(ArchCPU, mwait) - 26632usize];
+    ["Offset of field: ArchCPU::filtered_features"]
+        [::std::mem::offset_of!(ArchCPU, filtered_features) - 26648usize];
+    ["Offset of field: ArchCPU::enable_pmu"]
+        [::std::mem::offset_of!(ArchCPU, enable_pmu) - 26992usize];
+    ["Offset of field: ArchCPU::lbr_fmt"][::std::mem::offset_of!(ArchCPU, lbr_fmt) - 27000usize];
+    ["Offset of field: ArchCPU::enable_lmce"]
+        [::std::mem::offset_of!(ArchCPU, enable_lmce) - 27008usize];
+    ["Offset of field: ArchCPU::enable_l3_cache"]
+        [::std::mem::offset_of!(ArchCPU, enable_l3_cache) - 27009usize];
+    ["Offset of field: ArchCPU::l1_cache_per_core"]
+        [::std::mem::offset_of!(ArchCPU, l1_cache_per_core) - 27010usize];
+    ["Offset of field: ArchCPU::legacy_cache"]
+        [::std::mem::offset_of!(ArchCPU, legacy_cache) - 27011usize];
+    ["Offset of field: ArchCPU::legacy_multi_node"]
+        [::std::mem::offset_of!(ArchCPU, legacy_multi_node) - 27012usize];
+    ["Offset of field: ArchCPU::enable_cpuid_0xb"]
+        [::std::mem::offset_of!(ArchCPU, enable_cpuid_0xb) - 27013usize];
+    ["Offset of field: ArchCPU::full_cpuid_auto_level"]
+        [::std::mem::offset_of!(ArchCPU, full_cpuid_auto_level) - 27014usize];
+    ["Offset of field: ArchCPU::vendor_cpuid_only"]
+        [::std::mem::offset_of!(ArchCPU, vendor_cpuid_only) - 27015usize];
+    ["Offset of field: ArchCPU::amd_topoext_features_only"]
+        [::std::mem::offset_of!(ArchCPU, amd_topoext_features_only) - 27016usize];
+    ["Offset of field: ArchCPU::intel_pt_auto_level"]
+        [::std::mem::offset_of!(ArchCPU, intel_pt_auto_level) - 27017usize];
+    ["Offset of field: ArchCPU::fill_mtrr_mask"]
+        [::std::mem::offset_of!(ArchCPU, fill_mtrr_mask) - 27018usize];
+    ["Offset of field: ArchCPU::host_phys_bits"]
+        [::std::mem::offset_of!(ArchCPU, host_phys_bits) - 27019usize];
+    ["Offset of field: ArchCPU::host_phys_bits_limit"]
+        [::std::mem::offset_of!(ArchCPU, host_phys_bits_limit) - 27020usize];
+    ["Offset of field: ArchCPU::kvm_pv_enforce_cpuid"]
+        [::std::mem::offset_of!(ArchCPU, kvm_pv_enforce_cpuid) - 27021usize];
+    ["Offset of field: ArchCPU::phys_bits"]
+        [::std::mem::offset_of!(ArchCPU, phys_bits) - 27024usize];
+    ["Offset of field: ArchCPU::guest_phys_bits"]
+        [::std::mem::offset_of!(ArchCPU, guest_phys_bits) - 27028usize];
+    ["Offset of field: ArchCPU::apic_state"]
+        [::std::mem::offset_of!(ArchCPU, apic_state) - 27032usize];
+    ["Offset of field: ArchCPU::cpu_as_root"]
+        [::std::mem::offset_of!(ArchCPU, cpu_as_root) - 27040usize];
+    ["Offset of field: ArchCPU::cpu_as_mem"]
+        [::std::mem::offset_of!(ArchCPU, cpu_as_mem) - 27048usize];
+    ["Offset of field: ArchCPU::smram"][::std::mem::offset_of!(ArchCPU, smram) - 27056usize];
+    ["Offset of field: ArchCPU::machine_done"]
+        [::std::mem::offset_of!(ArchCPU, machine_done) - 27064usize];
+    ["Offset of field: ArchCPU::kvm_msr_buf"]
+        [::std::mem::offset_of!(ArchCPU, kvm_msr_buf) - 27088usize];
+    ["Offset of field: ArchCPU::node_id"][::std::mem::offset_of!(ArchCPU, node_id) - 27096usize];
+    ["Offset of field: ArchCPU::socket_id"]
+        [::std::mem::offset_of!(ArchCPU, socket_id) - 27100usize];
+    ["Offset of field: ArchCPU::die_id"][::std::mem::offset_of!(ArchCPU, die_id) - 27104usize];
+    ["Offset of field: ArchCPU::module_id"]
+        [::std::mem::offset_of!(ArchCPU, module_id) - 27108usize];
+    ["Offset of field: ArchCPU::core_id"][::std::mem::offset_of!(ArchCPU, core_id) - 27112usize];
+    ["Offset of field: ArchCPU::thread_id"]
+        [::std::mem::offset_of!(ArchCPU, thread_id) - 27116usize];
+    ["Offset of field: ArchCPU::hv_max_vps"]
+        [::std::mem::offset_of!(ArchCPU, hv_max_vps) - 27120usize];
+    ["Offset of field: ArchCPU::xen_vapic"]
+        [::std::mem::offset_of!(ArchCPU, xen_vapic) - 27124usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct PowerPCCPUClass {
+pub struct X86CPUModel {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct X86CPUClass {
     pub parent_class: CPUClass,
+    pub model: *mut X86CPUModel,
+    pub host_cpuid_required: bool,
+    pub ordering: ::std::os::raw::c_int,
+    pub migration_safe: bool,
+    pub static_model: bool,
+    pub model_description: *const ::std::os::raw::c_char,
     pub parent_realize: DeviceRealize,
     pub parent_unrealize: DeviceUnrealize,
     pub parent_phases: ResettablePhases,
-    pub parent_parse_features: ::std::option::Option<
-        unsafe extern "C" fn(
-            type_: *const ::std::os::raw::c_char,
-            str_: *mut ::std::os::raw::c_char,
-            errp: *mut *mut Error,
-        ),
-    >,
-    pub pvr: u32,
-    pub spapr_logical_pvr: u32,
-    pub pvr_match: ::std::option::Option<
-        unsafe extern "C" fn(pcc: *mut PowerPCCPUClass, pvr: u32, best: bool) -> bool,
-    >,
-    pub pcr_mask: u64,
-    pub pcr_supported: u64,
-    pub svr: u32,
-    pub insns_flags: u64,
-    pub insns_flags2: u64,
-    pub msr_mask: u64,
-    pub lpcr_mask: u64,
-    pub lpcr_pm: u64,
-    pub mmu_model: powerpc_mmu_t,
-    pub excp_model: powerpc_excp_t,
-    pub bus_model: powerpc_input_t,
-    pub flags: u32,
-    pub bfd_mach: ::std::os::raw::c_int,
-    pub l1_dcache_size: u32,
-    pub l1_icache_size: u32,
-    pub gdb_spr: GDBFeature,
-    pub hash64_opts: *const PPCHash64Options,
-    pub radix_page_info: *mut ppc_radix_page_info,
-    pub lrg_decr_bits: u32,
-    pub n_host_threads: ::std::os::raw::c_int,
-    pub init_proc: ::std::option::Option<unsafe extern "C" fn(env: *mut CPUPPCState)>,
-    pub check_pow:
-        ::std::option::Option<unsafe extern "C" fn(env: *mut CPUPPCState) -> ::std::os::raw::c_int>,
-    pub check_attn:
-        ::std::option::Option<unsafe extern "C" fn(env: *mut CPUPPCState) -> ::std::os::raw::c_int>,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of PowerPCCPUClass"][::std::mem::size_of::<PowerPCCPUClass>() - 616usize];
-    ["Alignment of PowerPCCPUClass"][::std::mem::align_of::<PowerPCCPUClass>() - 8usize];
-    ["Offset of field: PowerPCCPUClass::parent_class"]
-        [::std::mem::offset_of!(PowerPCCPUClass, parent_class) - 0usize];
-    ["Offset of field: PowerPCCPUClass::parent_realize"]
-        [::std::mem::offset_of!(PowerPCCPUClass, parent_realize) - 368usize];
-    ["Offset of field: PowerPCCPUClass::parent_unrealize"]
-        [::std::mem::offset_of!(PowerPCCPUClass, parent_unrealize) - 376usize];
-    ["Offset of field: PowerPCCPUClass::parent_phases"]
-        [::std::mem::offset_of!(PowerPCCPUClass, parent_phases) - 384usize];
-    ["Offset of field: PowerPCCPUClass::parent_parse_features"]
-        [::std::mem::offset_of!(PowerPCCPUClass, parent_parse_features) - 408usize];
-    ["Offset of field: PowerPCCPUClass::pvr"]
-        [::std::mem::offset_of!(PowerPCCPUClass, pvr) - 416usize];
-    ["Offset of field: PowerPCCPUClass::spapr_logical_pvr"]
-        [::std::mem::offset_of!(PowerPCCPUClass, spapr_logical_pvr) - 420usize];
-    ["Offset of field: PowerPCCPUClass::pvr_match"]
-        [::std::mem::offset_of!(PowerPCCPUClass, pvr_match) - 424usize];
-    ["Offset of field: PowerPCCPUClass::pcr_mask"]
-        [::std::mem::offset_of!(PowerPCCPUClass, pcr_mask) - 432usize];
-    ["Offset of field: PowerPCCPUClass::pcr_supported"]
-        [::std::mem::offset_of!(PowerPCCPUClass, pcr_supported) - 440usize];
-    ["Offset of field: PowerPCCPUClass::svr"]
-        [::std::mem::offset_of!(PowerPCCPUClass, svr) - 448usize];
-    ["Offset of field: PowerPCCPUClass::insns_flags"]
-        [::std::mem::offset_of!(PowerPCCPUClass, insns_flags) - 456usize];
-    ["Offset of field: PowerPCCPUClass::insns_flags2"]
-        [::std::mem::offset_of!(PowerPCCPUClass, insns_flags2) - 464usize];
-    ["Offset of field: PowerPCCPUClass::msr_mask"]
-        [::std::mem::offset_of!(PowerPCCPUClass, msr_mask) - 472usize];
-    ["Offset of field: PowerPCCPUClass::lpcr_mask"]
-        [::std::mem::offset_of!(PowerPCCPUClass, lpcr_mask) - 480usize];
-    ["Offset of field: PowerPCCPUClass::lpcr_pm"]
-        [::std::mem::offset_of!(PowerPCCPUClass, lpcr_pm) - 488usize];
-    ["Offset of field: PowerPCCPUClass::mmu_model"]
-        [::std::mem::offset_of!(PowerPCCPUClass, mmu_model) - 496usize];
-    ["Offset of field: PowerPCCPUClass::excp_model"]
-        [::std::mem::offset_of!(PowerPCCPUClass, excp_model) - 500usize];
-    ["Offset of field: PowerPCCPUClass::bus_model"]
-        [::std::mem::offset_of!(PowerPCCPUClass, bus_model) - 504usize];
-    ["Offset of field: PowerPCCPUClass::flags"]
-        [::std::mem::offset_of!(PowerPCCPUClass, flags) - 508usize];
-    ["Offset of field: PowerPCCPUClass::bfd_mach"]
-        [::std::mem::offset_of!(PowerPCCPUClass, bfd_mach) - 512usize];
-    ["Offset of field: PowerPCCPUClass::l1_dcache_size"]
-        [::std::mem::offset_of!(PowerPCCPUClass, l1_dcache_size) - 516usize];
-    ["Offset of field: PowerPCCPUClass::l1_icache_size"]
-        [::std::mem::offset_of!(PowerPCCPUClass, l1_icache_size) - 520usize];
-    ["Offset of field: PowerPCCPUClass::gdb_spr"]
-        [::std::mem::offset_of!(PowerPCCPUClass, gdb_spr) - 528usize];
-    ["Offset of field: PowerPCCPUClass::hash64_opts"]
-        [::std::mem::offset_of!(PowerPCCPUClass, hash64_opts) - 568usize];
-    ["Offset of field: PowerPCCPUClass::radix_page_info"]
-        [::std::mem::offset_of!(PowerPCCPUClass, radix_page_info) - 576usize];
-    ["Offset of field: PowerPCCPUClass::lrg_decr_bits"]
-        [::std::mem::offset_of!(PowerPCCPUClass, lrg_decr_bits) - 584usize];
-    ["Offset of field: PowerPCCPUClass::n_host_threads"]
-        [::std::mem::offset_of!(PowerPCCPUClass, n_host_threads) - 588usize];
-    ["Offset of field: PowerPCCPUClass::init_proc"]
-        [::std::mem::offset_of!(PowerPCCPUClass, init_proc) - 592usize];
-    ["Offset of field: PowerPCCPUClass::check_pow"]
-        [::std::mem::offset_of!(PowerPCCPUClass, check_pow) - 600usize];
-    ["Offset of field: PowerPCCPUClass::check_attn"]
-        [::std::mem::offset_of!(PowerPCCPUClass, check_attn) - 608usize];
+    ["Size of X86CPUClass"][::std::mem::size_of::<X86CPUClass>() - 440usize];
+    ["Alignment of X86CPUClass"][::std::mem::align_of::<X86CPUClass>() - 8usize];
+    ["Offset of field: X86CPUClass::parent_class"]
+        [::std::mem::offset_of!(X86CPUClass, parent_class) - 0usize];
+    ["Offset of field: X86CPUClass::model"][::std::mem::offset_of!(X86CPUClass, model) - 368usize];
+    ["Offset of field: X86CPUClass::host_cpuid_required"]
+        [::std::mem::offset_of!(X86CPUClass, host_cpuid_required) - 376usize];
+    ["Offset of field: X86CPUClass::ordering"]
+        [::std::mem::offset_of!(X86CPUClass, ordering) - 380usize];
+    ["Offset of field: X86CPUClass::migration_safe"]
+        [::std::mem::offset_of!(X86CPUClass, migration_safe) - 384usize];
+    ["Offset of field: X86CPUClass::static_model"]
+        [::std::mem::offset_of!(X86CPUClass, static_model) - 385usize];
+    ["Offset of field: X86CPUClass::model_description"]
+        [::std::mem::offset_of!(X86CPUClass, model_description) - 392usize];
+    ["Offset of field: X86CPUClass::parent_realize"]
+        [::std::mem::offset_of!(X86CPUClass, parent_realize) - 400usize];
+    ["Offset of field: X86CPUClass::parent_unrealize"]
+        [::std::mem::offset_of!(X86CPUClass, parent_unrealize) - 408usize];
+    ["Offset of field: X86CPUClass::parent_phases"]
+        [::std::mem::offset_of!(X86CPUClass, parent_phases) - 416usize];
 };
 unsafe extern "C" {
-    pub fn ppc_cpu_class_by_name(name: *const ::std::os::raw::c_char) -> *mut ObjectClass;
+    pub static vmstate_x86_cpu: VMStateDescription;
 }
 unsafe extern "C" {
-    pub fn ppc_cpu_class_by_pvr(pvr: u32) -> *mut PowerPCCPUClass;
+    pub fn x86_cpu_pending_interrupt(
+        cs: *mut CPUState,
+        interrupt_request: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
-    pub fn ppc_cpu_class_by_pvr_mask(pvr: u32) -> *mut PowerPCCPUClass;
+    pub fn x86_cpu_write_elf64_note(
+        f: WriteCoreDumpFunction,
+        cpu: *mut CPUState,
+        cpuid: ::std::os::raw::c_int,
+        s: *mut DumpState,
+    ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
-    pub fn ppc_cpu_get_family_class(pcc: *mut PowerPCCPUClass) -> *mut PowerPCCPUClass;
+    pub fn x86_cpu_write_elf32_note(
+        f: WriteCoreDumpFunction,
+        cpu: *mut CPUState,
+        cpuid: ::std::os::raw::c_int,
+        s: *mut DumpState,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn x86_cpu_write_elf64_qemunote(
+        f: WriteCoreDumpFunction,
+        cpu: *mut CPUState,
+        s: *mut DumpState,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn x86_cpu_write_elf32_qemunote(
+        f: WriteCoreDumpFunction,
+        cpu: *mut CPUState,
+        s: *mut DumpState,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn x86_cpu_get_memory_mapping(
+        cpu: *mut CPUState,
+        list: *mut MemoryMappingList,
+        errp: *mut *mut Error,
+    ) -> bool;
+}
+unsafe extern "C" {
+    pub fn x86_cpu_dump_state(cs: *mut CPUState, f: *mut FILE, flags: ::std::os::raw::c_int);
+}
+unsafe extern "C" {
+    pub fn x86_cpu_gdb_read_register(
+        cpu: *mut CPUState,
+        buf: *mut GByteArray,
+        reg: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn x86_cpu_gdb_write_register(
+        cpu: *mut CPUState,
+        buf: *mut u8,
+        reg: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn x86_cpu_gdb_init(cs: *mut CPUState);
+}
+unsafe extern "C" {
+    pub fn x86_cpu_list();
+}
+unsafe extern "C" {
+    pub fn cpu_x86_support_mca_broadcast(env: *mut CPUX86State) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn x86_cpu_get_phys_page_attrs_debug(
+        cpu: *mut CPUState,
+        addr: vaddr,
+        attrs: *mut MemTxAttrs,
+    ) -> hwaddr;
+}
+unsafe extern "C" {
+    pub fn cpu_get_pic_interrupt(s: *mut CPUX86State) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn x86_register_ferr_irq(irq: qemu_irq);
+}
+unsafe extern "C" {
+    pub fn fpu_check_raise_ferr_irq(s: *mut CPUX86State);
+}
+unsafe extern "C" {
+    pub fn cpu_set_ignne();
+}
+unsafe extern "C" {
+    pub fn cpu_clear_ignne();
+}
+unsafe extern "C" {
+    pub fn cpu_sync_bndcs_hflags(env: *mut CPUX86State);
+}
+unsafe extern "C" {
+    pub fn cpu_x86_get_msr_core_thread_count(cpu: *mut X86CPU) -> u64;
+}
+unsafe extern "C" {
+    pub fn cpu_x86_get_descr_debug(
+        env: *mut CPUX86State,
+        selector: ::std::os::raw::c_uint,
+        base: *mut target_ulong,
+        limit: *mut ::std::os::raw::c_uint,
+        flags: *mut ::std::os::raw::c_uint,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn cpu_x86_load_seg(s: *mut CPUX86State, seg_reg: X86Seg, selector: ::std::os::raw::c_int);
+}
+unsafe extern "C" {
+    pub fn cpu_x86_fsave(s: *mut CPUX86State, host: *mut ::std::os::raw::c_void, len: usize);
+}
+unsafe extern "C" {
+    pub fn cpu_x86_frstor(s: *mut CPUX86State, host: *mut ::std::os::raw::c_void, len: usize);
+}
+unsafe extern "C" {
+    pub fn cpu_x86_fxsave(s: *mut CPUX86State, host: *mut ::std::os::raw::c_void, len: usize);
+}
+unsafe extern "C" {
+    pub fn cpu_x86_fxrstor(s: *mut CPUX86State, host: *mut ::std::os::raw::c_void, len: usize);
+}
+unsafe extern "C" {
+    pub fn cpu_x86_xsave(
+        s: *mut CPUX86State,
+        host: *mut ::std::os::raw::c_void,
+        len: usize,
+        rbfm: u64,
+    );
+}
+unsafe extern "C" {
+    pub fn cpu_x86_xrstor(
+        s: *mut CPUX86State,
+        host: *mut ::std::os::raw::c_void,
+        len: usize,
+        rbfm: u64,
+    ) -> bool;
+}
+unsafe extern "C" {
+    pub fn x86_cpu_vendor_words2str(
+        dst: *mut ::std::os::raw::c_char,
+        vendor1: u32,
+        vendor2: u32,
+        vendor3: u32,
+    );
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct PPCVirtualHypervisorClass {
-    pub parent: InterfaceClass,
-    pub cpu_in_nested: ::std::option::Option<unsafe extern "C" fn(cpu: *mut PowerPCCPU) -> bool>,
-    pub deliver_hv_excp: ::std::option::Option<
-        unsafe extern "C" fn(cpu: *mut PowerPCCPU, excp: ::std::os::raw::c_int),
-    >,
-    pub hypercall: ::std::option::Option<
-        unsafe extern "C" fn(vhyp: *mut PPCVirtualHypervisor, cpu: *mut PowerPCCPU),
-    >,
-    pub hpt_mask:
-        ::std::option::Option<unsafe extern "C" fn(vhyp: *mut PPCVirtualHypervisor) -> hwaddr>,
-    pub map_hptes: ::std::option::Option<
-        unsafe extern "C" fn(
-            vhyp: *mut PPCVirtualHypervisor,
-            ptex: hwaddr,
-            n: ::std::os::raw::c_int,
-        ) -> *const ppc_hash_pte64_t,
-    >,
-    pub unmap_hptes: ::std::option::Option<
-        unsafe extern "C" fn(
-            vhyp: *mut PPCVirtualHypervisor,
-            hptes: *const ppc_hash_pte64_t,
-            ptex: hwaddr,
-            n: ::std::os::raw::c_int,
-        ),
-    >,
-    pub hpte_set_c: ::std::option::Option<
-        unsafe extern "C" fn(vhyp: *mut PPCVirtualHypervisor, ptex: hwaddr, pte1: u64),
-    >,
-    pub hpte_set_r: ::std::option::Option<
-        unsafe extern "C" fn(vhyp: *mut PPCVirtualHypervisor, ptex: hwaddr, pte1: u64),
-    >,
-    pub get_pate: ::std::option::Option<
-        unsafe extern "C" fn(
-            vhyp: *mut PPCVirtualHypervisor,
-            cpu: *mut PowerPCCPU,
-            lpid: target_ulong,
-            entry: *mut ppc_v3_pate_t,
-        ) -> bool,
-    >,
-    pub encode_hpt_for_kvm_pr: ::std::option::Option<
-        unsafe extern "C" fn(vhyp: *mut PPCVirtualHypervisor) -> target_ulong,
-    >,
-    pub cpu_exec_enter: ::std::option::Option<
-        unsafe extern "C" fn(vhyp: *mut PPCVirtualHypervisor, cpu: *mut PowerPCCPU),
-    >,
-    pub cpu_exec_exit: ::std::option::Option<
-        unsafe extern "C" fn(vhyp: *mut PPCVirtualHypervisor, cpu: *mut PowerPCCPU),
-    >,
+pub struct PropValue {
+    pub prop: *const ::std::os::raw::c_char,
+    pub value: *const ::std::os::raw::c_char,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of PPCVirtualHypervisorClass"]
-        [::std::mem::size_of::<PPCVirtualHypervisorClass>() - 200usize];
-    ["Alignment of PPCVirtualHypervisorClass"]
-        [::std::mem::align_of::<PPCVirtualHypervisorClass>() - 8usize];
-    ["Offset of field: PPCVirtualHypervisorClass::parent"]
-        [::std::mem::offset_of!(PPCVirtualHypervisorClass, parent) - 0usize];
-    ["Offset of field: PPCVirtualHypervisorClass::cpu_in_nested"]
-        [::std::mem::offset_of!(PPCVirtualHypervisorClass, cpu_in_nested) - 104usize];
-    ["Offset of field: PPCVirtualHypervisorClass::deliver_hv_excp"]
-        [::std::mem::offset_of!(PPCVirtualHypervisorClass, deliver_hv_excp) - 112usize];
-    ["Offset of field: PPCVirtualHypervisorClass::hypercall"]
-        [::std::mem::offset_of!(PPCVirtualHypervisorClass, hypercall) - 120usize];
-    ["Offset of field: PPCVirtualHypervisorClass::hpt_mask"]
-        [::std::mem::offset_of!(PPCVirtualHypervisorClass, hpt_mask) - 128usize];
-    ["Offset of field: PPCVirtualHypervisorClass::map_hptes"]
-        [::std::mem::offset_of!(PPCVirtualHypervisorClass, map_hptes) - 136usize];
-    ["Offset of field: PPCVirtualHypervisorClass::unmap_hptes"]
-        [::std::mem::offset_of!(PPCVirtualHypervisorClass, unmap_hptes) - 144usize];
-    ["Offset of field: PPCVirtualHypervisorClass::hpte_set_c"]
-        [::std::mem::offset_of!(PPCVirtualHypervisorClass, hpte_set_c) - 152usize];
-    ["Offset of field: PPCVirtualHypervisorClass::hpte_set_r"]
-        [::std::mem::offset_of!(PPCVirtualHypervisorClass, hpte_set_r) - 160usize];
-    ["Offset of field: PPCVirtualHypervisorClass::get_pate"]
-        [::std::mem::offset_of!(PPCVirtualHypervisorClass, get_pate) - 168usize];
-    ["Offset of field: PPCVirtualHypervisorClass::encode_hpt_for_kvm_pr"]
-        [::std::mem::offset_of!(PPCVirtualHypervisorClass, encode_hpt_for_kvm_pr) - 176usize];
-    ["Offset of field: PPCVirtualHypervisorClass::cpu_exec_enter"]
-        [::std::mem::offset_of!(PPCVirtualHypervisorClass, cpu_exec_enter) - 184usize];
-    ["Offset of field: PPCVirtualHypervisorClass::cpu_exec_exit"]
-        [::std::mem::offset_of!(PPCVirtualHypervisorClass, cpu_exec_exit) - 192usize];
+    ["Size of PropValue"][::std::mem::size_of::<PropValue>() - 16usize];
+    ["Alignment of PropValue"][::std::mem::align_of::<PropValue>() - 8usize];
+    ["Offset of field: PropValue::prop"][::std::mem::offset_of!(PropValue, prop) - 0usize];
+    ["Offset of field: PropValue::value"][::std::mem::offset_of!(PropValue, value) - 8usize];
 };
 unsafe extern "C" {
-    pub fn ppc_cpu_dump_state(cpu: *mut CPUState, f: *mut FILE, flags: ::std::os::raw::c_int);
+    pub fn x86_cpu_apply_props(cpu: *mut X86CPU, props: *mut PropValue);
 }
 unsafe extern "C" {
-    pub fn ppc_cpu_gdb_read_register(
-        cpu: *mut CPUState,
-        buf: *mut GByteArray,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
+    pub fn x86_cpu_after_reset(cpu: *mut X86CPU);
 }
 unsafe extern "C" {
-    pub fn ppc_cpu_gdb_read_register_apple(
-        cpu: *mut CPUState,
-        buf: *mut GByteArray,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
+    pub fn cpu_x86_virtual_addr_width(env: *mut CPUX86State) -> u32;
 }
 unsafe extern "C" {
-    pub fn ppc_cpu_gdb_write_register(
-        cpu: *mut CPUState,
-        buf: *mut u8,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn ppc_cpu_gdb_write_register_apple(
-        cpu: *mut CPUState,
-        buf: *mut u8,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn ppc_cpu_get_phys_page_debug(cpu: *mut CPUState, addr: vaddr) -> hwaddr;
-}
-unsafe extern "C" {
-    pub fn ppc64_cpu_write_elf64_note(
-        f: WriteCoreDumpFunction,
-        cs: *mut CPUState,
-        cpuid: ::std::os::raw::c_int,
-        s: *mut DumpState,
-    ) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn ppc32_cpu_write_elf32_note(
-        f: WriteCoreDumpFunction,
-        cs: *mut CPUState,
-        cpuid: ::std::os::raw::c_int,
-        s: *mut DumpState,
-    ) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn ppc_maybe_interrupt(env: *mut CPUPPCState);
-}
-unsafe extern "C" {
-    pub fn ppc_cpu_do_interrupt(cpu: *mut CPUState);
-}
-unsafe extern "C" {
-    pub fn ppc_cpu_exec_interrupt(cpu: *mut CPUState, int_req: ::std::os::raw::c_int) -> bool;
-}
-unsafe extern "C" {
-    pub fn ppc_cpu_do_system_reset(cs: *mut CPUState);
-}
-unsafe extern "C" {
-    pub fn ppc_cpu_do_fwnmi_machine_check(cs: *mut CPUState, vector: target_ulong);
-}
-unsafe extern "C" {
-    pub static vmstate_ppc_cpu: VMStateDescription;
-}
-unsafe extern "C" {
-    pub fn ppc_translate_init();
-}
-unsafe extern "C" {
-    pub fn ppc_translate_code(
-        cs: *mut CPUState,
-        tb: *mut TranslationBlock,
-        max_insns: *mut ::std::os::raw::c_int,
-        pc: vaddr,
-        host_pc: *mut ::std::os::raw::c_void,
+    pub fn cpu_x86_cpuid(
+        env: *mut CPUX86State,
+        index: u32,
+        count: u32,
+        eax: *mut u32,
+        ebx: *mut u32,
+        ecx: *mut u32,
+        edx: *mut u32,
     );
 }
 unsafe extern "C" {
-    pub fn ppc_store_sdr1(env: *mut CPUPPCState, value: target_ulong);
+    pub fn cpu_clear_apic_feature(env: *mut CPUX86State);
 }
 unsafe extern "C" {
-    pub fn ppc_store_lpcr(cpu: *mut PowerPCCPU, val: target_ulong);
+    pub fn cpu_set_apic_feature(env: *mut CPUX86State);
 }
 unsafe extern "C" {
-    pub fn ppc_update_ciabr(env: *mut CPUPPCState);
-}
-unsafe extern "C" {
-    pub fn ppc_store_ciabr(env: *mut CPUPPCState, value: target_ulong);
-}
-unsafe extern "C" {
-    pub fn ppc_update_daw0(env: *mut CPUPPCState);
-}
-unsafe extern "C" {
-    pub fn ppc_store_dawr0(env: *mut CPUPPCState, value: target_ulong);
-}
-unsafe extern "C" {
-    pub fn ppc_store_dawrx0(env: *mut CPUPPCState, value: u32);
-}
-unsafe extern "C" {
-    pub fn ppc_store_msr(env: *mut CPUPPCState, value: target_ulong);
-}
-unsafe extern "C" {
-    pub fn ppc_cpu_list();
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_load_tbl(env: *mut CPUPPCState) -> u64;
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_load_tbu(env: *mut CPUPPCState) -> u32;
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_store_tbu(env: *mut CPUPPCState, value: u32);
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_store_tbl(env: *mut CPUPPCState, value: u32);
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_load_atbl(env: *mut CPUPPCState) -> u64;
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_load_atbu(env: *mut CPUPPCState) -> u32;
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_store_atbl(env: *mut CPUPPCState, value: u32);
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_store_atbu(env: *mut CPUPPCState, value: u32);
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_increase_tb_by_offset(env: *mut CPUPPCState, offset: i64);
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_decrease_tb_by_offset(env: *mut CPUPPCState, offset: i64);
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_load_vtb(env: *mut CPUPPCState) -> u64;
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_store_vtb(env: *mut CPUPPCState, value: u64);
-}
-unsafe extern "C" {
-    pub fn ppc_decr_clear_on_delivery(env: *mut CPUPPCState) -> bool;
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_load_decr(env: *mut CPUPPCState) -> target_ulong;
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_store_decr(env: *mut CPUPPCState, value: target_ulong);
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_load_hdecr(env: *mut CPUPPCState) -> target_ulong;
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_store_hdecr(env: *mut CPUPPCState, value: target_ulong);
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_store_tbu40(env: *mut CPUPPCState, value: u64);
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_load_purr(env: *mut CPUPPCState) -> u64;
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_store_purr(env: *mut CPUPPCState, value: u64);
-}
-unsafe extern "C" {
-    pub fn load_40x_pit(env: *mut CPUPPCState) -> target_ulong;
-}
-unsafe extern "C" {
-    pub fn store_40x_pit(env: *mut CPUPPCState, val: target_ulong);
-}
-unsafe extern "C" {
-    pub fn store_40x_dbcr0(env: *mut CPUPPCState, val: u32);
-}
-unsafe extern "C" {
-    pub fn store_40x_sler(env: *mut CPUPPCState, val: u32);
-}
-unsafe extern "C" {
-    pub fn store_40x_tcr(env: *mut CPUPPCState, val: target_ulong);
-}
-unsafe extern "C" {
-    pub fn store_40x_tsr(env: *mut CPUPPCState, val: target_ulong);
-}
-unsafe extern "C" {
-    pub fn store_booke_tcr(env: *mut CPUPPCState, val: target_ulong);
-}
-unsafe extern "C" {
-    pub fn store_booke_tsr(env: *mut CPUPPCState, val: target_ulong);
-}
-unsafe extern "C" {
-    pub fn ppc_tlb_invalidate_all(env: *mut CPUPPCState);
-}
-unsafe extern "C" {
-    pub fn ppc_tlb_invalidate_one(env: *mut CPUPPCState, addr: target_ulong);
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_set_vhyp(cpu: *mut PowerPCCPU, vhyp: *mut PPCVirtualHypervisor);
-}
-unsafe extern "C" {
-    pub fn cpu_ppc_set_1lpar(cpu: *mut PowerPCCPU);
-}
-unsafe extern "C" {
-    pub fn ppc_store_fpscr(env: *mut CPUPPCState, val: target_ulong);
-}
-unsafe extern "C" {
-    pub fn helper_hfscr_facility_check(
-        env: *mut CPUPPCState,
-        bit: u32,
-        caller: *const ::std::os::raw::c_char,
-        cause: u32,
+    pub fn host_cpuid(
+        function: u32,
+        count: u32,
+        eax: *mut u32,
+        ebx: *mut u32,
+        ecx: *mut u32,
+        edx: *mut u32,
     );
 }
 unsafe extern "C" {
-    pub fn ppc_dcr_read(
-        dcr_env: *mut ppc_dcr_t,
-        dcrn: ::std::os::raw::c_int,
-        valp: *mut u32,
+    pub fn cpu_has_x2apic_feature(env: *mut CPUX86State) -> bool;
+}
+unsafe extern "C" {
+    pub fn x86_cpu_set_a20(cpu: *mut X86CPU, a20_state: ::std::os::raw::c_int);
+}
+unsafe extern "C" {
+    pub fn cpu_sync_avx_hflag(env: *mut CPUX86State);
+}
+unsafe extern "C" {
+    pub fn cpu_load_efer(env: *mut CPUX86State, val: u64);
+}
+unsafe extern "C" {
+    pub fn x86_ldub_phys(cs: *mut CPUState, addr: hwaddr) -> u8;
+}
+unsafe extern "C" {
+    pub fn x86_lduw_phys(cs: *mut CPUState, addr: hwaddr) -> u32;
+}
+unsafe extern "C" {
+    pub fn x86_ldl_phys(cs: *mut CPUState, addr: hwaddr) -> u32;
+}
+unsafe extern "C" {
+    pub fn x86_ldq_phys(cs: *mut CPUState, addr: hwaddr) -> u64;
+}
+unsafe extern "C" {
+    pub fn x86_stb_phys(cs: *mut CPUState, addr: hwaddr, val: u8);
+}
+unsafe extern "C" {
+    pub fn x86_stl_phys_notdirty(cs: *mut CPUState, addr: hwaddr, val: u32);
+}
+unsafe extern "C" {
+    pub fn x86_stw_phys(cs: *mut CPUState, addr: hwaddr, val: u32);
+}
+unsafe extern "C" {
+    pub fn x86_stl_phys(cs: *mut CPUState, addr: hwaddr, val: u32);
+}
+unsafe extern "C" {
+    pub fn x86_stq_phys(cs: *mut CPUState, addr: hwaddr, val: u64);
+}
+unsafe extern "C" {
+    pub fn cpu_x86_update_cr0(env: *mut CPUX86State, new_cr0: u32);
+}
+unsafe extern "C" {
+    pub fn cpu_x86_update_cr3(env: *mut CPUX86State, new_cr3: target_ulong);
+}
+unsafe extern "C" {
+    pub fn cpu_x86_update_cr4(env: *mut CPUX86State, new_cr4: u32);
+}
+unsafe extern "C" {
+    pub fn cpu_x86_update_dr7(env: *mut CPUX86State, new_dr7: u32);
+}
+unsafe extern "C" {
+    pub fn cpu_get_tsc(env: *mut CPUX86State) -> u64;
+}
+unsafe extern "C" {
+    pub fn x86_mmu_index_pl(
+        env: *mut CPUX86State,
+        pl: ::std::os::raw::c_uint,
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
-    pub fn ppc_dcr_write(
-        dcr_env: *mut ppc_dcr_t,
-        dcrn: ::std::os::raw::c_int,
-        val: u32,
-    ) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn ppc_check_compat(
-        cpu: *mut PowerPCCPU,
-        compat_pvr: u32,
-        min_compat_pvr: u32,
-        max_compat_pvr: u32,
-    ) -> bool;
-}
-unsafe extern "C" {
-    pub fn ppc_type_check_compat(
-        cputype: *const ::std::os::raw::c_char,
-        compat_pvr: u32,
-        min_compat_pvr: u32,
-        max_compat_pvr: u32,
-    ) -> bool;
-}
-unsafe extern "C" {
-    pub fn ppc_set_compat(
-        cpu: *mut PowerPCCPU,
-        compat_pvr: u32,
-        errp: *mut *mut Error,
-    ) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn ppc_set_compat_all(compat_pvr: u32, errp: *mut *mut Error) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn ppc_init_compat_all(compat_pvr: u32, errp: *mut *mut Error) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn ppc_compat_max_vthreads(cpu: *mut PowerPCCPU) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn ppc_compat_add_property(
-        obj: *mut Object,
-        name: *const ::std::os::raw::c_char,
-        compat_pvr: *mut u32,
-        basedesc: *const ::std::os::raw::c_char,
-    );
+    pub fn cpu_mmu_index_kernel(env: *mut CPUX86State) -> ::std::os::raw::c_int;
 }
 #[repr(C)]
 #[derive(Debug)]
@@ -36358,269 +39694,395 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn cpu_copy(env: *mut CPUArchState) -> *mut CPUArchState;
 }
-pub const PPC_NONE: _bindgen_ty_247 = 0;
-pub const PPC_INSNS_BASE: _bindgen_ty_247 = 1;
-pub const PPC_64B: _bindgen_ty_247 = 32;
-pub const PPC_64BX: _bindgen_ty_247 = 64;
-pub const PPC_64H: _bindgen_ty_247 = 128;
-pub const PPC_WAIT: _bindgen_ty_247 = 256;
-pub const PPC_MFTB: _bindgen_ty_247 = 512;
-pub const PPC_ISEL: _bindgen_ty_247 = 2048;
-pub const PPC_POPCNTB: _bindgen_ty_247 = 4096;
-pub const PPC_STRING: _bindgen_ty_247 = 8192;
-pub const PPC_CILDST: _bindgen_ty_247 = 16384;
-pub const PPC_FLOAT: _bindgen_ty_247 = 65536;
-pub const PPC_FLOAT_EXT: _bindgen_ty_247 = 131072;
-pub const PPC_FLOAT_FSQRT: _bindgen_ty_247 = 262144;
-pub const PPC_FLOAT_FRES: _bindgen_ty_247 = 524288;
-pub const PPC_FLOAT_FRSQRTE: _bindgen_ty_247 = 1048576;
-pub const PPC_FLOAT_FRSQRTES: _bindgen_ty_247 = 2097152;
-pub const PPC_FLOAT_FSEL: _bindgen_ty_247 = 4194304;
-pub const PPC_FLOAT_STFIWX: _bindgen_ty_247 = 8388608;
-pub const PPC_ALTIVEC: _bindgen_ty_247 = 16777216;
-pub const PPC_SPE: _bindgen_ty_247 = 33554432;
-pub const PPC_SPE_SINGLE: _bindgen_ty_247 = 67108864;
-pub const PPC_SPE_DOUBLE: _bindgen_ty_247 = 134217728;
-pub const PPC_MEM_TLBIA: _bindgen_ty_247 = 268435456;
-pub const PPC_MEM_TLBIE: _bindgen_ty_247 = 536870912;
-pub const PPC_MEM_TLBSYNC: _bindgen_ty_247 = 1073741824;
-pub const PPC_MEM_SYNC: _bindgen_ty_247 = 2147483648;
-pub const PPC_MEM_EIEIO: _bindgen_ty_247 = 4294967296;
-pub const PPC_CACHE: _bindgen_ty_247 = 8589934592;
-pub const PPC_CACHE_ICBI: _bindgen_ty_247 = 17179869184;
-pub const PPC_CACHE_DCBZ: _bindgen_ty_247 = 34359738368;
-pub const PPC_CACHE_DCBA: _bindgen_ty_247 = 137438953472;
-pub const PPC_CACHE_LOCK: _bindgen_ty_247 = 274877906944;
-pub const PPC_EXTERN: _bindgen_ty_247 = 1099511627776;
-pub const PPC_SEGMENT: _bindgen_ty_247 = 2199023255552;
-pub const PPC_6xx_TLB: _bindgen_ty_247 = 4398046511104;
-pub const PPC_40x_TLB: _bindgen_ty_247 = 17592186044416;
-pub const PPC_SEGMENT_64B: _bindgen_ty_247 = 35184372088832;
-pub const PPC_SLBI: _bindgen_ty_247 = 70368744177664;
-pub const PPC_WRTEE: _bindgen_ty_247 = 281474976710656;
-pub const PPC_40x_EXCP: _bindgen_ty_247 = 562949953421312;
-pub const PPC_405_MAC: _bindgen_ty_247 = 1125899906842624;
-pub const PPC_440_SPEC: _bindgen_ty_247 = 2251799813685248;
-pub const PPC_BOOKE: _bindgen_ty_247 = 4503599627370496;
-pub const PPC_MFAPIDI: _bindgen_ty_247 = 9007199254740992;
-pub const PPC_TLBIVA: _bindgen_ty_247 = 18014398509481984;
-pub const PPC_TLBIVAX: _bindgen_ty_247 = 36028797018963968;
-pub const PPC_4xx_COMMON: _bindgen_ty_247 = 72057594037927936;
-pub const PPC_40x_ICBT: _bindgen_ty_247 = 144115188075855872;
-pub const PPC_RFMCI: _bindgen_ty_247 = 288230376151711744;
-pub const PPC_RFDI: _bindgen_ty_247 = 576460752303423488;
-pub const PPC_DCR: _bindgen_ty_247 = 1152921504606846976;
-pub const PPC_DCRX: _bindgen_ty_247 = 2305843009213693952;
-pub const PPC_POPCNTWD: _bindgen_ty_247 = 9223372036854775808;
-pub const PPC2_BOOKE206: _bindgen_ty_247 = 1;
-pub const PPC2_VSX: _bindgen_ty_247 = 2;
-pub const PPC2_DFP: _bindgen_ty_247 = 4;
-pub const PPC2_PRCNTL: _bindgen_ty_247 = 8;
-pub const PPC2_DBRX: _bindgen_ty_247 = 16;
-pub const PPC2_ISA205: _bindgen_ty_247 = 32;
-pub const PPC2_VSX207: _bindgen_ty_247 = 64;
-pub const PPC2_PERM_ISA206: _bindgen_ty_247 = 128;
-pub const PPC2_DIVE_ISA206: _bindgen_ty_247 = 256;
-pub const PPC2_ATOMIC_ISA206: _bindgen_ty_247 = 512;
-pub const PPC2_FP_CVT_ISA206: _bindgen_ty_247 = 1024;
-pub const PPC2_FP_TST_ISA206: _bindgen_ty_247 = 2048;
-pub const PPC2_BCTAR_ISA207: _bindgen_ty_247 = 4096;
-pub const PPC2_LSQ_ISA207: _bindgen_ty_247 = 8192;
-pub const PPC2_ALTIVEC_207: _bindgen_ty_247 = 16384;
-pub const PPC2_ISA207S: _bindgen_ty_247 = 32768;
-pub const PPC2_FP_CVT_S64: _bindgen_ty_247 = 65536;
-pub const PPC2_TM: _bindgen_ty_247 = 131072;
-pub const PPC2_PM_ISA206: _bindgen_ty_247 = 262144;
-pub const PPC2_ISA300: _bindgen_ty_247 = 524288;
-pub const PPC2_ISA310: _bindgen_ty_247 = 1048576;
-pub const PPC2_MEM_LWSYNC: _bindgen_ty_247 = 2097152;
-pub const PPC2_BCDA_ISA206: _bindgen_ty_247 = 4194304;
-pub type _bindgen_ty_247 = ::std::os::raw::c_ulong;
-pub const ACCESS_CODE: _bindgen_ty_248 = 16;
-pub const ACCESS_INT: _bindgen_ty_248 = 32;
-pub const ACCESS_FLOAT: _bindgen_ty_248 = 48;
-pub const ACCESS_RES: _bindgen_ty_248 = 64;
-pub const ACCESS_EXT: _bindgen_ty_248 = 80;
-pub const ACCESS_CACHE: _bindgen_ty_248 = 96;
-pub type _bindgen_ty_248 = ::std::os::raw::c_uint;
-pub const PPC6xx_INPUT_HRESET: _bindgen_ty_249 = 0;
-pub const PPC6xx_INPUT_SRESET: _bindgen_ty_249 = 1;
-pub const PPC6xx_INPUT_CKSTP_IN: _bindgen_ty_249 = 2;
-pub const PPC6xx_INPUT_MCP: _bindgen_ty_249 = 3;
-pub const PPC6xx_INPUT_SMI: _bindgen_ty_249 = 4;
-pub const PPC6xx_INPUT_INT: _bindgen_ty_249 = 5;
-pub const PPC6xx_INPUT_TBEN: _bindgen_ty_249 = 6;
-pub const PPC6xx_INPUT_WAKEUP: _bindgen_ty_249 = 7;
-pub const PPC6xx_INPUT_NB: _bindgen_ty_249 = 8;
-pub type _bindgen_ty_249 = ::std::os::raw::c_uint;
-pub const PPCBookE_INPUT_HRESET: _bindgen_ty_250 = 0;
-pub const PPCBookE_INPUT_SRESET: _bindgen_ty_250 = 1;
-pub const PPCBookE_INPUT_CKSTP_IN: _bindgen_ty_250 = 2;
-pub const PPCBookE_INPUT_MCP: _bindgen_ty_250 = 3;
-pub const PPCBookE_INPUT_SMI: _bindgen_ty_250 = 4;
-pub const PPCBookE_INPUT_INT: _bindgen_ty_250 = 5;
-pub const PPCBookE_INPUT_CINT: _bindgen_ty_250 = 6;
-pub const PPCBookE_INPUT_NB: _bindgen_ty_250 = 7;
-pub type _bindgen_ty_250 = ::std::os::raw::c_uint;
-pub const PPCE500_INPUT_RESET_CORE: _bindgen_ty_251 = 0;
-pub const PPCE500_INPUT_MCK: _bindgen_ty_251 = 1;
-pub const PPCE500_INPUT_CINT: _bindgen_ty_251 = 3;
-pub const PPCE500_INPUT_INT: _bindgen_ty_251 = 4;
-pub const PPCE500_INPUT_DEBUG: _bindgen_ty_251 = 6;
-pub const PPCE500_INPUT_NB: _bindgen_ty_251 = 7;
-pub type _bindgen_ty_251 = ::std::os::raw::c_uint;
-pub const PPC40x_INPUT_RESET_CORE: _bindgen_ty_252 = 0;
-pub const PPC40x_INPUT_RESET_CHIP: _bindgen_ty_252 = 1;
-pub const PPC40x_INPUT_RESET_SYS: _bindgen_ty_252 = 2;
-pub const PPC40x_INPUT_CINT: _bindgen_ty_252 = 3;
-pub const PPC40x_INPUT_INT: _bindgen_ty_252 = 4;
-pub const PPC40x_INPUT_HALT: _bindgen_ty_252 = 5;
-pub const PPC40x_INPUT_DEBUG: _bindgen_ty_252 = 6;
-pub const PPC40x_INPUT_NB: _bindgen_ty_252 = 7;
-pub type _bindgen_ty_252 = ::std::os::raw::c_uint;
-pub const PPCRCPU_INPUT_PORESET: _bindgen_ty_253 = 0;
-pub const PPCRCPU_INPUT_HRESET: _bindgen_ty_253 = 1;
-pub const PPCRCPU_INPUT_SRESET: _bindgen_ty_253 = 2;
-pub const PPCRCPU_INPUT_IRQ0: _bindgen_ty_253 = 3;
-pub const PPCRCPU_INPUT_IRQ1: _bindgen_ty_253 = 4;
-pub const PPCRCPU_INPUT_IRQ2: _bindgen_ty_253 = 5;
-pub const PPCRCPU_INPUT_IRQ3: _bindgen_ty_253 = 6;
-pub const PPCRCPU_INPUT_IRQ4: _bindgen_ty_253 = 7;
-pub const PPCRCPU_INPUT_IRQ5: _bindgen_ty_253 = 8;
-pub const PPCRCPU_INPUT_IRQ6: _bindgen_ty_253 = 9;
-pub const PPCRCPU_INPUT_IRQ7: _bindgen_ty_253 = 10;
-pub const PPCRCPU_INPUT_NB: _bindgen_ty_253 = 11;
-pub type _bindgen_ty_253 = ::std::os::raw::c_uint;
-pub const PPC970_INPUT_HRESET: _bindgen_ty_254 = 0;
-pub const PPC970_INPUT_SRESET: _bindgen_ty_254 = 1;
-pub const PPC970_INPUT_CKSTP: _bindgen_ty_254 = 2;
-pub const PPC970_INPUT_TBEN: _bindgen_ty_254 = 3;
-pub const PPC970_INPUT_MCP: _bindgen_ty_254 = 4;
-pub const PPC970_INPUT_INT: _bindgen_ty_254 = 5;
-pub const PPC970_INPUT_THINT: _bindgen_ty_254 = 6;
-pub const PPC970_INPUT_NB: _bindgen_ty_254 = 7;
-pub type _bindgen_ty_254 = ::std::os::raw::c_uint;
-pub const POWER7_INPUT_INT: _bindgen_ty_255 = 0;
-pub const POWER7_INPUT_NB: _bindgen_ty_255 = 1;
-pub type _bindgen_ty_255 = ::std::os::raw::c_uint;
-pub const POWER9_INPUT_INT: _bindgen_ty_256 = 0;
-pub const POWER9_INPUT_HINT: _bindgen_ty_256 = 1;
-pub const POWER9_INPUT_NB: _bindgen_ty_256 = 2;
-pub type _bindgen_ty_256 = ::std::os::raw::c_uint;
-pub const PPC_INTERRUPT_RESET: _bindgen_ty_257 = 1;
-pub const PPC_INTERRUPT_WAKEUP: _bindgen_ty_257 = 2;
-pub const PPC_INTERRUPT_MCK: _bindgen_ty_257 = 4;
-pub const PPC_INTERRUPT_EXT: _bindgen_ty_257 = 8;
-pub const PPC_INTERRUPT_SMI: _bindgen_ty_257 = 16;
-pub const PPC_INTERRUPT_CEXT: _bindgen_ty_257 = 32;
-pub const PPC_INTERRUPT_DEBUG: _bindgen_ty_257 = 64;
-pub const PPC_INTERRUPT_THERM: _bindgen_ty_257 = 128;
-pub const PPC_INTERRUPT_DECR: _bindgen_ty_257 = 256;
-pub const PPC_INTERRUPT_HDECR: _bindgen_ty_257 = 512;
-pub const PPC_INTERRUPT_PIT: _bindgen_ty_257 = 1024;
-pub const PPC_INTERRUPT_FIT: _bindgen_ty_257 = 2048;
-pub const PPC_INTERRUPT_WDT: _bindgen_ty_257 = 4096;
-pub const PPC_INTERRUPT_CDOORBELL: _bindgen_ty_257 = 8192;
-pub const PPC_INTERRUPT_DOORBELL: _bindgen_ty_257 = 16384;
-pub const PPC_INTERRUPT_PERFM: _bindgen_ty_257 = 32768;
-pub const PPC_INTERRUPT_HMI: _bindgen_ty_257 = 65536;
-pub const PPC_INTERRUPT_HDOORBELL: _bindgen_ty_257 = 131072;
-pub const PPC_INTERRUPT_HVIRT: _bindgen_ty_257 = 262144;
-pub const PPC_INTERRUPT_EBB: _bindgen_ty_257 = 524288;
-pub type _bindgen_ty_257 = ::std::os::raw::c_uint;
-pub const PCR_COMPAT_2_05: _bindgen_ty_258 = 2;
-pub const PCR_COMPAT_2_06: _bindgen_ty_258 = 4;
-pub const PCR_COMPAT_2_07: _bindgen_ty_258 = 8;
-pub const PCR_COMPAT_3_00: _bindgen_ty_258 = 16;
-pub const PCR_COMPAT_3_10: _bindgen_ty_258 = 32;
-pub const PCR_VEC_DIS: _bindgen_ty_258 = 9223372036854775808;
-pub const PCR_VSX_DIS: _bindgen_ty_258 = 4611686018427387904;
-pub const PCR_TM_DIS: _bindgen_ty_258 = 2305843009213693952;
-pub type _bindgen_ty_258 = ::std::os::raw::c_ulong;
-pub const HMER_MALFUNCTION_ALERT: _bindgen_ty_259 = 9223372036854775808;
-pub const HMER_PROC_RECV_DONE: _bindgen_ty_259 = 2305843009213693952;
-pub const HMER_PROC_RECV_ERROR_MASKED: _bindgen_ty_259 = 1152921504606846976;
-pub const HMER_TFAC_ERROR: _bindgen_ty_259 = 576460752303423488;
-pub const HMER_TFMR_PARITY_ERROR: _bindgen_ty_259 = 288230376151711744;
-pub const HMER_XSCOM_FAIL: _bindgen_ty_259 = 36028797018963968;
-pub const HMER_XSCOM_DONE: _bindgen_ty_259 = 18014398509481984;
-pub const HMER_PROC_RECV_AGAIN: _bindgen_ty_259 = 4503599627370496;
-pub const HMER_WARN_RISE: _bindgen_ty_259 = 562949953421312;
-pub const HMER_WARN_FALL: _bindgen_ty_259 = 281474976710656;
-pub const HMER_SCOM_FIR_HMI: _bindgen_ty_259 = 140737488355328;
-pub const HMER_TRIG_FIR_HMI: _bindgen_ty_259 = 70368744177664;
-pub const HMER_HYP_RESOURCE_ERR: _bindgen_ty_259 = 8796093022208;
-pub const HMER_XSCOM_STATUS_MASK: _bindgen_ty_259 = 7696581394432;
-pub type _bindgen_ty_259 = ::std::os::raw::c_ulong;
-pub const TFMR_CONTROL_MASK: _bindgen_ty_260 = 18446743523953737728;
-pub const TFMR_MASK_HMI: _bindgen_ty_260 = 9007199254740992;
-pub const TFMR_TB_ECLIPZ: _bindgen_ty_260 = 562949953421312;
-pub const TFMR_LOAD_TOD_MOD: _bindgen_ty_260 = 140737488355328;
-pub const TFMR_MOVE_CHIP_TOD_TO_TB: _bindgen_ty_260 = 35184372088832;
-pub const TFMR_CLEAR_TB_ERRORS: _bindgen_ty_260 = 549755813888;
-pub const TFMR_STATUS_MASK: _bindgen_ty_260 = 549755813887;
-pub const TFMR_TBST_ENCODED: _bindgen_ty_260 = 64424509440;
-pub const TFMR_TBST_LAST: _bindgen_ty_260 = 4026531840;
-pub const TFMR_TB_ENABLED: _bindgen_ty_260 = 8388608;
-pub const TFMR_TB_VALID: _bindgen_ty_260 = 4194304;
-pub const TFMR_TB_SYNC_OCCURED: _bindgen_ty_260 = 2097152;
-pub const TFMR_FIRMWARE_CONTROL_ERROR: _bindgen_ty_260 = 131072;
-pub type _bindgen_ty_260 = ::std::os::raw::c_ulong;
-pub const TBST_RESET: _bindgen_ty_261 = 0;
-pub const TBST_SEND_TOD_MOD: _bindgen_ty_261 = 1;
-pub const TBST_NOT_SET: _bindgen_ty_261 = 2;
-pub const TBST_SYNC_WAIT: _bindgen_ty_261 = 6;
-pub const TBST_GET_TOD: _bindgen_ty_261 = 7;
-pub const TBST_TB_RUNNING: _bindgen_ty_261 = 8;
-pub const TBST_TB_ERROR: _bindgen_ty_261 = 9;
-pub type _bindgen_ty_261 = ::std::os::raw::c_uint;
+#[repr(C, packed)]
+#[derive(Debug, Copy, Clone)]
+pub struct vmcb_control_area {
+    pub intercept_cr_read: u16,
+    pub intercept_cr_write: u16,
+    pub intercept_dr_read: u16,
+    pub intercept_dr_write: u16,
+    pub intercept_exceptions: u32,
+    pub intercept: u64,
+    pub reserved_1: [u8; 44usize],
+    pub iopm_base_pa: u64,
+    pub msrpm_base_pa: u64,
+    pub tsc_offset: u64,
+    pub asid: u32,
+    pub tlb_ctl: u8,
+    pub reserved_2: [u8; 3usize],
+    pub int_ctl: u32,
+    pub int_vector: u32,
+    pub int_state: u32,
+    pub reserved_3: [u8; 4usize],
+    pub exit_code: u64,
+    pub exit_info_1: u64,
+    pub exit_info_2: u64,
+    pub exit_int_info: u32,
+    pub exit_int_info_err: u32,
+    pub nested_ctl: u64,
+    pub reserved_4: [u8; 16usize],
+    pub event_inj: u32,
+    pub event_inj_err: u32,
+    pub nested_cr3: u64,
+    pub lbr_ctl: u64,
+    pub reserved_5: [u8; 832usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of vmcb_control_area"][::std::mem::size_of::<vmcb_control_area>() - 1024usize];
+    ["Alignment of vmcb_control_area"][::std::mem::align_of::<vmcb_control_area>() - 1usize];
+    ["Offset of field: vmcb_control_area::intercept_cr_read"]
+        [::std::mem::offset_of!(vmcb_control_area, intercept_cr_read) - 0usize];
+    ["Offset of field: vmcb_control_area::intercept_cr_write"]
+        [::std::mem::offset_of!(vmcb_control_area, intercept_cr_write) - 2usize];
+    ["Offset of field: vmcb_control_area::intercept_dr_read"]
+        [::std::mem::offset_of!(vmcb_control_area, intercept_dr_read) - 4usize];
+    ["Offset of field: vmcb_control_area::intercept_dr_write"]
+        [::std::mem::offset_of!(vmcb_control_area, intercept_dr_write) - 6usize];
+    ["Offset of field: vmcb_control_area::intercept_exceptions"]
+        [::std::mem::offset_of!(vmcb_control_area, intercept_exceptions) - 8usize];
+    ["Offset of field: vmcb_control_area::intercept"]
+        [::std::mem::offset_of!(vmcb_control_area, intercept) - 12usize];
+    ["Offset of field: vmcb_control_area::reserved_1"]
+        [::std::mem::offset_of!(vmcb_control_area, reserved_1) - 20usize];
+    ["Offset of field: vmcb_control_area::iopm_base_pa"]
+        [::std::mem::offset_of!(vmcb_control_area, iopm_base_pa) - 64usize];
+    ["Offset of field: vmcb_control_area::msrpm_base_pa"]
+        [::std::mem::offset_of!(vmcb_control_area, msrpm_base_pa) - 72usize];
+    ["Offset of field: vmcb_control_area::tsc_offset"]
+        [::std::mem::offset_of!(vmcb_control_area, tsc_offset) - 80usize];
+    ["Offset of field: vmcb_control_area::asid"]
+        [::std::mem::offset_of!(vmcb_control_area, asid) - 88usize];
+    ["Offset of field: vmcb_control_area::tlb_ctl"]
+        [::std::mem::offset_of!(vmcb_control_area, tlb_ctl) - 92usize];
+    ["Offset of field: vmcb_control_area::reserved_2"]
+        [::std::mem::offset_of!(vmcb_control_area, reserved_2) - 93usize];
+    ["Offset of field: vmcb_control_area::int_ctl"]
+        [::std::mem::offset_of!(vmcb_control_area, int_ctl) - 96usize];
+    ["Offset of field: vmcb_control_area::int_vector"]
+        [::std::mem::offset_of!(vmcb_control_area, int_vector) - 100usize];
+    ["Offset of field: vmcb_control_area::int_state"]
+        [::std::mem::offset_of!(vmcb_control_area, int_state) - 104usize];
+    ["Offset of field: vmcb_control_area::reserved_3"]
+        [::std::mem::offset_of!(vmcb_control_area, reserved_3) - 108usize];
+    ["Offset of field: vmcb_control_area::exit_code"]
+        [::std::mem::offset_of!(vmcb_control_area, exit_code) - 112usize];
+    ["Offset of field: vmcb_control_area::exit_info_1"]
+        [::std::mem::offset_of!(vmcb_control_area, exit_info_1) - 120usize];
+    ["Offset of field: vmcb_control_area::exit_info_2"]
+        [::std::mem::offset_of!(vmcb_control_area, exit_info_2) - 128usize];
+    ["Offset of field: vmcb_control_area::exit_int_info"]
+        [::std::mem::offset_of!(vmcb_control_area, exit_int_info) - 136usize];
+    ["Offset of field: vmcb_control_area::exit_int_info_err"]
+        [::std::mem::offset_of!(vmcb_control_area, exit_int_info_err) - 140usize];
+    ["Offset of field: vmcb_control_area::nested_ctl"]
+        [::std::mem::offset_of!(vmcb_control_area, nested_ctl) - 144usize];
+    ["Offset of field: vmcb_control_area::reserved_4"]
+        [::std::mem::offset_of!(vmcb_control_area, reserved_4) - 152usize];
+    ["Offset of field: vmcb_control_area::event_inj"]
+        [::std::mem::offset_of!(vmcb_control_area, event_inj) - 168usize];
+    ["Offset of field: vmcb_control_area::event_inj_err"]
+        [::std::mem::offset_of!(vmcb_control_area, event_inj_err) - 172usize];
+    ["Offset of field: vmcb_control_area::nested_cr3"]
+        [::std::mem::offset_of!(vmcb_control_area, nested_cr3) - 176usize];
+    ["Offset of field: vmcb_control_area::lbr_ctl"]
+        [::std::mem::offset_of!(vmcb_control_area, lbr_ctl) - 184usize];
+    ["Offset of field: vmcb_control_area::reserved_5"]
+        [::std::mem::offset_of!(vmcb_control_area, reserved_5) - 192usize];
+};
+#[repr(C, packed)]
+#[derive(Debug, Copy, Clone)]
+pub struct vmcb_seg {
+    pub selector: u16,
+    pub attrib: u16,
+    pub limit: u32,
+    pub base: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of vmcb_seg"][::std::mem::size_of::<vmcb_seg>() - 16usize];
+    ["Alignment of vmcb_seg"][::std::mem::align_of::<vmcb_seg>() - 1usize];
+    ["Offset of field: vmcb_seg::selector"][::std::mem::offset_of!(vmcb_seg, selector) - 0usize];
+    ["Offset of field: vmcb_seg::attrib"][::std::mem::offset_of!(vmcb_seg, attrib) - 2usize];
+    ["Offset of field: vmcb_seg::limit"][::std::mem::offset_of!(vmcb_seg, limit) - 4usize];
+    ["Offset of field: vmcb_seg::base"][::std::mem::offset_of!(vmcb_seg, base) - 8usize];
+};
+#[repr(C, packed)]
+#[derive(Debug, Copy, Clone)]
+pub struct vmcb_save_area {
+    pub es: vmcb_seg,
+    pub cs: vmcb_seg,
+    pub ss: vmcb_seg,
+    pub ds: vmcb_seg,
+    pub fs: vmcb_seg,
+    pub gs: vmcb_seg,
+    pub gdtr: vmcb_seg,
+    pub ldtr: vmcb_seg,
+    pub idtr: vmcb_seg,
+    pub tr: vmcb_seg,
+    pub reserved_1: [u8; 43usize],
+    pub cpl: u8,
+    pub reserved_2: [u8; 4usize],
+    pub efer: u64,
+    pub reserved_3: [u8; 112usize],
+    pub cr4: u64,
+    pub cr3: u64,
+    pub cr0: u64,
+    pub dr7: u64,
+    pub dr6: u64,
+    pub rflags: u64,
+    pub rip: u64,
+    pub reserved_4: [u8; 88usize],
+    pub rsp: u64,
+    pub reserved_5: [u8; 24usize],
+    pub rax: u64,
+    pub star: u64,
+    pub lstar: u64,
+    pub cstar: u64,
+    pub sfmask: u64,
+    pub kernel_gs_base: u64,
+    pub sysenter_cs: u64,
+    pub sysenter_esp: u64,
+    pub sysenter_eip: u64,
+    pub cr2: u64,
+    pub reserved_6: [u8; 32usize],
+    pub g_pat: u64,
+    pub dbgctl: u64,
+    pub br_from: u64,
+    pub br_to: u64,
+    pub last_excp_from: u64,
+    pub last_excp_to: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of vmcb_save_area"][::std::mem::size_of::<vmcb_save_area>() - 664usize];
+    ["Alignment of vmcb_save_area"][::std::mem::align_of::<vmcb_save_area>() - 1usize];
+    ["Offset of field: vmcb_save_area::es"][::std::mem::offset_of!(vmcb_save_area, es) - 0usize];
+    ["Offset of field: vmcb_save_area::cs"][::std::mem::offset_of!(vmcb_save_area, cs) - 16usize];
+    ["Offset of field: vmcb_save_area::ss"][::std::mem::offset_of!(vmcb_save_area, ss) - 32usize];
+    ["Offset of field: vmcb_save_area::ds"][::std::mem::offset_of!(vmcb_save_area, ds) - 48usize];
+    ["Offset of field: vmcb_save_area::fs"][::std::mem::offset_of!(vmcb_save_area, fs) - 64usize];
+    ["Offset of field: vmcb_save_area::gs"][::std::mem::offset_of!(vmcb_save_area, gs) - 80usize];
+    ["Offset of field: vmcb_save_area::gdtr"]
+        [::std::mem::offset_of!(vmcb_save_area, gdtr) - 96usize];
+    ["Offset of field: vmcb_save_area::ldtr"]
+        [::std::mem::offset_of!(vmcb_save_area, ldtr) - 112usize];
+    ["Offset of field: vmcb_save_area::idtr"]
+        [::std::mem::offset_of!(vmcb_save_area, idtr) - 128usize];
+    ["Offset of field: vmcb_save_area::tr"][::std::mem::offset_of!(vmcb_save_area, tr) - 144usize];
+    ["Offset of field: vmcb_save_area::reserved_1"]
+        [::std::mem::offset_of!(vmcb_save_area, reserved_1) - 160usize];
+    ["Offset of field: vmcb_save_area::cpl"]
+        [::std::mem::offset_of!(vmcb_save_area, cpl) - 203usize];
+    ["Offset of field: vmcb_save_area::reserved_2"]
+        [::std::mem::offset_of!(vmcb_save_area, reserved_2) - 204usize];
+    ["Offset of field: vmcb_save_area::efer"]
+        [::std::mem::offset_of!(vmcb_save_area, efer) - 208usize];
+    ["Offset of field: vmcb_save_area::reserved_3"]
+        [::std::mem::offset_of!(vmcb_save_area, reserved_3) - 216usize];
+    ["Offset of field: vmcb_save_area::cr4"]
+        [::std::mem::offset_of!(vmcb_save_area, cr4) - 328usize];
+    ["Offset of field: vmcb_save_area::cr3"]
+        [::std::mem::offset_of!(vmcb_save_area, cr3) - 336usize];
+    ["Offset of field: vmcb_save_area::cr0"]
+        [::std::mem::offset_of!(vmcb_save_area, cr0) - 344usize];
+    ["Offset of field: vmcb_save_area::dr7"]
+        [::std::mem::offset_of!(vmcb_save_area, dr7) - 352usize];
+    ["Offset of field: vmcb_save_area::dr6"]
+        [::std::mem::offset_of!(vmcb_save_area, dr6) - 360usize];
+    ["Offset of field: vmcb_save_area::rflags"]
+        [::std::mem::offset_of!(vmcb_save_area, rflags) - 368usize];
+    ["Offset of field: vmcb_save_area::rip"]
+        [::std::mem::offset_of!(vmcb_save_area, rip) - 376usize];
+    ["Offset of field: vmcb_save_area::reserved_4"]
+        [::std::mem::offset_of!(vmcb_save_area, reserved_4) - 384usize];
+    ["Offset of field: vmcb_save_area::rsp"]
+        [::std::mem::offset_of!(vmcb_save_area, rsp) - 472usize];
+    ["Offset of field: vmcb_save_area::reserved_5"]
+        [::std::mem::offset_of!(vmcb_save_area, reserved_5) - 480usize];
+    ["Offset of field: vmcb_save_area::rax"]
+        [::std::mem::offset_of!(vmcb_save_area, rax) - 504usize];
+    ["Offset of field: vmcb_save_area::star"]
+        [::std::mem::offset_of!(vmcb_save_area, star) - 512usize];
+    ["Offset of field: vmcb_save_area::lstar"]
+        [::std::mem::offset_of!(vmcb_save_area, lstar) - 520usize];
+    ["Offset of field: vmcb_save_area::cstar"]
+        [::std::mem::offset_of!(vmcb_save_area, cstar) - 528usize];
+    ["Offset of field: vmcb_save_area::sfmask"]
+        [::std::mem::offset_of!(vmcb_save_area, sfmask) - 536usize];
+    ["Offset of field: vmcb_save_area::kernel_gs_base"]
+        [::std::mem::offset_of!(vmcb_save_area, kernel_gs_base) - 544usize];
+    ["Offset of field: vmcb_save_area::sysenter_cs"]
+        [::std::mem::offset_of!(vmcb_save_area, sysenter_cs) - 552usize];
+    ["Offset of field: vmcb_save_area::sysenter_esp"]
+        [::std::mem::offset_of!(vmcb_save_area, sysenter_esp) - 560usize];
+    ["Offset of field: vmcb_save_area::sysenter_eip"]
+        [::std::mem::offset_of!(vmcb_save_area, sysenter_eip) - 568usize];
+    ["Offset of field: vmcb_save_area::cr2"]
+        [::std::mem::offset_of!(vmcb_save_area, cr2) - 576usize];
+    ["Offset of field: vmcb_save_area::reserved_6"]
+        [::std::mem::offset_of!(vmcb_save_area, reserved_6) - 584usize];
+    ["Offset of field: vmcb_save_area::g_pat"]
+        [::std::mem::offset_of!(vmcb_save_area, g_pat) - 616usize];
+    ["Offset of field: vmcb_save_area::dbgctl"]
+        [::std::mem::offset_of!(vmcb_save_area, dbgctl) - 624usize];
+    ["Offset of field: vmcb_save_area::br_from"]
+        [::std::mem::offset_of!(vmcb_save_area, br_from) - 632usize];
+    ["Offset of field: vmcb_save_area::br_to"]
+        [::std::mem::offset_of!(vmcb_save_area, br_to) - 640usize];
+    ["Offset of field: vmcb_save_area::last_excp_from"]
+        [::std::mem::offset_of!(vmcb_save_area, last_excp_from) - 648usize];
+    ["Offset of field: vmcb_save_area::last_excp_to"]
+        [::std::mem::offset_of!(vmcb_save_area, last_excp_to) - 656usize];
+};
+#[repr(C, packed)]
+#[derive(Debug, Copy, Clone)]
+pub struct vmcb {
+    pub control: vmcb_control_area,
+    pub save: vmcb_save_area,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of vmcb"][::std::mem::size_of::<vmcb>() - 1688usize];
+    ["Alignment of vmcb"][::std::mem::align_of::<vmcb>() - 1usize];
+    ["Offset of field: vmcb::control"][::std::mem::offset_of!(vmcb, control) - 0usize];
+    ["Offset of field: vmcb::save"][::std::mem::offset_of!(vmcb, save) - 1024usize];
+};
 unsafe extern "C" {
-    pub fn cpu_read_xer(env: *const CPUPPCState) -> target_ulong;
+    pub fn apic_set_max_apic_id(max_apic_id: u32);
 }
 unsafe extern "C" {
-    pub fn cpu_write_xer(env: *mut CPUPPCState, xer: target_ulong);
+    pub fn apic_accept_pic_intr(s: *mut DeviceState) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
-    pub fn raise_exception(env: *mut CPUPPCState, exception: u32) -> !;
+    pub fn apic_deliver_pic_intr(s: *mut DeviceState, level: ::std::os::raw::c_int);
 }
 unsafe extern "C" {
-    pub fn raise_exception_ra(env: *mut CPUPPCState, exception: u32, raddr: usize) -> !;
+    pub fn apic_deliver_nmi(d: *mut DeviceState);
 }
 unsafe extern "C" {
-    pub fn raise_exception_err(env: *mut CPUPPCState, exception: u32, error_code: u32) -> !;
+    pub fn apic_get_interrupt(s: *mut DeviceState) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
-    pub fn raise_exception_err_ra(
-        env: *mut CPUPPCState,
-        exception: u32,
-        error_code: u32,
-        raddr: usize,
-    ) -> !;
+    pub fn cpu_set_apic_base(s: *mut DeviceState, val: u64) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
-    pub fn raise_ebb_perfm_exception(env: *mut CPUPPCState);
+    pub fn cpu_get_apic_base(s: *mut DeviceState) -> u64;
 }
 unsafe extern "C" {
-    pub fn dump_mmu(env: *mut CPUPPCState);
+    pub fn cpu_is_apic_enabled(s: *mut DeviceState) -> bool;
 }
 unsafe extern "C" {
-    pub fn ppc_maybe_bswap_register(
-        env: *mut CPUPPCState,
-        mem_buf: *mut u8,
-        len: ::std::os::raw::c_int,
+    pub fn cpu_set_apic_tpr(s: *mut DeviceState, val: u8);
+}
+unsafe extern "C" {
+    pub fn cpu_get_apic_tpr(s: *mut DeviceState) -> u8;
+}
+unsafe extern "C" {
+    pub fn apic_init_reset(s: *mut DeviceState);
+}
+unsafe extern "C" {
+    pub fn apic_sipi(s: *mut DeviceState);
+}
+unsafe extern "C" {
+    pub fn apic_poll_irq(d: *mut DeviceState);
+}
+unsafe extern "C" {
+    pub fn apic_designate_bsp(d: *mut DeviceState, bsp: bool);
+}
+unsafe extern "C" {
+    pub fn apic_get_highest_priority_irr(dev: *mut DeviceState) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn apic_msr_read(index: ::std::os::raw::c_int, val: *mut u64) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn apic_msr_write(index: ::std::os::raw::c_int, val: u64) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn is_x2apic_mode(d: *mut DeviceState) -> bool;
+}
+unsafe extern "C" {
+    pub fn cpu_get_current_apic() -> *mut DeviceState;
+}
+unsafe extern "C" {
+    pub fn do_cpu_init(cpu: *mut X86CPU);
+}
+unsafe extern "C" {
+    pub fn cpu_x86_inject_mce(
+        mon: *mut Monitor,
+        cpu: *mut X86CPU,
+        bank: ::std::os::raw::c_int,
+        status: u64,
+        mcg_status: u64,
+        addr: u64,
+        misc: u64,
+        flags: ::std::os::raw::c_int,
     );
 }
 unsafe extern "C" {
-    pub fn ppc_store_vscr(env: *mut CPUPPCState, vscr: u32);
+    pub fn cpu_cc_compute_all(env1: *mut CPUX86State) -> u32;
 }
 unsafe extern "C" {
-    pub fn ppc_get_vscr(env: *mut CPUPPCState) -> u32;
+    pub fn get_pg_mode(env: *mut CPUX86State) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
-    pub fn ppc_set_cr(env: *mut CPUPPCState, cr: u64);
+    pub fn cpu_init_fp_statuses(env: *mut CPUX86State);
 }
 unsafe extern "C" {
-    pub fn ppc_get_cr(env: *const CPUPPCState) -> u64;
+    pub fn update_fp_status(env: *mut CPUX86State);
+}
+unsafe extern "C" {
+    pub fn update_mxcsr_status(env: *mut CPUX86State);
+}
+unsafe extern "C" {
+    pub fn update_mxcsr_from_sse_status(env: *mut CPUX86State);
+}
+unsafe extern "C" {
+    pub fn cpu_svm_check_intercept_param(
+        env1: *mut CPUX86State,
+        type_: u32,
+        param: u64,
+        retaddr: usize,
+    );
+}
+unsafe extern "C" {
+    pub fn cpu_svm_has_intercept(env: *mut CPUX86State, type_: u32) -> bool;
+}
+unsafe extern "C" {
+    pub fn cpu_report_tpr_access(env: *mut CPUX86State, access: TPRAccess);
+}
+unsafe extern "C" {
+    pub fn apic_handle_tpr_access_report(d: *mut DeviceState, ip: target_ulong, access: TPRAccess);
+}
+pub type X86CPUVersion = ::std::os::raw::c_int;
+unsafe extern "C" {
+    pub fn x86_cpu_set_default_version(version: X86CPUVersion);
+}
+unsafe extern "C" {
+    pub fn do_cpu_sipi(cpu: *mut X86CPU);
+}
+unsafe extern "C" {
+    pub fn x86_cpu_dump_local_apic_state(cs: *mut CPUState, flags: ::std::os::raw::c_int);
+}
+unsafe extern "C" {
+    pub fn cpu_is_bsp(cpu: *mut X86CPU) -> bool;
+}
+unsafe extern "C" {
+    pub fn x86_cpu_xrstor_all_areas(
+        cpu: *mut X86CPU,
+        buf: *const ::std::os::raw::c_void,
+        buflen: u32,
+    );
+}
+unsafe extern "C" {
+    pub fn x86_cpu_xsave_all_areas(cpu: *mut X86CPU, buf: *mut ::std::os::raw::c_void, buflen: u32);
+}
+unsafe extern "C" {
+    pub fn xsave_area_size(mask: u64, compacted: bool) -> u32;
+}
+unsafe extern "C" {
+    pub fn x86_update_hflags(env: *mut CPUX86State);
 }
 pub type target_ptr_t = target_ulong;
 pub type target_pid_t = i32;
@@ -37828,17 +41290,17 @@ unsafe extern "C" {
         section: *mut MemoryRegionSection,
     ) -> hwaddr;
 }
-pub const GDB_SIGNAL_0: _bindgen_ty_262 = 0;
-pub const GDB_SIGNAL_INT: _bindgen_ty_262 = 2;
-pub const GDB_SIGNAL_QUIT: _bindgen_ty_262 = 3;
-pub const GDB_SIGNAL_TRAP: _bindgen_ty_262 = 5;
-pub const GDB_SIGNAL_ABRT: _bindgen_ty_262 = 6;
-pub const GDB_SIGNAL_ALRM: _bindgen_ty_262 = 14;
-pub const GDB_SIGNAL_STOP: _bindgen_ty_262 = 17;
-pub const GDB_SIGNAL_IO: _bindgen_ty_262 = 23;
-pub const GDB_SIGNAL_XCPU: _bindgen_ty_262 = 24;
-pub const GDB_SIGNAL_UNKNOWN: _bindgen_ty_262 = 143;
-pub type _bindgen_ty_262 = ::std::os::raw::c_uint;
+pub const GDB_SIGNAL_0: _bindgen_ty_53 = 0;
+pub const GDB_SIGNAL_INT: _bindgen_ty_53 = 2;
+pub const GDB_SIGNAL_QUIT: _bindgen_ty_53 = 3;
+pub const GDB_SIGNAL_TRAP: _bindgen_ty_53 = 5;
+pub const GDB_SIGNAL_ABRT: _bindgen_ty_53 = 6;
+pub const GDB_SIGNAL_ALRM: _bindgen_ty_53 = 14;
+pub const GDB_SIGNAL_STOP: _bindgen_ty_53 = 17;
+pub const GDB_SIGNAL_IO: _bindgen_ty_53 = 23;
+pub const GDB_SIGNAL_XCPU: _bindgen_ty_53 = 24;
+pub const GDB_SIGNAL_UNKNOWN: _bindgen_ty_53 = 143;
+pub type _bindgen_ty_53 = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct GDBProcess {
@@ -38704,10 +42166,10 @@ pub struct TCGv_vec_d {
 }
 pub type TCGv_vec = *mut TCGv_vec_d;
 pub type TCGv_env = TCGv_ptr;
-pub const TCG_BSWAP_IZ: _bindgen_ty_263 = 1;
-pub const TCG_BSWAP_OZ: _bindgen_ty_263 = 2;
-pub const TCG_BSWAP_OS: _bindgen_ty_263 = 4;
-pub type _bindgen_ty_263 = ::std::os::raw::c_uint;
+pub const TCG_BSWAP_IZ: _bindgen_ty_54 = 1;
+pub const TCG_BSWAP_OZ: _bindgen_ty_54 = 2;
+pub const TCG_BSWAP_OS: _bindgen_ty_54 = 4;
+pub type _bindgen_ty_54 = ::std::os::raw::c_uint;
 pub const TEMP_VAL_DEAD: TCGTempVal = 0;
 pub const TEMP_VAL_REG: TCGTempVal = 1;
 pub const TEMP_VAL_MEM: TCGTempVal = 2;
@@ -39967,14 +43429,14 @@ impl TCGArgConstraint {
         __bindgen_bitfield_unit
     }
 }
-pub const TCG_OPF_BB_EXIT: _bindgen_ty_264 = 1;
-pub const TCG_OPF_BB_END: _bindgen_ty_264 = 2;
-pub const TCG_OPF_CALL_CLOBBER: _bindgen_ty_264 = 4;
-pub const TCG_OPF_SIDE_EFFECTS: _bindgen_ty_264 = 8;
-pub const TCG_OPF_NOT_PRESENT: _bindgen_ty_264 = 32;
-pub const TCG_OPF_VECTOR: _bindgen_ty_264 = 64;
-pub const TCG_OPF_COND_BRANCH: _bindgen_ty_264 = 128;
-pub type _bindgen_ty_264 = ::std::os::raw::c_uint;
+pub const TCG_OPF_BB_EXIT: _bindgen_ty_55 = 1;
+pub const TCG_OPF_BB_END: _bindgen_ty_55 = 2;
+pub const TCG_OPF_CALL_CLOBBER: _bindgen_ty_55 = 4;
+pub const TCG_OPF_SIDE_EFFECTS: _bindgen_ty_55 = 8;
+pub const TCG_OPF_NOT_PRESENT: _bindgen_ty_55 = 32;
+pub const TCG_OPF_VECTOR: _bindgen_ty_55 = 64;
+pub const TCG_OPF_COND_BRANCH: _bindgen_ty_55 = 128;
+pub type _bindgen_ty_55 = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct TCGOpDef {
@@ -40842,6 +44304,9 @@ unsafe extern "C" {
     pub fn get_cpu() -> *mut CPUState;
 }
 unsafe extern "C" {
+    pub fn panda_cpu_get_index(q: *mut CPUState) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn garray_len(list: *mut GArray) -> ::std::os::raw::c_ulong;
 }
 unsafe extern "C" {
@@ -40851,7 +44316,7 @@ unsafe extern "C" {
     pub fn panda_cleanup_record();
 }
 unsafe extern "C" {
-    pub fn panda_current_cpu(index: ::std::os::raw::c_int) -> *mut CPUState;
+    pub fn panda_cpu_by_index(index: ::std::os::raw::c_int) -> *mut CPUState;
 }
 unsafe extern "C" {
     pub fn panda_cpu_in_translate() -> *mut CPUState;
@@ -40889,6 +44354,56 @@ const _: () = {
 pub struct __locale_data {
     pub _address: u8,
 }
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sockaddr_at {
+    pub _address: u8,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sockaddr_ax25 {
+    pub _address: u8,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sockaddr_dl {
+    pub _address: u8,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sockaddr_eon {
+    pub _address: u8,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sockaddr_inarp {
+    pub _address: u8,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sockaddr_ipx {
+    pub _address: u8,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sockaddr_iso {
+    pub _address: u8,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sockaddr_ns {
+    pub _address: u8,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sockaddr_x25 {
+    pub _address: u8,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct link_map {
+    pub _address: u8,
+}
 pub type __int128_t = i128;
 pub type Int128Alias___uint128_t = u128;
 #[repr(C)]
@@ -40904,6 +44419,11 @@ pub struct qht_map {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct qemu_plugin_cb {
+    pub _address: u8,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct kvm_nested_state {
     pub _address: u8,
 }
 #[repr(C)]
