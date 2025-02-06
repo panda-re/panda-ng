@@ -11939,14 +11939,19 @@ typedef
        _Bool 
             bfd_boolean;
 typedef struct MemTxAttrs {
-    unsigned int unspecified:1;
     unsigned int secure:1;
     unsigned int space:2;
     unsigned int user:1;
     unsigned int memory:1;
     unsigned int requester_id:16;
     unsigned int pid:8;
+    
+   _Bool 
+        unspecified;
+    uint8_t _reserved1;
+    uint16_t _reserved2;
 } MemTxAttrs;
+;
 typedef uint32_t MemTxResult;
 typedef struct CPUBreakpoint {
     vaddr pc;
@@ -14480,8 +14485,8 @@ enum {
     float_flag_overflow = 0x0004,
     float_flag_underflow = 0x0008,
     float_flag_inexact = 0x0010,
-    float_flag_input_denormal = 0x0020,
-    float_flag_output_denormal = 0x0040,
+    float_flag_input_denormal_flushed = 0x0020,
+    float_flag_output_denormal_flushed = 0x0040,
     float_flag_invalid_isi = 0x0080,
     float_flag_invalid_imz = 0x0100,
     float_flag_invalid_idi = 0x0200,
@@ -17662,10 +17667,11 @@ void map_memory(char* name, uint64_t size, uint64_t address);
 void panda_init_monitor(void);
 char* panda_monitor_run(char* buf);
 CPUState* get_cpu(void);
+int panda_cpu_get_index(CPUState *q);
 unsigned long garray_len(GArray *list);
 CPUArchState *panda_cpu_env(CPUState *cpu);
 void panda_cleanup_record(void);
-CPUState *panda_current_cpu(int index);
+CPUState *panda_cpu_by_index(int index);
 CPUState *panda_cpu_in_translate(void);
 TranslationBlock *panda_get_tb(struct qemu_plugin_tb *tb);
 int panda_get_memcb_status(void);
