@@ -15,6 +15,10 @@
 #undef typename
 extern "C" {
 #else
+#ifdef RUST_BINDGEN
+#define _Static_assert(...)
+#endif
+
 #include "c_sys_includes.h"
 #define PANDA_HEADER MAKE_HEADER(autogen/panda_c_, PANDA_TGT)
 #endif
