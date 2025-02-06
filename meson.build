@@ -33,4 +33,17 @@ glib = declare_dependency(dependencies: [glib_pc, gmodule],
                           version: glib_pc.version())
 
 python_exe = find_program('python3', 'python')
+
+bin_cargo = find_program(
+    'cargo',
+    native: true,
+    required: true,
+    version: '>=1.63',
+)
+bin_cp = find_program(
+        'cp',
+        native: true,
+        required: true,
+)
+
 subdir('plugins')
