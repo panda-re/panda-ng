@@ -1,0 +1,2 @@
+option('plugin_debug_rust', type : 'boolean', value : false,
+       description : 'Enable debug symbols for Rust plugins')
