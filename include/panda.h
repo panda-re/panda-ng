@@ -11,7 +11,7 @@
 #include "cpp_sys_includes.h"
 #define typename typename__
 #define _Static_assert(...)
-#define PANDA_HEADER MAKE_HEADER(autogen/panda_cpp_, PANDA_TGT)
+#define PANDA_HEADER MAKE_HEADER(panda-ng/panda_cpp_, PANDA_TGT)
 #undef typename
 extern "C" {
 #else
@@ -20,7 +20,7 @@ extern "C" {
 #endif
 
 #include "c_sys_includes.h"
-#define PANDA_HEADER MAKE_HEADER(autogen/panda_c_, PANDA_TGT)
+#define PANDA_HEADER MAKE_HEADER(panda-ng/panda_c_, PANDA_TGT)
 #endif
 
 #include PANDA_HEADER

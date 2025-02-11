@@ -9,17 +9,7 @@ configs = 'configs'
 keyval = import('keyval')
 fs = import('fs')
 
-config_host = keyval.load(join_paths(configs, 'panda-ng.mak'))
-
-cpu = host_machine.cpu_family()
-if cpu == 'x86'
-  host_arch = 'i386'
-else
-  host_arch = cpu
-endif
-
-
-target_dirs = config_host['TARGET_DIRS'].split()
+target_dirs = get_option('targets')
 
 glib_req_ver = '>=2.66.0'
 glib_pc = dependency('glib-2.0', version: glib_req_ver, required: true,
@@ -45,5 +35,13 @@ bin_cp = find_program(
         native: true,
         required: true,
 )
+
+if fs.exists('local_packages/panda-ng')
+    panda_ng_include = include_directories('local_packages')
+elif fs.exists('/usr/include/panda-ng')
+    panda_ng_include = include_directories('/usr/include')
+else
+    assert(false, 'panda-ng not found. Install it from pandare.deb or put it in local packages')
+endif
 
 subdir('plugins')

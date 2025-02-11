@@ -1,2 +1,17 @@
 option('plugin_debug_rust', type : 'boolean', value : false,
        description : 'Enable debug symbols for Rust plugins')
+option('targets', type : 'array',
+       description : 'List of qemu targets to build plugins',
+       value: [
+                 'x86_64-softmmu',
+                 'i386-softmmu',
+                 'arm-softmmu',
+                 'aarch64-softmmu',
+                 'ppc-softmmu',
+                 'ppc64-softmmu',
+                 'mips-softmmu',
+                 'mipsel-softmmu',
+                 'mips64-softmmu',
+                 'mips64el-softmmu',
+          ]
+       )

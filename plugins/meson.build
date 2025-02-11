@@ -45,6 +45,7 @@ foreach plugin: plugin_list
         include_directories(plugin),
         include_directories('../include'),
         include_directories('.'),
+        panda_ng_include,
     ]
     link_args = [
         '-L' + build,
