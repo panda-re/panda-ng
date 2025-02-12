@@ -1452,7 +1452,8 @@ class Panda():
         '''
         Final stage call to underlying panda_finish with initialization.
         '''
-        return self.libpanda.panda_finish()
+        # return self.libpanda.panda_finish()
+        pass
 
     def rr_get_guest_instr_count(self):
         '''
