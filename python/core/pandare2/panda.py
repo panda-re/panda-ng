@@ -185,12 +185,18 @@ class Panda():
         if self.os:
             self.set_os_name(self.os)
         
-        local_build_plugins_dir = realpath(pjoin(__file__, "../../../../build/plugins"))
+        extra_plugin_paths = [
+            realpath(pjoin(__file__, "../../../../build/plugins")),
+            "/panda-ng/build/plugins",
+        ]
         if plugin_path is not None:
-            self._set_extra_plugin_path(plugin_path)
-        elif exists(local_build_plugins_dir):
-            self.plugin_path = local_build_plugins_dir
-            self._set_extra_plugin_path(local_build_plugins_dir)
+            extra_plugin_paths = [plugin_path] + extra_plugin_paths
+        
+        for plugin_path in extra_plugin_paths:
+            if exists(plugin_path):
+                self.plugin_path = plugin_path
+                self._set_extra_plugin_path(plugin_path)
+                break
 
         # Setup argv for panda
         self.panda_args = [self.panda]
@@ -212,7 +218,7 @@ class Panda():
                 if exists(bp):
                     biospath = bp
                     break
-        assert(biospath is not None, "biospath cannot be found")
+        assert(type(biospath) is not None, "biospath cannot be found")
         self.panda_args.append("-L")
         self.panda_args.append(biospath)
 
