@@ -5,6 +5,10 @@
 #pragma once
 #include "../syscalls2_info.h"
 
+// BEGIN_PYPANDA_NEEDS_THIS -- do not delete this comment bc pypanda
+// api autogen needs it.  And don't put any compiler directives
+// between this and END_PYPANDA_NEEDS_THIS except includes of other
+// files in this directory that contain subsections like this one.
 /**
  * @brief Maximum number of arguments for a system call across
  * all supported platforms.
@@ -14,7 +18,7 @@
 /**
  * @brief Maximum size for a syscall argument across all supported platforms.
  */
-#define GLOBAL_MAX_SYSCALL_ARG_SIZE sizeof(uint64_t)
+#define GLOBAL_MAX_SYSCALL_ARG_SIZE 8 //sizeof(uint64_t)
 
 /**
  * @brief Holds information about an ongoing system calls. This is
@@ -31,6 +35,7 @@ struct syscall_ctx {
     int profile;
 };
 typedef struct syscall_ctx syscall_ctx_t;
+// END_PYPANDA_NEEDS_THIS -- do not delete this comment!
 
 /* Functions used to populate syscall_ctx_t structs. */
 target_long get_return_val(CPUState *env, int profile);
