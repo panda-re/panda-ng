@@ -50,7 +50,8 @@ RUN if [ ! -z "${OVERRIDE_VERSION}" ]; then \
     fi;
 
 RUN cd /panda-ng/python/core/ &&  \
-    python3 setup.py develop
+    pip install -r requirements.txt && \
+    python3 setup.py install
 
 FROM base AS cleanup
 
