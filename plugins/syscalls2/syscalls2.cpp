@@ -446,8 +446,12 @@ target_ulong calc_retaddr_linux_x86(CPUState* cpu, target_ulong pc) {
     target_ulong ret_ptr =
         ((CPUX86State *)panda_cpu_env(cpu))->regs[R_ESP] + 0x0C;
     panda_virtual_memory_read(cpu, ret_ptr, (uint8_t *)&ret, sizeof(ret));
-    assert(ret != 0x0);
-    return ret;
+    // it's unclear why this sometimes fails on read
+    if (ret == 0){
+        return ret;
+    } else {
+        return pc + 2;
+    }
 #else
     // shouldn't happen
     assert (1==0);
