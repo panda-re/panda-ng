@@ -94,7 +94,7 @@ void fixupendian(T& x) {
 void *self_ptr;
 panda_cb pcb_sbe_execve, pcb_asid;
 
-#define ARG_MAX 0x200000
+#define GUEST_ARG_MAX 0x200000
 
 #define FAIL_READ_ARGV -1
 #define FAIL_READ_ENVP -2
@@ -301,7 +301,7 @@ bool try_run_auxv(CPUState *cpu, TranslationBlock *tb, T sp){
     }
     fixupendian(argc);
     log("sp " TARGET_FMT_lx "\n", static_cast<target_ulong>(sp));
-    if (argc > ARG_MAX){
+    if (argc > GUEST_ARG_MAX){
         log("argc is incorrect " TARGET_FMT_lx "\n", static_cast<target_ulong>(argc));
         return false;
     }
