@@ -22,7 +22,7 @@ PANDAENDCOMMENT */
 #include <set>
 #include <queue>
 #include <vector>
-#include <threads.h>
+#include <tuple>
 
 // These need to be extern "C" so that the ABI is compatible with
 // QEMU/PANDA, which is written in C
@@ -32,8 +32,6 @@ void uninit_plugin(void *);
 #include "hooks_int_fns.h"
 #include "hw_proc_id/hw_proc_id_ext.h"
 }
-
-using namespace std;
 
 bool operator==(const struct hook &a, const struct hook &b){
     return memcmp(&a, &b, sizeof(struct hook)) == 0;
@@ -45,12 +43,12 @@ bool operator==(const struct hook &a, const struct hook &b){
  * Otherwise we want them ordered by address and then asid and so on.
  */
 bool operator<(const struct hook &a, const struct hook &b){
-    return tie(a.addr, a.asid, a.type, a.cb.before_block_exec) < tie(b.addr, b.asid, b.type, b.cb.before_block_exec);//, b.km, b.enabled);
+    return std::tie(a.addr, a.asid, a.type, a.cb.before_block_exec) < std::tie(b.addr, b.asid, b.type, b.cb.before_block_exec);//, b.km, b.enabled);
 }
 
 
-thread_local vector<struct hook> temp_hooks;
-thread_local unordered_map<uint64_t, set<struct hook>> hooks;
+static std::vector<struct hook> per_guest_cpu_temp_hooks[16];
+static std::unordered_map<uint64_t, std::set<struct hook> > per_guest_cpu_hooks[16];
 panda_cb block_translate_cb;
 
 // Handle to self
@@ -68,13 +66,22 @@ void disable_hooking() {
 }
 
 void add_hook(struct hook* h) {
-    temp_hooks.push_back(*h);
+    struct hook local_h = *h;
+
+    for (int i = 0; i < qemu_plugin_num_vcpus(); ++i) {
+        assert(i < sizeof(per_guest_cpu_temp_hooks)/sizeof(per_guest_cpu_temp_hooks[0]));
+        auto& temp_hooks = per_guest_cpu_temp_hooks[i];
+        temp_hooks.push_back(local_h);
+    }
 }
 
 void cb_tcg_codegen_middle_filter(unsigned int vcpu_index, void *_tb) {
     CPUState *cpu = panda_cpu_by_index(vcpu_index);
     TranslationBlock *tb = (TranslationBlock *)_tb;
     uint64_t pc = panda_current_pc(cpu);
+    assert(vcpu_index < sizeof(per_guest_cpu_temp_hooks)/sizeof(per_guest_cpu_temp_hooks[0]));
+    auto& temp_hooks = per_guest_cpu_temp_hooks[vcpu_index];
+    auto& hooks = per_guest_cpu_hooks[vcpu_index];
     if (! temp_hooks.empty()){ 
         for (auto &h: temp_hooks) { 
             hooks[h.asid].insert(h); 
@@ -86,7 +93,7 @@ void cb_tcg_codegen_middle_filter(unsigned int vcpu_index, void *_tb) {
     struct hook hook_container; 
     memset(&hook_container, 0, sizeof(hook_container)); 
     hook_container.addr = tb->pc; 
-    set<struct hook>::iterator it; 
+    std::set<struct hook>::iterator it; 
     hook_container.asid = asid; 
     it = hooks[asid].lower_bound(hook_container); 
     while(it != hooks[asid].end() && it->addr == pc){
@@ -127,6 +134,9 @@ void cb_tcg_codegen_middle_filter(unsigned int vcpu_index, void *_tb) {
 }
 
 void cb_block_translate_callback (CPUState* cpu, struct qemu_plugin_tb *tb) {
+    assert(cpu->cpu_index < sizeof(per_guest_cpu_temp_hooks)/sizeof(per_guest_cpu_temp_hooks[0]));
+    auto& temp_hooks = per_guest_cpu_temp_hooks[cpu->cpu_index];
+    auto& hooks = per_guest_cpu_hooks[cpu->cpu_index];
     if ((! temp_hooks.empty())){ [[unlikely]]
         for (auto &h: temp_hooks) {
             hooks[h.asid].insert(h);
@@ -135,14 +145,14 @@ void cb_block_translate_callback (CPUState* cpu, struct qemu_plugin_tb *tb) {
     }
     bool in_kernel = panda_in_kernel_external(cpu);
     struct hook hook_container;
-    set<target_ulong> inserted_addresses;
+    std::set<target_ulong> inserted_addresses;
     memset(&hook_container, 0, sizeof(hook_container));
     uint64_t tb_vaddr = qemu_plugin_tb_vaddr(tb);
     uint64_t tb_size = qemu_plugin_tb_size(tb);
     hook_container.addr = tb_vaddr;
     for (auto& a : hooks){
         target_ulong asid = a.first;
-        set<struct hook>::iterator it;
+        std::set<struct hook>::iterator it;
         hook_container.asid = asid;
         it = hooks[asid].lower_bound(hook_container); 
         while(it != hooks[asid].end() && it->addr < tb_vaddr + tb_size){

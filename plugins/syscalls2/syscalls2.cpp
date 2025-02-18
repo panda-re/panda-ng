@@ -35,7 +35,6 @@ PANDAENDCOMMENT */
 #include <iostream>
 #include <sstream>
 #include <limits>
-#include <threads.h>
 
 #include "syscalls2.h"
 #include "syscalls2_info.h"
@@ -1184,7 +1183,7 @@ struct sysinfo {
     int callno;
 };
 
-thread_local std::map<target_ulong, struct sysinfo> syscall_info_map;
+static std::map<target_ulong, struct sysinfo> per_guest_cpu_syscall_info_map[16];
 
 void block_translate(CPUState *cpu, struct qemu_plugin_tb *tb){
     int static_callno = -1; // Set to non -1 if syscall num can be
@@ -1200,7 +1199,8 @@ void block_translate(CPUState *cpu, struct qemu_plugin_tb *tb){
     if(res != 0 && res != (target_ulong) -1){
         struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn_by_vaddr(tb, res);
         if (insn != NULL){
-            syscall_info_map[res] = {profile, static_callno};
+            assert(cpu->cpu_index < sizeof(per_guest_cpu_syscall_info_map)/sizeof(per_guest_cpu_syscall_info_map[0]));
+            per_guest_cpu_syscall_info_map[cpu->cpu_index][res] = {profile, static_callno};
             qemu_plugin_register_vcpu_insn_exec_cb(insn, syscall_callback, QEMU_PLUGIN_CB_NO_REGS, (void*) (uint64_t)res);
         }
     }
@@ -1212,8 +1212,9 @@ void block_translate(CPUState *cpu, struct qemu_plugin_tb *tb){
 void syscall_callback(unsigned int vcpu_index, void *sysinfo){
     CPUState *cpu = panda_cpu_by_index(vcpu_index);
     target_ulong pc = (target_ulong) (uint64_t)sysinfo;
-    enum ProfileType profile = syscall_info_map[pc].profile;
-    int callno = syscall_info_map[pc].callno;
+    assert(vcpu_index < sizeof(per_guest_cpu_syscall_info_map)/sizeof(per_guest_cpu_syscall_info_map[0]));
+    enum ProfileType profile = per_guest_cpu_syscall_info_map[vcpu_index][pc].profile;
+    int callno = per_guest_cpu_syscall_info_map[vcpu_index][pc].callno;
 #if defined(TARGET_I386) && defined(TARGET_X86_64)
 #define MSR_EFER_SCE   (1 << 0)
 #define MSR_EFER_LMA   (1 << 10)
