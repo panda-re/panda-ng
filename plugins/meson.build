@@ -40,6 +40,7 @@ foreach plugin: plugin_list
         '-Wno-sign-compare',
         '-Wno-error',
         '-Wno-invalid-offsetof',
+        '-std=gnu++11', # why do project level default_options not cause this already?
     ]
     includes = [
         include_directories(plugin),
