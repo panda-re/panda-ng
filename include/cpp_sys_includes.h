@@ -18,7 +18,6 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <sys/un.h>
-#include <sys/sysmacros.h>
 #include <semaphore.h>
 #include <dlfcn.h>
 #include <netdb.h>
