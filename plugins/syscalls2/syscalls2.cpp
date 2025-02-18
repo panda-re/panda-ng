@@ -697,7 +697,7 @@ uint32_t get_32_windows_x86 (CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 }
 
 uint32_t get_32_windows_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
-#if defined(TARGET_I386)
+#if defined(TARGET_X86_64)
     CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     uint32_t argval = 0;
     // haven't seen any structures in first 4 args to a system call, or any
