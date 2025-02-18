@@ -45,4 +45,7 @@ else
     assert(false, 'panda-ng not found. Install it from pandare.deb or put it in local packages')
 endif
 
+libosi_proj = subproject('libosi')
+libosi_static_dep = libosi_proj.get_variable('libosi_static_dep')
+
 subdir('plugins')
