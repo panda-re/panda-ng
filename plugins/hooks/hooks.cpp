@@ -85,7 +85,7 @@ void cb_tcg_codegen_middle_filter(unsigned int vcpu_index, void *_tb) {
     bool in_kernel = panda_in_kernel_external(cpu); 
     struct hook hook_container; 
     memset(&hook_container, 0, sizeof(hook_container)); 
-    hook_container.addr = tb->pc; 
+    hook_container.addr = pc;
     set<struct hook>::iterator it; 
     hook_container.asid = asid; 
     it = hooks[asid].lower_bound(hook_container); 
