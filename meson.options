@@ -13,5 +13,6 @@ option('targets', type : 'array',
                  'mipsel-softmmu',
                  'mips64-softmmu',
                  'mips64el-softmmu',
+              #    'loongarch64-softmmu',
           ]
        )
