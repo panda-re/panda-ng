@@ -322,7 +322,8 @@ bool try_run_auxv(CPUState *cpu, TranslationBlock *tb, T sp){
 void sbe(CPUState *cpu, TranslationBlock *tb){
     target_ulong sp = panda_current_sp(cpu);
     bool sp_in_kernel = address_in_kernel_code_linux(sp);
-    bool pc_in_kernel = address_in_kernel_code_linux(tb->pc);
+    target_ulong pc = (tb->pc == 0) ? panda_current_pc(cpu) : tb->pc;
+    bool pc_in_kernel = address_in_kernel_code_linux(pc);
     if (!sp_in_kernel && !pc_in_kernel){ 
         if (!try_run_auxv(cpu, tb, sp)){
             log("Failed to read in this ASID. Try the next one\n");
