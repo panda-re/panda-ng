@@ -59,6 +59,9 @@ uint32_t get_magic(CPUState *cpu){
 #elif defined(TARGET_PPC)
     // r0
     magic = env->gpr[0];
+#elif defined(TARGET_LOONGARCH)
+    // a7
+    magic = env->gpr[17];
 #else
     #error "Unsupported target architecture"
 #endif
