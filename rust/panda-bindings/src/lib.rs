@@ -15,6 +15,9 @@ include!("autogen/arm.rs");
 #[cfg(feature = "i386")]
 include!("autogen/i386.rs");
 
+#[cfg(feature = "loongarch64")]
+include!("autogen/loongarch64.rs");
+
 #[cfg(feature = "mips64el")]
 include!("autogen/mips64el.rs");
 
@@ -26,6 +29,12 @@ include!("autogen/mipsel.rs");
 
 #[cfg(feature = "mips")]
 include!("autogen/mips.rs");
+
+#[cfg(feature = "riscv32")]
+include!("autogen/riscv32.rs");
+
+#[cfg(feature = "riscv64")]
+include!("autogen/riscv64.rs");
 
 #[cfg(feature = "ppc64")]
 include!("autogen/ppc64.rs");

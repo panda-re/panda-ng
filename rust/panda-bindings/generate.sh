@@ -1,7 +1,7 @@
 #!/bin/bash
 set -x
 
-targets=(aarch64 arm i386 mips64el mips64 mipsel mips ppc64 ppc x86_64)
+targets=(aarch64 arm i386 loongarch64 mips64el mips64 mipsel mips ppc64 ppc riscv32 riscv64 x86_64)
 
 for target in "${targets[@]}"; do
   echo "Generating bindings for ${target}..."
