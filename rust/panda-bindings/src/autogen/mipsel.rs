@@ -2126,12 +2126,11 @@ pub const CONFIG_MIPS_DIS: u32 = 1;
 pub const CONFIG_SOFTMMU: u32 = 1;
 pub const CONFIG_SYSTEM_ONLY: u32 = 1;
 pub const CONFIG_TCG: u32 = 1;
-pub const CONFIG_TCG_BUILTIN: u32 = 1;
 pub const TARGET_BIG_ENDIAN: u32 = 0;
+pub const TARGET_LONG_BITS: u32 = 32;
 pub const TARGET_MIPS: u32 = 1;
 pub const TARGET_NAME: &[u8; 7] = b"mipsel\0";
 pub const TARGET_SUPPORTS_MTTCG: u32 = 1;
-pub const TARGET_LONG_BITS: u32 = 32;
 pub const TARGET_PHYS_ADDR_SPACE_BITS: u32 = 40;
 pub const TARGET_VIRT_ADDR_SPACE_BITS: u32 = 32;
 pub const TARGET_PAGE_BITS_MIN: u32 = 12;
@@ -24220,7 +24219,7 @@ unsafe extern "C" {
     pub fn os_setup_post();
 }
 unsafe extern "C" {
-    pub fn os_mlock() -> ::std::os::raw::c_int;
+    pub fn os_mlock(on_fault: bool) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn qemu_alloc_stack(sz: *mut usize) -> *mut ::std::os::raw::c_void;
@@ -24231,6 +24230,11 @@ unsafe extern "C" {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct AccelCPUState {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct AccelOpsClass {
     _unused: [u8; 0],
 }
 #[repr(C)]
@@ -24545,6 +24549,11 @@ pub struct RAMBlock {
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
+pub struct SaveLiveCompletePrecopyThreadData {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
 pub struct SHPCDevice {
     _unused: [u8; 0],
 }
@@ -24601,6 +24610,16 @@ pub type qemu_irq_handler = ::std::option::Option<
         level: ::std::os::raw::c_int,
     ),
 >;
+pub type MigrationLoadThread = ::std::option::Option<
+    unsafe extern "C" fn(
+        opaque: *mut ::std::os::raw::c_void,
+        should_quit: *mut bool,
+        errp: *mut *mut Error,
+    ) -> bool,
+>;
+pub type SaveLiveCompletePrecopyThreadHandler = ::std::option::Option<
+    unsafe extern "C" fn(d: *mut SaveLiveCompletePrecopyThreadData, errp: *mut *mut Error) -> bool,
+>;
 unsafe extern "C" {
     pub fn qemu_build_not_reached_always() -> !;
 }
@@ -24620,6 +24639,9 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn qemu_anon_ram_free(ptr: *mut ::std::os::raw::c_void, size: usize);
+}
+unsafe extern "C" {
+    pub fn qemu_shm_alloc(size: usize, errp: *mut *mut Error) -> ::std::os::raw::c_int;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -24761,6 +24783,12 @@ unsafe extern "C" {
     pub fn qemu_get_thread_id() -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn qemu_kill_thread(
+        tid: ::std::os::raw::c_int,
+        sig: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn qemu_write_full(
         fd: ::std::os::raw::c_int,
         buf: *const ::std::os::raw::c_void,
@@ -24834,7 +24862,7 @@ const _: () = {
     ["Offset of field: MemMapEntry::base"][::std::mem::offset_of!(MemMapEntry, base) - 0usize];
     ["Offset of field: MemMapEntry::size"][::std::mem::offset_of!(MemMapEntry, size) - 8usize];
 };
-pub type vaddr = u64;
+pub type vaddr = usize;
 pub type aligned_int64_t = i64;
 pub type aligned_uint64_t = u64;
 #[repr(C)]
@@ -25628,7 +25656,7 @@ pub type QapiSpecialFeature = ::std::os::raw::c_uint;
 #[derive(Debug, Copy, Clone)]
 pub struct QEnumLookup {
     pub array: *const *const ::std::os::raw::c_char,
-    pub special_features: *const ::std::os::raw::c_uchar,
+    pub features: *const u64,
     pub size: ::std::os::raw::c_int,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -25636,8 +25664,8 @@ const _: () = {
     ["Size of QEnumLookup"][::std::mem::size_of::<QEnumLookup>() - 24usize];
     ["Alignment of QEnumLookup"][::std::mem::align_of::<QEnumLookup>() - 8usize];
     ["Offset of field: QEnumLookup::array"][::std::mem::offset_of!(QEnumLookup, array) - 0usize];
-    ["Offset of field: QEnumLookup::special_features"]
-        [::std::mem::offset_of!(QEnumLookup, special_features) - 8usize];
+    ["Offset of field: QEnumLookup::features"]
+        [::std::mem::offset_of!(QEnumLookup, features) - 8usize];
     ["Offset of field: QEnumLookup::size"][::std::mem::offset_of!(QEnumLookup, size) - 16usize];
 };
 unsafe extern "C" {
@@ -28420,26 +28448,6 @@ unsafe extern "C" {
         arg2: *mut disassemble_info,
     ) -> ::std::os::raw::c_int;
 }
-unsafe extern "C" {
-    pub fn cap_disas_target(info: *mut disassemble_info, pc: u64, size: usize) -> bool;
-}
-unsafe extern "C" {
-    pub fn cap_disas_host(
-        info: *mut disassemble_info,
-        code: *const ::std::os::raw::c_void,
-        size: usize,
-    ) -> bool;
-}
-unsafe extern "C" {
-    pub fn cap_disas_monitor(
-        info: *mut disassemble_info,
-        pc: u64,
-        count: ::std::os::raw::c_int,
-    ) -> bool;
-}
-unsafe extern "C" {
-    pub fn cap_disas_plugin(info: *mut disassemble_info, pc: u64, size: usize) -> bool;
-}
 pub type bfd_boolean = bool;
 #[repr(C)]
 #[repr(align(4))]
@@ -28596,14 +28604,47 @@ impl MemTxAttrs {
         }
     }
     #[inline]
+    pub fn debug(&self) -> ::std::os::raw::c_uint {
+        unsafe { ::std::mem::transmute(self._bitfield_1.get(5usize, 1u8) as u32) }
+    }
+    #[inline]
+    pub fn set_debug(&mut self, val: ::std::os::raw::c_uint) {
+        unsafe {
+            let val: u32 = ::std::mem::transmute(val);
+            self._bitfield_1.set(5usize, 1u8, val as u64)
+        }
+    }
+    #[inline]
+    pub unsafe fn debug_raw(this: *const Self) -> ::std::os::raw::c_uint {
+        unsafe {
+            ::std::mem::transmute(<__BindgenBitfieldUnit<[u8; 4usize]>>::raw_get(
+                ::std::ptr::addr_of!((*this)._bitfield_1),
+                5usize,
+                1u8,
+            ) as u32)
+        }
+    }
+    #[inline]
+    pub unsafe fn set_debug_raw(this: *mut Self, val: ::std::os::raw::c_uint) {
+        unsafe {
+            let val: u32 = ::std::mem::transmute(val);
+            <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_set(
+                ::std::ptr::addr_of_mut!((*this)._bitfield_1),
+                5usize,
+                1u8,
+                val as u64,
+            )
+        }
+    }
+    #[inline]
     pub fn requester_id(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(5usize, 16u8) as u32) }
+        unsafe { ::std::mem::transmute(self._bitfield_1.get(6usize, 16u8) as u32) }
     }
     #[inline]
     pub fn set_requester_id(&mut self, val: ::std::os::raw::c_uint) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(5usize, 16u8, val as u64)
+            self._bitfield_1.set(6usize, 16u8, val as u64)
         }
     }
     #[inline]
@@ -28611,7 +28652,7 @@ impl MemTxAttrs {
         unsafe {
             ::std::mem::transmute(<__BindgenBitfieldUnit<[u8; 4usize]>>::raw_get(
                 ::std::ptr::addr_of!((*this)._bitfield_1),
-                5usize,
+                6usize,
                 16u8,
             ) as u32)
         }
@@ -28622,7 +28663,7 @@ impl MemTxAttrs {
             let val: u32 = ::std::mem::transmute(val);
             <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_set(
                 ::std::ptr::addr_of_mut!((*this)._bitfield_1),
-                5usize,
+                6usize,
                 16u8,
                 val as u64,
             )
@@ -28630,13 +28671,13 @@ impl MemTxAttrs {
     }
     #[inline]
     pub fn pid(&self) -> ::std::os::raw::c_uint {
-        unsafe { ::std::mem::transmute(self._bitfield_1.get(21usize, 8u8) as u32) }
+        unsafe { ::std::mem::transmute(self._bitfield_1.get(22usize, 8u8) as u32) }
     }
     #[inline]
     pub fn set_pid(&mut self, val: ::std::os::raw::c_uint) {
         unsafe {
             let val: u32 = ::std::mem::transmute(val);
-            self._bitfield_1.set(21usize, 8u8, val as u64)
+            self._bitfield_1.set(22usize, 8u8, val as u64)
         }
     }
     #[inline]
@@ -28644,7 +28685,7 @@ impl MemTxAttrs {
         unsafe {
             ::std::mem::transmute(<__BindgenBitfieldUnit<[u8; 4usize]>>::raw_get(
                 ::std::ptr::addr_of!((*this)._bitfield_1),
-                21usize,
+                22usize,
                 8u8,
             ) as u32)
         }
@@ -28655,7 +28696,7 @@ impl MemTxAttrs {
             let val: u32 = ::std::mem::transmute(val);
             <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_set(
                 ::std::ptr::addr_of_mut!((*this)._bitfield_1),
-                21usize,
+                22usize,
                 8u8,
                 val as u64,
             )
@@ -28667,6 +28708,7 @@ impl MemTxAttrs {
         space: ::std::os::raw::c_uint,
         user: ::std::os::raw::c_uint,
         memory: ::std::os::raw::c_uint,
+        debug: ::std::os::raw::c_uint,
         requester_id: ::std::os::raw::c_uint,
         pid: ::std::os::raw::c_uint,
     ) -> __BindgenBitfieldUnit<[u8; 4usize]> {
@@ -28687,11 +28729,15 @@ impl MemTxAttrs {
             let memory: u32 = unsafe { ::std::mem::transmute(memory) };
             memory as u64
         });
-        __bindgen_bitfield_unit.set(5usize, 16u8, {
+        __bindgen_bitfield_unit.set(5usize, 1u8, {
+            let debug: u32 = unsafe { ::std::mem::transmute(debug) };
+            debug as u64
+        });
+        __bindgen_bitfield_unit.set(6usize, 16u8, {
             let requester_id: u32 = unsafe { ::std::mem::transmute(requester_id) };
             requester_id as u64
         });
-        __bindgen_bitfield_unit.set(21usize, 8u8, {
+        __bindgen_bitfield_unit.set(22usize, 8u8, {
             let pid: u32 = unsafe { ::std::mem::transmute(pid) };
             pid as u64
         });
@@ -28784,14 +28830,14 @@ pub type MMUAccessType = ::std::os::raw::c_uint;
 #[derive(Copy, Clone)]
 pub union CPUTLBEntry {
     pub __bindgen_anon_1: CPUTLBEntry__bindgen_ty_1,
-    pub addr_idx: [u64; 4usize],
+    pub addr_idx: [usize; 4usize],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct CPUTLBEntry__bindgen_ty_1 {
-    pub addr_read: u64,
-    pub addr_write: u64,
-    pub addr_code: u64,
+    pub addr_read: usize,
+    pub addr_write: usize,
+    pub addr_code: usize,
     pub addend: usize,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -28917,6 +28963,14 @@ pub const GRAB_TOGGLE_KEYS__MAX: GrabToggleKeys = 6;
 pub type GrabToggleKeys = ::std::os::raw::c_uint;
 unsafe extern "C" {
     pub static GrabToggleKeys_lookup: QEnumLookup;
+}
+pub const ENDIAN_MODE_UNSPECIFIED: EndianMode = 0;
+pub const ENDIAN_MODE_LITTLE: EndianMode = 1;
+pub const ENDIAN_MODE_BIG: EndianMode = 2;
+pub const ENDIAN_MODE__MAX: EndianMode = 3;
+pub type EndianMode = ::std::os::raw::c_uint;
+unsafe extern "C" {
+    pub static EndianMode_lookup: QEnumLookup;
 }
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -31399,7 +31453,6 @@ pub struct CPUClass {
             errp: *mut *mut Error,
         ),
     >,
-    pub has_work: ::std::option::Option<unsafe extern "C" fn(cpu: *mut CPUState) -> bool>,
     pub mmu_index: ::std::option::Option<
         unsafe extern "C" fn(cpu: *mut CPUState, ifetch: bool) -> ::std::os::raw::c_int,
     >,
@@ -31455,7 +31508,7 @@ pub struct CPUClass {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUClass"][::std::mem::size_of::<CPUClass>() - 368usize];
+    ["Size of CPUClass"][::std::mem::size_of::<CPUClass>() - 360usize];
     ["Alignment of CPUClass"][::std::mem::align_of::<CPUClass>() - 8usize];
     ["Offset of field: CPUClass::parent_class"]
         [::std::mem::offset_of!(CPUClass, parent_class) - 0usize];
@@ -31463,46 +31516,45 @@ const _: () = {
         [::std::mem::offset_of!(CPUClass, class_by_name) - 184usize];
     ["Offset of field: CPUClass::parse_features"]
         [::std::mem::offset_of!(CPUClass, parse_features) - 192usize];
-    ["Offset of field: CPUClass::has_work"][::std::mem::offset_of!(CPUClass, has_work) - 200usize];
     ["Offset of field: CPUClass::mmu_index"]
-        [::std::mem::offset_of!(CPUClass, mmu_index) - 208usize];
+        [::std::mem::offset_of!(CPUClass, mmu_index) - 200usize];
     ["Offset of field: CPUClass::memory_rw_debug"]
-        [::std::mem::offset_of!(CPUClass, memory_rw_debug) - 216usize];
+        [::std::mem::offset_of!(CPUClass, memory_rw_debug) - 208usize];
     ["Offset of field: CPUClass::dump_state"]
-        [::std::mem::offset_of!(CPUClass, dump_state) - 224usize];
+        [::std::mem::offset_of!(CPUClass, dump_state) - 216usize];
     ["Offset of field: CPUClass::query_cpu_fast"]
-        [::std::mem::offset_of!(CPUClass, query_cpu_fast) - 232usize];
+        [::std::mem::offset_of!(CPUClass, query_cpu_fast) - 224usize];
     ["Offset of field: CPUClass::get_arch_id"]
-        [::std::mem::offset_of!(CPUClass, get_arch_id) - 240usize];
-    ["Offset of field: CPUClass::set_pc"][::std::mem::offset_of!(CPUClass, set_pc) - 248usize];
-    ["Offset of field: CPUClass::get_pc"][::std::mem::offset_of!(CPUClass, get_pc) - 256usize];
+        [::std::mem::offset_of!(CPUClass, get_arch_id) - 232usize];
+    ["Offset of field: CPUClass::set_pc"][::std::mem::offset_of!(CPUClass, set_pc) - 240usize];
+    ["Offset of field: CPUClass::get_pc"][::std::mem::offset_of!(CPUClass, get_pc) - 248usize];
     ["Offset of field: CPUClass::gdb_read_register"]
-        [::std::mem::offset_of!(CPUClass, gdb_read_register) - 264usize];
+        [::std::mem::offset_of!(CPUClass, gdb_read_register) - 256usize];
     ["Offset of field: CPUClass::gdb_write_register"]
-        [::std::mem::offset_of!(CPUClass, gdb_write_register) - 272usize];
+        [::std::mem::offset_of!(CPUClass, gdb_write_register) - 264usize];
     ["Offset of field: CPUClass::gdb_adjust_breakpoint"]
-        [::std::mem::offset_of!(CPUClass, gdb_adjust_breakpoint) - 280usize];
+        [::std::mem::offset_of!(CPUClass, gdb_adjust_breakpoint) - 272usize];
     ["Offset of field: CPUClass::gdb_core_xml_file"]
-        [::std::mem::offset_of!(CPUClass, gdb_core_xml_file) - 288usize];
+        [::std::mem::offset_of!(CPUClass, gdb_core_xml_file) - 280usize];
     ["Offset of field: CPUClass::gdb_arch_name"]
-        [::std::mem::offset_of!(CPUClass, gdb_arch_name) - 296usize];
+        [::std::mem::offset_of!(CPUClass, gdb_arch_name) - 288usize];
     ["Offset of field: CPUClass::disas_set_info"]
-        [::std::mem::offset_of!(CPUClass, disas_set_info) - 304usize];
+        [::std::mem::offset_of!(CPUClass, disas_set_info) - 296usize];
     ["Offset of field: CPUClass::deprecation_note"]
-        [::std::mem::offset_of!(CPUClass, deprecation_note) - 312usize];
+        [::std::mem::offset_of!(CPUClass, deprecation_note) - 304usize];
     ["Offset of field: CPUClass::accel_cpu"]
-        [::std::mem::offset_of!(CPUClass, accel_cpu) - 320usize];
+        [::std::mem::offset_of!(CPUClass, accel_cpu) - 312usize];
     ["Offset of field: CPUClass::sysemu_ops"]
-        [::std::mem::offset_of!(CPUClass, sysemu_ops) - 328usize];
-    ["Offset of field: CPUClass::tcg_ops"][::std::mem::offset_of!(CPUClass, tcg_ops) - 336usize];
+        [::std::mem::offset_of!(CPUClass, sysemu_ops) - 320usize];
+    ["Offset of field: CPUClass::tcg_ops"][::std::mem::offset_of!(CPUClass, tcg_ops) - 328usize];
     ["Offset of field: CPUClass::init_accel_cpu"]
-        [::std::mem::offset_of!(CPUClass, init_accel_cpu) - 344usize];
+        [::std::mem::offset_of!(CPUClass, init_accel_cpu) - 336usize];
     ["Offset of field: CPUClass::reset_dump_flags"]
-        [::std::mem::offset_of!(CPUClass, reset_dump_flags) - 352usize];
+        [::std::mem::offset_of!(CPUClass, reset_dump_flags) - 344usize];
     ["Offset of field: CPUClass::gdb_num_core_regs"]
-        [::std::mem::offset_of!(CPUClass, gdb_num_core_regs) - 356usize];
+        [::std::mem::offset_of!(CPUClass, gdb_num_core_regs) - 348usize];
     ["Offset of field: CPUClass::gdb_stop_before_watchpoint"]
-        [::std::mem::offset_of!(CPUClass, gdb_stop_before_watchpoint) - 360usize];
+        [::std::mem::offset_of!(CPUClass, gdb_stop_before_watchpoint) - 352usize];
 };
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -32078,6 +32130,9 @@ unsafe extern "C" {
     pub fn cpu_virtio_is_big_endian(cpu: *mut CPUState) -> bool;
 }
 unsafe extern "C" {
+    pub fn cpu_has_work(cpu: *mut CPUState) -> bool;
+}
+unsafe extern "C" {
     pub fn cpu_list_add(cpu: *mut CPUState);
 }
 unsafe extern "C" {
@@ -32239,7 +32294,16 @@ unsafe extern "C" {
     pub fn cpu_class_init_props(dc: *mut DeviceClass);
 }
 unsafe extern "C" {
+    pub fn cpu_exec_class_post_init(cc: *mut CPUClass);
+}
+unsafe extern "C" {
     pub fn cpu_exec_initfn(cpu: *mut CPUState);
+}
+unsafe extern "C" {
+    pub fn cpu_vmstate_register(cpu: *mut CPUState);
+}
+unsafe extern "C" {
+    pub fn cpu_vmstate_unregister(cpu: *mut CPUState);
 }
 unsafe extern "C" {
     pub fn cpu_exec_realizefn(cpu: *mut CPUState, errp: *mut *mut Error) -> bool;
@@ -32292,7 +32356,7 @@ pub const DEVICE_LITTLE_ENDIAN: device_endian = 2;
 pub type device_endian = ::std::os::raw::c_uint;
 pub type ram_addr_t = u64;
 unsafe extern "C" {
-    pub fn qemu_ram_remap(addr: ram_addr_t, length: ram_addr_t);
+    pub fn qemu_ram_remap(addr: ram_addr_t);
 }
 unsafe extern "C" {
     pub fn qemu_ram_addr_from_host(ptr: *mut ::std::os::raw::c_void) -> ram_addr_t;
@@ -32671,9 +32735,6 @@ pub const QEMU_ARCH_LOONGARCH: _bindgen_ty_38 = 8388608;
 pub type _bindgen_ty_38 = ::std::os::raw::c_int;
 unsafe extern "C" {
     pub static arch_type: u32;
-}
-unsafe extern "C" {
-    pub fn qemu_init_arch_modules();
 }
 pub type QEMUConfigCB = ::std::option::Option<
     unsafe extern "C" fn(
@@ -36838,6 +36899,7 @@ pub const float_flag_invalid_zdz: _bindgen_ty_39 = 1024;
 pub const float_flag_invalid_sqrt: _bindgen_ty_39 = 2048;
 pub const float_flag_invalid_cvti: _bindgen_ty_39 = 4096;
 pub const float_flag_invalid_snan: _bindgen_ty_39 = 8192;
+pub const float_flag_input_denormal_used: _bindgen_ty_39 = 16384;
 pub type _bindgen_ty_39 = ::std::os::raw::c_uint;
 pub const floatx80_precision_x: FloatX80RoundPrec = 0;
 pub const floatx80_precision_d: FloatX80RoundPrec = 1;
@@ -36892,18 +36954,30 @@ pub const float_infzeronan_none: FloatInfZeroNaNRule = 0;
 pub const float_infzeronan_dnan_never: FloatInfZeroNaNRule = 1;
 pub const float_infzeronan_dnan_always: FloatInfZeroNaNRule = 2;
 pub const float_infzeronan_dnan_if_qnan: FloatInfZeroNaNRule = 3;
+pub const float_infzeronan_suppress_invalid: FloatInfZeroNaNRule = 128;
 pub type FloatInfZeroNaNRule = ::std::os::raw::c_uchar;
+pub const float_ftz_after_rounding: FloatFTZDetection = 0;
+pub const float_ftz_before_rounding: FloatFTZDetection = 1;
+pub type FloatFTZDetection = ::std::os::raw::c_uchar;
+pub const floatx80_default_inf_int_bit_is_zero: FloatX80Behaviour = 1;
+pub const floatx80_pseudo_inf_valid: FloatX80Behaviour = 2;
+pub const floatx80_pseudo_nan_valid: FloatX80Behaviour = 4;
+pub const floatx80_unnormal_valid: FloatX80Behaviour = 8;
+pub const floatx80_pseudo_denormal_valid: FloatX80Behaviour = 16;
+pub type FloatX80Behaviour = ::std::os::raw::c_uchar;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct float_status {
     pub float_exception_flags: u16,
     pub float_rounding_mode: FloatRoundMode,
     pub floatx80_rounding_precision: FloatX80RoundPrec,
+    pub floatx80_behaviour: FloatX80Behaviour,
     pub float_2nan_prop_rule: Float2NaNPropRule,
     pub float_3nan_prop_rule: Float3NaNPropRule,
     pub float_infzeronan_rule: FloatInfZeroNaNRule,
     pub tininess_before_rounding: bool,
     pub flush_to_zero: bool,
+    pub ftz_detection: FloatFTZDetection,
     pub flush_inputs_to_zero: bool,
     pub default_nan_mode: bool,
     pub default_nan_pattern: u8,
@@ -36914,7 +36988,7 @@ pub struct float_status {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of float_status"][::std::mem::size_of::<float_status>() - 16usize];
+    ["Size of float_status"][::std::mem::size_of::<float_status>() - 18usize];
     ["Alignment of float_status"][::std::mem::align_of::<float_status>() - 2usize];
     ["Offset of field: float_status::float_exception_flags"]
         [::std::mem::offset_of!(float_status, float_exception_flags) - 0usize];
@@ -36922,30 +36996,34 @@ const _: () = {
         [::std::mem::offset_of!(float_status, float_rounding_mode) - 2usize];
     ["Offset of field: float_status::floatx80_rounding_precision"]
         [::std::mem::offset_of!(float_status, floatx80_rounding_precision) - 3usize];
+    ["Offset of field: float_status::floatx80_behaviour"]
+        [::std::mem::offset_of!(float_status, floatx80_behaviour) - 4usize];
     ["Offset of field: float_status::float_2nan_prop_rule"]
-        [::std::mem::offset_of!(float_status, float_2nan_prop_rule) - 4usize];
+        [::std::mem::offset_of!(float_status, float_2nan_prop_rule) - 5usize];
     ["Offset of field: float_status::float_3nan_prop_rule"]
-        [::std::mem::offset_of!(float_status, float_3nan_prop_rule) - 5usize];
+        [::std::mem::offset_of!(float_status, float_3nan_prop_rule) - 6usize];
     ["Offset of field: float_status::float_infzeronan_rule"]
-        [::std::mem::offset_of!(float_status, float_infzeronan_rule) - 6usize];
+        [::std::mem::offset_of!(float_status, float_infzeronan_rule) - 7usize];
     ["Offset of field: float_status::tininess_before_rounding"]
-        [::std::mem::offset_of!(float_status, tininess_before_rounding) - 7usize];
+        [::std::mem::offset_of!(float_status, tininess_before_rounding) - 8usize];
     ["Offset of field: float_status::flush_to_zero"]
-        [::std::mem::offset_of!(float_status, flush_to_zero) - 8usize];
+        [::std::mem::offset_of!(float_status, flush_to_zero) - 9usize];
+    ["Offset of field: float_status::ftz_detection"]
+        [::std::mem::offset_of!(float_status, ftz_detection) - 10usize];
     ["Offset of field: float_status::flush_inputs_to_zero"]
-        [::std::mem::offset_of!(float_status, flush_inputs_to_zero) - 9usize];
+        [::std::mem::offset_of!(float_status, flush_inputs_to_zero) - 11usize];
     ["Offset of field: float_status::default_nan_mode"]
-        [::std::mem::offset_of!(float_status, default_nan_mode) - 10usize];
+        [::std::mem::offset_of!(float_status, default_nan_mode) - 12usize];
     ["Offset of field: float_status::default_nan_pattern"]
-        [::std::mem::offset_of!(float_status, default_nan_pattern) - 11usize];
+        [::std::mem::offset_of!(float_status, default_nan_pattern) - 13usize];
     ["Offset of field: float_status::snan_bit_is_one"]
-        [::std::mem::offset_of!(float_status, snan_bit_is_one) - 12usize];
+        [::std::mem::offset_of!(float_status, snan_bit_is_one) - 14usize];
     ["Offset of field: float_status::no_signaling_nans"]
-        [::std::mem::offset_of!(float_status, no_signaling_nans) - 13usize];
+        [::std::mem::offset_of!(float_status, no_signaling_nans) - 15usize];
     ["Offset of field: float_status::rebias_overflow"]
-        [::std::mem::offset_of!(float_status, rebias_overflow) - 14usize];
+        [::std::mem::offset_of!(float_status, rebias_overflow) - 16usize];
     ["Offset of field: float_status::rebias_underflow"]
-        [::std::mem::offset_of!(float_status, rebias_underflow) - 15usize];
+        [::std::mem::offset_of!(float_status, rebias_underflow) - 17usize];
 };
 pub type Clock_autoptr = *mut Clock;
 pub type Clock_listautoptr = *mut GList;
@@ -37109,11 +37187,11 @@ const _: () = {
     ["Offset of field: CPUMIPSFPUContext::fp_status"]
         [::std::mem::offset_of!(CPUMIPSFPUContext, fp_status) - 512usize];
     ["Offset of field: CPUMIPSFPUContext::fcr0"]
-        [::std::mem::offset_of!(CPUMIPSFPUContext, fcr0) - 528usize];
+        [::std::mem::offset_of!(CPUMIPSFPUContext, fcr0) - 532usize];
     ["Offset of field: CPUMIPSFPUContext::fcr31_rw_bitmask"]
-        [::std::mem::offset_of!(CPUMIPSFPUContext, fcr31_rw_bitmask) - 532usize];
+        [::std::mem::offset_of!(CPUMIPSFPUContext, fcr31_rw_bitmask) - 536usize];
     ["Offset of field: CPUMIPSFPUContext::fcr31"]
-        [::std::mem::offset_of!(CPUMIPSFPUContext, fcr31) - 536usize];
+        [::std::mem::offset_of!(CPUMIPSFPUContext, fcr31) - 540usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -37162,7 +37240,7 @@ pub struct TCState {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of TCState"][::std::mem::size_of::<TCState>() - 300usize];
+    ["Size of TCState"][::std::mem::size_of::<TCState>() - 304usize];
     ["Alignment of TCState"][::std::mem::align_of::<TCState>() - 4usize];
     ["Offset of field: TCState::gpr"][::std::mem::offset_of!(TCState, gpr) - 0usize];
     ["Offset of field: TCState::PC"][::std::mem::offset_of!(TCState, PC) - 128usize];
@@ -37190,8 +37268,8 @@ const _: () = {
     ["Offset of field: TCState::msacsr"][::std::mem::offset_of!(TCState, msacsr) - 216usize];
     ["Offset of field: TCState::msa_fp_status"]
         [::std::mem::offset_of!(TCState, msa_fp_status) - 220usize];
-    ["Offset of field: TCState::mxu_gpr"][::std::mem::offset_of!(TCState, mxu_gpr) - 236usize];
-    ["Offset of field: TCState::mxu_cr"][::std::mem::offset_of!(TCState, mxu_cr) - 296usize];
+    ["Offset of field: TCState::mxu_gpr"][::std::mem::offset_of!(TCState, mxu_gpr) - 240usize];
+    ["Offset of field: TCState::mxu_cr"][::std::mem::offset_of!(TCState, mxu_cr) - 300usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -37356,7 +37434,7 @@ const _: () = {
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUArchState"][::std::mem::size_of::<CPUArchState>() - 7472usize];
+    ["Size of CPUArchState"][::std::mem::size_of::<CPUArchState>() - 7536usize];
     ["Alignment of CPUArchState"][::std::mem::align_of::<CPUArchState>() - 16usize];
     ["Offset of field: CPUArchState::active_tc"]
         [::std::mem::offset_of!(CPUArchState, active_tc) - 0usize];
@@ -37561,42 +37639,42 @@ const _: () = {
     ["Offset of field: CPUArchState::lcsr_cpucfg2"]
         [::std::mem::offset_of!(CPUArchState, lcsr_cpucfg2) - 1520usize];
     ["Offset of field: CPUArchState::tcs"][::std::mem::offset_of!(CPUArchState, tcs) - 1524usize];
-    ["Offset of field: CPUArchState::fpus"][::std::mem::offset_of!(CPUArchState, fpus) - 6328usize];
+    ["Offset of field: CPUArchState::fpus"][::std::mem::offset_of!(CPUArchState, fpus) - 6392usize];
     ["Offset of field: CPUArchState::error_code"]
-        [::std::mem::offset_of!(CPUArchState, error_code) - 6872usize];
+        [::std::mem::offset_of!(CPUArchState, error_code) - 6936usize];
     ["Offset of field: CPUArchState::hflags"]
-        [::std::mem::offset_of!(CPUArchState, hflags) - 6876usize];
+        [::std::mem::offset_of!(CPUArchState, hflags) - 6940usize];
     ["Offset of field: CPUArchState::btarget"]
-        [::std::mem::offset_of!(CPUArchState, btarget) - 6880usize];
+        [::std::mem::offset_of!(CPUArchState, btarget) - 6944usize];
     ["Offset of field: CPUArchState::bcond"]
-        [::std::mem::offset_of!(CPUArchState, bcond) - 6884usize];
+        [::std::mem::offset_of!(CPUArchState, bcond) - 6948usize];
     ["Offset of field: CPUArchState::SYNCI_Step"]
-        [::std::mem::offset_of!(CPUArchState, SYNCI_Step) - 6888usize];
+        [::std::mem::offset_of!(CPUArchState, SYNCI_Step) - 6952usize];
     ["Offset of field: CPUArchState::CCRes"]
-        [::std::mem::offset_of!(CPUArchState, CCRes) - 6892usize];
+        [::std::mem::offset_of!(CPUArchState, CCRes) - 6956usize];
     ["Offset of field: CPUArchState::CP0_Status_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Status_rw_bitmask) - 6896usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Status_rw_bitmask) - 6960usize];
     ["Offset of field: CPUArchState::CP0_TCStatus_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_TCStatus_rw_bitmask) - 6900usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_TCStatus_rw_bitmask) - 6964usize];
     ["Offset of field: CPUArchState::insn_flags"]
-        [::std::mem::offset_of!(CPUArchState, insn_flags) - 6904usize];
+        [::std::mem::offset_of!(CPUArchState, insn_flags) - 6968usize];
     ["Offset of field: CPUArchState::end_reset_fields"]
-        [::std::mem::offset_of!(CPUArchState, end_reset_fields) - 6912usize];
-    ["Offset of field: CPUArchState::mvp"][::std::mem::offset_of!(CPUArchState, mvp) - 6912usize];
-    ["Offset of field: CPUArchState::tlb"][::std::mem::offset_of!(CPUArchState, tlb) - 6920usize];
-    ["Offset of field: CPUArchState::irq"][::std::mem::offset_of!(CPUArchState, irq) - 6928usize];
+        [::std::mem::offset_of!(CPUArchState, end_reset_fields) - 6976usize];
+    ["Offset of field: CPUArchState::mvp"][::std::mem::offset_of!(CPUArchState, mvp) - 6976usize];
+    ["Offset of field: CPUArchState::tlb"][::std::mem::offset_of!(CPUArchState, tlb) - 6984usize];
+    ["Offset of field: CPUArchState::irq"][::std::mem::offset_of!(CPUArchState, irq) - 6992usize];
     ["Offset of field: CPUArchState::itc_tag"]
-        [::std::mem::offset_of!(CPUArchState, itc_tag) - 6992usize];
+        [::std::mem::offset_of!(CPUArchState, itc_tag) - 7056usize];
     ["Offset of field: CPUArchState::iocsr"]
-        [::std::mem::offset_of!(CPUArchState, iocsr) - 7008usize];
+        [::std::mem::offset_of!(CPUArchState, iocsr) - 7072usize];
     ["Offset of field: CPUArchState::cpu_model"]
-        [::std::mem::offset_of!(CPUArchState, cpu_model) - 7440usize];
+        [::std::mem::offset_of!(CPUArchState, cpu_model) - 7504usize];
     ["Offset of field: CPUArchState::timer"]
-        [::std::mem::offset_of!(CPUArchState, timer) - 7448usize];
+        [::std::mem::offset_of!(CPUArchState, timer) - 7512usize];
     ["Offset of field: CPUArchState::count_clock"]
-        [::std::mem::offset_of!(CPUArchState, count_clock) - 7456usize];
+        [::std::mem::offset_of!(CPUArchState, count_clock) - 7520usize];
     ["Offset of field: CPUArchState::exception_base"]
-        [::std::mem::offset_of!(CPUArchState, exception_base) - 7464usize];
+        [::std::mem::offset_of!(CPUArchState, exception_base) - 7528usize];
 };
 pub type CPUMIPSState = CPUArchState;
 #[repr(C)]
@@ -37610,15 +37688,15 @@ pub struct ArchCPU {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ArchCPU"][::std::mem::size_of::<ArchCPU>() - 18704usize];
+    ["Size of ArchCPU"][::std::mem::size_of::<ArchCPU>() - 18768usize];
     ["Alignment of ArchCPU"][::std::mem::align_of::<ArchCPU>() - 16usize];
     ["Offset of field: ArchCPU::parent_obj"][::std::mem::offset_of!(ArchCPU, parent_obj) - 0usize];
     ["Offset of field: ArchCPU::env"][::std::mem::offset_of!(ArchCPU, env) - 11200usize];
-    ["Offset of field: ArchCPU::clock"][::std::mem::offset_of!(ArchCPU, clock) - 18672usize];
+    ["Offset of field: ArchCPU::clock"][::std::mem::offset_of!(ArchCPU, clock) - 18736usize];
     ["Offset of field: ArchCPU::count_div"]
-        [::std::mem::offset_of!(ArchCPU, count_div) - 18680usize];
+        [::std::mem::offset_of!(ArchCPU, count_div) - 18744usize];
     ["Offset of field: ArchCPU::is_big_endian"]
-        [::std::mem::offset_of!(ArchCPU, is_big_endian) - 18688usize];
+        [::std::mem::offset_of!(ArchCPU, is_big_endian) - 18752usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -37631,18 +37709,18 @@ pub struct MIPSCPUClass {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of MIPSCPUClass"][::std::mem::size_of::<MIPSCPUClass>() - 416usize];
+    ["Size of MIPSCPUClass"][::std::mem::size_of::<MIPSCPUClass>() - 408usize];
     ["Alignment of MIPSCPUClass"][::std::mem::align_of::<MIPSCPUClass>() - 8usize];
     ["Offset of field: MIPSCPUClass::parent_class"]
         [::std::mem::offset_of!(MIPSCPUClass, parent_class) - 0usize];
     ["Offset of field: MIPSCPUClass::parent_realize"]
-        [::std::mem::offset_of!(MIPSCPUClass, parent_realize) - 368usize];
+        [::std::mem::offset_of!(MIPSCPUClass, parent_realize) - 360usize];
     ["Offset of field: MIPSCPUClass::parent_phases"]
-        [::std::mem::offset_of!(MIPSCPUClass, parent_phases) - 376usize];
+        [::std::mem::offset_of!(MIPSCPUClass, parent_phases) - 368usize];
     ["Offset of field: MIPSCPUClass::cpu_def"]
-        [::std::mem::offset_of!(MIPSCPUClass, cpu_def) - 400usize];
+        [::std::mem::offset_of!(MIPSCPUClass, cpu_def) - 392usize];
     ["Offset of field: MIPSCPUClass::no_data_aborts"]
-        [::std::mem::offset_of!(MIPSCPUClass, no_data_aborts) - 408usize];
+        [::std::mem::offset_of!(MIPSCPUClass, no_data_aborts) - 400usize];
 };
 unsafe extern "C" {
     pub fn cpu_wrdsp(rs: u32, mask_num: u32, env: *mut CPUMIPSState);
@@ -37799,6 +37877,12 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub static target_page: TargetPageBits;
+}
+unsafe extern "C" {
+    pub fn qemu_target_page_bits_min() -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn qemu_target_pages_to_MiB(pages: usize) -> usize;
 }
 unsafe extern "C" {
     pub fn cpu_copy(env: *mut CPUArchState) -> *mut CPUArchState;
@@ -38914,99 +38998,6 @@ unsafe extern "C" {
     pub fn tcg_cflags_set(cpu: *mut CPUState, flags: u32);
 }
 unsafe extern "C" {
-    pub fn tlb_init(cpu: *mut CPUState);
-}
-unsafe extern "C" {
-    pub fn tlb_destroy(cpu: *mut CPUState);
-}
-unsafe extern "C" {
-    pub fn tlb_flush_page(cpu: *mut CPUState, addr: vaddr);
-}
-unsafe extern "C" {
-    pub fn tlb_flush_page_all_cpus_synced(src: *mut CPUState, addr: vaddr);
-}
-unsafe extern "C" {
-    pub fn tlb_flush(cpu: *mut CPUState);
-}
-unsafe extern "C" {
-    pub fn tlb_flush_all_cpus_synced(src_cpu: *mut CPUState);
-}
-unsafe extern "C" {
-    pub fn tlb_flush_page_by_mmuidx(cpu: *mut CPUState, addr: vaddr, idxmap: u16);
-}
-unsafe extern "C" {
-    pub fn tlb_flush_page_by_mmuidx_all_cpus_synced(cpu: *mut CPUState, addr: vaddr, idxmap: u16);
-}
-unsafe extern "C" {
-    pub fn tlb_flush_by_mmuidx(cpu: *mut CPUState, idxmap: u16);
-}
-unsafe extern "C" {
-    pub fn tlb_flush_by_mmuidx_all_cpus_synced(cpu: *mut CPUState, idxmap: u16);
-}
-unsafe extern "C" {
-    pub fn tlb_flush_page_bits_by_mmuidx(
-        cpu: *mut CPUState,
-        addr: vaddr,
-        idxmap: u16,
-        bits: ::std::os::raw::c_uint,
-    );
-}
-unsafe extern "C" {
-    pub fn tlb_flush_page_bits_by_mmuidx_all_cpus_synced(
-        cpu: *mut CPUState,
-        addr: vaddr,
-        idxmap: u16,
-        bits: ::std::os::raw::c_uint,
-    );
-}
-unsafe extern "C" {
-    pub fn tlb_flush_range_by_mmuidx(
-        cpu: *mut CPUState,
-        addr: vaddr,
-        len: vaddr,
-        idxmap: u16,
-        bits: ::std::os::raw::c_uint,
-    );
-}
-unsafe extern "C" {
-    pub fn tlb_flush_range_by_mmuidx_all_cpus_synced(
-        cpu: *mut CPUState,
-        addr: vaddr,
-        len: vaddr,
-        idxmap: u16,
-        bits: ::std::os::raw::c_uint,
-    );
-}
-unsafe extern "C" {
-    pub fn tlb_set_page_full(
-        cpu: *mut CPUState,
-        mmu_idx: ::std::os::raw::c_int,
-        addr: vaddr,
-        full: *mut CPUTLBEntryFull,
-    );
-}
-unsafe extern "C" {
-    pub fn tlb_set_page_with_attrs(
-        cpu: *mut CPUState,
-        addr: vaddr,
-        paddr: hwaddr,
-        attrs: MemTxAttrs,
-        prot: ::std::os::raw::c_int,
-        mmu_idx: ::std::os::raw::c_int,
-        size: vaddr,
-    );
-}
-unsafe extern "C" {
-    pub fn tlb_set_page(
-        cpu: *mut CPUState,
-        addr: vaddr,
-        paddr: hwaddr,
-        prot: ::std::os::raw::c_int,
-        mmu_idx: ::std::os::raw::c_int,
-        size: vaddr,
-    );
-}
-unsafe extern "C" {
     pub fn probe_access(
         env: *mut CPUArchState,
         addr: vaddr,
@@ -39074,12 +39065,6 @@ unsafe extern "C" {
         addr: vaddr,
         hostp: *mut *mut ::std::os::raw::c_void,
     ) -> tb_page_addr_t;
-}
-unsafe extern "C" {
-    pub fn tlb_reset_dirty(cpu: *mut CPUState, start1: ram_addr_t, length: ram_addr_t);
-}
-unsafe extern "C" {
-    pub fn tlb_reset_dirty_range_all(start: ram_addr_t, length: ram_addr_t);
 }
 unsafe extern "C" {
     pub fn address_space_translate_for_iotlb(
@@ -39699,77 +39684,70 @@ pub const INDEX_op_goto_tb: TCGOpcode = 131;
 pub const INDEX_op_goto_ptr: TCGOpcode = 132;
 pub const INDEX_op_plugin_cb: TCGOpcode = 133;
 pub const INDEX_op_plugin_mem_cb: TCGOpcode = 134;
-pub const INDEX_op_qemu_ld_a32_i32: TCGOpcode = 135;
-pub const INDEX_op_qemu_st_a32_i32: TCGOpcode = 136;
-pub const INDEX_op_qemu_ld_a32_i64: TCGOpcode = 137;
-pub const INDEX_op_qemu_st_a32_i64: TCGOpcode = 138;
-pub const INDEX_op_qemu_ld_a64_i32: TCGOpcode = 139;
-pub const INDEX_op_qemu_st_a64_i32: TCGOpcode = 140;
-pub const INDEX_op_qemu_ld_a64_i64: TCGOpcode = 141;
-pub const INDEX_op_qemu_st_a64_i64: TCGOpcode = 142;
-pub const INDEX_op_qemu_st8_a32_i32: TCGOpcode = 143;
-pub const INDEX_op_qemu_st8_a64_i32: TCGOpcode = 144;
-pub const INDEX_op_qemu_ld_a32_i128: TCGOpcode = 145;
-pub const INDEX_op_qemu_ld_a64_i128: TCGOpcode = 146;
-pub const INDEX_op_qemu_st_a32_i128: TCGOpcode = 147;
-pub const INDEX_op_qemu_st_a64_i128: TCGOpcode = 148;
-pub const INDEX_op_mov_vec: TCGOpcode = 149;
-pub const INDEX_op_dup_vec: TCGOpcode = 150;
-pub const INDEX_op_dup2_vec: TCGOpcode = 151;
-pub const INDEX_op_ld_vec: TCGOpcode = 152;
-pub const INDEX_op_st_vec: TCGOpcode = 153;
-pub const INDEX_op_dupm_vec: TCGOpcode = 154;
-pub const INDEX_op_add_vec: TCGOpcode = 155;
-pub const INDEX_op_sub_vec: TCGOpcode = 156;
-pub const INDEX_op_mul_vec: TCGOpcode = 157;
-pub const INDEX_op_neg_vec: TCGOpcode = 158;
-pub const INDEX_op_abs_vec: TCGOpcode = 159;
-pub const INDEX_op_ssadd_vec: TCGOpcode = 160;
-pub const INDEX_op_usadd_vec: TCGOpcode = 161;
-pub const INDEX_op_sssub_vec: TCGOpcode = 162;
-pub const INDEX_op_ussub_vec: TCGOpcode = 163;
-pub const INDEX_op_smin_vec: TCGOpcode = 164;
-pub const INDEX_op_umin_vec: TCGOpcode = 165;
-pub const INDEX_op_smax_vec: TCGOpcode = 166;
-pub const INDEX_op_umax_vec: TCGOpcode = 167;
-pub const INDEX_op_and_vec: TCGOpcode = 168;
-pub const INDEX_op_or_vec: TCGOpcode = 169;
-pub const INDEX_op_xor_vec: TCGOpcode = 170;
-pub const INDEX_op_andc_vec: TCGOpcode = 171;
-pub const INDEX_op_orc_vec: TCGOpcode = 172;
-pub const INDEX_op_nand_vec: TCGOpcode = 173;
-pub const INDEX_op_nor_vec: TCGOpcode = 174;
-pub const INDEX_op_eqv_vec: TCGOpcode = 175;
-pub const INDEX_op_not_vec: TCGOpcode = 176;
-pub const INDEX_op_shli_vec: TCGOpcode = 177;
-pub const INDEX_op_shri_vec: TCGOpcode = 178;
-pub const INDEX_op_sari_vec: TCGOpcode = 179;
-pub const INDEX_op_rotli_vec: TCGOpcode = 180;
-pub const INDEX_op_shls_vec: TCGOpcode = 181;
-pub const INDEX_op_shrs_vec: TCGOpcode = 182;
-pub const INDEX_op_sars_vec: TCGOpcode = 183;
-pub const INDEX_op_rotls_vec: TCGOpcode = 184;
-pub const INDEX_op_shlv_vec: TCGOpcode = 185;
-pub const INDEX_op_shrv_vec: TCGOpcode = 186;
-pub const INDEX_op_sarv_vec: TCGOpcode = 187;
-pub const INDEX_op_rotlv_vec: TCGOpcode = 188;
-pub const INDEX_op_rotrv_vec: TCGOpcode = 189;
-pub const INDEX_op_cmp_vec: TCGOpcode = 190;
-pub const INDEX_op_bitsel_vec: TCGOpcode = 191;
-pub const INDEX_op_cmpsel_vec: TCGOpcode = 192;
-pub const INDEX_op_last_generic: TCGOpcode = 193;
-pub const INDEX_op_x86_shufps_vec: TCGOpcode = 194;
-pub const INDEX_op_x86_blend_vec: TCGOpcode = 195;
-pub const INDEX_op_x86_packss_vec: TCGOpcode = 196;
-pub const INDEX_op_x86_packus_vec: TCGOpcode = 197;
-pub const INDEX_op_x86_psrldq_vec: TCGOpcode = 198;
-pub const INDEX_op_x86_vperm2i128_vec: TCGOpcode = 199;
-pub const INDEX_op_x86_punpckl_vec: TCGOpcode = 200;
-pub const INDEX_op_x86_punpckh_vec: TCGOpcode = 201;
-pub const INDEX_op_x86_vpshldi_vec: TCGOpcode = 202;
-pub const INDEX_op_x86_vpshldv_vec: TCGOpcode = 203;
-pub const INDEX_op_x86_vpshrdv_vec: TCGOpcode = 204;
-pub const NB_OPS: TCGOpcode = 205;
+pub const INDEX_op_qemu_ld_i32: TCGOpcode = 135;
+pub const INDEX_op_qemu_st_i32: TCGOpcode = 136;
+pub const INDEX_op_qemu_ld_i64: TCGOpcode = 137;
+pub const INDEX_op_qemu_st_i64: TCGOpcode = 138;
+pub const INDEX_op_qemu_st8_i32: TCGOpcode = 139;
+pub const INDEX_op_qemu_ld_i128: TCGOpcode = 140;
+pub const INDEX_op_qemu_st_i128: TCGOpcode = 141;
+pub const INDEX_op_mov_vec: TCGOpcode = 142;
+pub const INDEX_op_dup_vec: TCGOpcode = 143;
+pub const INDEX_op_dup2_vec: TCGOpcode = 144;
+pub const INDEX_op_ld_vec: TCGOpcode = 145;
+pub const INDEX_op_st_vec: TCGOpcode = 146;
+pub const INDEX_op_dupm_vec: TCGOpcode = 147;
+pub const INDEX_op_add_vec: TCGOpcode = 148;
+pub const INDEX_op_sub_vec: TCGOpcode = 149;
+pub const INDEX_op_mul_vec: TCGOpcode = 150;
+pub const INDEX_op_neg_vec: TCGOpcode = 151;
+pub const INDEX_op_abs_vec: TCGOpcode = 152;
+pub const INDEX_op_ssadd_vec: TCGOpcode = 153;
+pub const INDEX_op_usadd_vec: TCGOpcode = 154;
+pub const INDEX_op_sssub_vec: TCGOpcode = 155;
+pub const INDEX_op_ussub_vec: TCGOpcode = 156;
+pub const INDEX_op_smin_vec: TCGOpcode = 157;
+pub const INDEX_op_umin_vec: TCGOpcode = 158;
+pub const INDEX_op_smax_vec: TCGOpcode = 159;
+pub const INDEX_op_umax_vec: TCGOpcode = 160;
+pub const INDEX_op_and_vec: TCGOpcode = 161;
+pub const INDEX_op_or_vec: TCGOpcode = 162;
+pub const INDEX_op_xor_vec: TCGOpcode = 163;
+pub const INDEX_op_andc_vec: TCGOpcode = 164;
+pub const INDEX_op_orc_vec: TCGOpcode = 165;
+pub const INDEX_op_nand_vec: TCGOpcode = 166;
+pub const INDEX_op_nor_vec: TCGOpcode = 167;
+pub const INDEX_op_eqv_vec: TCGOpcode = 168;
+pub const INDEX_op_not_vec: TCGOpcode = 169;
+pub const INDEX_op_shli_vec: TCGOpcode = 170;
+pub const INDEX_op_shri_vec: TCGOpcode = 171;
+pub const INDEX_op_sari_vec: TCGOpcode = 172;
+pub const INDEX_op_rotli_vec: TCGOpcode = 173;
+pub const INDEX_op_shls_vec: TCGOpcode = 174;
+pub const INDEX_op_shrs_vec: TCGOpcode = 175;
+pub const INDEX_op_sars_vec: TCGOpcode = 176;
+pub const INDEX_op_rotls_vec: TCGOpcode = 177;
+pub const INDEX_op_shlv_vec: TCGOpcode = 178;
+pub const INDEX_op_shrv_vec: TCGOpcode = 179;
+pub const INDEX_op_sarv_vec: TCGOpcode = 180;
+pub const INDEX_op_rotlv_vec: TCGOpcode = 181;
+pub const INDEX_op_rotrv_vec: TCGOpcode = 182;
+pub const INDEX_op_cmp_vec: TCGOpcode = 183;
+pub const INDEX_op_bitsel_vec: TCGOpcode = 184;
+pub const INDEX_op_cmpsel_vec: TCGOpcode = 185;
+pub const INDEX_op_last_generic: TCGOpcode = 186;
+pub const INDEX_op_x86_shufps_vec: TCGOpcode = 187;
+pub const INDEX_op_x86_blend_vec: TCGOpcode = 188;
+pub const INDEX_op_x86_packss_vec: TCGOpcode = 189;
+pub const INDEX_op_x86_packus_vec: TCGOpcode = 190;
+pub const INDEX_op_x86_psrldq_vec: TCGOpcode = 191;
+pub const INDEX_op_x86_vperm2i128_vec: TCGOpcode = 192;
+pub const INDEX_op_x86_punpckl_vec: TCGOpcode = 193;
+pub const INDEX_op_x86_punpckh_vec: TCGOpcode = 194;
+pub const INDEX_op_x86_vpshldi_vec: TCGOpcode = 195;
+pub const INDEX_op_x86_vpshldv_vec: TCGOpcode = 196;
+pub const INDEX_op_x86_vpshrdv_vec: TCGOpcode = 197;
+pub const NB_OPS: TCGOpcode = 198;
 pub type TCGOpcode = ::std::os::raw::c_uint;
 pub type tcg_insn_unit = u8;
 #[repr(C)]
@@ -42113,6 +42091,9 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn panda_cpu_get_index(q: *mut CPUState) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn panda_lookup_tb(cpu: *mut CPUState, pc: u64) -> *mut TranslationBlock;
 }
 unsafe extern "C" {
     pub fn garray_len(list: *mut GArray) -> ::std::os::raw::c_ulong;

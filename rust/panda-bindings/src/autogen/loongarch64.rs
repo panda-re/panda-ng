@@ -2122,20 +2122,21 @@ pub const PTHREAD_ONCE_INIT: u32 = 0;
 pub const PTHREAD_BARRIER_SERIAL_THREAD: i32 = -1;
 pub const PTHREAD_ATTR_NO_SIGMASK_NP: i32 = -1;
 pub const CONFIG_I386_DIS: u32 = 1;
+pub const CONFIG_LOONGARCH_DIS: u32 = 1;
 pub const CONFIG_SOFTMMU: u32 = 1;
 pub const CONFIG_SYSTEM_ONLY: u32 = 1;
 pub const CONFIG_TCG: u32 = 1;
-pub const TARGET_AARCH64: u32 = 1;
-pub const TARGET_ARM: u32 = 1;
 pub const TARGET_BIG_ENDIAN: u32 = 0;
 pub const TARGET_KVM_HAVE_GUEST_DEBUG: u32 = 1;
 pub const TARGET_LONG_BITS: u32 = 64;
-pub const TARGET_NAME: &[u8; 8] = b"aarch64\0";
+pub const TARGET_LOONGARCH: u32 = 1;
+pub const TARGET_LOONGARCH64: u32 = 1;
+pub const TARGET_NAME: &[u8; 12] = b"loongarch64\0";
 pub const TARGET_NEED_FDT: u32 = 1;
 pub const TARGET_SUPPORTS_MTTCG: u32 = 1;
-pub const TARGET_PHYS_ADDR_SPACE_BITS: u32 = 52;
-pub const TARGET_VIRT_ADDR_SPACE_BITS: u32 = 52;
-pub const TARGET_PAGE_BITS_MIN: u32 = 10;
+pub const TARGET_PHYS_ADDR_SPACE_BITS: u32 = 48;
+pub const TARGET_VIRT_ADDR_SPACE_BITS: u32 = 48;
+pub const TARGET_PAGE_BITS: u32 = 12;
 pub const TCG_GUEST_DEFAULT_MO: u32 = 0;
 pub const PPP_MAX_CB: u32 = 256;
 pub const PANDA_CORE_NAME: &[u8; 5] = b"core\0";
@@ -24516,16 +24517,6 @@ pub struct QEMUSGList {
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct QEMUTimer {
-    _unused: [u8; 0],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct QEMUTimerListGroup {
-    _unused: [u8; 0],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
 pub struct QList {
     _unused: [u8; 0],
 }
@@ -34843,5568 +34834,195 @@ const _: () = {
     ["Offset of field: float_status::rebias_underflow"]
         [::std::mem::offset_of!(float_status, rebias_underflow) - 17usize];
 };
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPU_FloatU {
-    pub f: float32,
-    pub l: u32,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPU_FloatU"][::std::mem::size_of::<CPU_FloatU>() - 4usize];
-    ["Alignment of CPU_FloatU"][::std::mem::align_of::<CPU_FloatU>() - 4usize];
-    ["Offset of field: CPU_FloatU::f"][::std::mem::offset_of!(CPU_FloatU, f) - 0usize];
-    ["Offset of field: CPU_FloatU::l"][::std::mem::offset_of!(CPU_FloatU, l) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPU_DoubleU {
-    pub d: float64,
-    pub l: CPU_DoubleU__bindgen_ty_1,
-    pub ll: u64,
-}
+pub const QEMU_CLOCK_REALTIME: QEMUClockType = 0;
+pub const QEMU_CLOCK_VIRTUAL: QEMUClockType = 1;
+pub const QEMU_CLOCK_HOST: QEMUClockType = 2;
+pub const QEMU_CLOCK_VIRTUAL_RT: QEMUClockType = 3;
+pub const QEMU_CLOCK_MAX: QEMUClockType = 4;
+pub type QEMUClockType = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct CPU_DoubleU__bindgen_ty_1 {
-    pub lower: u32,
-    pub upper: u32,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPU_DoubleU__bindgen_ty_1"]
-        [::std::mem::size_of::<CPU_DoubleU__bindgen_ty_1>() - 8usize];
-    ["Alignment of CPU_DoubleU__bindgen_ty_1"]
-        [::std::mem::align_of::<CPU_DoubleU__bindgen_ty_1>() - 4usize];
-    ["Offset of field: CPU_DoubleU__bindgen_ty_1::lower"]
-        [::std::mem::offset_of!(CPU_DoubleU__bindgen_ty_1, lower) - 0usize];
-    ["Offset of field: CPU_DoubleU__bindgen_ty_1::upper"]
-        [::std::mem::offset_of!(CPU_DoubleU__bindgen_ty_1, upper) - 4usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPU_DoubleU"][::std::mem::size_of::<CPU_DoubleU>() - 8usize];
-    ["Alignment of CPU_DoubleU"][::std::mem::align_of::<CPU_DoubleU>() - 8usize];
-    ["Offset of field: CPU_DoubleU::d"][::std::mem::offset_of!(CPU_DoubleU, d) - 0usize];
-    ["Offset of field: CPU_DoubleU::l"][::std::mem::offset_of!(CPU_DoubleU, l) - 0usize];
-    ["Offset of field: CPU_DoubleU::ll"][::std::mem::offset_of!(CPU_DoubleU, ll) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPU_LDoubleU {
-    pub d: floatx80,
-    pub l: CPU_LDoubleU__bindgen_ty_1,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPU_LDoubleU__bindgen_ty_1 {
-    pub lower: u64,
-    pub upper: u16,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPU_LDoubleU__bindgen_ty_1"]
-        [::std::mem::size_of::<CPU_LDoubleU__bindgen_ty_1>() - 16usize];
-    ["Alignment of CPU_LDoubleU__bindgen_ty_1"]
-        [::std::mem::align_of::<CPU_LDoubleU__bindgen_ty_1>() - 8usize];
-    ["Offset of field: CPU_LDoubleU__bindgen_ty_1::lower"]
-        [::std::mem::offset_of!(CPU_LDoubleU__bindgen_ty_1, lower) - 0usize];
-    ["Offset of field: CPU_LDoubleU__bindgen_ty_1::upper"]
-        [::std::mem::offset_of!(CPU_LDoubleU__bindgen_ty_1, upper) - 8usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPU_LDoubleU"][::std::mem::size_of::<CPU_LDoubleU>() - 16usize];
-    ["Alignment of CPU_LDoubleU"][::std::mem::align_of::<CPU_LDoubleU>() - 8usize];
-    ["Offset of field: CPU_LDoubleU::d"][::std::mem::offset_of!(CPU_LDoubleU, d) - 0usize];
-    ["Offset of field: CPU_LDoubleU::l"][::std::mem::offset_of!(CPU_LDoubleU, l) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPU_QuadU {
-    pub q: float128,
-    pub l: CPU_QuadU__bindgen_ty_1,
-    pub ll: CPU_QuadU__bindgen_ty_2,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPU_QuadU__bindgen_ty_1 {
-    pub lowest: u32,
-    pub lower: u32,
-    pub upper: u32,
-    pub upmost: u32,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPU_QuadU__bindgen_ty_1"][::std::mem::size_of::<CPU_QuadU__bindgen_ty_1>() - 16usize];
-    ["Alignment of CPU_QuadU__bindgen_ty_1"]
-        [::std::mem::align_of::<CPU_QuadU__bindgen_ty_1>() - 4usize];
-    ["Offset of field: CPU_QuadU__bindgen_ty_1::lowest"]
-        [::std::mem::offset_of!(CPU_QuadU__bindgen_ty_1, lowest) - 0usize];
-    ["Offset of field: CPU_QuadU__bindgen_ty_1::lower"]
-        [::std::mem::offset_of!(CPU_QuadU__bindgen_ty_1, lower) - 4usize];
-    ["Offset of field: CPU_QuadU__bindgen_ty_1::upper"]
-        [::std::mem::offset_of!(CPU_QuadU__bindgen_ty_1, upper) - 8usize];
-    ["Offset of field: CPU_QuadU__bindgen_ty_1::upmost"]
-        [::std::mem::offset_of!(CPU_QuadU__bindgen_ty_1, upmost) - 12usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPU_QuadU__bindgen_ty_2 {
-    pub lower: u64,
-    pub upper: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPU_QuadU__bindgen_ty_2"][::std::mem::size_of::<CPU_QuadU__bindgen_ty_2>() - 16usize];
-    ["Alignment of CPU_QuadU__bindgen_ty_2"]
-        [::std::mem::align_of::<CPU_QuadU__bindgen_ty_2>() - 8usize];
-    ["Offset of field: CPU_QuadU__bindgen_ty_2::lower"]
-        [::std::mem::offset_of!(CPU_QuadU__bindgen_ty_2, lower) - 0usize];
-    ["Offset of field: CPU_QuadU__bindgen_ty_2::upper"]
-        [::std::mem::offset_of!(CPU_QuadU__bindgen_ty_2, upper) - 8usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPU_QuadU"][::std::mem::size_of::<CPU_QuadU>() - 16usize];
-    ["Alignment of CPU_QuadU"][::std::mem::align_of::<CPU_QuadU>() - 8usize];
-    ["Offset of field: CPU_QuadU::q"][::std::mem::offset_of!(CPU_QuadU, q) - 0usize];
-    ["Offset of field: CPU_QuadU::l"][::std::mem::offset_of!(CPU_QuadU, l) - 0usize];
-    ["Offset of field: CPU_QuadU::ll"][::std::mem::offset_of!(CPU_QuadU, ll) - 0usize];
-};
-pub type ARMCPU = ArchCPU;
-pub type ArchCPU_autoptr = *mut ArchCPU;
-pub type ArchCPU_listautoptr = *mut GList;
-pub type ArchCPU_slistautoptr = *mut GSList;
-pub type ArchCPU_queueautoptr = *mut GQueue;
-pub const M_REG_NS: _bindgen_ty_52 = 0;
-pub const M_REG_S: _bindgen_ty_52 = 1;
-pub const M_REG_NUM_BANKS: _bindgen_ty_52 = 2;
-pub type _bindgen_ty_52 = ::std::os::raw::c_uint;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct GDBFeature {
-    pub xmlname: *const ::std::os::raw::c_char,
-    pub xml: *const ::std::os::raw::c_char,
-    pub name: *const ::std::os::raw::c_char,
-    pub regs: *const *const ::std::os::raw::c_char,
-    pub num_regs: ::std::os::raw::c_int,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of GDBFeature"][::std::mem::size_of::<GDBFeature>() - 40usize];
-    ["Alignment of GDBFeature"][::std::mem::align_of::<GDBFeature>() - 8usize];
-    ["Offset of field: GDBFeature::xmlname"][::std::mem::offset_of!(GDBFeature, xmlname) - 0usize];
-    ["Offset of field: GDBFeature::xml"][::std::mem::offset_of!(GDBFeature, xml) - 8usize];
-    ["Offset of field: GDBFeature::name"][::std::mem::offset_of!(GDBFeature, name) - 16usize];
-    ["Offset of field: GDBFeature::regs"][::std::mem::offset_of!(GDBFeature, regs) - 24usize];
-    ["Offset of field: GDBFeature::num_regs"]
-        [::std::mem::offset_of!(GDBFeature, num_regs) - 32usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct GDBFeatureBuilder {
-    pub feature: *mut GDBFeature,
-    pub xml: *mut GPtrArray,
-    pub regs: *mut GPtrArray,
-    pub base_reg: ::std::os::raw::c_int,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of GDBFeatureBuilder"][::std::mem::size_of::<GDBFeatureBuilder>() - 32usize];
-    ["Alignment of GDBFeatureBuilder"][::std::mem::align_of::<GDBFeatureBuilder>() - 8usize];
-    ["Offset of field: GDBFeatureBuilder::feature"]
-        [::std::mem::offset_of!(GDBFeatureBuilder, feature) - 0usize];
-    ["Offset of field: GDBFeatureBuilder::xml"]
-        [::std::mem::offset_of!(GDBFeatureBuilder, xml) - 8usize];
-    ["Offset of field: GDBFeatureBuilder::regs"]
-        [::std::mem::offset_of!(GDBFeatureBuilder, regs) - 16usize];
-    ["Offset of field: GDBFeatureBuilder::base_reg"]
-        [::std::mem::offset_of!(GDBFeatureBuilder, base_reg) - 24usize];
-};
-pub type gdb_get_reg_cb = ::std::option::Option<
-    unsafe extern "C" fn(
-        cpu: *mut CPUState,
-        buf: *mut GByteArray,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int,
->;
-pub type gdb_set_reg_cb = ::std::option::Option<
-    unsafe extern "C" fn(
-        cpu: *mut CPUState,
-        buf: *mut u8,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int,
->;
-unsafe extern "C" {
-    pub fn gdb_init_cpu(cpu: *mut CPUState);
-}
-unsafe extern "C" {
-    pub fn gdb_register_coprocessor(
-        cpu: *mut CPUState,
-        get_reg: gdb_get_reg_cb,
-        set_reg: gdb_set_reg_cb,
-        feature: *const GDBFeature,
-        g_pos: ::std::os::raw::c_int,
-    );
-}
-unsafe extern "C" {
-    pub fn gdb_unregister_coprocessor_all(cpu: *mut CPUState);
-}
-unsafe extern "C" {
-    pub fn gdbserver_start(
-        port_or_device: *const ::std::os::raw::c_char,
-        errp: *mut *mut Error,
-    ) -> bool;
-}
-unsafe extern "C" {
-    pub fn gdb_feature_builder_init(
-        builder: *mut GDBFeatureBuilder,
-        feature: *mut GDBFeature,
-        name: *const ::std::os::raw::c_char,
-        xmlname: *const ::std::os::raw::c_char,
-        base_reg: ::std::os::raw::c_int,
-    );
-}
-unsafe extern "C" {
-    pub fn gdb_feature_builder_append_tag(
-        builder: *const GDBFeatureBuilder,
-        format: *const ::std::os::raw::c_char,
-        ...
-    );
-}
-unsafe extern "C" {
-    pub fn gdb_feature_builder_append_reg(
-        builder: *const GDBFeatureBuilder,
-        name: *const ::std::os::raw::c_char,
-        bitsize: ::std::os::raw::c_int,
-        regnum: ::std::os::raw::c_int,
-        type_: *const ::std::os::raw::c_char,
-        group: *const ::std::os::raw::c_char,
-    );
-}
-unsafe extern "C" {
-    pub fn gdb_feature_builder_end(builder: *const GDBFeatureBuilder);
-}
-unsafe extern "C" {
-    pub fn gdb_find_static_feature(xmlname: *const ::std::os::raw::c_char) -> *const GDBFeature;
-}
-unsafe extern "C" {
-    pub fn gdb_read_register(
-        cpu: *mut CPUState,
-        buf: *mut GByteArray,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct GDBRegDesc {
-    pub gdb_reg: ::std::os::raw::c_int,
-    pub name: *const ::std::os::raw::c_char,
-    pub feature_name: *const ::std::os::raw::c_char,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of GDBRegDesc"][::std::mem::size_of::<GDBRegDesc>() - 24usize];
-    ["Alignment of GDBRegDesc"][::std::mem::align_of::<GDBRegDesc>() - 8usize];
-    ["Offset of field: GDBRegDesc::gdb_reg"][::std::mem::offset_of!(GDBRegDesc, gdb_reg) - 0usize];
-    ["Offset of field: GDBRegDesc::name"][::std::mem::offset_of!(GDBRegDesc, name) - 8usize];
-    ["Offset of field: GDBRegDesc::feature_name"]
-        [::std::mem::offset_of!(GDBRegDesc, feature_name) - 16usize];
-};
-unsafe extern "C" {
-    pub fn gdb_get_register_list(cpu: *mut CPUState) -> *mut GArray;
-}
-unsafe extern "C" {
-    pub fn gdb_set_stop_cpu(cpu: *mut CPUState);
-}
-unsafe extern "C" {
-    pub static gdb_static_features: [GDBFeature; 0usize];
-}
-unsafe extern "C" {
-    pub fn arm_cpu_mp_affinity(cpu: *mut ARMCPU) -> u64;
-}
-pub const GTIMER_PHYS: _bindgen_ty_53 = 0;
-pub const GTIMER_VIRT: _bindgen_ty_53 = 1;
-pub const GTIMER_HYP: _bindgen_ty_53 = 2;
-pub const GTIMER_SEC: _bindgen_ty_53 = 3;
-pub const GTIMER_HYPVIRT: _bindgen_ty_53 = 4;
-pub const GTIMER_S_EL2_PHYS: _bindgen_ty_53 = 5;
-pub const GTIMER_S_EL2_VIRT: _bindgen_ty_53 = 6;
-pub type _bindgen_ty_53 = ::std::os::raw::c_uint;
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct DynamicGDBFeatureInfo {
-    pub desc: GDBFeature,
-    pub data: DynamicGDBFeatureInfo__bindgen_ty_1,
-}
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union DynamicGDBFeatureInfo__bindgen_ty_1 {
-    pub cpregs: DynamicGDBFeatureInfo__bindgen_ty_1__bindgen_ty_1,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct DynamicGDBFeatureInfo__bindgen_ty_1__bindgen_ty_1 {
-    pub keys: *mut u32,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of DynamicGDBFeatureInfo__bindgen_ty_1__bindgen_ty_1"]
-        [::std::mem::size_of::<DynamicGDBFeatureInfo__bindgen_ty_1__bindgen_ty_1>() - 8usize];
-    ["Alignment of DynamicGDBFeatureInfo__bindgen_ty_1__bindgen_ty_1"]
-        [::std::mem::align_of::<DynamicGDBFeatureInfo__bindgen_ty_1__bindgen_ty_1>() - 8usize];
-    ["Offset of field: DynamicGDBFeatureInfo__bindgen_ty_1__bindgen_ty_1::keys"]
-        [::std::mem::offset_of!(DynamicGDBFeatureInfo__bindgen_ty_1__bindgen_ty_1, keys) - 0usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of DynamicGDBFeatureInfo__bindgen_ty_1"]
-        [::std::mem::size_of::<DynamicGDBFeatureInfo__bindgen_ty_1>() - 8usize];
-    ["Alignment of DynamicGDBFeatureInfo__bindgen_ty_1"]
-        [::std::mem::align_of::<DynamicGDBFeatureInfo__bindgen_ty_1>() - 8usize];
-    ["Offset of field: DynamicGDBFeatureInfo__bindgen_ty_1::cpregs"]
-        [::std::mem::offset_of!(DynamicGDBFeatureInfo__bindgen_ty_1, cpregs) - 0usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of DynamicGDBFeatureInfo"][::std::mem::size_of::<DynamicGDBFeatureInfo>() - 48usize];
-    ["Alignment of DynamicGDBFeatureInfo"]
-        [::std::mem::align_of::<DynamicGDBFeatureInfo>() - 8usize];
-    ["Offset of field: DynamicGDBFeatureInfo::desc"]
-        [::std::mem::offset_of!(DynamicGDBFeatureInfo, desc) - 0usize];
-    ["Offset of field: DynamicGDBFeatureInfo::data"]
-        [::std::mem::offset_of!(DynamicGDBFeatureInfo, data) - 40usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ARMGenericTimer {
-    pub cval: u64,
-    pub ctl: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ARMGenericTimer"][::std::mem::size_of::<ARMGenericTimer>() - 16usize];
-    ["Alignment of ARMGenericTimer"][::std::mem::align_of::<ARMGenericTimer>() - 8usize];
-    ["Offset of field: ARMGenericTimer::cval"]
-        [::std::mem::offset_of!(ARMGenericTimer, cval) - 0usize];
-    ["Offset of field: ARMGenericTimer::ctl"]
-        [::std::mem::offset_of!(ARMGenericTimer, ctl) - 8usize];
-};
-#[repr(C)]
-#[repr(align(16))]
-#[derive(Debug, Copy, Clone)]
-pub struct ARMVectorReg {
-    pub d: [u64; 32usize],
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ARMVectorReg"][::std::mem::size_of::<ARMVectorReg>() - 256usize];
-    ["Alignment of ARMVectorReg"][::std::mem::align_of::<ARMVectorReg>() - 16usize];
-    ["Offset of field: ARMVectorReg::d"][::std::mem::offset_of!(ARMVectorReg, d) - 0usize];
-};
-#[repr(C)]
-#[repr(align(16))]
-#[derive(Debug, Copy, Clone)]
-pub struct ARMPredicateReg {
-    pub p: [u64; 4usize],
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ARMPredicateReg"][::std::mem::size_of::<ARMPredicateReg>() - 32usize];
-    ["Alignment of ARMPredicateReg"][::std::mem::align_of::<ARMPredicateReg>() - 16usize];
-    ["Offset of field: ARMPredicateReg::p"][::std::mem::offset_of!(ARMPredicateReg, p) - 0usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ARMPACKey {
-    pub lo: u64,
-    pub hi: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ARMPACKey"][::std::mem::size_of::<ARMPACKey>() - 16usize];
-    ["Alignment of ARMPACKey"][::std::mem::align_of::<ARMPACKey>() - 8usize];
-    ["Offset of field: ARMPACKey::lo"][::std::mem::offset_of!(ARMPACKey, lo) - 0usize];
-    ["Offset of field: ARMPACKey::hi"][::std::mem::offset_of!(ARMPACKey, hi) - 8usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUARMTBFlags {
-    pub flags: u32,
-    pub flags2: target_ulong,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUARMTBFlags"][::std::mem::size_of::<CPUARMTBFlags>() - 16usize];
-    ["Alignment of CPUARMTBFlags"][::std::mem::align_of::<CPUARMTBFlags>() - 8usize];
-    ["Offset of field: CPUARMTBFlags::flags"]
-        [::std::mem::offset_of!(CPUARMTBFlags, flags) - 0usize];
-    ["Offset of field: CPUARMTBFlags::flags2"]
-        [::std::mem::offset_of!(CPUARMTBFlags, flags2) - 8usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ARMMMUFaultInfo {
+pub struct QEMUTimerList {
     _unused: [u8; 0],
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct NVICState {
-    _unused: [u8; 0],
-}
-pub const FPST_A32: ARMFPStatusFlavour = 0;
-pub const FPST_A64: ARMFPStatusFlavour = 1;
-pub const FPST_A32_F16: ARMFPStatusFlavour = 2;
-pub const FPST_A64_F16: ARMFPStatusFlavour = 3;
-pub const FPST_AH: ARMFPStatusFlavour = 4;
-pub const FPST_AH_F16: ARMFPStatusFlavour = 5;
-pub const FPST_STD: ARMFPStatusFlavour = 6;
-pub const FPST_STD_F16: ARMFPStatusFlavour = 7;
-pub type ARMFPStatusFlavour = ::std::os::raw::c_uint;
-#[repr(C)]
-#[repr(align(16))]
-#[derive(Copy, Clone)]
-pub struct CPUArchState {
-    pub regs: [u32; 16usize],
-    pub xregs: [u64; 32usize],
-    pub pc: u64,
-    pub pstate: u32,
-    pub aarch64: bool,
-    pub thumb: bool,
-    pub hflags: CPUARMTBFlags,
-    pub uncached_cpsr: u32,
-    pub spsr: u32,
-    pub banked_spsr: [u64; 8usize],
-    pub banked_r13: [u32; 8usize],
-    pub banked_r14: [u32; 8usize],
-    pub usr_regs: [u32; 5usize],
-    pub fiq_regs: [u32; 5usize],
-    pub CF: u32,
-    pub VF: u32,
-    pub NF: u32,
-    pub ZF: u32,
-    pub QF: u32,
-    pub GE: u32,
-    pub condexec_bits: u32,
-    pub btype: u32,
-    pub daif: u64,
-    pub svcr: u64,
-    pub elr_el: [u64; 4usize],
-    pub sp_el: [u64; 4usize],
-    pub cp15: CPUArchState__bindgen_ty_1,
-    pub v7m: CPUArchState__bindgen_ty_2,
-    pub exception: CPUArchState__bindgen_ty_3,
-    pub serror: CPUArchState__bindgen_ty_4,
-    pub ext_dabt_raised: u8,
-    pub irq_line_state: u32,
-    pub teecr: u32,
-    pub teehbr: u32,
-    pub __bindgen_padding_0: u64,
-    pub vfp: CPUArchState__bindgen_ty_5,
-    pub exclusive_addr: u64,
-    pub exclusive_val: u64,
-    pub exclusive_high: u64,
-    pub iwmmxt: CPUArchState__bindgen_ty_6,
-    pub keys: CPUArchState__bindgen_ty_7,
-    pub scxtnum_el: [u64; 4usize],
-    pub zarray: [ARMVectorReg; 256usize],
-    pub cpu_breakpoint: [*mut CPUBreakpoint; 16usize],
-    pub cpu_watchpoint: [*mut CPUWatchpoint; 16usize],
-    pub tlb_fi: *mut ARMMMUFaultInfo,
-    pub end_reset_fields: CPUArchState__bindgen_ty_8,
-    pub features: u64,
-    pub pmsav7: CPUArchState__bindgen_ty_9,
-    pub pmsav8: CPUArchState__bindgen_ty_10,
-    pub sau: CPUArchState__bindgen_ty_11,
-    pub nvic: *mut NVICState,
-    pub boot_info: *mut arm_boot_info,
-    pub gicv3state: *mut ::std::os::raw::c_void,
-}
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1 {
-    pub c0_cpuid: u32,
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_1,
-    pub __bindgen_anon_2: CPUArchState__bindgen_ty_1__bindgen_ty_2,
-    pub vsctlr: u64,
-    pub cpacr_el1: u64,
-    pub cptr_el: [u64; 4usize],
-    pub c1_xscaleauxcr: u32,
-    pub sder: u64,
-    pub nsacr: u32,
-    pub __bindgen_anon_3: CPUArchState__bindgen_ty_1__bindgen_ty_3,
-    pub __bindgen_anon_4: CPUArchState__bindgen_ty_1__bindgen_ty_4,
-    pub vttbr_el2: u64,
-    pub vsttbr_el2: u64,
-    pub tcr_el: [u64; 4usize],
-    pub vtcr_el2: u64,
-    pub vstcr_el2: u64,
-    pub c2_data: u32,
-    pub c2_insn: u32,
-    pub __bindgen_anon_5: CPUArchState__bindgen_ty_1__bindgen_ty_5,
-    pub pmsav5_data_ap: u32,
-    pub pmsav5_insn_ap: u32,
-    pub hcr_el2: u64,
-    pub hcrx_el2: u64,
-    pub scr_el3: u64,
-    pub __bindgen_anon_6: CPUArchState__bindgen_ty_1__bindgen_ty_6,
-    pub __bindgen_anon_7: CPUArchState__bindgen_ty_1__bindgen_ty_7,
-    pub c6_region: [u32; 8usize],
-    pub __bindgen_anon_8: CPUArchState__bindgen_ty_1__bindgen_ty_8,
-    pub hpfar_el2: u64,
-    pub hstr_el2: u64,
-    pub __bindgen_anon_9: CPUArchState__bindgen_ty_1__bindgen_ty_9,
-    pub c9_insn: u32,
-    pub c9_data: u32,
-    pub c9_pmcr: u64,
-    pub c9_pmcnten: u64,
-    pub c9_pmovsr: u64,
-    pub c9_pmuserenr: u64,
-    pub c9_pmselr: u64,
-    pub c9_pminten: u64,
-    pub __bindgen_anon_10: CPUArchState__bindgen_ty_1__bindgen_ty_10,
-    pub __bindgen_anon_11: CPUArchState__bindgen_ty_1__bindgen_ty_11,
-    pub mvbar: u32,
-    pub rvbar: u64,
-    pub __bindgen_anon_12: CPUArchState__bindgen_ty_1__bindgen_ty_12,
-    pub __bindgen_anon_13: CPUArchState__bindgen_ty_1__bindgen_ty_13,
-    pub __bindgen_anon_14: CPUArchState__bindgen_ty_1__bindgen_ty_14,
-    pub tpidr2_el0: u64,
-    pub tpidrurw_s: u64,
-    pub tpidrprw_s: u64,
-    pub tpidruro_s: u64,
-    pub __bindgen_anon_15: CPUArchState__bindgen_ty_1__bindgen_ty_15,
-    pub c14_cntfrq: u64,
-    pub c14_cntkctl: u64,
-    pub cnthctl_el2: u64,
-    pub cntvoff_el2: u64,
-    pub cntpoff_el2: u64,
-    pub c14_timer: [ARMGenericTimer; 7usize],
-    pub c15_cpar: u32,
-    pub c15_ticonfig: u32,
-    pub c15_i_max: u32,
-    pub c15_i_min: u32,
-    pub c15_threadid: u32,
-    pub c15_config_base_address: u32,
-    pub c15_diagnostic: u32,
-    pub c15_power_diagnostic: u32,
-    pub c15_power_control: u32,
-    pub dbgbvr: [u64; 16usize],
-    pub dbgbcr: [u64; 16usize],
-    pub dbgwvr: [u64; 16usize],
-    pub dbgwcr: [u64; 16usize],
-    pub dbgclaim: u64,
-    pub mdscr_el1: u64,
-    pub oslsr_el1: u64,
-    pub osdlr_el1: u64,
-    pub mdcr_el2: u64,
-    pub mdcr_el3: u64,
-    pub c15_ccnt: u64,
-    pub c15_ccnt_delta: u64,
-    pub c14_pmevcntr: [u64; 31usize],
-    pub c14_pmevcntr_delta: [u64; 31usize],
-    pub c14_pmevtyper: [u64; 31usize],
-    pub pmccfiltr_el0: u64,
-    pub vpidr_el2: u64,
-    pub vmpidr_el2: u64,
-    pub tfsr_el: [u64; 4usize],
-    pub gcr_el1: u64,
-    pub rgsr_el1: u64,
-    pub disr_el1: u64,
-    pub vdisr_el2: u64,
-    pub vsesr_el2: u64,
-    pub fgt_read: [u64; 2usize],
-    pub fgt_write: [u64; 2usize],
-    pub fgt_exec: [u64; 1usize],
-    pub gpccr_el3: u64,
-    pub gptbr_el3: u64,
-    pub mfar_el3: u64,
-    pub vncr_el2: u64,
-}
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_1 {
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1,
-    pub csselr_el: [u64; 4usize],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1 {
-    pub _unused_csselr0: u64,
-    pub csselr_ns: u64,
-    pub _unused_csselr1: u64,
-    pub csselr_s: u64,
+pub struct QEMUTimerListGroup {
+    pub tl: [*mut QEMUTimerList; 4usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1::_unused_csselr0"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1,
-        _unused_csselr0
-    )
-        - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1::csselr_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1,
-        csselr_ns
-    )
-        - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1::_unused_csselr1"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1,
-        _unused_csselr1
-    )
-        - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1::csselr_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_1__bindgen_ty_1,
-        csselr_s
-    )
-        - 24usize];
+    ["Size of QEMUTimerListGroup"][::std::mem::size_of::<QEMUTimerListGroup>() - 32usize];
+    ["Alignment of QEMUTimerListGroup"][::std::mem::align_of::<QEMUTimerListGroup>() - 8usize];
+    ["Offset of field: QEMUTimerListGroup::tl"]
+        [::std::mem::offset_of!(QEMUTimerListGroup, tl) - 0usize];
 };
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_1"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_1>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_1"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_1>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_1::csselr_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_1, csselr_el) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_2 {
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1,
-    pub sctlr_el: [u64; 4usize],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1 {
-    pub _unused_sctlr: u64,
-    pub sctlr_ns: u64,
-    pub hsctlr: u64,
-    pub sctlr_s: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1::_unused_sctlr"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1,
-        _unused_sctlr
-    )
-        - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1::sctlr_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1,
-        sctlr_ns
-    )
-        - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1::hsctlr"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1,
-        hsctlr
-    )
-        - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1::sctlr_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_2__bindgen_ty_1,
-        sctlr_s
-    )
-        - 24usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_2"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_2>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_2"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_2>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_2::sctlr_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_2, sctlr_el) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_3 {
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1,
-    pub ttbr0_el: [u64; 4usize],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1 {
-    pub _unused_ttbr0_0: u64,
-    pub ttbr0_ns: u64,
-    pub _unused_ttbr0_1: u64,
-    pub ttbr0_s: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1::_unused_ttbr0_0"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1,
-        _unused_ttbr0_0
-    )
-        - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1::ttbr0_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1,
-        ttbr0_ns
-    )
-        - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1::_unused_ttbr0_1"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1,
-        _unused_ttbr0_1
-    )
-        - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1::ttbr0_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_3__bindgen_ty_1,
-        ttbr0_s
-    )
-        - 24usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_3"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_3>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_3"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_3>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_3::ttbr0_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_3, ttbr0_el) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_4 {
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1,
-    pub ttbr1_el: [u64; 4usize],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1 {
-    pub _unused_ttbr1_0: u64,
-    pub ttbr1_ns: u64,
-    pub _unused_ttbr1_1: u64,
-    pub ttbr1_s: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1::_unused_ttbr1_0"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1,
-        _unused_ttbr1_0
-    )
-        - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1::ttbr1_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1,
-        ttbr1_ns
-    )
-        - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1::_unused_ttbr1_1"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1,
-        _unused_ttbr1_1
-    )
-        - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1::ttbr1_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_4__bindgen_ty_1,
-        ttbr1_s
-    )
-        - 24usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_4"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_4>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_4"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_4>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_4::ttbr1_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_4, ttbr1_el) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_5 {
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_1,
-    pub __bindgen_anon_2: CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_2,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_1 {
-    pub dacr_ns: u64,
-    pub dacr_s: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_1"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_1>() - 16usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_1"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_1>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_1::dacr_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_1,
-        dacr_ns
-    )
-        - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_1::dacr_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_1,
-        dacr_s
-    ) - 8usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_2 {
-    pub dacr32_el2: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_2"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_2>() - 8usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_2"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_2>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_2::dacr32_el2"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_5__bindgen_ty_2,
-        dacr32_el2
-    )
-        - 0usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_5"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_5>() - 16usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_5"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_5>() - 8usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_6 {
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_1,
-    pub __bindgen_anon_2: CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_2,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_1 {
-    pub ifsr_ns: u64,
-    pub ifsr_s: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_1"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_1>() - 16usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_1"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_1>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_1::ifsr_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_1,
-        ifsr_ns
-    )
-        - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_1::ifsr_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_1,
-        ifsr_s
-    ) - 8usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_2 {
-    pub ifsr32_el2: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_2"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_2>() - 8usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_2"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_2>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_2::ifsr32_el2"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_6__bindgen_ty_2,
-        ifsr32_el2
-    )
-        - 0usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_6"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_6>() - 16usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_6"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_6>() - 8usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_7 {
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1,
-    pub esr_el: [u64; 4usize],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1 {
-    pub _unused_dfsr: u64,
-    pub dfsr_ns: u64,
-    pub hsr: u64,
-    pub dfsr_s: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1::_unused_dfsr"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1,
-        _unused_dfsr
-    )
-        - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1::dfsr_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1,
-        dfsr_ns
-    )
-        - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1::hsr"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1,
-        hsr
-    ) - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1::dfsr_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_7__bindgen_ty_1,
-        dfsr_s
-    )
-        - 24usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_7"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_7>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_7"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_7>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_7::esr_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_7, esr_el) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_8 {
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1,
-    pub far_el: [u64; 4usize],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1 {
-    pub _unused_far0: u64,
-    pub dfar_ns: u32,
-    pub ifar_ns: u32,
-    pub dfar_s: u32,
-    pub ifar_s: u32,
-    pub _unused_far3: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1::_unused_far0"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1,
-        _unused_far0
-    )
-        - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1::dfar_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1,
-        dfar_ns
-    )
-        - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1::ifar_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1,
-        ifar_ns
-    )
-        - 12usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1::dfar_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1,
-        dfar_s
-    )
-        - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1::ifar_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1,
-        ifar_s
-    )
-        - 20usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1::_unused_far3"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_8__bindgen_ty_1,
-        _unused_far3
-    )
-        - 24usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_8"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_8>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_8"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_8>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_8::far_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_8, far_el) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_9 {
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1,
-    pub par_el: [u64; 4usize],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1 {
-    pub _unused_par_0: u64,
-    pub par_ns: u64,
-    pub _unused_par_1: u64,
-    pub par_s: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1::_unused_par_0"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1,
-        _unused_par_0
-    )
-        - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1::par_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1,
-        par_ns
-    ) - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1::_unused_par_1"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1,
-        _unused_par_1
-    )
-        - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1::par_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_9__bindgen_ty_1,
-        par_s
-    ) - 24usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_9"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_9>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_9"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_9>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_9::par_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_9, par_el) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_10 {
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1,
-    pub mair_el: [u64; 4usize],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1 {
-    pub _unused_mair_0: u64,
-    pub mair0_ns: u32,
-    pub mair1_ns: u32,
-    pub _unused_mair_1: u64,
-    pub mair0_s: u32,
-    pub mair1_s: u32,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1"][::std::mem::size_of::<
-        CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1,
-    >() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1"][::std::mem::align_of::<
-        CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1,
-    >() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1::_unused_mair_0"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1,
-        _unused_mair_0
-    )
-        - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1::mair0_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1,
-        mair0_ns
-    )
-        - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1::mair1_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1,
-        mair1_ns
-    )
-        - 12usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1::_unused_mair_1"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1,
-        _unused_mair_1
-    )
-        - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1::mair0_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1,
-        mair0_s
-    )
-        - 24usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1::mair1_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_10__bindgen_ty_1,
-        mair1_s
-    )
-        - 28usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_10"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_10>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_10"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_10>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_10::mair_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_10, mair_el) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_11 {
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1,
-    pub vbar_el: [u64; 4usize],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1 {
-    pub _unused_vbar: u64,
-    pub vbar_ns: u64,
-    pub hvbar: u64,
-    pub vbar_s: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1"][::std::mem::size_of::<
-        CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1,
-    >() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1"][::std::mem::align_of::<
-        CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1,
-    >() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1::_unused_vbar"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1,
-        _unused_vbar
-    )
-        - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1::vbar_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1,
-        vbar_ns
-    )
-        - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1::hvbar"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1,
-        hvbar
-    )
-        - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1::vbar_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_11__bindgen_ty_1,
-        vbar_s
-    )
-        - 24usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_11"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_11>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_11"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_11>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_11::vbar_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_11, vbar_el) - 0usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_12 {
-    pub fcseidr_ns: u32,
-    pub fcseidr_s: u32,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_12"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_12>() - 8usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_12"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_12>() - 4usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_12::fcseidr_ns"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_12, fcseidr_ns) - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_12::fcseidr_s"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_12, fcseidr_s) - 4usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_13 {
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1,
-    pub contextidr_el: [u64; 4usize],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1 {
-    pub _unused_contextidr_0: u64,
-    pub contextidr_ns: u64,
-    pub _unused_contextidr_1: u64,
-    pub contextidr_s: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1"][::std::mem::size_of::<
-        CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1,
-    >() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1"][::std::mem::align_of::<
-        CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1,
-    >() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1::_unused_contextidr_0"] [:: std :: mem :: offset_of ! (CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1 , _unused_contextidr_0) - 0usize] ;
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1::contextidr_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1,
-        contextidr_ns
-    )
-        - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1::_unused_contextidr_1"] [:: std :: mem :: offset_of ! (CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1 , _unused_contextidr_1) - 16usize] ;
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1::contextidr_s"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_13__bindgen_ty_1,
-        contextidr_s
-    )
-        - 24usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_13"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_13>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_13"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_13>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_13::contextidr_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_13, contextidr_el) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_14 {
-    pub __bindgen_anon_1: CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1,
-    pub tpidr_el: [u64; 4usize],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1 {
-    pub tpidrurw_ns: u64,
-    pub tpidrprw_ns: u64,
-    pub htpidr: u64,
-    pub _tpidr_el3: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1"][::std::mem::size_of::<
-        CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1,
-    >() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1"][::std::mem::align_of::<
-        CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1,
-    >() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1::tpidrurw_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1,
-        tpidrurw_ns
-    )
-        - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1::tpidrprw_ns"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1,
-        tpidrprw_ns
-    )
-        - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1::htpidr"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1,
-        htpidr
-    )
-        - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1::_tpidr_el3"][::std::mem::offset_of!(
-        CPUArchState__bindgen_ty_1__bindgen_ty_14__bindgen_ty_1,
-        _tpidr_el3
-    )
-        - 24usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_14"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_14>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_14"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_14>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_14::tpidr_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_14, tpidr_el) - 0usize];
-};
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union CPUArchState__bindgen_ty_1__bindgen_ty_15 {
-    pub tpidruro_ns: u64,
-    pub tpidrro_el: [u64; 1usize],
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1__bindgen_ty_15"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1__bindgen_ty_15>() - 8usize];
-    ["Alignment of CPUArchState__bindgen_ty_1__bindgen_ty_15"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1__bindgen_ty_15>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_15::tpidruro_ns"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_15, tpidruro_ns) - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1__bindgen_ty_15::tpidrro_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1__bindgen_ty_15, tpidrro_el) - 0usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_1"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_1>() - 2416usize];
-    ["Alignment of CPUArchState__bindgen_ty_1"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_1>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c0_cpuid"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c0_cpuid) - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::vsctlr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, vsctlr) - 72usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::cpacr_el1"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, cpacr_el1) - 80usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::cptr_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, cptr_el) - 88usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c1_xscaleauxcr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c1_xscaleauxcr) - 120usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::sder"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, sder) - 128usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::nsacr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, nsacr) - 136usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::vttbr_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, vttbr_el2) - 208usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::vsttbr_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, vsttbr_el2) - 216usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::tcr_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, tcr_el) - 224usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::vtcr_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, vtcr_el2) - 256usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::vstcr_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, vstcr_el2) - 264usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c2_data"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c2_data) - 272usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c2_insn"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c2_insn) - 276usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::pmsav5_data_ap"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, pmsav5_data_ap) - 296usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::pmsav5_insn_ap"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, pmsav5_insn_ap) - 300usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::hcr_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, hcr_el2) - 304usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::hcrx_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, hcrx_el2) - 312usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::scr_el3"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, scr_el3) - 320usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c6_region"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c6_region) - 376usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::hpfar_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, hpfar_el2) - 440usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::hstr_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, hstr_el2) - 448usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c9_insn"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c9_insn) - 488usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c9_data"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c9_data) - 492usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c9_pmcr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c9_pmcr) - 496usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c9_pmcnten"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c9_pmcnten) - 504usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c9_pmovsr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c9_pmovsr) - 512usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c9_pmuserenr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c9_pmuserenr) - 520usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c9_pmselr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c9_pmselr) - 528usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c9_pminten"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c9_pminten) - 536usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::mvbar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, mvbar) - 608usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::rvbar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, rvbar) - 616usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::tpidr2_el0"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, tpidr2_el0) - 696usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::tpidrurw_s"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, tpidrurw_s) - 704usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::tpidrprw_s"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, tpidrprw_s) - 712usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::tpidruro_s"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, tpidruro_s) - 720usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c14_cntfrq"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c14_cntfrq) - 736usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c14_cntkctl"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c14_cntkctl) - 744usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::cnthctl_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, cnthctl_el2) - 752usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::cntvoff_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, cntvoff_el2) - 760usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::cntpoff_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, cntpoff_el2) - 768usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c14_timer"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c14_timer) - 776usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c15_cpar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c15_cpar) - 888usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c15_ticonfig"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c15_ticonfig) - 892usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c15_i_max"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c15_i_max) - 896usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c15_i_min"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c15_i_min) - 900usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c15_threadid"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c15_threadid) - 904usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c15_config_base_address"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c15_config_base_address) - 908usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c15_diagnostic"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c15_diagnostic) - 912usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c15_power_diagnostic"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c15_power_diagnostic) - 916usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c15_power_control"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c15_power_control) - 920usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::dbgbvr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, dbgbvr) - 928usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::dbgbcr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, dbgbcr) - 1056usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::dbgwvr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, dbgwvr) - 1184usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::dbgwcr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, dbgwcr) - 1312usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::dbgclaim"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, dbgclaim) - 1440usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::mdscr_el1"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, mdscr_el1) - 1448usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::oslsr_el1"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, oslsr_el1) - 1456usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::osdlr_el1"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, osdlr_el1) - 1464usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::mdcr_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, mdcr_el2) - 1472usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::mdcr_el3"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, mdcr_el3) - 1480usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c15_ccnt"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c15_ccnt) - 1488usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c15_ccnt_delta"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c15_ccnt_delta) - 1496usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c14_pmevcntr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c14_pmevcntr) - 1504usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c14_pmevcntr_delta"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c14_pmevcntr_delta) - 1752usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::c14_pmevtyper"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, c14_pmevtyper) - 2000usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::pmccfiltr_el0"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, pmccfiltr_el0) - 2248usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::vpidr_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, vpidr_el2) - 2256usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::vmpidr_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, vmpidr_el2) - 2264usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::tfsr_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, tfsr_el) - 2272usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::gcr_el1"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, gcr_el1) - 2304usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::rgsr_el1"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, rgsr_el1) - 2312usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::disr_el1"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, disr_el1) - 2320usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::vdisr_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, vdisr_el2) - 2328usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::vsesr_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, vsesr_el2) - 2336usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::fgt_read"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, fgt_read) - 2344usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::fgt_write"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, fgt_write) - 2360usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::fgt_exec"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, fgt_exec) - 2376usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::gpccr_el3"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, gpccr_el3) - 2384usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::gptbr_el3"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, gptbr_el3) - 2392usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::mfar_el3"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, mfar_el3) - 2400usize];
-    ["Offset of field: CPUArchState__bindgen_ty_1::vncr_el2"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, vncr_el2) - 2408usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_2 {
-    pub other_sp: u32,
-    pub other_ss_msp: u32,
-    pub other_ss_psp: u32,
-    pub vecbase: [u32; 2usize],
-    pub basepri: [u32; 2usize],
-    pub control: [u32; 2usize],
-    pub ccr: [u32; 2usize],
-    pub cfsr: [u32; 2usize],
-    pub hfsr: u32,
-    pub dfsr: u32,
-    pub sfsr: u32,
-    pub mmfar: [u32; 2usize],
-    pub bfar: u32,
-    pub sfar: u32,
-    pub mpu_ctrl: [::std::os::raw::c_uint; 2usize],
-    pub exception: ::std::os::raw::c_int,
-    pub primask: [u32; 2usize],
-    pub faultmask: [u32; 2usize],
-    pub aircr: u32,
-    pub secure: u32,
-    pub csselr: [u32; 2usize],
-    pub scr: [u32; 2usize],
-    pub msplim: [u32; 2usize],
-    pub psplim: [u32; 2usize],
-    pub fpcar: [u32; 2usize],
-    pub fpccr: [u32; 2usize],
-    pub fpdscr: [u32; 2usize],
-    pub cpacr: [u32; 2usize],
-    pub nsacr: u32,
-    pub ltpsize: u32,
-    pub vpr: u32,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_2"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_2>() - 192usize];
-    ["Alignment of CPUArchState__bindgen_ty_2"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_2>() - 4usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::other_sp"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, other_sp) - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::other_ss_msp"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, other_ss_msp) - 4usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::other_ss_psp"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, other_ss_psp) - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::vecbase"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, vecbase) - 12usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::basepri"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, basepri) - 20usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::control"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, control) - 28usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::ccr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, ccr) - 36usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::cfsr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, cfsr) - 44usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::hfsr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, hfsr) - 52usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::dfsr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, dfsr) - 56usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::sfsr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, sfsr) - 60usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::mmfar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, mmfar) - 64usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::bfar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, bfar) - 72usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::sfar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, sfar) - 76usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::mpu_ctrl"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, mpu_ctrl) - 80usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::exception"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, exception) - 88usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::primask"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, primask) - 92usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::faultmask"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, faultmask) - 100usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::aircr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, aircr) - 108usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::secure"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, secure) - 112usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::csselr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, csselr) - 116usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::scr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, scr) - 124usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::msplim"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, msplim) - 132usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::psplim"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, psplim) - 140usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::fpcar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, fpcar) - 148usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::fpccr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, fpccr) - 156usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::fpdscr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, fpdscr) - 164usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::cpacr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, cpacr) - 172usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::nsacr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, nsacr) - 180usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::ltpsize"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, ltpsize) - 184usize];
-    ["Offset of field: CPUArchState__bindgen_ty_2::vpr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_2, vpr) - 188usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_3 {
-    pub syndrome: u32,
-    pub fsr: u32,
-    pub vaddress: u64,
-    pub target_el: u32,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_3"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_3>() - 24usize];
-    ["Alignment of CPUArchState__bindgen_ty_3"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_3>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_3::syndrome"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_3, syndrome) - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_3::fsr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_3, fsr) - 4usize];
-    ["Offset of field: CPUArchState__bindgen_ty_3::vaddress"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_3, vaddress) - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_3::target_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_3, target_el) - 16usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_4 {
-    pub pending: u8,
-    pub has_esr: u8,
-    pub esr: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_4"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_4>() - 16usize];
-    ["Alignment of CPUArchState__bindgen_ty_4"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_4>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_4::pending"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_4, pending) - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_4::has_esr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_4, has_esr) - 1usize];
-    ["Offset of field: CPUArchState__bindgen_ty_4::esr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_4, esr) - 8usize];
-};
-#[repr(C)]
-#[repr(align(16))]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_5 {
-    pub zregs: [ARMVectorReg; 32usize],
-    pub pregs: [ARMPredicateReg; 17usize],
-    pub preg_tmp: ARMPredicateReg,
-    pub qc: [u32; 4usize],
-    pub vec_len: ::std::os::raw::c_int,
-    pub vec_stride: ::std::os::raw::c_int,
-    pub fpsr: u64,
-    pub fpcr: u64,
-    pub xregs: [u32; 16usize],
-    pub scratch: [u32; 8usize],
-    pub fp_status: [float_status; 8usize],
-    pub zcr_el: [u64; 4usize],
-    pub smcr_el: [u64; 4usize],
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_5"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_5>() - 9120usize];
-    ["Alignment of CPUArchState__bindgen_ty_5"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_5>() - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_5::zregs"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_5, zregs) - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_5::pregs"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_5, pregs) - 8192usize];
-    ["Offset of field: CPUArchState__bindgen_ty_5::preg_tmp"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_5, preg_tmp) - 8736usize];
-    ["Offset of field: CPUArchState__bindgen_ty_5::qc"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_5, qc) - 8768usize];
-    ["Offset of field: CPUArchState__bindgen_ty_5::vec_len"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_5, vec_len) - 8784usize];
-    ["Offset of field: CPUArchState__bindgen_ty_5::vec_stride"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_5, vec_stride) - 8788usize];
-    ["Offset of field: CPUArchState__bindgen_ty_5::fpsr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_5, fpsr) - 8792usize];
-    ["Offset of field: CPUArchState__bindgen_ty_5::fpcr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_5, fpcr) - 8800usize];
-    ["Offset of field: CPUArchState__bindgen_ty_5::xregs"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_5, xregs) - 8808usize];
-    ["Offset of field: CPUArchState__bindgen_ty_5::scratch"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_5, scratch) - 8872usize];
-    ["Offset of field: CPUArchState__bindgen_ty_5::fp_status"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_5, fp_status) - 8904usize];
-    ["Offset of field: CPUArchState__bindgen_ty_5::zcr_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_5, zcr_el) - 9048usize];
-    ["Offset of field: CPUArchState__bindgen_ty_5::smcr_el"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_5, smcr_el) - 9080usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_6 {
-    pub regs: [u64; 16usize],
-    pub val: u64,
-    pub cregs: [u32; 16usize],
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_6"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_6>() - 200usize];
-    ["Alignment of CPUArchState__bindgen_ty_6"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_6>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_6::regs"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_6, regs) - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_6::val"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_6, val) - 128usize];
-    ["Offset of field: CPUArchState__bindgen_ty_6::cregs"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_6, cregs) - 136usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_7 {
-    pub apia: ARMPACKey,
-    pub apib: ARMPACKey,
-    pub apda: ARMPACKey,
-    pub apdb: ARMPACKey,
-    pub apga: ARMPACKey,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_7"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_7>() - 80usize];
-    ["Alignment of CPUArchState__bindgen_ty_7"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_7>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_7::apia"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_7, apia) - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_7::apib"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_7, apib) - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_7::apda"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_7, apda) - 32usize];
-    ["Offset of field: CPUArchState__bindgen_ty_7::apdb"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_7, apdb) - 48usize];
-    ["Offset of field: CPUArchState__bindgen_ty_7::apga"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_7, apga) - 64usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_8 {}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_8"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_8>() - 0usize];
-    ["Alignment of CPUArchState__bindgen_ty_8"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_8>() - 1usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_9 {
-    pub drbar: *mut u32,
-    pub drsr: *mut u32,
-    pub dracr: *mut u32,
-    pub rnr: [u32; 2usize],
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_9"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_9>() - 32usize];
-    ["Alignment of CPUArchState__bindgen_ty_9"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_9>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_9::drbar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_9, drbar) - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_9::drsr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_9, drsr) - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_9::dracr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_9, dracr) - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_9::rnr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_9, rnr) - 24usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_10 {
-    pub rbar: [*mut u32; 2usize],
-    pub rlar: [*mut u32; 2usize],
-    pub hprbar: *mut u32,
-    pub hprlar: *mut u32,
-    pub mair0: [u32; 2usize],
-    pub mair1: [u32; 2usize],
-    pub hprselr: u32,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_10"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_10>() - 72usize];
-    ["Alignment of CPUArchState__bindgen_ty_10"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_10>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_10::rbar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_10, rbar) - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_10::rlar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_10, rlar) - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_10::hprbar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_10, hprbar) - 32usize];
-    ["Offset of field: CPUArchState__bindgen_ty_10::hprlar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_10, hprlar) - 40usize];
-    ["Offset of field: CPUArchState__bindgen_ty_10::mair0"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_10, mair0) - 48usize];
-    ["Offset of field: CPUArchState__bindgen_ty_10::mair1"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_10, mair1) - 56usize];
-    ["Offset of field: CPUArchState__bindgen_ty_10::hprselr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_10, hprselr) - 64usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct CPUArchState__bindgen_ty_11 {
-    pub rbar: *mut u32,
-    pub rlar: *mut u32,
-    pub rnr: u32,
-    pub ctrl: u32,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState__bindgen_ty_11"]
-        [::std::mem::size_of::<CPUArchState__bindgen_ty_11>() - 24usize];
-    ["Alignment of CPUArchState__bindgen_ty_11"]
-        [::std::mem::align_of::<CPUArchState__bindgen_ty_11>() - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_11::rbar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_11, rbar) - 0usize];
-    ["Offset of field: CPUArchState__bindgen_ty_11::rlar"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_11, rlar) - 8usize];
-    ["Offset of field: CPUArchState__bindgen_ty_11::rnr"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_11, rnr) - 16usize];
-    ["Offset of field: CPUArchState__bindgen_ty_11::ctrl"]
-        [::std::mem::offset_of!(CPUArchState__bindgen_ty_11, ctrl) - 20usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of CPUArchState"][::std::mem::size_of::<CPUArchState>() - 78736usize];
-    ["Alignment of CPUArchState"][::std::mem::align_of::<CPUArchState>() - 16usize];
-    ["Offset of field: CPUArchState::regs"][::std::mem::offset_of!(CPUArchState, regs) - 0usize];
-    ["Offset of field: CPUArchState::xregs"][::std::mem::offset_of!(CPUArchState, xregs) - 64usize];
-    ["Offset of field: CPUArchState::pc"][::std::mem::offset_of!(CPUArchState, pc) - 320usize];
-    ["Offset of field: CPUArchState::pstate"]
-        [::std::mem::offset_of!(CPUArchState, pstate) - 328usize];
-    ["Offset of field: CPUArchState::aarch64"]
-        [::std::mem::offset_of!(CPUArchState, aarch64) - 332usize];
-    ["Offset of field: CPUArchState::thumb"]
-        [::std::mem::offset_of!(CPUArchState, thumb) - 333usize];
-    ["Offset of field: CPUArchState::hflags"]
-        [::std::mem::offset_of!(CPUArchState, hflags) - 336usize];
-    ["Offset of field: CPUArchState::uncached_cpsr"]
-        [::std::mem::offset_of!(CPUArchState, uncached_cpsr) - 352usize];
-    ["Offset of field: CPUArchState::spsr"][::std::mem::offset_of!(CPUArchState, spsr) - 356usize];
-    ["Offset of field: CPUArchState::banked_spsr"]
-        [::std::mem::offset_of!(CPUArchState, banked_spsr) - 360usize];
-    ["Offset of field: CPUArchState::banked_r13"]
-        [::std::mem::offset_of!(CPUArchState, banked_r13) - 424usize];
-    ["Offset of field: CPUArchState::banked_r14"]
-        [::std::mem::offset_of!(CPUArchState, banked_r14) - 456usize];
-    ["Offset of field: CPUArchState::usr_regs"]
-        [::std::mem::offset_of!(CPUArchState, usr_regs) - 488usize];
-    ["Offset of field: CPUArchState::fiq_regs"]
-        [::std::mem::offset_of!(CPUArchState, fiq_regs) - 508usize];
-    ["Offset of field: CPUArchState::CF"][::std::mem::offset_of!(CPUArchState, CF) - 528usize];
-    ["Offset of field: CPUArchState::VF"][::std::mem::offset_of!(CPUArchState, VF) - 532usize];
-    ["Offset of field: CPUArchState::NF"][::std::mem::offset_of!(CPUArchState, NF) - 536usize];
-    ["Offset of field: CPUArchState::ZF"][::std::mem::offset_of!(CPUArchState, ZF) - 540usize];
-    ["Offset of field: CPUArchState::QF"][::std::mem::offset_of!(CPUArchState, QF) - 544usize];
-    ["Offset of field: CPUArchState::GE"][::std::mem::offset_of!(CPUArchState, GE) - 548usize];
-    ["Offset of field: CPUArchState::condexec_bits"]
-        [::std::mem::offset_of!(CPUArchState, condexec_bits) - 552usize];
-    ["Offset of field: CPUArchState::btype"]
-        [::std::mem::offset_of!(CPUArchState, btype) - 556usize];
-    ["Offset of field: CPUArchState::daif"][::std::mem::offset_of!(CPUArchState, daif) - 560usize];
-    ["Offset of field: CPUArchState::svcr"][::std::mem::offset_of!(CPUArchState, svcr) - 568usize];
-    ["Offset of field: CPUArchState::elr_el"]
-        [::std::mem::offset_of!(CPUArchState, elr_el) - 576usize];
-    ["Offset of field: CPUArchState::sp_el"]
-        [::std::mem::offset_of!(CPUArchState, sp_el) - 608usize];
-    ["Offset of field: CPUArchState::cp15"][::std::mem::offset_of!(CPUArchState, cp15) - 640usize];
-    ["Offset of field: CPUArchState::v7m"][::std::mem::offset_of!(CPUArchState, v7m) - 3056usize];
-    ["Offset of field: CPUArchState::exception"]
-        [::std::mem::offset_of!(CPUArchState, exception) - 3248usize];
-    ["Offset of field: CPUArchState::serror"]
-        [::std::mem::offset_of!(CPUArchState, serror) - 3272usize];
-    ["Offset of field: CPUArchState::ext_dabt_raised"]
-        [::std::mem::offset_of!(CPUArchState, ext_dabt_raised) - 3288usize];
-    ["Offset of field: CPUArchState::irq_line_state"]
-        [::std::mem::offset_of!(CPUArchState, irq_line_state) - 3292usize];
-    ["Offset of field: CPUArchState::teecr"]
-        [::std::mem::offset_of!(CPUArchState, teecr) - 3296usize];
-    ["Offset of field: CPUArchState::teehbr"]
-        [::std::mem::offset_of!(CPUArchState, teehbr) - 3300usize];
-    ["Offset of field: CPUArchState::vfp"][::std::mem::offset_of!(CPUArchState, vfp) - 3312usize];
-    ["Offset of field: CPUArchState::exclusive_addr"]
-        [::std::mem::offset_of!(CPUArchState, exclusive_addr) - 12432usize];
-    ["Offset of field: CPUArchState::exclusive_val"]
-        [::std::mem::offset_of!(CPUArchState, exclusive_val) - 12440usize];
-    ["Offset of field: CPUArchState::exclusive_high"]
-        [::std::mem::offset_of!(CPUArchState, exclusive_high) - 12448usize];
-    ["Offset of field: CPUArchState::iwmmxt"]
-        [::std::mem::offset_of!(CPUArchState, iwmmxt) - 12456usize];
-    ["Offset of field: CPUArchState::keys"]
-        [::std::mem::offset_of!(CPUArchState, keys) - 12656usize];
-    ["Offset of field: CPUArchState::scxtnum_el"]
-        [::std::mem::offset_of!(CPUArchState, scxtnum_el) - 12736usize];
-    ["Offset of field: CPUArchState::zarray"]
-        [::std::mem::offset_of!(CPUArchState, zarray) - 12768usize];
-    ["Offset of field: CPUArchState::cpu_breakpoint"]
-        [::std::mem::offset_of!(CPUArchState, cpu_breakpoint) - 78304usize];
-    ["Offset of field: CPUArchState::cpu_watchpoint"]
-        [::std::mem::offset_of!(CPUArchState, cpu_watchpoint) - 78432usize];
-    ["Offset of field: CPUArchState::tlb_fi"]
-        [::std::mem::offset_of!(CPUArchState, tlb_fi) - 78560usize];
-    ["Offset of field: CPUArchState::end_reset_fields"]
-        [::std::mem::offset_of!(CPUArchState, end_reset_fields) - 78568usize];
-    ["Offset of field: CPUArchState::features"]
-        [::std::mem::offset_of!(CPUArchState, features) - 78568usize];
-    ["Offset of field: CPUArchState::pmsav7"]
-        [::std::mem::offset_of!(CPUArchState, pmsav7) - 78576usize];
-    ["Offset of field: CPUArchState::pmsav8"]
-        [::std::mem::offset_of!(CPUArchState, pmsav8) - 78608usize];
-    ["Offset of field: CPUArchState::sau"][::std::mem::offset_of!(CPUArchState, sau) - 78680usize];
-    ["Offset of field: CPUArchState::nvic"]
-        [::std::mem::offset_of!(CPUArchState, nvic) - 78704usize];
-    ["Offset of field: CPUArchState::boot_info"]
-        [::std::mem::offset_of!(CPUArchState, boot_info) - 78712usize];
-    ["Offset of field: CPUArchState::gicv3state"]
-        [::std::mem::offset_of!(CPUArchState, gicv3state) - 78720usize];
-};
-pub type CPUARMState = CPUArchState;
-pub type ARMELChangeHookFn = ::std::option::Option<
-    unsafe extern "C" fn(cpu: *mut ARMCPU, opaque: *mut ::std::os::raw::c_void),
+pub type QEMUTimerCB =
+    ::std::option::Option<unsafe extern "C" fn(opaque: *mut ::std::os::raw::c_void)>;
+pub type QEMUTimerListNotifyCB = ::std::option::Option<
+    unsafe extern "C" fn(opaque: *mut ::std::os::raw::c_void, type_: QEMUClockType),
 >;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct ARMELChangeHook {
-    pub hook: ARMELChangeHookFn,
+pub struct QEMUTimer {
+    pub expire_time: i64,
+    pub timer_list: *mut QEMUTimerList,
+    pub cb: QEMUTimerCB,
     pub opaque: *mut ::std::os::raw::c_void,
-    pub node: ARMELChangeHook__bindgen_ty_1,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ARMELChangeHook__bindgen_ty_1 {
-    pub le_next: *mut ARMELChangeHook,
-    pub le_prev: *mut *mut ARMELChangeHook,
+    pub next: *mut QEMUTimer,
+    pub attributes: ::std::os::raw::c_int,
+    pub scale: ::std::os::raw::c_int,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ARMELChangeHook__bindgen_ty_1"]
-        [::std::mem::size_of::<ARMELChangeHook__bindgen_ty_1>() - 16usize];
-    ["Alignment of ARMELChangeHook__bindgen_ty_1"]
-        [::std::mem::align_of::<ARMELChangeHook__bindgen_ty_1>() - 8usize];
-    ["Offset of field: ARMELChangeHook__bindgen_ty_1::le_next"]
-        [::std::mem::offset_of!(ARMELChangeHook__bindgen_ty_1, le_next) - 0usize];
-    ["Offset of field: ARMELChangeHook__bindgen_ty_1::le_prev"]
-        [::std::mem::offset_of!(ARMELChangeHook__bindgen_ty_1, le_prev) - 8usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ARMELChangeHook"][::std::mem::size_of::<ARMELChangeHook>() - 32usize];
-    ["Alignment of ARMELChangeHook"][::std::mem::align_of::<ARMELChangeHook>() - 8usize];
-    ["Offset of field: ARMELChangeHook::hook"]
-        [::std::mem::offset_of!(ARMELChangeHook, hook) - 0usize];
-    ["Offset of field: ARMELChangeHook::opaque"]
-        [::std::mem::offset_of!(ARMELChangeHook, opaque) - 8usize];
-    ["Offset of field: ARMELChangeHook::node"]
-        [::std::mem::offset_of!(ARMELChangeHook, node) - 16usize];
-};
-pub const PSCI_ON: ARMPSCIState = 0;
-pub const PSCI_OFF: ARMPSCIState = 1;
-pub const PSCI_ON_PENDING: ARMPSCIState = 2;
-pub type ARMPSCIState = ::std::os::raw::c_uint;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ARMVQMap {
-    pub map: u32,
-    pub init: u32,
-    pub supported: u32,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ARMVQMap"][::std::mem::size_of::<ARMVQMap>() - 12usize];
-    ["Alignment of ARMVQMap"][::std::mem::align_of::<ARMVQMap>() - 4usize];
-    ["Offset of field: ARMVQMap::map"][::std::mem::offset_of!(ARMVQMap, map) - 0usize];
-    ["Offset of field: ARMVQMap::init"][::std::mem::offset_of!(ARMVQMap, init) - 4usize];
-    ["Offset of field: ARMVQMap::supported"][::std::mem::offset_of!(ARMVQMap, supported) - 8usize];
-};
-#[repr(C)]
-#[repr(align(16))]
-pub struct ArchCPU {
-    pub parent_obj: CPUState,
-    pub env: CPUARMState,
-    pub cp_regs: *mut GHashTable,
-    pub cpreg_indexes: *mut u64,
-    pub cpreg_values: *mut u64,
-    pub cpreg_array_len: i32,
-    pub cpreg_vmstate_indexes: *mut u64,
-    pub cpreg_vmstate_values: *mut u64,
-    pub cpreg_vmstate_array_len: i32,
-    pub dyn_sysreg_feature: DynamicGDBFeatureInfo,
-    pub dyn_svereg_feature: DynamicGDBFeatureInfo,
-    pub dyn_m_systemreg_feature: DynamicGDBFeatureInfo,
-    pub dyn_m_secextreg_feature: DynamicGDBFeatureInfo,
-    pub gt_timer: [*mut QEMUTimer; 7usize],
-    pub pmu_timer: *mut QEMUTimer,
-    pub wfxt_timer: *mut QEMUTimer,
-    pub gt_timer_outputs: [qemu_irq; 7usize],
-    pub gicv3_maintenance_interrupt: qemu_irq,
-    pub pmu_interrupt: qemu_irq,
-    pub secure_memory: *mut MemoryRegion,
-    pub tag_memory: *mut MemoryRegion,
-    pub secure_tag_memory: *mut MemoryRegion,
-    pub idau: *mut Object,
-    pub dtb_compatible: *const ::std::os::raw::c_char,
-    pub psci_version: u32,
-    pub power_state: ARMPSCIState,
-    pub has_el2: bool,
-    pub has_el3: bool,
-    pub has_pmu: bool,
-    pub has_vfp: bool,
-    pub has_vfp_d32: bool,
-    pub has_neon: bool,
-    pub has_dsp: bool,
-    pub has_mpu: bool,
-    pub kvm_mte: bool,
-    pub pmsav7_dregion: u32,
-    pub pmsav8r_hdregion: u32,
-    pub sau_sregion: u32,
-    pub psci_conduit: u32,
-    pub init_svtor: u32,
-    pub init_nsvtor: u32,
-    pub kvm_target: u32,
-    pub mp_is_up: bool,
-    pub host_cpu_probe_failed: bool,
-    pub backcompat_cntfrq: bool,
-    pub backcompat_pauth_default_use_qarma5: bool,
-    pub core_count: i32,
-    pub isar: ARMISARegisters,
-    pub midr: u64,
-    pub revidr: u32,
-    pub reset_fpsid: u32,
-    pub ctr: u64,
-    pub reset_sctlr: u32,
-    pub pmceid0: u64,
-    pub pmceid1: u64,
-    pub id_afr0: u32,
-    pub id_aa64afr0: u64,
-    pub id_aa64afr1: u64,
-    pub clidr: u64,
-    pub mp_affinity: u64,
-    pub ccsidr: [u64; 16usize],
-    pub reset_cbar: u64,
-    pub reset_auxcr: u32,
-    pub reset_hivecs: bool,
-    pub reset_l0gptsz: u8,
-    pub prop_pauth: bool,
-    pub prop_pauth_impdef: bool,
-    pub prop_pauth_qarma3: bool,
-    pub prop_pauth_qarma5: bool,
-    pub prop_lpa2: bool,
-    pub dcz_blocksize: u8,
-    pub gm_blocksize: u8,
-    pub rvbar_prop: u64,
-    pub gic_num_lrs: ::std::os::raw::c_int,
-    pub gic_vpribits: ::std::os::raw::c_int,
-    pub gic_vprebits: ::std::os::raw::c_int,
-    pub gic_pribits: ::std::os::raw::c_int,
-    pub cfgend: bool,
-    pub pre_el_change_hooks: ArchCPU__bindgen_ty_1,
-    pub el_change_hooks: ArchCPU__bindgen_ty_2,
-    pub node_id: i32,
-    pub device_irq_level: u8,
-    pub sve_max_vq: u32,
-    pub sve_vq: ARMVQMap,
-    pub sme_vq: ARMVQMap,
-    pub gt_cntfrq_hz: u64,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ARMISARegisters {
-    pub id_isar0: u32,
-    pub id_isar1: u32,
-    pub id_isar2: u32,
-    pub id_isar3: u32,
-    pub id_isar4: u32,
-    pub id_isar5: u32,
-    pub id_isar6: u32,
-    pub id_mmfr0: u32,
-    pub id_mmfr1: u32,
-    pub id_mmfr2: u32,
-    pub id_mmfr3: u32,
-    pub id_mmfr4: u32,
-    pub id_mmfr5: u32,
-    pub id_pfr0: u32,
-    pub id_pfr1: u32,
-    pub id_pfr2: u32,
-    pub mvfr0: u32,
-    pub mvfr1: u32,
-    pub mvfr2: u32,
-    pub id_dfr0: u32,
-    pub id_dfr1: u32,
-    pub dbgdidr: u32,
-    pub dbgdevid: u32,
-    pub dbgdevid1: u32,
-    pub id_aa64isar0: u64,
-    pub id_aa64isar1: u64,
-    pub id_aa64isar2: u64,
-    pub id_aa64pfr0: u64,
-    pub id_aa64pfr1: u64,
-    pub id_aa64mmfr0: u64,
-    pub id_aa64mmfr1: u64,
-    pub id_aa64mmfr2: u64,
-    pub id_aa64mmfr3: u64,
-    pub id_aa64dfr0: u64,
-    pub id_aa64dfr1: u64,
-    pub id_aa64zfr0: u64,
-    pub id_aa64smfr0: u64,
-    pub reset_pmcr_el0: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ARMISARegisters"][::std::mem::size_of::<ARMISARegisters>() - 208usize];
-    ["Alignment of ARMISARegisters"][::std::mem::align_of::<ARMISARegisters>() - 8usize];
-    ["Offset of field: ARMISARegisters::id_isar0"]
-        [::std::mem::offset_of!(ARMISARegisters, id_isar0) - 0usize];
-    ["Offset of field: ARMISARegisters::id_isar1"]
-        [::std::mem::offset_of!(ARMISARegisters, id_isar1) - 4usize];
-    ["Offset of field: ARMISARegisters::id_isar2"]
-        [::std::mem::offset_of!(ARMISARegisters, id_isar2) - 8usize];
-    ["Offset of field: ARMISARegisters::id_isar3"]
-        [::std::mem::offset_of!(ARMISARegisters, id_isar3) - 12usize];
-    ["Offset of field: ARMISARegisters::id_isar4"]
-        [::std::mem::offset_of!(ARMISARegisters, id_isar4) - 16usize];
-    ["Offset of field: ARMISARegisters::id_isar5"]
-        [::std::mem::offset_of!(ARMISARegisters, id_isar5) - 20usize];
-    ["Offset of field: ARMISARegisters::id_isar6"]
-        [::std::mem::offset_of!(ARMISARegisters, id_isar6) - 24usize];
-    ["Offset of field: ARMISARegisters::id_mmfr0"]
-        [::std::mem::offset_of!(ARMISARegisters, id_mmfr0) - 28usize];
-    ["Offset of field: ARMISARegisters::id_mmfr1"]
-        [::std::mem::offset_of!(ARMISARegisters, id_mmfr1) - 32usize];
-    ["Offset of field: ARMISARegisters::id_mmfr2"]
-        [::std::mem::offset_of!(ARMISARegisters, id_mmfr2) - 36usize];
-    ["Offset of field: ARMISARegisters::id_mmfr3"]
-        [::std::mem::offset_of!(ARMISARegisters, id_mmfr3) - 40usize];
-    ["Offset of field: ARMISARegisters::id_mmfr4"]
-        [::std::mem::offset_of!(ARMISARegisters, id_mmfr4) - 44usize];
-    ["Offset of field: ARMISARegisters::id_mmfr5"]
-        [::std::mem::offset_of!(ARMISARegisters, id_mmfr5) - 48usize];
-    ["Offset of field: ARMISARegisters::id_pfr0"]
-        [::std::mem::offset_of!(ARMISARegisters, id_pfr0) - 52usize];
-    ["Offset of field: ARMISARegisters::id_pfr1"]
-        [::std::mem::offset_of!(ARMISARegisters, id_pfr1) - 56usize];
-    ["Offset of field: ARMISARegisters::id_pfr2"]
-        [::std::mem::offset_of!(ARMISARegisters, id_pfr2) - 60usize];
-    ["Offset of field: ARMISARegisters::mvfr0"]
-        [::std::mem::offset_of!(ARMISARegisters, mvfr0) - 64usize];
-    ["Offset of field: ARMISARegisters::mvfr1"]
-        [::std::mem::offset_of!(ARMISARegisters, mvfr1) - 68usize];
-    ["Offset of field: ARMISARegisters::mvfr2"]
-        [::std::mem::offset_of!(ARMISARegisters, mvfr2) - 72usize];
-    ["Offset of field: ARMISARegisters::id_dfr0"]
-        [::std::mem::offset_of!(ARMISARegisters, id_dfr0) - 76usize];
-    ["Offset of field: ARMISARegisters::id_dfr1"]
-        [::std::mem::offset_of!(ARMISARegisters, id_dfr1) - 80usize];
-    ["Offset of field: ARMISARegisters::dbgdidr"]
-        [::std::mem::offset_of!(ARMISARegisters, dbgdidr) - 84usize];
-    ["Offset of field: ARMISARegisters::dbgdevid"]
-        [::std::mem::offset_of!(ARMISARegisters, dbgdevid) - 88usize];
-    ["Offset of field: ARMISARegisters::dbgdevid1"]
-        [::std::mem::offset_of!(ARMISARegisters, dbgdevid1) - 92usize];
-    ["Offset of field: ARMISARegisters::id_aa64isar0"]
-        [::std::mem::offset_of!(ARMISARegisters, id_aa64isar0) - 96usize];
-    ["Offset of field: ARMISARegisters::id_aa64isar1"]
-        [::std::mem::offset_of!(ARMISARegisters, id_aa64isar1) - 104usize];
-    ["Offset of field: ARMISARegisters::id_aa64isar2"]
-        [::std::mem::offset_of!(ARMISARegisters, id_aa64isar2) - 112usize];
-    ["Offset of field: ARMISARegisters::id_aa64pfr0"]
-        [::std::mem::offset_of!(ARMISARegisters, id_aa64pfr0) - 120usize];
-    ["Offset of field: ARMISARegisters::id_aa64pfr1"]
-        [::std::mem::offset_of!(ARMISARegisters, id_aa64pfr1) - 128usize];
-    ["Offset of field: ARMISARegisters::id_aa64mmfr0"]
-        [::std::mem::offset_of!(ARMISARegisters, id_aa64mmfr0) - 136usize];
-    ["Offset of field: ARMISARegisters::id_aa64mmfr1"]
-        [::std::mem::offset_of!(ARMISARegisters, id_aa64mmfr1) - 144usize];
-    ["Offset of field: ARMISARegisters::id_aa64mmfr2"]
-        [::std::mem::offset_of!(ARMISARegisters, id_aa64mmfr2) - 152usize];
-    ["Offset of field: ARMISARegisters::id_aa64mmfr3"]
-        [::std::mem::offset_of!(ARMISARegisters, id_aa64mmfr3) - 160usize];
-    ["Offset of field: ARMISARegisters::id_aa64dfr0"]
-        [::std::mem::offset_of!(ARMISARegisters, id_aa64dfr0) - 168usize];
-    ["Offset of field: ARMISARegisters::id_aa64dfr1"]
-        [::std::mem::offset_of!(ARMISARegisters, id_aa64dfr1) - 176usize];
-    ["Offset of field: ARMISARegisters::id_aa64zfr0"]
-        [::std::mem::offset_of!(ARMISARegisters, id_aa64zfr0) - 184usize];
-    ["Offset of field: ARMISARegisters::id_aa64smfr0"]
-        [::std::mem::offset_of!(ARMISARegisters, id_aa64smfr0) - 192usize];
-    ["Offset of field: ARMISARegisters::reset_pmcr_el0"]
-        [::std::mem::offset_of!(ARMISARegisters, reset_pmcr_el0) - 200usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ArchCPU__bindgen_ty_1 {
-    pub lh_first: *mut ARMELChangeHook,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ArchCPU__bindgen_ty_1"][::std::mem::size_of::<ArchCPU__bindgen_ty_1>() - 8usize];
-    ["Alignment of ArchCPU__bindgen_ty_1"]
-        [::std::mem::align_of::<ArchCPU__bindgen_ty_1>() - 8usize];
-    ["Offset of field: ArchCPU__bindgen_ty_1::lh_first"]
-        [::std::mem::offset_of!(ArchCPU__bindgen_ty_1, lh_first) - 0usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ArchCPU__bindgen_ty_2 {
-    pub lh_first: *mut ARMELChangeHook,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ArchCPU__bindgen_ty_2"][::std::mem::size_of::<ArchCPU__bindgen_ty_2>() - 8usize];
-    ["Alignment of ArchCPU__bindgen_ty_2"]
-        [::std::mem::align_of::<ArchCPU__bindgen_ty_2>() - 8usize];
-    ["Offset of field: ArchCPU__bindgen_ty_2::lh_first"]
-        [::std::mem::offset_of!(ArchCPU__bindgen_ty_2, lh_first) - 0usize];
-};
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ArchCPU"][::std::mem::size_of::<ArchCPU>() - 90976usize];
-    ["Alignment of ArchCPU"][::std::mem::align_of::<ArchCPU>() - 16usize];
-    ["Offset of field: ArchCPU::parent_obj"][::std::mem::offset_of!(ArchCPU, parent_obj) - 0usize];
-    ["Offset of field: ArchCPU::env"][::std::mem::offset_of!(ArchCPU, env) - 11200usize];
-    ["Offset of field: ArchCPU::cp_regs"][::std::mem::offset_of!(ArchCPU, cp_regs) - 89936usize];
-    ["Offset of field: ArchCPU::cpreg_indexes"]
-        [::std::mem::offset_of!(ArchCPU, cpreg_indexes) - 89944usize];
-    ["Offset of field: ArchCPU::cpreg_values"]
-        [::std::mem::offset_of!(ArchCPU, cpreg_values) - 89952usize];
-    ["Offset of field: ArchCPU::cpreg_array_len"]
-        [::std::mem::offset_of!(ArchCPU, cpreg_array_len) - 89960usize];
-    ["Offset of field: ArchCPU::cpreg_vmstate_indexes"]
-        [::std::mem::offset_of!(ArchCPU, cpreg_vmstate_indexes) - 89968usize];
-    ["Offset of field: ArchCPU::cpreg_vmstate_values"]
-        [::std::mem::offset_of!(ArchCPU, cpreg_vmstate_values) - 89976usize];
-    ["Offset of field: ArchCPU::cpreg_vmstate_array_len"]
-        [::std::mem::offset_of!(ArchCPU, cpreg_vmstate_array_len) - 89984usize];
-    ["Offset of field: ArchCPU::dyn_sysreg_feature"]
-        [::std::mem::offset_of!(ArchCPU, dyn_sysreg_feature) - 89992usize];
-    ["Offset of field: ArchCPU::dyn_svereg_feature"]
-        [::std::mem::offset_of!(ArchCPU, dyn_svereg_feature) - 90040usize];
-    ["Offset of field: ArchCPU::dyn_m_systemreg_feature"]
-        [::std::mem::offset_of!(ArchCPU, dyn_m_systemreg_feature) - 90088usize];
-    ["Offset of field: ArchCPU::dyn_m_secextreg_feature"]
-        [::std::mem::offset_of!(ArchCPU, dyn_m_secextreg_feature) - 90136usize];
-    ["Offset of field: ArchCPU::gt_timer"][::std::mem::offset_of!(ArchCPU, gt_timer) - 90184usize];
-    ["Offset of field: ArchCPU::pmu_timer"]
-        [::std::mem::offset_of!(ArchCPU, pmu_timer) - 90240usize];
-    ["Offset of field: ArchCPU::wfxt_timer"]
-        [::std::mem::offset_of!(ArchCPU, wfxt_timer) - 90248usize];
-    ["Offset of field: ArchCPU::gt_timer_outputs"]
-        [::std::mem::offset_of!(ArchCPU, gt_timer_outputs) - 90256usize];
-    ["Offset of field: ArchCPU::gicv3_maintenance_interrupt"]
-        [::std::mem::offset_of!(ArchCPU, gicv3_maintenance_interrupt) - 90312usize];
-    ["Offset of field: ArchCPU::pmu_interrupt"]
-        [::std::mem::offset_of!(ArchCPU, pmu_interrupt) - 90320usize];
-    ["Offset of field: ArchCPU::secure_memory"]
-        [::std::mem::offset_of!(ArchCPU, secure_memory) - 90328usize];
-    ["Offset of field: ArchCPU::tag_memory"]
-        [::std::mem::offset_of!(ArchCPU, tag_memory) - 90336usize];
-    ["Offset of field: ArchCPU::secure_tag_memory"]
-        [::std::mem::offset_of!(ArchCPU, secure_tag_memory) - 90344usize];
-    ["Offset of field: ArchCPU::idau"][::std::mem::offset_of!(ArchCPU, idau) - 90352usize];
-    ["Offset of field: ArchCPU::dtb_compatible"]
-        [::std::mem::offset_of!(ArchCPU, dtb_compatible) - 90360usize];
-    ["Offset of field: ArchCPU::psci_version"]
-        [::std::mem::offset_of!(ArchCPU, psci_version) - 90368usize];
-    ["Offset of field: ArchCPU::power_state"]
-        [::std::mem::offset_of!(ArchCPU, power_state) - 90372usize];
-    ["Offset of field: ArchCPU::has_el2"][::std::mem::offset_of!(ArchCPU, has_el2) - 90376usize];
-    ["Offset of field: ArchCPU::has_el3"][::std::mem::offset_of!(ArchCPU, has_el3) - 90377usize];
-    ["Offset of field: ArchCPU::has_pmu"][::std::mem::offset_of!(ArchCPU, has_pmu) - 90378usize];
-    ["Offset of field: ArchCPU::has_vfp"][::std::mem::offset_of!(ArchCPU, has_vfp) - 90379usize];
-    ["Offset of field: ArchCPU::has_vfp_d32"]
-        [::std::mem::offset_of!(ArchCPU, has_vfp_d32) - 90380usize];
-    ["Offset of field: ArchCPU::has_neon"][::std::mem::offset_of!(ArchCPU, has_neon) - 90381usize];
-    ["Offset of field: ArchCPU::has_dsp"][::std::mem::offset_of!(ArchCPU, has_dsp) - 90382usize];
-    ["Offset of field: ArchCPU::has_mpu"][::std::mem::offset_of!(ArchCPU, has_mpu) - 90383usize];
-    ["Offset of field: ArchCPU::kvm_mte"][::std::mem::offset_of!(ArchCPU, kvm_mte) - 90384usize];
-    ["Offset of field: ArchCPU::pmsav7_dregion"]
-        [::std::mem::offset_of!(ArchCPU, pmsav7_dregion) - 90388usize];
-    ["Offset of field: ArchCPU::pmsav8r_hdregion"]
-        [::std::mem::offset_of!(ArchCPU, pmsav8r_hdregion) - 90392usize];
-    ["Offset of field: ArchCPU::sau_sregion"]
-        [::std::mem::offset_of!(ArchCPU, sau_sregion) - 90396usize];
-    ["Offset of field: ArchCPU::psci_conduit"]
-        [::std::mem::offset_of!(ArchCPU, psci_conduit) - 90400usize];
-    ["Offset of field: ArchCPU::init_svtor"]
-        [::std::mem::offset_of!(ArchCPU, init_svtor) - 90404usize];
-    ["Offset of field: ArchCPU::init_nsvtor"]
-        [::std::mem::offset_of!(ArchCPU, init_nsvtor) - 90408usize];
-    ["Offset of field: ArchCPU::kvm_target"]
-        [::std::mem::offset_of!(ArchCPU, kvm_target) - 90412usize];
-    ["Offset of field: ArchCPU::mp_is_up"][::std::mem::offset_of!(ArchCPU, mp_is_up) - 90416usize];
-    ["Offset of field: ArchCPU::host_cpu_probe_failed"]
-        [::std::mem::offset_of!(ArchCPU, host_cpu_probe_failed) - 90417usize];
-    ["Offset of field: ArchCPU::backcompat_cntfrq"]
-        [::std::mem::offset_of!(ArchCPU, backcompat_cntfrq) - 90418usize];
-    ["Offset of field: ArchCPU::backcompat_pauth_default_use_qarma5"]
-        [::std::mem::offset_of!(ArchCPU, backcompat_pauth_default_use_qarma5) - 90419usize];
-    ["Offset of field: ArchCPU::core_count"]
-        [::std::mem::offset_of!(ArchCPU, core_count) - 90420usize];
-    ["Offset of field: ArchCPU::isar"][::std::mem::offset_of!(ArchCPU, isar) - 90424usize];
-    ["Offset of field: ArchCPU::midr"][::std::mem::offset_of!(ArchCPU, midr) - 90632usize];
-    ["Offset of field: ArchCPU::revidr"][::std::mem::offset_of!(ArchCPU, revidr) - 90640usize];
-    ["Offset of field: ArchCPU::reset_fpsid"]
-        [::std::mem::offset_of!(ArchCPU, reset_fpsid) - 90644usize];
-    ["Offset of field: ArchCPU::ctr"][::std::mem::offset_of!(ArchCPU, ctr) - 90648usize];
-    ["Offset of field: ArchCPU::reset_sctlr"]
-        [::std::mem::offset_of!(ArchCPU, reset_sctlr) - 90656usize];
-    ["Offset of field: ArchCPU::pmceid0"][::std::mem::offset_of!(ArchCPU, pmceid0) - 90664usize];
-    ["Offset of field: ArchCPU::pmceid1"][::std::mem::offset_of!(ArchCPU, pmceid1) - 90672usize];
-    ["Offset of field: ArchCPU::id_afr0"][::std::mem::offset_of!(ArchCPU, id_afr0) - 90680usize];
-    ["Offset of field: ArchCPU::id_aa64afr0"]
-        [::std::mem::offset_of!(ArchCPU, id_aa64afr0) - 90688usize];
-    ["Offset of field: ArchCPU::id_aa64afr1"]
-        [::std::mem::offset_of!(ArchCPU, id_aa64afr1) - 90696usize];
-    ["Offset of field: ArchCPU::clidr"][::std::mem::offset_of!(ArchCPU, clidr) - 90704usize];
-    ["Offset of field: ArchCPU::mp_affinity"]
-        [::std::mem::offset_of!(ArchCPU, mp_affinity) - 90712usize];
-    ["Offset of field: ArchCPU::ccsidr"][::std::mem::offset_of!(ArchCPU, ccsidr) - 90720usize];
-    ["Offset of field: ArchCPU::reset_cbar"]
-        [::std::mem::offset_of!(ArchCPU, reset_cbar) - 90848usize];
-    ["Offset of field: ArchCPU::reset_auxcr"]
-        [::std::mem::offset_of!(ArchCPU, reset_auxcr) - 90856usize];
-    ["Offset of field: ArchCPU::reset_hivecs"]
-        [::std::mem::offset_of!(ArchCPU, reset_hivecs) - 90860usize];
-    ["Offset of field: ArchCPU::reset_l0gptsz"]
-        [::std::mem::offset_of!(ArchCPU, reset_l0gptsz) - 90861usize];
-    ["Offset of field: ArchCPU::prop_pauth"]
-        [::std::mem::offset_of!(ArchCPU, prop_pauth) - 90862usize];
-    ["Offset of field: ArchCPU::prop_pauth_impdef"]
-        [::std::mem::offset_of!(ArchCPU, prop_pauth_impdef) - 90863usize];
-    ["Offset of field: ArchCPU::prop_pauth_qarma3"]
-        [::std::mem::offset_of!(ArchCPU, prop_pauth_qarma3) - 90864usize];
-    ["Offset of field: ArchCPU::prop_pauth_qarma5"]
-        [::std::mem::offset_of!(ArchCPU, prop_pauth_qarma5) - 90865usize];
-    ["Offset of field: ArchCPU::prop_lpa2"]
-        [::std::mem::offset_of!(ArchCPU, prop_lpa2) - 90866usize];
-    ["Offset of field: ArchCPU::dcz_blocksize"]
-        [::std::mem::offset_of!(ArchCPU, dcz_blocksize) - 90867usize];
-    ["Offset of field: ArchCPU::gm_blocksize"]
-        [::std::mem::offset_of!(ArchCPU, gm_blocksize) - 90868usize];
-    ["Offset of field: ArchCPU::rvbar_prop"]
-        [::std::mem::offset_of!(ArchCPU, rvbar_prop) - 90872usize];
-    ["Offset of field: ArchCPU::gic_num_lrs"]
-        [::std::mem::offset_of!(ArchCPU, gic_num_lrs) - 90880usize];
-    ["Offset of field: ArchCPU::gic_vpribits"]
-        [::std::mem::offset_of!(ArchCPU, gic_vpribits) - 90884usize];
-    ["Offset of field: ArchCPU::gic_vprebits"]
-        [::std::mem::offset_of!(ArchCPU, gic_vprebits) - 90888usize];
-    ["Offset of field: ArchCPU::gic_pribits"]
-        [::std::mem::offset_of!(ArchCPU, gic_pribits) - 90892usize];
-    ["Offset of field: ArchCPU::cfgend"][::std::mem::offset_of!(ArchCPU, cfgend) - 90896usize];
-    ["Offset of field: ArchCPU::pre_el_change_hooks"]
-        [::std::mem::offset_of!(ArchCPU, pre_el_change_hooks) - 90904usize];
-    ["Offset of field: ArchCPU::el_change_hooks"]
-        [::std::mem::offset_of!(ArchCPU, el_change_hooks) - 90912usize];
-    ["Offset of field: ArchCPU::node_id"][::std::mem::offset_of!(ArchCPU, node_id) - 90920usize];
-    ["Offset of field: ArchCPU::device_irq_level"]
-        [::std::mem::offset_of!(ArchCPU, device_irq_level) - 90924usize];
-    ["Offset of field: ArchCPU::sve_max_vq"]
-        [::std::mem::offset_of!(ArchCPU, sve_max_vq) - 90928usize];
-    ["Offset of field: ArchCPU::sve_vq"][::std::mem::offset_of!(ArchCPU, sve_vq) - 90932usize];
-    ["Offset of field: ArchCPU::sme_vq"][::std::mem::offset_of!(ArchCPU, sme_vq) - 90944usize];
-    ["Offset of field: ArchCPU::gt_cntfrq_hz"]
-        [::std::mem::offset_of!(ArchCPU, gt_cntfrq_hz) - 90960usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ARMCPUInfo {
-    pub name: *const ::std::os::raw::c_char,
-    pub deprecation_note: *const ::std::os::raw::c_char,
-    pub initfn: ::std::option::Option<unsafe extern "C" fn(obj: *mut Object)>,
-    pub class_init: ::std::option::Option<
-        unsafe extern "C" fn(oc: *mut ObjectClass, data: *mut ::std::os::raw::c_void),
-    >,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ARMCPUInfo"][::std::mem::size_of::<ARMCPUInfo>() - 32usize];
-    ["Alignment of ARMCPUInfo"][::std::mem::align_of::<ARMCPUInfo>() - 8usize];
-    ["Offset of field: ARMCPUInfo::name"][::std::mem::offset_of!(ARMCPUInfo, name) - 0usize];
-    ["Offset of field: ARMCPUInfo::deprecation_note"]
-        [::std::mem::offset_of!(ARMCPUInfo, deprecation_note) - 8usize];
-    ["Offset of field: ARMCPUInfo::initfn"][::std::mem::offset_of!(ARMCPUInfo, initfn) - 16usize];
-    ["Offset of field: ARMCPUInfo::class_init"]
-        [::std::mem::offset_of!(ARMCPUInfo, class_init) - 24usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ARMCPUClass {
-    pub parent_class: CPUClass,
-    pub info: *const ARMCPUInfo,
-    pub parent_realize: DeviceRealize,
-    pub parent_phases: ResettablePhases,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of ARMCPUClass"][::std::mem::size_of::<ARMCPUClass>() - 400usize];
-    ["Alignment of ARMCPUClass"][::std::mem::align_of::<ARMCPUClass>() - 8usize];
-    ["Offset of field: ARMCPUClass::parent_class"]
-        [::std::mem::offset_of!(ARMCPUClass, parent_class) - 0usize];
-    ["Offset of field: ARMCPUClass::info"][::std::mem::offset_of!(ARMCPUClass, info) - 360usize];
-    ["Offset of field: ARMCPUClass::parent_realize"]
-        [::std::mem::offset_of!(ARMCPUClass, parent_realize) - 368usize];
-    ["Offset of field: ARMCPUClass::parent_phases"]
-        [::std::mem::offset_of!(ARMCPUClass, parent_phases) - 376usize];
-};
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct AArch64CPUClass {
-    pub parent_class: ARMCPUClass,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of AArch64CPUClass"][::std::mem::size_of::<AArch64CPUClass>() - 400usize];
-    ["Alignment of AArch64CPUClass"][::std::mem::align_of::<AArch64CPUClass>() - 8usize];
-    ["Offset of field: AArch64CPUClass::parent_class"]
-        [::std::mem::offset_of!(AArch64CPUClass, parent_class) - 0usize];
+    ["Size of QEMUTimer"][::std::mem::size_of::<QEMUTimer>() - 48usize];
+    ["Alignment of QEMUTimer"][::std::mem::align_of::<QEMUTimer>() - 8usize];
+    ["Offset of field: QEMUTimer::expire_time"]
+        [::std::mem::offset_of!(QEMUTimer, expire_time) - 0usize];
+    ["Offset of field: QEMUTimer::timer_list"]
+        [::std::mem::offset_of!(QEMUTimer, timer_list) - 8usize];
+    ["Offset of field: QEMUTimer::cb"][::std::mem::offset_of!(QEMUTimer, cb) - 16usize];
+    ["Offset of field: QEMUTimer::opaque"][::std::mem::offset_of!(QEMUTimer, opaque) - 24usize];
+    ["Offset of field: QEMUTimer::next"][::std::mem::offset_of!(QEMUTimer, next) - 32usize];
+    ["Offset of field: QEMUTimer::attributes"]
+        [::std::mem::offset_of!(QEMUTimer, attributes) - 40usize];
+    ["Offset of field: QEMUTimer::scale"][::std::mem::offset_of!(QEMUTimer, scale) - 44usize];
 };
 unsafe extern "C" {
-    pub fn arm_gt_ptimer_cb(opaque: *mut ::std::os::raw::c_void);
+    pub static mut main_loop_tlg: QEMUTimerListGroup;
 }
 unsafe extern "C" {
-    pub fn arm_gt_vtimer_cb(opaque: *mut ::std::os::raw::c_void);
+    pub fn qemu_clock_get_ns(type_: QEMUClockType) -> i64;
 }
 unsafe extern "C" {
-    pub fn arm_gt_htimer_cb(opaque: *mut ::std::os::raw::c_void);
+    pub fn qemu_clock_has_timers(type_: QEMUClockType) -> bool;
 }
 unsafe extern "C" {
-    pub fn arm_gt_stimer_cb(opaque: *mut ::std::os::raw::c_void);
+    pub fn qemu_clock_expired(type_: QEMUClockType) -> bool;
 }
 unsafe extern "C" {
-    pub fn arm_gt_hvtimer_cb(opaque: *mut ::std::os::raw::c_void);
+    pub fn qemu_clock_use_for_deadline(type_: QEMUClockType) -> bool;
 }
 unsafe extern "C" {
-    pub fn arm_gt_sel2timer_cb(opaque: *mut ::std::os::raw::c_void);
+    pub fn qemu_clock_deadline_ns_all(
+        type_: QEMUClockType,
+        attr_mask: ::std::os::raw::c_int,
+    ) -> i64;
 }
 unsafe extern "C" {
-    pub fn arm_gt_sel2vtimer_cb(opaque: *mut ::std::os::raw::c_void);
+    pub fn qemu_clock_notify(type_: QEMUClockType);
 }
 unsafe extern "C" {
-    pub fn gt_cntfrq_period_ns(cpu: *mut ARMCPU) -> ::std::os::raw::c_uint;
+    pub fn qemu_clock_enable(type_: QEMUClockType, enabled: bool);
 }
 unsafe extern "C" {
-    pub fn gt_rme_post_el_change(cpu: *mut ARMCPU, opaque: *mut ::std::os::raw::c_void);
+    pub fn qemu_clock_run_timers(type_: QEMUClockType) -> bool;
 }
 unsafe extern "C" {
-    pub fn arm_cpu_post_init(obj: *mut Object);
+    pub fn qemu_clock_run_all_timers() -> bool;
 }
 unsafe extern "C" {
-    pub fn arm_build_mp_affinity(idx: ::std::os::raw::c_int, clustersz: u8) -> u64;
+    pub fn qemu_clock_advance_virtual_time(target_ns: i64) -> i64;
 }
 unsafe extern "C" {
-    pub static vmstate_arm_cpu: VMStateDescription;
+    pub fn timerlist_new(
+        type_: QEMUClockType,
+        cb: QEMUTimerListNotifyCB,
+        opaque: *mut ::std::os::raw::c_void,
+    ) -> *mut QEMUTimerList;
 }
 unsafe extern "C" {
-    pub fn arm_cpu_do_interrupt(cpu: *mut CPUState);
+    pub fn timerlist_free(timer_list: *mut QEMUTimerList);
 }
 unsafe extern "C" {
-    pub fn arm_v7m_cpu_do_interrupt(cpu: *mut CPUState);
+    pub fn timerlist_has_timers(timer_list: *mut QEMUTimerList) -> bool;
 }
 unsafe extern "C" {
-    pub fn arm_cpu_get_phys_page_attrs_debug(
-        cpu: *mut CPUState,
-        addr: vaddr,
-        attrs: *mut MemTxAttrs,
-    ) -> hwaddr;
+    pub fn timerlist_expired(timer_list: *mut QEMUTimerList) -> bool;
 }
 unsafe extern "C" {
-    pub fn arm_cpu_gdb_read_register(
-        cpu: *mut CPUState,
-        buf: *mut GByteArray,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
+    pub fn timerlist_deadline_ns(timer_list: *mut QEMUTimerList) -> i64;
 }
 unsafe extern "C" {
-    pub fn arm_cpu_gdb_write_register(
-        cpu: *mut CPUState,
-        buf: *mut u8,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
+    pub fn timerlist_run_timers(timer_list: *mut QEMUTimerList) -> bool;
 }
 unsafe extern "C" {
-    pub fn arm_cpu_write_elf64_note(
-        f: WriteCoreDumpFunction,
-        cs: *mut CPUState,
-        cpuid: ::std::os::raw::c_int,
-        s: *mut DumpState,
-    ) -> ::std::os::raw::c_int;
+    pub fn timerlist_notify(timer_list: *mut QEMUTimerList);
 }
 unsafe extern "C" {
-    pub fn arm_cpu_write_elf32_note(
-        f: WriteCoreDumpFunction,
-        cs: *mut CPUState,
-        cpuid: ::std::os::raw::c_int,
-        s: *mut DumpState,
-    ) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn arm_emulate_firmware_reset(cpustate: *mut CPUState, target_el: ::std::os::raw::c_int);
-}
-unsafe extern "C" {
-    pub fn aarch64_cpu_gdb_read_register(
-        cpu: *mut CPUState,
-        buf: *mut GByteArray,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn aarch64_cpu_gdb_write_register(
-        cpu: *mut CPUState,
-        buf: *mut u8,
-        reg: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn aarch64_sve_narrow_vq(env: *mut CPUARMState, vq: ::std::os::raw::c_uint);
-}
-unsafe extern "C" {
-    pub fn aarch64_sve_change_el(
-        env: *mut CPUARMState,
-        old_el: ::std::os::raw::c_int,
-        new_el: ::std::os::raw::c_int,
-        el0_a64: bool,
+    pub fn timerlistgroup_init(
+        tlg: *mut QEMUTimerListGroup,
+        cb: QEMUTimerListNotifyCB,
+        opaque: *mut ::std::os::raw::c_void,
     );
 }
 unsafe extern "C" {
-    pub fn aarch64_set_svcr(env: *mut CPUARMState, new: u64, mask: u64);
+    pub fn timerlistgroup_deinit(tlg: *mut QEMUTimerListGroup);
 }
 unsafe extern "C" {
-    pub fn aarch64_sync_32_to_64(env: *mut CPUARMState);
+    pub fn timerlistgroup_run_timers(tlg: *mut QEMUTimerListGroup) -> bool;
 }
 unsafe extern "C" {
-    pub fn aarch64_sync_64_to_32(env: *mut CPUARMState);
+    pub fn timerlistgroup_deadline_ns(tlg: *mut QEMUTimerListGroup) -> i64;
 }
 unsafe extern "C" {
-    pub fn fp_exception_el(
-        env: *mut CPUARMState,
-        cur_el: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
+    pub fn timer_init_full(
+        ts: *mut QEMUTimer,
+        timer_list_group: *mut QEMUTimerListGroup,
+        type_: QEMUClockType,
+        scale: ::std::os::raw::c_int,
+        attributes: ::std::os::raw::c_int,
+        cb: QEMUTimerCB,
+        opaque: *mut ::std::os::raw::c_void,
+    );
 }
 unsafe extern "C" {
-    pub fn sve_exception_el(
-        env: *mut CPUARMState,
-        cur_el: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
+    pub fn timer_deinit(ts: *mut QEMUTimer);
 }
 unsafe extern "C" {
-    pub fn sme_exception_el(
-        env: *mut CPUARMState,
-        cur_el: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
+    pub fn timer_del(ts: *mut QEMUTimer);
 }
 unsafe extern "C" {
-    pub fn sve_vqm1_for_el_sm(env: *mut CPUARMState, el: ::std::os::raw::c_int, sm: bool) -> u32;
+    pub fn timer_mod_ns(ts: *mut QEMUTimer, expire_time: i64);
 }
 unsafe extern "C" {
-    pub fn sve_vqm1_for_el(env: *mut CPUARMState, el: ::std::os::raw::c_int) -> u32;
+    pub fn timer_mod_anticipate_ns(ts: *mut QEMUTimer, expire_time: i64);
 }
 unsafe extern "C" {
-    pub fn pmu_op_start(env: *mut CPUARMState);
+    pub fn timer_mod(ts: *mut QEMUTimer, expire_timer: i64);
 }
 unsafe extern "C" {
-    pub fn pmu_op_finish(env: *mut CPUARMState);
+    pub fn timer_mod_anticipate(ts: *mut QEMUTimer, expire_time: i64);
 }
 unsafe extern "C" {
-    pub fn arm_pmu_timer_cb(opaque: *mut ::std::os::raw::c_void);
+    pub fn timer_pending(ts: *mut QEMUTimer) -> bool;
 }
 unsafe extern "C" {
-    pub fn pmu_pre_el_change(cpu: *mut ARMCPU, ignored: *mut ::std::os::raw::c_void);
+    pub fn timer_expired(timer_head: *mut QEMUTimer, current_time: i64) -> bool;
 }
 unsafe extern "C" {
-    pub fn pmu_post_el_change(cpu: *mut ARMCPU, ignored: *mut ::std::os::raw::c_void);
+    pub fn timer_expire_time_ns(ts: *mut QEMUTimer) -> u64;
 }
 unsafe extern "C" {
-    pub fn pmu_init(cpu: *mut ARMCPU);
-}
-pub const R_SVCR_SM_SHIFT: _bindgen_ty_54 = 0;
-pub type _bindgen_ty_54 = ::std::os::raw::c_uint;
-pub const R_SVCR_SM_LENGTH: _bindgen_ty_55 = 1;
-pub type _bindgen_ty_55 = ::std::os::raw::c_uint;
-pub const R_SVCR_SM_MASK: _bindgen_ty_56 = 1;
-pub type _bindgen_ty_56 = ::std::os::raw::c_uint;
-pub const R_SVCR_ZA_SHIFT: _bindgen_ty_57 = 1;
-pub type _bindgen_ty_57 = ::std::os::raw::c_uint;
-pub const R_SVCR_ZA_LENGTH: _bindgen_ty_58 = 1;
-pub type _bindgen_ty_58 = ::std::os::raw::c_uint;
-pub const R_SVCR_ZA_MASK: _bindgen_ty_59 = 2;
-pub type _bindgen_ty_59 = ::std::os::raw::c_uint;
-pub const R_SMCR_LEN_SHIFT: _bindgen_ty_60 = 0;
-pub type _bindgen_ty_60 = ::std::os::raw::c_uint;
-pub const R_SMCR_LEN_LENGTH: _bindgen_ty_61 = 4;
-pub type _bindgen_ty_61 = ::std::os::raw::c_uint;
-pub const R_SMCR_LEN_MASK: _bindgen_ty_62 = 15;
-pub type _bindgen_ty_62 = ::std::os::raw::c_uint;
-pub const R_SMCR_FA64_SHIFT: _bindgen_ty_63 = 31;
-pub type _bindgen_ty_63 = ::std::os::raw::c_uint;
-pub const R_SMCR_FA64_LENGTH: _bindgen_ty_64 = 1;
-pub type _bindgen_ty_64 = ::std::os::raw::c_uint;
-pub const R_SMCR_FA64_MASK: _bindgen_ty_65 = 2147483648;
-pub type _bindgen_ty_65 = ::std::os::raw::c_uint;
-unsafe extern "C" {
-    pub fn write_v7m_exception(env: *mut CPUARMState, new_exc: u32);
+    pub fn timer_get(f: *mut QEMUFile, ts: *mut QEMUTimer);
 }
 unsafe extern "C" {
-    pub fn cpsr_read(env: *mut CPUARMState) -> u32;
-}
-pub const CPSRWriteByInstr: CPSRWriteType = 0;
-pub const CPSRWriteExceptionReturn: CPSRWriteType = 1;
-pub const CPSRWriteRaw: CPSRWriteType = 2;
-pub const CPSRWriteByGDBStub: CPSRWriteType = 3;
-pub type CPSRWriteType = ::std::os::raw::c_uint;
-unsafe extern "C" {
-    pub fn cpsr_write(env: *mut CPUARMState, val: u32, mask: u32, write_type: CPSRWriteType);
+    pub fn timer_put(f: *mut QEMUFile, ts: *mut QEMUTimer);
 }
 unsafe extern "C" {
-    pub fn vfp_get_fpscr(env: *mut CPUARMState) -> u32;
+    pub fn qemu_timeout_ns_to_ms(ns: i64) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
-    pub fn vfp_set_fpscr(env: *mut CPUARMState, val: u32);
+    pub fn qemu_poll_ns(fds: *mut GPollFD, nfds: guint, timeout: i64) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
-    pub fn vfp_get_fpsr(env: *mut CPUARMState) -> u32;
+    pub fn init_clocks(notify_cb: QEMUTimerListNotifyCB);
 }
 unsafe extern "C" {
-    pub fn vfp_get_fpcr(env: *mut CPUARMState) -> u32;
+    pub static mut clock_start: i64;
 }
 unsafe extern "C" {
-    pub fn vfp_set_fpsr(env: *mut CPUARMState, value: u32);
-}
-unsafe extern "C" {
-    pub fn vfp_set_fpcr(env: *mut CPUARMState, value: u32);
-}
-pub const ARM_CPU_MODE_USR: arm_cpu_mode = 16;
-pub const ARM_CPU_MODE_FIQ: arm_cpu_mode = 17;
-pub const ARM_CPU_MODE_IRQ: arm_cpu_mode = 18;
-pub const ARM_CPU_MODE_SVC: arm_cpu_mode = 19;
-pub const ARM_CPU_MODE_MON: arm_cpu_mode = 22;
-pub const ARM_CPU_MODE_ABT: arm_cpu_mode = 23;
-pub const ARM_CPU_MODE_HYP: arm_cpu_mode = 26;
-pub const ARM_CPU_MODE_UND: arm_cpu_mode = 27;
-pub const ARM_CPU_MODE_SYS: arm_cpu_mode = 31;
-pub type arm_cpu_mode = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_NONBASETHRDENA_SHIFT: _bindgen_ty_66 = 0;
-pub type _bindgen_ty_66 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_NONBASETHRDENA_LENGTH: _bindgen_ty_67 = 1;
-pub type _bindgen_ty_67 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_NONBASETHRDENA_MASK: _bindgen_ty_68 = 1;
-pub type _bindgen_ty_68 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_USERSETMPEND_SHIFT: _bindgen_ty_69 = 1;
-pub type _bindgen_ty_69 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_USERSETMPEND_LENGTH: _bindgen_ty_70 = 1;
-pub type _bindgen_ty_70 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_USERSETMPEND_MASK: _bindgen_ty_71 = 2;
-pub type _bindgen_ty_71 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_UNALIGN_TRP_SHIFT: _bindgen_ty_72 = 3;
-pub type _bindgen_ty_72 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_UNALIGN_TRP_LENGTH: _bindgen_ty_73 = 1;
-pub type _bindgen_ty_73 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_UNALIGN_TRP_MASK: _bindgen_ty_74 = 8;
-pub type _bindgen_ty_74 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_DIV_0_TRP_SHIFT: _bindgen_ty_75 = 4;
-pub type _bindgen_ty_75 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_DIV_0_TRP_LENGTH: _bindgen_ty_76 = 1;
-pub type _bindgen_ty_76 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_DIV_0_TRP_MASK: _bindgen_ty_77 = 16;
-pub type _bindgen_ty_77 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_BFHFNMIGN_SHIFT: _bindgen_ty_78 = 8;
-pub type _bindgen_ty_78 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_BFHFNMIGN_LENGTH: _bindgen_ty_79 = 1;
-pub type _bindgen_ty_79 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_BFHFNMIGN_MASK: _bindgen_ty_80 = 256;
-pub type _bindgen_ty_80 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_STKALIGN_SHIFT: _bindgen_ty_81 = 9;
-pub type _bindgen_ty_81 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_STKALIGN_LENGTH: _bindgen_ty_82 = 1;
-pub type _bindgen_ty_82 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_STKALIGN_MASK: _bindgen_ty_83 = 512;
-pub type _bindgen_ty_83 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_STKOFHFNMIGN_SHIFT: _bindgen_ty_84 = 10;
-pub type _bindgen_ty_84 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_STKOFHFNMIGN_LENGTH: _bindgen_ty_85 = 1;
-pub type _bindgen_ty_85 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_STKOFHFNMIGN_MASK: _bindgen_ty_86 = 1024;
-pub type _bindgen_ty_86 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_DC_SHIFT: _bindgen_ty_87 = 16;
-pub type _bindgen_ty_87 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_DC_LENGTH: _bindgen_ty_88 = 1;
-pub type _bindgen_ty_88 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_DC_MASK: _bindgen_ty_89 = 65536;
-pub type _bindgen_ty_89 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_IC_SHIFT: _bindgen_ty_90 = 17;
-pub type _bindgen_ty_90 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_IC_LENGTH: _bindgen_ty_91 = 1;
-pub type _bindgen_ty_91 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_IC_MASK: _bindgen_ty_92 = 131072;
-pub type _bindgen_ty_92 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_BP_SHIFT: _bindgen_ty_93 = 18;
-pub type _bindgen_ty_93 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_BP_LENGTH: _bindgen_ty_94 = 1;
-pub type _bindgen_ty_94 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_BP_MASK: _bindgen_ty_95 = 262144;
-pub type _bindgen_ty_95 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_LOB_SHIFT: _bindgen_ty_96 = 19;
-pub type _bindgen_ty_96 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_LOB_LENGTH: _bindgen_ty_97 = 1;
-pub type _bindgen_ty_97 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_LOB_MASK: _bindgen_ty_98 = 524288;
-pub type _bindgen_ty_98 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_TRD_SHIFT: _bindgen_ty_99 = 20;
-pub type _bindgen_ty_99 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_TRD_LENGTH: _bindgen_ty_100 = 1;
-pub type _bindgen_ty_100 = ::std::os::raw::c_uint;
-pub const R_V7M_CCR_TRD_MASK: _bindgen_ty_101 = 1048576;
-pub type _bindgen_ty_101 = ::std::os::raw::c_uint;
-pub const R_V7M_SCR_SLEEPONEXIT_SHIFT: _bindgen_ty_102 = 1;
-pub type _bindgen_ty_102 = ::std::os::raw::c_uint;
-pub const R_V7M_SCR_SLEEPONEXIT_LENGTH: _bindgen_ty_103 = 1;
-pub type _bindgen_ty_103 = ::std::os::raw::c_uint;
-pub const R_V7M_SCR_SLEEPONEXIT_MASK: _bindgen_ty_104 = 2;
-pub type _bindgen_ty_104 = ::std::os::raw::c_uint;
-pub const R_V7M_SCR_SLEEPDEEP_SHIFT: _bindgen_ty_105 = 2;
-pub type _bindgen_ty_105 = ::std::os::raw::c_uint;
-pub const R_V7M_SCR_SLEEPDEEP_LENGTH: _bindgen_ty_106 = 1;
-pub type _bindgen_ty_106 = ::std::os::raw::c_uint;
-pub const R_V7M_SCR_SLEEPDEEP_MASK: _bindgen_ty_107 = 4;
-pub type _bindgen_ty_107 = ::std::os::raw::c_uint;
-pub const R_V7M_SCR_SLEEPDEEPS_SHIFT: _bindgen_ty_108 = 3;
-pub type _bindgen_ty_108 = ::std::os::raw::c_uint;
-pub const R_V7M_SCR_SLEEPDEEPS_LENGTH: _bindgen_ty_109 = 1;
-pub type _bindgen_ty_109 = ::std::os::raw::c_uint;
-pub const R_V7M_SCR_SLEEPDEEPS_MASK: _bindgen_ty_110 = 8;
-pub type _bindgen_ty_110 = ::std::os::raw::c_uint;
-pub const R_V7M_SCR_SEVONPEND_SHIFT: _bindgen_ty_111 = 4;
-pub type _bindgen_ty_111 = ::std::os::raw::c_uint;
-pub const R_V7M_SCR_SEVONPEND_LENGTH: _bindgen_ty_112 = 1;
-pub type _bindgen_ty_112 = ::std::os::raw::c_uint;
-pub const R_V7M_SCR_SEVONPEND_MASK: _bindgen_ty_113 = 16;
-pub type _bindgen_ty_113 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_VECTRESET_SHIFT: _bindgen_ty_114 = 0;
-pub type _bindgen_ty_114 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_VECTRESET_LENGTH: _bindgen_ty_115 = 1;
-pub type _bindgen_ty_115 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_VECTRESET_MASK: _bindgen_ty_116 = 1;
-pub type _bindgen_ty_116 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_VECTCLRACTIVE_SHIFT: _bindgen_ty_117 = 1;
-pub type _bindgen_ty_117 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_VECTCLRACTIVE_LENGTH: _bindgen_ty_118 = 1;
-pub type _bindgen_ty_118 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_VECTCLRACTIVE_MASK: _bindgen_ty_119 = 2;
-pub type _bindgen_ty_119 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_SYSRESETREQ_SHIFT: _bindgen_ty_120 = 2;
-pub type _bindgen_ty_120 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_SYSRESETREQ_LENGTH: _bindgen_ty_121 = 1;
-pub type _bindgen_ty_121 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_SYSRESETREQ_MASK: _bindgen_ty_122 = 4;
-pub type _bindgen_ty_122 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_SYSRESETREQS_SHIFT: _bindgen_ty_123 = 3;
-pub type _bindgen_ty_123 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_SYSRESETREQS_LENGTH: _bindgen_ty_124 = 1;
-pub type _bindgen_ty_124 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_SYSRESETREQS_MASK: _bindgen_ty_125 = 8;
-pub type _bindgen_ty_125 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_PRIGROUP_SHIFT: _bindgen_ty_126 = 8;
-pub type _bindgen_ty_126 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_PRIGROUP_LENGTH: _bindgen_ty_127 = 3;
-pub type _bindgen_ty_127 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_PRIGROUP_MASK: _bindgen_ty_128 = 1792;
-pub type _bindgen_ty_128 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_BFHFNMINS_SHIFT: _bindgen_ty_129 = 13;
-pub type _bindgen_ty_129 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_BFHFNMINS_LENGTH: _bindgen_ty_130 = 1;
-pub type _bindgen_ty_130 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_BFHFNMINS_MASK: _bindgen_ty_131 = 8192;
-pub type _bindgen_ty_131 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_PRIS_SHIFT: _bindgen_ty_132 = 14;
-pub type _bindgen_ty_132 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_PRIS_LENGTH: _bindgen_ty_133 = 1;
-pub type _bindgen_ty_133 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_PRIS_MASK: _bindgen_ty_134 = 16384;
-pub type _bindgen_ty_134 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_ENDIANNESS_SHIFT: _bindgen_ty_135 = 15;
-pub type _bindgen_ty_135 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_ENDIANNESS_LENGTH: _bindgen_ty_136 = 1;
-pub type _bindgen_ty_136 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_ENDIANNESS_MASK: _bindgen_ty_137 = 32768;
-pub type _bindgen_ty_137 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_VECTKEY_SHIFT: _bindgen_ty_138 = 16;
-pub type _bindgen_ty_138 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_VECTKEY_LENGTH: _bindgen_ty_139 = 16;
-pub type _bindgen_ty_139 = ::std::os::raw::c_uint;
-pub const R_V7M_AIRCR_VECTKEY_MASK: _bindgen_ty_140 = 4294901760;
-pub type _bindgen_ty_140 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_IACCVIOL_SHIFT: _bindgen_ty_141 = 0;
-pub type _bindgen_ty_141 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_IACCVIOL_LENGTH: _bindgen_ty_142 = 1;
-pub type _bindgen_ty_142 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_IACCVIOL_MASK: _bindgen_ty_143 = 1;
-pub type _bindgen_ty_143 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_DACCVIOL_SHIFT: _bindgen_ty_144 = 1;
-pub type _bindgen_ty_144 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_DACCVIOL_LENGTH: _bindgen_ty_145 = 1;
-pub type _bindgen_ty_145 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_DACCVIOL_MASK: _bindgen_ty_146 = 2;
-pub type _bindgen_ty_146 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MUNSTKERR_SHIFT: _bindgen_ty_147 = 3;
-pub type _bindgen_ty_147 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MUNSTKERR_LENGTH: _bindgen_ty_148 = 1;
-pub type _bindgen_ty_148 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MUNSTKERR_MASK: _bindgen_ty_149 = 8;
-pub type _bindgen_ty_149 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MSTKERR_SHIFT: _bindgen_ty_150 = 4;
-pub type _bindgen_ty_150 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MSTKERR_LENGTH: _bindgen_ty_151 = 1;
-pub type _bindgen_ty_151 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MSTKERR_MASK: _bindgen_ty_152 = 16;
-pub type _bindgen_ty_152 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MLSPERR_SHIFT: _bindgen_ty_153 = 5;
-pub type _bindgen_ty_153 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MLSPERR_LENGTH: _bindgen_ty_154 = 1;
-pub type _bindgen_ty_154 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MLSPERR_MASK: _bindgen_ty_155 = 32;
-pub type _bindgen_ty_155 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MMARVALID_SHIFT: _bindgen_ty_156 = 7;
-pub type _bindgen_ty_156 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MMARVALID_LENGTH: _bindgen_ty_157 = 1;
-pub type _bindgen_ty_157 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MMARVALID_MASK: _bindgen_ty_158 = 128;
-pub type _bindgen_ty_158 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_IBUSERR_SHIFT: _bindgen_ty_159 = 8;
-pub type _bindgen_ty_159 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_IBUSERR_LENGTH: _bindgen_ty_160 = 1;
-pub type _bindgen_ty_160 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_IBUSERR_MASK: _bindgen_ty_161 = 256;
-pub type _bindgen_ty_161 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_PRECISERR_SHIFT: _bindgen_ty_162 = 9;
-pub type _bindgen_ty_162 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_PRECISERR_LENGTH: _bindgen_ty_163 = 1;
-pub type _bindgen_ty_163 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_PRECISERR_MASK: _bindgen_ty_164 = 512;
-pub type _bindgen_ty_164 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_IMPRECISERR_SHIFT: _bindgen_ty_165 = 10;
-pub type _bindgen_ty_165 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_IMPRECISERR_LENGTH: _bindgen_ty_166 = 1;
-pub type _bindgen_ty_166 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_IMPRECISERR_MASK: _bindgen_ty_167 = 1024;
-pub type _bindgen_ty_167 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_UNSTKERR_SHIFT: _bindgen_ty_168 = 11;
-pub type _bindgen_ty_168 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_UNSTKERR_LENGTH: _bindgen_ty_169 = 1;
-pub type _bindgen_ty_169 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_UNSTKERR_MASK: _bindgen_ty_170 = 2048;
-pub type _bindgen_ty_170 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_STKERR_SHIFT: _bindgen_ty_171 = 12;
-pub type _bindgen_ty_171 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_STKERR_LENGTH: _bindgen_ty_172 = 1;
-pub type _bindgen_ty_172 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_STKERR_MASK: _bindgen_ty_173 = 4096;
-pub type _bindgen_ty_173 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_LSPERR_SHIFT: _bindgen_ty_174 = 13;
-pub type _bindgen_ty_174 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_LSPERR_LENGTH: _bindgen_ty_175 = 1;
-pub type _bindgen_ty_175 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_LSPERR_MASK: _bindgen_ty_176 = 8192;
-pub type _bindgen_ty_176 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_BFARVALID_SHIFT: _bindgen_ty_177 = 15;
-pub type _bindgen_ty_177 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_BFARVALID_LENGTH: _bindgen_ty_178 = 1;
-pub type _bindgen_ty_178 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_BFARVALID_MASK: _bindgen_ty_179 = 32768;
-pub type _bindgen_ty_179 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_UNDEFINSTR_SHIFT: _bindgen_ty_180 = 16;
-pub type _bindgen_ty_180 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_UNDEFINSTR_LENGTH: _bindgen_ty_181 = 1;
-pub type _bindgen_ty_181 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_UNDEFINSTR_MASK: _bindgen_ty_182 = 65536;
-pub type _bindgen_ty_182 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_INVSTATE_SHIFT: _bindgen_ty_183 = 17;
-pub type _bindgen_ty_183 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_INVSTATE_LENGTH: _bindgen_ty_184 = 1;
-pub type _bindgen_ty_184 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_INVSTATE_MASK: _bindgen_ty_185 = 131072;
-pub type _bindgen_ty_185 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_INVPC_SHIFT: _bindgen_ty_186 = 18;
-pub type _bindgen_ty_186 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_INVPC_LENGTH: _bindgen_ty_187 = 1;
-pub type _bindgen_ty_187 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_INVPC_MASK: _bindgen_ty_188 = 262144;
-pub type _bindgen_ty_188 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_NOCP_SHIFT: _bindgen_ty_189 = 19;
-pub type _bindgen_ty_189 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_NOCP_LENGTH: _bindgen_ty_190 = 1;
-pub type _bindgen_ty_190 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_NOCP_MASK: _bindgen_ty_191 = 524288;
-pub type _bindgen_ty_191 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_STKOF_SHIFT: _bindgen_ty_192 = 20;
-pub type _bindgen_ty_192 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_STKOF_LENGTH: _bindgen_ty_193 = 1;
-pub type _bindgen_ty_193 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_STKOF_MASK: _bindgen_ty_194 = 1048576;
-pub type _bindgen_ty_194 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_UNALIGNED_SHIFT: _bindgen_ty_195 = 24;
-pub type _bindgen_ty_195 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_UNALIGNED_LENGTH: _bindgen_ty_196 = 1;
-pub type _bindgen_ty_196 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_UNALIGNED_MASK: _bindgen_ty_197 = 16777216;
-pub type _bindgen_ty_197 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_DIVBYZERO_SHIFT: _bindgen_ty_198 = 25;
-pub type _bindgen_ty_198 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_DIVBYZERO_LENGTH: _bindgen_ty_199 = 1;
-pub type _bindgen_ty_199 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_DIVBYZERO_MASK: _bindgen_ty_200 = 33554432;
-pub type _bindgen_ty_200 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MMFSR_SHIFT: _bindgen_ty_201 = 0;
-pub type _bindgen_ty_201 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MMFSR_LENGTH: _bindgen_ty_202 = 8;
-pub type _bindgen_ty_202 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_MMFSR_MASK: _bindgen_ty_203 = 255;
-pub type _bindgen_ty_203 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_BFSR_SHIFT: _bindgen_ty_204 = 8;
-pub type _bindgen_ty_204 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_BFSR_LENGTH: _bindgen_ty_205 = 8;
-pub type _bindgen_ty_205 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_BFSR_MASK: _bindgen_ty_206 = 65280;
-pub type _bindgen_ty_206 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_UFSR_SHIFT: _bindgen_ty_207 = 16;
-pub type _bindgen_ty_207 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_UFSR_LENGTH: _bindgen_ty_208 = 16;
-pub type _bindgen_ty_208 = ::std::os::raw::c_uint;
-pub const R_V7M_CFSR_UFSR_MASK: _bindgen_ty_209 = 4294901760;
-pub type _bindgen_ty_209 = ::std::os::raw::c_uint;
-pub const R_V7M_HFSR_VECTTBL_SHIFT: _bindgen_ty_210 = 1;
-pub type _bindgen_ty_210 = ::std::os::raw::c_uint;
-pub const R_V7M_HFSR_VECTTBL_LENGTH: _bindgen_ty_211 = 1;
-pub type _bindgen_ty_211 = ::std::os::raw::c_uint;
-pub const R_V7M_HFSR_VECTTBL_MASK: _bindgen_ty_212 = 2;
-pub type _bindgen_ty_212 = ::std::os::raw::c_uint;
-pub const R_V7M_HFSR_FORCED_SHIFT: _bindgen_ty_213 = 30;
-pub type _bindgen_ty_213 = ::std::os::raw::c_uint;
-pub const R_V7M_HFSR_FORCED_LENGTH: _bindgen_ty_214 = 1;
-pub type _bindgen_ty_214 = ::std::os::raw::c_uint;
-pub const R_V7M_HFSR_FORCED_MASK: _bindgen_ty_215 = 1073741824;
-pub type _bindgen_ty_215 = ::std::os::raw::c_uint;
-pub const R_V7M_HFSR_DEBUGEVT_SHIFT: _bindgen_ty_216 = 31;
-pub type _bindgen_ty_216 = ::std::os::raw::c_uint;
-pub const R_V7M_HFSR_DEBUGEVT_LENGTH: _bindgen_ty_217 = 1;
-pub type _bindgen_ty_217 = ::std::os::raw::c_uint;
-pub const R_V7M_HFSR_DEBUGEVT_MASK: _bindgen_ty_218 = 2147483648;
-pub type _bindgen_ty_218 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_HALTED_SHIFT: _bindgen_ty_219 = 0;
-pub type _bindgen_ty_219 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_HALTED_LENGTH: _bindgen_ty_220 = 1;
-pub type _bindgen_ty_220 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_HALTED_MASK: _bindgen_ty_221 = 1;
-pub type _bindgen_ty_221 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_BKPT_SHIFT: _bindgen_ty_222 = 1;
-pub type _bindgen_ty_222 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_BKPT_LENGTH: _bindgen_ty_223 = 1;
-pub type _bindgen_ty_223 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_BKPT_MASK: _bindgen_ty_224 = 2;
-pub type _bindgen_ty_224 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_DWTTRAP_SHIFT: _bindgen_ty_225 = 2;
-pub type _bindgen_ty_225 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_DWTTRAP_LENGTH: _bindgen_ty_226 = 1;
-pub type _bindgen_ty_226 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_DWTTRAP_MASK: _bindgen_ty_227 = 4;
-pub type _bindgen_ty_227 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_VCATCH_SHIFT: _bindgen_ty_228 = 3;
-pub type _bindgen_ty_228 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_VCATCH_LENGTH: _bindgen_ty_229 = 1;
-pub type _bindgen_ty_229 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_VCATCH_MASK: _bindgen_ty_230 = 8;
-pub type _bindgen_ty_230 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_EXTERNAL_SHIFT: _bindgen_ty_231 = 4;
-pub type _bindgen_ty_231 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_EXTERNAL_LENGTH: _bindgen_ty_232 = 1;
-pub type _bindgen_ty_232 = ::std::os::raw::c_uint;
-pub const R_V7M_DFSR_EXTERNAL_MASK: _bindgen_ty_233 = 16;
-pub type _bindgen_ty_233 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_INVEP_SHIFT: _bindgen_ty_234 = 0;
-pub type _bindgen_ty_234 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_INVEP_LENGTH: _bindgen_ty_235 = 1;
-pub type _bindgen_ty_235 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_INVEP_MASK: _bindgen_ty_236 = 1;
-pub type _bindgen_ty_236 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_INVIS_SHIFT: _bindgen_ty_237 = 1;
-pub type _bindgen_ty_237 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_INVIS_LENGTH: _bindgen_ty_238 = 1;
-pub type _bindgen_ty_238 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_INVIS_MASK: _bindgen_ty_239 = 2;
-pub type _bindgen_ty_239 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_INVER_SHIFT: _bindgen_ty_240 = 2;
-pub type _bindgen_ty_240 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_INVER_LENGTH: _bindgen_ty_241 = 1;
-pub type _bindgen_ty_241 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_INVER_MASK: _bindgen_ty_242 = 4;
-pub type _bindgen_ty_242 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_AUVIOL_SHIFT: _bindgen_ty_243 = 3;
-pub type _bindgen_ty_243 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_AUVIOL_LENGTH: _bindgen_ty_244 = 1;
-pub type _bindgen_ty_244 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_AUVIOL_MASK: _bindgen_ty_245 = 8;
-pub type _bindgen_ty_245 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_INVTRAN_SHIFT: _bindgen_ty_246 = 4;
-pub type _bindgen_ty_246 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_INVTRAN_LENGTH: _bindgen_ty_247 = 1;
-pub type _bindgen_ty_247 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_INVTRAN_MASK: _bindgen_ty_248 = 16;
-pub type _bindgen_ty_248 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_LSPERR_SHIFT: _bindgen_ty_249 = 5;
-pub type _bindgen_ty_249 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_LSPERR_LENGTH: _bindgen_ty_250 = 1;
-pub type _bindgen_ty_250 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_LSPERR_MASK: _bindgen_ty_251 = 32;
-pub type _bindgen_ty_251 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_SFARVALID_SHIFT: _bindgen_ty_252 = 6;
-pub type _bindgen_ty_252 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_SFARVALID_LENGTH: _bindgen_ty_253 = 1;
-pub type _bindgen_ty_253 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_SFARVALID_MASK: _bindgen_ty_254 = 64;
-pub type _bindgen_ty_254 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_LSERR_SHIFT: _bindgen_ty_255 = 7;
-pub type _bindgen_ty_255 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_LSERR_LENGTH: _bindgen_ty_256 = 1;
-pub type _bindgen_ty_256 = ::std::os::raw::c_uint;
-pub const R_V7M_SFSR_LSERR_MASK: _bindgen_ty_257 = 128;
-pub type _bindgen_ty_257 = ::std::os::raw::c_uint;
-pub const R_V7M_MPU_CTRL_ENABLE_SHIFT: _bindgen_ty_258 = 0;
-pub type _bindgen_ty_258 = ::std::os::raw::c_uint;
-pub const R_V7M_MPU_CTRL_ENABLE_LENGTH: _bindgen_ty_259 = 1;
-pub type _bindgen_ty_259 = ::std::os::raw::c_uint;
-pub const R_V7M_MPU_CTRL_ENABLE_MASK: _bindgen_ty_260 = 1;
-pub type _bindgen_ty_260 = ::std::os::raw::c_uint;
-pub const R_V7M_MPU_CTRL_HFNMIENA_SHIFT: _bindgen_ty_261 = 1;
-pub type _bindgen_ty_261 = ::std::os::raw::c_uint;
-pub const R_V7M_MPU_CTRL_HFNMIENA_LENGTH: _bindgen_ty_262 = 1;
-pub type _bindgen_ty_262 = ::std::os::raw::c_uint;
-pub const R_V7M_MPU_CTRL_HFNMIENA_MASK: _bindgen_ty_263 = 2;
-pub type _bindgen_ty_263 = ::std::os::raw::c_uint;
-pub const R_V7M_MPU_CTRL_PRIVDEFENA_SHIFT: _bindgen_ty_264 = 2;
-pub type _bindgen_ty_264 = ::std::os::raw::c_uint;
-pub const R_V7M_MPU_CTRL_PRIVDEFENA_LENGTH: _bindgen_ty_265 = 1;
-pub type _bindgen_ty_265 = ::std::os::raw::c_uint;
-pub const R_V7M_MPU_CTRL_PRIVDEFENA_MASK: _bindgen_ty_266 = 4;
-pub type _bindgen_ty_266 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_CTYPE_ALL_SHIFT: _bindgen_ty_267 = 0;
-pub type _bindgen_ty_267 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_CTYPE_ALL_LENGTH: _bindgen_ty_268 = 21;
-pub type _bindgen_ty_268 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_CTYPE_ALL_MASK: _bindgen_ty_269 = 2097151;
-pub type _bindgen_ty_269 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_LOUIS_SHIFT: _bindgen_ty_270 = 21;
-pub type _bindgen_ty_270 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_LOUIS_LENGTH: _bindgen_ty_271 = 3;
-pub type _bindgen_ty_271 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_LOUIS_MASK: _bindgen_ty_272 = 14680064;
-pub type _bindgen_ty_272 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_LOC_SHIFT: _bindgen_ty_273 = 24;
-pub type _bindgen_ty_273 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_LOC_LENGTH: _bindgen_ty_274 = 3;
-pub type _bindgen_ty_274 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_LOC_MASK: _bindgen_ty_275 = 117440512;
-pub type _bindgen_ty_275 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_LOUU_SHIFT: _bindgen_ty_276 = 27;
-pub type _bindgen_ty_276 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_LOUU_LENGTH: _bindgen_ty_277 = 3;
-pub type _bindgen_ty_277 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_LOUU_MASK: _bindgen_ty_278 = 939524096;
-pub type _bindgen_ty_278 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_ICB_SHIFT: _bindgen_ty_279 = 30;
-pub type _bindgen_ty_279 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_ICB_LENGTH: _bindgen_ty_280 = 2;
-pub type _bindgen_ty_280 = ::std::os::raw::c_uint;
-pub const R_V7M_CLIDR_ICB_MASK: _bindgen_ty_281 = 3221225472;
-pub type _bindgen_ty_281 = ::std::os::raw::c_uint;
-pub const R_V7M_CSSELR_IND_SHIFT: _bindgen_ty_282 = 0;
-pub type _bindgen_ty_282 = ::std::os::raw::c_uint;
-pub const R_V7M_CSSELR_IND_LENGTH: _bindgen_ty_283 = 1;
-pub type _bindgen_ty_283 = ::std::os::raw::c_uint;
-pub const R_V7M_CSSELR_IND_MASK: _bindgen_ty_284 = 1;
-pub type _bindgen_ty_284 = ::std::os::raw::c_uint;
-pub const R_V7M_CSSELR_LEVEL_SHIFT: _bindgen_ty_285 = 1;
-pub type _bindgen_ty_285 = ::std::os::raw::c_uint;
-pub const R_V7M_CSSELR_LEVEL_LENGTH: _bindgen_ty_286 = 3;
-pub type _bindgen_ty_286 = ::std::os::raw::c_uint;
-pub const R_V7M_CSSELR_LEVEL_MASK: _bindgen_ty_287 = 14;
-pub type _bindgen_ty_287 = ::std::os::raw::c_uint;
-pub const R_V7M_CSSELR_INDEX_SHIFT: _bindgen_ty_288 = 0;
-pub type _bindgen_ty_288 = ::std::os::raw::c_uint;
-pub const R_V7M_CSSELR_INDEX_LENGTH: _bindgen_ty_289 = 4;
-pub type _bindgen_ty_289 = ::std::os::raw::c_uint;
-pub const R_V7M_CSSELR_INDEX_MASK: _bindgen_ty_290 = 15;
-pub type _bindgen_ty_290 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_LSPACT_SHIFT: _bindgen_ty_291 = 0;
-pub type _bindgen_ty_291 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_LSPACT_LENGTH: _bindgen_ty_292 = 1;
-pub type _bindgen_ty_292 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_LSPACT_MASK: _bindgen_ty_293 = 1;
-pub type _bindgen_ty_293 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_USER_SHIFT: _bindgen_ty_294 = 1;
-pub type _bindgen_ty_294 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_USER_LENGTH: _bindgen_ty_295 = 1;
-pub type _bindgen_ty_295 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_USER_MASK: _bindgen_ty_296 = 2;
-pub type _bindgen_ty_296 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_S_SHIFT: _bindgen_ty_297 = 2;
-pub type _bindgen_ty_297 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_S_LENGTH: _bindgen_ty_298 = 1;
-pub type _bindgen_ty_298 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_S_MASK: _bindgen_ty_299 = 4;
-pub type _bindgen_ty_299 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_THREAD_SHIFT: _bindgen_ty_300 = 3;
-pub type _bindgen_ty_300 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_THREAD_LENGTH: _bindgen_ty_301 = 1;
-pub type _bindgen_ty_301 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_THREAD_MASK: _bindgen_ty_302 = 8;
-pub type _bindgen_ty_302 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_HFRDY_SHIFT: _bindgen_ty_303 = 4;
-pub type _bindgen_ty_303 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_HFRDY_LENGTH: _bindgen_ty_304 = 1;
-pub type _bindgen_ty_304 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_HFRDY_MASK: _bindgen_ty_305 = 16;
-pub type _bindgen_ty_305 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_MMRDY_SHIFT: _bindgen_ty_306 = 5;
-pub type _bindgen_ty_306 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_MMRDY_LENGTH: _bindgen_ty_307 = 1;
-pub type _bindgen_ty_307 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_MMRDY_MASK: _bindgen_ty_308 = 32;
-pub type _bindgen_ty_308 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_BFRDY_SHIFT: _bindgen_ty_309 = 6;
-pub type _bindgen_ty_309 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_BFRDY_LENGTH: _bindgen_ty_310 = 1;
-pub type _bindgen_ty_310 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_BFRDY_MASK: _bindgen_ty_311 = 64;
-pub type _bindgen_ty_311 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_SFRDY_SHIFT: _bindgen_ty_312 = 7;
-pub type _bindgen_ty_312 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_SFRDY_LENGTH: _bindgen_ty_313 = 1;
-pub type _bindgen_ty_313 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_SFRDY_MASK: _bindgen_ty_314 = 128;
-pub type _bindgen_ty_314 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_MONRDY_SHIFT: _bindgen_ty_315 = 8;
-pub type _bindgen_ty_315 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_MONRDY_LENGTH: _bindgen_ty_316 = 1;
-pub type _bindgen_ty_316 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_MONRDY_MASK: _bindgen_ty_317 = 256;
-pub type _bindgen_ty_317 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_SPLIMVIOL_SHIFT: _bindgen_ty_318 = 9;
-pub type _bindgen_ty_318 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_SPLIMVIOL_LENGTH: _bindgen_ty_319 = 1;
-pub type _bindgen_ty_319 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_SPLIMVIOL_MASK: _bindgen_ty_320 = 512;
-pub type _bindgen_ty_320 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_UFRDY_SHIFT: _bindgen_ty_321 = 10;
-pub type _bindgen_ty_321 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_UFRDY_LENGTH: _bindgen_ty_322 = 1;
-pub type _bindgen_ty_322 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_UFRDY_MASK: _bindgen_ty_323 = 1024;
-pub type _bindgen_ty_323 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_RES0_SHIFT: _bindgen_ty_324 = 11;
-pub type _bindgen_ty_324 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_RES0_LENGTH: _bindgen_ty_325 = 15;
-pub type _bindgen_ty_325 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_RES0_MASK: _bindgen_ty_326 = 67106816;
-pub type _bindgen_ty_326 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_TS_SHIFT: _bindgen_ty_327 = 26;
-pub type _bindgen_ty_327 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_TS_LENGTH: _bindgen_ty_328 = 1;
-pub type _bindgen_ty_328 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_TS_MASK: _bindgen_ty_329 = 67108864;
-pub type _bindgen_ty_329 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_CLRONRETS_SHIFT: _bindgen_ty_330 = 27;
-pub type _bindgen_ty_330 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_CLRONRETS_LENGTH: _bindgen_ty_331 = 1;
-pub type _bindgen_ty_331 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_CLRONRETS_MASK: _bindgen_ty_332 = 134217728;
-pub type _bindgen_ty_332 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_CLRONRET_SHIFT: _bindgen_ty_333 = 28;
-pub type _bindgen_ty_333 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_CLRONRET_LENGTH: _bindgen_ty_334 = 1;
-pub type _bindgen_ty_334 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_CLRONRET_MASK: _bindgen_ty_335 = 268435456;
-pub type _bindgen_ty_335 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_LSPENS_SHIFT: _bindgen_ty_336 = 29;
-pub type _bindgen_ty_336 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_LSPENS_LENGTH: _bindgen_ty_337 = 1;
-pub type _bindgen_ty_337 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_LSPENS_MASK: _bindgen_ty_338 = 536870912;
-pub type _bindgen_ty_338 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_LSPEN_SHIFT: _bindgen_ty_339 = 30;
-pub type _bindgen_ty_339 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_LSPEN_LENGTH: _bindgen_ty_340 = 1;
-pub type _bindgen_ty_340 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_LSPEN_MASK: _bindgen_ty_341 = 1073741824;
-pub type _bindgen_ty_341 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_ASPEN_SHIFT: _bindgen_ty_342 = 31;
-pub type _bindgen_ty_342 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_ASPEN_LENGTH: _bindgen_ty_343 = 1;
-pub type _bindgen_ty_343 = ::std::os::raw::c_uint;
-pub const R_V7M_FPCCR_ASPEN_MASK: _bindgen_ty_344 = 2147483648;
-pub type _bindgen_ty_344 = ::std::os::raw::c_uint;
-pub const R_V7M_VPR_P0_SHIFT: _bindgen_ty_345 = 0;
-pub type _bindgen_ty_345 = ::std::os::raw::c_uint;
-pub const R_V7M_VPR_P0_LENGTH: _bindgen_ty_346 = 16;
-pub type _bindgen_ty_346 = ::std::os::raw::c_uint;
-pub const R_V7M_VPR_P0_MASK: _bindgen_ty_347 = 65535;
-pub type _bindgen_ty_347 = ::std::os::raw::c_uint;
-pub const R_V7M_VPR_MASK01_SHIFT: _bindgen_ty_348 = 16;
-pub type _bindgen_ty_348 = ::std::os::raw::c_uint;
-pub const R_V7M_VPR_MASK01_LENGTH: _bindgen_ty_349 = 4;
-pub type _bindgen_ty_349 = ::std::os::raw::c_uint;
-pub const R_V7M_VPR_MASK01_MASK: _bindgen_ty_350 = 983040;
-pub type _bindgen_ty_350 = ::std::os::raw::c_uint;
-pub const R_V7M_VPR_MASK23_SHIFT: _bindgen_ty_351 = 20;
-pub type _bindgen_ty_351 = ::std::os::raw::c_uint;
-pub const R_V7M_VPR_MASK23_LENGTH: _bindgen_ty_352 = 4;
-pub type _bindgen_ty_352 = ::std::os::raw::c_uint;
-pub const R_V7M_VPR_MASK23_MASK: _bindgen_ty_353 = 15728640;
-pub type _bindgen_ty_353 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE1_SHIFT: _bindgen_ty_354 = 0;
-pub type _bindgen_ty_354 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE1_LENGTH: _bindgen_ty_355 = 3;
-pub type _bindgen_ty_355 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE1_MASK: _bindgen_ty_356 = 7;
-pub type _bindgen_ty_356 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE2_SHIFT: _bindgen_ty_357 = 3;
-pub type _bindgen_ty_357 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE2_LENGTH: _bindgen_ty_358 = 3;
-pub type _bindgen_ty_358 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE2_MASK: _bindgen_ty_359 = 56;
-pub type _bindgen_ty_359 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE3_SHIFT: _bindgen_ty_360 = 6;
-pub type _bindgen_ty_360 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE3_LENGTH: _bindgen_ty_361 = 3;
-pub type _bindgen_ty_361 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE3_MASK: _bindgen_ty_362 = 448;
-pub type _bindgen_ty_362 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE4_SHIFT: _bindgen_ty_363 = 9;
-pub type _bindgen_ty_363 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE4_LENGTH: _bindgen_ty_364 = 3;
-pub type _bindgen_ty_364 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE4_MASK: _bindgen_ty_365 = 3584;
-pub type _bindgen_ty_365 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE5_SHIFT: _bindgen_ty_366 = 12;
-pub type _bindgen_ty_366 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE5_LENGTH: _bindgen_ty_367 = 3;
-pub type _bindgen_ty_367 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE5_MASK: _bindgen_ty_368 = 28672;
-pub type _bindgen_ty_368 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE6_SHIFT: _bindgen_ty_369 = 15;
-pub type _bindgen_ty_369 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE6_LENGTH: _bindgen_ty_370 = 3;
-pub type _bindgen_ty_370 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE6_MASK: _bindgen_ty_371 = 229376;
-pub type _bindgen_ty_371 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE7_SHIFT: _bindgen_ty_372 = 18;
-pub type _bindgen_ty_372 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE7_LENGTH: _bindgen_ty_373 = 3;
-pub type _bindgen_ty_373 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_CTYPE7_MASK: _bindgen_ty_374 = 1835008;
-pub type _bindgen_ty_374 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_LOUIS_SHIFT: _bindgen_ty_375 = 21;
-pub type _bindgen_ty_375 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_LOUIS_LENGTH: _bindgen_ty_376 = 3;
-pub type _bindgen_ty_376 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_LOUIS_MASK: _bindgen_ty_377 = 14680064;
-pub type _bindgen_ty_377 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_LOC_SHIFT: _bindgen_ty_378 = 24;
-pub type _bindgen_ty_378 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_LOC_LENGTH: _bindgen_ty_379 = 3;
-pub type _bindgen_ty_379 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_LOC_MASK: _bindgen_ty_380 = 117440512;
-pub type _bindgen_ty_380 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_LOUU_SHIFT: _bindgen_ty_381 = 27;
-pub type _bindgen_ty_381 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_LOUU_LENGTH: _bindgen_ty_382 = 3;
-pub type _bindgen_ty_382 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_LOUU_MASK: _bindgen_ty_383 = 939524096;
-pub type _bindgen_ty_383 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_ICB_SHIFT: _bindgen_ty_384 = 30;
-pub type _bindgen_ty_384 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_ICB_LENGTH: _bindgen_ty_385 = 3;
-pub type _bindgen_ty_385 = ::std::os::raw::c_uint;
-pub const R_CLIDR_EL1_ICB_MASK: _bindgen_ty_386 = 7516192768;
-pub type _bindgen_ty_386 = ::std::os::raw::c_ulong;
-pub const R_CCSIDR_EL1_CCIDX_LINESIZE_SHIFT: _bindgen_ty_387 = 0;
-pub type _bindgen_ty_387 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_CCIDX_LINESIZE_LENGTH: _bindgen_ty_388 = 3;
-pub type _bindgen_ty_388 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_CCIDX_LINESIZE_MASK: _bindgen_ty_389 = 7;
-pub type _bindgen_ty_389 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_CCIDX_ASSOCIATIVITY_SHIFT: _bindgen_ty_390 = 3;
-pub type _bindgen_ty_390 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_CCIDX_ASSOCIATIVITY_LENGTH: _bindgen_ty_391 = 21;
-pub type _bindgen_ty_391 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_CCIDX_ASSOCIATIVITY_MASK: _bindgen_ty_392 = 16777208;
-pub type _bindgen_ty_392 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_CCIDX_NUMSETS_SHIFT: _bindgen_ty_393 = 32;
-pub type _bindgen_ty_393 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_CCIDX_NUMSETS_LENGTH: _bindgen_ty_394 = 24;
-pub type _bindgen_ty_394 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_CCIDX_NUMSETS_MASK: _bindgen_ty_395 = 72057589742960640;
-pub type _bindgen_ty_395 = ::std::os::raw::c_ulong;
-pub const R_CCSIDR_EL1_LINESIZE_SHIFT: _bindgen_ty_396 = 0;
-pub type _bindgen_ty_396 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_LINESIZE_LENGTH: _bindgen_ty_397 = 3;
-pub type _bindgen_ty_397 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_LINESIZE_MASK: _bindgen_ty_398 = 7;
-pub type _bindgen_ty_398 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_ASSOCIATIVITY_SHIFT: _bindgen_ty_399 = 3;
-pub type _bindgen_ty_399 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_ASSOCIATIVITY_LENGTH: _bindgen_ty_400 = 10;
-pub type _bindgen_ty_400 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_ASSOCIATIVITY_MASK: _bindgen_ty_401 = 8184;
-pub type _bindgen_ty_401 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_NUMSETS_SHIFT: _bindgen_ty_402 = 13;
-pub type _bindgen_ty_402 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_NUMSETS_LENGTH: _bindgen_ty_403 = 15;
-pub type _bindgen_ty_403 = ::std::os::raw::c_uint;
-pub const R_CCSIDR_EL1_NUMSETS_MASK: _bindgen_ty_404 = 268427264;
-pub type _bindgen_ty_404 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_IMINLINE_SHIFT: _bindgen_ty_405 = 0;
-pub type _bindgen_ty_405 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_IMINLINE_LENGTH: _bindgen_ty_406 = 4;
-pub type _bindgen_ty_406 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_IMINLINE_MASK: _bindgen_ty_407 = 15;
-pub type _bindgen_ty_407 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_L1IP_SHIFT: _bindgen_ty_408 = 14;
-pub type _bindgen_ty_408 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_L1IP_LENGTH: _bindgen_ty_409 = 2;
-pub type _bindgen_ty_409 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_L1IP_MASK: _bindgen_ty_410 = 49152;
-pub type _bindgen_ty_410 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_DMINLINE_SHIFT: _bindgen_ty_411 = 16;
-pub type _bindgen_ty_411 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_DMINLINE_LENGTH: _bindgen_ty_412 = 4;
-pub type _bindgen_ty_412 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_DMINLINE_MASK: _bindgen_ty_413 = 983040;
-pub type _bindgen_ty_413 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_ERG_SHIFT: _bindgen_ty_414 = 20;
-pub type _bindgen_ty_414 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_ERG_LENGTH: _bindgen_ty_415 = 4;
-pub type _bindgen_ty_415 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_ERG_MASK: _bindgen_ty_416 = 15728640;
-pub type _bindgen_ty_416 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_CWG_SHIFT: _bindgen_ty_417 = 24;
-pub type _bindgen_ty_417 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_CWG_LENGTH: _bindgen_ty_418 = 4;
-pub type _bindgen_ty_418 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_CWG_MASK: _bindgen_ty_419 = 251658240;
-pub type _bindgen_ty_419 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_IDC_SHIFT: _bindgen_ty_420 = 28;
-pub type _bindgen_ty_420 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_IDC_LENGTH: _bindgen_ty_421 = 1;
-pub type _bindgen_ty_421 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_IDC_MASK: _bindgen_ty_422 = 268435456;
-pub type _bindgen_ty_422 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_DIC_SHIFT: _bindgen_ty_423 = 29;
-pub type _bindgen_ty_423 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_DIC_LENGTH: _bindgen_ty_424 = 1;
-pub type _bindgen_ty_424 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_DIC_MASK: _bindgen_ty_425 = 536870912;
-pub type _bindgen_ty_425 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_TMINLINE_SHIFT: _bindgen_ty_426 = 32;
-pub type _bindgen_ty_426 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_TMINLINE_LENGTH: _bindgen_ty_427 = 6;
-pub type _bindgen_ty_427 = ::std::os::raw::c_uint;
-pub const R_CTR_EL0_TMINLINE_MASK: _bindgen_ty_428 = 270582939648;
-pub type _bindgen_ty_428 = ::std::os::raw::c_ulong;
-pub const R_MIDR_EL1_REVISION_SHIFT: _bindgen_ty_429 = 0;
-pub type _bindgen_ty_429 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_REVISION_LENGTH: _bindgen_ty_430 = 4;
-pub type _bindgen_ty_430 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_REVISION_MASK: _bindgen_ty_431 = 15;
-pub type _bindgen_ty_431 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_PARTNUM_SHIFT: _bindgen_ty_432 = 4;
-pub type _bindgen_ty_432 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_PARTNUM_LENGTH: _bindgen_ty_433 = 12;
-pub type _bindgen_ty_433 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_PARTNUM_MASK: _bindgen_ty_434 = 65520;
-pub type _bindgen_ty_434 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_ARCHITECTURE_SHIFT: _bindgen_ty_435 = 16;
-pub type _bindgen_ty_435 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_ARCHITECTURE_LENGTH: _bindgen_ty_436 = 4;
-pub type _bindgen_ty_436 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_ARCHITECTURE_MASK: _bindgen_ty_437 = 983040;
-pub type _bindgen_ty_437 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_VARIANT_SHIFT: _bindgen_ty_438 = 20;
-pub type _bindgen_ty_438 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_VARIANT_LENGTH: _bindgen_ty_439 = 4;
-pub type _bindgen_ty_439 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_VARIANT_MASK: _bindgen_ty_440 = 15728640;
-pub type _bindgen_ty_440 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_IMPLEMENTER_SHIFT: _bindgen_ty_441 = 24;
-pub type _bindgen_ty_441 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_IMPLEMENTER_LENGTH: _bindgen_ty_442 = 8;
-pub type _bindgen_ty_442 = ::std::os::raw::c_uint;
-pub const R_MIDR_EL1_IMPLEMENTER_MASK: _bindgen_ty_443 = 4278190080;
-pub type _bindgen_ty_443 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_SWAP_SHIFT: _bindgen_ty_444 = 0;
-pub type _bindgen_ty_444 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_SWAP_LENGTH: _bindgen_ty_445 = 4;
-pub type _bindgen_ty_445 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_SWAP_MASK: _bindgen_ty_446 = 15;
-pub type _bindgen_ty_446 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_BITCOUNT_SHIFT: _bindgen_ty_447 = 4;
-pub type _bindgen_ty_447 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_BITCOUNT_LENGTH: _bindgen_ty_448 = 4;
-pub type _bindgen_ty_448 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_BITCOUNT_MASK: _bindgen_ty_449 = 240;
-pub type _bindgen_ty_449 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_BITFIELD_SHIFT: _bindgen_ty_450 = 8;
-pub type _bindgen_ty_450 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_BITFIELD_LENGTH: _bindgen_ty_451 = 4;
-pub type _bindgen_ty_451 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_BITFIELD_MASK: _bindgen_ty_452 = 3840;
-pub type _bindgen_ty_452 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_CMPBRANCH_SHIFT: _bindgen_ty_453 = 12;
-pub type _bindgen_ty_453 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_CMPBRANCH_LENGTH: _bindgen_ty_454 = 4;
-pub type _bindgen_ty_454 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_CMPBRANCH_MASK: _bindgen_ty_455 = 61440;
-pub type _bindgen_ty_455 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_COPROC_SHIFT: _bindgen_ty_456 = 16;
-pub type _bindgen_ty_456 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_COPROC_LENGTH: _bindgen_ty_457 = 4;
-pub type _bindgen_ty_457 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_COPROC_MASK: _bindgen_ty_458 = 983040;
-pub type _bindgen_ty_458 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_DEBUG_SHIFT: _bindgen_ty_459 = 20;
-pub type _bindgen_ty_459 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_DEBUG_LENGTH: _bindgen_ty_460 = 4;
-pub type _bindgen_ty_460 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_DEBUG_MASK: _bindgen_ty_461 = 15728640;
-pub type _bindgen_ty_461 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_DIVIDE_SHIFT: _bindgen_ty_462 = 24;
-pub type _bindgen_ty_462 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_DIVIDE_LENGTH: _bindgen_ty_463 = 4;
-pub type _bindgen_ty_463 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR0_DIVIDE_MASK: _bindgen_ty_464 = 251658240;
-pub type _bindgen_ty_464 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_ENDIAN_SHIFT: _bindgen_ty_465 = 0;
-pub type _bindgen_ty_465 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_ENDIAN_LENGTH: _bindgen_ty_466 = 4;
-pub type _bindgen_ty_466 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_ENDIAN_MASK: _bindgen_ty_467 = 15;
-pub type _bindgen_ty_467 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_EXCEPT_SHIFT: _bindgen_ty_468 = 4;
-pub type _bindgen_ty_468 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_EXCEPT_LENGTH: _bindgen_ty_469 = 4;
-pub type _bindgen_ty_469 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_EXCEPT_MASK: _bindgen_ty_470 = 240;
-pub type _bindgen_ty_470 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_EXCEPT_AR_SHIFT: _bindgen_ty_471 = 8;
-pub type _bindgen_ty_471 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_EXCEPT_AR_LENGTH: _bindgen_ty_472 = 4;
-pub type _bindgen_ty_472 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_EXCEPT_AR_MASK: _bindgen_ty_473 = 3840;
-pub type _bindgen_ty_473 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_EXTEND_SHIFT: _bindgen_ty_474 = 12;
-pub type _bindgen_ty_474 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_EXTEND_LENGTH: _bindgen_ty_475 = 4;
-pub type _bindgen_ty_475 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_EXTEND_MASK: _bindgen_ty_476 = 61440;
-pub type _bindgen_ty_476 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_IFTHEN_SHIFT: _bindgen_ty_477 = 16;
-pub type _bindgen_ty_477 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_IFTHEN_LENGTH: _bindgen_ty_478 = 4;
-pub type _bindgen_ty_478 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_IFTHEN_MASK: _bindgen_ty_479 = 983040;
-pub type _bindgen_ty_479 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_IMMEDIATE_SHIFT: _bindgen_ty_480 = 20;
-pub type _bindgen_ty_480 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_IMMEDIATE_LENGTH: _bindgen_ty_481 = 4;
-pub type _bindgen_ty_481 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_IMMEDIATE_MASK: _bindgen_ty_482 = 15728640;
-pub type _bindgen_ty_482 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_INTERWORK_SHIFT: _bindgen_ty_483 = 24;
-pub type _bindgen_ty_483 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_INTERWORK_LENGTH: _bindgen_ty_484 = 4;
-pub type _bindgen_ty_484 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_INTERWORK_MASK: _bindgen_ty_485 = 251658240;
-pub type _bindgen_ty_485 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_JAZELLE_SHIFT: _bindgen_ty_486 = 28;
-pub type _bindgen_ty_486 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_JAZELLE_LENGTH: _bindgen_ty_487 = 4;
-pub type _bindgen_ty_487 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR1_JAZELLE_MASK: _bindgen_ty_488 = 4026531840;
-pub type _bindgen_ty_488 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_LOADSTORE_SHIFT: _bindgen_ty_489 = 0;
-pub type _bindgen_ty_489 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_LOADSTORE_LENGTH: _bindgen_ty_490 = 4;
-pub type _bindgen_ty_490 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_LOADSTORE_MASK: _bindgen_ty_491 = 15;
-pub type _bindgen_ty_491 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MEMHINT_SHIFT: _bindgen_ty_492 = 4;
-pub type _bindgen_ty_492 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MEMHINT_LENGTH: _bindgen_ty_493 = 4;
-pub type _bindgen_ty_493 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MEMHINT_MASK: _bindgen_ty_494 = 240;
-pub type _bindgen_ty_494 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MULTIACCESSINT_SHIFT: _bindgen_ty_495 = 8;
-pub type _bindgen_ty_495 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MULTIACCESSINT_LENGTH: _bindgen_ty_496 = 4;
-pub type _bindgen_ty_496 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MULTIACCESSINT_MASK: _bindgen_ty_497 = 3840;
-pub type _bindgen_ty_497 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MULT_SHIFT: _bindgen_ty_498 = 12;
-pub type _bindgen_ty_498 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MULT_LENGTH: _bindgen_ty_499 = 4;
-pub type _bindgen_ty_499 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MULT_MASK: _bindgen_ty_500 = 61440;
-pub type _bindgen_ty_500 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MULTS_SHIFT: _bindgen_ty_501 = 16;
-pub type _bindgen_ty_501 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MULTS_LENGTH: _bindgen_ty_502 = 4;
-pub type _bindgen_ty_502 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MULTS_MASK: _bindgen_ty_503 = 983040;
-pub type _bindgen_ty_503 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MULTU_SHIFT: _bindgen_ty_504 = 20;
-pub type _bindgen_ty_504 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MULTU_LENGTH: _bindgen_ty_505 = 4;
-pub type _bindgen_ty_505 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_MULTU_MASK: _bindgen_ty_506 = 15728640;
-pub type _bindgen_ty_506 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_PSR_AR_SHIFT: _bindgen_ty_507 = 24;
-pub type _bindgen_ty_507 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_PSR_AR_LENGTH: _bindgen_ty_508 = 4;
-pub type _bindgen_ty_508 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_PSR_AR_MASK: _bindgen_ty_509 = 251658240;
-pub type _bindgen_ty_509 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_REVERSAL_SHIFT: _bindgen_ty_510 = 28;
-pub type _bindgen_ty_510 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_REVERSAL_LENGTH: _bindgen_ty_511 = 4;
-pub type _bindgen_ty_511 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR2_REVERSAL_MASK: _bindgen_ty_512 = 4026531840;
-pub type _bindgen_ty_512 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_SATURATE_SHIFT: _bindgen_ty_513 = 0;
-pub type _bindgen_ty_513 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_SATURATE_LENGTH: _bindgen_ty_514 = 4;
-pub type _bindgen_ty_514 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_SATURATE_MASK: _bindgen_ty_515 = 15;
-pub type _bindgen_ty_515 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_SIMD_SHIFT: _bindgen_ty_516 = 4;
-pub type _bindgen_ty_516 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_SIMD_LENGTH: _bindgen_ty_517 = 4;
-pub type _bindgen_ty_517 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_SIMD_MASK: _bindgen_ty_518 = 240;
-pub type _bindgen_ty_518 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_SVC_SHIFT: _bindgen_ty_519 = 8;
-pub type _bindgen_ty_519 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_SVC_LENGTH: _bindgen_ty_520 = 4;
-pub type _bindgen_ty_520 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_SVC_MASK: _bindgen_ty_521 = 3840;
-pub type _bindgen_ty_521 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_SYNCHPRIM_SHIFT: _bindgen_ty_522 = 12;
-pub type _bindgen_ty_522 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_SYNCHPRIM_LENGTH: _bindgen_ty_523 = 4;
-pub type _bindgen_ty_523 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_SYNCHPRIM_MASK: _bindgen_ty_524 = 61440;
-pub type _bindgen_ty_524 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_TABBRANCH_SHIFT: _bindgen_ty_525 = 16;
-pub type _bindgen_ty_525 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_TABBRANCH_LENGTH: _bindgen_ty_526 = 4;
-pub type _bindgen_ty_526 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_TABBRANCH_MASK: _bindgen_ty_527 = 983040;
-pub type _bindgen_ty_527 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_T32COPY_SHIFT: _bindgen_ty_528 = 20;
-pub type _bindgen_ty_528 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_T32COPY_LENGTH: _bindgen_ty_529 = 4;
-pub type _bindgen_ty_529 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_T32COPY_MASK: _bindgen_ty_530 = 15728640;
-pub type _bindgen_ty_530 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_TRUENOP_SHIFT: _bindgen_ty_531 = 24;
-pub type _bindgen_ty_531 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_TRUENOP_LENGTH: _bindgen_ty_532 = 4;
-pub type _bindgen_ty_532 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_TRUENOP_MASK: _bindgen_ty_533 = 251658240;
-pub type _bindgen_ty_533 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_T32EE_SHIFT: _bindgen_ty_534 = 28;
-pub type _bindgen_ty_534 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_T32EE_LENGTH: _bindgen_ty_535 = 4;
-pub type _bindgen_ty_535 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR3_T32EE_MASK: _bindgen_ty_536 = 4026531840;
-pub type _bindgen_ty_536 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_UNPRIV_SHIFT: _bindgen_ty_537 = 0;
-pub type _bindgen_ty_537 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_UNPRIV_LENGTH: _bindgen_ty_538 = 4;
-pub type _bindgen_ty_538 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_UNPRIV_MASK: _bindgen_ty_539 = 15;
-pub type _bindgen_ty_539 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_WITHSHIFTS_SHIFT: _bindgen_ty_540 = 4;
-pub type _bindgen_ty_540 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_WITHSHIFTS_LENGTH: _bindgen_ty_541 = 4;
-pub type _bindgen_ty_541 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_WITHSHIFTS_MASK: _bindgen_ty_542 = 240;
-pub type _bindgen_ty_542 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_WRITEBACK_SHIFT: _bindgen_ty_543 = 8;
-pub type _bindgen_ty_543 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_WRITEBACK_LENGTH: _bindgen_ty_544 = 4;
-pub type _bindgen_ty_544 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_WRITEBACK_MASK: _bindgen_ty_545 = 3840;
-pub type _bindgen_ty_545 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_SMC_SHIFT: _bindgen_ty_546 = 12;
-pub type _bindgen_ty_546 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_SMC_LENGTH: _bindgen_ty_547 = 4;
-pub type _bindgen_ty_547 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_SMC_MASK: _bindgen_ty_548 = 61440;
-pub type _bindgen_ty_548 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_BARRIER_SHIFT: _bindgen_ty_549 = 16;
-pub type _bindgen_ty_549 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_BARRIER_LENGTH: _bindgen_ty_550 = 4;
-pub type _bindgen_ty_550 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_BARRIER_MASK: _bindgen_ty_551 = 983040;
-pub type _bindgen_ty_551 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_SYNCHPRIM_FRAC_SHIFT: _bindgen_ty_552 = 20;
-pub type _bindgen_ty_552 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_SYNCHPRIM_FRAC_LENGTH: _bindgen_ty_553 = 4;
-pub type _bindgen_ty_553 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_SYNCHPRIM_FRAC_MASK: _bindgen_ty_554 = 15728640;
-pub type _bindgen_ty_554 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_PSR_M_SHIFT: _bindgen_ty_555 = 24;
-pub type _bindgen_ty_555 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_PSR_M_LENGTH: _bindgen_ty_556 = 4;
-pub type _bindgen_ty_556 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_PSR_M_MASK: _bindgen_ty_557 = 251658240;
-pub type _bindgen_ty_557 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_SWP_FRAC_SHIFT: _bindgen_ty_558 = 28;
-pub type _bindgen_ty_558 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_SWP_FRAC_LENGTH: _bindgen_ty_559 = 4;
-pub type _bindgen_ty_559 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR4_SWP_FRAC_MASK: _bindgen_ty_560 = 4026531840;
-pub type _bindgen_ty_560 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_SEVL_SHIFT: _bindgen_ty_561 = 0;
-pub type _bindgen_ty_561 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_SEVL_LENGTH: _bindgen_ty_562 = 4;
-pub type _bindgen_ty_562 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_SEVL_MASK: _bindgen_ty_563 = 15;
-pub type _bindgen_ty_563 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_AES_SHIFT: _bindgen_ty_564 = 4;
-pub type _bindgen_ty_564 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_AES_LENGTH: _bindgen_ty_565 = 4;
-pub type _bindgen_ty_565 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_AES_MASK: _bindgen_ty_566 = 240;
-pub type _bindgen_ty_566 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_SHA1_SHIFT: _bindgen_ty_567 = 8;
-pub type _bindgen_ty_567 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_SHA1_LENGTH: _bindgen_ty_568 = 4;
-pub type _bindgen_ty_568 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_SHA1_MASK: _bindgen_ty_569 = 3840;
-pub type _bindgen_ty_569 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_SHA2_SHIFT: _bindgen_ty_570 = 12;
-pub type _bindgen_ty_570 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_SHA2_LENGTH: _bindgen_ty_571 = 4;
-pub type _bindgen_ty_571 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_SHA2_MASK: _bindgen_ty_572 = 61440;
-pub type _bindgen_ty_572 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_CRC32_SHIFT: _bindgen_ty_573 = 16;
-pub type _bindgen_ty_573 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_CRC32_LENGTH: _bindgen_ty_574 = 4;
-pub type _bindgen_ty_574 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_CRC32_MASK: _bindgen_ty_575 = 983040;
-pub type _bindgen_ty_575 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_RDM_SHIFT: _bindgen_ty_576 = 24;
-pub type _bindgen_ty_576 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_RDM_LENGTH: _bindgen_ty_577 = 4;
-pub type _bindgen_ty_577 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_RDM_MASK: _bindgen_ty_578 = 251658240;
-pub type _bindgen_ty_578 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_VCMA_SHIFT: _bindgen_ty_579 = 28;
-pub type _bindgen_ty_579 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_VCMA_LENGTH: _bindgen_ty_580 = 4;
-pub type _bindgen_ty_580 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR5_VCMA_MASK: _bindgen_ty_581 = 4026531840;
-pub type _bindgen_ty_581 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_JSCVT_SHIFT: _bindgen_ty_582 = 0;
-pub type _bindgen_ty_582 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_JSCVT_LENGTH: _bindgen_ty_583 = 4;
-pub type _bindgen_ty_583 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_JSCVT_MASK: _bindgen_ty_584 = 15;
-pub type _bindgen_ty_584 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_DP_SHIFT: _bindgen_ty_585 = 4;
-pub type _bindgen_ty_585 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_DP_LENGTH: _bindgen_ty_586 = 4;
-pub type _bindgen_ty_586 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_DP_MASK: _bindgen_ty_587 = 240;
-pub type _bindgen_ty_587 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_FHM_SHIFT: _bindgen_ty_588 = 8;
-pub type _bindgen_ty_588 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_FHM_LENGTH: _bindgen_ty_589 = 4;
-pub type _bindgen_ty_589 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_FHM_MASK: _bindgen_ty_590 = 3840;
-pub type _bindgen_ty_590 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_SB_SHIFT: _bindgen_ty_591 = 12;
-pub type _bindgen_ty_591 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_SB_LENGTH: _bindgen_ty_592 = 4;
-pub type _bindgen_ty_592 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_SB_MASK: _bindgen_ty_593 = 61440;
-pub type _bindgen_ty_593 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_SPECRES_SHIFT: _bindgen_ty_594 = 16;
-pub type _bindgen_ty_594 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_SPECRES_LENGTH: _bindgen_ty_595 = 4;
-pub type _bindgen_ty_595 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_SPECRES_MASK: _bindgen_ty_596 = 983040;
-pub type _bindgen_ty_596 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_BF16_SHIFT: _bindgen_ty_597 = 20;
-pub type _bindgen_ty_597 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_BF16_LENGTH: _bindgen_ty_598 = 4;
-pub type _bindgen_ty_598 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_BF16_MASK: _bindgen_ty_599 = 15728640;
-pub type _bindgen_ty_599 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_I8MM_SHIFT: _bindgen_ty_600 = 24;
-pub type _bindgen_ty_600 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_I8MM_LENGTH: _bindgen_ty_601 = 4;
-pub type _bindgen_ty_601 = ::std::os::raw::c_uint;
-pub const R_ID_ISAR6_I8MM_MASK: _bindgen_ty_602 = 251658240;
-pub type _bindgen_ty_602 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_VMSA_SHIFT: _bindgen_ty_603 = 0;
-pub type _bindgen_ty_603 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_VMSA_LENGTH: _bindgen_ty_604 = 4;
-pub type _bindgen_ty_604 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_VMSA_MASK: _bindgen_ty_605 = 15;
-pub type _bindgen_ty_605 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_PMSA_SHIFT: _bindgen_ty_606 = 4;
-pub type _bindgen_ty_606 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_PMSA_LENGTH: _bindgen_ty_607 = 4;
-pub type _bindgen_ty_607 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_PMSA_MASK: _bindgen_ty_608 = 240;
-pub type _bindgen_ty_608 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_OUTERSHR_SHIFT: _bindgen_ty_609 = 8;
-pub type _bindgen_ty_609 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_OUTERSHR_LENGTH: _bindgen_ty_610 = 4;
-pub type _bindgen_ty_610 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_OUTERSHR_MASK: _bindgen_ty_611 = 3840;
-pub type _bindgen_ty_611 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_SHARELVL_SHIFT: _bindgen_ty_612 = 12;
-pub type _bindgen_ty_612 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_SHARELVL_LENGTH: _bindgen_ty_613 = 4;
-pub type _bindgen_ty_613 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_SHARELVL_MASK: _bindgen_ty_614 = 61440;
-pub type _bindgen_ty_614 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_TCM_SHIFT: _bindgen_ty_615 = 16;
-pub type _bindgen_ty_615 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_TCM_LENGTH: _bindgen_ty_616 = 4;
-pub type _bindgen_ty_616 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_TCM_MASK: _bindgen_ty_617 = 983040;
-pub type _bindgen_ty_617 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_AUXREG_SHIFT: _bindgen_ty_618 = 20;
-pub type _bindgen_ty_618 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_AUXREG_LENGTH: _bindgen_ty_619 = 4;
-pub type _bindgen_ty_619 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_AUXREG_MASK: _bindgen_ty_620 = 15728640;
-pub type _bindgen_ty_620 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_FCSE_SHIFT: _bindgen_ty_621 = 24;
-pub type _bindgen_ty_621 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_FCSE_LENGTH: _bindgen_ty_622 = 4;
-pub type _bindgen_ty_622 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_FCSE_MASK: _bindgen_ty_623 = 251658240;
-pub type _bindgen_ty_623 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_INNERSHR_SHIFT: _bindgen_ty_624 = 28;
-pub type _bindgen_ty_624 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_INNERSHR_LENGTH: _bindgen_ty_625 = 4;
-pub type _bindgen_ty_625 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR0_INNERSHR_MASK: _bindgen_ty_626 = 4026531840;
-pub type _bindgen_ty_626 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1HVDVA_SHIFT: _bindgen_ty_627 = 0;
-pub type _bindgen_ty_627 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1HVDVA_LENGTH: _bindgen_ty_628 = 4;
-pub type _bindgen_ty_628 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1HVDVA_MASK: _bindgen_ty_629 = 15;
-pub type _bindgen_ty_629 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1UNIVA_SHIFT: _bindgen_ty_630 = 4;
-pub type _bindgen_ty_630 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1UNIVA_LENGTH: _bindgen_ty_631 = 4;
-pub type _bindgen_ty_631 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1UNIVA_MASK: _bindgen_ty_632 = 240;
-pub type _bindgen_ty_632 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1HVDSW_SHIFT: _bindgen_ty_633 = 8;
-pub type _bindgen_ty_633 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1HVDSW_LENGTH: _bindgen_ty_634 = 4;
-pub type _bindgen_ty_634 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1HVDSW_MASK: _bindgen_ty_635 = 3840;
-pub type _bindgen_ty_635 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1UNISW_SHIFT: _bindgen_ty_636 = 12;
-pub type _bindgen_ty_636 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1UNISW_LENGTH: _bindgen_ty_637 = 4;
-pub type _bindgen_ty_637 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1UNISW_MASK: _bindgen_ty_638 = 61440;
-pub type _bindgen_ty_638 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1HVD_SHIFT: _bindgen_ty_639 = 16;
-pub type _bindgen_ty_639 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1HVD_LENGTH: _bindgen_ty_640 = 4;
-pub type _bindgen_ty_640 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1HVD_MASK: _bindgen_ty_641 = 983040;
-pub type _bindgen_ty_641 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1UNI_SHIFT: _bindgen_ty_642 = 20;
-pub type _bindgen_ty_642 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1UNI_LENGTH: _bindgen_ty_643 = 4;
-pub type _bindgen_ty_643 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1UNI_MASK: _bindgen_ty_644 = 15728640;
-pub type _bindgen_ty_644 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1TSTCLN_SHIFT: _bindgen_ty_645 = 24;
-pub type _bindgen_ty_645 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1TSTCLN_LENGTH: _bindgen_ty_646 = 4;
-pub type _bindgen_ty_646 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_L1TSTCLN_MASK: _bindgen_ty_647 = 251658240;
-pub type _bindgen_ty_647 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_BPRED_SHIFT: _bindgen_ty_648 = 28;
-pub type _bindgen_ty_648 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_BPRED_LENGTH: _bindgen_ty_649 = 4;
-pub type _bindgen_ty_649 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR1_BPRED_MASK: _bindgen_ty_650 = 4026531840;
-pub type _bindgen_ty_650 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_L1HVDFG_SHIFT: _bindgen_ty_651 = 0;
-pub type _bindgen_ty_651 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_L1HVDFG_LENGTH: _bindgen_ty_652 = 4;
-pub type _bindgen_ty_652 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_L1HVDFG_MASK: _bindgen_ty_653 = 15;
-pub type _bindgen_ty_653 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_L1HVDBG_SHIFT: _bindgen_ty_654 = 4;
-pub type _bindgen_ty_654 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_L1HVDBG_LENGTH: _bindgen_ty_655 = 4;
-pub type _bindgen_ty_655 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_L1HVDBG_MASK: _bindgen_ty_656 = 240;
-pub type _bindgen_ty_656 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_L1HVDRNG_SHIFT: _bindgen_ty_657 = 8;
-pub type _bindgen_ty_657 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_L1HVDRNG_LENGTH: _bindgen_ty_658 = 4;
-pub type _bindgen_ty_658 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_L1HVDRNG_MASK: _bindgen_ty_659 = 3840;
-pub type _bindgen_ty_659 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_HVDTLB_SHIFT: _bindgen_ty_660 = 12;
-pub type _bindgen_ty_660 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_HVDTLB_LENGTH: _bindgen_ty_661 = 4;
-pub type _bindgen_ty_661 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_HVDTLB_MASK: _bindgen_ty_662 = 61440;
-pub type _bindgen_ty_662 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_UNITLB_SHIFT: _bindgen_ty_663 = 16;
-pub type _bindgen_ty_663 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_UNITLB_LENGTH: _bindgen_ty_664 = 4;
-pub type _bindgen_ty_664 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_UNITLB_MASK: _bindgen_ty_665 = 983040;
-pub type _bindgen_ty_665 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_MEMBARR_SHIFT: _bindgen_ty_666 = 20;
-pub type _bindgen_ty_666 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_MEMBARR_LENGTH: _bindgen_ty_667 = 4;
-pub type _bindgen_ty_667 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_MEMBARR_MASK: _bindgen_ty_668 = 15728640;
-pub type _bindgen_ty_668 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_WFISTALL_SHIFT: _bindgen_ty_669 = 24;
-pub type _bindgen_ty_669 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_WFISTALL_LENGTH: _bindgen_ty_670 = 4;
-pub type _bindgen_ty_670 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_WFISTALL_MASK: _bindgen_ty_671 = 251658240;
-pub type _bindgen_ty_671 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_HWACCFLG_SHIFT: _bindgen_ty_672 = 28;
-pub type _bindgen_ty_672 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_HWACCFLG_LENGTH: _bindgen_ty_673 = 4;
-pub type _bindgen_ty_673 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR2_HWACCFLG_MASK: _bindgen_ty_674 = 4026531840;
-pub type _bindgen_ty_674 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_CMAINTVA_SHIFT: _bindgen_ty_675 = 0;
-pub type _bindgen_ty_675 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_CMAINTVA_LENGTH: _bindgen_ty_676 = 4;
-pub type _bindgen_ty_676 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_CMAINTVA_MASK: _bindgen_ty_677 = 15;
-pub type _bindgen_ty_677 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_CMAINTSW_SHIFT: _bindgen_ty_678 = 4;
-pub type _bindgen_ty_678 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_CMAINTSW_LENGTH: _bindgen_ty_679 = 4;
-pub type _bindgen_ty_679 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_CMAINTSW_MASK: _bindgen_ty_680 = 240;
-pub type _bindgen_ty_680 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_BPMAINT_SHIFT: _bindgen_ty_681 = 8;
-pub type _bindgen_ty_681 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_BPMAINT_LENGTH: _bindgen_ty_682 = 4;
-pub type _bindgen_ty_682 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_BPMAINT_MASK: _bindgen_ty_683 = 3840;
-pub type _bindgen_ty_683 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_MAINTBCST_SHIFT: _bindgen_ty_684 = 12;
-pub type _bindgen_ty_684 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_MAINTBCST_LENGTH: _bindgen_ty_685 = 4;
-pub type _bindgen_ty_685 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_MAINTBCST_MASK: _bindgen_ty_686 = 61440;
-pub type _bindgen_ty_686 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_PAN_SHIFT: _bindgen_ty_687 = 16;
-pub type _bindgen_ty_687 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_PAN_LENGTH: _bindgen_ty_688 = 4;
-pub type _bindgen_ty_688 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_PAN_MASK: _bindgen_ty_689 = 983040;
-pub type _bindgen_ty_689 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_COHWALK_SHIFT: _bindgen_ty_690 = 20;
-pub type _bindgen_ty_690 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_COHWALK_LENGTH: _bindgen_ty_691 = 4;
-pub type _bindgen_ty_691 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_COHWALK_MASK: _bindgen_ty_692 = 15728640;
-pub type _bindgen_ty_692 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_CMEMSZ_SHIFT: _bindgen_ty_693 = 24;
-pub type _bindgen_ty_693 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_CMEMSZ_LENGTH: _bindgen_ty_694 = 4;
-pub type _bindgen_ty_694 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_CMEMSZ_MASK: _bindgen_ty_695 = 251658240;
-pub type _bindgen_ty_695 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_SUPERSEC_SHIFT: _bindgen_ty_696 = 28;
-pub type _bindgen_ty_696 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_SUPERSEC_LENGTH: _bindgen_ty_697 = 4;
-pub type _bindgen_ty_697 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR3_SUPERSEC_MASK: _bindgen_ty_698 = 4026531840;
-pub type _bindgen_ty_698 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_SPECSEI_SHIFT: _bindgen_ty_699 = 0;
-pub type _bindgen_ty_699 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_SPECSEI_LENGTH: _bindgen_ty_700 = 4;
-pub type _bindgen_ty_700 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_SPECSEI_MASK: _bindgen_ty_701 = 15;
-pub type _bindgen_ty_701 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_AC2_SHIFT: _bindgen_ty_702 = 4;
-pub type _bindgen_ty_702 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_AC2_LENGTH: _bindgen_ty_703 = 4;
-pub type _bindgen_ty_703 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_AC2_MASK: _bindgen_ty_704 = 240;
-pub type _bindgen_ty_704 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_XNX_SHIFT: _bindgen_ty_705 = 8;
-pub type _bindgen_ty_705 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_XNX_LENGTH: _bindgen_ty_706 = 4;
-pub type _bindgen_ty_706 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_XNX_MASK: _bindgen_ty_707 = 3840;
-pub type _bindgen_ty_707 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_CNP_SHIFT: _bindgen_ty_708 = 12;
-pub type _bindgen_ty_708 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_CNP_LENGTH: _bindgen_ty_709 = 4;
-pub type _bindgen_ty_709 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_CNP_MASK: _bindgen_ty_710 = 61440;
-pub type _bindgen_ty_710 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_HPDS_SHIFT: _bindgen_ty_711 = 16;
-pub type _bindgen_ty_711 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_HPDS_LENGTH: _bindgen_ty_712 = 4;
-pub type _bindgen_ty_712 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_HPDS_MASK: _bindgen_ty_713 = 983040;
-pub type _bindgen_ty_713 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_LSM_SHIFT: _bindgen_ty_714 = 20;
-pub type _bindgen_ty_714 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_LSM_LENGTH: _bindgen_ty_715 = 4;
-pub type _bindgen_ty_715 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_LSM_MASK: _bindgen_ty_716 = 15728640;
-pub type _bindgen_ty_716 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_CCIDX_SHIFT: _bindgen_ty_717 = 24;
-pub type _bindgen_ty_717 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_CCIDX_LENGTH: _bindgen_ty_718 = 4;
-pub type _bindgen_ty_718 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_CCIDX_MASK: _bindgen_ty_719 = 251658240;
-pub type _bindgen_ty_719 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_EVT_SHIFT: _bindgen_ty_720 = 28;
-pub type _bindgen_ty_720 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_EVT_LENGTH: _bindgen_ty_721 = 4;
-pub type _bindgen_ty_721 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR4_EVT_MASK: _bindgen_ty_722 = 4026531840;
-pub type _bindgen_ty_722 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR5_ETS_SHIFT: _bindgen_ty_723 = 0;
-pub type _bindgen_ty_723 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR5_ETS_LENGTH: _bindgen_ty_724 = 4;
-pub type _bindgen_ty_724 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR5_ETS_MASK: _bindgen_ty_725 = 15;
-pub type _bindgen_ty_725 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR5_NTLBPA_SHIFT: _bindgen_ty_726 = 4;
-pub type _bindgen_ty_726 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR5_NTLBPA_LENGTH: _bindgen_ty_727 = 4;
-pub type _bindgen_ty_727 = ::std::os::raw::c_uint;
-pub const R_ID_MMFR5_NTLBPA_MASK: _bindgen_ty_728 = 240;
-pub type _bindgen_ty_728 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_STATE0_SHIFT: _bindgen_ty_729 = 0;
-pub type _bindgen_ty_729 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_STATE0_LENGTH: _bindgen_ty_730 = 4;
-pub type _bindgen_ty_730 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_STATE0_MASK: _bindgen_ty_731 = 15;
-pub type _bindgen_ty_731 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_STATE1_SHIFT: _bindgen_ty_732 = 4;
-pub type _bindgen_ty_732 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_STATE1_LENGTH: _bindgen_ty_733 = 4;
-pub type _bindgen_ty_733 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_STATE1_MASK: _bindgen_ty_734 = 240;
-pub type _bindgen_ty_734 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_STATE2_SHIFT: _bindgen_ty_735 = 8;
-pub type _bindgen_ty_735 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_STATE2_LENGTH: _bindgen_ty_736 = 4;
-pub type _bindgen_ty_736 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_STATE2_MASK: _bindgen_ty_737 = 3840;
-pub type _bindgen_ty_737 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_STATE3_SHIFT: _bindgen_ty_738 = 12;
-pub type _bindgen_ty_738 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_STATE3_LENGTH: _bindgen_ty_739 = 4;
-pub type _bindgen_ty_739 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_STATE3_MASK: _bindgen_ty_740 = 61440;
-pub type _bindgen_ty_740 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_CSV2_SHIFT: _bindgen_ty_741 = 16;
-pub type _bindgen_ty_741 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_CSV2_LENGTH: _bindgen_ty_742 = 4;
-pub type _bindgen_ty_742 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_CSV2_MASK: _bindgen_ty_743 = 983040;
-pub type _bindgen_ty_743 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_AMU_SHIFT: _bindgen_ty_744 = 20;
-pub type _bindgen_ty_744 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_AMU_LENGTH: _bindgen_ty_745 = 4;
-pub type _bindgen_ty_745 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_AMU_MASK: _bindgen_ty_746 = 15728640;
-pub type _bindgen_ty_746 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_DIT_SHIFT: _bindgen_ty_747 = 24;
-pub type _bindgen_ty_747 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_DIT_LENGTH: _bindgen_ty_748 = 4;
-pub type _bindgen_ty_748 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_DIT_MASK: _bindgen_ty_749 = 251658240;
-pub type _bindgen_ty_749 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_RAS_SHIFT: _bindgen_ty_750 = 28;
-pub type _bindgen_ty_750 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_RAS_LENGTH: _bindgen_ty_751 = 4;
-pub type _bindgen_ty_751 = ::std::os::raw::c_uint;
-pub const R_ID_PFR0_RAS_MASK: _bindgen_ty_752 = 4026531840;
-pub type _bindgen_ty_752 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_PROGMOD_SHIFT: _bindgen_ty_753 = 0;
-pub type _bindgen_ty_753 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_PROGMOD_LENGTH: _bindgen_ty_754 = 4;
-pub type _bindgen_ty_754 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_PROGMOD_MASK: _bindgen_ty_755 = 15;
-pub type _bindgen_ty_755 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_SECURITY_SHIFT: _bindgen_ty_756 = 4;
-pub type _bindgen_ty_756 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_SECURITY_LENGTH: _bindgen_ty_757 = 4;
-pub type _bindgen_ty_757 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_SECURITY_MASK: _bindgen_ty_758 = 240;
-pub type _bindgen_ty_758 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_MPROGMOD_SHIFT: _bindgen_ty_759 = 8;
-pub type _bindgen_ty_759 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_MPROGMOD_LENGTH: _bindgen_ty_760 = 4;
-pub type _bindgen_ty_760 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_MPROGMOD_MASK: _bindgen_ty_761 = 3840;
-pub type _bindgen_ty_761 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_VIRTUALIZATION_SHIFT: _bindgen_ty_762 = 12;
-pub type _bindgen_ty_762 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_VIRTUALIZATION_LENGTH: _bindgen_ty_763 = 4;
-pub type _bindgen_ty_763 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_VIRTUALIZATION_MASK: _bindgen_ty_764 = 61440;
-pub type _bindgen_ty_764 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_GENTIMER_SHIFT: _bindgen_ty_765 = 16;
-pub type _bindgen_ty_765 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_GENTIMER_LENGTH: _bindgen_ty_766 = 4;
-pub type _bindgen_ty_766 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_GENTIMER_MASK: _bindgen_ty_767 = 983040;
-pub type _bindgen_ty_767 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_SEC_FRAC_SHIFT: _bindgen_ty_768 = 20;
-pub type _bindgen_ty_768 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_SEC_FRAC_LENGTH: _bindgen_ty_769 = 4;
-pub type _bindgen_ty_769 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_SEC_FRAC_MASK: _bindgen_ty_770 = 15728640;
-pub type _bindgen_ty_770 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_VIRT_FRAC_SHIFT: _bindgen_ty_771 = 24;
-pub type _bindgen_ty_771 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_VIRT_FRAC_LENGTH: _bindgen_ty_772 = 4;
-pub type _bindgen_ty_772 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_VIRT_FRAC_MASK: _bindgen_ty_773 = 251658240;
-pub type _bindgen_ty_773 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_GIC_SHIFT: _bindgen_ty_774 = 28;
-pub type _bindgen_ty_774 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_GIC_LENGTH: _bindgen_ty_775 = 4;
-pub type _bindgen_ty_775 = ::std::os::raw::c_uint;
-pub const R_ID_PFR1_GIC_MASK: _bindgen_ty_776 = 4026531840;
-pub type _bindgen_ty_776 = ::std::os::raw::c_uint;
-pub const R_ID_PFR2_CSV3_SHIFT: _bindgen_ty_777 = 0;
-pub type _bindgen_ty_777 = ::std::os::raw::c_uint;
-pub const R_ID_PFR2_CSV3_LENGTH: _bindgen_ty_778 = 4;
-pub type _bindgen_ty_778 = ::std::os::raw::c_uint;
-pub const R_ID_PFR2_CSV3_MASK: _bindgen_ty_779 = 15;
-pub type _bindgen_ty_779 = ::std::os::raw::c_uint;
-pub const R_ID_PFR2_SSBS_SHIFT: _bindgen_ty_780 = 4;
-pub type _bindgen_ty_780 = ::std::os::raw::c_uint;
-pub const R_ID_PFR2_SSBS_LENGTH: _bindgen_ty_781 = 4;
-pub type _bindgen_ty_781 = ::std::os::raw::c_uint;
-pub const R_ID_PFR2_SSBS_MASK: _bindgen_ty_782 = 240;
-pub type _bindgen_ty_782 = ::std::os::raw::c_uint;
-pub const R_ID_PFR2_RAS_FRAC_SHIFT: _bindgen_ty_783 = 8;
-pub type _bindgen_ty_783 = ::std::os::raw::c_uint;
-pub const R_ID_PFR2_RAS_FRAC_LENGTH: _bindgen_ty_784 = 4;
-pub type _bindgen_ty_784 = ::std::os::raw::c_uint;
-pub const R_ID_PFR2_RAS_FRAC_MASK: _bindgen_ty_785 = 3840;
-pub type _bindgen_ty_785 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_AES_SHIFT: _bindgen_ty_786 = 4;
-pub type _bindgen_ty_786 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_AES_LENGTH: _bindgen_ty_787 = 4;
-pub type _bindgen_ty_787 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_AES_MASK: _bindgen_ty_788 = 240;
-pub type _bindgen_ty_788 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_SHA1_SHIFT: _bindgen_ty_789 = 8;
-pub type _bindgen_ty_789 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_SHA1_LENGTH: _bindgen_ty_790 = 4;
-pub type _bindgen_ty_790 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_SHA1_MASK: _bindgen_ty_791 = 3840;
-pub type _bindgen_ty_791 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_SHA2_SHIFT: _bindgen_ty_792 = 12;
-pub type _bindgen_ty_792 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_SHA2_LENGTH: _bindgen_ty_793 = 4;
-pub type _bindgen_ty_793 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_SHA2_MASK: _bindgen_ty_794 = 61440;
-pub type _bindgen_ty_794 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_CRC32_SHIFT: _bindgen_ty_795 = 16;
-pub type _bindgen_ty_795 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_CRC32_LENGTH: _bindgen_ty_796 = 4;
-pub type _bindgen_ty_796 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_CRC32_MASK: _bindgen_ty_797 = 983040;
-pub type _bindgen_ty_797 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_ATOMIC_SHIFT: _bindgen_ty_798 = 20;
-pub type _bindgen_ty_798 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_ATOMIC_LENGTH: _bindgen_ty_799 = 4;
-pub type _bindgen_ty_799 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_ATOMIC_MASK: _bindgen_ty_800 = 15728640;
-pub type _bindgen_ty_800 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_TME_SHIFT: _bindgen_ty_801 = 24;
-pub type _bindgen_ty_801 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_TME_LENGTH: _bindgen_ty_802 = 4;
-pub type _bindgen_ty_802 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_TME_MASK: _bindgen_ty_803 = 251658240;
-pub type _bindgen_ty_803 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_RDM_SHIFT: _bindgen_ty_804 = 28;
-pub type _bindgen_ty_804 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_RDM_LENGTH: _bindgen_ty_805 = 4;
-pub type _bindgen_ty_805 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_RDM_MASK: _bindgen_ty_806 = 4026531840;
-pub type _bindgen_ty_806 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_SHA3_SHIFT: _bindgen_ty_807 = 32;
-pub type _bindgen_ty_807 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_SHA3_LENGTH: _bindgen_ty_808 = 4;
-pub type _bindgen_ty_808 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_SHA3_MASK: _bindgen_ty_809 = 64424509440;
-pub type _bindgen_ty_809 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR0_SM3_SHIFT: _bindgen_ty_810 = 36;
-pub type _bindgen_ty_810 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_SM3_LENGTH: _bindgen_ty_811 = 4;
-pub type _bindgen_ty_811 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_SM3_MASK: _bindgen_ty_812 = 1030792151040;
-pub type _bindgen_ty_812 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR0_SM4_SHIFT: _bindgen_ty_813 = 40;
-pub type _bindgen_ty_813 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_SM4_LENGTH: _bindgen_ty_814 = 4;
-pub type _bindgen_ty_814 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_SM4_MASK: _bindgen_ty_815 = 16492674416640;
-pub type _bindgen_ty_815 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR0_DP_SHIFT: _bindgen_ty_816 = 44;
-pub type _bindgen_ty_816 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_DP_LENGTH: _bindgen_ty_817 = 4;
-pub type _bindgen_ty_817 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_DP_MASK: _bindgen_ty_818 = 263882790666240;
-pub type _bindgen_ty_818 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR0_FHM_SHIFT: _bindgen_ty_819 = 48;
-pub type _bindgen_ty_819 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_FHM_LENGTH: _bindgen_ty_820 = 4;
-pub type _bindgen_ty_820 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_FHM_MASK: _bindgen_ty_821 = 4222124650659840;
-pub type _bindgen_ty_821 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR0_TS_SHIFT: _bindgen_ty_822 = 52;
-pub type _bindgen_ty_822 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_TS_LENGTH: _bindgen_ty_823 = 4;
-pub type _bindgen_ty_823 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_TS_MASK: _bindgen_ty_824 = 67553994410557440;
-pub type _bindgen_ty_824 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR0_TLB_SHIFT: _bindgen_ty_825 = 56;
-pub type _bindgen_ty_825 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_TLB_LENGTH: _bindgen_ty_826 = 4;
-pub type _bindgen_ty_826 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_TLB_MASK: _bindgen_ty_827 = 1080863910568919040;
-pub type _bindgen_ty_827 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR0_RNDR_SHIFT: _bindgen_ty_828 = 60;
-pub type _bindgen_ty_828 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_RNDR_LENGTH: _bindgen_ty_829 = 4;
-pub type _bindgen_ty_829 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR0_RNDR_MASK: _bindgen_ty_830 = 17293822569102704640;
-pub type _bindgen_ty_830 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR1_DPB_SHIFT: _bindgen_ty_831 = 0;
-pub type _bindgen_ty_831 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_DPB_LENGTH: _bindgen_ty_832 = 4;
-pub type _bindgen_ty_832 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_DPB_MASK: _bindgen_ty_833 = 15;
-pub type _bindgen_ty_833 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_APA_SHIFT: _bindgen_ty_834 = 4;
-pub type _bindgen_ty_834 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_APA_LENGTH: _bindgen_ty_835 = 4;
-pub type _bindgen_ty_835 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_APA_MASK: _bindgen_ty_836 = 240;
-pub type _bindgen_ty_836 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_API_SHIFT: _bindgen_ty_837 = 8;
-pub type _bindgen_ty_837 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_API_LENGTH: _bindgen_ty_838 = 4;
-pub type _bindgen_ty_838 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_API_MASK: _bindgen_ty_839 = 3840;
-pub type _bindgen_ty_839 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_JSCVT_SHIFT: _bindgen_ty_840 = 12;
-pub type _bindgen_ty_840 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_JSCVT_LENGTH: _bindgen_ty_841 = 4;
-pub type _bindgen_ty_841 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_JSCVT_MASK: _bindgen_ty_842 = 61440;
-pub type _bindgen_ty_842 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_FCMA_SHIFT: _bindgen_ty_843 = 16;
-pub type _bindgen_ty_843 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_FCMA_LENGTH: _bindgen_ty_844 = 4;
-pub type _bindgen_ty_844 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_FCMA_MASK: _bindgen_ty_845 = 983040;
-pub type _bindgen_ty_845 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_LRCPC_SHIFT: _bindgen_ty_846 = 20;
-pub type _bindgen_ty_846 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_LRCPC_LENGTH: _bindgen_ty_847 = 4;
-pub type _bindgen_ty_847 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_LRCPC_MASK: _bindgen_ty_848 = 15728640;
-pub type _bindgen_ty_848 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_GPA_SHIFT: _bindgen_ty_849 = 24;
-pub type _bindgen_ty_849 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_GPA_LENGTH: _bindgen_ty_850 = 4;
-pub type _bindgen_ty_850 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_GPA_MASK: _bindgen_ty_851 = 251658240;
-pub type _bindgen_ty_851 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_GPI_SHIFT: _bindgen_ty_852 = 28;
-pub type _bindgen_ty_852 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_GPI_LENGTH: _bindgen_ty_853 = 4;
-pub type _bindgen_ty_853 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_GPI_MASK: _bindgen_ty_854 = 4026531840;
-pub type _bindgen_ty_854 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_FRINTTS_SHIFT: _bindgen_ty_855 = 32;
-pub type _bindgen_ty_855 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_FRINTTS_LENGTH: _bindgen_ty_856 = 4;
-pub type _bindgen_ty_856 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_FRINTTS_MASK: _bindgen_ty_857 = 64424509440;
-pub type _bindgen_ty_857 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR1_SB_SHIFT: _bindgen_ty_858 = 36;
-pub type _bindgen_ty_858 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_SB_LENGTH: _bindgen_ty_859 = 4;
-pub type _bindgen_ty_859 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_SB_MASK: _bindgen_ty_860 = 1030792151040;
-pub type _bindgen_ty_860 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR1_SPECRES_SHIFT: _bindgen_ty_861 = 40;
-pub type _bindgen_ty_861 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_SPECRES_LENGTH: _bindgen_ty_862 = 4;
-pub type _bindgen_ty_862 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_SPECRES_MASK: _bindgen_ty_863 = 16492674416640;
-pub type _bindgen_ty_863 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR1_BF16_SHIFT: _bindgen_ty_864 = 44;
-pub type _bindgen_ty_864 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_BF16_LENGTH: _bindgen_ty_865 = 4;
-pub type _bindgen_ty_865 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_BF16_MASK: _bindgen_ty_866 = 263882790666240;
-pub type _bindgen_ty_866 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR1_DGH_SHIFT: _bindgen_ty_867 = 48;
-pub type _bindgen_ty_867 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_DGH_LENGTH: _bindgen_ty_868 = 4;
-pub type _bindgen_ty_868 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_DGH_MASK: _bindgen_ty_869 = 4222124650659840;
-pub type _bindgen_ty_869 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR1_I8MM_SHIFT: _bindgen_ty_870 = 52;
-pub type _bindgen_ty_870 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_I8MM_LENGTH: _bindgen_ty_871 = 4;
-pub type _bindgen_ty_871 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_I8MM_MASK: _bindgen_ty_872 = 67553994410557440;
-pub type _bindgen_ty_872 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR1_XS_SHIFT: _bindgen_ty_873 = 56;
-pub type _bindgen_ty_873 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_XS_LENGTH: _bindgen_ty_874 = 4;
-pub type _bindgen_ty_874 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_XS_MASK: _bindgen_ty_875 = 1080863910568919040;
-pub type _bindgen_ty_875 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR1_LS64_SHIFT: _bindgen_ty_876 = 60;
-pub type _bindgen_ty_876 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_LS64_LENGTH: _bindgen_ty_877 = 4;
-pub type _bindgen_ty_877 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR1_LS64_MASK: _bindgen_ty_878 = 17293822569102704640;
-pub type _bindgen_ty_878 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR2_WFXT_SHIFT: _bindgen_ty_879 = 0;
-pub type _bindgen_ty_879 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_WFXT_LENGTH: _bindgen_ty_880 = 4;
-pub type _bindgen_ty_880 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_WFXT_MASK: _bindgen_ty_881 = 15;
-pub type _bindgen_ty_881 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_RPRES_SHIFT: _bindgen_ty_882 = 4;
-pub type _bindgen_ty_882 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_RPRES_LENGTH: _bindgen_ty_883 = 4;
-pub type _bindgen_ty_883 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_RPRES_MASK: _bindgen_ty_884 = 240;
-pub type _bindgen_ty_884 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_GPA3_SHIFT: _bindgen_ty_885 = 8;
-pub type _bindgen_ty_885 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_GPA3_LENGTH: _bindgen_ty_886 = 4;
-pub type _bindgen_ty_886 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_GPA3_MASK: _bindgen_ty_887 = 3840;
-pub type _bindgen_ty_887 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_APA3_SHIFT: _bindgen_ty_888 = 12;
-pub type _bindgen_ty_888 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_APA3_LENGTH: _bindgen_ty_889 = 4;
-pub type _bindgen_ty_889 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_APA3_MASK: _bindgen_ty_890 = 61440;
-pub type _bindgen_ty_890 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_MOPS_SHIFT: _bindgen_ty_891 = 16;
-pub type _bindgen_ty_891 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_MOPS_LENGTH: _bindgen_ty_892 = 4;
-pub type _bindgen_ty_892 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_MOPS_MASK: _bindgen_ty_893 = 983040;
-pub type _bindgen_ty_893 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_BC_SHIFT: _bindgen_ty_894 = 20;
-pub type _bindgen_ty_894 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_BC_LENGTH: _bindgen_ty_895 = 4;
-pub type _bindgen_ty_895 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_BC_MASK: _bindgen_ty_896 = 15728640;
-pub type _bindgen_ty_896 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_PAC_FRAC_SHIFT: _bindgen_ty_897 = 24;
-pub type _bindgen_ty_897 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_PAC_FRAC_LENGTH: _bindgen_ty_898 = 4;
-pub type _bindgen_ty_898 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_PAC_FRAC_MASK: _bindgen_ty_899 = 251658240;
-pub type _bindgen_ty_899 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_CLRBHB_SHIFT: _bindgen_ty_900 = 28;
-pub type _bindgen_ty_900 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_CLRBHB_LENGTH: _bindgen_ty_901 = 4;
-pub type _bindgen_ty_901 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_CLRBHB_MASK: _bindgen_ty_902 = 4026531840;
-pub type _bindgen_ty_902 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_SYSREG_128_SHIFT: _bindgen_ty_903 = 32;
-pub type _bindgen_ty_903 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_SYSREG_128_LENGTH: _bindgen_ty_904 = 4;
-pub type _bindgen_ty_904 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_SYSREG_128_MASK: _bindgen_ty_905 = 64424509440;
-pub type _bindgen_ty_905 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR2_SYSINSTR_128_SHIFT: _bindgen_ty_906 = 36;
-pub type _bindgen_ty_906 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_SYSINSTR_128_LENGTH: _bindgen_ty_907 = 4;
-pub type _bindgen_ty_907 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_SYSINSTR_128_MASK: _bindgen_ty_908 = 1030792151040;
-pub type _bindgen_ty_908 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR2_PRFMSLC_SHIFT: _bindgen_ty_909 = 40;
-pub type _bindgen_ty_909 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_PRFMSLC_LENGTH: _bindgen_ty_910 = 4;
-pub type _bindgen_ty_910 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_PRFMSLC_MASK: _bindgen_ty_911 = 16492674416640;
-pub type _bindgen_ty_911 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR2_RPRFM_SHIFT: _bindgen_ty_912 = 48;
-pub type _bindgen_ty_912 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_RPRFM_LENGTH: _bindgen_ty_913 = 4;
-pub type _bindgen_ty_913 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_RPRFM_MASK: _bindgen_ty_914 = 4222124650659840;
-pub type _bindgen_ty_914 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR2_CSSC_SHIFT: _bindgen_ty_915 = 52;
-pub type _bindgen_ty_915 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_CSSC_LENGTH: _bindgen_ty_916 = 4;
-pub type _bindgen_ty_916 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_CSSC_MASK: _bindgen_ty_917 = 67553994410557440;
-pub type _bindgen_ty_917 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ISAR2_ATS1A_SHIFT: _bindgen_ty_918 = 60;
-pub type _bindgen_ty_918 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_ATS1A_LENGTH: _bindgen_ty_919 = 4;
-pub type _bindgen_ty_919 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ISAR2_ATS1A_MASK: _bindgen_ty_920 = 17293822569102704640;
-pub type _bindgen_ty_920 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR0_EL0_SHIFT: _bindgen_ty_921 = 0;
-pub type _bindgen_ty_921 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_EL0_LENGTH: _bindgen_ty_922 = 4;
-pub type _bindgen_ty_922 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_EL0_MASK: _bindgen_ty_923 = 15;
-pub type _bindgen_ty_923 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_EL1_SHIFT: _bindgen_ty_924 = 4;
-pub type _bindgen_ty_924 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_EL1_LENGTH: _bindgen_ty_925 = 4;
-pub type _bindgen_ty_925 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_EL1_MASK: _bindgen_ty_926 = 240;
-pub type _bindgen_ty_926 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_EL2_SHIFT: _bindgen_ty_927 = 8;
-pub type _bindgen_ty_927 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_EL2_LENGTH: _bindgen_ty_928 = 4;
-pub type _bindgen_ty_928 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_EL2_MASK: _bindgen_ty_929 = 3840;
-pub type _bindgen_ty_929 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_EL3_SHIFT: _bindgen_ty_930 = 12;
-pub type _bindgen_ty_930 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_EL3_LENGTH: _bindgen_ty_931 = 4;
-pub type _bindgen_ty_931 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_EL3_MASK: _bindgen_ty_932 = 61440;
-pub type _bindgen_ty_932 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_FP_SHIFT: _bindgen_ty_933 = 16;
-pub type _bindgen_ty_933 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_FP_LENGTH: _bindgen_ty_934 = 4;
-pub type _bindgen_ty_934 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_FP_MASK: _bindgen_ty_935 = 983040;
-pub type _bindgen_ty_935 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_ADVSIMD_SHIFT: _bindgen_ty_936 = 20;
-pub type _bindgen_ty_936 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_ADVSIMD_LENGTH: _bindgen_ty_937 = 4;
-pub type _bindgen_ty_937 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_ADVSIMD_MASK: _bindgen_ty_938 = 15728640;
-pub type _bindgen_ty_938 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_GIC_SHIFT: _bindgen_ty_939 = 24;
-pub type _bindgen_ty_939 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_GIC_LENGTH: _bindgen_ty_940 = 4;
-pub type _bindgen_ty_940 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_GIC_MASK: _bindgen_ty_941 = 251658240;
-pub type _bindgen_ty_941 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_RAS_SHIFT: _bindgen_ty_942 = 28;
-pub type _bindgen_ty_942 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_RAS_LENGTH: _bindgen_ty_943 = 4;
-pub type _bindgen_ty_943 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_RAS_MASK: _bindgen_ty_944 = 4026531840;
-pub type _bindgen_ty_944 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_SVE_SHIFT: _bindgen_ty_945 = 32;
-pub type _bindgen_ty_945 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_SVE_LENGTH: _bindgen_ty_946 = 4;
-pub type _bindgen_ty_946 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_SVE_MASK: _bindgen_ty_947 = 64424509440;
-pub type _bindgen_ty_947 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR0_SEL2_SHIFT: _bindgen_ty_948 = 36;
-pub type _bindgen_ty_948 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_SEL2_LENGTH: _bindgen_ty_949 = 4;
-pub type _bindgen_ty_949 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_SEL2_MASK: _bindgen_ty_950 = 1030792151040;
-pub type _bindgen_ty_950 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR0_MPAM_SHIFT: _bindgen_ty_951 = 40;
-pub type _bindgen_ty_951 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_MPAM_LENGTH: _bindgen_ty_952 = 4;
-pub type _bindgen_ty_952 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_MPAM_MASK: _bindgen_ty_953 = 16492674416640;
-pub type _bindgen_ty_953 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR0_AMU_SHIFT: _bindgen_ty_954 = 44;
-pub type _bindgen_ty_954 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_AMU_LENGTH: _bindgen_ty_955 = 4;
-pub type _bindgen_ty_955 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_AMU_MASK: _bindgen_ty_956 = 263882790666240;
-pub type _bindgen_ty_956 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR0_DIT_SHIFT: _bindgen_ty_957 = 48;
-pub type _bindgen_ty_957 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_DIT_LENGTH: _bindgen_ty_958 = 4;
-pub type _bindgen_ty_958 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_DIT_MASK: _bindgen_ty_959 = 4222124650659840;
-pub type _bindgen_ty_959 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR0_RME_SHIFT: _bindgen_ty_960 = 52;
-pub type _bindgen_ty_960 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_RME_LENGTH: _bindgen_ty_961 = 4;
-pub type _bindgen_ty_961 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_RME_MASK: _bindgen_ty_962 = 67553994410557440;
-pub type _bindgen_ty_962 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR0_CSV2_SHIFT: _bindgen_ty_963 = 56;
-pub type _bindgen_ty_963 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_CSV2_LENGTH: _bindgen_ty_964 = 4;
-pub type _bindgen_ty_964 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_CSV2_MASK: _bindgen_ty_965 = 1080863910568919040;
-pub type _bindgen_ty_965 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR0_CSV3_SHIFT: _bindgen_ty_966 = 60;
-pub type _bindgen_ty_966 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_CSV3_LENGTH: _bindgen_ty_967 = 4;
-pub type _bindgen_ty_967 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR0_CSV3_MASK: _bindgen_ty_968 = 17293822569102704640;
-pub type _bindgen_ty_968 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR1_BT_SHIFT: _bindgen_ty_969 = 0;
-pub type _bindgen_ty_969 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_BT_LENGTH: _bindgen_ty_970 = 4;
-pub type _bindgen_ty_970 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_BT_MASK: _bindgen_ty_971 = 15;
-pub type _bindgen_ty_971 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_SSBS_SHIFT: _bindgen_ty_972 = 4;
-pub type _bindgen_ty_972 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_SSBS_LENGTH: _bindgen_ty_973 = 4;
-pub type _bindgen_ty_973 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_SSBS_MASK: _bindgen_ty_974 = 240;
-pub type _bindgen_ty_974 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_MTE_SHIFT: _bindgen_ty_975 = 8;
-pub type _bindgen_ty_975 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_MTE_LENGTH: _bindgen_ty_976 = 4;
-pub type _bindgen_ty_976 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_MTE_MASK: _bindgen_ty_977 = 3840;
-pub type _bindgen_ty_977 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_RAS_FRAC_SHIFT: _bindgen_ty_978 = 12;
-pub type _bindgen_ty_978 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_RAS_FRAC_LENGTH: _bindgen_ty_979 = 4;
-pub type _bindgen_ty_979 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_RAS_FRAC_MASK: _bindgen_ty_980 = 61440;
-pub type _bindgen_ty_980 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_MPAM_FRAC_SHIFT: _bindgen_ty_981 = 16;
-pub type _bindgen_ty_981 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_MPAM_FRAC_LENGTH: _bindgen_ty_982 = 4;
-pub type _bindgen_ty_982 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_MPAM_FRAC_MASK: _bindgen_ty_983 = 983040;
-pub type _bindgen_ty_983 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_SME_SHIFT: _bindgen_ty_984 = 24;
-pub type _bindgen_ty_984 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_SME_LENGTH: _bindgen_ty_985 = 4;
-pub type _bindgen_ty_985 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_SME_MASK: _bindgen_ty_986 = 251658240;
-pub type _bindgen_ty_986 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_RNDR_TRAP_SHIFT: _bindgen_ty_987 = 28;
-pub type _bindgen_ty_987 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_RNDR_TRAP_LENGTH: _bindgen_ty_988 = 4;
-pub type _bindgen_ty_988 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_RNDR_TRAP_MASK: _bindgen_ty_989 = 4026531840;
-pub type _bindgen_ty_989 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_CSV2_FRAC_SHIFT: _bindgen_ty_990 = 32;
-pub type _bindgen_ty_990 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_CSV2_FRAC_LENGTH: _bindgen_ty_991 = 4;
-pub type _bindgen_ty_991 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_CSV2_FRAC_MASK: _bindgen_ty_992 = 64424509440;
-pub type _bindgen_ty_992 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR1_NMI_SHIFT: _bindgen_ty_993 = 36;
-pub type _bindgen_ty_993 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_NMI_LENGTH: _bindgen_ty_994 = 4;
-pub type _bindgen_ty_994 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_NMI_MASK: _bindgen_ty_995 = 1030792151040;
-pub type _bindgen_ty_995 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR1_MTE_FRAC_SHIFT: _bindgen_ty_996 = 40;
-pub type _bindgen_ty_996 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_MTE_FRAC_LENGTH: _bindgen_ty_997 = 4;
-pub type _bindgen_ty_997 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_MTE_FRAC_MASK: _bindgen_ty_998 = 16492674416640;
-pub type _bindgen_ty_998 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR1_GCS_SHIFT: _bindgen_ty_999 = 44;
-pub type _bindgen_ty_999 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_GCS_LENGTH: _bindgen_ty_1000 = 4;
-pub type _bindgen_ty_1000 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_GCS_MASK: _bindgen_ty_1001 = 263882790666240;
-pub type _bindgen_ty_1001 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR1_THE_SHIFT: _bindgen_ty_1002 = 48;
-pub type _bindgen_ty_1002 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_THE_LENGTH: _bindgen_ty_1003 = 4;
-pub type _bindgen_ty_1003 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_THE_MASK: _bindgen_ty_1004 = 4222124650659840;
-pub type _bindgen_ty_1004 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR1_MTEX_SHIFT: _bindgen_ty_1005 = 52;
-pub type _bindgen_ty_1005 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_MTEX_LENGTH: _bindgen_ty_1006 = 4;
-pub type _bindgen_ty_1006 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_MTEX_MASK: _bindgen_ty_1007 = 67553994410557440;
-pub type _bindgen_ty_1007 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR1_DF2_SHIFT: _bindgen_ty_1008 = 56;
-pub type _bindgen_ty_1008 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_DF2_LENGTH: _bindgen_ty_1009 = 4;
-pub type _bindgen_ty_1009 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_DF2_MASK: _bindgen_ty_1010 = 1080863910568919040;
-pub type _bindgen_ty_1010 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64PFR1_PFAR_SHIFT: _bindgen_ty_1011 = 60;
-pub type _bindgen_ty_1011 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_PFAR_LENGTH: _bindgen_ty_1012 = 4;
-pub type _bindgen_ty_1012 = ::std::os::raw::c_uint;
-pub const R_ID_AA64PFR1_PFAR_MASK: _bindgen_ty_1013 = 17293822569102704640;
-pub type _bindgen_ty_1013 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR0_PARANGE_SHIFT: _bindgen_ty_1014 = 0;
-pub type _bindgen_ty_1014 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_PARANGE_LENGTH: _bindgen_ty_1015 = 4;
-pub type _bindgen_ty_1015 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_PARANGE_MASK: _bindgen_ty_1016 = 15;
-pub type _bindgen_ty_1016 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_ASIDBITS_SHIFT: _bindgen_ty_1017 = 4;
-pub type _bindgen_ty_1017 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_ASIDBITS_LENGTH: _bindgen_ty_1018 = 4;
-pub type _bindgen_ty_1018 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_ASIDBITS_MASK: _bindgen_ty_1019 = 240;
-pub type _bindgen_ty_1019 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_BIGEND_SHIFT: _bindgen_ty_1020 = 8;
-pub type _bindgen_ty_1020 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_BIGEND_LENGTH: _bindgen_ty_1021 = 4;
-pub type _bindgen_ty_1021 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_BIGEND_MASK: _bindgen_ty_1022 = 3840;
-pub type _bindgen_ty_1022 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_SNSMEM_SHIFT: _bindgen_ty_1023 = 12;
-pub type _bindgen_ty_1023 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_SNSMEM_LENGTH: _bindgen_ty_1024 = 4;
-pub type _bindgen_ty_1024 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_SNSMEM_MASK: _bindgen_ty_1025 = 61440;
-pub type _bindgen_ty_1025 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_BIGENDEL0_SHIFT: _bindgen_ty_1026 = 16;
-pub type _bindgen_ty_1026 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_BIGENDEL0_LENGTH: _bindgen_ty_1027 = 4;
-pub type _bindgen_ty_1027 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_BIGENDEL0_MASK: _bindgen_ty_1028 = 983040;
-pub type _bindgen_ty_1028 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN16_SHIFT: _bindgen_ty_1029 = 20;
-pub type _bindgen_ty_1029 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN16_LENGTH: _bindgen_ty_1030 = 4;
-pub type _bindgen_ty_1030 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN16_MASK: _bindgen_ty_1031 = 15728640;
-pub type _bindgen_ty_1031 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN64_SHIFT: _bindgen_ty_1032 = 24;
-pub type _bindgen_ty_1032 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN64_LENGTH: _bindgen_ty_1033 = 4;
-pub type _bindgen_ty_1033 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN64_MASK: _bindgen_ty_1034 = 251658240;
-pub type _bindgen_ty_1034 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN4_SHIFT: _bindgen_ty_1035 = 28;
-pub type _bindgen_ty_1035 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN4_LENGTH: _bindgen_ty_1036 = 4;
-pub type _bindgen_ty_1036 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN4_MASK: _bindgen_ty_1037 = 4026531840;
-pub type _bindgen_ty_1037 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN16_2_SHIFT: _bindgen_ty_1038 = 32;
-pub type _bindgen_ty_1038 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN16_2_LENGTH: _bindgen_ty_1039 = 4;
-pub type _bindgen_ty_1039 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN16_2_MASK: _bindgen_ty_1040 = 64424509440;
-pub type _bindgen_ty_1040 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR0_TGRAN64_2_SHIFT: _bindgen_ty_1041 = 36;
-pub type _bindgen_ty_1041 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN64_2_LENGTH: _bindgen_ty_1042 = 4;
-pub type _bindgen_ty_1042 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN64_2_MASK: _bindgen_ty_1043 = 1030792151040;
-pub type _bindgen_ty_1043 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR0_TGRAN4_2_SHIFT: _bindgen_ty_1044 = 40;
-pub type _bindgen_ty_1044 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN4_2_LENGTH: _bindgen_ty_1045 = 4;
-pub type _bindgen_ty_1045 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_TGRAN4_2_MASK: _bindgen_ty_1046 = 16492674416640;
-pub type _bindgen_ty_1046 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR0_EXS_SHIFT: _bindgen_ty_1047 = 44;
-pub type _bindgen_ty_1047 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_EXS_LENGTH: _bindgen_ty_1048 = 4;
-pub type _bindgen_ty_1048 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_EXS_MASK: _bindgen_ty_1049 = 263882790666240;
-pub type _bindgen_ty_1049 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR0_FGT_SHIFT: _bindgen_ty_1050 = 56;
-pub type _bindgen_ty_1050 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_FGT_LENGTH: _bindgen_ty_1051 = 4;
-pub type _bindgen_ty_1051 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_FGT_MASK: _bindgen_ty_1052 = 1080863910568919040;
-pub type _bindgen_ty_1052 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR0_ECV_SHIFT: _bindgen_ty_1053 = 60;
-pub type _bindgen_ty_1053 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_ECV_LENGTH: _bindgen_ty_1054 = 4;
-pub type _bindgen_ty_1054 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR0_ECV_MASK: _bindgen_ty_1055 = 17293822569102704640;
-pub type _bindgen_ty_1055 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR1_HAFDBS_SHIFT: _bindgen_ty_1056 = 0;
-pub type _bindgen_ty_1056 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_HAFDBS_LENGTH: _bindgen_ty_1057 = 4;
-pub type _bindgen_ty_1057 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_HAFDBS_MASK: _bindgen_ty_1058 = 15;
-pub type _bindgen_ty_1058 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_VMIDBITS_SHIFT: _bindgen_ty_1059 = 4;
-pub type _bindgen_ty_1059 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_VMIDBITS_LENGTH: _bindgen_ty_1060 = 4;
-pub type _bindgen_ty_1060 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_VMIDBITS_MASK: _bindgen_ty_1061 = 240;
-pub type _bindgen_ty_1061 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_VH_SHIFT: _bindgen_ty_1062 = 8;
-pub type _bindgen_ty_1062 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_VH_LENGTH: _bindgen_ty_1063 = 4;
-pub type _bindgen_ty_1063 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_VH_MASK: _bindgen_ty_1064 = 3840;
-pub type _bindgen_ty_1064 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_HPDS_SHIFT: _bindgen_ty_1065 = 12;
-pub type _bindgen_ty_1065 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_HPDS_LENGTH: _bindgen_ty_1066 = 4;
-pub type _bindgen_ty_1066 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_HPDS_MASK: _bindgen_ty_1067 = 61440;
-pub type _bindgen_ty_1067 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_LO_SHIFT: _bindgen_ty_1068 = 16;
-pub type _bindgen_ty_1068 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_LO_LENGTH: _bindgen_ty_1069 = 4;
-pub type _bindgen_ty_1069 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_LO_MASK: _bindgen_ty_1070 = 983040;
-pub type _bindgen_ty_1070 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_PAN_SHIFT: _bindgen_ty_1071 = 20;
-pub type _bindgen_ty_1071 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_PAN_LENGTH: _bindgen_ty_1072 = 4;
-pub type _bindgen_ty_1072 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_PAN_MASK: _bindgen_ty_1073 = 15728640;
-pub type _bindgen_ty_1073 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_SPECSEI_SHIFT: _bindgen_ty_1074 = 24;
-pub type _bindgen_ty_1074 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_SPECSEI_LENGTH: _bindgen_ty_1075 = 4;
-pub type _bindgen_ty_1075 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_SPECSEI_MASK: _bindgen_ty_1076 = 251658240;
-pub type _bindgen_ty_1076 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_XNX_SHIFT: _bindgen_ty_1077 = 28;
-pub type _bindgen_ty_1077 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_XNX_LENGTH: _bindgen_ty_1078 = 4;
-pub type _bindgen_ty_1078 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_XNX_MASK: _bindgen_ty_1079 = 4026531840;
-pub type _bindgen_ty_1079 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_TWED_SHIFT: _bindgen_ty_1080 = 32;
-pub type _bindgen_ty_1080 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_TWED_LENGTH: _bindgen_ty_1081 = 4;
-pub type _bindgen_ty_1081 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_TWED_MASK: _bindgen_ty_1082 = 64424509440;
-pub type _bindgen_ty_1082 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR1_ETS_SHIFT: _bindgen_ty_1083 = 36;
-pub type _bindgen_ty_1083 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_ETS_LENGTH: _bindgen_ty_1084 = 4;
-pub type _bindgen_ty_1084 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_ETS_MASK: _bindgen_ty_1085 = 1030792151040;
-pub type _bindgen_ty_1085 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR1_HCX_SHIFT: _bindgen_ty_1086 = 40;
-pub type _bindgen_ty_1086 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_HCX_LENGTH: _bindgen_ty_1087 = 4;
-pub type _bindgen_ty_1087 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_HCX_MASK: _bindgen_ty_1088 = 16492674416640;
-pub type _bindgen_ty_1088 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR1_AFP_SHIFT: _bindgen_ty_1089 = 44;
-pub type _bindgen_ty_1089 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_AFP_LENGTH: _bindgen_ty_1090 = 4;
-pub type _bindgen_ty_1090 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_AFP_MASK: _bindgen_ty_1091 = 263882790666240;
-pub type _bindgen_ty_1091 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR1_NTLBPA_SHIFT: _bindgen_ty_1092 = 48;
-pub type _bindgen_ty_1092 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_NTLBPA_LENGTH: _bindgen_ty_1093 = 4;
-pub type _bindgen_ty_1093 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_NTLBPA_MASK: _bindgen_ty_1094 = 4222124650659840;
-pub type _bindgen_ty_1094 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR1_TIDCP1_SHIFT: _bindgen_ty_1095 = 52;
-pub type _bindgen_ty_1095 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_TIDCP1_LENGTH: _bindgen_ty_1096 = 4;
-pub type _bindgen_ty_1096 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_TIDCP1_MASK: _bindgen_ty_1097 = 67553994410557440;
-pub type _bindgen_ty_1097 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR1_CMOW_SHIFT: _bindgen_ty_1098 = 56;
-pub type _bindgen_ty_1098 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_CMOW_LENGTH: _bindgen_ty_1099 = 4;
-pub type _bindgen_ty_1099 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_CMOW_MASK: _bindgen_ty_1100 = 1080863910568919040;
-pub type _bindgen_ty_1100 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR1_ECBHB_SHIFT: _bindgen_ty_1101 = 60;
-pub type _bindgen_ty_1101 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_ECBHB_LENGTH: _bindgen_ty_1102 = 4;
-pub type _bindgen_ty_1102 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR1_ECBHB_MASK: _bindgen_ty_1103 = 17293822569102704640;
-pub type _bindgen_ty_1103 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR2_CNP_SHIFT: _bindgen_ty_1104 = 0;
-pub type _bindgen_ty_1104 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_CNP_LENGTH: _bindgen_ty_1105 = 4;
-pub type _bindgen_ty_1105 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_CNP_MASK: _bindgen_ty_1106 = 15;
-pub type _bindgen_ty_1106 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_UAO_SHIFT: _bindgen_ty_1107 = 4;
-pub type _bindgen_ty_1107 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_UAO_LENGTH: _bindgen_ty_1108 = 4;
-pub type _bindgen_ty_1108 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_UAO_MASK: _bindgen_ty_1109 = 240;
-pub type _bindgen_ty_1109 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_LSM_SHIFT: _bindgen_ty_1110 = 8;
-pub type _bindgen_ty_1110 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_LSM_LENGTH: _bindgen_ty_1111 = 4;
-pub type _bindgen_ty_1111 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_LSM_MASK: _bindgen_ty_1112 = 3840;
-pub type _bindgen_ty_1112 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_IESB_SHIFT: _bindgen_ty_1113 = 12;
-pub type _bindgen_ty_1113 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_IESB_LENGTH: _bindgen_ty_1114 = 4;
-pub type _bindgen_ty_1114 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_IESB_MASK: _bindgen_ty_1115 = 61440;
-pub type _bindgen_ty_1115 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_VARANGE_SHIFT: _bindgen_ty_1116 = 16;
-pub type _bindgen_ty_1116 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_VARANGE_LENGTH: _bindgen_ty_1117 = 4;
-pub type _bindgen_ty_1117 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_VARANGE_MASK: _bindgen_ty_1118 = 983040;
-pub type _bindgen_ty_1118 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_CCIDX_SHIFT: _bindgen_ty_1119 = 20;
-pub type _bindgen_ty_1119 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_CCIDX_LENGTH: _bindgen_ty_1120 = 4;
-pub type _bindgen_ty_1120 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_CCIDX_MASK: _bindgen_ty_1121 = 15728640;
-pub type _bindgen_ty_1121 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_NV_SHIFT: _bindgen_ty_1122 = 24;
-pub type _bindgen_ty_1122 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_NV_LENGTH: _bindgen_ty_1123 = 4;
-pub type _bindgen_ty_1123 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_NV_MASK: _bindgen_ty_1124 = 251658240;
-pub type _bindgen_ty_1124 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_ST_SHIFT: _bindgen_ty_1125 = 28;
-pub type _bindgen_ty_1125 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_ST_LENGTH: _bindgen_ty_1126 = 4;
-pub type _bindgen_ty_1126 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_ST_MASK: _bindgen_ty_1127 = 4026531840;
-pub type _bindgen_ty_1127 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_AT_SHIFT: _bindgen_ty_1128 = 32;
-pub type _bindgen_ty_1128 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_AT_LENGTH: _bindgen_ty_1129 = 4;
-pub type _bindgen_ty_1129 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_AT_MASK: _bindgen_ty_1130 = 64424509440;
-pub type _bindgen_ty_1130 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR2_IDS_SHIFT: _bindgen_ty_1131 = 36;
-pub type _bindgen_ty_1131 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_IDS_LENGTH: _bindgen_ty_1132 = 4;
-pub type _bindgen_ty_1132 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_IDS_MASK: _bindgen_ty_1133 = 1030792151040;
-pub type _bindgen_ty_1133 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR2_FWB_SHIFT: _bindgen_ty_1134 = 40;
-pub type _bindgen_ty_1134 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_FWB_LENGTH: _bindgen_ty_1135 = 4;
-pub type _bindgen_ty_1135 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_FWB_MASK: _bindgen_ty_1136 = 16492674416640;
-pub type _bindgen_ty_1136 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR2_TTL_SHIFT: _bindgen_ty_1137 = 48;
-pub type _bindgen_ty_1137 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_TTL_LENGTH: _bindgen_ty_1138 = 4;
-pub type _bindgen_ty_1138 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_TTL_MASK: _bindgen_ty_1139 = 4222124650659840;
-pub type _bindgen_ty_1139 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR2_BBM_SHIFT: _bindgen_ty_1140 = 52;
-pub type _bindgen_ty_1140 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_BBM_LENGTH: _bindgen_ty_1141 = 4;
-pub type _bindgen_ty_1141 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_BBM_MASK: _bindgen_ty_1142 = 67553994410557440;
-pub type _bindgen_ty_1142 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR2_EVT_SHIFT: _bindgen_ty_1143 = 56;
-pub type _bindgen_ty_1143 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_EVT_LENGTH: _bindgen_ty_1144 = 4;
-pub type _bindgen_ty_1144 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_EVT_MASK: _bindgen_ty_1145 = 1080863910568919040;
-pub type _bindgen_ty_1145 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR2_E0PD_SHIFT: _bindgen_ty_1146 = 60;
-pub type _bindgen_ty_1146 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_E0PD_LENGTH: _bindgen_ty_1147 = 4;
-pub type _bindgen_ty_1147 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR2_E0PD_MASK: _bindgen_ty_1148 = 17293822569102704640;
-pub type _bindgen_ty_1148 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR3_TCRX_SHIFT: _bindgen_ty_1149 = 0;
-pub type _bindgen_ty_1149 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_TCRX_LENGTH: _bindgen_ty_1150 = 4;
-pub type _bindgen_ty_1150 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_TCRX_MASK: _bindgen_ty_1151 = 15;
-pub type _bindgen_ty_1151 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_SCTLRX_SHIFT: _bindgen_ty_1152 = 4;
-pub type _bindgen_ty_1152 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_SCTLRX_LENGTH: _bindgen_ty_1153 = 4;
-pub type _bindgen_ty_1153 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_SCTLRX_MASK: _bindgen_ty_1154 = 240;
-pub type _bindgen_ty_1154 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_S1PIE_SHIFT: _bindgen_ty_1155 = 8;
-pub type _bindgen_ty_1155 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_S1PIE_LENGTH: _bindgen_ty_1156 = 4;
-pub type _bindgen_ty_1156 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_S1PIE_MASK: _bindgen_ty_1157 = 3840;
-pub type _bindgen_ty_1157 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_S2PIE_SHIFT: _bindgen_ty_1158 = 12;
-pub type _bindgen_ty_1158 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_S2PIE_LENGTH: _bindgen_ty_1159 = 4;
-pub type _bindgen_ty_1159 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_S2PIE_MASK: _bindgen_ty_1160 = 61440;
-pub type _bindgen_ty_1160 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_S1POE_SHIFT: _bindgen_ty_1161 = 16;
-pub type _bindgen_ty_1161 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_S1POE_LENGTH: _bindgen_ty_1162 = 4;
-pub type _bindgen_ty_1162 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_S1POE_MASK: _bindgen_ty_1163 = 983040;
-pub type _bindgen_ty_1163 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_S2POE_SHIFT: _bindgen_ty_1164 = 20;
-pub type _bindgen_ty_1164 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_S2POE_LENGTH: _bindgen_ty_1165 = 4;
-pub type _bindgen_ty_1165 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_S2POE_MASK: _bindgen_ty_1166 = 15728640;
-pub type _bindgen_ty_1166 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_AIE_SHIFT: _bindgen_ty_1167 = 24;
-pub type _bindgen_ty_1167 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_AIE_LENGTH: _bindgen_ty_1168 = 4;
-pub type _bindgen_ty_1168 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_AIE_MASK: _bindgen_ty_1169 = 251658240;
-pub type _bindgen_ty_1169 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_MEC_SHIFT: _bindgen_ty_1170 = 28;
-pub type _bindgen_ty_1170 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_MEC_LENGTH: _bindgen_ty_1171 = 4;
-pub type _bindgen_ty_1171 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_MEC_MASK: _bindgen_ty_1172 = 4026531840;
-pub type _bindgen_ty_1172 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_D128_SHIFT: _bindgen_ty_1173 = 32;
-pub type _bindgen_ty_1173 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_D128_LENGTH: _bindgen_ty_1174 = 4;
-pub type _bindgen_ty_1174 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_D128_MASK: _bindgen_ty_1175 = 64424509440;
-pub type _bindgen_ty_1175 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR3_D128_2_SHIFT: _bindgen_ty_1176 = 36;
-pub type _bindgen_ty_1176 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_D128_2_LENGTH: _bindgen_ty_1177 = 4;
-pub type _bindgen_ty_1177 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_D128_2_MASK: _bindgen_ty_1178 = 1030792151040;
-pub type _bindgen_ty_1178 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR3_SNERR_SHIFT: _bindgen_ty_1179 = 40;
-pub type _bindgen_ty_1179 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_SNERR_LENGTH: _bindgen_ty_1180 = 4;
-pub type _bindgen_ty_1180 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_SNERR_MASK: _bindgen_ty_1181 = 16492674416640;
-pub type _bindgen_ty_1181 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR3_ANERR_SHIFT: _bindgen_ty_1182 = 44;
-pub type _bindgen_ty_1182 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_ANERR_LENGTH: _bindgen_ty_1183 = 4;
-pub type _bindgen_ty_1183 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_ANERR_MASK: _bindgen_ty_1184 = 263882790666240;
-pub type _bindgen_ty_1184 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR3_SDERR_SHIFT: _bindgen_ty_1185 = 52;
-pub type _bindgen_ty_1185 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_SDERR_LENGTH: _bindgen_ty_1186 = 4;
-pub type _bindgen_ty_1186 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_SDERR_MASK: _bindgen_ty_1187 = 67553994410557440;
-pub type _bindgen_ty_1187 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR3_ADERR_SHIFT: _bindgen_ty_1188 = 56;
-pub type _bindgen_ty_1188 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_ADERR_LENGTH: _bindgen_ty_1189 = 4;
-pub type _bindgen_ty_1189 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_ADERR_MASK: _bindgen_ty_1190 = 1080863910568919040;
-pub type _bindgen_ty_1190 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64MMFR3_SPEC_FPACC_SHIFT: _bindgen_ty_1191 = 60;
-pub type _bindgen_ty_1191 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_SPEC_FPACC_LENGTH: _bindgen_ty_1192 = 4;
-pub type _bindgen_ty_1192 = ::std::os::raw::c_uint;
-pub const R_ID_AA64MMFR3_SPEC_FPACC_MASK: _bindgen_ty_1193 = 17293822569102704640;
-pub type _bindgen_ty_1193 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64DFR0_DEBUGVER_SHIFT: _bindgen_ty_1194 = 0;
-pub type _bindgen_ty_1194 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_DEBUGVER_LENGTH: _bindgen_ty_1195 = 4;
-pub type _bindgen_ty_1195 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_DEBUGVER_MASK: _bindgen_ty_1196 = 15;
-pub type _bindgen_ty_1196 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_TRACEVER_SHIFT: _bindgen_ty_1197 = 4;
-pub type _bindgen_ty_1197 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_TRACEVER_LENGTH: _bindgen_ty_1198 = 4;
-pub type _bindgen_ty_1198 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_TRACEVER_MASK: _bindgen_ty_1199 = 240;
-pub type _bindgen_ty_1199 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_PMUVER_SHIFT: _bindgen_ty_1200 = 8;
-pub type _bindgen_ty_1200 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_PMUVER_LENGTH: _bindgen_ty_1201 = 4;
-pub type _bindgen_ty_1201 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_PMUVER_MASK: _bindgen_ty_1202 = 3840;
-pub type _bindgen_ty_1202 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_BRPS_SHIFT: _bindgen_ty_1203 = 12;
-pub type _bindgen_ty_1203 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_BRPS_LENGTH: _bindgen_ty_1204 = 4;
-pub type _bindgen_ty_1204 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_BRPS_MASK: _bindgen_ty_1205 = 61440;
-pub type _bindgen_ty_1205 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_PMSS_SHIFT: _bindgen_ty_1206 = 16;
-pub type _bindgen_ty_1206 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_PMSS_LENGTH: _bindgen_ty_1207 = 4;
-pub type _bindgen_ty_1207 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_PMSS_MASK: _bindgen_ty_1208 = 983040;
-pub type _bindgen_ty_1208 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_WRPS_SHIFT: _bindgen_ty_1209 = 20;
-pub type _bindgen_ty_1209 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_WRPS_LENGTH: _bindgen_ty_1210 = 4;
-pub type _bindgen_ty_1210 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_WRPS_MASK: _bindgen_ty_1211 = 15728640;
-pub type _bindgen_ty_1211 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_SEBEP_SHIFT: _bindgen_ty_1212 = 24;
-pub type _bindgen_ty_1212 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_SEBEP_LENGTH: _bindgen_ty_1213 = 4;
-pub type _bindgen_ty_1213 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_SEBEP_MASK: _bindgen_ty_1214 = 251658240;
-pub type _bindgen_ty_1214 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_CTX_CMPS_SHIFT: _bindgen_ty_1215 = 28;
-pub type _bindgen_ty_1215 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_CTX_CMPS_LENGTH: _bindgen_ty_1216 = 4;
-pub type _bindgen_ty_1216 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_CTX_CMPS_MASK: _bindgen_ty_1217 = 4026531840;
-pub type _bindgen_ty_1217 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_PMSVER_SHIFT: _bindgen_ty_1218 = 32;
-pub type _bindgen_ty_1218 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_PMSVER_LENGTH: _bindgen_ty_1219 = 4;
-pub type _bindgen_ty_1219 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_PMSVER_MASK: _bindgen_ty_1220 = 64424509440;
-pub type _bindgen_ty_1220 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64DFR0_DOUBLELOCK_SHIFT: _bindgen_ty_1221 = 36;
-pub type _bindgen_ty_1221 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_DOUBLELOCK_LENGTH: _bindgen_ty_1222 = 4;
-pub type _bindgen_ty_1222 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_DOUBLELOCK_MASK: _bindgen_ty_1223 = 1030792151040;
-pub type _bindgen_ty_1223 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64DFR0_TRACEFILT_SHIFT: _bindgen_ty_1224 = 40;
-pub type _bindgen_ty_1224 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_TRACEFILT_LENGTH: _bindgen_ty_1225 = 4;
-pub type _bindgen_ty_1225 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_TRACEFILT_MASK: _bindgen_ty_1226 = 16492674416640;
-pub type _bindgen_ty_1226 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64DFR0_TRACEBUFFER_SHIFT: _bindgen_ty_1227 = 44;
-pub type _bindgen_ty_1227 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_TRACEBUFFER_LENGTH: _bindgen_ty_1228 = 4;
-pub type _bindgen_ty_1228 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_TRACEBUFFER_MASK: _bindgen_ty_1229 = 263882790666240;
-pub type _bindgen_ty_1229 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64DFR0_MTPMU_SHIFT: _bindgen_ty_1230 = 48;
-pub type _bindgen_ty_1230 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_MTPMU_LENGTH: _bindgen_ty_1231 = 4;
-pub type _bindgen_ty_1231 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_MTPMU_MASK: _bindgen_ty_1232 = 4222124650659840;
-pub type _bindgen_ty_1232 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64DFR0_BRBE_SHIFT: _bindgen_ty_1233 = 52;
-pub type _bindgen_ty_1233 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_BRBE_LENGTH: _bindgen_ty_1234 = 4;
-pub type _bindgen_ty_1234 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_BRBE_MASK: _bindgen_ty_1235 = 67553994410557440;
-pub type _bindgen_ty_1235 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64DFR0_EXTTRCBUFF_SHIFT: _bindgen_ty_1236 = 56;
-pub type _bindgen_ty_1236 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_EXTTRCBUFF_LENGTH: _bindgen_ty_1237 = 4;
-pub type _bindgen_ty_1237 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_EXTTRCBUFF_MASK: _bindgen_ty_1238 = 1080863910568919040;
-pub type _bindgen_ty_1238 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64DFR0_HPMN0_SHIFT: _bindgen_ty_1239 = 60;
-pub type _bindgen_ty_1239 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_HPMN0_LENGTH: _bindgen_ty_1240 = 4;
-pub type _bindgen_ty_1240 = ::std::os::raw::c_uint;
-pub const R_ID_AA64DFR0_HPMN0_MASK: _bindgen_ty_1241 = 17293822569102704640;
-pub type _bindgen_ty_1241 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ZFR0_SVEVER_SHIFT: _bindgen_ty_1242 = 0;
-pub type _bindgen_ty_1242 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_SVEVER_LENGTH: _bindgen_ty_1243 = 4;
-pub type _bindgen_ty_1243 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_SVEVER_MASK: _bindgen_ty_1244 = 15;
-pub type _bindgen_ty_1244 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_AES_SHIFT: _bindgen_ty_1245 = 4;
-pub type _bindgen_ty_1245 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_AES_LENGTH: _bindgen_ty_1246 = 4;
-pub type _bindgen_ty_1246 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_AES_MASK: _bindgen_ty_1247 = 240;
-pub type _bindgen_ty_1247 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_BITPERM_SHIFT: _bindgen_ty_1248 = 16;
-pub type _bindgen_ty_1248 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_BITPERM_LENGTH: _bindgen_ty_1249 = 4;
-pub type _bindgen_ty_1249 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_BITPERM_MASK: _bindgen_ty_1250 = 983040;
-pub type _bindgen_ty_1250 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_BFLOAT16_SHIFT: _bindgen_ty_1251 = 20;
-pub type _bindgen_ty_1251 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_BFLOAT16_LENGTH: _bindgen_ty_1252 = 4;
-pub type _bindgen_ty_1252 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_BFLOAT16_MASK: _bindgen_ty_1253 = 15728640;
-pub type _bindgen_ty_1253 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_B16B16_SHIFT: _bindgen_ty_1254 = 24;
-pub type _bindgen_ty_1254 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_B16B16_LENGTH: _bindgen_ty_1255 = 4;
-pub type _bindgen_ty_1255 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_B16B16_MASK: _bindgen_ty_1256 = 251658240;
-pub type _bindgen_ty_1256 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_SHA3_SHIFT: _bindgen_ty_1257 = 32;
-pub type _bindgen_ty_1257 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_SHA3_LENGTH: _bindgen_ty_1258 = 4;
-pub type _bindgen_ty_1258 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_SHA3_MASK: _bindgen_ty_1259 = 64424509440;
-pub type _bindgen_ty_1259 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ZFR0_SM4_SHIFT: _bindgen_ty_1260 = 40;
-pub type _bindgen_ty_1260 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_SM4_LENGTH: _bindgen_ty_1261 = 4;
-pub type _bindgen_ty_1261 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_SM4_MASK: _bindgen_ty_1262 = 16492674416640;
-pub type _bindgen_ty_1262 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ZFR0_I8MM_SHIFT: _bindgen_ty_1263 = 44;
-pub type _bindgen_ty_1263 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_I8MM_LENGTH: _bindgen_ty_1264 = 4;
-pub type _bindgen_ty_1264 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_I8MM_MASK: _bindgen_ty_1265 = 263882790666240;
-pub type _bindgen_ty_1265 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ZFR0_F32MM_SHIFT: _bindgen_ty_1266 = 52;
-pub type _bindgen_ty_1266 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_F32MM_LENGTH: _bindgen_ty_1267 = 4;
-pub type _bindgen_ty_1267 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_F32MM_MASK: _bindgen_ty_1268 = 67553994410557440;
-pub type _bindgen_ty_1268 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64ZFR0_F64MM_SHIFT: _bindgen_ty_1269 = 56;
-pub type _bindgen_ty_1269 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_F64MM_LENGTH: _bindgen_ty_1270 = 4;
-pub type _bindgen_ty_1270 = ::std::os::raw::c_uint;
-pub const R_ID_AA64ZFR0_F64MM_MASK: _bindgen_ty_1271 = 1080863910568919040;
-pub type _bindgen_ty_1271 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64SMFR0_F32F32_SHIFT: _bindgen_ty_1272 = 32;
-pub type _bindgen_ty_1272 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_F32F32_LENGTH: _bindgen_ty_1273 = 1;
-pub type _bindgen_ty_1273 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_F32F32_MASK: _bindgen_ty_1274 = 4294967296;
-pub type _bindgen_ty_1274 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64SMFR0_BI32I32_SHIFT: _bindgen_ty_1275 = 33;
-pub type _bindgen_ty_1275 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_BI32I32_LENGTH: _bindgen_ty_1276 = 1;
-pub type _bindgen_ty_1276 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_BI32I32_MASK: _bindgen_ty_1277 = 8589934592;
-pub type _bindgen_ty_1277 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64SMFR0_B16F32_SHIFT: _bindgen_ty_1278 = 34;
-pub type _bindgen_ty_1278 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_B16F32_LENGTH: _bindgen_ty_1279 = 1;
-pub type _bindgen_ty_1279 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_B16F32_MASK: _bindgen_ty_1280 = 17179869184;
-pub type _bindgen_ty_1280 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64SMFR0_F16F32_SHIFT: _bindgen_ty_1281 = 35;
-pub type _bindgen_ty_1281 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_F16F32_LENGTH: _bindgen_ty_1282 = 1;
-pub type _bindgen_ty_1282 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_F16F32_MASK: _bindgen_ty_1283 = 34359738368;
-pub type _bindgen_ty_1283 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64SMFR0_I8I32_SHIFT: _bindgen_ty_1284 = 36;
-pub type _bindgen_ty_1284 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_I8I32_LENGTH: _bindgen_ty_1285 = 4;
-pub type _bindgen_ty_1285 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_I8I32_MASK: _bindgen_ty_1286 = 1030792151040;
-pub type _bindgen_ty_1286 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64SMFR0_F16F16_SHIFT: _bindgen_ty_1287 = 42;
-pub type _bindgen_ty_1287 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_F16F16_LENGTH: _bindgen_ty_1288 = 1;
-pub type _bindgen_ty_1288 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_F16F16_MASK: _bindgen_ty_1289 = 4398046511104;
-pub type _bindgen_ty_1289 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64SMFR0_B16B16_SHIFT: _bindgen_ty_1290 = 43;
-pub type _bindgen_ty_1290 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_B16B16_LENGTH: _bindgen_ty_1291 = 1;
-pub type _bindgen_ty_1291 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_B16B16_MASK: _bindgen_ty_1292 = 8796093022208;
-pub type _bindgen_ty_1292 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64SMFR0_I16I32_SHIFT: _bindgen_ty_1293 = 44;
-pub type _bindgen_ty_1293 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_I16I32_LENGTH: _bindgen_ty_1294 = 4;
-pub type _bindgen_ty_1294 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_I16I32_MASK: _bindgen_ty_1295 = 263882790666240;
-pub type _bindgen_ty_1295 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64SMFR0_F64F64_SHIFT: _bindgen_ty_1296 = 48;
-pub type _bindgen_ty_1296 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_F64F64_LENGTH: _bindgen_ty_1297 = 1;
-pub type _bindgen_ty_1297 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_F64F64_MASK: _bindgen_ty_1298 = 281474976710656;
-pub type _bindgen_ty_1298 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64SMFR0_I16I64_SHIFT: _bindgen_ty_1299 = 52;
-pub type _bindgen_ty_1299 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_I16I64_LENGTH: _bindgen_ty_1300 = 4;
-pub type _bindgen_ty_1300 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_I16I64_MASK: _bindgen_ty_1301 = 67553994410557440;
-pub type _bindgen_ty_1301 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64SMFR0_SMEVER_SHIFT: _bindgen_ty_1302 = 56;
-pub type _bindgen_ty_1302 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_SMEVER_LENGTH: _bindgen_ty_1303 = 4;
-pub type _bindgen_ty_1303 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_SMEVER_MASK: _bindgen_ty_1304 = 1080863910568919040;
-pub type _bindgen_ty_1304 = ::std::os::raw::c_ulong;
-pub const R_ID_AA64SMFR0_FA64_SHIFT: _bindgen_ty_1305 = 63;
-pub type _bindgen_ty_1305 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_FA64_LENGTH: _bindgen_ty_1306 = 1;
-pub type _bindgen_ty_1306 = ::std::os::raw::c_uint;
-pub const R_ID_AA64SMFR0_FA64_MASK: _bindgen_ty_1307 = 9223372036854775808;
-pub type _bindgen_ty_1307 = ::std::os::raw::c_ulong;
-pub const R_ID_DFR0_COPDBG_SHIFT: _bindgen_ty_1308 = 0;
-pub type _bindgen_ty_1308 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_COPDBG_LENGTH: _bindgen_ty_1309 = 4;
-pub type _bindgen_ty_1309 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_COPDBG_MASK: _bindgen_ty_1310 = 15;
-pub type _bindgen_ty_1310 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_COPSDBG_SHIFT: _bindgen_ty_1311 = 4;
-pub type _bindgen_ty_1311 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_COPSDBG_LENGTH: _bindgen_ty_1312 = 4;
-pub type _bindgen_ty_1312 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_COPSDBG_MASK: _bindgen_ty_1313 = 240;
-pub type _bindgen_ty_1313 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_MMAPDBG_SHIFT: _bindgen_ty_1314 = 8;
-pub type _bindgen_ty_1314 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_MMAPDBG_LENGTH: _bindgen_ty_1315 = 4;
-pub type _bindgen_ty_1315 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_MMAPDBG_MASK: _bindgen_ty_1316 = 3840;
-pub type _bindgen_ty_1316 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_COPTRC_SHIFT: _bindgen_ty_1317 = 12;
-pub type _bindgen_ty_1317 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_COPTRC_LENGTH: _bindgen_ty_1318 = 4;
-pub type _bindgen_ty_1318 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_COPTRC_MASK: _bindgen_ty_1319 = 61440;
-pub type _bindgen_ty_1319 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_MMAPTRC_SHIFT: _bindgen_ty_1320 = 16;
-pub type _bindgen_ty_1320 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_MMAPTRC_LENGTH: _bindgen_ty_1321 = 4;
-pub type _bindgen_ty_1321 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_MMAPTRC_MASK: _bindgen_ty_1322 = 983040;
-pub type _bindgen_ty_1322 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_MPROFDBG_SHIFT: _bindgen_ty_1323 = 20;
-pub type _bindgen_ty_1323 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_MPROFDBG_LENGTH: _bindgen_ty_1324 = 4;
-pub type _bindgen_ty_1324 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_MPROFDBG_MASK: _bindgen_ty_1325 = 15728640;
-pub type _bindgen_ty_1325 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_PERFMON_SHIFT: _bindgen_ty_1326 = 24;
-pub type _bindgen_ty_1326 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_PERFMON_LENGTH: _bindgen_ty_1327 = 4;
-pub type _bindgen_ty_1327 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_PERFMON_MASK: _bindgen_ty_1328 = 251658240;
-pub type _bindgen_ty_1328 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_TRACEFILT_SHIFT: _bindgen_ty_1329 = 28;
-pub type _bindgen_ty_1329 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_TRACEFILT_LENGTH: _bindgen_ty_1330 = 4;
-pub type _bindgen_ty_1330 = ::std::os::raw::c_uint;
-pub const R_ID_DFR0_TRACEFILT_MASK: _bindgen_ty_1331 = 4026531840;
-pub type _bindgen_ty_1331 = ::std::os::raw::c_uint;
-pub const R_ID_DFR1_MTPMU_SHIFT: _bindgen_ty_1332 = 0;
-pub type _bindgen_ty_1332 = ::std::os::raw::c_uint;
-pub const R_ID_DFR1_MTPMU_LENGTH: _bindgen_ty_1333 = 4;
-pub type _bindgen_ty_1333 = ::std::os::raw::c_uint;
-pub const R_ID_DFR1_MTPMU_MASK: _bindgen_ty_1334 = 15;
-pub type _bindgen_ty_1334 = ::std::os::raw::c_uint;
-pub const R_ID_DFR1_HPMN0_SHIFT: _bindgen_ty_1335 = 4;
-pub type _bindgen_ty_1335 = ::std::os::raw::c_uint;
-pub const R_ID_DFR1_HPMN0_LENGTH: _bindgen_ty_1336 = 4;
-pub type _bindgen_ty_1336 = ::std::os::raw::c_uint;
-pub const R_ID_DFR1_HPMN0_MASK: _bindgen_ty_1337 = 240;
-pub type _bindgen_ty_1337 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_SE_IMP_SHIFT: _bindgen_ty_1338 = 12;
-pub type _bindgen_ty_1338 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_SE_IMP_LENGTH: _bindgen_ty_1339 = 1;
-pub type _bindgen_ty_1339 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_SE_IMP_MASK: _bindgen_ty_1340 = 4096;
-pub type _bindgen_ty_1340 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_NSUHD_IMP_SHIFT: _bindgen_ty_1341 = 14;
-pub type _bindgen_ty_1341 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_NSUHD_IMP_LENGTH: _bindgen_ty_1342 = 1;
-pub type _bindgen_ty_1342 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_NSUHD_IMP_MASK: _bindgen_ty_1343 = 16384;
-pub type _bindgen_ty_1343 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_VERSION_SHIFT: _bindgen_ty_1344 = 16;
-pub type _bindgen_ty_1344 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_VERSION_LENGTH: _bindgen_ty_1345 = 4;
-pub type _bindgen_ty_1345 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_VERSION_MASK: _bindgen_ty_1346 = 983040;
-pub type _bindgen_ty_1346 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_CTX_CMPS_SHIFT: _bindgen_ty_1347 = 20;
-pub type _bindgen_ty_1347 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_CTX_CMPS_LENGTH: _bindgen_ty_1348 = 4;
-pub type _bindgen_ty_1348 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_CTX_CMPS_MASK: _bindgen_ty_1349 = 15728640;
-pub type _bindgen_ty_1349 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_BRPS_SHIFT: _bindgen_ty_1350 = 24;
-pub type _bindgen_ty_1350 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_BRPS_LENGTH: _bindgen_ty_1351 = 4;
-pub type _bindgen_ty_1351 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_BRPS_MASK: _bindgen_ty_1352 = 251658240;
-pub type _bindgen_ty_1352 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_WRPS_SHIFT: _bindgen_ty_1353 = 28;
-pub type _bindgen_ty_1353 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_WRPS_LENGTH: _bindgen_ty_1354 = 4;
-pub type _bindgen_ty_1354 = ::std::os::raw::c_uint;
-pub const R_DBGDIDR_WRPS_MASK: _bindgen_ty_1355 = 4026531840;
-pub type _bindgen_ty_1355 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_PCSAMPLE_SHIFT: _bindgen_ty_1356 = 0;
-pub type _bindgen_ty_1356 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_PCSAMPLE_LENGTH: _bindgen_ty_1357 = 4;
-pub type _bindgen_ty_1357 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_PCSAMPLE_MASK: _bindgen_ty_1358 = 15;
-pub type _bindgen_ty_1358 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_WPADDRMASK_SHIFT: _bindgen_ty_1359 = 4;
-pub type _bindgen_ty_1359 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_WPADDRMASK_LENGTH: _bindgen_ty_1360 = 4;
-pub type _bindgen_ty_1360 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_WPADDRMASK_MASK: _bindgen_ty_1361 = 240;
-pub type _bindgen_ty_1361 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_BPADDRMASK_SHIFT: _bindgen_ty_1362 = 8;
-pub type _bindgen_ty_1362 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_BPADDRMASK_LENGTH: _bindgen_ty_1363 = 4;
-pub type _bindgen_ty_1363 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_BPADDRMASK_MASK: _bindgen_ty_1364 = 3840;
-pub type _bindgen_ty_1364 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_VECTORCATCH_SHIFT: _bindgen_ty_1365 = 12;
-pub type _bindgen_ty_1365 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_VECTORCATCH_LENGTH: _bindgen_ty_1366 = 4;
-pub type _bindgen_ty_1366 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_VECTORCATCH_MASK: _bindgen_ty_1367 = 61440;
-pub type _bindgen_ty_1367 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_VIRTEXTNS_SHIFT: _bindgen_ty_1368 = 16;
-pub type _bindgen_ty_1368 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_VIRTEXTNS_LENGTH: _bindgen_ty_1369 = 4;
-pub type _bindgen_ty_1369 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_VIRTEXTNS_MASK: _bindgen_ty_1370 = 983040;
-pub type _bindgen_ty_1370 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_DOUBLELOCK_SHIFT: _bindgen_ty_1371 = 20;
-pub type _bindgen_ty_1371 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_DOUBLELOCK_LENGTH: _bindgen_ty_1372 = 4;
-pub type _bindgen_ty_1372 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_DOUBLELOCK_MASK: _bindgen_ty_1373 = 15728640;
-pub type _bindgen_ty_1373 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_AUXREGS_SHIFT: _bindgen_ty_1374 = 24;
-pub type _bindgen_ty_1374 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_AUXREGS_LENGTH: _bindgen_ty_1375 = 4;
-pub type _bindgen_ty_1375 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_AUXREGS_MASK: _bindgen_ty_1376 = 251658240;
-pub type _bindgen_ty_1376 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_CIDMASK_SHIFT: _bindgen_ty_1377 = 28;
-pub type _bindgen_ty_1377 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_CIDMASK_LENGTH: _bindgen_ty_1378 = 4;
-pub type _bindgen_ty_1378 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID_CIDMASK_MASK: _bindgen_ty_1379 = 4026531840;
-pub type _bindgen_ty_1379 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID1_PCSROFFSET_SHIFT: _bindgen_ty_1380 = 0;
-pub type _bindgen_ty_1380 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID1_PCSROFFSET_LENGTH: _bindgen_ty_1381 = 4;
-pub type _bindgen_ty_1381 = ::std::os::raw::c_uint;
-pub const R_DBGDEVID1_PCSROFFSET_MASK: _bindgen_ty_1382 = 15;
-pub type _bindgen_ty_1382 = ::std::os::raw::c_uint;
-pub const R_MVFR0_SIMDREG_SHIFT: _bindgen_ty_1383 = 0;
-pub type _bindgen_ty_1383 = ::std::os::raw::c_uint;
-pub const R_MVFR0_SIMDREG_LENGTH: _bindgen_ty_1384 = 4;
-pub type _bindgen_ty_1384 = ::std::os::raw::c_uint;
-pub const R_MVFR0_SIMDREG_MASK: _bindgen_ty_1385 = 15;
-pub type _bindgen_ty_1385 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPSP_SHIFT: _bindgen_ty_1386 = 4;
-pub type _bindgen_ty_1386 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPSP_LENGTH: _bindgen_ty_1387 = 4;
-pub type _bindgen_ty_1387 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPSP_MASK: _bindgen_ty_1388 = 240;
-pub type _bindgen_ty_1388 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPDP_SHIFT: _bindgen_ty_1389 = 8;
-pub type _bindgen_ty_1389 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPDP_LENGTH: _bindgen_ty_1390 = 4;
-pub type _bindgen_ty_1390 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPDP_MASK: _bindgen_ty_1391 = 3840;
-pub type _bindgen_ty_1391 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPTRAP_SHIFT: _bindgen_ty_1392 = 12;
-pub type _bindgen_ty_1392 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPTRAP_LENGTH: _bindgen_ty_1393 = 4;
-pub type _bindgen_ty_1393 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPTRAP_MASK: _bindgen_ty_1394 = 61440;
-pub type _bindgen_ty_1394 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPDIVIDE_SHIFT: _bindgen_ty_1395 = 16;
-pub type _bindgen_ty_1395 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPDIVIDE_LENGTH: _bindgen_ty_1396 = 4;
-pub type _bindgen_ty_1396 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPDIVIDE_MASK: _bindgen_ty_1397 = 983040;
-pub type _bindgen_ty_1397 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPSQRT_SHIFT: _bindgen_ty_1398 = 20;
-pub type _bindgen_ty_1398 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPSQRT_LENGTH: _bindgen_ty_1399 = 4;
-pub type _bindgen_ty_1399 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPSQRT_MASK: _bindgen_ty_1400 = 15728640;
-pub type _bindgen_ty_1400 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPSHVEC_SHIFT: _bindgen_ty_1401 = 24;
-pub type _bindgen_ty_1401 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPSHVEC_LENGTH: _bindgen_ty_1402 = 4;
-pub type _bindgen_ty_1402 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPSHVEC_MASK: _bindgen_ty_1403 = 251658240;
-pub type _bindgen_ty_1403 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPROUND_SHIFT: _bindgen_ty_1404 = 28;
-pub type _bindgen_ty_1404 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPROUND_LENGTH: _bindgen_ty_1405 = 4;
-pub type _bindgen_ty_1405 = ::std::os::raw::c_uint;
-pub const R_MVFR0_FPROUND_MASK: _bindgen_ty_1406 = 4026531840;
-pub type _bindgen_ty_1406 = ::std::os::raw::c_uint;
-pub const R_MVFR1_FPFTZ_SHIFT: _bindgen_ty_1407 = 0;
-pub type _bindgen_ty_1407 = ::std::os::raw::c_uint;
-pub const R_MVFR1_FPFTZ_LENGTH: _bindgen_ty_1408 = 4;
-pub type _bindgen_ty_1408 = ::std::os::raw::c_uint;
-pub const R_MVFR1_FPFTZ_MASK: _bindgen_ty_1409 = 15;
-pub type _bindgen_ty_1409 = ::std::os::raw::c_uint;
-pub const R_MVFR1_FPDNAN_SHIFT: _bindgen_ty_1410 = 4;
-pub type _bindgen_ty_1410 = ::std::os::raw::c_uint;
-pub const R_MVFR1_FPDNAN_LENGTH: _bindgen_ty_1411 = 4;
-pub type _bindgen_ty_1411 = ::std::os::raw::c_uint;
-pub const R_MVFR1_FPDNAN_MASK: _bindgen_ty_1412 = 240;
-pub type _bindgen_ty_1412 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDLS_SHIFT: _bindgen_ty_1413 = 8;
-pub type _bindgen_ty_1413 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDLS_LENGTH: _bindgen_ty_1414 = 4;
-pub type _bindgen_ty_1414 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDLS_MASK: _bindgen_ty_1415 = 3840;
-pub type _bindgen_ty_1415 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDINT_SHIFT: _bindgen_ty_1416 = 12;
-pub type _bindgen_ty_1416 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDINT_LENGTH: _bindgen_ty_1417 = 4;
-pub type _bindgen_ty_1417 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDINT_MASK: _bindgen_ty_1418 = 61440;
-pub type _bindgen_ty_1418 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDSP_SHIFT: _bindgen_ty_1419 = 16;
-pub type _bindgen_ty_1419 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDSP_LENGTH: _bindgen_ty_1420 = 4;
-pub type _bindgen_ty_1420 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDSP_MASK: _bindgen_ty_1421 = 983040;
-pub type _bindgen_ty_1421 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDHP_SHIFT: _bindgen_ty_1422 = 20;
-pub type _bindgen_ty_1422 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDHP_LENGTH: _bindgen_ty_1423 = 4;
-pub type _bindgen_ty_1423 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDHP_MASK: _bindgen_ty_1424 = 15728640;
-pub type _bindgen_ty_1424 = ::std::os::raw::c_uint;
-pub const R_MVFR1_MVE_SHIFT: _bindgen_ty_1425 = 8;
-pub type _bindgen_ty_1425 = ::std::os::raw::c_uint;
-pub const R_MVFR1_MVE_LENGTH: _bindgen_ty_1426 = 4;
-pub type _bindgen_ty_1426 = ::std::os::raw::c_uint;
-pub const R_MVFR1_MVE_MASK: _bindgen_ty_1427 = 3840;
-pub type _bindgen_ty_1427 = ::std::os::raw::c_uint;
-pub const R_MVFR1_FP16_SHIFT: _bindgen_ty_1428 = 20;
-pub type _bindgen_ty_1428 = ::std::os::raw::c_uint;
-pub const R_MVFR1_FP16_LENGTH: _bindgen_ty_1429 = 4;
-pub type _bindgen_ty_1429 = ::std::os::raw::c_uint;
-pub const R_MVFR1_FP16_MASK: _bindgen_ty_1430 = 15728640;
-pub type _bindgen_ty_1430 = ::std::os::raw::c_uint;
-pub const R_MVFR1_FPHP_SHIFT: _bindgen_ty_1431 = 24;
-pub type _bindgen_ty_1431 = ::std::os::raw::c_uint;
-pub const R_MVFR1_FPHP_LENGTH: _bindgen_ty_1432 = 4;
-pub type _bindgen_ty_1432 = ::std::os::raw::c_uint;
-pub const R_MVFR1_FPHP_MASK: _bindgen_ty_1433 = 251658240;
-pub type _bindgen_ty_1433 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDFMAC_SHIFT: _bindgen_ty_1434 = 28;
-pub type _bindgen_ty_1434 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDFMAC_LENGTH: _bindgen_ty_1435 = 4;
-pub type _bindgen_ty_1435 = ::std::os::raw::c_uint;
-pub const R_MVFR1_SIMDFMAC_MASK: _bindgen_ty_1436 = 4026531840;
-pub type _bindgen_ty_1436 = ::std::os::raw::c_uint;
-pub const R_MVFR2_SIMDMISC_SHIFT: _bindgen_ty_1437 = 0;
-pub type _bindgen_ty_1437 = ::std::os::raw::c_uint;
-pub const R_MVFR2_SIMDMISC_LENGTH: _bindgen_ty_1438 = 4;
-pub type _bindgen_ty_1438 = ::std::os::raw::c_uint;
-pub const R_MVFR2_SIMDMISC_MASK: _bindgen_ty_1439 = 15;
-pub type _bindgen_ty_1439 = ::std::os::raw::c_uint;
-pub const R_MVFR2_FPMISC_SHIFT: _bindgen_ty_1440 = 4;
-pub type _bindgen_ty_1440 = ::std::os::raw::c_uint;
-pub const R_MVFR2_FPMISC_LENGTH: _bindgen_ty_1441 = 4;
-pub type _bindgen_ty_1441 = ::std::os::raw::c_uint;
-pub const R_MVFR2_FPMISC_MASK: _bindgen_ty_1442 = 240;
-pub type _bindgen_ty_1442 = ::std::os::raw::c_uint;
-pub const R_GPCCR_PPS_SHIFT: _bindgen_ty_1443 = 0;
-pub type _bindgen_ty_1443 = ::std::os::raw::c_uint;
-pub const R_GPCCR_PPS_LENGTH: _bindgen_ty_1444 = 3;
-pub type _bindgen_ty_1444 = ::std::os::raw::c_uint;
-pub const R_GPCCR_PPS_MASK: _bindgen_ty_1445 = 7;
-pub type _bindgen_ty_1445 = ::std::os::raw::c_uint;
-pub const R_GPCCR_IRGN_SHIFT: _bindgen_ty_1446 = 8;
-pub type _bindgen_ty_1446 = ::std::os::raw::c_uint;
-pub const R_GPCCR_IRGN_LENGTH: _bindgen_ty_1447 = 2;
-pub type _bindgen_ty_1447 = ::std::os::raw::c_uint;
-pub const R_GPCCR_IRGN_MASK: _bindgen_ty_1448 = 768;
-pub type _bindgen_ty_1448 = ::std::os::raw::c_uint;
-pub const R_GPCCR_ORGN_SHIFT: _bindgen_ty_1449 = 10;
-pub type _bindgen_ty_1449 = ::std::os::raw::c_uint;
-pub const R_GPCCR_ORGN_LENGTH: _bindgen_ty_1450 = 2;
-pub type _bindgen_ty_1450 = ::std::os::raw::c_uint;
-pub const R_GPCCR_ORGN_MASK: _bindgen_ty_1451 = 3072;
-pub type _bindgen_ty_1451 = ::std::os::raw::c_uint;
-pub const R_GPCCR_SH_SHIFT: _bindgen_ty_1452 = 12;
-pub type _bindgen_ty_1452 = ::std::os::raw::c_uint;
-pub const R_GPCCR_SH_LENGTH: _bindgen_ty_1453 = 2;
-pub type _bindgen_ty_1453 = ::std::os::raw::c_uint;
-pub const R_GPCCR_SH_MASK: _bindgen_ty_1454 = 12288;
-pub type _bindgen_ty_1454 = ::std::os::raw::c_uint;
-pub const R_GPCCR_PGS_SHIFT: _bindgen_ty_1455 = 14;
-pub type _bindgen_ty_1455 = ::std::os::raw::c_uint;
-pub const R_GPCCR_PGS_LENGTH: _bindgen_ty_1456 = 2;
-pub type _bindgen_ty_1456 = ::std::os::raw::c_uint;
-pub const R_GPCCR_PGS_MASK: _bindgen_ty_1457 = 49152;
-pub type _bindgen_ty_1457 = ::std::os::raw::c_uint;
-pub const R_GPCCR_GPC_SHIFT: _bindgen_ty_1458 = 16;
-pub type _bindgen_ty_1458 = ::std::os::raw::c_uint;
-pub const R_GPCCR_GPC_LENGTH: _bindgen_ty_1459 = 1;
-pub type _bindgen_ty_1459 = ::std::os::raw::c_uint;
-pub const R_GPCCR_GPC_MASK: _bindgen_ty_1460 = 65536;
-pub type _bindgen_ty_1460 = ::std::os::raw::c_uint;
-pub const R_GPCCR_GPCP_SHIFT: _bindgen_ty_1461 = 17;
-pub type _bindgen_ty_1461 = ::std::os::raw::c_uint;
-pub const R_GPCCR_GPCP_LENGTH: _bindgen_ty_1462 = 1;
-pub type _bindgen_ty_1462 = ::std::os::raw::c_uint;
-pub const R_GPCCR_GPCP_MASK: _bindgen_ty_1463 = 131072;
-pub type _bindgen_ty_1463 = ::std::os::raw::c_uint;
-pub const R_GPCCR_L0GPTSZ_SHIFT: _bindgen_ty_1464 = 20;
-pub type _bindgen_ty_1464 = ::std::os::raw::c_uint;
-pub const R_GPCCR_L0GPTSZ_LENGTH: _bindgen_ty_1465 = 4;
-pub type _bindgen_ty_1465 = ::std::os::raw::c_uint;
-pub const R_GPCCR_L0GPTSZ_MASK: _bindgen_ty_1466 = 15728640;
-pub type _bindgen_ty_1466 = ::std::os::raw::c_uint;
-pub const R_MFAR_FPA_SHIFT: _bindgen_ty_1467 = 12;
-pub type _bindgen_ty_1467 = ::std::os::raw::c_uint;
-pub const R_MFAR_FPA_LENGTH: _bindgen_ty_1468 = 40;
-pub type _bindgen_ty_1468 = ::std::os::raw::c_uint;
-pub const R_MFAR_FPA_MASK: _bindgen_ty_1469 = 4503599627366400;
-pub type _bindgen_ty_1469 = ::std::os::raw::c_ulong;
-pub const R_MFAR_NSE_SHIFT: _bindgen_ty_1470 = 62;
-pub type _bindgen_ty_1470 = ::std::os::raw::c_uint;
-pub const R_MFAR_NSE_LENGTH: _bindgen_ty_1471 = 1;
-pub type _bindgen_ty_1471 = ::std::os::raw::c_uint;
-pub const R_MFAR_NSE_MASK: _bindgen_ty_1472 = 4611686018427387904;
-pub type _bindgen_ty_1472 = ::std::os::raw::c_ulong;
-pub const R_MFAR_NS_SHIFT: _bindgen_ty_1473 = 63;
-pub type _bindgen_ty_1473 = ::std::os::raw::c_uint;
-pub const R_MFAR_NS_LENGTH: _bindgen_ty_1474 = 1;
-pub type _bindgen_ty_1474 = ::std::os::raw::c_uint;
-pub const R_MFAR_NS_MASK: _bindgen_ty_1475 = 9223372036854775808;
-pub type _bindgen_ty_1475 = ::std::os::raw::c_ulong;
-pub const ARM_FEATURE_AUXCR: arm_features = 0;
-pub const ARM_FEATURE_XSCALE: arm_features = 1;
-pub const ARM_FEATURE_IWMMXT: arm_features = 2;
-pub const ARM_FEATURE_V6: arm_features = 3;
-pub const ARM_FEATURE_V6K: arm_features = 4;
-pub const ARM_FEATURE_V7: arm_features = 5;
-pub const ARM_FEATURE_THUMB2: arm_features = 6;
-pub const ARM_FEATURE_PMSA: arm_features = 7;
-pub const ARM_FEATURE_NEON: arm_features = 8;
-pub const ARM_FEATURE_M: arm_features = 9;
-pub const ARM_FEATURE_OMAPCP: arm_features = 10;
-pub const ARM_FEATURE_THUMB2EE: arm_features = 11;
-pub const ARM_FEATURE_V7MP: arm_features = 12;
-pub const ARM_FEATURE_V7VE: arm_features = 13;
-pub const ARM_FEATURE_V4T: arm_features = 14;
-pub const ARM_FEATURE_V5: arm_features = 15;
-pub const ARM_FEATURE_STRONGARM: arm_features = 16;
-pub const ARM_FEATURE_VAPA: arm_features = 17;
-pub const ARM_FEATURE_GENERIC_TIMER: arm_features = 18;
-pub const ARM_FEATURE_MVFR: arm_features = 19;
-pub const ARM_FEATURE_DUMMY_C15_REGS: arm_features = 20;
-pub const ARM_FEATURE_CACHE_TEST_CLEAN: arm_features = 21;
-pub const ARM_FEATURE_CACHE_DIRTY_REG: arm_features = 22;
-pub const ARM_FEATURE_CACHE_BLOCK_OPS: arm_features = 23;
-pub const ARM_FEATURE_MPIDR: arm_features = 24;
-pub const ARM_FEATURE_LPAE: arm_features = 25;
-pub const ARM_FEATURE_V8: arm_features = 26;
-pub const ARM_FEATURE_AARCH64: arm_features = 27;
-pub const ARM_FEATURE_CBAR: arm_features = 28;
-pub const ARM_FEATURE_CBAR_RO: arm_features = 29;
-pub const ARM_FEATURE_EL2: arm_features = 30;
-pub const ARM_FEATURE_EL3: arm_features = 31;
-pub const ARM_FEATURE_THUMB_DSP: arm_features = 32;
-pub const ARM_FEATURE_PMU: arm_features = 33;
-pub const ARM_FEATURE_VBAR: arm_features = 34;
-pub const ARM_FEATURE_M_SECURITY: arm_features = 35;
-pub const ARM_FEATURE_M_MAIN: arm_features = 36;
-pub const ARM_FEATURE_V8_1M: arm_features = 37;
-pub const ARM_FEATURE_BACKCOMPAT_CNTFRQ: arm_features = 38;
-pub type arm_features = ::std::os::raw::c_uint;
-unsafe extern "C" {
-    pub fn arm_cpu_finalize_features(cpu: *mut ARMCPU, errp: *mut *mut Error);
-}
-pub const ARMSS_Secure: ARMSecuritySpace = 0;
-pub const ARMSS_NonSecure: ARMSecuritySpace = 1;
-pub const ARMSS_Root: ARMSecuritySpace = 2;
-pub const ARMSS_Realm: ARMSecuritySpace = 3;
-pub type ARMSecuritySpace = ::std::os::raw::c_uint;
-unsafe extern "C" {
-    pub fn arm_security_space_below_el3(env: *mut CPUARMState) -> ARMSecuritySpace;
-}
-unsafe extern "C" {
-    pub fn arm_security_space(env: *mut CPUARMState) -> ARMSecuritySpace;
-}
-unsafe extern "C" {
-    pub fn arm_hcr_el2_eff_secstate(env: *mut CPUARMState, space: ARMSecuritySpace) -> u64;
-}
-unsafe extern "C" {
-    pub fn arm_hcr_el2_eff(env: *mut CPUARMState) -> u64;
-}
-unsafe extern "C" {
-    pub fn arm_hcrx_el2_eff(env: *mut CPUARMState) -> u64;
-}
-unsafe extern "C" {
-    pub fn arm_phys_excp_target_el(
-        cs: *mut CPUState,
-        excp_idx: u32,
-        cur_el: u32,
-        secure: bool,
-    ) -> u32;
-}
-unsafe extern "C" {
-    pub fn write_list_to_cpustate(cpu: *mut ARMCPU) -> bool;
-}
-unsafe extern "C" {
-    pub fn write_cpustate_to_list(cpu: *mut ARMCPU, kvm_sync: bool) -> bool;
-}
-pub const ARMMMUIdx_E10_0: ARMMMUIdx = 16;
-pub const ARMMMUIdx_E20_0: ARMMMUIdx = 17;
-pub const ARMMMUIdx_E10_1: ARMMMUIdx = 18;
-pub const ARMMMUIdx_E20_2: ARMMMUIdx = 19;
-pub const ARMMMUIdx_E10_1_PAN: ARMMMUIdx = 20;
-pub const ARMMMUIdx_E20_2_PAN: ARMMMUIdx = 21;
-pub const ARMMMUIdx_E2: ARMMMUIdx = 22;
-pub const ARMMMUIdx_E3: ARMMMUIdx = 23;
-pub const ARMMMUIdx_E30_0: ARMMMUIdx = 24;
-pub const ARMMMUIdx_E30_3_PAN: ARMMMUIdx = 25;
-pub const ARMMMUIdx_Stage2_S: ARMMMUIdx = 26;
-pub const ARMMMUIdx_Stage2: ARMMMUIdx = 27;
-pub const ARMMMUIdx_Phys_S: ARMMMUIdx = 28;
-pub const ARMMMUIdx_Phys_NS: ARMMMUIdx = 29;
-pub const ARMMMUIdx_Phys_Root: ARMMMUIdx = 30;
-pub const ARMMMUIdx_Phys_Realm: ARMMMUIdx = 31;
-pub const ARMMMUIdx_Stage1_E0: ARMMMUIdx = 32;
-pub const ARMMMUIdx_Stage1_E1: ARMMMUIdx = 33;
-pub const ARMMMUIdx_Stage1_E1_PAN: ARMMMUIdx = 34;
-pub const ARMMMUIdx_MUser: ARMMMUIdx = 64;
-pub const ARMMMUIdx_MPriv: ARMMMUIdx = 65;
-pub const ARMMMUIdx_MUserNegPri: ARMMMUIdx = 66;
-pub const ARMMMUIdx_MPrivNegPri: ARMMMUIdx = 67;
-pub const ARMMMUIdx_MSUser: ARMMMUIdx = 68;
-pub const ARMMMUIdx_MSPriv: ARMMMUIdx = 69;
-pub const ARMMMUIdx_MSUserNegPri: ARMMMUIdx = 70;
-pub const ARMMMUIdx_MSPrivNegPri: ARMMMUIdx = 71;
-pub type ARMMMUIdx = ::std::os::raw::c_uint;
-pub const ARMMMUIdxBit_E10_0: ARMMMUIdxBit = 1;
-pub const ARMMMUIdxBit_E20_0: ARMMMUIdxBit = 2;
-pub const ARMMMUIdxBit_E10_1: ARMMMUIdxBit = 4;
-pub const ARMMMUIdxBit_E10_1_PAN: ARMMMUIdxBit = 16;
-pub const ARMMMUIdxBit_E2: ARMMMUIdxBit = 64;
-pub const ARMMMUIdxBit_E20_2: ARMMMUIdxBit = 8;
-pub const ARMMMUIdxBit_E20_2_PAN: ARMMMUIdxBit = 32;
-pub const ARMMMUIdxBit_E3: ARMMMUIdxBit = 128;
-pub const ARMMMUIdxBit_E30_0: ARMMMUIdxBit = 256;
-pub const ARMMMUIdxBit_E30_3_PAN: ARMMMUIdxBit = 512;
-pub const ARMMMUIdxBit_Stage2: ARMMMUIdxBit = 2048;
-pub const ARMMMUIdxBit_Stage2_S: ARMMMUIdxBit = 1024;
-pub const ARMMMUIdxBit_MUser: ARMMMUIdxBit = 1;
-pub const ARMMMUIdxBit_MPriv: ARMMMUIdxBit = 2;
-pub const ARMMMUIdxBit_MUserNegPri: ARMMMUIdxBit = 4;
-pub const ARMMMUIdxBit_MPrivNegPri: ARMMMUIdxBit = 8;
-pub const ARMMMUIdxBit_MSUser: ARMMMUIdxBit = 16;
-pub const ARMMMUIdxBit_MSPriv: ARMMMUIdxBit = 32;
-pub const ARMMMUIdxBit_MSUserNegPri: ARMMMUIdxBit = 64;
-pub const ARMMMUIdxBit_MSPrivNegPri: ARMMMUIdxBit = 128;
-pub type ARMMMUIdxBit = ::std::os::raw::c_uint;
-pub const ARMASIdx_NS: ARMASIdx = 0;
-pub const ARMASIdx_S: ARMASIdx = 1;
-pub const ARMASIdx_TagNS: ARMASIdx = 2;
-pub const ARMASIdx_TagS: ARMASIdx = 3;
-pub type ARMASIdx = ::std::os::raw::c_uint;
-unsafe extern "C" {
-    pub fn arm_sctlr(env: *mut CPUARMState, el: ::std::os::raw::c_int) -> u64;
+    pub static mut use_rt_clock: ::std::os::raw::c_int;
 }
 #[repr(C)]
 #[derive(Debug)]
@@ -42590,6 +37208,1521 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn ram_block_discard_is_required() -> bool;
 }
+pub const R_CSR_PRMD_PPLV_SHIFT: _bindgen_ty_52 = 0;
+pub type _bindgen_ty_52 = ::std::os::raw::c_uint;
+pub const R_CSR_PRMD_PPLV_LENGTH: _bindgen_ty_53 = 2;
+pub type _bindgen_ty_53 = ::std::os::raw::c_uint;
+pub const R_CSR_PRMD_PPLV_MASK: _bindgen_ty_54 = 3;
+pub type _bindgen_ty_54 = ::std::os::raw::c_uint;
+pub const R_CSR_PRMD_PIE_SHIFT: _bindgen_ty_55 = 2;
+pub type _bindgen_ty_55 = ::std::os::raw::c_uint;
+pub const R_CSR_PRMD_PIE_LENGTH: _bindgen_ty_56 = 1;
+pub type _bindgen_ty_56 = ::std::os::raw::c_uint;
+pub const R_CSR_PRMD_PIE_MASK: _bindgen_ty_57 = 4;
+pub type _bindgen_ty_57 = ::std::os::raw::c_uint;
+pub const R_CSR_PRMD_PWE_SHIFT: _bindgen_ty_58 = 3;
+pub type _bindgen_ty_58 = ::std::os::raw::c_uint;
+pub const R_CSR_PRMD_PWE_LENGTH: _bindgen_ty_59 = 1;
+pub type _bindgen_ty_59 = ::std::os::raw::c_uint;
+pub const R_CSR_PRMD_PWE_MASK: _bindgen_ty_60 = 8;
+pub type _bindgen_ty_60 = ::std::os::raw::c_uint;
+pub const R_CSR_EUEN_FPE_SHIFT: _bindgen_ty_61 = 0;
+pub type _bindgen_ty_61 = ::std::os::raw::c_uint;
+pub const R_CSR_EUEN_FPE_LENGTH: _bindgen_ty_62 = 1;
+pub type _bindgen_ty_62 = ::std::os::raw::c_uint;
+pub const R_CSR_EUEN_FPE_MASK: _bindgen_ty_63 = 1;
+pub type _bindgen_ty_63 = ::std::os::raw::c_uint;
+pub const R_CSR_EUEN_SXE_SHIFT: _bindgen_ty_64 = 1;
+pub type _bindgen_ty_64 = ::std::os::raw::c_uint;
+pub const R_CSR_EUEN_SXE_LENGTH: _bindgen_ty_65 = 1;
+pub type _bindgen_ty_65 = ::std::os::raw::c_uint;
+pub const R_CSR_EUEN_SXE_MASK: _bindgen_ty_66 = 2;
+pub type _bindgen_ty_66 = ::std::os::raw::c_uint;
+pub const R_CSR_EUEN_ASXE_SHIFT: _bindgen_ty_67 = 2;
+pub type _bindgen_ty_67 = ::std::os::raw::c_uint;
+pub const R_CSR_EUEN_ASXE_LENGTH: _bindgen_ty_68 = 1;
+pub type _bindgen_ty_68 = ::std::os::raw::c_uint;
+pub const R_CSR_EUEN_ASXE_MASK: _bindgen_ty_69 = 4;
+pub type _bindgen_ty_69 = ::std::os::raw::c_uint;
+pub const R_CSR_EUEN_BTE_SHIFT: _bindgen_ty_70 = 3;
+pub type _bindgen_ty_70 = ::std::os::raw::c_uint;
+pub const R_CSR_EUEN_BTE_LENGTH: _bindgen_ty_71 = 1;
+pub type _bindgen_ty_71 = ::std::os::raw::c_uint;
+pub const R_CSR_EUEN_BTE_MASK: _bindgen_ty_72 = 8;
+pub type _bindgen_ty_72 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_VA32_SHIFT: _bindgen_ty_73 = 0;
+pub type _bindgen_ty_73 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_VA32_LENGTH: _bindgen_ty_74 = 4;
+pub type _bindgen_ty_74 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_VA32_MASK: _bindgen_ty_75 = 15;
+pub type _bindgen_ty_75 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_DRDTL_SHIFT: _bindgen_ty_76 = 4;
+pub type _bindgen_ty_76 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_DRDTL_LENGTH: _bindgen_ty_77 = 4;
+pub type _bindgen_ty_77 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_DRDTL_MASK: _bindgen_ty_78 = 240;
+pub type _bindgen_ty_78 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_RPCNTL_SHIFT: _bindgen_ty_79 = 8;
+pub type _bindgen_ty_79 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_RPCNTL_LENGTH: _bindgen_ty_80 = 4;
+pub type _bindgen_ty_80 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_RPCNTL_MASK: _bindgen_ty_81 = 3840;
+pub type _bindgen_ty_81 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_ALCL_SHIFT: _bindgen_ty_82 = 12;
+pub type _bindgen_ty_82 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_ALCL_LENGTH: _bindgen_ty_83 = 4;
+pub type _bindgen_ty_83 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_ALCL_MASK: _bindgen_ty_84 = 61440;
+pub type _bindgen_ty_84 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_DWPL_SHIFT: _bindgen_ty_85 = 16;
+pub type _bindgen_ty_85 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_DWPL_LENGTH: _bindgen_ty_86 = 3;
+pub type _bindgen_ty_86 = ::std::os::raw::c_uint;
+pub const R_CSR_MISC_DWPL_MASK: _bindgen_ty_87 = 458752;
+pub type _bindgen_ty_87 = ::std::os::raw::c_uint;
+pub const R_CSR_ECFG_LIE_SHIFT: _bindgen_ty_88 = 0;
+pub type _bindgen_ty_88 = ::std::os::raw::c_uint;
+pub const R_CSR_ECFG_LIE_LENGTH: _bindgen_ty_89 = 13;
+pub type _bindgen_ty_89 = ::std::os::raw::c_uint;
+pub const R_CSR_ECFG_LIE_MASK: _bindgen_ty_90 = 8191;
+pub type _bindgen_ty_90 = ::std::os::raw::c_uint;
+pub const R_CSR_ECFG_VS_SHIFT: _bindgen_ty_91 = 16;
+pub type _bindgen_ty_91 = ::std::os::raw::c_uint;
+pub const R_CSR_ECFG_VS_LENGTH: _bindgen_ty_92 = 3;
+pub type _bindgen_ty_92 = ::std::os::raw::c_uint;
+pub const R_CSR_ECFG_VS_MASK: _bindgen_ty_93 = 458752;
+pub type _bindgen_ty_93 = ::std::os::raw::c_uint;
+pub const R_CSR_ESTAT_IS_SHIFT: _bindgen_ty_94 = 0;
+pub type _bindgen_ty_94 = ::std::os::raw::c_uint;
+pub const R_CSR_ESTAT_IS_LENGTH: _bindgen_ty_95 = 13;
+pub type _bindgen_ty_95 = ::std::os::raw::c_uint;
+pub const R_CSR_ESTAT_IS_MASK: _bindgen_ty_96 = 8191;
+pub type _bindgen_ty_96 = ::std::os::raw::c_uint;
+pub const R_CSR_ESTAT_ECODE_SHIFT: _bindgen_ty_97 = 16;
+pub type _bindgen_ty_97 = ::std::os::raw::c_uint;
+pub const R_CSR_ESTAT_ECODE_LENGTH: _bindgen_ty_98 = 6;
+pub type _bindgen_ty_98 = ::std::os::raw::c_uint;
+pub const R_CSR_ESTAT_ECODE_MASK: _bindgen_ty_99 = 4128768;
+pub type _bindgen_ty_99 = ::std::os::raw::c_uint;
+pub const R_CSR_ESTAT_ESUBCODE_SHIFT: _bindgen_ty_100 = 22;
+pub type _bindgen_ty_100 = ::std::os::raw::c_uint;
+pub const R_CSR_ESTAT_ESUBCODE_LENGTH: _bindgen_ty_101 = 9;
+pub type _bindgen_ty_101 = ::std::os::raw::c_uint;
+pub const R_CSR_ESTAT_ESUBCODE_MASK: _bindgen_ty_102 = 2143289344;
+pub type _bindgen_ty_102 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBIDX_INDEX_SHIFT: _bindgen_ty_103 = 0;
+pub type _bindgen_ty_103 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBIDX_INDEX_LENGTH: _bindgen_ty_104 = 12;
+pub type _bindgen_ty_104 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBIDX_INDEX_MASK: _bindgen_ty_105 = 4095;
+pub type _bindgen_ty_105 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBIDX_PS_SHIFT: _bindgen_ty_106 = 24;
+pub type _bindgen_ty_106 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBIDX_PS_LENGTH: _bindgen_ty_107 = 6;
+pub type _bindgen_ty_107 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBIDX_PS_MASK: _bindgen_ty_108 = 1056964608;
+pub type _bindgen_ty_108 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBIDX_NE_SHIFT: _bindgen_ty_109 = 31;
+pub type _bindgen_ty_109 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBIDX_NE_LENGTH: _bindgen_ty_110 = 1;
+pub type _bindgen_ty_110 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBIDX_NE_MASK: _bindgen_ty_111 = 2147483648;
+pub type _bindgen_ty_111 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBEHI_32_VPPN_SHIFT: _bindgen_ty_112 = 13;
+pub type _bindgen_ty_112 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBEHI_32_VPPN_LENGTH: _bindgen_ty_113 = 19;
+pub type _bindgen_ty_113 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBEHI_32_VPPN_MASK: _bindgen_ty_114 = 4294959104;
+pub type _bindgen_ty_114 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBEHI_64_VPPN_SHIFT: _bindgen_ty_115 = 13;
+pub type _bindgen_ty_115 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBEHI_64_VPPN_LENGTH: _bindgen_ty_116 = 35;
+pub type _bindgen_ty_116 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBEHI_64_VPPN_MASK: _bindgen_ty_117 = 281474976702464;
+pub type _bindgen_ty_117 = ::std::os::raw::c_ulong;
+pub const R_TLBENTRY_V_SHIFT: _bindgen_ty_118 = 0;
+pub type _bindgen_ty_118 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_V_LENGTH: _bindgen_ty_119 = 1;
+pub type _bindgen_ty_119 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_V_MASK: _bindgen_ty_120 = 1;
+pub type _bindgen_ty_120 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_D_SHIFT: _bindgen_ty_121 = 1;
+pub type _bindgen_ty_121 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_D_LENGTH: _bindgen_ty_122 = 1;
+pub type _bindgen_ty_122 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_D_MASK: _bindgen_ty_123 = 2;
+pub type _bindgen_ty_123 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_PLV_SHIFT: _bindgen_ty_124 = 2;
+pub type _bindgen_ty_124 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_PLV_LENGTH: _bindgen_ty_125 = 2;
+pub type _bindgen_ty_125 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_PLV_MASK: _bindgen_ty_126 = 12;
+pub type _bindgen_ty_126 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_MAT_SHIFT: _bindgen_ty_127 = 4;
+pub type _bindgen_ty_127 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_MAT_LENGTH: _bindgen_ty_128 = 2;
+pub type _bindgen_ty_128 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_MAT_MASK: _bindgen_ty_129 = 48;
+pub type _bindgen_ty_129 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_G_SHIFT: _bindgen_ty_130 = 6;
+pub type _bindgen_ty_130 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_G_LENGTH: _bindgen_ty_131 = 1;
+pub type _bindgen_ty_131 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_G_MASK: _bindgen_ty_132 = 64;
+pub type _bindgen_ty_132 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_HUGE_SHIFT: _bindgen_ty_133 = 6;
+pub type _bindgen_ty_133 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_HUGE_LENGTH: _bindgen_ty_134 = 1;
+pub type _bindgen_ty_134 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_HUGE_MASK: _bindgen_ty_135 = 64;
+pub type _bindgen_ty_135 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_HGLOBAL_SHIFT: _bindgen_ty_136 = 12;
+pub type _bindgen_ty_136 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_HGLOBAL_LENGTH: _bindgen_ty_137 = 1;
+pub type _bindgen_ty_137 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_HGLOBAL_MASK: _bindgen_ty_138 = 4096;
+pub type _bindgen_ty_138 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_LEVEL_SHIFT: _bindgen_ty_139 = 13;
+pub type _bindgen_ty_139 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_LEVEL_LENGTH: _bindgen_ty_140 = 2;
+pub type _bindgen_ty_140 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_LEVEL_MASK: _bindgen_ty_141 = 24576;
+pub type _bindgen_ty_141 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_32_PPN_SHIFT: _bindgen_ty_142 = 8;
+pub type _bindgen_ty_142 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_32_PPN_LENGTH: _bindgen_ty_143 = 24;
+pub type _bindgen_ty_143 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_32_PPN_MASK: _bindgen_ty_144 = 4294967040;
+pub type _bindgen_ty_144 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_64_PPN_SHIFT: _bindgen_ty_145 = 12;
+pub type _bindgen_ty_145 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_64_PPN_LENGTH: _bindgen_ty_146 = 36;
+pub type _bindgen_ty_146 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_64_PPN_MASK: _bindgen_ty_147 = 281474976706560;
+pub type _bindgen_ty_147 = ::std::os::raw::c_ulong;
+pub const R_TLBENTRY_64_NR_SHIFT: _bindgen_ty_148 = 61;
+pub type _bindgen_ty_148 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_64_NR_LENGTH: _bindgen_ty_149 = 1;
+pub type _bindgen_ty_149 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_64_NR_MASK: _bindgen_ty_150 = 2305843009213693952;
+pub type _bindgen_ty_150 = ::std::os::raw::c_ulong;
+pub const R_TLBENTRY_64_NX_SHIFT: _bindgen_ty_151 = 62;
+pub type _bindgen_ty_151 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_64_NX_LENGTH: _bindgen_ty_152 = 1;
+pub type _bindgen_ty_152 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_64_NX_MASK: _bindgen_ty_153 = 4611686018427387904;
+pub type _bindgen_ty_153 = ::std::os::raw::c_ulong;
+pub const R_TLBENTRY_64_RPLV_SHIFT: _bindgen_ty_154 = 63;
+pub type _bindgen_ty_154 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_64_RPLV_LENGTH: _bindgen_ty_155 = 1;
+pub type _bindgen_ty_155 = ::std::os::raw::c_uint;
+pub const R_TLBENTRY_64_RPLV_MASK: _bindgen_ty_156 = 9223372036854775808;
+pub type _bindgen_ty_156 = ::std::os::raw::c_ulong;
+pub const R_CSR_ASID_ASID_SHIFT: _bindgen_ty_157 = 0;
+pub type _bindgen_ty_157 = ::std::os::raw::c_uint;
+pub const R_CSR_ASID_ASID_LENGTH: _bindgen_ty_158 = 10;
+pub type _bindgen_ty_158 = ::std::os::raw::c_uint;
+pub const R_CSR_ASID_ASID_MASK: _bindgen_ty_159 = 1023;
+pub type _bindgen_ty_159 = ::std::os::raw::c_uint;
+pub const R_CSR_ASID_ASIDBITS_SHIFT: _bindgen_ty_160 = 16;
+pub type _bindgen_ty_160 = ::std::os::raw::c_uint;
+pub const R_CSR_ASID_ASIDBITS_LENGTH: _bindgen_ty_161 = 8;
+pub type _bindgen_ty_161 = ::std::os::raw::c_uint;
+pub const R_CSR_ASID_ASIDBITS_MASK: _bindgen_ty_162 = 16711680;
+pub type _bindgen_ty_162 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_PTBASE_SHIFT: _bindgen_ty_163 = 0;
+pub type _bindgen_ty_163 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_PTBASE_LENGTH: _bindgen_ty_164 = 5;
+pub type _bindgen_ty_164 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_PTBASE_MASK: _bindgen_ty_165 = 31;
+pub type _bindgen_ty_165 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_PTWIDTH_SHIFT: _bindgen_ty_166 = 5;
+pub type _bindgen_ty_166 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_PTWIDTH_LENGTH: _bindgen_ty_167 = 5;
+pub type _bindgen_ty_167 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_PTWIDTH_MASK: _bindgen_ty_168 = 992;
+pub type _bindgen_ty_168 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_DIR1_BASE_SHIFT: _bindgen_ty_169 = 10;
+pub type _bindgen_ty_169 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_DIR1_BASE_LENGTH: _bindgen_ty_170 = 5;
+pub type _bindgen_ty_170 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_DIR1_BASE_MASK: _bindgen_ty_171 = 31744;
+pub type _bindgen_ty_171 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_DIR1_WIDTH_SHIFT: _bindgen_ty_172 = 15;
+pub type _bindgen_ty_172 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_DIR1_WIDTH_LENGTH: _bindgen_ty_173 = 5;
+pub type _bindgen_ty_173 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_DIR1_WIDTH_MASK: _bindgen_ty_174 = 1015808;
+pub type _bindgen_ty_174 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_DIR2_BASE_SHIFT: _bindgen_ty_175 = 20;
+pub type _bindgen_ty_175 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_DIR2_BASE_LENGTH: _bindgen_ty_176 = 5;
+pub type _bindgen_ty_176 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_DIR2_BASE_MASK: _bindgen_ty_177 = 32505856;
+pub type _bindgen_ty_177 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_DIR2_WIDTH_SHIFT: _bindgen_ty_178 = 25;
+pub type _bindgen_ty_178 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_DIR2_WIDTH_LENGTH: _bindgen_ty_179 = 5;
+pub type _bindgen_ty_179 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_DIR2_WIDTH_MASK: _bindgen_ty_180 = 1040187392;
+pub type _bindgen_ty_180 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_PTEWIDTH_SHIFT: _bindgen_ty_181 = 30;
+pub type _bindgen_ty_181 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_PTEWIDTH_LENGTH: _bindgen_ty_182 = 2;
+pub type _bindgen_ty_182 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCL_PTEWIDTH_MASK: _bindgen_ty_183 = 3221225472;
+pub type _bindgen_ty_183 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCH_DIR3_BASE_SHIFT: _bindgen_ty_184 = 0;
+pub type _bindgen_ty_184 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCH_DIR3_BASE_LENGTH: _bindgen_ty_185 = 6;
+pub type _bindgen_ty_185 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCH_DIR3_BASE_MASK: _bindgen_ty_186 = 63;
+pub type _bindgen_ty_186 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCH_DIR3_WIDTH_SHIFT: _bindgen_ty_187 = 6;
+pub type _bindgen_ty_187 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCH_DIR3_WIDTH_LENGTH: _bindgen_ty_188 = 6;
+pub type _bindgen_ty_188 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCH_DIR3_WIDTH_MASK: _bindgen_ty_189 = 4032;
+pub type _bindgen_ty_189 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCH_DIR4_BASE_SHIFT: _bindgen_ty_190 = 12;
+pub type _bindgen_ty_190 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCH_DIR4_BASE_LENGTH: _bindgen_ty_191 = 6;
+pub type _bindgen_ty_191 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCH_DIR4_BASE_MASK: _bindgen_ty_192 = 258048;
+pub type _bindgen_ty_192 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCH_DIR4_WIDTH_SHIFT: _bindgen_ty_193 = 18;
+pub type _bindgen_ty_193 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCH_DIR4_WIDTH_LENGTH: _bindgen_ty_194 = 6;
+pub type _bindgen_ty_194 = ::std::os::raw::c_uint;
+pub const R_CSR_PWCH_DIR4_WIDTH_MASK: _bindgen_ty_195 = 16515072;
+pub type _bindgen_ty_195 = ::std::os::raw::c_uint;
+pub const R_CSR_STLBPS_PS_SHIFT: _bindgen_ty_196 = 0;
+pub type _bindgen_ty_196 = ::std::os::raw::c_uint;
+pub const R_CSR_STLBPS_PS_LENGTH: _bindgen_ty_197 = 5;
+pub type _bindgen_ty_197 = ::std::os::raw::c_uint;
+pub const R_CSR_STLBPS_PS_MASK: _bindgen_ty_198 = 31;
+pub type _bindgen_ty_198 = ::std::os::raw::c_uint;
+pub const R_CSR_RVACFG_RBITS_SHIFT: _bindgen_ty_199 = 0;
+pub type _bindgen_ty_199 = ::std::os::raw::c_uint;
+pub const R_CSR_RVACFG_RBITS_LENGTH: _bindgen_ty_200 = 4;
+pub type _bindgen_ty_200 = ::std::os::raw::c_uint;
+pub const R_CSR_RVACFG_RBITS_MASK: _bindgen_ty_201 = 15;
+pub type _bindgen_ty_201 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG1_SAVE_NUM_SHIFT: _bindgen_ty_202 = 0;
+pub type _bindgen_ty_202 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG1_SAVE_NUM_LENGTH: _bindgen_ty_203 = 4;
+pub type _bindgen_ty_203 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG1_SAVE_NUM_MASK: _bindgen_ty_204 = 15;
+pub type _bindgen_ty_204 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG1_TIMER_BITS_SHIFT: _bindgen_ty_205 = 4;
+pub type _bindgen_ty_205 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG1_TIMER_BITS_LENGTH: _bindgen_ty_206 = 8;
+pub type _bindgen_ty_206 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG1_TIMER_BITS_MASK: _bindgen_ty_207 = 4080;
+pub type _bindgen_ty_207 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG1_VSMAX_SHIFT: _bindgen_ty_208 = 12;
+pub type _bindgen_ty_208 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG1_VSMAX_LENGTH: _bindgen_ty_209 = 3;
+pub type _bindgen_ty_209 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG1_VSMAX_MASK: _bindgen_ty_210 = 28672;
+pub type _bindgen_ty_210 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG3_TLB_TYPE_SHIFT: _bindgen_ty_211 = 0;
+pub type _bindgen_ty_211 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG3_TLB_TYPE_LENGTH: _bindgen_ty_212 = 4;
+pub type _bindgen_ty_212 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG3_TLB_TYPE_MASK: _bindgen_ty_213 = 15;
+pub type _bindgen_ty_213 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG3_MTLB_ENTRY_SHIFT: _bindgen_ty_214 = 4;
+pub type _bindgen_ty_214 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG3_MTLB_ENTRY_LENGTH: _bindgen_ty_215 = 8;
+pub type _bindgen_ty_215 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG3_MTLB_ENTRY_MASK: _bindgen_ty_216 = 4080;
+pub type _bindgen_ty_216 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG3_STLB_WAYS_SHIFT: _bindgen_ty_217 = 12;
+pub type _bindgen_ty_217 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG3_STLB_WAYS_LENGTH: _bindgen_ty_218 = 8;
+pub type _bindgen_ty_218 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG3_STLB_WAYS_MASK: _bindgen_ty_219 = 1044480;
+pub type _bindgen_ty_219 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG3_STLB_SETS_SHIFT: _bindgen_ty_220 = 20;
+pub type _bindgen_ty_220 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG3_STLB_SETS_LENGTH: _bindgen_ty_221 = 8;
+pub type _bindgen_ty_221 = ::std::os::raw::c_uint;
+pub const R_CSR_PRCFG3_STLB_SETS_MASK: _bindgen_ty_222 = 267386880;
+pub type _bindgen_ty_222 = ::std::os::raw::c_uint;
+pub const R_CSR_TCFG_EN_SHIFT: _bindgen_ty_223 = 0;
+pub type _bindgen_ty_223 = ::std::os::raw::c_uint;
+pub const R_CSR_TCFG_EN_LENGTH: _bindgen_ty_224 = 1;
+pub type _bindgen_ty_224 = ::std::os::raw::c_uint;
+pub const R_CSR_TCFG_EN_MASK: _bindgen_ty_225 = 1;
+pub type _bindgen_ty_225 = ::std::os::raw::c_uint;
+pub const R_CSR_TCFG_PERIODIC_SHIFT: _bindgen_ty_226 = 1;
+pub type _bindgen_ty_226 = ::std::os::raw::c_uint;
+pub const R_CSR_TCFG_PERIODIC_LENGTH: _bindgen_ty_227 = 1;
+pub type _bindgen_ty_227 = ::std::os::raw::c_uint;
+pub const R_CSR_TCFG_PERIODIC_MASK: _bindgen_ty_228 = 2;
+pub type _bindgen_ty_228 = ::std::os::raw::c_uint;
+pub const R_CSR_TCFG_INIT_VAL_SHIFT: _bindgen_ty_229 = 2;
+pub type _bindgen_ty_229 = ::std::os::raw::c_uint;
+pub const R_CSR_TCFG_INIT_VAL_LENGTH: _bindgen_ty_230 = 46;
+pub type _bindgen_ty_230 = ::std::os::raw::c_uint;
+pub const R_CSR_TCFG_INIT_VAL_MASK: _bindgen_ty_231 = 281474976710652;
+pub type _bindgen_ty_231 = ::std::os::raw::c_ulong;
+pub const R_CSR_LLBCTL_ROLLB_SHIFT: _bindgen_ty_232 = 0;
+pub type _bindgen_ty_232 = ::std::os::raw::c_uint;
+pub const R_CSR_LLBCTL_ROLLB_LENGTH: _bindgen_ty_233 = 1;
+pub type _bindgen_ty_233 = ::std::os::raw::c_uint;
+pub const R_CSR_LLBCTL_ROLLB_MASK: _bindgen_ty_234 = 1;
+pub type _bindgen_ty_234 = ::std::os::raw::c_uint;
+pub const R_CSR_LLBCTL_WCLLB_SHIFT: _bindgen_ty_235 = 1;
+pub type _bindgen_ty_235 = ::std::os::raw::c_uint;
+pub const R_CSR_LLBCTL_WCLLB_LENGTH: _bindgen_ty_236 = 1;
+pub type _bindgen_ty_236 = ::std::os::raw::c_uint;
+pub const R_CSR_LLBCTL_WCLLB_MASK: _bindgen_ty_237 = 2;
+pub type _bindgen_ty_237 = ::std::os::raw::c_uint;
+pub const R_CSR_LLBCTL_KLO_SHIFT: _bindgen_ty_238 = 2;
+pub type _bindgen_ty_238 = ::std::os::raw::c_uint;
+pub const R_CSR_LLBCTL_KLO_LENGTH: _bindgen_ty_239 = 1;
+pub type _bindgen_ty_239 = ::std::os::raw::c_uint;
+pub const R_CSR_LLBCTL_KLO_MASK: _bindgen_ty_240 = 4;
+pub type _bindgen_ty_240 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRERA_ISTLBR_SHIFT: _bindgen_ty_241 = 0;
+pub type _bindgen_ty_241 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRERA_ISTLBR_LENGTH: _bindgen_ty_242 = 1;
+pub type _bindgen_ty_242 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRERA_ISTLBR_MASK: _bindgen_ty_243 = 1;
+pub type _bindgen_ty_243 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRERA_PC_SHIFT: _bindgen_ty_244 = 2;
+pub type _bindgen_ty_244 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRERA_PC_LENGTH: _bindgen_ty_245 = 62;
+pub type _bindgen_ty_245 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRERA_PC_MASK: _bindgen_ty_246 = 18446744073709551612;
+pub type _bindgen_ty_246 = ::std::os::raw::c_ulong;
+pub const R_CSR_TLBREHI_PS_SHIFT: _bindgen_ty_247 = 0;
+pub type _bindgen_ty_247 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBREHI_PS_LENGTH: _bindgen_ty_248 = 6;
+pub type _bindgen_ty_248 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBREHI_PS_MASK: _bindgen_ty_249 = 63;
+pub type _bindgen_ty_249 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBREHI_32_VPPN_SHIFT: _bindgen_ty_250 = 13;
+pub type _bindgen_ty_250 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBREHI_32_VPPN_LENGTH: _bindgen_ty_251 = 19;
+pub type _bindgen_ty_251 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBREHI_32_VPPN_MASK: _bindgen_ty_252 = 4294959104;
+pub type _bindgen_ty_252 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBREHI_64_VPPN_SHIFT: _bindgen_ty_253 = 13;
+pub type _bindgen_ty_253 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBREHI_64_VPPN_LENGTH: _bindgen_ty_254 = 35;
+pub type _bindgen_ty_254 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBREHI_64_VPPN_MASK: _bindgen_ty_255 = 281474976702464;
+pub type _bindgen_ty_255 = ::std::os::raw::c_ulong;
+pub const R_CSR_TLBRPRMD_PPLV_SHIFT: _bindgen_ty_256 = 0;
+pub type _bindgen_ty_256 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRPRMD_PPLV_LENGTH: _bindgen_ty_257 = 2;
+pub type _bindgen_ty_257 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRPRMD_PPLV_MASK: _bindgen_ty_258 = 3;
+pub type _bindgen_ty_258 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRPRMD_PIE_SHIFT: _bindgen_ty_259 = 2;
+pub type _bindgen_ty_259 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRPRMD_PIE_LENGTH: _bindgen_ty_260 = 1;
+pub type _bindgen_ty_260 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRPRMD_PIE_MASK: _bindgen_ty_261 = 4;
+pub type _bindgen_ty_261 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRPRMD_PWE_SHIFT: _bindgen_ty_262 = 4;
+pub type _bindgen_ty_262 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRPRMD_PWE_LENGTH: _bindgen_ty_263 = 1;
+pub type _bindgen_ty_263 = ::std::os::raw::c_uint;
+pub const R_CSR_TLBRPRMD_PWE_MASK: _bindgen_ty_264 = 16;
+pub type _bindgen_ty_264 = ::std::os::raw::c_uint;
+pub const R_CSR_MERRCTL_ISMERR_SHIFT: _bindgen_ty_265 = 0;
+pub type _bindgen_ty_265 = ::std::os::raw::c_uint;
+pub const R_CSR_MERRCTL_ISMERR_LENGTH: _bindgen_ty_266 = 1;
+pub type _bindgen_ty_266 = ::std::os::raw::c_uint;
+pub const R_CSR_MERRCTL_ISMERR_MASK: _bindgen_ty_267 = 1;
+pub type _bindgen_ty_267 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_PLV0_SHIFT: _bindgen_ty_268 = 0;
+pub type _bindgen_ty_268 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_PLV0_LENGTH: _bindgen_ty_269 = 1;
+pub type _bindgen_ty_269 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_PLV0_MASK: _bindgen_ty_270 = 1;
+pub type _bindgen_ty_270 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_PLV1_SHIFT: _bindgen_ty_271 = 1;
+pub type _bindgen_ty_271 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_PLV1_LENGTH: _bindgen_ty_272 = 1;
+pub type _bindgen_ty_272 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_PLV1_MASK: _bindgen_ty_273 = 2;
+pub type _bindgen_ty_273 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_PLV2_SHIFT: _bindgen_ty_274 = 2;
+pub type _bindgen_ty_274 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_PLV2_LENGTH: _bindgen_ty_275 = 1;
+pub type _bindgen_ty_275 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_PLV2_MASK: _bindgen_ty_276 = 4;
+pub type _bindgen_ty_276 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_PLV3_SHIFT: _bindgen_ty_277 = 3;
+pub type _bindgen_ty_277 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_PLV3_LENGTH: _bindgen_ty_278 = 1;
+pub type _bindgen_ty_278 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_PLV3_MASK: _bindgen_ty_279 = 8;
+pub type _bindgen_ty_279 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_MAT_SHIFT: _bindgen_ty_280 = 4;
+pub type _bindgen_ty_280 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_MAT_LENGTH: _bindgen_ty_281 = 2;
+pub type _bindgen_ty_281 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_MAT_MASK: _bindgen_ty_282 = 48;
+pub type _bindgen_ty_282 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_32_PSEG_SHIFT: _bindgen_ty_283 = 25;
+pub type _bindgen_ty_283 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_32_PSEG_LENGTH: _bindgen_ty_284 = 3;
+pub type _bindgen_ty_284 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_32_PSEG_MASK: _bindgen_ty_285 = 234881024;
+pub type _bindgen_ty_285 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_32_VSEG_SHIFT: _bindgen_ty_286 = 29;
+pub type _bindgen_ty_286 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_32_VSEG_LENGTH: _bindgen_ty_287 = 3;
+pub type _bindgen_ty_287 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_32_VSEG_MASK: _bindgen_ty_288 = 3758096384;
+pub type _bindgen_ty_288 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_64_VSEG_SHIFT: _bindgen_ty_289 = 60;
+pub type _bindgen_ty_289 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_64_VSEG_LENGTH: _bindgen_ty_290 = 4;
+pub type _bindgen_ty_290 = ::std::os::raw::c_uint;
+pub const R_CSR_DMW_64_VSEG_MASK: _bindgen_ty_291 = 17293822569102704640;
+pub type _bindgen_ty_291 = ::std::os::raw::c_ulong;
+pub const R_CSR_DBG_DST_SHIFT: _bindgen_ty_292 = 0;
+pub type _bindgen_ty_292 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DST_LENGTH: _bindgen_ty_293 = 1;
+pub type _bindgen_ty_293 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DST_MASK: _bindgen_ty_294 = 1;
+pub type _bindgen_ty_294 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DREV_SHIFT: _bindgen_ty_295 = 1;
+pub type _bindgen_ty_295 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DREV_LENGTH: _bindgen_ty_296 = 7;
+pub type _bindgen_ty_296 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DREV_MASK: _bindgen_ty_297 = 254;
+pub type _bindgen_ty_297 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DEI_SHIFT: _bindgen_ty_298 = 8;
+pub type _bindgen_ty_298 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DEI_LENGTH: _bindgen_ty_299 = 1;
+pub type _bindgen_ty_299 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DEI_MASK: _bindgen_ty_300 = 256;
+pub type _bindgen_ty_300 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DCL_SHIFT: _bindgen_ty_301 = 9;
+pub type _bindgen_ty_301 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DCL_LENGTH: _bindgen_ty_302 = 1;
+pub type _bindgen_ty_302 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DCL_MASK: _bindgen_ty_303 = 512;
+pub type _bindgen_ty_303 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DFW_SHIFT: _bindgen_ty_304 = 10;
+pub type _bindgen_ty_304 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DFW_LENGTH: _bindgen_ty_305 = 1;
+pub type _bindgen_ty_305 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DFW_MASK: _bindgen_ty_306 = 1024;
+pub type _bindgen_ty_306 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DMW_SHIFT: _bindgen_ty_307 = 11;
+pub type _bindgen_ty_307 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DMW_LENGTH: _bindgen_ty_308 = 1;
+pub type _bindgen_ty_308 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_DMW_MASK: _bindgen_ty_309 = 2048;
+pub type _bindgen_ty_309 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_ECODE_SHIFT: _bindgen_ty_310 = 16;
+pub type _bindgen_ty_310 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_ECODE_LENGTH: _bindgen_ty_311 = 6;
+pub type _bindgen_ty_311 = ::std::os::raw::c_uint;
+pub const R_CSR_DBG_ECODE_MASK: _bindgen_ty_312 = 4128768;
+pub type _bindgen_ty_312 = ::std::os::raw::c_uint;
+pub type LoongArchCPU = ArchCPU;
+pub type ArchCPU_autoptr = *mut ArchCPU;
+pub type ArchCPU_listautoptr = *mut GList;
+pub type ArchCPU_slistautoptr = *mut GSList;
+pub type ArchCPU_queueautoptr = *mut GQueue;
+pub const R_FCSR0_ENABLES_SHIFT: _bindgen_ty_313 = 0;
+pub type _bindgen_ty_313 = ::std::os::raw::c_uint;
+pub const R_FCSR0_ENABLES_LENGTH: _bindgen_ty_314 = 5;
+pub type _bindgen_ty_314 = ::std::os::raw::c_uint;
+pub const R_FCSR0_ENABLES_MASK: _bindgen_ty_315 = 31;
+pub type _bindgen_ty_315 = ::std::os::raw::c_uint;
+pub const R_FCSR0_RM_SHIFT: _bindgen_ty_316 = 8;
+pub type _bindgen_ty_316 = ::std::os::raw::c_uint;
+pub const R_FCSR0_RM_LENGTH: _bindgen_ty_317 = 2;
+pub type _bindgen_ty_317 = ::std::os::raw::c_uint;
+pub const R_FCSR0_RM_MASK: _bindgen_ty_318 = 768;
+pub type _bindgen_ty_318 = ::std::os::raw::c_uint;
+pub const R_FCSR0_FLAGS_SHIFT: _bindgen_ty_319 = 16;
+pub type _bindgen_ty_319 = ::std::os::raw::c_uint;
+pub const R_FCSR0_FLAGS_LENGTH: _bindgen_ty_320 = 5;
+pub type _bindgen_ty_320 = ::std::os::raw::c_uint;
+pub const R_FCSR0_FLAGS_MASK: _bindgen_ty_321 = 2031616;
+pub type _bindgen_ty_321 = ::std::os::raw::c_uint;
+pub const R_FCSR0_CAUSE_SHIFT: _bindgen_ty_322 = 24;
+pub type _bindgen_ty_322 = ::std::os::raw::c_uint;
+pub const R_FCSR0_CAUSE_LENGTH: _bindgen_ty_323 = 5;
+pub type _bindgen_ty_323 = ::std::os::raw::c_uint;
+pub const R_FCSR0_CAUSE_MASK: _bindgen_ty_324 = 520093696;
+pub type _bindgen_ty_324 = ::std::os::raw::c_uint;
+pub const R_CPUCFG0_PRID_SHIFT: _bindgen_ty_325 = 0;
+pub type _bindgen_ty_325 = ::std::os::raw::c_uint;
+pub const R_CPUCFG0_PRID_LENGTH: _bindgen_ty_326 = 32;
+pub type _bindgen_ty_326 = ::std::os::raw::c_uint;
+pub const R_CPUCFG0_PRID_MASK: _bindgen_ty_327 = 4294967295;
+pub type _bindgen_ty_327 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_ARCH_SHIFT: _bindgen_ty_328 = 0;
+pub type _bindgen_ty_328 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_ARCH_LENGTH: _bindgen_ty_329 = 2;
+pub type _bindgen_ty_329 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_ARCH_MASK: _bindgen_ty_330 = 3;
+pub type _bindgen_ty_330 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_PGMMU_SHIFT: _bindgen_ty_331 = 2;
+pub type _bindgen_ty_331 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_PGMMU_LENGTH: _bindgen_ty_332 = 1;
+pub type _bindgen_ty_332 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_PGMMU_MASK: _bindgen_ty_333 = 4;
+pub type _bindgen_ty_333 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_IOCSR_SHIFT: _bindgen_ty_334 = 3;
+pub type _bindgen_ty_334 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_IOCSR_LENGTH: _bindgen_ty_335 = 1;
+pub type _bindgen_ty_335 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_IOCSR_MASK: _bindgen_ty_336 = 8;
+pub type _bindgen_ty_336 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_PALEN_SHIFT: _bindgen_ty_337 = 4;
+pub type _bindgen_ty_337 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_PALEN_LENGTH: _bindgen_ty_338 = 8;
+pub type _bindgen_ty_338 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_PALEN_MASK: _bindgen_ty_339 = 4080;
+pub type _bindgen_ty_339 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_VALEN_SHIFT: _bindgen_ty_340 = 12;
+pub type _bindgen_ty_340 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_VALEN_LENGTH: _bindgen_ty_341 = 8;
+pub type _bindgen_ty_341 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_VALEN_MASK: _bindgen_ty_342 = 1044480;
+pub type _bindgen_ty_342 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_UAL_SHIFT: _bindgen_ty_343 = 20;
+pub type _bindgen_ty_343 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_UAL_LENGTH: _bindgen_ty_344 = 1;
+pub type _bindgen_ty_344 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_UAL_MASK: _bindgen_ty_345 = 1048576;
+pub type _bindgen_ty_345 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_RI_SHIFT: _bindgen_ty_346 = 21;
+pub type _bindgen_ty_346 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_RI_LENGTH: _bindgen_ty_347 = 1;
+pub type _bindgen_ty_347 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_RI_MASK: _bindgen_ty_348 = 2097152;
+pub type _bindgen_ty_348 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_EP_SHIFT: _bindgen_ty_349 = 22;
+pub type _bindgen_ty_349 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_EP_LENGTH: _bindgen_ty_350 = 1;
+pub type _bindgen_ty_350 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_EP_MASK: _bindgen_ty_351 = 4194304;
+pub type _bindgen_ty_351 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_RPLV_SHIFT: _bindgen_ty_352 = 23;
+pub type _bindgen_ty_352 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_RPLV_LENGTH: _bindgen_ty_353 = 1;
+pub type _bindgen_ty_353 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_RPLV_MASK: _bindgen_ty_354 = 8388608;
+pub type _bindgen_ty_354 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_HP_SHIFT: _bindgen_ty_355 = 24;
+pub type _bindgen_ty_355 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_HP_LENGTH: _bindgen_ty_356 = 1;
+pub type _bindgen_ty_356 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_HP_MASK: _bindgen_ty_357 = 16777216;
+pub type _bindgen_ty_357 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_IOCSR_BRD_SHIFT: _bindgen_ty_358 = 25;
+pub type _bindgen_ty_358 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_IOCSR_BRD_LENGTH: _bindgen_ty_359 = 1;
+pub type _bindgen_ty_359 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_IOCSR_BRD_MASK: _bindgen_ty_360 = 33554432;
+pub type _bindgen_ty_360 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_MSG_INT_SHIFT: _bindgen_ty_361 = 26;
+pub type _bindgen_ty_361 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_MSG_INT_LENGTH: _bindgen_ty_362 = 1;
+pub type _bindgen_ty_362 = ::std::os::raw::c_uint;
+pub const R_CPUCFG1_MSG_INT_MASK: _bindgen_ty_363 = 67108864;
+pub type _bindgen_ty_363 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_FP_SHIFT: _bindgen_ty_364 = 0;
+pub type _bindgen_ty_364 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_FP_LENGTH: _bindgen_ty_365 = 1;
+pub type _bindgen_ty_365 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_FP_MASK: _bindgen_ty_366 = 1;
+pub type _bindgen_ty_366 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_FP_SP_SHIFT: _bindgen_ty_367 = 1;
+pub type _bindgen_ty_367 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_FP_SP_LENGTH: _bindgen_ty_368 = 1;
+pub type _bindgen_ty_368 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_FP_SP_MASK: _bindgen_ty_369 = 2;
+pub type _bindgen_ty_369 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_FP_DP_SHIFT: _bindgen_ty_370 = 2;
+pub type _bindgen_ty_370 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_FP_DP_LENGTH: _bindgen_ty_371 = 1;
+pub type _bindgen_ty_371 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_FP_DP_MASK: _bindgen_ty_372 = 4;
+pub type _bindgen_ty_372 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_FP_VER_SHIFT: _bindgen_ty_373 = 3;
+pub type _bindgen_ty_373 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_FP_VER_LENGTH: _bindgen_ty_374 = 3;
+pub type _bindgen_ty_374 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_FP_VER_MASK: _bindgen_ty_375 = 56;
+pub type _bindgen_ty_375 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LSX_SHIFT: _bindgen_ty_376 = 6;
+pub type _bindgen_ty_376 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LSX_LENGTH: _bindgen_ty_377 = 1;
+pub type _bindgen_ty_377 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LSX_MASK: _bindgen_ty_378 = 64;
+pub type _bindgen_ty_378 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LASX_SHIFT: _bindgen_ty_379 = 7;
+pub type _bindgen_ty_379 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LASX_LENGTH: _bindgen_ty_380 = 1;
+pub type _bindgen_ty_380 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LASX_MASK: _bindgen_ty_381 = 128;
+pub type _bindgen_ty_381 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_COMPLEX_SHIFT: _bindgen_ty_382 = 8;
+pub type _bindgen_ty_382 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_COMPLEX_LENGTH: _bindgen_ty_383 = 1;
+pub type _bindgen_ty_383 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_COMPLEX_MASK: _bindgen_ty_384 = 256;
+pub type _bindgen_ty_384 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_CRYPTO_SHIFT: _bindgen_ty_385 = 9;
+pub type _bindgen_ty_385 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_CRYPTO_LENGTH: _bindgen_ty_386 = 1;
+pub type _bindgen_ty_386 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_CRYPTO_MASK: _bindgen_ty_387 = 512;
+pub type _bindgen_ty_387 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LVZ_SHIFT: _bindgen_ty_388 = 10;
+pub type _bindgen_ty_388 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LVZ_LENGTH: _bindgen_ty_389 = 1;
+pub type _bindgen_ty_389 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LVZ_MASK: _bindgen_ty_390 = 1024;
+pub type _bindgen_ty_390 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LVZ_VER_SHIFT: _bindgen_ty_391 = 11;
+pub type _bindgen_ty_391 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LVZ_VER_LENGTH: _bindgen_ty_392 = 3;
+pub type _bindgen_ty_392 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LVZ_VER_MASK: _bindgen_ty_393 = 14336;
+pub type _bindgen_ty_393 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LLFTP_SHIFT: _bindgen_ty_394 = 14;
+pub type _bindgen_ty_394 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LLFTP_LENGTH: _bindgen_ty_395 = 1;
+pub type _bindgen_ty_395 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LLFTP_MASK: _bindgen_ty_396 = 16384;
+pub type _bindgen_ty_396 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LLFTP_VER_SHIFT: _bindgen_ty_397 = 15;
+pub type _bindgen_ty_397 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LLFTP_VER_LENGTH: _bindgen_ty_398 = 3;
+pub type _bindgen_ty_398 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LLFTP_VER_MASK: _bindgen_ty_399 = 229376;
+pub type _bindgen_ty_399 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LBT_X86_SHIFT: _bindgen_ty_400 = 18;
+pub type _bindgen_ty_400 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LBT_X86_LENGTH: _bindgen_ty_401 = 1;
+pub type _bindgen_ty_401 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LBT_X86_MASK: _bindgen_ty_402 = 262144;
+pub type _bindgen_ty_402 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LBT_ARM_SHIFT: _bindgen_ty_403 = 19;
+pub type _bindgen_ty_403 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LBT_ARM_LENGTH: _bindgen_ty_404 = 1;
+pub type _bindgen_ty_404 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LBT_ARM_MASK: _bindgen_ty_405 = 524288;
+pub type _bindgen_ty_405 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LBT_MIPS_SHIFT: _bindgen_ty_406 = 20;
+pub type _bindgen_ty_406 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LBT_MIPS_LENGTH: _bindgen_ty_407 = 1;
+pub type _bindgen_ty_407 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LBT_MIPS_MASK: _bindgen_ty_408 = 1048576;
+pub type _bindgen_ty_408 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LBT_ALL_SHIFT: _bindgen_ty_409 = 18;
+pub type _bindgen_ty_409 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LBT_ALL_LENGTH: _bindgen_ty_410 = 3;
+pub type _bindgen_ty_410 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LBT_ALL_MASK: _bindgen_ty_411 = 1835008;
+pub type _bindgen_ty_411 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LSPW_SHIFT: _bindgen_ty_412 = 21;
+pub type _bindgen_ty_412 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LSPW_LENGTH: _bindgen_ty_413 = 1;
+pub type _bindgen_ty_413 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LSPW_MASK: _bindgen_ty_414 = 2097152;
+pub type _bindgen_ty_414 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LAM_SHIFT: _bindgen_ty_415 = 22;
+pub type _bindgen_ty_415 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LAM_LENGTH: _bindgen_ty_416 = 1;
+pub type _bindgen_ty_416 = ::std::os::raw::c_uint;
+pub const R_CPUCFG2_LAM_MASK: _bindgen_ty_417 = 4194304;
+pub type _bindgen_ty_417 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_CCDMA_SHIFT: _bindgen_ty_418 = 0;
+pub type _bindgen_ty_418 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_CCDMA_LENGTH: _bindgen_ty_419 = 1;
+pub type _bindgen_ty_419 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_CCDMA_MASK: _bindgen_ty_420 = 1;
+pub type _bindgen_ty_420 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_SFB_SHIFT: _bindgen_ty_421 = 1;
+pub type _bindgen_ty_421 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_SFB_LENGTH: _bindgen_ty_422 = 1;
+pub type _bindgen_ty_422 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_SFB_MASK: _bindgen_ty_423 = 2;
+pub type _bindgen_ty_423 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_UCACC_SHIFT: _bindgen_ty_424 = 2;
+pub type _bindgen_ty_424 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_UCACC_LENGTH: _bindgen_ty_425 = 1;
+pub type _bindgen_ty_425 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_UCACC_MASK: _bindgen_ty_426 = 4;
+pub type _bindgen_ty_426 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_LLEXC_SHIFT: _bindgen_ty_427 = 3;
+pub type _bindgen_ty_427 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_LLEXC_LENGTH: _bindgen_ty_428 = 1;
+pub type _bindgen_ty_428 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_LLEXC_MASK: _bindgen_ty_429 = 8;
+pub type _bindgen_ty_429 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_SCDLY_SHIFT: _bindgen_ty_430 = 4;
+pub type _bindgen_ty_430 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_SCDLY_LENGTH: _bindgen_ty_431 = 1;
+pub type _bindgen_ty_431 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_SCDLY_MASK: _bindgen_ty_432 = 16;
+pub type _bindgen_ty_432 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_LLDBAR_SHIFT: _bindgen_ty_433 = 5;
+pub type _bindgen_ty_433 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_LLDBAR_LENGTH: _bindgen_ty_434 = 1;
+pub type _bindgen_ty_434 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_LLDBAR_MASK: _bindgen_ty_435 = 32;
+pub type _bindgen_ty_435 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_ITLBHMC_SHIFT: _bindgen_ty_436 = 6;
+pub type _bindgen_ty_436 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_ITLBHMC_LENGTH: _bindgen_ty_437 = 1;
+pub type _bindgen_ty_437 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_ITLBHMC_MASK: _bindgen_ty_438 = 64;
+pub type _bindgen_ty_438 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_ICHMC_SHIFT: _bindgen_ty_439 = 7;
+pub type _bindgen_ty_439 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_ICHMC_LENGTH: _bindgen_ty_440 = 1;
+pub type _bindgen_ty_440 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_ICHMC_MASK: _bindgen_ty_441 = 128;
+pub type _bindgen_ty_441 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_SPW_LVL_SHIFT: _bindgen_ty_442 = 8;
+pub type _bindgen_ty_442 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_SPW_LVL_LENGTH: _bindgen_ty_443 = 3;
+pub type _bindgen_ty_443 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_SPW_LVL_MASK: _bindgen_ty_444 = 1792;
+pub type _bindgen_ty_444 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_SPW_HP_HF_SHIFT: _bindgen_ty_445 = 11;
+pub type _bindgen_ty_445 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_SPW_HP_HF_LENGTH: _bindgen_ty_446 = 1;
+pub type _bindgen_ty_446 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_SPW_HP_HF_MASK: _bindgen_ty_447 = 2048;
+pub type _bindgen_ty_447 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_RVA_SHIFT: _bindgen_ty_448 = 12;
+pub type _bindgen_ty_448 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_RVA_LENGTH: _bindgen_ty_449 = 1;
+pub type _bindgen_ty_449 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_RVA_MASK: _bindgen_ty_450 = 4096;
+pub type _bindgen_ty_450 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_RVAMAX_SHIFT: _bindgen_ty_451 = 13;
+pub type _bindgen_ty_451 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_RVAMAX_LENGTH: _bindgen_ty_452 = 4;
+pub type _bindgen_ty_452 = ::std::os::raw::c_uint;
+pub const R_CPUCFG3_RVAMAX_MASK: _bindgen_ty_453 = 122880;
+pub type _bindgen_ty_453 = ::std::os::raw::c_uint;
+pub const R_CPUCFG4_CC_FREQ_SHIFT: _bindgen_ty_454 = 0;
+pub type _bindgen_ty_454 = ::std::os::raw::c_uint;
+pub const R_CPUCFG4_CC_FREQ_LENGTH: _bindgen_ty_455 = 32;
+pub type _bindgen_ty_455 = ::std::os::raw::c_uint;
+pub const R_CPUCFG4_CC_FREQ_MASK: _bindgen_ty_456 = 4294967295;
+pub type _bindgen_ty_456 = ::std::os::raw::c_uint;
+pub const R_CPUCFG5_CC_MUL_SHIFT: _bindgen_ty_457 = 0;
+pub type _bindgen_ty_457 = ::std::os::raw::c_uint;
+pub const R_CPUCFG5_CC_MUL_LENGTH: _bindgen_ty_458 = 16;
+pub type _bindgen_ty_458 = ::std::os::raw::c_uint;
+pub const R_CPUCFG5_CC_MUL_MASK: _bindgen_ty_459 = 65535;
+pub type _bindgen_ty_459 = ::std::os::raw::c_uint;
+pub const R_CPUCFG5_CC_DIV_SHIFT: _bindgen_ty_460 = 16;
+pub type _bindgen_ty_460 = ::std::os::raw::c_uint;
+pub const R_CPUCFG5_CC_DIV_LENGTH: _bindgen_ty_461 = 16;
+pub type _bindgen_ty_461 = ::std::os::raw::c_uint;
+pub const R_CPUCFG5_CC_DIV_MASK: _bindgen_ty_462 = 4294901760;
+pub type _bindgen_ty_462 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_PMP_SHIFT: _bindgen_ty_463 = 0;
+pub type _bindgen_ty_463 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_PMP_LENGTH: _bindgen_ty_464 = 1;
+pub type _bindgen_ty_464 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_PMP_MASK: _bindgen_ty_465 = 1;
+pub type _bindgen_ty_465 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_PMVER_SHIFT: _bindgen_ty_466 = 1;
+pub type _bindgen_ty_466 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_PMVER_LENGTH: _bindgen_ty_467 = 3;
+pub type _bindgen_ty_467 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_PMVER_MASK: _bindgen_ty_468 = 14;
+pub type _bindgen_ty_468 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_PMNUM_SHIFT: _bindgen_ty_469 = 4;
+pub type _bindgen_ty_469 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_PMNUM_LENGTH: _bindgen_ty_470 = 4;
+pub type _bindgen_ty_470 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_PMNUM_MASK: _bindgen_ty_471 = 240;
+pub type _bindgen_ty_471 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_PMBITS_SHIFT: _bindgen_ty_472 = 8;
+pub type _bindgen_ty_472 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_PMBITS_LENGTH: _bindgen_ty_473 = 6;
+pub type _bindgen_ty_473 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_PMBITS_MASK: _bindgen_ty_474 = 16128;
+pub type _bindgen_ty_474 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_UPM_SHIFT: _bindgen_ty_475 = 14;
+pub type _bindgen_ty_475 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_UPM_LENGTH: _bindgen_ty_476 = 1;
+pub type _bindgen_ty_476 = ::std::os::raw::c_uint;
+pub const R_CPUCFG6_UPM_MASK: _bindgen_ty_477 = 16384;
+pub type _bindgen_ty_477 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L1_IUPRE_SHIFT: _bindgen_ty_478 = 0;
+pub type _bindgen_ty_478 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L1_IUPRE_LENGTH: _bindgen_ty_479 = 1;
+pub type _bindgen_ty_479 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L1_IUPRE_MASK: _bindgen_ty_480 = 1;
+pub type _bindgen_ty_480 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L1_IUUNIFY_SHIFT: _bindgen_ty_481 = 1;
+pub type _bindgen_ty_481 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L1_IUUNIFY_LENGTH: _bindgen_ty_482 = 1;
+pub type _bindgen_ty_482 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L1_IUUNIFY_MASK: _bindgen_ty_483 = 2;
+pub type _bindgen_ty_483 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L1_DPRE_SHIFT: _bindgen_ty_484 = 2;
+pub type _bindgen_ty_484 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L1_DPRE_LENGTH: _bindgen_ty_485 = 1;
+pub type _bindgen_ty_485 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L1_DPRE_MASK: _bindgen_ty_486 = 4;
+pub type _bindgen_ty_486 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_IUPRE_SHIFT: _bindgen_ty_487 = 3;
+pub type _bindgen_ty_487 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_IUPRE_LENGTH: _bindgen_ty_488 = 1;
+pub type _bindgen_ty_488 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_IUPRE_MASK: _bindgen_ty_489 = 8;
+pub type _bindgen_ty_489 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_IUUNIFY_SHIFT: _bindgen_ty_490 = 4;
+pub type _bindgen_ty_490 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_IUUNIFY_LENGTH: _bindgen_ty_491 = 1;
+pub type _bindgen_ty_491 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_IUUNIFY_MASK: _bindgen_ty_492 = 16;
+pub type _bindgen_ty_492 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_IUPRIV_SHIFT: _bindgen_ty_493 = 5;
+pub type _bindgen_ty_493 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_IUPRIV_LENGTH: _bindgen_ty_494 = 1;
+pub type _bindgen_ty_494 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_IUPRIV_MASK: _bindgen_ty_495 = 32;
+pub type _bindgen_ty_495 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_IUINCL_SHIFT: _bindgen_ty_496 = 6;
+pub type _bindgen_ty_496 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_IUINCL_LENGTH: _bindgen_ty_497 = 1;
+pub type _bindgen_ty_497 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_IUINCL_MASK: _bindgen_ty_498 = 64;
+pub type _bindgen_ty_498 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_DPRE_SHIFT: _bindgen_ty_499 = 7;
+pub type _bindgen_ty_499 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_DPRE_LENGTH: _bindgen_ty_500 = 1;
+pub type _bindgen_ty_500 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_DPRE_MASK: _bindgen_ty_501 = 128;
+pub type _bindgen_ty_501 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_DPRIV_SHIFT: _bindgen_ty_502 = 8;
+pub type _bindgen_ty_502 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_DPRIV_LENGTH: _bindgen_ty_503 = 1;
+pub type _bindgen_ty_503 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_DPRIV_MASK: _bindgen_ty_504 = 256;
+pub type _bindgen_ty_504 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_DINCL_SHIFT: _bindgen_ty_505 = 9;
+pub type _bindgen_ty_505 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_DINCL_LENGTH: _bindgen_ty_506 = 1;
+pub type _bindgen_ty_506 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L2_DINCL_MASK: _bindgen_ty_507 = 512;
+pub type _bindgen_ty_507 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_IUPRE_SHIFT: _bindgen_ty_508 = 10;
+pub type _bindgen_ty_508 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_IUPRE_LENGTH: _bindgen_ty_509 = 1;
+pub type _bindgen_ty_509 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_IUPRE_MASK: _bindgen_ty_510 = 1024;
+pub type _bindgen_ty_510 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_IUUNIFY_SHIFT: _bindgen_ty_511 = 11;
+pub type _bindgen_ty_511 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_IUUNIFY_LENGTH: _bindgen_ty_512 = 1;
+pub type _bindgen_ty_512 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_IUUNIFY_MASK: _bindgen_ty_513 = 2048;
+pub type _bindgen_ty_513 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_IUPRIV_SHIFT: _bindgen_ty_514 = 12;
+pub type _bindgen_ty_514 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_IUPRIV_LENGTH: _bindgen_ty_515 = 1;
+pub type _bindgen_ty_515 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_IUPRIV_MASK: _bindgen_ty_516 = 4096;
+pub type _bindgen_ty_516 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_IUINCL_SHIFT: _bindgen_ty_517 = 13;
+pub type _bindgen_ty_517 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_IUINCL_LENGTH: _bindgen_ty_518 = 1;
+pub type _bindgen_ty_518 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_IUINCL_MASK: _bindgen_ty_519 = 8192;
+pub type _bindgen_ty_519 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_DPRE_SHIFT: _bindgen_ty_520 = 14;
+pub type _bindgen_ty_520 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_DPRE_LENGTH: _bindgen_ty_521 = 1;
+pub type _bindgen_ty_521 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_DPRE_MASK: _bindgen_ty_522 = 16384;
+pub type _bindgen_ty_522 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_DPRIV_SHIFT: _bindgen_ty_523 = 15;
+pub type _bindgen_ty_523 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_DPRIV_LENGTH: _bindgen_ty_524 = 1;
+pub type _bindgen_ty_524 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_DPRIV_MASK: _bindgen_ty_525 = 32768;
+pub type _bindgen_ty_525 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_DINCL_SHIFT: _bindgen_ty_526 = 16;
+pub type _bindgen_ty_526 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_DINCL_LENGTH: _bindgen_ty_527 = 1;
+pub type _bindgen_ty_527 = ::std::os::raw::c_uint;
+pub const R_CPUCFG16_L3_DINCL_MASK: _bindgen_ty_528 = 65536;
+pub type _bindgen_ty_528 = ::std::os::raw::c_uint;
+pub const R_CPUCFG17_L1IU_WAYS_SHIFT: _bindgen_ty_529 = 0;
+pub type _bindgen_ty_529 = ::std::os::raw::c_uint;
+pub const R_CPUCFG17_L1IU_WAYS_LENGTH: _bindgen_ty_530 = 16;
+pub type _bindgen_ty_530 = ::std::os::raw::c_uint;
+pub const R_CPUCFG17_L1IU_WAYS_MASK: _bindgen_ty_531 = 65535;
+pub type _bindgen_ty_531 = ::std::os::raw::c_uint;
+pub const R_CPUCFG17_L1IU_SETS_SHIFT: _bindgen_ty_532 = 16;
+pub type _bindgen_ty_532 = ::std::os::raw::c_uint;
+pub const R_CPUCFG17_L1IU_SETS_LENGTH: _bindgen_ty_533 = 8;
+pub type _bindgen_ty_533 = ::std::os::raw::c_uint;
+pub const R_CPUCFG17_L1IU_SETS_MASK: _bindgen_ty_534 = 16711680;
+pub type _bindgen_ty_534 = ::std::os::raw::c_uint;
+pub const R_CPUCFG17_L1IU_SIZE_SHIFT: _bindgen_ty_535 = 24;
+pub type _bindgen_ty_535 = ::std::os::raw::c_uint;
+pub const R_CPUCFG17_L1IU_SIZE_LENGTH: _bindgen_ty_536 = 7;
+pub type _bindgen_ty_536 = ::std::os::raw::c_uint;
+pub const R_CPUCFG17_L1IU_SIZE_MASK: _bindgen_ty_537 = 2130706432;
+pub type _bindgen_ty_537 = ::std::os::raw::c_uint;
+pub const R_CPUCFG18_L1D_WAYS_SHIFT: _bindgen_ty_538 = 0;
+pub type _bindgen_ty_538 = ::std::os::raw::c_uint;
+pub const R_CPUCFG18_L1D_WAYS_LENGTH: _bindgen_ty_539 = 16;
+pub type _bindgen_ty_539 = ::std::os::raw::c_uint;
+pub const R_CPUCFG18_L1D_WAYS_MASK: _bindgen_ty_540 = 65535;
+pub type _bindgen_ty_540 = ::std::os::raw::c_uint;
+pub const R_CPUCFG18_L1D_SETS_SHIFT: _bindgen_ty_541 = 16;
+pub type _bindgen_ty_541 = ::std::os::raw::c_uint;
+pub const R_CPUCFG18_L1D_SETS_LENGTH: _bindgen_ty_542 = 8;
+pub type _bindgen_ty_542 = ::std::os::raw::c_uint;
+pub const R_CPUCFG18_L1D_SETS_MASK: _bindgen_ty_543 = 16711680;
+pub type _bindgen_ty_543 = ::std::os::raw::c_uint;
+pub const R_CPUCFG18_L1D_SIZE_SHIFT: _bindgen_ty_544 = 24;
+pub type _bindgen_ty_544 = ::std::os::raw::c_uint;
+pub const R_CPUCFG18_L1D_SIZE_LENGTH: _bindgen_ty_545 = 7;
+pub type _bindgen_ty_545 = ::std::os::raw::c_uint;
+pub const R_CPUCFG18_L1D_SIZE_MASK: _bindgen_ty_546 = 2130706432;
+pub type _bindgen_ty_546 = ::std::os::raw::c_uint;
+pub const R_CPUCFG19_L2IU_WAYS_SHIFT: _bindgen_ty_547 = 0;
+pub type _bindgen_ty_547 = ::std::os::raw::c_uint;
+pub const R_CPUCFG19_L2IU_WAYS_LENGTH: _bindgen_ty_548 = 16;
+pub type _bindgen_ty_548 = ::std::os::raw::c_uint;
+pub const R_CPUCFG19_L2IU_WAYS_MASK: _bindgen_ty_549 = 65535;
+pub type _bindgen_ty_549 = ::std::os::raw::c_uint;
+pub const R_CPUCFG19_L2IU_SETS_SHIFT: _bindgen_ty_550 = 16;
+pub type _bindgen_ty_550 = ::std::os::raw::c_uint;
+pub const R_CPUCFG19_L2IU_SETS_LENGTH: _bindgen_ty_551 = 8;
+pub type _bindgen_ty_551 = ::std::os::raw::c_uint;
+pub const R_CPUCFG19_L2IU_SETS_MASK: _bindgen_ty_552 = 16711680;
+pub type _bindgen_ty_552 = ::std::os::raw::c_uint;
+pub const R_CPUCFG19_L2IU_SIZE_SHIFT: _bindgen_ty_553 = 24;
+pub type _bindgen_ty_553 = ::std::os::raw::c_uint;
+pub const R_CPUCFG19_L2IU_SIZE_LENGTH: _bindgen_ty_554 = 7;
+pub type _bindgen_ty_554 = ::std::os::raw::c_uint;
+pub const R_CPUCFG19_L2IU_SIZE_MASK: _bindgen_ty_555 = 2130706432;
+pub type _bindgen_ty_555 = ::std::os::raw::c_uint;
+pub const R_CPUCFG20_L3IU_WAYS_SHIFT: _bindgen_ty_556 = 0;
+pub type _bindgen_ty_556 = ::std::os::raw::c_uint;
+pub const R_CPUCFG20_L3IU_WAYS_LENGTH: _bindgen_ty_557 = 16;
+pub type _bindgen_ty_557 = ::std::os::raw::c_uint;
+pub const R_CPUCFG20_L3IU_WAYS_MASK: _bindgen_ty_558 = 65535;
+pub type _bindgen_ty_558 = ::std::os::raw::c_uint;
+pub const R_CPUCFG20_L3IU_SETS_SHIFT: _bindgen_ty_559 = 16;
+pub type _bindgen_ty_559 = ::std::os::raw::c_uint;
+pub const R_CPUCFG20_L3IU_SETS_LENGTH: _bindgen_ty_560 = 8;
+pub type _bindgen_ty_560 = ::std::os::raw::c_uint;
+pub const R_CPUCFG20_L3IU_SETS_MASK: _bindgen_ty_561 = 16711680;
+pub type _bindgen_ty_561 = ::std::os::raw::c_uint;
+pub const R_CPUCFG20_L3IU_SIZE_SHIFT: _bindgen_ty_562 = 24;
+pub type _bindgen_ty_562 = ::std::os::raw::c_uint;
+pub const R_CPUCFG20_L3IU_SIZE_LENGTH: _bindgen_ty_563 = 7;
+pub type _bindgen_ty_563 = ::std::os::raw::c_uint;
+pub const R_CPUCFG20_L3IU_SIZE_MASK: _bindgen_ty_564 = 2130706432;
+pub type _bindgen_ty_564 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_PLV_SHIFT: _bindgen_ty_565 = 0;
+pub type _bindgen_ty_565 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_PLV_LENGTH: _bindgen_ty_566 = 2;
+pub type _bindgen_ty_566 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_PLV_MASK: _bindgen_ty_567 = 3;
+pub type _bindgen_ty_567 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_IE_SHIFT: _bindgen_ty_568 = 2;
+pub type _bindgen_ty_568 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_IE_LENGTH: _bindgen_ty_569 = 1;
+pub type _bindgen_ty_569 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_IE_MASK: _bindgen_ty_570 = 4;
+pub type _bindgen_ty_570 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_DA_SHIFT: _bindgen_ty_571 = 3;
+pub type _bindgen_ty_571 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_DA_LENGTH: _bindgen_ty_572 = 1;
+pub type _bindgen_ty_572 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_DA_MASK: _bindgen_ty_573 = 8;
+pub type _bindgen_ty_573 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_PG_SHIFT: _bindgen_ty_574 = 4;
+pub type _bindgen_ty_574 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_PG_LENGTH: _bindgen_ty_575 = 1;
+pub type _bindgen_ty_575 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_PG_MASK: _bindgen_ty_576 = 16;
+pub type _bindgen_ty_576 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_DATF_SHIFT: _bindgen_ty_577 = 5;
+pub type _bindgen_ty_577 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_DATF_LENGTH: _bindgen_ty_578 = 2;
+pub type _bindgen_ty_578 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_DATF_MASK: _bindgen_ty_579 = 96;
+pub type _bindgen_ty_579 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_DATM_SHIFT: _bindgen_ty_580 = 7;
+pub type _bindgen_ty_580 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_DATM_LENGTH: _bindgen_ty_581 = 2;
+pub type _bindgen_ty_581 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_DATM_MASK: _bindgen_ty_582 = 384;
+pub type _bindgen_ty_582 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_WE_SHIFT: _bindgen_ty_583 = 9;
+pub type _bindgen_ty_583 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_WE_LENGTH: _bindgen_ty_584 = 1;
+pub type _bindgen_ty_584 = ::std::os::raw::c_uint;
+pub const R_CSR_CRMD_WE_MASK: _bindgen_ty_585 = 512;
+pub type _bindgen_ty_585 = ::std::os::raw::c_uint;
+unsafe extern "C" {
+    pub static regnames: [*const ::std::os::raw::c_char; 32usize];
+}
+unsafe extern "C" {
+    pub static fregnames: [*const ::std::os::raw::c_char; 32usize];
+}
+pub const R_TLB_MISC_E_SHIFT: _bindgen_ty_586 = 0;
+pub type _bindgen_ty_586 = ::std::os::raw::c_uint;
+pub const R_TLB_MISC_E_LENGTH: _bindgen_ty_587 = 1;
+pub type _bindgen_ty_587 = ::std::os::raw::c_uint;
+pub const R_TLB_MISC_E_MASK: _bindgen_ty_588 = 1;
+pub type _bindgen_ty_588 = ::std::os::raw::c_uint;
+pub const R_TLB_MISC_ASID_SHIFT: _bindgen_ty_589 = 1;
+pub type _bindgen_ty_589 = ::std::os::raw::c_uint;
+pub const R_TLB_MISC_ASID_LENGTH: _bindgen_ty_590 = 10;
+pub type _bindgen_ty_590 = ::std::os::raw::c_uint;
+pub const R_TLB_MISC_ASID_MASK: _bindgen_ty_591 = 2046;
+pub type _bindgen_ty_591 = ::std::os::raw::c_uint;
+pub const R_TLB_MISC_VPPN_SHIFT: _bindgen_ty_592 = 13;
+pub type _bindgen_ty_592 = ::std::os::raw::c_uint;
+pub const R_TLB_MISC_VPPN_LENGTH: _bindgen_ty_593 = 35;
+pub type _bindgen_ty_593 = ::std::os::raw::c_uint;
+pub const R_TLB_MISC_VPPN_MASK: _bindgen_ty_594 = 281474976702464;
+pub type _bindgen_ty_594 = ::std::os::raw::c_ulong;
+pub const R_TLB_MISC_PS_SHIFT: _bindgen_ty_595 = 48;
+pub type _bindgen_ty_595 = ::std::os::raw::c_uint;
+pub const R_TLB_MISC_PS_LENGTH: _bindgen_ty_596 = 6;
+pub type _bindgen_ty_596 = ::std::os::raw::c_uint;
+pub const R_TLB_MISC_PS_MASK: _bindgen_ty_597 = 17732923532771328;
+pub type _bindgen_ty_597 = ::std::os::raw::c_ulong;
+#[repr(C)]
+#[repr(align(16))]
+#[derive(Copy, Clone)]
+pub union VReg {
+    pub B: [i8; 32usize],
+    pub H: [i16; 16usize],
+    pub W: [i32; 8usize],
+    pub D: [i64; 4usize],
+    pub UB: [u8; 32usize],
+    pub UH: [u16; 16usize],
+    pub UW: [u32; 8usize],
+    pub UD: [u64; 4usize],
+    pub Q: [Int128; 2usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of VReg"][::std::mem::size_of::<VReg>() - 32usize];
+    ["Alignment of VReg"][::std::mem::align_of::<VReg>() - 16usize];
+    ["Offset of field: VReg::B"][::std::mem::offset_of!(VReg, B) - 0usize];
+    ["Offset of field: VReg::H"][::std::mem::offset_of!(VReg, H) - 0usize];
+    ["Offset of field: VReg::W"][::std::mem::offset_of!(VReg, W) - 0usize];
+    ["Offset of field: VReg::D"][::std::mem::offset_of!(VReg, D) - 0usize];
+    ["Offset of field: VReg::UB"][::std::mem::offset_of!(VReg, UB) - 0usize];
+    ["Offset of field: VReg::UH"][::std::mem::offset_of!(VReg, UH) - 0usize];
+    ["Offset of field: VReg::UW"][::std::mem::offset_of!(VReg, UW) - 0usize];
+    ["Offset of field: VReg::UD"][::std::mem::offset_of!(VReg, UD) - 0usize];
+    ["Offset of field: VReg::Q"][::std::mem::offset_of!(VReg, Q) - 0usize];
+};
+#[repr(C)]
+#[repr(align(16))]
+#[derive(Copy, Clone)]
+pub union fpr_t {
+    pub vreg: VReg,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of fpr_t"][::std::mem::size_of::<fpr_t>() - 32usize];
+    ["Alignment of fpr_t"][::std::mem::align_of::<fpr_t>() - 16usize];
+    ["Offset of field: fpr_t::vreg"][::std::mem::offset_of!(fpr_t, vreg) - 0usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct LoongArchTLB {
+    pub tlb_misc: u64,
+    pub tlb_entry0: u64,
+    pub tlb_entry1: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of LoongArchTLB"][::std::mem::size_of::<LoongArchTLB>() - 24usize];
+    ["Alignment of LoongArchTLB"][::std::mem::align_of::<LoongArchTLB>() - 8usize];
+    ["Offset of field: LoongArchTLB::tlb_misc"]
+        [::std::mem::offset_of!(LoongArchTLB, tlb_misc) - 0usize];
+    ["Offset of field: LoongArchTLB::tlb_entry0"]
+        [::std::mem::offset_of!(LoongArchTLB, tlb_entry0) - 8usize];
+    ["Offset of field: LoongArchTLB::tlb_entry1"]
+        [::std::mem::offset_of!(LoongArchTLB, tlb_entry1) - 16usize];
+};
+pub const LOONGARCH_FEATURE_LSX: loongarch_features = 0;
+pub const LOONGARCH_FEATURE_LASX: loongarch_features = 1;
+pub const LOONGARCH_FEATURE_LBT: loongarch_features = 2;
+pub const LOONGARCH_FEATURE_PMU: loongarch_features = 3;
+pub const LOONGARCH_FEATURE_PV_IPI: loongarch_features = 4;
+pub const LOONGARCH_FEATURE_STEALTIME: loongarch_features = 5;
+pub type loongarch_features = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct LoongArchBT {
+    pub scr0: u64,
+    pub scr1: u64,
+    pub scr2: u64,
+    pub scr3: u64,
+    pub eflags: u32,
+    pub ftop: u32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of LoongArchBT"][::std::mem::size_of::<LoongArchBT>() - 40usize];
+    ["Alignment of LoongArchBT"][::std::mem::align_of::<LoongArchBT>() - 8usize];
+    ["Offset of field: LoongArchBT::scr0"][::std::mem::offset_of!(LoongArchBT, scr0) - 0usize];
+    ["Offset of field: LoongArchBT::scr1"][::std::mem::offset_of!(LoongArchBT, scr1) - 8usize];
+    ["Offset of field: LoongArchBT::scr2"][::std::mem::offset_of!(LoongArchBT, scr2) - 16usize];
+    ["Offset of field: LoongArchBT::scr3"][::std::mem::offset_of!(LoongArchBT, scr3) - 24usize];
+    ["Offset of field: LoongArchBT::eflags"][::std::mem::offset_of!(LoongArchBT, eflags) - 32usize];
+    ["Offset of field: LoongArchBT::ftop"][::std::mem::offset_of!(LoongArchBT, ftop) - 36usize];
+};
+pub type lbt_t = LoongArchBT;
+#[repr(C)]
+#[repr(align(16))]
+#[derive(Copy, Clone)]
+pub struct CPUArchState {
+    pub gpr: [u64; 32usize],
+    pub pc: u64,
+    pub __bindgen_padding_0: u64,
+    pub fpr: [fpr_t; 32usize],
+    pub cf: [bool; 8usize],
+    pub fcsr0: u32,
+    pub lbt: lbt_t,
+    pub cpucfg: [u32; 21usize],
+    pub pv_features: u32,
+    pub CSR_CRMD: u64,
+    pub CSR_PRMD: u64,
+    pub CSR_EUEN: u64,
+    pub CSR_MISC: u64,
+    pub CSR_ECFG: u64,
+    pub CSR_ESTAT: u64,
+    pub CSR_ERA: u64,
+    pub CSR_BADV: u64,
+    pub CSR_BADI: u64,
+    pub CSR_EENTRY: u64,
+    pub CSR_TLBIDX: u64,
+    pub CSR_TLBEHI: u64,
+    pub CSR_TLBELO0: u64,
+    pub CSR_TLBELO1: u64,
+    pub CSR_ASID: u64,
+    pub CSR_PGDL: u64,
+    pub CSR_PGDH: u64,
+    pub CSR_PGD: u64,
+    pub CSR_PWCL: u64,
+    pub CSR_PWCH: u64,
+    pub CSR_STLBPS: u64,
+    pub CSR_RVACFG: u64,
+    pub CSR_CPUID: u64,
+    pub CSR_PRCFG1: u64,
+    pub CSR_PRCFG2: u64,
+    pub CSR_PRCFG3: u64,
+    pub CSR_SAVE: [u64; 16usize],
+    pub CSR_TID: u64,
+    pub CSR_TCFG: u64,
+    pub CSR_TVAL: u64,
+    pub CSR_CNTC: u64,
+    pub CSR_TICLR: u64,
+    pub CSR_LLBCTL: u64,
+    pub CSR_IMPCTL1: u64,
+    pub CSR_IMPCTL2: u64,
+    pub CSR_TLBRENTRY: u64,
+    pub CSR_TLBRBADV: u64,
+    pub CSR_TLBRERA: u64,
+    pub CSR_TLBRSAVE: u64,
+    pub CSR_TLBRELO0: u64,
+    pub CSR_TLBRELO1: u64,
+    pub CSR_TLBREHI: u64,
+    pub CSR_TLBRPRMD: u64,
+    pub CSR_MERRCTL: u64,
+    pub CSR_MERRINFO1: u64,
+    pub CSR_MERRINFO2: u64,
+    pub CSR_MERRENTRY: u64,
+    pub CSR_MERRERA: u64,
+    pub CSR_MERRSAVE: u64,
+    pub CSR_CTAG: u64,
+    pub CSR_DMW: [u64; 4usize],
+    pub CSR_DBG: u64,
+    pub CSR_DERA: u64,
+    pub CSR_DSAVE: u64,
+    pub stealtime: CPUArchState__bindgen_ty_1,
+    pub fp_status: float_status,
+    pub fcsr0_mask: u32,
+    pub lladdr: u64,
+    pub llval: u64,
+    pub tlb: [LoongArchTLB; 2112usize],
+    pub address_space_iocsr: *mut AddressSpace,
+    pub load_elf: bool,
+    pub elf_address: u64,
+    pub mp_state: u32,
+    pub boot_info: *mut loongarch_boot_info,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct CPUArchState__bindgen_ty_1 {
+    pub guest_addr: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of CPUArchState__bindgen_ty_1"]
+        [::std::mem::size_of::<CPUArchState__bindgen_ty_1>() - 8usize];
+    ["Alignment of CPUArchState__bindgen_ty_1"]
+        [::std::mem::align_of::<CPUArchState__bindgen_ty_1>() - 8usize];
+    ["Offset of field: CPUArchState__bindgen_ty_1::guest_addr"]
+        [::std::mem::offset_of!(CPUArchState__bindgen_ty_1, guest_addr) - 0usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of CPUArchState"][::std::mem::size_of::<CPUArchState>() - 52800usize];
+    ["Alignment of CPUArchState"][::std::mem::align_of::<CPUArchState>() - 16usize];
+    ["Offset of field: CPUArchState::gpr"][::std::mem::offset_of!(CPUArchState, gpr) - 0usize];
+    ["Offset of field: CPUArchState::pc"][::std::mem::offset_of!(CPUArchState, pc) - 256usize];
+    ["Offset of field: CPUArchState::fpr"][::std::mem::offset_of!(CPUArchState, fpr) - 272usize];
+    ["Offset of field: CPUArchState::cf"][::std::mem::offset_of!(CPUArchState, cf) - 1296usize];
+    ["Offset of field: CPUArchState::fcsr0"]
+        [::std::mem::offset_of!(CPUArchState, fcsr0) - 1304usize];
+    ["Offset of field: CPUArchState::lbt"][::std::mem::offset_of!(CPUArchState, lbt) - 1312usize];
+    ["Offset of field: CPUArchState::cpucfg"]
+        [::std::mem::offset_of!(CPUArchState, cpucfg) - 1352usize];
+    ["Offset of field: CPUArchState::pv_features"]
+        [::std::mem::offset_of!(CPUArchState, pv_features) - 1436usize];
+    ["Offset of field: CPUArchState::CSR_CRMD"]
+        [::std::mem::offset_of!(CPUArchState, CSR_CRMD) - 1440usize];
+    ["Offset of field: CPUArchState::CSR_PRMD"]
+        [::std::mem::offset_of!(CPUArchState, CSR_PRMD) - 1448usize];
+    ["Offset of field: CPUArchState::CSR_EUEN"]
+        [::std::mem::offset_of!(CPUArchState, CSR_EUEN) - 1456usize];
+    ["Offset of field: CPUArchState::CSR_MISC"]
+        [::std::mem::offset_of!(CPUArchState, CSR_MISC) - 1464usize];
+    ["Offset of field: CPUArchState::CSR_ECFG"]
+        [::std::mem::offset_of!(CPUArchState, CSR_ECFG) - 1472usize];
+    ["Offset of field: CPUArchState::CSR_ESTAT"]
+        [::std::mem::offset_of!(CPUArchState, CSR_ESTAT) - 1480usize];
+    ["Offset of field: CPUArchState::CSR_ERA"]
+        [::std::mem::offset_of!(CPUArchState, CSR_ERA) - 1488usize];
+    ["Offset of field: CPUArchState::CSR_BADV"]
+        [::std::mem::offset_of!(CPUArchState, CSR_BADV) - 1496usize];
+    ["Offset of field: CPUArchState::CSR_BADI"]
+        [::std::mem::offset_of!(CPUArchState, CSR_BADI) - 1504usize];
+    ["Offset of field: CPUArchState::CSR_EENTRY"]
+        [::std::mem::offset_of!(CPUArchState, CSR_EENTRY) - 1512usize];
+    ["Offset of field: CPUArchState::CSR_TLBIDX"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TLBIDX) - 1520usize];
+    ["Offset of field: CPUArchState::CSR_TLBEHI"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TLBEHI) - 1528usize];
+    ["Offset of field: CPUArchState::CSR_TLBELO0"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TLBELO0) - 1536usize];
+    ["Offset of field: CPUArchState::CSR_TLBELO1"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TLBELO1) - 1544usize];
+    ["Offset of field: CPUArchState::CSR_ASID"]
+        [::std::mem::offset_of!(CPUArchState, CSR_ASID) - 1552usize];
+    ["Offset of field: CPUArchState::CSR_PGDL"]
+        [::std::mem::offset_of!(CPUArchState, CSR_PGDL) - 1560usize];
+    ["Offset of field: CPUArchState::CSR_PGDH"]
+        [::std::mem::offset_of!(CPUArchState, CSR_PGDH) - 1568usize];
+    ["Offset of field: CPUArchState::CSR_PGD"]
+        [::std::mem::offset_of!(CPUArchState, CSR_PGD) - 1576usize];
+    ["Offset of field: CPUArchState::CSR_PWCL"]
+        [::std::mem::offset_of!(CPUArchState, CSR_PWCL) - 1584usize];
+    ["Offset of field: CPUArchState::CSR_PWCH"]
+        [::std::mem::offset_of!(CPUArchState, CSR_PWCH) - 1592usize];
+    ["Offset of field: CPUArchState::CSR_STLBPS"]
+        [::std::mem::offset_of!(CPUArchState, CSR_STLBPS) - 1600usize];
+    ["Offset of field: CPUArchState::CSR_RVACFG"]
+        [::std::mem::offset_of!(CPUArchState, CSR_RVACFG) - 1608usize];
+    ["Offset of field: CPUArchState::CSR_CPUID"]
+        [::std::mem::offset_of!(CPUArchState, CSR_CPUID) - 1616usize];
+    ["Offset of field: CPUArchState::CSR_PRCFG1"]
+        [::std::mem::offset_of!(CPUArchState, CSR_PRCFG1) - 1624usize];
+    ["Offset of field: CPUArchState::CSR_PRCFG2"]
+        [::std::mem::offset_of!(CPUArchState, CSR_PRCFG2) - 1632usize];
+    ["Offset of field: CPUArchState::CSR_PRCFG3"]
+        [::std::mem::offset_of!(CPUArchState, CSR_PRCFG3) - 1640usize];
+    ["Offset of field: CPUArchState::CSR_SAVE"]
+        [::std::mem::offset_of!(CPUArchState, CSR_SAVE) - 1648usize];
+    ["Offset of field: CPUArchState::CSR_TID"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TID) - 1776usize];
+    ["Offset of field: CPUArchState::CSR_TCFG"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TCFG) - 1784usize];
+    ["Offset of field: CPUArchState::CSR_TVAL"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TVAL) - 1792usize];
+    ["Offset of field: CPUArchState::CSR_CNTC"]
+        [::std::mem::offset_of!(CPUArchState, CSR_CNTC) - 1800usize];
+    ["Offset of field: CPUArchState::CSR_TICLR"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TICLR) - 1808usize];
+    ["Offset of field: CPUArchState::CSR_LLBCTL"]
+        [::std::mem::offset_of!(CPUArchState, CSR_LLBCTL) - 1816usize];
+    ["Offset of field: CPUArchState::CSR_IMPCTL1"]
+        [::std::mem::offset_of!(CPUArchState, CSR_IMPCTL1) - 1824usize];
+    ["Offset of field: CPUArchState::CSR_IMPCTL2"]
+        [::std::mem::offset_of!(CPUArchState, CSR_IMPCTL2) - 1832usize];
+    ["Offset of field: CPUArchState::CSR_TLBRENTRY"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TLBRENTRY) - 1840usize];
+    ["Offset of field: CPUArchState::CSR_TLBRBADV"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TLBRBADV) - 1848usize];
+    ["Offset of field: CPUArchState::CSR_TLBRERA"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TLBRERA) - 1856usize];
+    ["Offset of field: CPUArchState::CSR_TLBRSAVE"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TLBRSAVE) - 1864usize];
+    ["Offset of field: CPUArchState::CSR_TLBRELO0"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TLBRELO0) - 1872usize];
+    ["Offset of field: CPUArchState::CSR_TLBRELO1"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TLBRELO1) - 1880usize];
+    ["Offset of field: CPUArchState::CSR_TLBREHI"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TLBREHI) - 1888usize];
+    ["Offset of field: CPUArchState::CSR_TLBRPRMD"]
+        [::std::mem::offset_of!(CPUArchState, CSR_TLBRPRMD) - 1896usize];
+    ["Offset of field: CPUArchState::CSR_MERRCTL"]
+        [::std::mem::offset_of!(CPUArchState, CSR_MERRCTL) - 1904usize];
+    ["Offset of field: CPUArchState::CSR_MERRINFO1"]
+        [::std::mem::offset_of!(CPUArchState, CSR_MERRINFO1) - 1912usize];
+    ["Offset of field: CPUArchState::CSR_MERRINFO2"]
+        [::std::mem::offset_of!(CPUArchState, CSR_MERRINFO2) - 1920usize];
+    ["Offset of field: CPUArchState::CSR_MERRENTRY"]
+        [::std::mem::offset_of!(CPUArchState, CSR_MERRENTRY) - 1928usize];
+    ["Offset of field: CPUArchState::CSR_MERRERA"]
+        [::std::mem::offset_of!(CPUArchState, CSR_MERRERA) - 1936usize];
+    ["Offset of field: CPUArchState::CSR_MERRSAVE"]
+        [::std::mem::offset_of!(CPUArchState, CSR_MERRSAVE) - 1944usize];
+    ["Offset of field: CPUArchState::CSR_CTAG"]
+        [::std::mem::offset_of!(CPUArchState, CSR_CTAG) - 1952usize];
+    ["Offset of field: CPUArchState::CSR_DMW"]
+        [::std::mem::offset_of!(CPUArchState, CSR_DMW) - 1960usize];
+    ["Offset of field: CPUArchState::CSR_DBG"]
+        [::std::mem::offset_of!(CPUArchState, CSR_DBG) - 1992usize];
+    ["Offset of field: CPUArchState::CSR_DERA"]
+        [::std::mem::offset_of!(CPUArchState, CSR_DERA) - 2000usize];
+    ["Offset of field: CPUArchState::CSR_DSAVE"]
+        [::std::mem::offset_of!(CPUArchState, CSR_DSAVE) - 2008usize];
+    ["Offset of field: CPUArchState::stealtime"]
+        [::std::mem::offset_of!(CPUArchState, stealtime) - 2016usize];
+    ["Offset of field: CPUArchState::fp_status"]
+        [::std::mem::offset_of!(CPUArchState, fp_status) - 2024usize];
+    ["Offset of field: CPUArchState::fcsr0_mask"]
+        [::std::mem::offset_of!(CPUArchState, fcsr0_mask) - 2044usize];
+    ["Offset of field: CPUArchState::lladdr"]
+        [::std::mem::offset_of!(CPUArchState, lladdr) - 2048usize];
+    ["Offset of field: CPUArchState::llval"]
+        [::std::mem::offset_of!(CPUArchState, llval) - 2056usize];
+    ["Offset of field: CPUArchState::tlb"][::std::mem::offset_of!(CPUArchState, tlb) - 2064usize];
+    ["Offset of field: CPUArchState::address_space_iocsr"]
+        [::std::mem::offset_of!(CPUArchState, address_space_iocsr) - 52752usize];
+    ["Offset of field: CPUArchState::load_elf"]
+        [::std::mem::offset_of!(CPUArchState, load_elf) - 52760usize];
+    ["Offset of field: CPUArchState::elf_address"]
+        [::std::mem::offset_of!(CPUArchState, elf_address) - 52768usize];
+    ["Offset of field: CPUArchState::mp_state"]
+        [::std::mem::offset_of!(CPUArchState, mp_state) - 52776usize];
+    ["Offset of field: CPUArchState::boot_info"]
+        [::std::mem::offset_of!(CPUArchState, boot_info) - 52784usize];
+};
+pub type CPULoongArchState = CPUArchState;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct LoongArchCPUTopo {
+    pub socket_id: i32,
+    pub core_id: i32,
+    pub thread_id: i32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of LoongArchCPUTopo"][::std::mem::size_of::<LoongArchCPUTopo>() - 12usize];
+    ["Alignment of LoongArchCPUTopo"][::std::mem::align_of::<LoongArchCPUTopo>() - 4usize];
+    ["Offset of field: LoongArchCPUTopo::socket_id"]
+        [::std::mem::offset_of!(LoongArchCPUTopo, socket_id) - 0usize];
+    ["Offset of field: LoongArchCPUTopo::core_id"]
+        [::std::mem::offset_of!(LoongArchCPUTopo, core_id) - 4usize];
+    ["Offset of field: LoongArchCPUTopo::thread_id"]
+        [::std::mem::offset_of!(LoongArchCPUTopo, thread_id) - 8usize];
+};
+#[repr(C)]
+#[repr(align(16))]
+pub struct ArchCPU {
+    pub parent_obj: CPUState,
+    pub env: CPULoongArchState,
+    pub timer: QEMUTimer,
+    pub phy_id: u32,
+    pub lbt: OnOffAuto,
+    pub pmu: OnOffAuto,
+    pub lsx: OnOffAuto,
+    pub lasx: OnOffAuto,
+    pub kvm_pv_ipi: OnOffAuto,
+    pub kvm_steal_time: OnOffAuto,
+    pub socket_id: i32,
+    pub core_id: i32,
+    pub thread_id: i32,
+    pub node_id: i32,
+    pub dtb_compatible: *const ::std::os::raw::c_char,
+    pub kvm_state_counter: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of ArchCPU"][::std::mem::size_of::<ArchCPU>() - 64112usize];
+    ["Alignment of ArchCPU"][::std::mem::align_of::<ArchCPU>() - 16usize];
+    ["Offset of field: ArchCPU::parent_obj"][::std::mem::offset_of!(ArchCPU, parent_obj) - 0usize];
+    ["Offset of field: ArchCPU::env"][::std::mem::offset_of!(ArchCPU, env) - 11200usize];
+    ["Offset of field: ArchCPU::timer"][::std::mem::offset_of!(ArchCPU, timer) - 64000usize];
+    ["Offset of field: ArchCPU::phy_id"][::std::mem::offset_of!(ArchCPU, phy_id) - 64048usize];
+    ["Offset of field: ArchCPU::lbt"][::std::mem::offset_of!(ArchCPU, lbt) - 64052usize];
+    ["Offset of field: ArchCPU::pmu"][::std::mem::offset_of!(ArchCPU, pmu) - 64056usize];
+    ["Offset of field: ArchCPU::lsx"][::std::mem::offset_of!(ArchCPU, lsx) - 64060usize];
+    ["Offset of field: ArchCPU::lasx"][::std::mem::offset_of!(ArchCPU, lasx) - 64064usize];
+    ["Offset of field: ArchCPU::kvm_pv_ipi"]
+        [::std::mem::offset_of!(ArchCPU, kvm_pv_ipi) - 64068usize];
+    ["Offset of field: ArchCPU::kvm_steal_time"]
+        [::std::mem::offset_of!(ArchCPU, kvm_steal_time) - 64072usize];
+    ["Offset of field: ArchCPU::socket_id"]
+        [::std::mem::offset_of!(ArchCPU, socket_id) - 64076usize];
+    ["Offset of field: ArchCPU::core_id"][::std::mem::offset_of!(ArchCPU, core_id) - 64080usize];
+    ["Offset of field: ArchCPU::thread_id"]
+        [::std::mem::offset_of!(ArchCPU, thread_id) - 64084usize];
+    ["Offset of field: ArchCPU::node_id"][::std::mem::offset_of!(ArchCPU, node_id) - 64088usize];
+    ["Offset of field: ArchCPU::dtb_compatible"]
+        [::std::mem::offset_of!(ArchCPU, dtb_compatible) - 64096usize];
+    ["Offset of field: ArchCPU::kvm_state_counter"]
+        [::std::mem::offset_of!(ArchCPU, kvm_state_counter) - 64104usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct LoongArchCPUClass {
+    pub parent_class: CPUClass,
+    pub parent_realize: DeviceRealize,
+    pub parent_unrealize: DeviceUnrealize,
+    pub parent_phases: ResettablePhases,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of LoongArchCPUClass"][::std::mem::size_of::<LoongArchCPUClass>() - 400usize];
+    ["Alignment of LoongArchCPUClass"][::std::mem::align_of::<LoongArchCPUClass>() - 8usize];
+    ["Offset of field: LoongArchCPUClass::parent_class"]
+        [::std::mem::offset_of!(LoongArchCPUClass, parent_class) - 0usize];
+    ["Offset of field: LoongArchCPUClass::parent_realize"]
+        [::std::mem::offset_of!(LoongArchCPUClass, parent_realize) - 360usize];
+    ["Offset of field: LoongArchCPUClass::parent_unrealize"]
+        [::std::mem::offset_of!(LoongArchCPUClass, parent_unrealize) - 368usize];
+    ["Offset of field: LoongArchCPUClass::parent_phases"]
+        [::std::mem::offset_of!(LoongArchCPUClass, parent_phases) - 376usize];
+};
 unsafe extern "C" {
     pub fn target_words_bigendian() -> bool;
 }
@@ -42713,33 +38846,6 @@ unsafe extern "C" {
         result: *mut MemTxResult,
     );
 }
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct TargetPageBits {
-    pub decided: bool,
-    pub bits: ::std::os::raw::c_int,
-    pub mask: u64,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of TargetPageBits"][::std::mem::size_of::<TargetPageBits>() - 16usize];
-    ["Alignment of TargetPageBits"][::std::mem::align_of::<TargetPageBits>() - 8usize];
-    ["Offset of field: TargetPageBits::decided"]
-        [::std::mem::offset_of!(TargetPageBits, decided) - 0usize];
-    ["Offset of field: TargetPageBits::bits"]
-        [::std::mem::offset_of!(TargetPageBits, bits) - 4usize];
-    ["Offset of field: TargetPageBits::mask"]
-        [::std::mem::offset_of!(TargetPageBits, mask) - 8usize];
-};
-unsafe extern "C" {
-    pub fn set_preferred_target_page_bits(bits: ::std::os::raw::c_int) -> bool;
-}
-unsafe extern "C" {
-    pub fn finalize_target_page_bits();
-}
-unsafe extern "C" {
-    pub static target_page: TargetPageBits;
-}
 unsafe extern "C" {
     pub fn qemu_target_page_bits_min() -> ::std::os::raw::c_int;
 }
@@ -42749,361 +38855,8 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn cpu_copy(env: *mut CPUArchState) -> *mut CPUArchState;
 }
-pub const R_TBFLAG_ANY_AARCH64_STATE_SHIFT: _bindgen_ty_1476 = 0;
-pub type _bindgen_ty_1476 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_AARCH64_STATE_LENGTH: _bindgen_ty_1477 = 1;
-pub type _bindgen_ty_1477 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_AARCH64_STATE_MASK: _bindgen_ty_1478 = 1;
-pub type _bindgen_ty_1478 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_SS_ACTIVE_SHIFT: _bindgen_ty_1479 = 1;
-pub type _bindgen_ty_1479 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_SS_ACTIVE_LENGTH: _bindgen_ty_1480 = 1;
-pub type _bindgen_ty_1480 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_SS_ACTIVE_MASK: _bindgen_ty_1481 = 2;
-pub type _bindgen_ty_1481 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_PSTATE__SS_SHIFT: _bindgen_ty_1482 = 2;
-pub type _bindgen_ty_1482 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_PSTATE__SS_LENGTH: _bindgen_ty_1483 = 1;
-pub type _bindgen_ty_1483 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_PSTATE__SS_MASK: _bindgen_ty_1484 = 4;
-pub type _bindgen_ty_1484 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_BE_DATA_SHIFT: _bindgen_ty_1485 = 3;
-pub type _bindgen_ty_1485 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_BE_DATA_LENGTH: _bindgen_ty_1486 = 1;
-pub type _bindgen_ty_1486 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_BE_DATA_MASK: _bindgen_ty_1487 = 8;
-pub type _bindgen_ty_1487 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_MMUIDX_SHIFT: _bindgen_ty_1488 = 4;
-pub type _bindgen_ty_1488 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_MMUIDX_LENGTH: _bindgen_ty_1489 = 4;
-pub type _bindgen_ty_1489 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_MMUIDX_MASK: _bindgen_ty_1490 = 240;
-pub type _bindgen_ty_1490 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_FPEXC_EL_SHIFT: _bindgen_ty_1491 = 8;
-pub type _bindgen_ty_1491 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_FPEXC_EL_LENGTH: _bindgen_ty_1492 = 2;
-pub type _bindgen_ty_1492 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_FPEXC_EL_MASK: _bindgen_ty_1493 = 768;
-pub type _bindgen_ty_1493 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_ALIGN_MEM_SHIFT: _bindgen_ty_1494 = 10;
-pub type _bindgen_ty_1494 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_ALIGN_MEM_LENGTH: _bindgen_ty_1495 = 1;
-pub type _bindgen_ty_1495 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_ALIGN_MEM_MASK: _bindgen_ty_1496 = 1024;
-pub type _bindgen_ty_1496 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_PSTATE__IL_SHIFT: _bindgen_ty_1497 = 11;
-pub type _bindgen_ty_1497 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_PSTATE__IL_LENGTH: _bindgen_ty_1498 = 1;
-pub type _bindgen_ty_1498 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_PSTATE__IL_MASK: _bindgen_ty_1499 = 2048;
-pub type _bindgen_ty_1499 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_FGT_ACTIVE_SHIFT: _bindgen_ty_1500 = 12;
-pub type _bindgen_ty_1500 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_FGT_ACTIVE_LENGTH: _bindgen_ty_1501 = 1;
-pub type _bindgen_ty_1501 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_FGT_ACTIVE_MASK: _bindgen_ty_1502 = 4096;
-pub type _bindgen_ty_1502 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_FGT_SVC_SHIFT: _bindgen_ty_1503 = 13;
-pub type _bindgen_ty_1503 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_FGT_SVC_LENGTH: _bindgen_ty_1504 = 1;
-pub type _bindgen_ty_1504 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_ANY_FGT_SVC_MASK: _bindgen_ty_1505 = 8192;
-pub type _bindgen_ty_1505 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_AM32_CONDEXEC_SHIFT: _bindgen_ty_1506 = 24;
-pub type _bindgen_ty_1506 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_AM32_CONDEXEC_LENGTH: _bindgen_ty_1507 = 8;
-pub type _bindgen_ty_1507 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_AM32_CONDEXEC_MASK: _bindgen_ty_1508 = 4278190080;
-pub type _bindgen_ty_1508 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_AM32_THUMB_SHIFT: _bindgen_ty_1509 = 23;
-pub type _bindgen_ty_1509 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_AM32_THUMB_LENGTH: _bindgen_ty_1510 = 1;
-pub type _bindgen_ty_1510 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_AM32_THUMB_MASK: _bindgen_ty_1511 = 8388608;
-pub type _bindgen_ty_1511 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_VECLEN_SHIFT: _bindgen_ty_1512 = 0;
-pub type _bindgen_ty_1512 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_VECLEN_LENGTH: _bindgen_ty_1513 = 3;
-pub type _bindgen_ty_1513 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_VECLEN_MASK: _bindgen_ty_1514 = 7;
-pub type _bindgen_ty_1514 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_VECSTRIDE_SHIFT: _bindgen_ty_1515 = 3;
-pub type _bindgen_ty_1515 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_VECSTRIDE_LENGTH: _bindgen_ty_1516 = 2;
-pub type _bindgen_ty_1516 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_VECSTRIDE_MASK: _bindgen_ty_1517 = 24;
-pub type _bindgen_ty_1517 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_XSCALE_CPAR_SHIFT: _bindgen_ty_1518 = 5;
-pub type _bindgen_ty_1518 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_XSCALE_CPAR_LENGTH: _bindgen_ty_1519 = 2;
-pub type _bindgen_ty_1519 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_XSCALE_CPAR_MASK: _bindgen_ty_1520 = 96;
-pub type _bindgen_ty_1520 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_VFPEN_SHIFT: _bindgen_ty_1521 = 7;
-pub type _bindgen_ty_1521 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_VFPEN_LENGTH: _bindgen_ty_1522 = 1;
-pub type _bindgen_ty_1522 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_VFPEN_MASK: _bindgen_ty_1523 = 128;
-pub type _bindgen_ty_1523 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_SCTLR__B_SHIFT: _bindgen_ty_1524 = 8;
-pub type _bindgen_ty_1524 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_SCTLR__B_LENGTH: _bindgen_ty_1525 = 1;
-pub type _bindgen_ty_1525 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_SCTLR__B_MASK: _bindgen_ty_1526 = 256;
-pub type _bindgen_ty_1526 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_HSTR_ACTIVE_SHIFT: _bindgen_ty_1527 = 9;
-pub type _bindgen_ty_1527 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_HSTR_ACTIVE_LENGTH: _bindgen_ty_1528 = 1;
-pub type _bindgen_ty_1528 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_HSTR_ACTIVE_MASK: _bindgen_ty_1529 = 512;
-pub type _bindgen_ty_1529 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_NS_SHIFT: _bindgen_ty_1530 = 10;
-pub type _bindgen_ty_1530 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_NS_LENGTH: _bindgen_ty_1531 = 1;
-pub type _bindgen_ty_1531 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_NS_MASK: _bindgen_ty_1532 = 1024;
-pub type _bindgen_ty_1532 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_SME_TRAP_NONSTREAMING_SHIFT: _bindgen_ty_1533 = 11;
-pub type _bindgen_ty_1533 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_SME_TRAP_NONSTREAMING_LENGTH: _bindgen_ty_1534 = 1;
-pub type _bindgen_ty_1534 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A32_SME_TRAP_NONSTREAMING_MASK: _bindgen_ty_1535 = 2048;
-pub type _bindgen_ty_1535 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_HANDLER_SHIFT: _bindgen_ty_1536 = 0;
-pub type _bindgen_ty_1536 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_HANDLER_LENGTH: _bindgen_ty_1537 = 1;
-pub type _bindgen_ty_1537 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_HANDLER_MASK: _bindgen_ty_1538 = 1;
-pub type _bindgen_ty_1538 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_STACKCHECK_SHIFT: _bindgen_ty_1539 = 1;
-pub type _bindgen_ty_1539 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_STACKCHECK_LENGTH: _bindgen_ty_1540 = 1;
-pub type _bindgen_ty_1540 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_STACKCHECK_MASK: _bindgen_ty_1541 = 2;
-pub type _bindgen_ty_1541 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_LSPACT_SHIFT: _bindgen_ty_1542 = 2;
-pub type _bindgen_ty_1542 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_LSPACT_LENGTH: _bindgen_ty_1543 = 1;
-pub type _bindgen_ty_1543 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_LSPACT_MASK: _bindgen_ty_1544 = 4;
-pub type _bindgen_ty_1544 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_NEW_FP_CTXT_NEEDED_SHIFT: _bindgen_ty_1545 = 3;
-pub type _bindgen_ty_1545 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_NEW_FP_CTXT_NEEDED_LENGTH: _bindgen_ty_1546 = 1;
-pub type _bindgen_ty_1546 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_NEW_FP_CTXT_NEEDED_MASK: _bindgen_ty_1547 = 8;
-pub type _bindgen_ty_1547 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_FPCCR_S_WRONG_SHIFT: _bindgen_ty_1548 = 4;
-pub type _bindgen_ty_1548 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_FPCCR_S_WRONG_LENGTH: _bindgen_ty_1549 = 1;
-pub type _bindgen_ty_1549 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_FPCCR_S_WRONG_MASK: _bindgen_ty_1550 = 16;
-pub type _bindgen_ty_1550 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_MVE_NO_PRED_SHIFT: _bindgen_ty_1551 = 5;
-pub type _bindgen_ty_1551 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_MVE_NO_PRED_LENGTH: _bindgen_ty_1552 = 1;
-pub type _bindgen_ty_1552 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_MVE_NO_PRED_MASK: _bindgen_ty_1553 = 32;
-pub type _bindgen_ty_1553 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_SECURE_SHIFT: _bindgen_ty_1554 = 6;
-pub type _bindgen_ty_1554 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_SECURE_LENGTH: _bindgen_ty_1555 = 1;
-pub type _bindgen_ty_1555 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_M32_SECURE_MASK: _bindgen_ty_1556 = 64;
-pub type _bindgen_ty_1556 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_TBII_SHIFT: _bindgen_ty_1557 = 0;
-pub type _bindgen_ty_1557 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_TBII_LENGTH: _bindgen_ty_1558 = 2;
-pub type _bindgen_ty_1558 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_TBII_MASK: _bindgen_ty_1559 = 3;
-pub type _bindgen_ty_1559 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_SVEEXC_EL_SHIFT: _bindgen_ty_1560 = 2;
-pub type _bindgen_ty_1560 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_SVEEXC_EL_LENGTH: _bindgen_ty_1561 = 2;
-pub type _bindgen_ty_1561 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_SVEEXC_EL_MASK: _bindgen_ty_1562 = 12;
-pub type _bindgen_ty_1562 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_VL_SHIFT: _bindgen_ty_1563 = 4;
-pub type _bindgen_ty_1563 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_VL_LENGTH: _bindgen_ty_1564 = 4;
-pub type _bindgen_ty_1564 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_VL_MASK: _bindgen_ty_1565 = 240;
-pub type _bindgen_ty_1565 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_PAUTH_ACTIVE_SHIFT: _bindgen_ty_1566 = 8;
-pub type _bindgen_ty_1566 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_PAUTH_ACTIVE_LENGTH: _bindgen_ty_1567 = 1;
-pub type _bindgen_ty_1567 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_PAUTH_ACTIVE_MASK: _bindgen_ty_1568 = 256;
-pub type _bindgen_ty_1568 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_BT_SHIFT: _bindgen_ty_1569 = 9;
-pub type _bindgen_ty_1569 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_BT_LENGTH: _bindgen_ty_1570 = 1;
-pub type _bindgen_ty_1570 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_BT_MASK: _bindgen_ty_1571 = 512;
-pub type _bindgen_ty_1571 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_BTYPE_SHIFT: _bindgen_ty_1572 = 10;
-pub type _bindgen_ty_1572 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_BTYPE_LENGTH: _bindgen_ty_1573 = 2;
-pub type _bindgen_ty_1573 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_BTYPE_MASK: _bindgen_ty_1574 = 3072;
-pub type _bindgen_ty_1574 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_TBID_SHIFT: _bindgen_ty_1575 = 12;
-pub type _bindgen_ty_1575 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_TBID_LENGTH: _bindgen_ty_1576 = 2;
-pub type _bindgen_ty_1576 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_TBID_MASK: _bindgen_ty_1577 = 12288;
-pub type _bindgen_ty_1577 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_UNPRIV_SHIFT: _bindgen_ty_1578 = 14;
-pub type _bindgen_ty_1578 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_UNPRIV_LENGTH: _bindgen_ty_1579 = 1;
-pub type _bindgen_ty_1579 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_UNPRIV_MASK: _bindgen_ty_1580 = 16384;
-pub type _bindgen_ty_1580 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_ATA_SHIFT: _bindgen_ty_1581 = 15;
-pub type _bindgen_ty_1581 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_ATA_LENGTH: _bindgen_ty_1582 = 1;
-pub type _bindgen_ty_1582 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_ATA_MASK: _bindgen_ty_1583 = 32768;
-pub type _bindgen_ty_1583 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_TCMA_SHIFT: _bindgen_ty_1584 = 16;
-pub type _bindgen_ty_1584 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_TCMA_LENGTH: _bindgen_ty_1585 = 2;
-pub type _bindgen_ty_1585 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_TCMA_MASK: _bindgen_ty_1586 = 196608;
-pub type _bindgen_ty_1586 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_MTE_ACTIVE_SHIFT: _bindgen_ty_1587 = 18;
-pub type _bindgen_ty_1587 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_MTE_ACTIVE_LENGTH: _bindgen_ty_1588 = 1;
-pub type _bindgen_ty_1588 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_MTE_ACTIVE_MASK: _bindgen_ty_1589 = 262144;
-pub type _bindgen_ty_1589 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_MTE0_ACTIVE_SHIFT: _bindgen_ty_1590 = 19;
-pub type _bindgen_ty_1590 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_MTE0_ACTIVE_LENGTH: _bindgen_ty_1591 = 1;
-pub type _bindgen_ty_1591 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_MTE0_ACTIVE_MASK: _bindgen_ty_1592 = 524288;
-pub type _bindgen_ty_1592 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_SMEEXC_EL_SHIFT: _bindgen_ty_1593 = 20;
-pub type _bindgen_ty_1593 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_SMEEXC_EL_LENGTH: _bindgen_ty_1594 = 2;
-pub type _bindgen_ty_1594 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_SMEEXC_EL_MASK: _bindgen_ty_1595 = 3145728;
-pub type _bindgen_ty_1595 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_PSTATE_SM_SHIFT: _bindgen_ty_1596 = 22;
-pub type _bindgen_ty_1596 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_PSTATE_SM_LENGTH: _bindgen_ty_1597 = 1;
-pub type _bindgen_ty_1597 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_PSTATE_SM_MASK: _bindgen_ty_1598 = 4194304;
-pub type _bindgen_ty_1598 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_PSTATE_ZA_SHIFT: _bindgen_ty_1599 = 23;
-pub type _bindgen_ty_1599 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_PSTATE_ZA_LENGTH: _bindgen_ty_1600 = 1;
-pub type _bindgen_ty_1600 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_PSTATE_ZA_MASK: _bindgen_ty_1601 = 8388608;
-pub type _bindgen_ty_1601 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_SVL_SHIFT: _bindgen_ty_1602 = 24;
-pub type _bindgen_ty_1602 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_SVL_LENGTH: _bindgen_ty_1603 = 4;
-pub type _bindgen_ty_1603 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_SVL_MASK: _bindgen_ty_1604 = 251658240;
-pub type _bindgen_ty_1604 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_SME_TRAP_NONSTREAMING_SHIFT: _bindgen_ty_1605 = 28;
-pub type _bindgen_ty_1605 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_SME_TRAP_NONSTREAMING_LENGTH: _bindgen_ty_1606 = 1;
-pub type _bindgen_ty_1606 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_SME_TRAP_NONSTREAMING_MASK: _bindgen_ty_1607 = 268435456;
-pub type _bindgen_ty_1607 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_TRAP_ERET_SHIFT: _bindgen_ty_1608 = 29;
-pub type _bindgen_ty_1608 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_TRAP_ERET_LENGTH: _bindgen_ty_1609 = 1;
-pub type _bindgen_ty_1609 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_TRAP_ERET_MASK: _bindgen_ty_1610 = 536870912;
-pub type _bindgen_ty_1610 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NAA_SHIFT: _bindgen_ty_1611 = 30;
-pub type _bindgen_ty_1611 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NAA_LENGTH: _bindgen_ty_1612 = 1;
-pub type _bindgen_ty_1612 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NAA_MASK: _bindgen_ty_1613 = 1073741824;
-pub type _bindgen_ty_1613 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_ATA0_SHIFT: _bindgen_ty_1614 = 31;
-pub type _bindgen_ty_1614 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_ATA0_LENGTH: _bindgen_ty_1615 = 1;
-pub type _bindgen_ty_1615 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_ATA0_MASK: _bindgen_ty_1616 = 2147483648;
-pub type _bindgen_ty_1616 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NV_SHIFT: _bindgen_ty_1617 = 32;
-pub type _bindgen_ty_1617 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NV_LENGTH: _bindgen_ty_1618 = 1;
-pub type _bindgen_ty_1618 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NV_MASK: _bindgen_ty_1619 = 4294967296;
-pub type _bindgen_ty_1619 = ::std::os::raw::c_ulong;
-pub const R_TBFLAG_A64_NV1_SHIFT: _bindgen_ty_1620 = 33;
-pub type _bindgen_ty_1620 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NV1_LENGTH: _bindgen_ty_1621 = 1;
-pub type _bindgen_ty_1621 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NV1_MASK: _bindgen_ty_1622 = 8589934592;
-pub type _bindgen_ty_1622 = ::std::os::raw::c_ulong;
-pub const R_TBFLAG_A64_NV2_SHIFT: _bindgen_ty_1623 = 34;
-pub type _bindgen_ty_1623 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NV2_LENGTH: _bindgen_ty_1624 = 1;
-pub type _bindgen_ty_1624 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NV2_MASK: _bindgen_ty_1625 = 17179869184;
-pub type _bindgen_ty_1625 = ::std::os::raw::c_ulong;
-pub const R_TBFLAG_A64_NV2_MEM_E20_SHIFT: _bindgen_ty_1626 = 35;
-pub type _bindgen_ty_1626 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NV2_MEM_E20_LENGTH: _bindgen_ty_1627 = 1;
-pub type _bindgen_ty_1627 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NV2_MEM_E20_MASK: _bindgen_ty_1628 = 34359738368;
-pub type _bindgen_ty_1628 = ::std::os::raw::c_ulong;
-pub const R_TBFLAG_A64_NV2_MEM_BE_SHIFT: _bindgen_ty_1629 = 36;
-pub type _bindgen_ty_1629 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NV2_MEM_BE_LENGTH: _bindgen_ty_1630 = 1;
-pub type _bindgen_ty_1630 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NV2_MEM_BE_MASK: _bindgen_ty_1631 = 68719476736;
-pub type _bindgen_ty_1631 = ::std::os::raw::c_ulong;
-pub const R_TBFLAG_A64_AH_SHIFT: _bindgen_ty_1632 = 37;
-pub type _bindgen_ty_1632 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_AH_LENGTH: _bindgen_ty_1633 = 1;
-pub type _bindgen_ty_1633 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_AH_MASK: _bindgen_ty_1634 = 137438953472;
-pub type _bindgen_ty_1634 = ::std::os::raw::c_ulong;
-pub const R_TBFLAG_A64_NEP_SHIFT: _bindgen_ty_1635 = 38;
-pub type _bindgen_ty_1635 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NEP_LENGTH: _bindgen_ty_1636 = 1;
-pub type _bindgen_ty_1636 = ::std::os::raw::c_uint;
-pub const R_TBFLAG_A64_NEP_MASK: _bindgen_ty_1637 = 274877906944;
-pub type _bindgen_ty_1637 = ::std::os::raw::c_ulong;
 unsafe extern "C" {
-    pub fn cpu_get_tb_cpu_state(
-        env: *mut CPUARMState,
-        pc: *mut vaddr,
-        cs_base: *mut u64,
-        flags: *mut u32,
-    );
-}
-pub const QEMU_PSCI_CONDUIT_DISABLED: _bindgen_ty_1638 = 0;
-pub const QEMU_PSCI_CONDUIT_SMC: _bindgen_ty_1638 = 1;
-pub const QEMU_PSCI_CONDUIT_HVC: _bindgen_ty_1638 = 2;
-pub type _bindgen_ty_1638 = ::std::os::raw::c_uint;
-unsafe extern "C" {
-    pub fn arm_register_pre_el_change_hook(
-        cpu: *mut ARMCPU,
-        hook: ARMELChangeHookFn,
-        opaque: *mut ::std::os::raw::c_void,
-    );
-}
-unsafe extern "C" {
-    pub fn arm_register_el_change_hook(
-        cpu: *mut ARMCPU,
-        hook: ARMELChangeHookFn,
-        opaque: *mut ::std::os::raw::c_void,
-    );
-}
-unsafe extern "C" {
-    pub fn arm_rebuild_hflags(env: *mut CPUARMState);
-}
-unsafe extern "C" {
-    pub static pred_esz_masks: [u64; 5usize];
+    pub fn loongarch_cpu_post_init(obj: *mut Object);
 }
 pub type target_ptr_t = target_ulong;
 pub type target_pid_t = i32;
@@ -44212,17 +39965,17 @@ unsafe extern "C" {
         section: *mut MemoryRegionSection,
     ) -> hwaddr;
 }
-pub const GDB_SIGNAL_0: _bindgen_ty_1639 = 0;
-pub const GDB_SIGNAL_INT: _bindgen_ty_1639 = 2;
-pub const GDB_SIGNAL_QUIT: _bindgen_ty_1639 = 3;
-pub const GDB_SIGNAL_TRAP: _bindgen_ty_1639 = 5;
-pub const GDB_SIGNAL_ABRT: _bindgen_ty_1639 = 6;
-pub const GDB_SIGNAL_ALRM: _bindgen_ty_1639 = 14;
-pub const GDB_SIGNAL_STOP: _bindgen_ty_1639 = 17;
-pub const GDB_SIGNAL_IO: _bindgen_ty_1639 = 23;
-pub const GDB_SIGNAL_XCPU: _bindgen_ty_1639 = 24;
-pub const GDB_SIGNAL_UNKNOWN: _bindgen_ty_1639 = 143;
-pub type _bindgen_ty_1639 = ::std::os::raw::c_uint;
+pub const GDB_SIGNAL_0: _bindgen_ty_598 = 0;
+pub const GDB_SIGNAL_INT: _bindgen_ty_598 = 2;
+pub const GDB_SIGNAL_QUIT: _bindgen_ty_598 = 3;
+pub const GDB_SIGNAL_TRAP: _bindgen_ty_598 = 5;
+pub const GDB_SIGNAL_ABRT: _bindgen_ty_598 = 6;
+pub const GDB_SIGNAL_ALRM: _bindgen_ty_598 = 14;
+pub const GDB_SIGNAL_STOP: _bindgen_ty_598 = 17;
+pub const GDB_SIGNAL_IO: _bindgen_ty_598 = 23;
+pub const GDB_SIGNAL_XCPU: _bindgen_ty_598 = 24;
+pub const GDB_SIGNAL_UNKNOWN: _bindgen_ty_598 = 143;
+pub type _bindgen_ty_598 = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct GDBProcess {
@@ -45081,10 +40834,10 @@ pub struct TCGv_vec_d {
 }
 pub type TCGv_vec = *mut TCGv_vec_d;
 pub type TCGv_env = TCGv_ptr;
-pub const TCG_BSWAP_IZ: _bindgen_ty_1640 = 1;
-pub const TCG_BSWAP_OZ: _bindgen_ty_1640 = 2;
-pub const TCG_BSWAP_OS: _bindgen_ty_1640 = 4;
-pub type _bindgen_ty_1640 = ::std::os::raw::c_uint;
+pub const TCG_BSWAP_IZ: _bindgen_ty_599 = 1;
+pub const TCG_BSWAP_OZ: _bindgen_ty_599 = 2;
+pub const TCG_BSWAP_OS: _bindgen_ty_599 = 4;
+pub type _bindgen_ty_599 = ::std::os::raw::c_uint;
 pub const TEMP_VAL_DEAD: TCGTempVal = 0;
 pub const TEMP_VAL_REG: TCGTempVal = 1;
 pub const TEMP_VAL_MEM: TCGTempVal = 2;
@@ -46344,14 +42097,14 @@ impl TCGArgConstraint {
         __bindgen_bitfield_unit
     }
 }
-pub const TCG_OPF_BB_EXIT: _bindgen_ty_1641 = 1;
-pub const TCG_OPF_BB_END: _bindgen_ty_1641 = 2;
-pub const TCG_OPF_CALL_CLOBBER: _bindgen_ty_1641 = 4;
-pub const TCG_OPF_SIDE_EFFECTS: _bindgen_ty_1641 = 8;
-pub const TCG_OPF_NOT_PRESENT: _bindgen_ty_1641 = 32;
-pub const TCG_OPF_VECTOR: _bindgen_ty_1641 = 64;
-pub const TCG_OPF_COND_BRANCH: _bindgen_ty_1641 = 128;
-pub type _bindgen_ty_1641 = ::std::os::raw::c_uint;
+pub const TCG_OPF_BB_EXIT: _bindgen_ty_600 = 1;
+pub const TCG_OPF_BB_END: _bindgen_ty_600 = 2;
+pub const TCG_OPF_CALL_CLOBBER: _bindgen_ty_600 = 4;
+pub const TCG_OPF_SIDE_EFFECTS: _bindgen_ty_600 = 8;
+pub const TCG_OPF_NOT_PRESENT: _bindgen_ty_600 = 32;
+pub const TCG_OPF_VECTOR: _bindgen_ty_600 = 64;
+pub const TCG_OPF_COND_BRANCH: _bindgen_ty_600 = 128;
+pub type _bindgen_ty_600 = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct TCGOpDef {
@@ -47341,7 +43094,7 @@ pub struct qemu_plugin_cb {
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct arm_boot_info {
+pub struct loongarch_boot_info {
     pub _address: u8,
 }
 #[repr(C)]
