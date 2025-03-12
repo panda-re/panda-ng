@@ -3,9 +3,9 @@ cppskeleton
 hooks
 hw_proc_id
 hypercaller
+hypersyscalls
 osi
 osi_linux
 proc_start_linux
 rust_skeleton
 syscalls2
-syscalls_hc
