@@ -96,6 +96,7 @@ def handle_python(arch, total):
 		"proc_start_linux/proc_start_linux.h",
 		"hypercaller/hypercaller.h",
 		"proc_start_linux/proc_start_linux_ppp.h",
+		"syscalls_hc/syscalls_hc.h",
 	]
 	for header in ppp_headers:
 		total += copy_ppp_header(join(plugin_dir, header))
