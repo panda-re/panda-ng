@@ -27,6 +27,20 @@
         "extra_args": "-display none",
         "hashes": null
     },
+    "x86_64_jammy": {
+        "arch": "x86_64",
+        "os": "linux-64-ubuntu:5.15.0-47-generic",
+        "prompt": "root@ubuntu:.*#",
+        "cdrom": "ide1-cd0",
+        "snapshot": "root",
+        "url": "https://panda-re.mit.edu/qcows/linux/ubuntu/2204/x86_64/ubuntu-2204-pandang.qcow2",
+        "alternate_urls": null,
+        "extra_files": null,
+        "qcow": "ubuntu-2204-pandang.qcow2",
+        "default_mem": "1G",
+        "extra_args": "-display none",
+        "hashes": null
+    },
     "ppc_wheezy": {
         "arch": "ppc",
         "os": "linux-64-debian:3.2.0-4-ppc-pae",
