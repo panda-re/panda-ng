@@ -206,21 +206,17 @@
     },
     "x86_64": {
         "arch": "x86_64",
-        "os": "linux-64-ubuntu:4.15.0-72-generic-noaslr-nokaslr",
+        "os": "linux-64-ubuntu:5.15.0-47-generic",
         "prompt": "root@ubuntu:.*#",
         "cdrom": "ide1-cd0",
         "snapshot": "root",
-        "url": "https://panda-re.mit.edu/qcows/linux/ubuntu/1804/x86_64/bionic-server-cloudimg-amd64-noaslr-nokaslr.qcow2",
-        "alternate_urls": [
-            "https://www.dropbox.com/s/4avqfxqemd29i5j/bionic-server-cloudimg-amd64-noaslr-nokaslr.qcow2?dl=1"
-        ],
+        "url": "https://panda-re.mit.edu/qcows/linux/ubuntu/2204/x86_64/ubuntu-2204-pandang.qcow2",
+        "alternate_urls": null,
         "extra_files": null,
-        "qcow": null,
-        "default_mem": "1024",
+        "qcow": "ubuntu-2204-pandang.qcow2",
+        "default_mem": "1G",
         "extra_args": "-display none",
-        "hashes": {
-            "bionic-server-cloudimg-amd64-noaslr-nokaslr.qcow2": "556305921c8250537bbbfbb57cb56f9ef07f4d63"
-        }
+        "hashes": null
     },
     "i386": {
         "arch": "i386",
@@ -228,7 +224,7 @@
         "prompt": "root@instance-1:.*#",
         "cdrom": "ide1-cd0",
         "snapshot": "root",
-        "url": "https://panda-re.mit.edu/qcows/linux/ubuntu/1604/x86/ubuntu_1604_x86.qcow",
+        "url": "https://panda-re.mit.edu/qcows/linux/ubuntu/1604/x86/ubuntu_1604_x86_pandang.qcow",
         "alternate_urls": null,
         "extra_files": null,
         "qcow": null,
@@ -242,11 +238,10 @@
         "prompt": "root@debian-powerpc:.*# ",
         "cdrom": "ide1-cd0",
         "snapshot": "root",
-        "url": "https://panda-re.mit.edu/qcows/linux/debian/7.3/ppc/debian_7.3_ppc.qcow",
+        "url": "https://panda-re.mit.edu/qcows/linux/debian/7.3/ppc/debian_7.3_ppc_pandang.qcow",
         "alternate_urls": null,
         "extra_files": null,
-        "qcow": "ppc_wheezy.qcow2",
-        "default_mem": "128M",
+        "default_mem": "1G",
         "extra_args": "-display none",
         "hashes": null
     },
@@ -256,14 +251,13 @@
         "prompt": "root@debian-armel:.*# ",
         "cdrom": "scsi0-cd2",
         "snapshot": "root",
-        "url": "https://panda-re.mit.edu/qcows/linux/debian/7.3/arm/debian_7.3_arm.qcow",
+        "url": "https://panda-re.mit.edu/qcows/linux/debian/7.3/arm/debian_7.3_arm_pandang.qcow",
         "alternate_urls": null,
         "extra_files": [
             "vmlinuz-3.2.0-4-versatile",
             "initrd.img-3.2.0-4-versatile"
         ],
-        "qcow": "arm_wheezy.qcow",
-        "default_mem": "128M",
+        "default_mem": "256M",
         "extra_args": "-display none -M versatilepb -append \"root=/dev/sda1\" -kernel ~/.panda/vmlinuz-3.2.0-4-versatile -initrd ~/.panda/initrd.img-3.2.0-4-versatile",
         "hashes": null
     },
@@ -289,7 +283,7 @@
         "prompt": "root@debian-mips:.*# ",
         "cdrom": "ide1-cd0",
         "snapshot": "root",
-        "url": "https://panda-re.mit.edu/qcows/linux/debian/7.3/mips/debian_7.3_mips.qcow",
+        "url": "https://panda-re.mit.edu/qcows/linux/debian/7.3/mips/debian_7.3_mips_pandang.qcow",
         "alternate_urls": null,
         "extra_files": [
             "vmlinux-3.2.0-4-4kc-malta"
@@ -305,7 +299,7 @@
         "prompt": "root@debian-mipsel:.*# ",
         "cdrom": "ide1-cd0",
         "snapshot": "root",
-        "url": "https://panda-re.mit.edu/qcows/linux/debian/7.3/mipsel/debian_7.3_mipsel.qcow",
+        "url": "https://panda-re.mit.edu/qcows/linux/debian/7.3/mipsel/debian_7.3_mipsel_pandang.qcow",
         "alternate_urls": null,
         "extra_files": [
             "vmlinux-3.2.0-4-4kc-malta.mipsel"
