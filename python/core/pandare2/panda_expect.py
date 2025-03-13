@@ -323,6 +323,9 @@ class Expect(object):
                 elif typ == 'm':
                     # alter character attributes - just ignore
                     pass
+                elif ord(typ) >= 60 and ord(typ) <= 75:
+                    # rarely supported - just ignore
+                    pass
 
                 else:
                     raise ValueError(f"Unsupported ANSI command {typ}")
