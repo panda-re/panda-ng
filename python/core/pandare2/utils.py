@@ -234,7 +234,8 @@ def find_build_dir(arch_name=None, find_executable=False, mode="softmmu"):
     If arch_name is none, we'll search for any supported architecture and return the first
     one we find.
     '''
-    arches = ['i386', 'x86_64', 'arm', 'aarch64', 'ppc', 'mips', 'mipsel', 'mips64', 'mips64el']
+    arches = ['i386', 'x86_64', 'arm', 'aarch64', 'ppc', 'mips', 'mipsel', 'mips64', \
+                'mips64el', 'loongarch64', 'ppc64', 'riscv32', 'riscv64']
     if "PANDA_LIB" in environ:
         return environ["PANDA_LIB"]
 

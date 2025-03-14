@@ -63,6 +63,15 @@ class PandaArch():
         elif self.panda.arch_name == "mips64el":
             bits = 64
             endianness = "little"
+        elif self.panda.arch_name == "riscv64":
+            bits = 64
+            endianness = "little"
+        elif self.panda.arch_name == "riscv32":
+            bits = 32
+            endianness = "little"
+        elif self.panda.arch_name == "loongarch64":
+            bits = 64
+            endianness = "little"
 
         assert (bits is not None), f"Missing num_bits logic for {self.panda.arch_name}"
         assert (endianness is not None), f"Missing endianness logic for {self.panda.arch_name}"
@@ -459,6 +468,145 @@ class Aarch64Arch(PandaArch):
         '''
         return self.get_reg(cpu, "LR")
 
+class Loongarch64(PandaArch):
+    '''
+    Register names and accessors for Loongarch64
+    '''
+    def __init__(self, panda):
+        PandaArch.__init__(self, panda)
+        regnames = ["zero", "ra", "tp", "sp", "a0", "a1", "a2", "a3",
+                    "a4", "a5", "a6", "a7", "t0", "t1",
+                    "t2", "t3", "t4", "t5", "t6", "t7", "t8", "u0", "fp",
+                    "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"]
+        self.registers = {regnames[idx]: idx for idx in range(len(regnames)) }
+
+        # a0 is v0 and a1 is v1
+        self.registers["v0"] = regnames.index("a0")
+        self.registers["v1"] = regnames.index("a1")
+        """Register array for ARM"""
+
+        self.reg_sp      = regnames.index("sp")
+        self.reg_retaddr = regnames.index("ra")
+
+        self.call_conventions = {
+                                 "loongarch64": ["a0", "a1", "a2", "a3", "a4", "a5", "a6"],
+                                 "syscall": ["a7", "a0", "a1", "a2", "a3", "a4", "a5", "a6"],
+                                 }
+        self.call_conventions['default'] = self.call_conventions['syscall']
+
+        self.reg_retval = {"default":    "v0",
+                           "syscall":    "v0",
+                           "linux_kernel":    "v0"}
+    
+    def get_pc(self, cpu):
+        return self.panda.cpu_env(cpu).pc
+
+    def _get_reg_val(self, cpu, reg):
+        '''
+        Return an arm register
+        '''
+        return self.cpu_env(cpu).gpr[reg]
+
+    def _set_reg_val(self, cpu, reg, val):
+        '''
+        Set an arm register
+        '''
+        self.cpu_env(cpu).gpr[reg] = val
+
+    def get_return_value(self, cpu):
+        '''
+        .. Deprecated:: use get_retval
+        '''
+        return self.get_retval(cpu)
+
+
+class Riscv64Arch(PandaArch):
+    '''
+    Register names and accessors for RISC-V 64-bit
+    '''
+    def __init__(self, panda):
+        super().__init__(panda)
+        # Define register names based on RISC-V ABI naming
+        regnames = ["zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
+                    "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
+                    "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7",
+                    "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"]
+        
+        # Create register mapping
+        self.registers = {regnames[idx].upper(): idx for idx in range(len(regnames))}
+        
+        # Add aliases for return value registers (a0/a1 are also known as x10/x11)
+        for i in range(len(regnames)):
+            self.registers[f"X{i}"] = i
+        
+        # Special registers
+        self.reg_sp = regnames.index("sp")
+        self.reg_retaddr = regnames.index("ra")
+        
+        # Calling conventions
+        # RISC-V passes first 8 args in a0-a7, then stack
+        self.call_conventions = {
+            "riscv": ["A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7"],
+            "syscall": ["A7", "A0", "A1", "A2", "A3", "A4", "A5", "A6"]
+        }
+        self.call_conventions["default"] = self.call_conventions["riscv"]
+        self.call_conventions["linux_kernel"] = self.call_conventions["riscv"]
+        
+        # Return value registers (a0/a1 for 64/128-bit values)
+        self.reg_retval = {
+            "default": "A0",
+            "syscall": "A0",
+            "linux_kernel": "A0"
+        }
+    
+    def get_pc(self, cpu):
+        '''
+        Get the program counter
+        '''
+        return self.panda.cpu_env(cpu).pc
+    
+    def set_pc(self, cpu, val):
+        '''
+        Set the program counter
+        '''
+        self.panda.cpu_env(cpu).pc = val
+    
+    def _get_reg_val(self, cpu, reg):
+        '''
+        Return a RISC-V register value
+        '''
+        return self.cpu_env(cpu).gpr[reg]
+    
+    def _set_reg_val(self, cpu, reg, val):
+        '''
+        Set a RISC-V register value
+        '''
+        self.cpu_env(cpu).gpr[reg] = val
+    
+    def get_return_value(self, cpu):
+        '''
+        .. Deprecated:: use get_retval
+        '''
+        return self.get_retval(cpu)
+    
+    def get_return_address(self, cpu):
+        '''
+        Looks up where ret will go
+        '''
+        return self.get_reg(cpu, "RA")
+
+
+class Riscv32Arch(Riscv64Arch):
+    '''
+    Register names and accessors for RISC-V 32-bit
+    
+    Inherits most functionality from Riscv64Arch since register 
+    naming and access logic is the same, but with 32-bit registers.
+    '''
+    def __init__(self, panda):
+        # Initialize parent with basic RISC-V structure
+        super().__init__(panda)
+
 class MipsArch(PandaArch):
     '''
     Register names and accessors for 32-bit MIPS
@@ -639,6 +787,7 @@ class Mips64Arch(MipsArch):
         # note names must be stored uppercase for get/set reg to work case-insensitively
         self.registers = {regnames[idx].upper(): idx for idx in range(len(regnames)) }
 
+
 class PowerPCArch(PandaArch): 
     '''
     Register names and accessors for ppc
@@ -649,8 +798,15 @@ class PowerPCArch(PandaArch):
                     "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", 
                     "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31"]
         self.reg_sp = regnames.index('sp')
+        self.reg_retaddr = regnames.index('lr')
         self.registers = {regnames[idx].upper(): idx for idx in range(len(regnames)) }
         self.registers_crf = ["CR0", "CR1", "CR2", "CR3", "CR4", "CR5", "CR6", "CR7"]
+        self.call_conventions = {'sysv':           ['r3', 'r4', 'r5', 'r6', 'r7', 'r8'],
+                                 'syscall': ['r0', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9']}
+        self.call_conventions['default'] = self.call_conventions['syscall']
+        
+        self.reg_retval =  {"default":    "r0",
+                            "syscall":    'r0'}
 
     def get_pc(self, cpu):
         '''
@@ -672,7 +828,7 @@ class PowerPCArch(PandaArch):
 
     def _set_reg_val(self, cpu, reg, val):
         '''
-        Set an x86_64 register
+        Set an ppc register
         '''
         self.cpu_env(cpu).gpr[reg] = val
 
@@ -703,7 +859,8 @@ class PowerPCArch(PandaArch):
         else:
             super().set_reg(cpu, reg, val)
 
-
+class PowerPC64Arch(PowerPCArch):
+    pass
 
 class X86_64Arch(PandaArch):
     '''
