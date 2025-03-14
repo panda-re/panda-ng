@@ -311,5 +311,22 @@
             "vmlinux-3.2.0-4-4kc-malta": "592e384a4edc16dade52a6cd5c785c637bcbc9ad",
             "debian_7.3_mipsel.qcow": "eeb5de0128a95c5f0d76c4f2161afd1bb320d85b"
         }
+    },
+    "loongarch64": {
+        "arch": "loongarch64",
+        "os": "linux-64-loongarch64:6.7.0-rc2-2",
+        "prompt": "\\x5b.*@debian-bullseye-loong64 .*\\x5d#",
+        "cdrom": "ide1-cd0",
+        "snapshot": "root",
+        "url": "https://panda.re/qcows/linux/debian-on-qemu/debian-bullseye-loong64.qcow2",
+        "alternate_urls": null,
+        "extra_files": [
+            "bios-loong64-8.1.bin",
+            "vmlinuz-loong64",
+            "initrd.img-loong64"
+        ],
+        "qcow": null,
+        "default_mem": "1g",
+        "extra_args": "-M virt -append \"console=ttyS0 rw debug root=/dev/vda\" -kernel ~/.panda/vmlinuz-loong64 -initrd ~/.panda/initrd.img-loong64 -bios ~/.panda/bios-loong64-8.1.bin -nographic"
     }
 }
