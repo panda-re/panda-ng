@@ -119,6 +119,27 @@ Once you've obtained the address, you can add the task.switch_task_hook_addr fie
 
 When taking a recording to be used with `osi_linux`, ASLR must be disabled in the guest, if it is available.
 
+Hypercall Profile
+----------------
+
+As an alternative to using kernel offsets for introspection, `osi_linux` also supports a hypercall-based approach for obtaining introspection information. This method uses a cooperative guest that exposes OS-level information through hypercalls, making it more reliable across different kernel versions and configurations.
+
+To use the hypercall profile:
+
+1. Enable the hypercall option when loading the plugin:
+   ```
+   -panda osi_linux:hypercall=true
+   ```
+
+2. Ensure your guest is configured to handle the appropriate hypercalls. This typically requires installing a custom module or kernel patch in the guest that can respond to the hypercall requests from PANDA.
+
+The hypercall profile is especially useful in environments where:
+- Traditional offset-based introspection is difficult due to kernel customizations
+- You have control over the guest environment and can install the necessary hypercall handlers
+- You need more reliable introspection across kernel updates
+
+This is the only method which supports a multi-cpu environment
+
 Arguments
 ---------
 
@@ -126,6 +147,7 @@ Arguments
 * `kconf_group`: string, defaults to "debian-3.2.65-i686". The specific configuration desired from the kernelinfo file (multiple configurations can be stored in a single `kernelinfo.conf`).
 * `load_now`: bool, defaults to false. When set, we will raise a fatal error if OSI cannot be initialized immediately. Otherwise, the plugin will attempt to provide introspection immediately, but if that fails, it will wait until the first syscall. If OSI is still unavailable at the first syscall, a fatal error will always be raised.
 * `pagewalk`: bool, defaults to falts. When set, we will attempt to use pagewalk to resolve addresses. This is useful on embedded targets where TLB misses abound and your target page table configuration is supported.
+* `hypercall`: bool, defaults to false. When set, we will use cooperative hypercalls for kernel introspection instead of relying on kernel offsets.
 
 Dependencies
 ------------
