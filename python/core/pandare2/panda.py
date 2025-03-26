@@ -3627,7 +3627,7 @@ class Panda():
             breakpoint()
             print("ERROR: Your hypercall was not in the hook list")
     
-    def hypersyscall(self, name, on_enter, on_return, on_all, syscalls2_style):
+    def hypersyscall(self, name, on_enter, on_return, on_all):
         def decorator(fun):
             hypercall_cb_type = self.ffi.callback("syscall_cb_t")
             
@@ -3667,22 +3667,22 @@ class Panda():
             return wrapper
         return decorator
 
-    def hsyscall(self, name, syscalls2_style=True):
+    def hsyscall(self, name):
         if name == "on_all_sys_enter":
-            return self.hypersyscall(name, True, False, True, False)
+            return self.hypersyscall(name, True, False, True)
         elif name == "on_all_sys_return":
-            return self.hypersyscall(name, False, True, True, False)
+            return self.hypersyscall(name, False, True, True)
         elif name == "on_all_sys":
-            return self.hypersyscall(name, True, True, True, False)
+            return self.hypersyscall(name, True, True, True)
         from re import search
         regex = "on_(?P<syscall>sys_\S*)_(?P<side>enter|return)"
 
         if m := search(regex, name):
             d = m.groupdict()
             if d["side"] == "enter":
-                return self.hypersyscall(d["syscall"], True, False, False, syscalls2_style)
+                return self.hypersyscall(d["syscall"], True, False, False)
             elif d["side"] == "return":
-                return self.hypersyscall(d["syscall"], False, True, False, syscalls2_style)
+                return self.hypersyscall(d["syscall"], False, True, False)
         else:
             raise ValueError(f"Invalid hypersyscall name {name}")
 
