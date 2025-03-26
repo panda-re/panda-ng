@@ -64,7 +64,6 @@ class Panda():
             libpanda_path=None,
             biospath=None,
             plugin_path=None,
-            nproc=1,
             ):
         '''
         Construct a new `Panda` object.  Note that multiple Panda objects cannot coexist in the same Python instance.
@@ -160,7 +159,7 @@ class Panda():
         elif self.arch_name in ["loongarch64"]:
             self.arch = Loongarch64(self)
         elif self.arch_name in ["riscv32"]:
-            self.arch = Riscv64Arch(self)
+            self.arch = Riscv32Arch(self)
         elif self.arch_name in ["riscv64"]:
             self.arch = Riscv64Arch(self)
         else:
@@ -211,8 +210,6 @@ class Panda():
         plugin_interface = realpath(pjoin(self.panda, "../contrib/plugins/libpanda_plugin_interface.so"))
         self.plugin_interface = self.ffi.dlopen(plugin_interface, self.ffi.RTLD_GLOBAL)
         self.panda_args.extend(["-plugin", plugin_interface])
-        if nproc != 1:
-            self.panda_args.extend(["-smp", str(nproc)])
 
         if biospath is None:
             possible_biospaths = [
@@ -226,7 +223,7 @@ class Panda():
                 if exists(bp):
                     biospath = bp
                     break
-        assert(type(biospath) is not None, "biospath cannot be found")
+        assert biospath is not None, "biospath cannot be found"
         self.panda_args.append("-L")
         self.panda_args.append(biospath)
 
