@@ -3629,5 +3629,64 @@ class Panda():
         else:
             breakpoint()
             print("ERROR: Your hypercall was not in the hook list")
+    
+    def hypersyscall(self, name, on_enter, on_return, on_all, syscalls2_style):
+        def decorator(fun):
+            hypercall_cb_type = self.ffi.callback("syscall_cb_t")
+            
+            def _run_and_catch(*args, **kwargs): # Run function but if it raises an exception, stop panda and raise it
+                if not hasattr(self, "exit_exception"):
+                    try:
+                        if not on_all:
+                            prototype = args[1]
+                            sysret = args[2]
+                            new_args = args + [sysret.args[i] for i in range(prototype.nargs)]
+                        else:
+                            new_args = args
+                        fun(*new_args, **kwargs)
+                    except Exception as e:
+                        # exceptions wont work in our thread. Therefore we print it here and then throw it after the
+                        # machine exits.
+                        if self.catch_exceptions:
+                            self.exit_exception = e
+                            self.end_analysis()
+                        else:
+                            raise e
+
+            hook_cb_passed = hypercall_cb_type(_run_and_catch)
+            shook = self.ffi.new("struct syscall_hook *")
+            shook.on_enter = on_enter
+            shook.on_return = on_return
+            shook.on_all = on_all
+            shook.enabled = True
+            shook.cb = hook_cb_passed
+            nname = name or "\x00"
+            self.ffi.memmove(shook.name,self.ffi.new("char[]",bytes(nname,"utf-8")),len(nname))
+            self.plugins["hypersyscalls"].register_syscall_cb(shook)
+
+            def wrapper(*args, **kw):
+                _run_and_catch(args,kw)
+            self.hypercalls[wrapper] = [hook_cb_passed,shook]
+            return wrapper
+        return decorator
+
+    def hsyscall(self, name, syscalls2_style=True):
+        if name == "on_all_sys_enter":
+            return self.hypersyscall(name, True, False, True, False)
+        elif name == "on_all_sys_return":
+            return self.hypersyscall(name, False, True, True, False)
+        elif name == "on_all_sys":
+            return self.hypersyscall(name, True, True, True, False)
+        from re import search
+        regex = "on_(?P<syscall>sys_\S*)_(?P<side>enter|return)"
+
+        if m := search(regex, name):
+            d = m.groupdict()
+            if d["side"] == "enter":
+                return self.hypersyscall(d["syscall"], True, False, False, syscalls2_style)
+            elif d["side"] == "return":
+                return self.hypersyscall(d["syscall"], False, True, False, syscalls2_style)
+        else:
+            raise ValueError(f"Invalid hypersyscall name {name}")
 
 # vim: expandtab:tabstop=4:
