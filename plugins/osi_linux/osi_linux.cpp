@@ -24,11 +24,11 @@
 #include "proc_start_linux/proc_start_linux_ppp.h"
 
 #include "default_profile.h"
+#include "hypercall_profile.h"
 #include "kernel_2_4_x_profile.h"
 #include "kernelinfo_downloader.h"
 #include "endian_helpers.h"
 
-#include "osi/osi_ext.h"
 
 #define KERNEL_CONF "/" TARGET_NAME "-softmmu/panda/plugins/osi_linux/kernelinfo.conf"
 
@@ -49,7 +49,9 @@ const uint32_t MAPPING_TYPE_ALL     = (1 << 4) - 1;
 extern "C" {
 bool init_plugin(void *);
 void uninit_plugin(void *);
+#include "osi/osi_ext.h"
 #include "osi_linux_int_fns.h"
+#include <hypercaller/hypercaller.h>
 }
 void on_first_syscall(CPUState *cpu, target_ulong pc, target_ulong callno);
 
@@ -73,9 +75,11 @@ struct kernelinfo ki;
 struct KernelProfile const *kernel_profile;
 
 extern const char *qemu_file;
-static bool osi_initialized;
+bool osi_initialized = false;
 static bool pagewalk_enabled;
+static bool hypercall_enabled;
 static bool first_osi_check = true;
+void (*hypercall_register_hypercall)(uint32_t magic, hypercall_t);
 
 /* ******************************************************************
  Helpers
@@ -380,6 +384,9 @@ bool osi_guest_is_ready(CPUState *cpu, void** ret) {
       return true;      // or, if it isn't, the user wants an assertion error
     }
 
+    if (hypercall_enabled) {
+        return false;
+    }
 
     // If it's the very first time, try reading current, if we can't
     // wait until first sycall and try again
@@ -1177,41 +1184,15 @@ void restore_after_snapshot(CPUState* cpu) {
     PPP_REG_CB("syscalls2", on_all_sys_enter, on_first_syscall);
 }
 
-/**
- * @brief Initializes plugin.
- */
-bool init_plugin(void *self) {
-    // Register callbacks to the PANDA core.
-#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_MIPS)
-    {
-        // Whenever we load a snapshot, we need to find cpu offsets again
-        // (particularly if KASLR is enabled) and we also may need to re-initialize
-        // OSI on the first guest syscall after the revert.
-        panda_cb pcb = { .after_loadvm = restore_after_snapshot };
-        panda_register_callback(self, PANDA_CB_AFTER_LOADVM, pcb);
 
-        // Register hooks in the kernel to provide task switch notifications.
-        assert(init_osi_api());
-    }
-
-#if defined(TARGET_MIPS) // 32 or 64 bit
-        panda_require("hw_proc_id");
-        assert(init_hw_proc_id_api());
-#endif
-
-#if defined(OSI_LINUX_TEST)
-    {
-        panda_cb pcb = { .asid_changed = osi_linux_test };
-        panda_register_callback(self, PANDA_CB_ASID_CHANGED, pcb);
-    }
-#endif
-
+bool parse_args(void){
     // Read the name of the kernel configuration to use.
     panda_arg_list *plugin_args = panda_get_args(PLUGIN_NAME);
+    pagewalk_enabled = panda_parse_bool_opt(plugin_args, "pagewalk", "Use pagewalk to find physical addresses for this target");
+    hypercall_enabled = panda_parse_bool_opt(plugin_args, "hypercall", "Use cooperative hypercalls for kernel introspection");
     char *kconf_file = g_strdup(panda_parse_string_opt(plugin_args, "kconf_file", NULL, "file containing kernel configuration information"));
     char *kconf_group = g_strdup(panda_parse_string_opt(plugin_args, "kconf_group", NULL, "kernel profile to use"));
     osi_initialized = panda_parse_bool_opt(plugin_args, "load_now", "Raise a fatal error if OSI cannot be initialized immediately");
-    pagewalk_enabled = panda_parse_bool_opt(plugin_args, "pagewalk", "Use pagewalk to find physical addresses for this target");
     panda_free_args(plugin_args);
 
     if (!kconf_file) {
@@ -1275,7 +1256,7 @@ bool init_plugin(void *self) {
             LOG_INFO("Downloaded file from panda-re.mit.edu");
             if (read_kernelinfo(kconf_file, kconf_group, &ki) != 0) {
                 LOG_ERROR("Downloaded file didn't contain correct group");
-                goto error;
+                return false;
             }
         }else{
             LOG_ERROR("Download failed. No such file.");
@@ -1283,18 +1264,24 @@ bool init_plugin(void *self) {
             printf("Valid kconf_groups in %s:\n", kconf_file);
             list_kernelinfo_groups(kconf_file);
             printf("\n");
-            goto error;
+            return false;
         }
     }
     LOG_INFO("Read kernel info from group \"%s\" of file \"%s\".", kconf_group, kconf_file);
     // g_free(kconf_file);
     g_free(kconf_group);
+    return true;
+}
 
-    if (PROFILE_KVER_LE(ki, 2, 4, 254)) {
-        kernel_profile = &KERNEL24X_PROFILE;
-    } else {
-        kernel_profile = &DEFAULT_PROFILE;
+/**
+ * @brief Initializes plugin.
+ */
+bool init_plugin(void *self) {
+    if (!parse_args()){
+        goto error;
     }
+    // Register hooks in the kernel to provide task switch notifications.
+    assert(init_osi_api());
 
     PPP_REG_CB("osi", on_get_processes, on_get_processes);
     PPP_REG_CB("osi", on_get_process_handles, on_get_process_handles);
@@ -1315,6 +1302,47 @@ bool init_plugin(void *self) {
     PPP_REG_CB("osi", on_get_process_pid, on_get_process_pid);
     PPP_REG_CB("osi", on_get_process_ppid, on_get_process_ppid);
 
+    if (hypercall_enabled){
+        printf("Hypercall enabled\n");
+        kernel_profile = &HYPERCALL_PROFILE;
+        void *hypercaller = panda_get_plugin_by_name("hypercaller");
+        if (hypercaller == NULL){
+            panda_require("hypercaller");
+            hypercaller = panda_get_plugin_by_name("hypercaller");
+        }
+        hypercall_register_hypercall = (void (*)(uint32_t, hypercall_t)) dlsym(hypercaller, "register_hypercall");
+        hypercall_register_hypercall(IGLOO_HYP_OSI_TASK_SWITCH, hc_setup_osi_task_switch);
+        return true;
+    }
+
+    // Register callbacks to the PANDA core.
+#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_MIPS)
+    {
+        // Whenever we load a snapshot, we need to find cpu offsets again
+        // (particularly if KASLR is enabled) and we also may need to re-initialize
+        // OSI on the first guest syscall after the revert.
+        panda_cb pcb = { .after_loadvm = restore_after_snapshot };
+        panda_register_callback(self, PANDA_CB_AFTER_LOADVM, pcb);
+
+    }
+
+#if defined(TARGET_MIPS) // 32 or 64 bit
+        panda_require("hw_proc_id");
+        assert(init_hw_proc_id_api());
+#endif
+
+#if defined(OSI_LINUX_TEST)
+    {
+        panda_cb pcb = { .asid_changed = osi_linux_test };
+        panda_register_callback(self, PANDA_CB_ASID_CHANGED, pcb);
+    }
+#endif
+
+    if (PROFILE_KVER_LE(ki, 2, 4, 254)) {
+        kernel_profile = &KERNEL24X_PROFILE;
+    } else {
+        kernel_profile = &DEFAULT_PROFILE;
+    }
     // By default, we'll request syscalls2 to load on first syscall
     panda_require("syscalls2");
 
@@ -1377,6 +1405,9 @@ error:
 void uninit_plugin(void *self) {
     // if we don't clear tb's when this exits we have TBs which can call
     // into our exited plugin.
+    if (hypercall_enabled){
+        return;
+    }
     panda_do_flush_tb();
 #if defined(TARGET_I386) || defined(TARGET_ARM)
     // Nothing to do...
