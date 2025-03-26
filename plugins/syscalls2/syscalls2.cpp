@@ -1420,7 +1420,7 @@ bool init_plugin(void *self) {
 		hooks = panda_get_plugin_by_name("hooks");
 	}
     hooks_add_hook = (void(*)(struct hook*)) dlsym(hooks, "add_hook");
-#elif defined(TARGET_PPC)
+#elif defined(TARGET_PPC) || defined(TARGET_RISCV64) || defined(TARGET_RISCV32) || defined(TARGET_LOONGARCH)
     fprintf(stderr,"The syscalls plugin is not currently supported on this platform.\n");
     return false;
 #else //not x86/arm/mips
