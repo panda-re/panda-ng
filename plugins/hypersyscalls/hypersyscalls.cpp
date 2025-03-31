@@ -30,6 +30,7 @@ extern "C" {
     void hc_setup_syscall(CPUState *cpu);
     #include <hypercaller/hypercaller.h>
 }
+// #define  DEBUG_HYPERSYSCALLS 1
 #ifdef DEBUG_HYPERSYSCALLS
 #define log(...) printf(__VA_ARGS__)
 #else
@@ -55,7 +56,7 @@ void (*hypercall_register_hypercall)(uint32_t magic, hypercall_t);
 bool table_initialized = false;
 
 
-string read_str(CPUState* cpu, target_ulong ptr){
+static string read_str(CPUState* cpu, target_ulong ptr){
     string buf = "";
     char tmp;
     while (true){
@@ -72,7 +73,7 @@ string read_str(CPUState* cpu, target_ulong ptr){
     return buf;
 }
 
-void do_register_syscall(struct syscall_hook *cb){
+static void do_register_syscall(struct syscall_hook *cb){
     bool any_set = false;
     cb->enabled = true;
     int id;
@@ -105,7 +106,7 @@ void do_register_syscall(struct syscall_hook *cb){
     }
 }
 
-void register_syscall_cb(struct syscall_hook *cb){
+static void register_syscall_cb(struct syscall_hook *cb){
     if (table_initialized){
         do_register_syscall(cb);
     }else{
@@ -113,15 +114,25 @@ void register_syscall_cb(struct syscall_hook *cb){
     }
 }
 
-void log_syscall(struct syscall_prototype *prototype, struct syscall *sysret){
-    log("%s %ld (", prototype->name, sysret->nr);
-    for (int i = 0; i < prototype->nargs; i++){
-        log("%s %s %" PRIx64 " , ", prototype->types[i],  prototype->names[i], sysret->args[i]);
+static void log_syscall(struct syscall_prototype *prototype, struct syscall *sysret, bool is_enter){
+    if (is_enter){
+        log("enter %s %ld (", prototype->name, sysret->nr);
+    }else{
+        log("return %s %ld (",  prototype->name, sysret->nr);
     }
-    log(")\n");
+    for (int i = 0; i < prototype->nargs; i++){
+        log("%s %s %" PRIx64 " , ",
+                    prototype->types[i],  prototype->names[i], sysret->args[i]);
+    }
+    log(")");
+    if (is_enter){
+        log("\n");
+    }else{
+        log("= %" PRIx64 "\n", (target_long)sysret->retval);
+    }
 }
 
-void loop_run_cbs(CPUState *cpu, vector<ID> &cbs, struct syscall_prototype* syscall_proto, 
+static void loop_run_cbs(CPUState *cpu, vector<ID> &cbs, struct syscall_prototype* syscall_proto, 
             struct syscall *sysret){
     for (auto id : cbs){
         auto h = syscall_hooks.find(id);
@@ -140,15 +151,15 @@ void loop_run_cbs(CPUState *cpu, vector<ID> &cbs, struct syscall_prototype* sysc
     }
 }
 
-void hc_syscall(CPUState *cpu, unordered_map<uint64_t, vector<ID>> &cb_map, vector<ID> &all_cbs){
+void hc_syscall(CPUState *cpu, unordered_map<uint64_t, vector<ID>> &cb_map, bool on_enter){
     if (!table_initialized){
         printf("table not initialized\n");
         return;
     }
-    int reg1 = panda_get_syscall_arg(cpu, 1);
+    uint64_t reg1 = panda_get_syscall_arg(cpu, 1);
     
     struct syscall sysret;
-    log("reg1: %x\n", reg1);
+    // log("reg1: %llx\n", reg1);
     if (panda_virtual_memory_read(cpu, reg1, (uint8_t*)&sysret, sizeof(struct syscall)) != MEMTX_OK){
         printf("failed to read sysret\n");
         panda_set_retval(cpu, (target_ulong) 0);
@@ -166,12 +177,13 @@ void hc_syscall(CPUState *cpu, unordered_map<uint64_t, vector<ID>> &cb_map, vect
     }
     auto syscall_proto = syscall_proto_search->second;
 
-    log_syscall(&syscall_proto, &sysret);
+    log_syscall(&syscall_proto, &sysret, on_enter);
 
     struct syscall clean_copy;
     memcpy(&clean_copy, &sysret, sizeof(struct syscall));
     
-    loop_run_cbs(cpu, all_cbs, &syscall_proto, &sysret);
+    loop_run_cbs(cpu, on_enter ? syscall_all_enter_cbs: syscall_all_return_cbs, 
+                &syscall_proto, &sysret);
 
     auto cbs = cb_map.find(sysret.nr);
     if (cbs != cb_map.end()){
@@ -189,21 +201,21 @@ void hc_syscall(CPUState *cpu, unordered_map<uint64_t, vector<ID>> &cb_map, vect
  * This function is called when a syscall is entered
  */
 void hc_syscall_enter(CPUState *cpu){
-    hc_syscall(cpu, syscall_enter_cbs, syscall_all_enter_cbs);
+    hc_syscall(cpu, syscall_enter_cbs, true);
 }
 
 /**
  * This function is called when a syscall is returning
  */
 void hc_syscall_return(CPUState *cpu){
-    hc_syscall(cpu, syscall_return_cbs, syscall_all_return_cbs);
+    hc_syscall(cpu, syscall_return_cbs, false);
 }
 
 /**
  * This function receives a definition of a syscall in JSON format from the guest via hypercall
  */
 void hc_setup_syscall(CPUState *cpu){
-    int reg1 = panda_get_syscall_arg(cpu, 1);
+    target_ulong reg1 = panda_get_syscall_arg(cpu, 1);
 
     if (table_initialized){
         log("table already initialized\n");
@@ -218,7 +230,9 @@ void hc_setup_syscall(CPUState *cpu){
         }
         return;
     }
+    log("reg1: %llx\n", reg1);
     string buf = read_str(cpu, reg1);
+    log("buf: %s\n", buf.c_str());
     auto j = nlohmann::json::parse(buf);
     struct syscall_prototype sysinfo;
     sysinfo.name = strdup(j["name"].get<string>().c_str());
