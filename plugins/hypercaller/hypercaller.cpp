@@ -25,6 +25,13 @@ bool hypercall(CPUState *cpu);
 
 std::unordered_map<target_ulong, hypercall_t> hypercalls;
 
+#ifdef DEBUG_HYPERCALLER
+#define log(...) printf(__VA_ARGS__)
+#else
+#define log(...)
+#endif
+
+
 void register_hypercall(uint32_t magic, hypercall_t hyp){
     if (hypercalls.find(magic) == hypercalls.end()){
         hypercalls[magic] = hyp;
@@ -36,43 +43,10 @@ void register_hypercall(uint32_t magic, hypercall_t hyp){
 void unregister_hypercall(uint32_t magic){
     hypercalls.erase(magic);
 }
-// Use syscall notation
-uint32_t get_magic(CPUState *cpu){
-    uint32_t magic;
-    CPUArchState * env = (CPUArchState *)panda_cpu_env(cpu);
-
-#if defined(TARGET_ARM)
-    // r7
-    magic = env->regs[7];
-#if defined(TARGET_AARCH64)
-    if (env->aarch64 != 0){
-        // XR
-        magic = env->xregs[8];
-    }
-#endif
-#elif defined(TARGET_MIPS)
-    // V0
-    magic = env->active_tc.gpr[2];
-#elif defined(TARGET_I386)
-    // eax
-    magic = env->regs[R_EAX];
-#elif defined(TARGET_PPC)
-    // r0
-    magic = env->gpr[0];
-#elif defined(TARGET_LOONGARCH)
-    // a7
-    magic = env->gpr[17];
-#elif defined(TARGET_RISCV)
-    // a0
-    magic = env->gpr[10];
-#else
-    #error "Unsupported target architecture"
-#endif
-    return magic;
-}
 
 bool guest_hypercall(CPUState *cpu) {
-    uint32_t magic = get_magic(cpu);
+    target_ulong magic = panda_get_syscall_arg(cpu, 0);
+    log("guest_hypercall: magic = %x\n", magic);
     if (hypercalls.find(magic) != hypercalls.end()){
         hypercalls[magic](cpu);
         return true;
