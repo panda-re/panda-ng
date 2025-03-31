@@ -3637,10 +3637,8 @@ class Panda():
                         if not on_all:
                             prototype = args[1]
                             sysret = args[2]
-                            new_args = args + [sysret.args[i] for i in range(prototype.nargs)]
-                        else:
-                            new_args = args
-                        fun(*new_args, **kwargs)
+                            args = tuple(list(args) + [sysret.args[i] for i in range(prototype.nargs)])
+                        fun(*args, **kwargs)
                     except Exception as e:
                         # exceptions wont work in our thread. Therefore we print it here and then throw it after the
                         # machine exits.
