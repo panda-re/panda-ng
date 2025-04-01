@@ -479,10 +479,14 @@ class Loongarch64(PandaArch):
                     "t2", "t3", "t4", "t5", "t6", "t7", "t8", "u0", "fp",
                     "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"]
         self.registers = {regnames[idx]: idx for idx in range(len(regnames)) }
+        self.registers |= {regnames[idx].upper(): idx for idx in range(len(regnames)) }
+        self.registers |= {idx: idx for idx in range(len(regnames)) }
 
         # a0 is v0 and a1 is v1
         self.registers["v0"] = regnames.index("a0")
         self.registers["v1"] = regnames.index("a1")
+        self.registers["V0"] = regnames.index("a0")
+        self.registers["V1"] = regnames.index("a1")
         """Register array for ARM"""
 
         self.reg_sp      = regnames.index("sp")
@@ -505,13 +509,19 @@ class Loongarch64(PandaArch):
         '''
         Return an arm register
         '''
-        return self.cpu_env(cpu).gpr[reg]
+        if reg in self.registers:
+            return self.cpu_env(cpu).gpr[self.registers[reg]]
+        else:
+            raise ValueError(f"Invalid register name {reg}")
 
     def _set_reg_val(self, cpu, reg, val):
         '''
         Set an arm register
         '''
-        self.cpu_env(cpu).gpr[reg] = val
+        if reg in self.registers:
+            self.cpu_env(cpu).gpr[self.registers[reg]] = val
+        else:
+            raise ValueError(f"Invalid register name {reg}")
 
     def get_return_value(self, cpu):
         '''
@@ -798,7 +808,6 @@ class PowerPCArch(PandaArch):
                     "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", 
                     "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", "r31"]
         self.reg_sp = regnames.index('sp')
-        self.reg_retaddr = regnames.index('lr')
         self.registers = {regnames[idx].upper(): idx for idx in range(len(regnames)) }
         self.registers_crf = ["CR0", "CR1", "CR2", "CR3", "CR4", "CR5", "CR6", "CR7"]
         self.call_conventions = {'sysv':           ['r3', 'r4', 'r5', 'r6', 'r7', 'r8'],
