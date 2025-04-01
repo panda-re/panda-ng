@@ -64,7 +64,7 @@ target_ptr_t hypercall_get_file_fds(CPUState *cpu, target_ptr_t files){
 }
 
 void hc_setup_osi_task_switch(CPUState *cpu){
-    target_ulong prev = panda_get_syscall_arg(cpu, 1);
+    // target_ulong prev = panda_get_syscall_arg(cpu, 1);
     target_ulong next = panda_get_syscall_arg(cpu, 2);
     osi_initialized = true;
 
