@@ -64,7 +64,7 @@ target_ptr_t hypercall_get_file_fds(CPUState *cpu, target_ptr_t files){
 }
 
 void hc_setup_osi_task_switch(CPUState *cpu){
-    // target_ulong prev = panda_get_syscall_arg(cpu, 1);
+    target_ulong prev = panda_get_syscall_arg(cpu, 1);
     target_ulong next = panda_get_syscall_arg(cpu, 2);
     osi_initialized = true;
 
@@ -73,7 +73,12 @@ void hc_setup_osi_task_switch(CPUState *cpu){
         return;
     }
     
-    // printf("hc_setup_osi_task_switch %d %llx\n", cpu->cpu_index, (long long unsigned int)next);
+    OG_printf("hc_setup_osi_task_switch CPU %d from %llx to %llx\n", 
+                    cpu->cpu_index, (long long unsigned int) prev, 
+                    (long long unsigned int)next);
+    if (current_task_addr[cpu->cpu_index] != 0 && current_task_addr[cpu->cpu_index] != prev){
+        OG_printf("Missed cpu switch\n");
+    }
 
     current_task_addr[cpu->cpu_index] = next;
 }
