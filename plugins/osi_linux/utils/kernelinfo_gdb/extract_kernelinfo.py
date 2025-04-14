@@ -60,7 +60,11 @@ class KernelInfo(gdb.Command):
         # current_task is only an x86 thing
         # It's defined in /arch/x86/kernel/cpu/common.c
         if "x86" in uts_machine:
-            current_task_addr = gdb.execute('printf "%llu", &current_task',to_string=True)
+            try:
+                current_task_addr = gdb.execute('printf "%llu", &current_task',to_string=True)
+            except:
+                current_task_addr = gdb.execute('printf "%llu", &pcpu_hot',to_string=True)
+
         else:
             current_task_addr = init_task_addr
 
