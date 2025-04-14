@@ -51,6 +51,9 @@ class PandaArch():
         elif self.panda.arch_name == "ppc":
             bits = 32
             endianness = "big"
+        elif self.panda.arch_name == "ppc64":
+            bits = 64
+            endianness = "big"
         elif self.panda.arch_name == "mips":
             bits = 32
             endianness = "big"
