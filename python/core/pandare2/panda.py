@@ -3627,7 +3627,7 @@ class Panda():
             breakpoint()
             print("ERROR: Your hypercall was not in the hook list")
     
-    def hypersyscall(self, name, on_enter, on_return, on_all):
+    def hypersyscall(self, name, on_enter=False, on_return=False, on_all=False, on_unknown=False):
         def decorator(fun):
             hypercall_cb_type = self.ffi.callback("syscall_cb_t")
             
@@ -3653,6 +3653,7 @@ class Panda():
             shook.on_enter = on_enter
             shook.on_return = on_return
             shook.on_all = on_all
+            shook.on_unknown = on_unknown
             shook.enabled = True
             shook.cb = hook_cb_passed
             nname = name or "\x00"
@@ -3672,6 +3673,12 @@ class Panda():
             return self.hypersyscall(name, False, True, True)
         elif name == "on_all_sys":
             return self.hypersyscall(name, True, True, True)
+        elif name == "on_unknown_sys_enter":
+            return self.hypersyscall(name, True, False, False, True)
+        elif name == "on_unknown_sys_return":
+            return self.hypersyscall(name, False, True, False, True)
+        if name == "on_unknown_sys":
+            return self.hypersyscall(name, True, True, False, True)
         from re import search
         regex = "on_(?P<syscall>sys_\S*)_(?P<side>enter|return)"
 
