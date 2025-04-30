@@ -76,8 +76,9 @@ static string read_str(CPUState* cpu, target_ulong ptr){
 static void do_register_syscall(struct syscall_hook *cb){
     bool any_set = false;
     cb->enabled = true;
-    int id;
-    syscall_hooks[id=++id_counter] = *cb;
+    id_counter++;
+    int id = id_counter;
+    syscall_hooks[id] = *cb;
     if (cb->on_all){
         if (cb->on_enter){
             syscall_all_enter_cbs.push_back(id);
@@ -91,7 +92,7 @@ static void do_register_syscall(struct syscall_hook *cb){
         for (auto &syscall : syscall_info_table){
             if (strcmp(syscall.second.name, cb->name) == 0){
                 if (cb->on_enter){
-                    syscall_return_cbs[syscall.first].push_back(id);
+                    syscall_enter_cbs[syscall.first].push_back(id);
                     any_set = true;
                 }
                 if (cb->on_return){
@@ -133,7 +134,7 @@ static void log_syscall(struct syscall_prototype *prototype, struct syscall *sys
 }
 
 static void loop_run_cbs(CPUState *cpu, vector<ID> &cbs, struct syscall_prototype* syscall_proto, 
-            struct syscall *sysret){
+            struct syscall *sysret, bool is_enter){
     for (auto id : cbs){
         auto h = syscall_hooks.find(id);
         if (h == syscall_hooks.end()){
@@ -146,12 +147,18 @@ static void loop_run_cbs(CPUState *cpu, vector<ID> &cbs, struct syscall_prototyp
             log("hook disabled\n");
             continue;
         }
+        if (is_enter && !hook.on_enter){
+            continue;
+        }
+        if (!is_enter && !hook.on_return){
+            continue;
+        }
         log("running cb\n");
         hook.cb(cpu, syscall_proto, sysret, &hook);
     }
 }
 
-void hc_syscall(CPUState *cpu, unordered_map<uint64_t, vector<ID>> &cb_map, bool on_enter){
+void hc_syscall(CPUState *cpu, bool on_enter){
     if (!table_initialized){
         printf("table not initialized\n");
         return;
@@ -183,16 +190,17 @@ void hc_syscall(CPUState *cpu, unordered_map<uint64_t, vector<ID>> &cb_map, bool
     memcpy(&clean_copy, &sysret, sizeof(struct syscall));
     
     loop_run_cbs(cpu, on_enter ? syscall_all_enter_cbs: syscall_all_return_cbs, 
-                &syscall_proto, &sysret);
+                &syscall_proto, &sysret, on_enter);
 
+    auto cb_map = on_enter ? syscall_enter_cbs : syscall_return_cbs;
     auto cbs = cb_map.find(sysret.nr);
     if (cbs != cb_map.end()){
-        loop_run_cbs(cpu, cbs->second, &syscall_proto, &sysret);
+        loop_run_cbs(cpu, cbs->second, &syscall_proto, &sysret, on_enter);
     }
 
     if (memcmp(&clean_copy, &sysret, sizeof(struct syscall)) != 0){
         log("syscall modified\n");
-        panda_virtual_memory_write(cpu, reg1, (uint8_t*)&sysret, sizeof(struct syscall));
+        panda_virtual_memory_write(cpu, reg1, (uint8_t *)&sysret, sizeof(struct syscall));
     }
     panda_set_retval(cpu, 0);
 }
@@ -201,14 +209,14 @@ void hc_syscall(CPUState *cpu, unordered_map<uint64_t, vector<ID>> &cb_map, bool
  * This function is called when a syscall is entered
  */
 void hc_syscall_enter(CPUState *cpu){
-    hc_syscall(cpu, syscall_enter_cbs, true);
+    hc_syscall(cpu, true);
 }
 
 /**
  * This function is called when a syscall is returning
  */
 void hc_syscall_return(CPUState *cpu){
-    hc_syscall(cpu, syscall_return_cbs, false);
+    hc_syscall(cpu, false);
 }
 
 /**
@@ -216,6 +224,8 @@ void hc_syscall_return(CPUState *cpu){
  */
 void hc_setup_syscall(CPUState *cpu){
     target_ulong reg1 = panda_get_syscall_arg(cpu, 1);
+
+    log("reg1: %llx\n", reg1);
 
     if (table_initialized){
         log("table already initialized\n");
