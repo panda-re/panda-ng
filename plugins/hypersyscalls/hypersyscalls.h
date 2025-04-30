@@ -46,11 +46,13 @@ typedef void (*syscall_cb_t)(CPUState *cpu, const struct syscall_prototype *sysc
                              const struct syscall *sysret, struct syscall_hook *hook);
 
 typedef uint32_t ID;
+
 struct syscall_hook {
     ID id;              // Unique id
     bool on_enter;      // true if hook should trigger on entry
     bool on_return;     // true if hook should trigger on return
-    bool on_all;        // true if hook should trigger on all syscalls
+    bool on_all;        // true if hook should trigger on all known syscalls
+    bool on_unknown;    // true if hook should trigger on unknown syscalls
     char name[128];     // name must fully match
     bool enabled;       // true if hook is enabled
     syscall_cb_t cb;    // callback function

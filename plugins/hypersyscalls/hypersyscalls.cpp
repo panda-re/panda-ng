@@ -49,6 +49,9 @@ unordered_map<ID, struct syscall_hook> syscall_hooks;
 vector<ID> syscall_all_enter_cbs;
 vector<ID> syscall_all_return_cbs;
 
+vector<ID> syscall_unknown_enter_cbs;
+vector<ID> syscall_unknown_return_cbs;
+
 unordered_map<uint64_t, vector<ID>> syscall_enter_cbs;
 unordered_map<uint64_t, vector<ID>> syscall_return_cbs;
 
@@ -74,12 +77,32 @@ static string read_str(CPUState* cpu, target_ulong ptr){
 }
 
 static void do_register_syscall(struct syscall_hook *cb){
+    if (cb->on_unknown && cb->on_all){
+        printf("Cannot set both on_unknown and on_all\n");
+        return;
+    }
+
+    if (cb->on_unknown && strlen(cb->name) > 0){
+        printf("Cannot set both on_unknown and name\n");
+        return;
+    }
+    
     bool any_set = false;
     cb->enabled = true;
     id_counter++;
     int id = id_counter;
     syscall_hooks[id] = *cb;
-    if (cb->on_all){
+
+    if (cb->on_unknown){
+        if (cb->on_enter){
+            syscall_unknown_enter_cbs.push_back(id);
+            any_set = true;
+        }
+        if (cb->on_return){
+            syscall_unknown_return_cbs.push_back(id);
+            any_set = true;
+        }
+    } else if (cb->on_all){
         if (cb->on_enter){
             syscall_all_enter_cbs.push_back(id);
             any_set = true;
@@ -88,7 +111,7 @@ static void do_register_syscall(struct syscall_hook *cb){
             syscall_all_return_cbs.push_back(id);
             any_set = true;
         }
-    }else {
+    } else {
         for (auto &syscall : syscall_info_table){
             if (strcmp(syscall.second.name, cb->name) == 0){
                 if (cb->on_enter){
@@ -180,6 +203,8 @@ void hc_syscall(CPUState *cpu, bool on_enter){
     auto syscall_proto_search = syscall_info_table.find(sysret.nr);
     if (syscall_proto_search == syscall_info_table.end()){
         log("syscall %ld not registered\n", sysret.nr);
+        loop_run_cbs(cpu, on_enter ? syscall_unknown_enter_cbs : syscall_unknown_return_cbs,
+                    nullptr, &sysret, on_enter);
         return;
     }
     auto syscall_proto = syscall_proto_search->second;

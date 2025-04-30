@@ -51,6 +51,7 @@ struct syscall_hook {
     bool on_enter;           // Whether to call on syscall entry
     bool on_return;          // Whether to call on syscall return
     bool on_all;             // Whether to hook all syscalls
+    bool on_unknown;         // Whether to hook syscalls not in the table
     bool enabled;            // Whether hook is enabled
     void *opaque;            // User data
     syscall_cb_t cb;         // Callback function
@@ -62,6 +63,17 @@ typedef void (*syscall_cb_t)(CPUState *cpu,
                           struct syscall *syscall,
                           struct syscall_hook *hook);
 ```
+
+### Validation Conditions
+
+When registering a syscall hook, the following conditions are enforced:
+
+1. You cannot set both `on_unknown` and `on_all` to true at the same time.
+2. You cannot set `on_unknown` to true and specify a syscall name at the same time.
+3. At least one of `on_enter` or `on_return` must be true for the hook to be effective.
+4. When specifying a syscall name, it must match a syscall in the registered table.
+
+If any of these conditions are not met, the hook will not be properly registered or an error message will be displayed.
 
 Examples
 --------
@@ -81,12 +93,38 @@ struct syscall_hook read_hook = {
     .on_enter = true,
     .on_return = true,
     .on_all = false,
+    .on_unknown = false,
     .enabled = true,
     .opaque = NULL,
     .cb = my_syscall_callback
 };
 
 register_syscall_cb(&read_hook);
+```
+
+### Hooking Unknown Syscalls
+
+```C
+void unknown_syscall_handler(CPUState *cpu, struct syscall_prototype *syscall_info, 
+                            struct syscall *syscall, struct syscall_hook *hook) {
+    // Note: syscall_info will be NULL for unknown syscalls
+    printf("Unknown syscall number %ld with args: %lx, %lx\n", 
+           syscall->nr, syscall->args[0], syscall->args[1]);
+}
+
+// Hook all syscalls not registered in the table
+struct syscall_hook unknown_hook = {
+    .name = "",  // Empty name since we're using on_unknown
+    .on_enter = true,
+    .on_return = false,
+    .on_all = false,
+    .on_unknown = true,
+    .enabled = true,
+    .opaque = NULL,
+    .cb = unknown_syscall_handler
+};
+
+register_syscall_cb(&unknown_hook);
 ```
 
 ### Running with hypersyscalls
