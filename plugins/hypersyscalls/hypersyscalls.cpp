@@ -54,11 +54,12 @@ vector<ID> syscall_unknown_return_cbs;
 unordered_map<uint64_t, vector<ID>> syscall_enter_cbs;
 unordered_map<uint64_t, vector<ID>> syscall_return_cbs;
 
+set<uint64_t> verified_unknown_syscalls;
+
 void (*hypercall_register_hypercall)(uint32_t magic, hypercall_t);
 bool table_initialized = false;
 
 vector<struct syscall_prototype> missing_syscalls;
-set<ID> unregistered_hooks;
 
 
 static string read_str(CPUState* cpu, target_ulong ptr){
@@ -128,7 +129,6 @@ static bool do_register_syscall(struct syscall_hook *cb){
         }
     }
     if (!any_set){
-        unregistered_hooks.insert(id);
         log("No syscall found with name %s\n", cb->name);
         return false;
     }
@@ -186,17 +186,41 @@ static void loop_run_cbs(CPUState *cpu, vector<ID> &cbs, struct syscall_prototyp
     }
 }
 
-void reconsider_missing_syscalls(){
-    // Make a copy of unregistered_hooks to avoid modification during iteration
-    set<ID> hooks_to_reconsider = unregistered_hooks;
-    for (auto id : hooks_to_reconsider) {
-        if (do_register_syscall(&syscall_hooks[id])) {
-            unregistered_hooks.erase(id);
+/**
+ * When a new syscall is registered after the fact we need to iterate over 
+ * hooks to see if any of them match the new syscall.
+ */
+void apply_new_syscall_late_register(int nr){
+    for (const auto &pair: syscall_hooks){
+        auto id = pair.first;
+        auto &hook = pair.second;
+        if (hook.on_unknown || hook.on_all){
+            continue;
+        }
+        if (strcmp(hook.name, syscall_info_table[nr].name) == 0){
+            if (hook.on_enter){
+                syscall_enter_cbs[nr].push_back(id);
+            }
+            if (hook.on_return){
+                syscall_return_cbs[nr].push_back(id);
+            }
         }
     }
 }
 
+/**
+ * Sometimes we don't get a syscall number (-1) associated with a syscall
+ * 
+ * We use the syscall name to find the syscall number and register it
+ * 
+ * If this matches we apply new syscalls.
+ */
 bool try_register(CPUState *cpu, struct syscall *sysret){
+    auto it = verified_unknown_syscalls.find(sysret->nr);
+    if (it != verified_unknown_syscalls.end()){
+        log("syscall %ld already known to not be in set\n", sysret->nr);
+        return false;
+    }
     uint64_t name_ptr = sysret->name_ptr;
     string name = read_str(cpu, name_ptr);
     log("try_register name: %s\n", name.c_str());
@@ -211,10 +235,12 @@ bool try_register(CPUState *cpu, struct syscall *sysret){
             sysinfo.syscall_nr = sysret->nr;
             syscall_info_table[sysret->nr] = sysinfo;
             log("registered syscall after the fact %s %ld\n", sysinfo.name, sysinfo.syscall_nr);
-            reconsider_missing_syscalls();
+            apply_new_syscall_late_register(sysret->nr);
             return true;
         }
     }
+    log("syscall %ld not registered and will not be registered\n", sysret->nr);
+    verified_unknown_syscalls.insert(sysret->nr);
     return false;
 }
 
@@ -226,7 +252,7 @@ void hc_syscall(CPUState *cpu, bool on_enter){
     uint64_t reg1 = panda_get_syscall_arg(cpu, 1);
     
     struct syscall sysret;
-    // log("reg1: %llx\n", reg1);
+    log("reg1: %llx\n", reg1);
     if (panda_virtual_memory_read(cpu, reg1, (uint8_t*)&sysret, sizeof(struct syscall)) != MEMTX_OK){
         printf("failed to read sysret\n");
         panda_set_retval(cpu, (target_ulong) 0);
