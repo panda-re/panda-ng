@@ -27,6 +27,7 @@ struct syscall {
 	int64_t retval;
 	uint64_t skip_syscall;
 	uint64_t task;
+    uint64_t name_ptr; 
 };
 
 /**

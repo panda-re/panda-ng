@@ -14,6 +14,7 @@ PANDAENDCOMMENT */
 #include <string>
 #include <cstring>
 #include <cstdint>
+#include <set>
 #include <iostream>
 #include <tuple>
 #include <atomic>
@@ -30,7 +31,7 @@ extern "C" {
     void hc_setup_syscall(CPUState *cpu);
     #include <hypercaller/hypercaller.h>
 }
-// #define  DEBUG_HYPERSYSCALLS 1
+#define  DEBUG_HYPERSYSCALLS 1
 #ifdef DEBUG_HYPERSYSCALLS
 #define log(...) printf(__VA_ARGS__)
 #else
@@ -58,6 +59,9 @@ unordered_map<uint64_t, vector<ID>> syscall_return_cbs;
 void (*hypercall_register_hypercall)(uint32_t magic, hypercall_t);
 bool table_initialized = false;
 
+vector<struct syscall_prototype> missing_syscalls;
+set<ID> unregistered_hooks;
+
 
 static string read_str(CPUState* cpu, target_ulong ptr){
     string buf = "";
@@ -76,15 +80,15 @@ static string read_str(CPUState* cpu, target_ulong ptr){
     return buf;
 }
 
-static void do_register_syscall(struct syscall_hook *cb){
+static bool do_register_syscall(struct syscall_hook *cb){
     if (cb->on_unknown && cb->on_all){
         printf("Cannot set both on_unknown and on_all\n");
-        return;
+        return false;
     }
 
     if (cb->on_unknown && strlen(cb->name) > 0){
         printf("Cannot set both on_unknown and name\n");
-        return;
+        return false;
     }
     
     bool any_set = false;
@@ -126,8 +130,11 @@ static void do_register_syscall(struct syscall_hook *cb){
         }
     }
     if (!any_set){
+        unregistered_hooks.insert(id);
         printf("No syscall found with name %s\n", cb->name);
+        return false;
     }
+    return true;
 }
 
 static void register_syscall_cb(struct syscall_hook *cb){
@@ -181,6 +188,38 @@ static void loop_run_cbs(CPUState *cpu, vector<ID> &cbs, struct syscall_prototyp
     }
 }
 
+void reconsider_missing_syscalls(){
+    // Make a copy of unregistered_hooks to avoid modification during iteration
+    set<ID> hooks_to_reconsider = unregistered_hooks;
+    for (auto id : hooks_to_reconsider) {
+        if (do_register_syscall(&syscall_hooks[id])) {
+            unregistered_hooks.erase(id);
+        }
+    }
+}
+
+bool try_register(CPUState *cpu, struct syscall *sysret){
+    uint64_t name_ptr = sysret->name_ptr;
+    string name = read_str(cpu, name_ptr);
+    log("try_register name: %s\n", name.c_str());
+    for (struct syscall_prototype &sysinfo : missing_syscalls){
+        // compare "sys_name"(+4) with "name"
+
+        const char *name_ptr = name.c_str();
+        while (*name_ptr == '_'){
+            name_ptr++;
+        }
+        if (strcmp(sysinfo.name+4, name_ptr) == 0){
+            sysinfo.syscall_nr = sysret->nr;
+            syscall_info_table[sysret->nr] = sysinfo;
+            log("registered syscall after the fact %s %ld\n", sysinfo.name, sysinfo.syscall_nr);
+            reconsider_missing_syscalls();
+            return true;
+        }
+    }
+    return false;
+}
+
 void hc_syscall(CPUState *cpu, bool on_enter){
     if (!table_initialized){
         printf("table not initialized\n");
@@ -202,10 +241,14 @@ void hc_syscall(CPUState *cpu, bool on_enter){
 
     auto syscall_proto_search = syscall_info_table.find(sysret.nr);
     if (syscall_proto_search == syscall_info_table.end()){
-        log("syscall %ld not registered\n", sysret.nr);
-        loop_run_cbs(cpu, on_enter ? syscall_unknown_enter_cbs : syscall_unknown_return_cbs,
-                    nullptr, &sysret, on_enter);
-        return;
+        if (!try_register(cpu, &sysret)){
+            log("syscall %ld not registered\n", sysret.nr);
+            loop_run_cbs(cpu, on_enter ? syscall_unknown_enter_cbs : syscall_unknown_return_cbs,
+                        nullptr, &sysret, on_enter);
+            return;
+        }else{
+            syscall_proto_search = syscall_info_table.find(sysret.nr);
+        }
     }
     auto syscall_proto = syscall_proto_search->second;
 
@@ -281,7 +324,12 @@ void hc_setup_syscall(CPUState *cpu){
     }
     sysinfo.nargs = i;
     log(")\n");
-    syscall_info_table[sysinfo.syscall_nr] = sysinfo;
+    if (sysinfo.syscall_nr == -1){
+        log("syscall %s not registered, but saving for later\n", sysinfo.name);
+        missing_syscalls.push_back(sysinfo);
+    }else{
+        syscall_info_table[sysinfo.syscall_nr] = sysinfo;
+    }
 }
 
 bool init_plugin(void *self) {
