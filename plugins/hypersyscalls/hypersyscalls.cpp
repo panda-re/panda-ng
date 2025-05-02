@@ -31,12 +31,10 @@ extern "C" {
     void hc_setup_syscall(CPUState *cpu);
     #include <hypercaller/hypercaller.h>
 }
-#define  DEBUG_HYPERSYSCALLS 1
-#ifdef DEBUG_HYPERSYSCALLS
-#define log(...) printf(__VA_ARGS__)
-#else
-#define log(...)
-#endif
+
+bool debug = false;
+
+#define log(...) if (debug) {printf(__VA_ARGS__);}
 
 // syscall_nr -> syscall_info
 unordered_map<uint64_t, struct syscall_prototype> syscall_info_table;
@@ -131,7 +129,7 @@ static bool do_register_syscall(struct syscall_hook *cb){
     }
     if (!any_set){
         unregistered_hooks.insert(id);
-        printf("No syscall found with name %s\n", cb->name);
+        log("No syscall found with name %s\n", cb->name);
         return false;
     }
     return true;
@@ -342,6 +340,8 @@ bool init_plugin(void *self) {
     hypercall_register_hypercall(IGLOO_HYP_SETUP_SYSCALL, hc_setup_syscall);
     hypercall_register_hypercall(IGLOO_HYP_SYSCALL_ENTER, hc_syscall_enter);
     hypercall_register_hypercall(IGLOO_HYP_SYSCALL_RETURN, hc_syscall_return);
+    panda_arg_list *plugin_args = panda_get_args(PLUGIN_NAME);
+    debug = panda_parse_bool_opt(plugin_args, "debug", "Enable debug output");
     return true;
 }
 
