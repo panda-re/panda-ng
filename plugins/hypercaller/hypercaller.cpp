@@ -25,11 +25,9 @@ bool hypercall(CPUState *cpu);
 
 std::unordered_map<target_ulong, hypercall_t> hypercalls;
 
-#ifdef DEBUG_HYPERCALLER
-#define log(...) printf(__VA_ARGS__)
-#else
-#define log(...)
-#endif
+bool debug = false;
+
+#define log(...) if (debug) {printf(__VA_ARGS__);}
 
 
 void register_hypercall(uint32_t magic, hypercall_t hyp){
@@ -55,6 +53,8 @@ bool guest_hypercall(CPUState *cpu) {
 }
 
 bool init_plugin(void *self) {
+    panda_arg_list *plugin_args = panda_get_args(PLUGIN_NAME);
+    debug = panda_parse_bool_opt(plugin_args, "debug", "Enable debug output");
     panda_cb pcb = { .guest_hypercall = guest_hypercall};
     panda_register_callback(self, PANDA_CB_GUEST_HYPERCALL, pcb);
     return true;
