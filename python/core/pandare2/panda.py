@@ -1927,7 +1927,6 @@ class Panda():
         if proc == self.ffi.NULL or proc.name == self.ffi.NULL:
             return None
 
-        procname = self.ffi.string(proc.name).decode('utf8', 'ignore')
         return self.ffi.string(proc.name).decode('utf8', 'ignore')
 
 
@@ -3627,7 +3626,7 @@ class Panda():
             breakpoint()
             print("ERROR: Your hypercall was not in the hook list")
     
-    def hypersyscall(self, name, on_enter=False, on_return=False, on_all=False, on_unknown=False):
+    def hypersyscall(self, name, on_enter=False, on_return=False, on_all=False, on_unknown=False, arg_filter=None, proc_filter=None):
         def decorator(fun):
             hypercall_cb_type = self.ffi.callback("syscall_cb_t")
             
@@ -3658,6 +3657,25 @@ class Panda():
             shook.cb = hook_cb_passed
             nname = name or "\x00"
             self.ffi.memmove(shook.name,self.ffi.new("char[]",bytes(nname,"utf-8")),len(nname))
+
+            shook.filter_args_enabled = arg_filter is not None
+            filter_args = arg_filter or [None] * 6
+            for i in range(6):
+                if i < len(filter_args) and filter_args[i]:
+                    shook.filter_arg[i] = True
+                    shook.arg_filter[i] = filter_args[i]
+                else:
+                    shook.filter_arg[i] = False
+
+            if proc_filter is not None:    
+                comm_filter = proc_filter or "\x00"
+                if len(comm_filter) > 15:
+                    print("Warning: comm_filter is too long, truncating to 15 characters")
+                    comm_filter = comm_filter[:15]
+                self.ffi.memmove(shook.comm_filter,self.ffi.new("char[]",bytes(comm_filter,"utf-8")),len(comm_filter))
+                shook.comm_filter_enabled = True
+            else:
+                shook.comm_filter_enabled = False
             self.plugins["hypersyscalls"].register_syscall_cb(shook)
 
             def wrapper(*args, **kw):
@@ -3666,28 +3684,28 @@ class Panda():
             return wrapper
         return decorator
 
-    def hsyscall(self, name):
+    def hsyscall(self, name, arg_filter=None, comm_filter=None):
         if name == "on_all_sys_enter":
-            return self.hypersyscall(name, True, False, True)
+            return self.hypersyscall(name, True, False, True, False, arg_filter, comm_filter)
         elif name == "on_all_sys_return":
-            return self.hypersyscall(name, False, True, True)
+            return self.hypersyscall(name, False, True, True, False, arg_filter, comm_filter)
         elif name == "on_all_sys":
-            return self.hypersyscall(name, True, True, True)
+            return self.hypersyscall(name, True, True, True,  False, arg_filter, comm_filter)
         elif name == "on_unknown_sys_enter":
-            return self.hypersyscall(name, True, False, False, True)
+            return self.hypersyscall(name, True, False, False, True, arg_filter, comm_filter)
         elif name == "on_unknown_sys_return":
-            return self.hypersyscall(name, False, True, False, True)
+            return self.hypersyscall(name, False, True, False, True, arg_filter, comm_filter)
         if name == "on_unknown_sys":
-            return self.hypersyscall(name, True, True, False, True)
+            return self.hypersyscall(name, True, True, False, True, arg_filter, comm_filter)
         from re import search
         regex = "on_(?P<syscall>sys_\S*)_(?P<side>enter|return)"
 
         if m := search(regex, name):
             d = m.groupdict()
             if d["side"] == "enter":
-                return self.hypersyscall(d["syscall"], True, False, False)
+                return self.hypersyscall(d["syscall"], True, False, False, False, arg_filter, comm_filter)
             elif d["side"] == "return":
-                return self.hypersyscall(d["syscall"], False, True, False)
+                return self.hypersyscall(d["syscall"], False, True, False, False, arg_filter, comm_filter)
         else:
             raise ValueError(f"Invalid hypersyscall name {name}")
 
