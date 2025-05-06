@@ -4,6 +4,7 @@
 #define IGLOO_HYP_SETUP_SYSCALL 0x1337
 #define IGLOO_HYP_SYSCALL_ENTER 0x1338
 #define IGLOO_HYP_SYSCALL_RETURN 0x1339
+#define IGLOO_HYP_SETUP_TASK_COMM 0x133a
 
 
 // BEGIN_PYPANDA_NEEDS_THIS -- do not delete this comment bc pypanda
@@ -49,14 +50,19 @@ typedef void (*syscall_cb_t)(CPUState *cpu, const struct syscall_prototype *sysc
 typedef uint32_t ID;
 
 struct syscall_hook {
-    ID id;              // Unique id
-    bool on_enter;      // true if hook should trigger on entry
-    bool on_return;     // true if hook should trigger on return
-    bool on_all;        // true if hook should trigger on all known syscalls
-    bool on_unknown;    // true if hook should trigger on unknown syscalls
-    char name[128];     // name must fully match
-    bool enabled;       // true if hook is enabled
-    syscall_cb_t cb;    // callback function
+    ID id;                              // Unique id
+    bool enabled;                       // true if hook is enabled
+    bool on_enter;                      // true if hook should trigger on entry
+    bool on_return;                     // true if hook should trigger on return
+    bool on_all;                        // true if hook should trigger on all known syscalls
+    bool on_unknown;                    // true if hook should trigger on unknown syscalls
+    char name[128];                     // name must fully match
+    bool comm_filter_enabled;          // true if comm_filter is enabled
+    char comm_filter[16];               // process name must fully match
+    bool filter_args_enabled;           // true if filter_args is enabled
+    bool filter_arg[MAX_ARGS];          // true if hook should filter this argument
+    uint64_t arg_filter[MAX_ARGS];      // argument to filter on
+    syscall_cb_t cb; // callback function
 };
 
 enum sysret_type {

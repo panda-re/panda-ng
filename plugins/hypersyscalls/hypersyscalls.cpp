@@ -58,9 +58,9 @@ set<uint64_t> verified_unknown_syscalls;
 
 void (*hypercall_register_hypercall)(uint32_t magic, hypercall_t);
 bool table_initialized = false;
+target_ulong comm_offset = 0;
 
 vector<struct syscall_prototype> missing_syscalls;
-
 
 static string read_str(CPUState* cpu, target_ulong ptr){
     string buf = "";
@@ -181,6 +181,37 @@ static void loop_run_cbs(CPUState *cpu, vector<ID> &cbs, struct syscall_prototyp
         if (!is_enter && !hook.on_return){
             continue;
         }
+
+        if (hook.filter_args_enabled){
+            bool skip = false;
+            for (int i = 0; i < syscall_proto->nargs; i++){
+                if (hook.filter_arg[i]){
+                    if (sysret->args[i] != hook.arg_filter[i]){
+                        log("arg filter failed for arg %d\n", i);
+                        skip = true;
+                        break;
+                    }
+                }
+            }
+            if (skip){
+                log("skipping syscall\n");
+                continue;
+            }
+        }
+
+        if (hook.comm_filter_enabled){
+            char comm[16];
+            if (comm_offset == 0){
+                log("comm offset not set\n");
+                continue;
+            }
+            panda_virtual_memory_read(cpu, sysret->task + comm_offset, (uint8_t*)comm, sizeof(comm));
+            if (strncmp(comm, hook.comm_filter, sizeof(comm)) != 0){
+                log("comm filter failed expected %s got %s\n", hook.comm_filter, comm);
+                continue;
+            }
+        }
+
         log("running cb\n");
         hook.cb(cpu, syscall_proto, sysret, &hook);
     }
@@ -262,7 +293,7 @@ void hc_syscall(CPUState *cpu, bool on_enter){
         log("FATAL: struct syscall out of sync with plugin!!\n");
         return;
     }
-
+    log("syscall %ld\n", sysret.nr);
     auto syscall_proto_search = syscall_info_table.find(sysret.nr);
     if (syscall_proto_search == syscall_info_table.end()){
         if (!try_register(cpu, &sysret)){
@@ -295,6 +326,13 @@ void hc_syscall(CPUState *cpu, bool on_enter){
         panda_virtual_memory_write(cpu, reg1, (uint8_t *)&sysret, sizeof(struct syscall));
     }
     panda_set_retval(cpu, 0);
+}
+
+/**
+ * This function initializes the offset to comm
+ */
+void hc_setup_task_comm(CPUState *cpu){
+    comm_offset = panda_get_syscall_arg(cpu, 1);
 }
 
 /**
@@ -366,6 +404,7 @@ bool init_plugin(void *self) {
     hypercall_register_hypercall(IGLOO_HYP_SETUP_SYSCALL, hc_setup_syscall);
     hypercall_register_hypercall(IGLOO_HYP_SYSCALL_ENTER, hc_syscall_enter);
     hypercall_register_hypercall(IGLOO_HYP_SYSCALL_RETURN, hc_syscall_return);
+    hypercall_register_hypercall(IGLOO_HYP_SETUP_TASK_COMM, hc_setup_task_comm);
     panda_arg_list *plugin_args = panda_get_args(PLUGIN_NAME);
     debug = panda_parse_bool_opt(plugin_args, "debug", "Enable debug output");
     return true;
