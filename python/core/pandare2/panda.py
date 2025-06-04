@@ -152,7 +152,7 @@ class Panda():
             self.arch = MipsArch(self)
         elif self.arch_name in ["mips64", "mips64el"]:
             self.arch = Mips64Arch(self)
-        elif self.arch_name in ["ppc"]: 
+        elif self.arch_name in ["ppc"]:
             self.arch = PowerPCArch(self)
         elif self.arch_name in ["ppc64"]:
             self.arch = PowerPC64Arch(self)
@@ -191,14 +191,14 @@ class Panda():
         # set OS name if we have one
         if self.os:
             self.set_os_name(self.os)
-        
+
         extra_plugin_paths = [
             realpath(pjoin(__file__, "../../../../build/plugins")),
             "/panda-ng/build/plugins",
         ]
         if plugin_path is not None:
             extra_plugin_paths = [plugin_path] + extra_plugin_paths
-        
+
         for plugin_path in extra_plugin_paths:
             if exists(plugin_path):
                 self.plugin_path = plugin_path
@@ -360,7 +360,7 @@ class Panda():
         C = ffi.dlopen(None)
 
         callback_dictionary = {
-            getattr(pcb, m): pandacbtype(m,getattr(C, f"PANDA_CB_{m.upper()}")) for m in cb_list 
+            getattr(pcb, m): pandacbtype(m,getattr(C, f"PANDA_CB_{m.upper()}")) for m in cb_list
         }
         self.callback, self.callback_dictionary = (pcb, callback_dictionary)
 
@@ -373,7 +373,7 @@ class Panda():
         C = ffi.dlopen(None)
 
         self.callback_dictionary = {
-            getattr(self.callback, m): pandacbtype(m,getattr(C, f"PANDA_CB_{m.upper()}")) for m in cb_list 
+            getattr(self.callback, m): pandacbtype(m,getattr(C, f"PANDA_CB_{m.upper()}")) for m in cb_list
         }
         return ffi
 
@@ -677,7 +677,7 @@ class Panda():
 
         Args:
             name (str): name of the recording to check for (e.g., `foo` which uses `foo-rr-snp` and `foo-rr-nondet.log`)
-        
+
         Returns:
             boolean: true if file exists, false otherwise
         '''
@@ -735,7 +735,7 @@ class Panda():
         Load a C plugin with no arguments. Deprecated. Use load_plugin
         '''
         self.load_plugin(name, args={})
-    
+
     def _plugin_loaded(self, name):
         name_c = self.ffi.new("char[]", bytes(name, "utf-8"))
         return self.libpanda.panda_get_plugin_by_name(name_c) != self.ffi.NULL
@@ -812,9 +812,9 @@ class Panda():
     def _unload_pyplugins(self):
         '''
         Unload Python plugins first.
-        
+
         We have to be careful to not remove __main_loop_wait because we're executing inside of __main_loop_wait and it more work to do
-        
+
         We achieve this by first popping main loop wait and then re-adding it after unloading all other callbacks
         '''
         mlw = self.registered_callbacks.pop("__main_loop_wait")
@@ -825,7 +825,7 @@ class Panda():
                 self.delete_callback(list(self.registered_callbacks.keys())[0])
             except IndexError:
                 continue
-    
+
         self.registered_callbacks["__main_loop_wait"] = mlw
 
         # Next, unload any pyplugins
@@ -1020,7 +1020,7 @@ class Panda():
         for pc in callers:
             c.append(pc)
         return c
-    
+
     def _set_extra_plugin_path(self, path):
         pp = self.ffi.new("char[]", bytes(path, "utf-8"))
         self.libpanda.panda_set_extra_plugin_path(pp)
@@ -1402,14 +1402,14 @@ class Panda():
             integer: value of current ASID
         '''
         return self.libpanda.panda_current_asid(cpu)
-    
+
     def get_id(self, cpu):
         '''
         Get current hw_proc_id ID
 
         Args:
             cpu (CPUState): CPUState structure
-        
+
         Returns:
             integer: value of current hw_proc_id
         '''
@@ -1453,7 +1453,7 @@ class Panda():
 
         Args:
             g (garray): Pointer to a glibc array
-                
+
         Returns:
             int: length of the array
         '''
@@ -1474,7 +1474,7 @@ class Panda():
             int: Current instruction count
         '''
         return self.libpanda.rr_get_guest_instr_count_external()
-    
+
     def cpu_env(self, cpu):
         return self.libpanda.panda_cpu_env(cpu)
 
@@ -1786,7 +1786,7 @@ class Panda():
         family_num = self.libpanda.panda_os_familyno
         family_name = self.ffi.string(self.ffi.cast("PandaOsFamily", family_num))
         return family_name
-    
+
     def get_file_name(self, cpu, fd):
         '''
         Get the name of a file from a file descriptor.
@@ -2096,7 +2096,7 @@ class Panda():
             self.disable_callback("pyperipheral_write_callback", forever=True)
             self.pyperipherals_registered_cb = False
         return True
-    
+
 
     ############## TAINT FUNCTIONS ###############
     # Convenience methods for interacting with the taint subsystem.
@@ -2112,7 +2112,7 @@ class Panda():
         Enable taint.
         '''
         self.plugins["taint2"].taint2_enable_taint()
-    
+
     def _assert_taint_enabled(self):
         if not self.taint_enabled():
             raise Exception("taint2 must be loaded before tainting values")
@@ -2200,7 +2200,7 @@ class Panda():
             return tq
         else:
             return None
-    
+
     def address_to_ram_offset(self, hwaddr, is_write):
         '''
         Convert physical address to ram offset
@@ -2215,7 +2215,7 @@ class Panda():
         Raises:
             ValueError if memory access fails or fmt is unsupported
         '''
-        
+
         out = self.ffi.new("ram_addr_t*", self.ffi.cast("ram_addr_t", 0))
         value = self.libpanda.PandaPhysicalAddressToRamOffset_external(out, hwaddr, is_write)
         if value != 0:
@@ -2231,7 +2231,7 @@ class Panda():
             self.taint_enable()
             progress("taint symbolic not enabled -- enabling")
         self.plugins["taint2"].taint2_enable_sym()
-    
+
     def _assert_taint_sym_enabled(self):
         self._assert_taint_enabled()
         self.plugins['taint2'].taint2_enable_sym()
@@ -2248,9 +2248,9 @@ class Panda():
         self.taint_sym_enable()
         for i in range(self.register_size):
             self.plugins['taint2'].taint2_sym_label_reg(reg_num, i, label+i)
-    
+
     # Deserialize a z3 solver
-    # Lazy import z3. 
+    # Lazy import z3.
     def string_to_solver(self, string: str):
         from z3 import Solver
         s = Solver()
@@ -2262,11 +2262,11 @@ class Panda():
         s = self.string_to_solver(string)
         asrts = s.assertions()
         if len(asrts) == 0:
-            return None 
+            return None
         return asrts[0]
 
     # Get the expr in serialized solver str
-    # (https://github.com/Z3Prover/z3/issues/2674) 
+    # (https://github.com/Z3Prover/z3/issues/2674)
     def string_to_expr(self, string: str):
         eq = self.string_to_condition(string)
         if eq and len(eq.children()) > 0:
@@ -2535,8 +2535,8 @@ class Panda():
                 self.serial_unconsumed_data = self.serial_unconsumed_data[found_idx + 1 : ]
                 return match
         return None
-            
-    
+
+
     @blocking
     def run_serial_cmd_async(self, cmd, delay=1):
         '''
@@ -2663,7 +2663,7 @@ class Panda():
 
             # Note the . after our src/. directory - that's special syntax for cp -a
             copy_result = self.run_serial_cmd(f"cp -a {mount_dir}.ro/. {mount_dir} && echo 'copyok'", timeout=timeout)
-            
+
             # NB: exact match here causing issues so making things more flexible
             if not ('copyok' in copy_result):
                 raise RuntimeError(f"Copy to rw directory failed: {copy_result}")
@@ -2847,7 +2847,7 @@ class Panda():
 
             cast_rc = pandatype(_run_and_catch)
             return_type = self.ffi.typeof(cast_rc).result
-            
+
             if return_type.cname == "void":
                 return_type = None
 
@@ -3099,7 +3099,7 @@ class Panda():
 
             cast_rc = self.ffi.callback(attr+"_t")(_run_and_catch)  # Wrap the python fn in a c-callback.
             return_type = self.ffi.typeof(cast_rc).result
-            
+
             if return_type.cname == "void":
                 return_type = None
 
@@ -3194,7 +3194,7 @@ class Panda():
 
             if debug:
                 print("Registering breakpoint at 0x{:x} -> {} == {}".format(addr, fun, 'cdata_cb'))
-            
+
             def _run_and_catch(*args, **kwargs): # Run function but if it raises an exception, stop panda and raise it
                 if not hasattr(self, "exit_exception"):
                     try:
@@ -3505,7 +3505,7 @@ class Panda():
         def decorator(fun):
             mem_hook_cb_type = self.ffi.callback("mem_hook_func_t")
             # Inform the plugin that it has a new breakpoint at addr
-            
+
             def _run_and_catch(*args, **kwargs): # Run function but if it raises an exception, stop panda and raise it
                 if not hasattr(self, "exit_exception"):
                     try:
@@ -3577,12 +3577,12 @@ class Panda():
         Decorator to hook virtual memory writes with the mem_hooks plugin
         '''
         return self._hook_mem(start_address,end_address,on_before,on_after, False, True, True, False, True)
-    
+
     # HYPERCALLS
     def hypercall(self, magic):
         def decorator(fun):
             hypercall_cb_type = self.ffi.callback("hypercall_t")
-            
+
             def _run_and_catch(*args, **kwargs): # Run function but if it raises an exception, stop panda and raise it
                 if not hasattr(self, "exit_exception"):
                     try:
@@ -3613,23 +3613,24 @@ class Panda():
             self.hypercalls[wrapper] = [hook_cb_passed,magic]
             return wrapper
         return decorator
-    
+
     def disable_hypercall(self, fn):
         if fn in self.hypercalls:
             magic = self.hypercalls[fn][1]
+            cb = self.hypercalls[fn][0]
             if type(magic) is int:
-                self.plugins['hypercaller'].unregister_hypercall(magic)
+                self.plugins['hypercaller'].unregister_hypercall(magic, cb)
             elif type(magic) is list:
                 for m in magic:
-                    self.plugins['hypercaller'].unregister_hypercall(m)
+                    self.plugins['hypercaller'].unregister_hypercall(m, cb)
         else:
             breakpoint()
             print("ERROR: Your hypercall was not in the hook list")
-    
+
     def hypersyscall(self, name, on_enter=False, on_return=False, on_all=False, on_unknown=False, arg_filter=None, proc_filter=None):
         def decorator(fun):
             hypercall_cb_type = self.ffi.callback("syscall_cb_t")
-            
+
             def _run_and_catch(*args, **kwargs): # Run function but if it raises an exception, stop panda and raise it
                 if not hasattr(self, "exit_exception"):
                     try:
@@ -3667,7 +3668,7 @@ class Panda():
                 else:
                     shook.filter_arg[i] = False
 
-            if proc_filter is not None:    
+            if proc_filter is not None:
                 comm_filter = proc_filter or "\x00"
                 if len(comm_filter) > 15:
                     print("Warning: comm_filter is too long, truncating to 15 characters")

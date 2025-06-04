@@ -13,6 +13,8 @@ PANDAENDCOMMENT */
 
 #include "panda.h"
 #include <unordered_map>
+#include <vector>
+#include <algorithm>
 
 // These need to be extern "C" so that the ABI is compatible with
 // QEMU/PANDA, which is written in C
@@ -23,7 +25,7 @@ bool hypercall(CPUState *cpu);
 #include "hypercaller.h"
 }
 
-std::unordered_map<target_ulong, hypercall_t> hypercalls;
+std::unordered_map<target_ulong, std::vector<hypercall_t>> hypercalls;
 
 bool debug = false;
 
@@ -31,22 +33,30 @@ bool debug = false;
 
 
 void register_hypercall(uint32_t magic, hypercall_t hyp){
-    if (hypercalls.find(magic) == hypercalls.end()){
-        hypercalls[magic] = hyp;
-    }else{
-        assert(false && "Hypercall already registered");
-    }
+    log("registering hypercall: magic = 0x%x\n", magic);
+    // Add the function to the vector for this magic
+    hypercalls[magic].push_back(hyp);
 }
 
-void unregister_hypercall(uint32_t magic){
-    hypercalls.erase(magic);
+void unregister_hypercall(uint32_t magic, hypercall_t hyp){
+    auto it = hypercalls.find(magic);
+    if (it != hypercalls.end()) {
+        auto &vec = it->second;
+        vec.erase(std::remove(vec.begin(), vec.end(), hyp), vec.end());
+        if (vec.empty()) {
+            hypercalls.erase(it);
+        }
+    }
 }
 
 bool guest_hypercall(CPUState *cpu) {
     target_ulong magic = panda_get_syscall_arg(cpu, 0);
     log("guest_hypercall: magic = %x\n", magic);
-    if (hypercalls.find(magic) != hypercalls.end()){
-        hypercalls[magic](cpu);
+    auto it = hypercalls.find(magic);
+    if (it != hypercalls.end()){
+        for (auto &func : it->second) {
+            func(cpu);
+        }
         return true;
     }
     return false;
