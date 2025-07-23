@@ -1042,8 +1042,7 @@ void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
     
     // Try with current ASID
     if (ctxi == running_syscalls.end()) { [[unlikely]]
-        printf("DEBUG: Syscall return at PC=" TARGET_PTR_FMT " ASID=" TARGET_PTR_FMT " not found, trying kernel ASID\n", 
-               pc, current_asid);
+        // printf("DEBUG: Syscall return at PC=" TARGET_PTR_FMT " ASID=" TARGET_PTR_FMT " not found, trying kernel ASID\n", pc, current_asid);
         
         // Try with ASID 0 (kernel context)
         k = std::make_pair(pc, 0);
@@ -1051,31 +1050,31 @@ void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
         
         // If still not found, try to find any context with matching PC
         if (ctxi == running_syscalls.end()) { [[unlikely]]
-            printf("DEBUG: Syscall return at PC=" TARGET_PTR_FMT " not found with ASID=0 either\n", pc);
-            printf("DEBUG: Looking through %zu running syscalls for PC match:\n", running_syscalls.size());
+            // printf("DEBUG: Syscall return at PC=" TARGET_PTR_FMT " not found with ASID=0 either\n", pc);
+            // printf("DEBUG: Looking through %zu running syscalls for PC match:\n", running_syscalls.size());
             
             // Last resort: look for any syscall with matching return address
             // regardless of process ID - useful for ARM where ASID might change
             for (auto it = running_syscalls.begin(); it != running_syscalls.end(); ++it) {
-                printf("  Comparing PC=" TARGET_PTR_FMT " to syscall with PC=" TARGET_PTR_FMT " ASID=" TARGET_PTR_FMT "\n",
-                       pc, it->first.first, it->first.second);
+                // printf("  Comparing PC=" TARGET_PTR_FMT " to syscall with PC=" TARGET_PTR_FMT " ASID=" TARGET_PTR_FMT "\n",
+                    //    pc, it->first.first, it->first.second);
                        
                 if (it->first.first == pc) {
                     ctxi = it;
-                    printf("  MATCH FOUND by PC only! Using syscall with ASID=" TARGET_PTR_FMT "\n", it->first.second);
+                    // printf("  MATCH FOUND by PC only! Using syscall with ASID=" TARGET_PTR_FMT "\n", it->first.second);
                     break;
                 }
             }
         } else {
-            printf("DEBUG: Found syscall return with kernel ASID=0\n");
+            // printf("DEBUG: Found syscall return with kernel ASID=0\n");
         }
     }
     
     if (ctxi != running_syscalls.end()) {
         syscall_ctx_t *ctx = &ctxi->second; 
         no = ctx->no;
-        printf("DEBUG: Executing syscall return for syscall #%d at PC=" TARGET_PTR_FMT " ASID=" TARGET_PTR_FMT "\n", 
-               no, pc, ctxi->first.second);
+        // printf("DEBUG: Executing syscall return for syscall #%d at PC=" TARGET_PTR_FMT " ASID=" TARGET_PTR_FMT "\n", 
+            //    no, pc, ctxi->first.second);
         profiles[ctx->profile].return_switch(cpu, pc, ctx);
         if (ctx->double_return){
             ctx->double_return = false;
@@ -1084,16 +1083,16 @@ void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
             running_syscalls.erase(ctxi);
         }
     }else{
-        printf("ERROR: Couldn't find syscall return at PC=" TARGET_PTR_FMT " ASID=" TARGET_PTR_FMT "!\n", 
-               pc, current_asid);
+        // printf("ERROR: Couldn't find syscall return at PC=" TARGET_PTR_FMT " ASID=" TARGET_PTR_FMT "!\n", 
+            //    pc, current_asid);
         if (!running_syscalls.empty()) {
-            printf("DEBUG: Current running syscalls:\n");
+            // printf("DEBUG: Current running syscalls:\n");
             for (auto it = running_syscalls.begin(); it != running_syscalls.end(); ++it) {
-                printf("  PC=" TARGET_PTR_FMT " ASID=" TARGET_PTR_FMT " syscall #%d\n", 
-                       it->first.first, it->first.second, it->second.no);
+                // printf("  PC=" TARGET_PTR_FMT " ASID=" TARGET_PTR_FMT " syscall #%d\n", 
+                    //    it->first.first, it->first.second, it->second.no);
             }
         } else {
-            printf("DEBUG: No running syscalls in the map\n");
+            // printf("DEBUG: No running syscalls in the map\n");
         }
     }
 #if defined(SYSCALL_RETURN_DEBUG)
