@@ -11,8 +11,8 @@ ARG BASE_IMAGE
 # Copy dependencies lists into container. We copy them all and then do a mv because
 # we need to transform base_image into a windows compatible filename which we can't
 # do in a COPY command.
-COPY ./dependencies/${BASE_IMAGE/:/_}_base.txt /tmp/base_dep.txt
-COPY ./dependencies/${BASE_IMAGE/:/_}_build.txt /tmp/build_dep.txt
+COPY ./debian/dependencies/${BASE_IMAGE/:/_}_base.txt /tmp/base_dep.txt
+COPY ./debian/dependencies/${BASE_IMAGE/:/_}_build.txt /tmp/build_dep.txt
 
 # install dependencies
 RUN apt-get -qq update && \
