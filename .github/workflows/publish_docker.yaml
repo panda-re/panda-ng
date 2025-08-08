@@ -31,21 +31,60 @@ jobs:
           username: pandare
           password: ${{secrets.pandare_dockerhub}}
       
+      - name: Trust Harbor's self-signed certificate
+        run: |
+          echo "Fetching certificate from registry"
+          openssl s_client -showcerts -connect ${{ secrets.PANDA_ARC_REGISTRY }}:443 < /dev/null 2>/dev/null | openssl x509 -outform PEM | sudo tee /usr/local/share/ca-certificates/harbor.crt > /dev/null
+          sudo update-ca-certificates
+
+      - name: Log in to Rehosting Arc Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.PANDA_ARC_REGISTRY }}
+          username: ${{ secrets.PANDA_ARC_REGISTRY_USER }}
+          password: ${{ secrets.PANDA_ARC_REGISTRY_PASSWORD }}
+      
       - name: Build panda:latest
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6.18.0
         with:
           push: true
+          load: true
           context: ${{ github.workspace }}
-          cache-from: type=registry,ref=pandare/panda-ng-plugins:latest
-          cache-to: type=inline
           tags: |
             pandare/panda-ng-plugins:${{ github.sha }}
             pandare/panda-ng-plugins:${{ steps.version.outputs.v-version }}
             pandare/panda-ng-plugins:latest
+            panda
+          cache-from: |
+            type=registry,ref=${{secrets.PANDA_ARC_REGISTRY}}/pandare/panda-ng-plugins:cache,mode=max
+          cache-to: |
+            type=registry,ref=${{secrets.PANDA_ARC_REGISTRY}}/pandare/panda-ng-plugins:cache,mode=max
+          build-args: |
+            REGISTRY=${{ secrets.PANDA_ARC_REGISTRY }}/proxy
       
+      - name: Build panda packager
+        uses: docker/build-push-action@v6.18.0
+        with:
+          push: true
+          load: true
+          target: packager
+          context: ${{ github.workspace }}
+          tags: |
+            packager
+          cache-from: |
+            type=registry,ref=${{secrets.PANDA_ARC_REGISTRY}}/pandare/panda-ng-plugins:cache,mode=max
+            type=registry,ref=${{secrets.PANDA_ARC_REGISTRY}}/pandare/panda-ng-plugins:packagecache,mode=max
+          cache-to: |
+            type=registry,ref=${{secrets.PANDA_ARC_REGISTRY}}/pandare/panda-ng-plugins:packagecache,mode=max
+          build-args: |
+            REGISTRY=${{ secrets.PANDA_ARC_REGISTRY }}/proxy
+
       - name: Build package
         working-directory: debian
-        run: ./setup.sh Ubuntu 22.04 ${{ steps.version.outputs.version }}
+        run: |
+          docker run --rm -v $(pwd):/out panda bash -c "cp /panda-ng/python/core/dist/pandare2-*.whl /out"
+          docker run --rm -v $(pwd):/out packager bash -c "cp /pandare-plugins.deb /out"
+          mv pandare-plugins.deb pandare-plugins_${version}.deb
       
       - name: Upload wheel and debian packages to release
         uses: softprops/action-gh-release@v2
