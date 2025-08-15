@@ -73,7 +73,7 @@ RUN mkdir /plugins
 # Get dependencies list from base image
 COPY --from=base /tmp/base_dep.txt /tmp
 COPY --from=base /tmp/build_dep.txt /tmp
-COPY --from=panda /panda-ng/build/plugins /plugins
+COPY --from=cleanup_stripped /panda-ng/build/plugins /plugins
 # Set up /package-root with files from panda we'll package
 RUN cd /plugins && rm -rf *.a *.o *.so.p && \
     mkdir -p /package-root/usr/local/lib/panda/panda/plugins && \
