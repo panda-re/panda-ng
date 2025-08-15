@@ -71,6 +71,7 @@ jobs:
             type=registry,ref=${{secrets.PANDA_ARC_REGISTRY}}/pandare/panda-ng-plugins:cache,mode=max
           build-args: |
             REGISTRY=${{ secrets.PANDA_ARC_REGISTRY }}/proxy
+            OVERRIDE_VERSION=${{ steps.version.outputs.version }}
       
       - name: Build panda packager
         uses: docker/build-push-action@v6.18.0
@@ -88,6 +89,7 @@ jobs:
             type=registry,ref=${{secrets.PANDA_ARC_REGISTRY}}/pandare/panda-ng-plugins:packagecache,mode=max
           build-args: |
             REGISTRY=${{ secrets.PANDA_ARC_REGISTRY }}/proxy
+            OVERRIDE_VERSION=${{ steps.version.outputs.version }}
 
       - name: Build panda packager
         uses: docker/build-push-action@v6.18.0
@@ -103,13 +105,14 @@ jobs:
             type=registry,ref=${{secrets.PANDA_ARC_REGISTRY}}/pandare/panda-ng-plugins:packagecache,mode=max
           build-args: |
             REGISTRY=${{ secrets.PANDA_ARC_REGISTRY }}/proxy
+            OVERRIDE_VERSION=${{ steps.version.outputs.version }}
 
       - name: Build package
         working-directory: debian
         run: |
           docker run --rm -v $(pwd):/out pandare/panda-ng-plugins:${{ github.sha }}-cleanup bash -c "cp /panda-ng/python/core/dist/pandare2-*.whl /out"
           docker run --rm -v $(pwd):/out pandare/panda-ng-plugins:${{ github.sha }}-packager bash -c "cp /pandare-plugins.deb /out"
-          mv pandare-plugins.deb pandare-plugins_${version}.deb
+          mv pandare-plugins.deb pandare-plugins_22.04.deb
       
       - name: Upload wheel and debian packages to release
         uses: softprops/action-gh-release@v2
