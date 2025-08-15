@@ -75,12 +75,12 @@ jobs:
       - name: Build panda packager
         uses: docker/build-push-action@v6.18.0
         with:
-          push: true
+          push: false
           load: true
           target: packager
           context: ${{ github.workspace }}
           tags: |
-            packager
+            pandare/panda-ng-plugins:${{ github.sha }}-packager
           cache-from: |
             type=registry,ref=${{secrets.PANDA_ARC_REGISTRY}}/pandare/panda-ng-plugins:cache,mode=max
             type=registry,ref=${{secrets.PANDA_ARC_REGISTRY}}/pandare/panda-ng-plugins:packagecache,mode=max
@@ -92,8 +92,8 @@ jobs:
       - name: Build package
         working-directory: debian
         run: |
-          docker run --rm -v $(pwd):/out panda bash -c "cp /panda-ng/python/core/dist/pandare2-*.whl /out"
-          docker run --rm -v $(pwd):/out packager bash -c "cp /pandare-plugins.deb /out"
+          docker run --rm -v $(pwd):/out pandare/panda-ng-plugins:${{ github.sha }} bash -c "cp /panda-ng/python/core/dist/pandare2-*.whl /out"
+          docker run --rm -v $(pwd):/out pandare/panda-ng-plugins:${{ github.sha }}-packager bash -c "cp /pandare-plugins.deb /out"
           mv pandare-plugins.deb pandare-plugins_${version}.deb
       
       - name: Upload wheel and debian packages to release
