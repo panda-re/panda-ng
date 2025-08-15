@@ -65,7 +65,6 @@ jobs:
             pandare/panda-ng-plugins:${{ github.sha }}
             pandare/panda-ng-plugins:${{ steps.version.outputs.v-version }}
             pandare/panda-ng-plugins:latest
-            panda
           cache-from: |
             type=registry,ref=${{secrets.PANDA_ARC_REGISTRY}}/pandare/panda-ng-plugins:cache,mode=max
           cache-to: |
