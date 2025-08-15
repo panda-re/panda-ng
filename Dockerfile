@@ -80,7 +80,7 @@ RUN cd /plugins && rm -rf *.a *.o *.so.p && \
     cp -r /plugins/* /package-root/usr/local/lib/panda/panda/plugins
 
 # Create DEBIAN directory and control file
-COPY control /package-root/DEBIAN/control
+COPY ./debian/control /package-root/DEBIAN/control
 
 # Update control file with dependencies
 # Build time. We only select dependencies that are not commented out or blank
