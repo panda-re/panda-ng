@@ -68,7 +68,6 @@ RUN apt-get -qq update && \
     DEBIAN_FRONTEND=noninteractive apt-get -qq install -y \
         fakeroot dpkg-dev
 
-
 RUN mkdir /plugins
 # Get dependencies list from base image
 COPY --from=base /tmp/base_dep.txt /tmp
@@ -97,7 +96,5 @@ RUN fakeroot dpkg-deb --build /package-root /pandare-plugins.deb
 # The user can now extract the .deb file from the container with something like
 # docker run --rm -v $(pwd):/out packager bash -c "cp /pandare.deb /out"
 
-
-
-FROM base AS final
+FROM cleanup_stripped AS final
 COPY ./python/examples /panda-ng/python/examples
