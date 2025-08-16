@@ -44,6 +44,13 @@ void unregister_hypercall(uint32_t magic){
 
 bool guest_hypercall(CPUState *cpu) {
     target_ulong magic = panda_get_syscall_arg(cpu, 0);
+#if defined(TARGET_AARCH64)
+    CPUArchState *env = panda_cpu_env(cpu);
+    // For AARCH64 in ARM32 mode we need to use the magic in r7
+    if (env->aarch64 != 0){
+        magic = env->regs[7];
+    }
+#endif
     log("guest_hypercall: magic = %x\n", magic);
     if (hypercalls.find(magic) != hypercalls.end()){
         hypercalls[magic](cpu);
