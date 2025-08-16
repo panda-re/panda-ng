@@ -1034,17 +1034,19 @@ static inline std::string context_map_t_dump(context_map_t &cm) {
  * matches the return address of an executing system call.
  */
 void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
-    auto k = std::make_pair(tb->pc, get_id(cpu));
+    target_ulong current_asid = get_id(cpu);
+    target_ulong pc = (tb->pc == 0) ? panda_current_pc(cpu) : tb->pc;
+    auto k = std::make_pair(pc, current_asid);
     auto ctxi = running_syscalls.find(k);
     [[maybe_unused]] int no = -1;
     if (ctxi == running_syscalls.end()) { [[unlikely]]
-        k = std::make_pair(tb->pc, 0);
+        k = std::make_pair(pc, 0);
         ctxi = running_syscalls.find(k);
     }
     if (ctxi != running_syscalls.end()) {
         syscall_ctx_t *ctx = &ctxi->second; 
         no = ctx->no;
-        profiles[ctx->profile].return_switch(cpu, tb->pc, ctx);
+        profiles[ctx->profile].return_switch(cpu, pc, ctx);
         if (ctx->double_return){
             ctx->double_return = false;
             return;
