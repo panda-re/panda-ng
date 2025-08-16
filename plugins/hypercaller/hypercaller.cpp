@@ -47,7 +47,7 @@ bool guest_hypercall(CPUState *cpu) {
 #if defined(TARGET_AARCH64)
     CPUArchState *env = panda_cpu_env(cpu);
     // For AARCH64 in ARM32 mode we need to use the magic in r7
-    if (env->aarch64 != 0){
+    if (!env->aarch64){
         magic = env->regs[7];
     }
 #endif
