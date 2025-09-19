@@ -60,6 +60,9 @@ RUN cd /panda-ng/python/core && python3 setup.py bdist_wheel
 
 FROM base AS cleanup_stripped
 RUN find /panda-ng/build -name "*.so" -exec strip {} \;
+RUN find /panda-ng/build/plugins -name "*.o" -print0 | xargs -0 rm -f
+# delete large rust artifacts we do not need
+RUN rm -rf /panda-ng/build/plugins/rust
 
 FROM base AS packager
 
