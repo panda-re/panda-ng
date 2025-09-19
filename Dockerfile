@@ -2,7 +2,7 @@
 ARG REGISTRY="docker.io"
 ARG BASE_IMAGE="ubuntu:22.04"
 ARG TARGET_LIST="x86_64-softmmu,i386-softmmu,arm-softmmu,aarch64-softmmu,mips-softmmu,mipsel-softmmu,mips64-softmmu,mips64el-softmmu"
-ARG PANDA_VERSION="pandav0.0.46"
+ARG PANDA_VERSION="pandav0.0.48"
 
 ### BASE IMAGE
 FROM ${REGISTRY}/$BASE_IMAGE AS base
