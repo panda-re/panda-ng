@@ -1,9 +1,10 @@
 # base dependency
+libc6
+libgcc-s1
+libstdc++6
 libglib2.0-0
-libglib2.0-dev
+libpcre3
 libcurl3-gnutls
 
 # osi_linux
-wget
-libcurl4-gnutls-dev
-curl
+libcurl4-gnutls
