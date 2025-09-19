@@ -4,7 +4,6 @@ libgcc-s1
 libstdc++6
 libglib2.0-0
 libpcre3
-libcurl3-gnutls
 
 # osi_linux
-libcurl4-gnutls
+libcurl3-gnutls
