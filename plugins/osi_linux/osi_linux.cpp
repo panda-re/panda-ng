@@ -429,7 +429,9 @@ bool osi_guest_is_ready(CPUState *cpu, void** ret) {
         PPP_REG_CB("syscalls2", on_all_sys_enter, on_first_syscall);
     }
     // Not yet initialized, just set the caller's result buffer to NULL
-    *ret = NULL;
+    if (ret){
+        *ret = NULL;
+    }
     return false;
 }
 
