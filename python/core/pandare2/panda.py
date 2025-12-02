@@ -813,6 +813,9 @@ class Panda():
         '''
         if debug:
             progress ("Unloading plugin %s" % name),
+        # [NEW] Update cache
+        if name == "osi_linux":
+            self._osi_linux_loaded = False
         name_ffi = self.ffi.new("char[]", bytes(name,"utf-8"))
         self.libpanda.panda_unload_plugin_by_name(name_ffi)
 
@@ -825,9 +828,6 @@ class Panda():
         We achieve this by first popping main loop wait and then re-adding it after unloading all other callbacks
         '''
 
-        # [NEW] Update cache
-        if name == "osi_linux":
-            self._osi_linux_loaded = False
         mlw = self.registered_callbacks.pop("__main_loop_wait")
 
         # First unload python plugins, should be safe to do anytime
@@ -932,7 +932,7 @@ class Panda():
             err = self.libpanda.panda_physical_memory_read_external(addr_u, buf_a, length_a)
         else:
             # [OPTIMIZED] Use cached flag instead of re-allocating C strings to check loading status
-            if self._osi_linux_loaded and "osi_linux" in self.plugins:
+            if self._osi_linux_loaded:
                 err = self.plugins["osi_linux"].osi_linux_virtual_memory_read(env, addr_u, buf_a, length_a)
             else:
                 err = self.libpanda.panda_virtual_memory_read_external(env, addr_u, buf_a, length_a)
@@ -1252,7 +1252,7 @@ class Panda():
         Return:
             int: physical address
         '''
-        if self._osi_linux_loaded and "osi_linux" in self.plugins:
+        if self._osi_linux_loaded:
             return self.plugins["osi_linux"].osi_linux_virt_to_phys(cpu, addr)
         else:
             return self.libpanda.panda_virt_to_phys_external(cpu, addr)
