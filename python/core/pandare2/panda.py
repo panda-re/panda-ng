@@ -298,6 +298,7 @@ class Panda():
 
         # main_loop_wait functions and callbacks
         self.main_loop_wait_fnargs = [] # [(fn, args), ...]
+        self._osi_linux_loaded = False
         progress ("Panda args: [" + (" ".join(self.panda_args)) + "]")
     # /__init__
 
@@ -396,6 +397,9 @@ class Panda():
         if not self.raw_monitor and not self.monitor_console.is_connected():
             self.monitor_socket.connect(self.monitor_file)
             self.monitor_console.connect(self.monitor_socket)
+        
+        # [NEW] Check if osi_linux was loaded via command line args and cache result
+        self._osi_linux_loaded = self._plugin_loaded("osi_linux")
 
         # Register __main_loop_wait_callback
         self.register_callback(self.callback.main_loop_wait,
@@ -751,6 +755,9 @@ class Panda():
         Returns:
             None.
         '''
+        # [NEW] Update cache
+        if name == "osi_linux":
+            self._osi_linux_loaded = True
         if debug:
             progress ("Loading plugin %s" % name),
 
@@ -806,6 +813,9 @@ class Panda():
         '''
         if debug:
             progress ("Unloading plugin %s" % name),
+        # [NEW] Update cache
+        if name == "osi_linux":
+            self._osi_linux_loaded = False
         name_ffi = self.ffi.new("char[]", bytes(name,"utf-8"))
         self.libpanda.panda_unload_plugin_by_name(name_ffi)
 
@@ -817,6 +827,7 @@ class Panda():
         
         We achieve this by first popping main loop wait and then re-adding it after unloading all other callbacks
         '''
+
         mlw = self.registered_callbacks.pop("__main_loop_wait")
 
         # First unload python plugins, should be safe to do anytime
@@ -920,7 +931,8 @@ class Panda():
         if physical:
             err = self.libpanda.panda_physical_memory_read_external(addr_u, buf_a, length_a)
         else:
-            if "osi_linux" in self.plugins.keys() or self._plugin_loaded("osi_linux"):
+            # [OPTIMIZED] Use cached flag instead of re-allocating C strings to check loading status
+            if self._osi_linux_loaded:
                 err = self.plugins["osi_linux"].osi_linux_virtual_memory_read(env, addr_u, buf_a, length_a)
             else:
                 err = self.libpanda.panda_virtual_memory_read_external(env, addr_u, buf_a, length_a)
@@ -1240,7 +1252,7 @@ class Panda():
         Return:
             int: physical address
         '''
-        if "osi_linux" in self.plugins.keys() or self._plugin_loaded("osi_linux"):
+        if self._osi_linux_loaded:
             return self.plugins["osi_linux"].osi_linux_virt_to_phys(cpu, addr)
         else:
             return self.libpanda.panda_virt_to_phys_external(cpu, addr)
