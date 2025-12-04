@@ -64,6 +64,7 @@ class Panda():
             libpanda_path=None,
             biospath=None,
             plugin_path=None,
+            hyp_only_mode=False, # do not load low-level callbacks (e.g. block, insn, etc)
             ):
         '''
         Construct a new `Panda` object.  Note that multiple Panda objects cannot coexist in the same Python instance.
@@ -108,6 +109,7 @@ class Panda():
         self.build_dir = None
         self.plugin_path = plugin_path
         self.target = "softmmu"
+        self.hyp_only_mode = hyp_only_mode
 
         self.serial_unconsumed_data = b''
 
@@ -207,9 +209,10 @@ class Panda():
 
         # Setup argv for panda
         self.panda_args = [self.panda]
-        plugin_interface = realpath(pjoin(self.panda, "../contrib/plugins/libpanda_plugin_interface.so"))
-        self.plugin_interface = self.ffi.dlopen(plugin_interface, self.ffi.RTLD_GLOBAL)
-        self.panda_args.extend(["-plugin", plugin_interface])
+        if not self.hyp_only_mode:
+            plugin_interface = realpath(pjoin(self.panda, "../contrib/plugins/libpanda_plugin_interface.so"))
+            self.plugin_interface = self.ffi.dlopen(plugin_interface, self.ffi.RTLD_GLOBAL)
+            self.panda_args.extend(["-plugin", plugin_interface])
 
         if biospath is None:
             possible_biospaths = [
@@ -827,7 +830,6 @@ class Panda():
         
         We achieve this by first popping main loop wait and then re-adding it after unloading all other callbacks
         '''
-
         mlw = self.registered_callbacks.pop("__main_loop_wait")
 
         # First unload python plugins, should be safe to do anytime
