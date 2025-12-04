@@ -64,7 +64,7 @@ class Panda():
             libpanda_path=None,
             biospath=None,
             plugin_path=None,
-            hyp_only_mode=False, # do not load low-level callbacks (e.g. block, insn, etc)
+            load_plugin_interface=True, # load the plugin interface (for low-level callbacks)
             ):
         '''
         Construct a new `Panda` object.  Note that multiple Panda objects cannot coexist in the same Python instance.
@@ -109,7 +109,7 @@ class Panda():
         self.build_dir = None
         self.plugin_path = plugin_path
         self.target = "softmmu"
-        self.hyp_only_mode = hyp_only_mode
+        self.load_plugin_interface = load_plugin_interface
 
         self.serial_unconsumed_data = b''
 
@@ -209,7 +209,7 @@ class Panda():
 
         # Setup argv for panda
         self.panda_args = [self.panda]
-        if not self.hyp_only_mode:
+        if self.load_plugin_interface:
             plugin_interface = realpath(pjoin(self.panda, "../contrib/plugins/libpanda_plugin_interface.so"))
             self.plugin_interface = self.ffi.dlopen(plugin_interface, self.ffi.RTLD_GLOBAL)
             self.panda_args.extend(["-plugin", plugin_interface])
