@@ -4,7 +4,6 @@ import re
 from glob import glob
 from pathlib import Path
 
-plugin_dir = realpath(join(__file__, "../../../plugins"))
 
 def remove_hash_lines(total):
 	return "\n".join([x for x in total.split("\n") if x and not x.startswith("#")])
@@ -76,7 +75,7 @@ def copy_ppp_header(filepath):
 			new_contents.append(line.strip())
 	return "\n".join(new_contents)
 
-def handle_python(arch, total):
+def handle_python(arch, total, plugin_dir):
 	syscalls2_lookup = {
 		"i386": "syscalls_ext_typedefs_x86.h",
 		"x86_64": "syscalls_ext_typedefs_x64.h",
