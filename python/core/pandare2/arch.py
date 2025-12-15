@@ -1012,7 +1012,7 @@ class X86_64Arch(PandaArch):
                 pc &= 0xFFFFFFFF
             return pc
         elif reg.startswith('XMM'):
-            raw_arr = env.xmm_regs[int(reg[3:].rstrip('HLQX'))]
+            raw_arr = env.xmm_regs[int(reg[3:].rstrip('HLQX'))]._b_ZMMReg
             _, endianness, _ = self._determine_bits()
 
             if reg.endswith('lq'):
