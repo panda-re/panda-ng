@@ -263,3 +263,6 @@ Cargo.lock
 
 # ignore the local_packages directory in which a local instance of the pandare package may be found
 local_packages/
+
+# ignore auto-generated pypanda build artifacts
+python/core/pandare2/autogen/
