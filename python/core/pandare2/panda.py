@@ -321,16 +321,18 @@ class Panda():
 
     def get_plugin_path(self):
         if self.plugin_path is None:
-            build_dir = self.get_build_dir()
-            rel_dir = pjoin(*[build_dir, "panda", "plugins"])
+            env_dir = environ.get('PANDA_PLUGIN_DIR', None)
+            if env_dir is not None:
+                if not isdir(env_dir):
+                    raise ValueError(f"Supplied PANDA_PLUGIN_DIR {repr(env_dir)} is not a directory")
+                self.plugin_path = env_dir
+                return self.plugin_path
 
-            if build_dir == "/usr/local/bin/":
-                # Installed - use /usr/local/lib/panda/plugins
-                self.plugin_path = f"/usr/local/lib/panda/{self.arch_name}"
-            elif isdir(rel_dir):
-                self.plugin_path = rel_dir
+            installed_plugin_dir = f"/usr/local/lib/panda/{self.arch_name}"
+            if isdir(installed_plugin_dir):
+                self.plugin_path = installed_plugin_dir
             else:
-                raise ValueError(f"Could not find plugin path. Build dir={build_dir}")
+                raise ValueError(f"Could not find plugin path. Install dir={installed_plugin_dir}")
         return self.plugin_path
 
     def get_build_dir(self):
