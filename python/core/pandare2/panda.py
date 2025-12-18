@@ -335,6 +335,9 @@ class Panda():
 
     def get_build_dir(self):
         if self.build_dir is None:
+            env_dir = environ.get("PANDA_DIR", None)
+            if env_dir is not None:
+                self.build_dir = env_dir
             self.build_dir  = find_build_dir(self.arch_name)
             environ["PANDA_DIR"] = self.build_dir
         return self.build_dir
