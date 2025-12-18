@@ -42,7 +42,7 @@ unordered_map<uint64_t, struct syscall_prototype> syscall_info_table;
 // store the callbacks that are registered before the table is initialized
 vector<struct syscall_hook> preregistered_callbacks;
 
-atomic<ID> id_counter = 0;
+atomic<ID> id_counter{0};
 unordered_map<ID, struct syscall_hook> syscall_hooks;
 
 vector<ID> syscall_all_enter_cbs;
@@ -135,7 +135,7 @@ static bool do_register_syscall(struct syscall_hook *cb){
     return true;
 }
 
-static void register_syscall_cb(struct syscall_hook *cb){
+void register_syscall_cb(struct syscall_hook *cb){
     if (table_initialized){
         do_register_syscall(cb);
     }else{
