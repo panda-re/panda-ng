@@ -55,6 +55,7 @@ def copy_ppp_header(filepath):
 		contents = f.read()
 	subcontents = trim_pypanda(contents)
 	if not subcontents:
+		print('Failed to locate pypanda content in {} bytes from file {}'.format(len(contents), filepath))
 		breakpoint()
 	for line in subcontents.split("\n"):
 		# now add void ppp_add_cb_{cb_name}({cb_name}_t);
@@ -110,6 +111,8 @@ def handle_python(arch, total, plugin_dir):
 		total += copy_ppp_header(join(plugin_dir, pdir))
 	# with open(f"panda_python_{arch}.h","w") as f:
 		# f.write(total)
+	with open(f'pandare2/autogen/_pandare_ffi_{arch}_softmmu.h', 'w') as of:
+		of.write(total)
 	mod = f"pandare2.autogen._pandare_ffi_{arch}_softmmu"
 	ffibuilder.set_source(mod, None)
 	ffibuilder.cdef(total, override=True)
