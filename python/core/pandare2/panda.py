@@ -8,6 +8,8 @@ if version_info[0] < 3:
     print("Please run with Python 3!")
     exit(0)
 
+import platform
+
 import socket
 import select
 import threading
@@ -94,6 +96,14 @@ class Panda():
         Returns:
             Panda: the created panda object
         '''
+        platform_dll_extensions = {
+            'Darwin': 'dylib',
+            'Linux': 'so',
+            #'Windows': 'dll',
+        }
+        self.dll_extension = platform_dll_extensions.get(platform.system(), None)
+        if self.dll_extension is None:
+            raise Exception(f"Unsupported System {platform.system()}: expected one of {platform_dll_extensions.keys()}")
         self.arch_name = arch
         self.mem = mem
         self.os = os_version
@@ -175,14 +185,17 @@ class Panda():
             print("here")
         else:
             build_dir = self.get_build_dir()
-            lib_paths = ["libpanda-{0}.so".format(self.arch_name), "libpanda-{0}-{1}.so".format(self.arch_name, self.target)]
-            # Select the first path that exists - we'll have libpanda-{arch}.so for a system install versus arch-softmmu/libpanda-arch.so for a build
+            lib_paths = [
+                f"libpanda-{self.arch_name}.{self.dll_extension}",
+                f"libpanda-{self.arch_name}-{self.target}.{self.dll_extension}",
+            ]
+            # Select the first path that exists - we'll have libpanda-{arch}.{ext} for a system install versus arch-softmmu/libpanda-arch.{ext} for a build
             for p in lib_paths:
                 if isfile(pjoin(build_dir, p)):
                     self.libpanda_path = pjoin(build_dir, p)
                     break
             else:
-                raise RuntimeError("Couldn't find libpanda-{0}.so in {1} (in either root or {0}-libpanda directory)".format(self.arch_name, build_dir))
+                raise RuntimeError("Couldn't find libpanda-{0}.{2} in {1} (in either root or {0}-libpanda directory)".format(self.arch_name, build_dir, self.dll_extension))
 
         self.panda = self.libpanda_path # Necessary for realpath to work inside core-panda, may cause issues?
 
@@ -211,7 +224,7 @@ class Panda():
         # Setup argv for panda
         self.panda_args = [self.panda]
         if self.load_plugin_interface:
-            plugin_interface = realpath(pjoin(self.panda, "../contrib/plugins/libpanda_plugin_interface.so"))
+            plugin_interface = realpath(pjoin(self.panda, f"../contrib/plugins/libpanda_plugin_interface.{self.dll_extension}"))
             self.plugin_interface = self.ffi.dlopen(plugin_interface, self.ffi.RTLD_GLOBAL)
             self.panda_args.extend(["-plugin", plugin_interface])
 
@@ -1046,9 +1059,7 @@ class Panda():
             libpanda_path_chr = self.ffi.new("char[]",bytes(self.libpanda_path, "UTF-8"))
             self.__did_load_libpanda = self.libpanda.panda_load_libpanda(libpanda_path_chr)
         if not name in self.plugins.keys():
-            plugin = pjoin(*[self.get_plugin_path(), f"libpanda-{name}_{self.arch_name}-{self.target}.so"])
-            if not isfile(plugin) and hasattr(self,"plugin_path"):
-                plugin = pjoin(*[self.plugin_path, f"libpanda-{name}_{self.arch_name}-{self.target}.so"])
+            plugin = pjoin(*[self.get_plugin_path(), f"libpanda-{name}_{self.arch_name}-{self.target}.{self.dll_extension}"])
             assert(isfile(plugin))
             self.plugins[name] = self.ffi.dlopen(plugin)
 

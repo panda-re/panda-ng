@@ -16,6 +16,8 @@ from os.path import realpath, isfile, dirname, join as pjoin
 # for rr2 format
 import  tarfile
 
+import platform
+
 # Set to enable pypanda debugging
 debug = False
 
@@ -180,6 +182,15 @@ def _find_build_dir(arch_name, find_executable=False, mode="softmmu"):
     Internal function to return the build directory for the specified architecture
     '''
 
+    platform_dll_extensions = {
+        'Darwin': 'dylib',
+        'Linux': 'so',
+        #'Windows': 'dll',
+    }
+    dll_extension = platform_dll_extensions.get(platform.system(), None)
+    if dll_extension is None:
+        raise Exception(f"Unsupported System {platform.system()}: expected one of {platform_dll_extensions.keys()}")
+
     system_build = "/usr/local/bin/"
     python_package = pjoin(*[dirname(__file__), "data"])
     local_build = realpath(pjoin(dirname(__file__), "../../../build/plugins"))
@@ -188,9 +199,9 @@ def _find_build_dir(arch_name, find_executable=False, mode="softmmu"):
 
     arch_dir = f"{arch_name}-softmmu"
     file_name = f"panda-system-{arch_name}" if find_executable else \
-                f"libpanda-{arch_name}-{mode}.so"
+                f"libpanda-{arch_name}-{mode}.{dll_extension}"
 
-    # system path could have panda-system-X or libpanda-X.so. Others would have an arch_name - softmmu directory
+    # system path could have panda-system-X or libpanda-X.[ext]. Others would have an arch_name - softmmu directory
     pot_paths = [system_build,
                  pjoin(python_package, arch_dir),
                  pjoin(local_build),
@@ -221,7 +232,7 @@ def _find_build_dir(arch_name, find_executable=False, mode="softmmu"):
 def find_build_dir(arch_name=None, find_executable=False, mode="softmmu"):
     '''
     Find directory containing the binaries we care about (i.e., ~git/panda/build). If
-    find_executable is False, we're looking for [arch]-softmmu/libpanda-[arch].so. If
+    find_executable is False, we're looking for [arch]-softmmu/libpanda-[arch].[ext]. If
     find_executable is True, we're looking for [arch]-softmmu/panda-system-[arch] and we'll return
     the parent dir of the executable (i.e., ~/git/panda/build/x86_64-softmmu/)
 
