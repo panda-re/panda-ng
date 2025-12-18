@@ -1,4 +1,5 @@
 project('panda', ['c', 'cpp'],
+        default_options: ['c_std=gnu11', 'cpp_std=gnu++11'],
         meson_version: '>=1.6.1'
         )
 
