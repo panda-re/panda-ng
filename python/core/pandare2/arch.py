@@ -813,6 +813,7 @@ class PowerPCArch(PandaArch):
         self.reg_sp = regnames.index('sp')
         self.registers = {regnames[idx].upper(): idx for idx in range(len(regnames)) }
         self.registers_crf = ["CR0", "CR1", "CR2", "CR3", "CR4", "CR5", "CR6", "CR7"]
+        self.registers_spr = None
         self.call_conventions = {'sysv':           ['r3', 'r4', 'r5', 'r6', 'r7', 'r8'],
                                  'syscall': ['r0', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9']}
         self.call_conventions['default'] = self.call_conventions['syscall']
@@ -854,6 +855,17 @@ class PowerPCArch(PandaArch):
             return env.ctr
         elif reg in self.registers_crf: 
             return env.crf[self.registers_crf.index(reg)]
+        elif self.registers_spr is None:
+            self.registers_spr = {}
+            for idx, spr_cb in enumerate(env.spr_cb):
+                if spr_cb.name:
+                    pystr = self.panda.ffi.string(spr_cb.name).decode('utf-8')
+                    self.registers_spr['SPR_' + pystr] = idx
+            print(self.registers_spr)
+            if reg in self.registers_spr.keys():
+                return env.spr[self.registers_spr[reg]]
+        elif reg in self.registers_spr.keys():
+            return env.spr[self.registers_spr[reg]]
         else:
             return super().get_reg(cpu, reg)
 
@@ -868,6 +880,17 @@ class PowerPCArch(PandaArch):
             env.ctr = val
         elif reg in self.registers_crf: 
             env.crf[self.registers_crf.index(reg)] = val
+        elif self.registers_spr is None:
+            self.registers_spr = {}
+            for idx, spr_cb in enumerate(env.spr_cb):
+                if spr_cb.name:
+                    pystr = self.panda.ffi.string(spr_cb.name).decode('utf-8')
+                    self.registers_spr['SPR_' + pystr] = idx
+            print(self.registers_spr)
+            if reg in self.registers_spr.keys():
+                env.spr[self.registers_spr[reg]] = val
+        elif reg in self.registers_spr.keys():
+            env.spr[self.registers_spr[reg]] = val
         else:
             super().set_reg(cpu, reg, val)
 
