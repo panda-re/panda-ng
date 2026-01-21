@@ -1,0 +1,62 @@
+{
+  "nodes": {
+    "libpanda-ng-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1761870394,
+        "narHash": "sha256-3QPRa+4D3H6XQguarHDiQtGDWEuI1xH1D8L5u/SxNIY=",
+        "owner": "rehostingdev",
+        "repo": "libpanda-ng",
+        "rev": "1cf935120c6109c2983496279325a00e4b7980cc",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rehostingdev",
+        "ref": "fixes",
+        "repo": "libpanda-ng",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1761373498,
+        "narHash": "sha256-Q/uhWNvd7V7k1H1ZPMy/vkx3F8C13ZcdrKjO7Jv7v0c=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "6a08e6bb4e46ff7fcbb53d409b253f6bad8a28ce",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "panda-qemu-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1758307754,
+        "narHash": "sha256-G48u019olYD9koAW/NdQZ7m95W4vKD434xGmzBvhxSo=",
+        "owner": "panda-re",
+        "repo": "qemu",
+        "rev": "ce5cb7c6aa10286912f559ccc598f8eba2042935",
+        "type": "github"
+      },
+      "original": {
+        "owner": "panda-re",
+        "repo": "qemu",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "libpanda-ng-src": "libpanda-ng-src",
+        "nixpkgs": "nixpkgs",
+        "panda-qemu-src": "panda-qemu-src"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
