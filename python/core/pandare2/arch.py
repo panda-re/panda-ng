@@ -853,6 +853,8 @@ class PowerPCArch(PandaArch):
             return env.lr
         elif reg == "CTR": 
             return env.ctr
+        elif reg == 'MSR':
+            return env.msr
         elif reg in self.registers_crf: 
             return env.crf[self.registers_crf.index(reg)]
         elif self.registers_spr is None:
@@ -878,6 +880,8 @@ class PowerPCArch(PandaArch):
             env.lr = val
         elif reg == "CTR":
             env.ctr = val
+        elif reg == "MSR":
+            self.panda.ppc_store_msr(env, val)
         elif reg in self.registers_crf: 
             env.crf[self.registers_crf.index(reg)] = val
         elif self.registers_spr is None:
