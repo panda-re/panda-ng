@@ -3,7 +3,18 @@
 Misc helper functions
 '''
 
-from colorama import Fore, Style
+# colorama was ever only used here to reference ANSI color sequences.
+# It's primary purpose is actually to automagically wrap Windows terminal
+# I/O and manage ANSI conversion, which we have never actually initialized.
+# Dropping the dependency and defining the used ANSI escape sequences here.
+class Fore(object):
+    GREEN = '\033[32m'
+    RED = '\033[31m'
+    RESET = '\033[39m'
+class Style(object):
+    BRIGHT = '\033[1m'
+    RESET_ALL = '\033[0m'
+
 from functools import wraps
 from os import devnull
 from subprocess import check_call, STDOUT
