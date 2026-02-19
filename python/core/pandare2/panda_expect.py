@@ -8,7 +8,6 @@ import string
 
 from time import monotonic
 from errno import EAGAIN, EWOULDBLOCK
-from colorama import Fore, Style
 
 class TimeoutExpired(Exception): pass
 

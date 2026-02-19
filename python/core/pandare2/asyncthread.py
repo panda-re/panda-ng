@@ -7,12 +7,7 @@ import threading
 import functools
 from queue import Queue, Empty
 from time import sleep, time
-from colorama import Fore, Style
 from pandare2.utils import debug, warn
-
-
-def progress(msg):
-    print(Fore.CYAN + '[asyncthread.py] ' + Fore.RESET + Style.BRIGHT + msg +Style.RESET_ALL)
 
 class AsyncThread:
     """
