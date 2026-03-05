@@ -876,6 +876,13 @@ class PowerPCArch(PandaArch):
         reg = reg.upper()
         env = self.cpu_env(cpu)
 
+        if self.registers_spr is None:
+            self.registers_spr = {}
+            for idx, spr_cb in enumerate(env.spr_cb):
+                if spr_cb.name:
+                    pystr = self.panda.ffi.string(spr_cb.name).decode('utf-8')
+                    self.registers_spr['SPR_' + pystr] = idx
+
         if reg == "LR": 
             env.lr = val
         elif reg == "CTR":
@@ -884,15 +891,6 @@ class PowerPCArch(PandaArch):
             self.panda.ppc_store_msr(env, val)
         elif reg in self.registers_crf: 
             env.crf[self.registers_crf.index(reg)] = val
-        elif self.registers_spr is None:
-            self.registers_spr = {}
-            for idx, spr_cb in enumerate(env.spr_cb):
-                if spr_cb.name:
-                    pystr = self.panda.ffi.string(spr_cb.name).decode('utf-8')
-                    self.registers_spr['SPR_' + pystr] = idx
-            print(self.registers_spr)
-            if reg in self.registers_spr.keys():
-                env.spr[self.registers_spr[reg]] = val
         elif reg in self.registers_spr.keys():
             env.spr[self.registers_spr[reg]] = val
         else:
