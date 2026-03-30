@@ -26,7 +26,9 @@ RUN pip3 install meson pycparser
 ARG PANDA_VERSION
 RUN wget -O /tmp/pandare.deb \
     https://github.com/panda-re/qemu/releases/download/${PANDA_VERSION}/pandare_22.04.deb && \
-    apt install -yy -f /tmp/pandare.deb
+    apt-get -qq update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -yy --fix-missing -f /tmp/pandare.deb && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN mkdir /panda-ng
 COPY meson.build /panda-ng
