@@ -72,6 +72,12 @@ void sysinfo_load_profile(int profile, syscall_info_t **syscall_info, syscall_me
 #if defined(TARGET_MIPS) && !defined(TARGET_MIPS64)
 #include "syscalls_ext_typedefs_mips.h"
 #endif
+#if defined(TARGET_PPC)
+#include "syscalls_ext_typedefs_ppc.h"
+#endif
+#if defined(TARGET_PPC) && defined(TARGET_PPC64)
+#include "syscalls_ext_typedefs_ppc64.h"
+#endif
 
 // WIP - How can we expose these to pypanda given that they need syscall_ctx which dependes on #DEFINES
 // BEGIN_PYPANDA_NEEDS_THIS -- do not delete this comment bc pypanda

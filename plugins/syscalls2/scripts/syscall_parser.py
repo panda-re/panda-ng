@@ -89,6 +89,21 @@ KNOWN_ARCH = {
         'rt_sp_reg': 'env->active_tc.gpr[29]',    # register holding stack pointer at runtime ($sp)
         'qemu_target': 'defined(TARGET_MIPS) && !defined(TARGET_MIPS64)',    # qemu target name for this arch - used in guards
         'runner_target': 'defined(TARGET_MIPS)',    # alternative target if another arch could be used
+    },
+    'ppc': {
+        'bits': 32,
+        'rt_callno_reg': 'env->gpr[0]',         # register holding syscall number at runtime
+        'rt_sp_reg': 'env->gpr[1]',             # register holding stack pointer at runtime
+        'qemu_target': 'defined(TARGET_PPC) && !defined(TARGET_PPC64)',  # qemu target name for this arch - used in guards
+        'boilerplate_target': 'defined(TARGET_PPC)',
+        'typedef_guard': 'defined(TARGET_PPC)',
+        'runner_target': 'defined(TARGET_PPC)',
+    },
+    'ppc64': {
+        'bits': 64,
+        'rt_callno_reg': 'env->gpr[0]',         # register holding syscall number at runtime
+        'rt_sp_reg': 'env->gpr[1]',             # register holding stack pointer at runtime
+        'qemu_target': 'defined(TARGET_PPC) && defined(TARGET_PPC64)',   # qemu target name for this arch - used in guards
     }
 }
 

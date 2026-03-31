@@ -6,6 +6,7 @@
 ./syscall_parser.py --generate-info \
 	--context-target ../generated-in/context_target.json \
 	-t linux:arm -t linux:arm64 -t linux:x86 -t linux:x64 -t linux:mips -t linux:mips64n32 -t linux:mips64 \
+	-t linux:ppc -t linux:ppc64 \
 	-t windows_2000:x86 -t windows_xpsp2:x86 -t windows_xpsp3:x86 -t windows_7:x86 \
 	-t windows_7:x64 -t freebsd:x64
 

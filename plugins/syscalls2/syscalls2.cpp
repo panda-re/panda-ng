@@ -72,6 +72,7 @@ target_long get_return_val_x86(CPUState *cpu);
 target_long get_return_val_x64(CPUState *cpu);
 target_long get_return_val_arm(CPUState *cpu);
 target_long get_return_val_mips(CPUState *cpu);
+target_long get_return_val_ppc(CPUState *cpu);
 uint32_t get_return_32_windows_x86(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint32_t get_return_32_windows_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint64_t get_return_64_windows_x86(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
@@ -80,12 +81,14 @@ uint64_t get_64_linux_x86(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint64_t get_64_linux_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint64_t get_64_linux_arm(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint64_t get_64_linux_mips(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
+uint64_t get_64_linux_ppc(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint64_t get_64_windows_x86(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint64_t get_64_windows_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint32_t get_32_linux_x86(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint32_t get_32_linux_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint32_t get_32_linux_arm(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint32_t get_32_linux_mips(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
+uint32_t get_32_linux_ppc(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint32_t get_32_windows_x86(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint32_t get_32_windows_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 target_ulong calc_retaddr_windows_x86(CPUState *cpu, target_ulong pc);
@@ -95,6 +98,7 @@ target_ulong calc_retaddr_linux_x86_int80(CPUState *cpu, target_ulong pc);
 target_ulong calc_retaddr_linux_x64(CPUState *cpu, target_ulong pc);
 target_ulong calc_retaddr_linux_arm(CPUState *cpu, target_ulong pc);
 target_ulong calc_retaddr_linux_mips(CPUState *cpu, target_ulong pc); // TODO
+target_ulong calc_retaddr_linux_ppc(CPUState *cpu, target_ulong pc);
 
 void syscall_enter_linux_mips64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
 void syscall_return_linux_mips64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
@@ -357,6 +361,40 @@ Profile profiles[PROFILE_LAST] = {
         .windows_return_addr_register = -1,
         .windows_arg_offset = -1,
         .syscall_interrupt_number = 0x80,
+    },
+    {   /* PROFILE_LINUX_PPC */
+        .enter_switch = syscall_enter_switch_linux_ppc,
+        .return_switch = syscall_return_switch_linux_ppc,
+        .get_return_val = get_return_val_ppc,
+        .calc_retaddr = calc_retaddr_linux_ppc,
+        .get_32 = get_32_linux_ppc,
+        .get_s32 = get_s32_generic,
+        .get_64 = get_64_linux_ppc,
+        .get_s64 = get_s64_generic,
+        .get_return_32 = get_32_linux_ppc,
+        .get_return_s32 = get_return_s32_generic,
+        .get_return_64 = get_64_linux_ppc,
+        .get_return_s64 = get_return_s64_generic,
+        .windows_return_addr_register = -1,
+        .windows_arg_offset = -1,
+        .syscall_interrupt_number = 0x0,
+    },
+    {   /* PROFILE_LINUX_PPC64 */
+        .enter_switch = syscall_enter_switch_linux_ppc64,
+        .return_switch = syscall_return_switch_linux_ppc64,
+        .get_return_val = get_return_val_ppc,
+        .calc_retaddr = calc_retaddr_linux_ppc,
+        .get_32 = get_32_linux_ppc,
+        .get_s32 = get_s32_generic,
+        .get_64 = get_64_linux_ppc,
+        .get_s64 = get_s64_generic,
+        .get_return_32 = get_32_linux_ppc,
+        .get_return_s32 = get_return_s32_generic,
+        .get_return_64 = get_64_linux_ppc,
+        .get_return_s64 = get_return_s64_generic,
+        .windows_return_addr_register = -1,
+        .windows_arg_offset = -1,
+        .syscall_interrupt_number = 0x0,
     }
 };
 
@@ -367,7 +405,7 @@ bool load_info = false;
 target_long get_return_val_x86(CPUState *cpu){
 #if defined(TARGET_I386)
     // this should work for X86_64 as well, as PANDA uses R_EAX to access RAX
-	// and target_ulong changes size based on the target
+    // and target_ulong changes size based on the target
     CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     return static_cast<target_long>(env->regs[R_EAX]);
 #endif
@@ -401,6 +439,14 @@ target_long get_return_val_mips(CPUState *cpu){
     // See: https://www.linux-mips.org/wiki/Syscall
     CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     return static_cast<target_long>(env->active_tc.gpr[2]);
+#endif
+    return 0;
+}
+
+target_long get_return_val_ppc(CPUState *cpu){
+#if defined(TARGET_PPC)
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
+    return static_cast<target_long>(env->gpr[3]); // r3 holds return value
 #endif
     return 0;
 }
@@ -543,6 +589,16 @@ target_ulong calc_retaddr_linux_mips(CPUState* cpu, target_ulong pc) {
     // PC to return to after exceptions. But then we tested it and
     // that was incorrect.
     return pc +  4;
+#else
+    // shouldnt happen
+    assert (1==0);
+#endif
+}
+
+target_ulong calc_retaddr_linux_ppc(CPUState* cpu, target_ulong pc) {
+#if defined(TARGET_PPC)
+    // We use PC+4 to grab the instruction after the syscall
+    return pc + 4;
 #else
     // shouldnt happen
     assert (1==0);
@@ -695,6 +751,16 @@ uint32_t get_32_linux_mips (CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 #endif
 }
 
+uint32_t get_32_linux_ppc (CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
+#ifdef TARGET_PPC
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
+    assert (argnum < 8);
+    return (uint32_t) (env->gpr[3 + argnum] & 0xFFFFFFFF);
+#else
+    return 0;
+#endif
+}
+
 uint32_t get_32_windows_x86 (CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
     return (uint32_t) get_win_syscall_arg(cpu, ctx, argnum);
 }
@@ -767,6 +833,21 @@ uint64_t get_64_linux_mips(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
     assert (argnum < 8);
     CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     return (uint64_t) env->active_tc.gpr[argnum+4];
+#else
+    return 0;
+#endif
+}
+
+uint64_t get_64_linux_ppc(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
+#ifdef TARGET_PPC
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
+#if defined(TARGET_PPC64)
+    assert (argnum < 8);
+    return (uint64_t) env->gpr[3 + argnum];
+#else
+    assert (argnum < 7);
+    return (((uint64_t) env->gpr[3 + argnum]) << 32) | (uint32_t)(env->gpr[3 + argnum + 1]);
+#endif
 #else
     return 0;
 #endif
@@ -925,6 +1006,16 @@ void sysinfo_load(int profile){
         arch = "mips64";
     }else if (profile == PROFILE_LINUX_MIPS64N32){
         arch = "mips64n32";
+    }
+#endif
+
+#elif defined(TARGET_PPC)
+    arch = "ppc";
+
+// ppc64 logic
+#if defined(TARGET_PPC64)
+    if (profile == PROFILE_LINUX_PPC64) {
+        arch = "ppc64";
     }
 #endif
 #else
@@ -1178,6 +1269,15 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, i
     return 0;
 
 #elif defined(TARGET_PPC)
+    // PowerPC sc instruction is 0x44000002
+    #if TARGET_BIG_ENDIAN == 1
+        if (buf[0] == 0x44 && buf[1] == 0x00 && buf[2] == 0x00 && buf[3] == 0x02)
+            return pc;
+    #else
+        if (buf[3] == 0x44 && buf[2] == 0x00 && buf[1] == 0x00 && buf[0] == 0x02)
+            return pc;
+    #endif
+
     return 0;
 #else
     return 0; // helpful as a catchall for other architectures
@@ -1221,6 +1321,15 @@ void syscall_callback(unsigned int vcpu_index, void *sysinfo){
     assert(vcpu_index < sizeof(per_guest_cpu_syscall_info_map)/sizeof(per_guest_cpu_syscall_info_map[0]));
     enum ProfileType profile = per_guest_cpu_syscall_info_map[vcpu_index][pc].profile;
     int callno = per_guest_cpu_syscall_info_map[vcpu_index][pc].callno;
+#if defined(TARGET_PPC) && defined(TARGET_PPC64)
+    CPUArchState *env_ppc = (CPUArchState *)panda_cpu_env(cpu);
+    // Check MSR_SF (bit 63) to see if we're in 64-bit mode. If not, it's a 32-bit syscall.
+    if (!(env_ppc->msr & (1ULL << 63))) {
+        profile = PROFILE_LINUX_PPC;
+    } else {
+        profile = PROFILE_LINUX_PPC64;
+    }
+#endif
 #if defined(TARGET_I386) && defined(TARGET_X86_64)
 #define MSR_EFER_SCE   (1 << 0)
 #define MSR_EFER_LMA   (1 << 10)
@@ -1310,7 +1419,7 @@ const syscall_meta_t *get_syscall_meta(void) {
 /* ### Plugin bootstrapping ############################################# */
 bool init_plugin(void *self) {
 // Don't bother if we're not on a supported target
-#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_MIPS)
+#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_MIPS) || defined(TARGET_PPC)
     panda_arg_list *plugin_args = panda_get_args(PLUGIN_NAME);
 
     // Unused in some architectures
@@ -1350,6 +1459,16 @@ bool init_plugin(void *self) {
 #else
         std::cerr << PANDA_MSG "using profile for linux mips32" << std::endl;
         default_profile = PROFILE_LINUX_MIPS32;
+#endif
+#endif
+
+#if defined(TARGET_PPC)
+#if !defined(TARGET_PPC64)
+        std::cerr << PANDA_MSG "using profile for linux ppc" << std::endl;
+        default_profile = PROFILE_LINUX_PPC;
+#else
+        std::cerr << PANDA_MSG "using profile for linux ppc64" << std::endl;
+        default_profile = PROFILE_LINUX_PPC64;
 #endif
 #endif
     } else if (panda_os_familyno == OS_WINDOWS) {
@@ -1407,6 +1526,10 @@ bool init_plugin(void *self) {
     // load system call info
     if (panda_parse_bool_opt(plugin_args, "load-info", "Load systemcall information for the selected os.")) {
         load_info = true;
+#if defined(TARGET_PPC) && defined(TARGET_PPC64)
+        // Ensure the 32-bit profile info is loaded, as we may drop into 32-bit compat mode
+        sysinfo_load(PROFILE_LINUX_PPC);
+#endif
     }
 
 #if defined(SYSCALL_RETURN_DEBUG)
@@ -1423,10 +1546,10 @@ bool init_plugin(void *self) {
 		hooks = panda_get_plugin_by_name("hooks");
 	}
     hooks_add_hook = (void(*)(struct hook*)) dlsym(hooks, "add_hook");
-#elif defined(TARGET_PPC) || defined(TARGET_RISCV64) || defined(TARGET_RISCV32) || defined(TARGET_LOONGARCH)
+#elif defined(TARGET_RISCV64) || defined(TARGET_RISCV32) || defined(TARGET_LOONGARCH)
     fprintf(stderr,"The syscalls plugin is not currently supported on this platform.\n");
     return false;
-#else //not x86/arm/mips
+#else //not x86/arm/mips/ppc
     #error
     fprintf(stderr,"The syscalls plugin is not currently supported on this platform.\n");
     return false;
