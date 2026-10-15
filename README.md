@@ -21,6 +21,7 @@ scripts/verify-series.sh    THE GATE
 scripts/import-series.sh    tarball + series -> a dev git tree
 scripts/export-series.sh    dev git tree -> the committed series
 scripts/probe-versions.sh   portability report across upstream refs
+tests/guest/             the guest harness for the pagein and syscall-engine sources (not in CI)
 ```
 
 ## The invariant that makes this work
