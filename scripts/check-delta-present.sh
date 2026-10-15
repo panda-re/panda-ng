@@ -34,10 +34,30 @@ CORE_SYMS=(
     penguin_handle_qmp
     penguin_invoke_reset_request_callback
 )
+# The pagein/syscall-engine sources (src/system/penguin-syscalls.c, penguin-osi.c,
+# syscall-trap.c, accel/tcg/hooks.c) and the plugin API patches: target-independent
+# system code, so in EVERY system library.
+ENGINE_SYMS=(
+    set_penguin_syscall_callback
+    penguin_syscall_register
+    penguin_syscall_set_exec
+    penguin_osi_set_layout
+    syscall_trap_enter
+    syscall_trap_return
+    qemu_plugin_hook_insert
+    qemu_plugin_register_ptr
+    qemu_plugin_read_memory_vaddr_fault
+    qemu_plugin_access_memory_vaddr_fault
+    qemu_plugin_register_syscall_event_cb
+)
+# The syscall trap's target patches: only x86 and arm report syscalls so far.
+X86_TRAP_SYM=x86_sc_return
+ARM_TRAP_SYM=arm_sc_key
 TCG_SYM=helper_penguin_guest_hypercall   # every target EXCEPT x86
 IOPORT_STR=penguin-hypercall             # x86 only: the port-0x88 MemoryRegion name
 
 is_x86() { case "$1" in x86_64|intel64) return 0 ;; *) return 1 ;; esac; }
+is_arm() { case "$1" in aarch64|arm|armel) return 0 ;; *) return 1 ;; esac; }
 
 shopt -s nullglob
 libs=("$OUT"/lib/libqemu-system-*.so)
@@ -50,9 +70,15 @@ for lib in "${libs[@]}"; do
     syms=$(nm -D --defined-only "$lib" 2>/dev/null | awk '{print $NF}')
     missing=()
 
-    for s in "${CORE_SYMS[@]}"; do
+    for s in "${CORE_SYMS[@]}" "${ENGINE_SYMS[@]}"; do
         grep -qx "$s" <<<"$syms" || missing+=("$s")
     done
+    trap=-
+    if is_x86 "$arch"; then
+        grep -qx "$X86_TRAP_SYM" <<<"$syms" || missing+=("$X86_TRAP_SYM"); trap=x86
+    elif is_arm "$arch"; then
+        grep -qx "$ARM_TRAP_SYM" <<<"$syms" || missing+=("$ARM_TRAP_SYM"); trap=arm
+    fi
 
     if is_x86 "$arch"; then
         grep -q "$IOPORT_STR" <(strings "$lib") || missing+=("<string:$IOPORT_STR>")
@@ -63,7 +89,7 @@ for lib in "${libs[@]}"; do
     fi
 
     if [ ${#missing[@]} -eq 0 ]; then
-        echo "  ok    $name [$path] ($(grep -ci penguin <<<"$syms") penguin symbols)"
+        echo "  ok    $name [$path, trap $trap] ($(grep -ci penguin <<<"$syms") penguin symbols)"
     else
         echo "  FAIL  $name [$path] missing: ${missing[*]}" >&2
         rc=1
