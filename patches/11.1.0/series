@@ -10,3 +10,12 @@
 11.1.0/0010-penguin-snapshot-ABI-and-a-migratable-vhost-user-vso.patch
 11.1.0/0011-penguin-reset-request-and-QMP-command-callbacks.patch
 11.1.0/0012-hw-mips-malta-enlarge-the-prom-env-slot-so-the-cmdli.patch
+11.1.0/0013-plugins-qemu_plugin_read_memory_vaddr_fault-page-in-.patch
+11.1.0/0014-plugins-target-arm-a-user-access-window-DACR-for-fau.patch
+11.1.0/0015-plugins-faulting-writes-uaccess-fault-index-ppc-risc.patch
+11.1.0/0016-plugins-kvm-x86-faulting-accesses-and-breakpoint-cal.patch
+11.1.0/0017-plugins-batched-faulting-accesses-qemu_plugin_access.patch
+11.1.0/0018-accel-tcg-translation-time-address-hooks-and-registe.patch
+11.1.0/0019-system-target-i386-target-arm-the-syscall-trap.patch
+11.1.0/0020-plugins-address-hooks-register-pointers-TLB-first-re.patch
+11.1.0/0021-system-build-the-penguin-syscall-engine-and-host-sid.patch

@@ -1,0 +1,374 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 7 Oct 2026 11:37:04 -0400
+Subject: [PATCH] plugins: qemu_plugin_read_memory_vaddr_fault, page-in reads
+ at a hook
+
+Add a plugin API that reads guest virtual memory and, on a miss, raises the
+architectural fault a load at the instrumented instruction would take, so
+the guest pages the address in and re-runs the callback at the same PC.
+
+- RW_REGS_PC callbacks are entered through a trampoline that records the
+  host return address into the TB (cpu->neg.plugin_cb_ra), so the API can
+  unwind to the instruction start with cpu_restore_state semantics.
+- TCGCPUOps.user_mmu_index (x86, arm, mips) to translate as an
+  unprivileged access (LDTR / CPL3), needed under SMAP/PAN.
+- Never reads non-RAM (MMIO) pages.
+---
+ include/accel/tcg/cpu-ops.h   |  6 +++
+ include/hw/core/cpu.h         |  1 +
+ include/plugins/qemu-plugin.h | 51 ++++++++++++++++++++++++
+ plugins/api-system.c          | 73 +++++++++++++++++++++++++++++++++++
+ plugins/api-user.c            |  8 ++++
+ plugins/core.c                | 61 +++++++++++++++++++++++++++++
+ target/arm/cpu.c              |  6 +++
+ target/i386/tcg/tcg-cpu.c     |  6 +++
+ target/mips/cpu.c             |  6 +++
+ 9 files changed, 218 insertions(+)
+
+diff --git a/include/accel/tcg/cpu-ops.h b/include/accel/tcg/cpu-ops.h
+index 3ff6e6810e0e4c28e29fe772882799a7937405c3..9e5fbef4cc89ad394cb3c74b7d51f0cfde65e3b5 100644
+--- a/include/accel/tcg/cpu-ops.h
++++ b/include/accel/tcg/cpu-ops.h
+@@ -103,6 +103,12 @@ struct TCGCPUOps {
+ 
+     /** @mmu_index: Callback for choosing softmmu mmu index */
+     int (*mmu_index)(CPUState *cpu, bool ifetch);
++    /**
++     * @user_mmu_index: Callback for the mmu index an unprivileged
++     * (user-mode) data access would use from the current CPU state,
++     * e.g. what AArch64 LDTR or x86 CPL3 uses.  Optional.
++     */
++    int (*user_mmu_index)(CPUState *cpu);
+ 
+ #ifdef CONFIG_USER_ONLY
+     /**
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index b54035fb13b22a530692186b0afbe2718f1fb8b8..66a1bb43c0044c3b67362e1571ab7794e4fc6d35 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -370,6 +370,7 @@ typedef struct CPUNegativeOffsetState {
+     uint64_t plugin_mem_value_low;
+     uint64_t plugin_mem_value_high;
+     int32_t plugin_cb_flags;
++    uintptr_t plugin_cb_ra;
+ #endif
+     IcountDecr icount_decr;
+     bool can_do_io;
+diff --git a/include/plugins/qemu-plugin.h b/include/plugins/qemu-plugin.h
+index 3e913cd89ce62f9f65b9837d086afb19fa86fa05..73dd2c68756e9ef52fe7987cc6a9d5321fce8827 100644
+--- a/include/plugins/qemu-plugin.h
++++ b/include/plugins/qemu-plugin.h
+@@ -1144,6 +1144,57 @@ QEMU_PLUGIN_API
+ bool qemu_plugin_write_register(struct qemu_plugin_register *handle,
+                                 GByteArray *buf);
+ 
++/**
++ * enum qemu_plugin_vaddr_mode - privilege for a virtual memory read
++ *
++ * @QEMU_PLUGIN_VADDR_CURRENT: translate as a data load at the current
++ *                             privilege level (with its access controls)
++ * @QEMU_PLUGIN_VADDR_USER: translate as an unprivileged data load, as
++ *                          e.g. AArch64 LDTR or an x86 CPL3 access would
++ */
++enum qemu_plugin_vaddr_mode {
++    QEMU_PLUGIN_VADDR_CURRENT,
++    QEMU_PLUGIN_VADDR_USER,
++};
++
++enum qemu_plugin_vaddr_result {
++    QEMU_PLUGIN_VADDR_OK = 0,
++    QEMU_PLUGIN_VADDR_UNMAPPED = -1,
++    QEMU_PLUGIN_VADDR_IO = -2,
++    QEMU_PLUGIN_VADDR_BAD_MODE = -3,
++};
++
++/**
++ * qemu_plugin_read_memory_vaddr_fault() - read guest memory, paging it in
++ *
++ * @addr: guest virtual address
++ * @data: buffer, resized to @len on success
++ * @len: number of bytes
++ * @mode: privilege used for translation
++ * @fault: if a page has no valid translation, raise a guest fault
++ *
++ * Reads @len bytes through the guest MMU. Pages that are not RAM are
++ * never read (QEMU_PLUGIN_VADDR_IO), avoiding device side effects.
++ *
++ * If @fault is true and a page has no valid translation, this raises the
++ * exception a guest data load of @addr at the start of the instrumented
++ * instruction would take, and does not return. The guest handles it (for
++ * example by paging the address in) and resumes at the same instruction,
++ * which re-runs the callback. Callers must therefore be idempotent and
++ * must bound their retries. Faulting requires a callback registered with
++ * QEMU_PLUGIN_CB_RW_REGS_PC; otherwise QEMU_PLUGIN_VADDR_UNMAPPED is
++ * returned. Whether the guest can legally take the fault at this point
++ * (privilege, IRQ state, locks held, a valid mapping) is the caller's
++ * responsibility.
++ *
++ * Returns a qemu_plugin_vaddr_result.
++ */
++QEMU_PLUGIN_API
++int qemu_plugin_read_memory_vaddr_fault(uint64_t addr, GByteArray *data,
++                                        size_t len,
++                                        enum qemu_plugin_vaddr_mode mode,
++                                        bool fault);
++
+ /**
+  * qemu_plugin_set_pc() - set the program counter for the current vCPU
+  *
+diff --git a/plugins/api-system.c b/plugins/api-system.c
+index fbf905cd63e4cc109748b379f4209f6ad6547c2c..4f6f88df2322cbc5bb0b299314be250ad8bb5260 100644
+--- a/plugins/api-system.c
++++ b/plugins/api-system.c
+@@ -17,6 +17,11 @@
+ #include "hw/core/boards.h"
+ #include "qemu/plugin-memory.h"
+ #include "qemu/plugin.h"
++#include "accel/tcg/cpu-ops.h"
++#include "accel/tcg/probe.h"
++#include "accel/tcg/cpu-mmu-index.h"
++#include "exec/target_page.h"
++#include "exec/tlb-flags.h"
+ 
+ /*
+  * In system mode we cannot trace the binary being executed so the
+@@ -129,3 +134,71 @@ void qemu_plugin_update_ns(const void *handle, int64_t new_time)
+                          RUN_ON_CPU_HOST_ULONG(new_time));
+     }
+ }
++
++/*
++ * Consistent virtual memory reads
++ */
++
++int qemu_plugin_read_memory_vaddr_fault(uint64_t addr, GByteArray *data,
++                                        size_t len,
++                                        enum qemu_plugin_vaddr_mode mode,
++                                        bool fault)
++{
++    CPUState *cpu = current_cpu;
++    CPUArchState *env;
++    size_t done = 0, page_size = qemu_target_page_size();
++    int mmu_idx;
++
++    g_assert(cpu);
++    env = cpu_env(cpu);
++
++    if (len == 0) {
++        return QEMU_PLUGIN_VADDR_UNMAPPED;
++    }
++    if (mode == QEMU_PLUGIN_VADDR_USER) {
++        if (!cpu->cc->tcg_ops->user_mmu_index) {
++            return QEMU_PLUGIN_VADDR_BAD_MODE;
++        }
++        mmu_idx = cpu->cc->tcg_ops->user_mmu_index(cpu);
++    } else {
++        mmu_idx = cpu_mmu_index(cpu, false);
++    }
++
++    g_byte_array_set_size(data, len);
++
++    while (done < len) {
++        vaddr a = addr + done;
++        size_t chunk = MIN(len - done, page_size - (a & (page_size - 1)));
++        CPUTLBEntryFull *full;
++        void *host;
++        int flags;
++
++        /* Never faults, never triggers plugin memory instrumentation. */
++        flags = probe_access_full_mmu(env, a, 0, MMU_DATA_LOAD, mmu_idx,
++                                      &host, &full);
++        if (flags & TLB_INVALID_MASK) {
++            uintptr_t ra = cpu->neg.plugin_cb_ra;
++
++            if (!fault || !ra ||
++                qemu_plugin_get_cb_flags() != QEMU_PLUGIN_CB_RW_REGS_PC) {
++                return QEMU_PLUGIN_VADDR_UNMAPPED;
++            }
++            /*
++             * Raise the exception a guest load at the start of the current
++             * instruction would take (#PF, data abort, TLBL, DSI ...).  The
++             * guest resolves it and resumes at the same instruction, so the
++             * callback runs again.  Returns only if the translation became
++             * valid in the meantime.
++             */
++            probe_access(env, a, 0, MMU_DATA_LOAD, mmu_idx, ra);
++            continue;
++        }
++        if (flags & TLB_MMIO) {
++            /* Not RAM: a read could have device side effects. */
++            return QEMU_PLUGIN_VADDR_IO;
++        }
++        memcpy(data->data + done, host, chunk);
++        done += chunk;
++    }
++    return QEMU_PLUGIN_VADDR_OK;
++}
+diff --git a/plugins/api-user.c b/plugins/api-user.c
+index 28704a89e89944890be3d824013ed3a9e7de2e43..4b79f76117f4dd57d16e917bfd954a420d61dcc8 100644
+--- a/plugins/api-user.c
++++ b/plugins/api-user.c
+@@ -55,3 +55,11 @@ void qemu_plugin_update_ns(const void *handle, int64_t new_time)
+ {
+     qemu_log_mask(LOG_UNIMP, "user-mode can't control time");
+ }
++
++int qemu_plugin_read_memory_vaddr_fault(uint64_t addr, GByteArray *data,
++                                        size_t len,
++                                        enum qemu_plugin_vaddr_mode mode,
++                                        bool fault)
++{
++    return QEMU_PLUGIN_VADDR_BAD_MODE;
++}
+diff --git a/plugins/core.c b/plugins/core.c
+index 1113bfe5673c904bf0e5a50d03fca434a3d7bde7..4fe93eef4b8d388d43610a940090e0505945224b 100644
+--- a/plugins/core.c
++++ b/plugins/core.c
+@@ -367,6 +367,62 @@ void plugin_register_inline_op_on_entry(GArray **arr,
+     dyn_cb->inline_insn = inline_cb;
+ }
+ 
++/*
++ * Callbacks that may leave the TB (QEMU_PLUGIN_CB_RW_REGS_PC) are entered
++ * through a trampoline that records the host return address into the TB.
++ * With it, APIs called from the callback can unwind the guest state to the
++ * start of the instrumented instruction (cpu_restore_state) and raise a
++ * precise guest exception there, see qemu_plugin_read_memory_vaddr_fault().
++ */
++struct plugin_cb_ra_tramp {
++    qemu_plugin_vcpu_udata_cb_t cb;
++    void *udata;
++};
++
++QEMU_DISABLE_CFI __attribute__((noinline))
++static void plugin_cb_ra_trampoline(uint32_t cpu_index, void *opaque)
++{
++    struct plugin_cb_ra_tramp *t = opaque;
++    CPUState *cpu = current_cpu;
++
++    cpu->neg.plugin_cb_ra = (uintptr_t)__builtin_return_address(0);
++    t->cb(cpu_index, t->udata);
++    cpu->neg.plugin_cb_ra = 0;
++}
++
++static guint plugin_cb_ra_hash(gconstpointer p)
++{
++    const struct plugin_cb_ra_tramp *t = p;
++    return g_direct_hash(t->cb) ^ g_direct_hash(t->udata);
++}
++
++static gboolean plugin_cb_ra_equal(gconstpointer a, gconstpointer b)
++{
++    const struct plugin_cb_ra_tramp *x = a, *y = b;
++    return x->cb == y->cb && x->udata == y->udata;
++}
++
++/* Records live as long as any TB may call them, i.e. forever. */
++static struct plugin_cb_ra_tramp *
++plugin_cb_ra_record(qemu_plugin_vcpu_udata_cb_t cb, void *udata)
++{
++    static GMutex lock;
++    static GHashTable *records;
++    struct plugin_cb_ra_tramp key = { cb, udata }, *t;
++
++    g_mutex_lock(&lock);
++    if (!records) {
++        records = g_hash_table_new(plugin_cb_ra_hash, plugin_cb_ra_equal);
++    }
++    t = g_hash_table_lookup(records, &key);
++    if (!t) {
++        t = g_memdup2(&key, sizeof(key));
++        g_hash_table_add(records, t);
++    }
++    g_mutex_unlock(&lock);
++    return t;
++}
++
+ void plugin_register_dyn_cb__udata(GArray **arr,
+                                    qemu_plugin_vcpu_udata_cb_t cb,
+                                    enum qemu_plugin_cb_flags flags,
+@@ -387,6 +443,11 @@ void plugin_register_dyn_cb__udata(GArray **arr,
+     };
+     assert((unsigned)flags < ARRAY_SIZE(info));
+ 
++    if (flags == QEMU_PLUGIN_CB_RW_REGS_PC) {
++        udata = plugin_cb_ra_record(cb, udata);
++        cb = plugin_cb_ra_trampoline;
++    }
++
+     struct qemu_plugin_dyn_cb *dyn_cb = plugin_get_dyn_cb(arr);
+     struct qemu_plugin_regular_cb regular_cb = { .f.vcpu_udata = cb,
+                                                  .userp = udata,
+diff --git a/target/arm/cpu.c b/target/arm/cpu.c
+index 787e4dc7ab23377fb9bc50e2532e841b193a1968..ab9511215feed6741aba19db402bb6f0047bc3e7 100644
+--- a/target/arm/cpu.c
++++ b/target/arm/cpu.c
+@@ -131,6 +131,11 @@ int arm_cpu_mmu_index(CPUState *cs, bool ifetch)
+     return arm_env_mmu_index(cpu_env(cs));
+ }
+ 
++static int arm_cpu_user_mmu_index(CPUState *cs)
++{
++    return arm_to_core_mmu_idx(arm_mmu_idx_el(cpu_env(cs), 0));
++}
++
+ #endif /* CONFIG_TCG */
+ 
+ #ifndef CONFIG_USER_ONLY
+@@ -2595,6 +2600,7 @@ static const TCGCPUOps arm_tcg_ops = {
+     .debug_excp_handler = arm_debug_excp_handler,
+     .restore_state_to_opc = arm_restore_state_to_opc,
+     .mmu_index = arm_cpu_mmu_index,
++    .user_mmu_index = arm_cpu_user_mmu_index,
+ 
+ #ifdef CONFIG_USER_ONLY
+     .record_sigsegv = arm_cpu_record_sigsegv,
+diff --git a/target/i386/tcg/tcg-cpu.c b/target/i386/tcg/tcg-cpu.c
+index 6f5dc06b3b9853dfb91ea154d2178dbf58702c8d..ca86e22929f136787e12068f00c86a1bcfe07940 100644
+--- a/target/i386/tcg/tcg-cpu.c
++++ b/target/i386/tcg/tcg-cpu.c
+@@ -131,6 +131,11 @@ static int x86_cpu_mmu_index(CPUState *cs, bool ifetch)
+     return x86_mmu_index_pl(env, env->hflags & HF_CPL_MASK);
+ }
+ 
++static int x86_cpu_user_mmu_index(CPUState *cs)
++{
++    return x86_mmu_index_pl(cpu_env(cs), 3);
++}
++
+ #ifndef CONFIG_USER_ONLY
+ static bool x86_debug_check_breakpoint(CPUState *cs)
+ {
+@@ -170,6 +175,7 @@ const TCGCPUOps x86_tcg_ops = {
+     .synchronize_from_tb = x86_cpu_synchronize_from_tb,
+     .restore_state_to_opc = x86_restore_state_to_opc,
+     .mmu_index = x86_cpu_mmu_index,
++    .user_mmu_index = x86_cpu_user_mmu_index,
+     .cpu_exec_enter = x86_cpu_exec_enter,
+     .cpu_exec_exit = x86_cpu_exec_exit,
+ #ifdef CONFIG_USER_ONLY
+diff --git a/target/mips/cpu.c b/target/mips/cpu.c
+index d72044aef61c9e250383d52ac5ea7a4887845f4a..4e665c8ac019bd039a662452b1c399b2844c3338 100644
+--- a/target/mips/cpu.c
++++ b/target/mips/cpu.c
+@@ -624,6 +624,11 @@ static int mips_cpu_mmu_index(CPUState *cs, bool ifunc)
+     return mips_env_mmu_index(cpu_env(cs));
+ }
+ 
++static int mips_cpu_user_mmu_index(CPUState *cs)
++{
++    return MIPS_HFLAG_UM;
++}
++
+ static TCGTBCPUState mips_get_tb_cpu_state(CPUState *cs)
+ {
+     CPUMIPSState *env = cpu_env(cs);
+@@ -659,6 +664,7 @@ static const TCGCPUOps mips_tcg_ops = {
+     .synchronize_from_tb = mips_cpu_synchronize_from_tb,
+     .restore_state_to_opc = mips_restore_state_to_opc,
+     .mmu_index = mips_cpu_mmu_index,
++    .user_mmu_index = mips_cpu_user_mmu_index,
+ 
+ #if !defined(CONFIG_USER_ONLY)
+     .tlb_fill = mips_cpu_tlb_fill,
