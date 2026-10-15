@@ -38,11 +38,14 @@ rm -f "$PATCHES/$VERSION"/*.patch
 : > "$PATCHES/$VERSION/series"
 n=0
 for f in "$STAGE"/*.patch; do
-    # skip the vendored-overlay commit
+    # skip the vendored-overlay commits
     if grep -qm1 '^Subject: .*VENDORED:' "$f"; then continue; fi
-    cp "$f" "$PATCHES/$VERSION/$(basename "$f")"
-    echo "$VERSION/$(basename "$f")" >> "$PATCHES/$VERSION/series"
     n=$((n + 1))
+    # number what is kept: format-patch counted the VENDORED commits too, and
+    # work done on top of the overlay would otherwise leave a gap in the series
+    name=$(printf '%04d' "$n")-$(basename "$f" | cut -d- -f2-)
+    cp "$f" "$PATCHES/$VERSION/$name"
+    echo "$VERSION/$name" >> "$PATCHES/$VERSION/series"
 done
 
 echo "OK: exported $n patches for $VERSION"
