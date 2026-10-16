@@ -33,6 +33,7 @@ guest time. It is the check for any change to the files above.
 | `BUSYBOX_DIST` | `dl/busybox-dist` | `nix build github:rehosting/busybox/eeba468aa#dist` |
 | `ZCC` | `dl/zig` | `ziglang` 0.16.0 from PyPI (`zig cc -target ...`) |
 | `PENGUIN` | `../../../penguin` | a penguin checkout, for the suites that run penguin's own plugins |
+| `IGLOO_DRIVER` | `../../../igloo_driver` | an igloo_driver checkout: the portal ops penstub's `hyper.consts` reads |
 
 Host tools: `gcc`, `pkg-config` (glib), `mksquashfs`, `cpio`, `llvm-readelf`
 and `llvm-objdump` (address-hook symbols), Python 3 with `cffi` and `dwarffi`.

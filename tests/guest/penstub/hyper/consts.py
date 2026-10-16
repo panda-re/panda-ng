@@ -5,8 +5,7 @@ igloo_hypercall_constants; igloo_base_hypercalls."""
 import os
 import re
 
-H = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'igloo_driver',
-                 'src', 'portal')
+H = os.path.join(os.environ['IGLOO_DRIVER'], 'src', 'portal')
 
 
 class _Consts:

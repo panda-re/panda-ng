@@ -8,6 +8,7 @@
 #   BUSYBOX_DIST  rehosting/busybox #dist: <arch>/busybox
 #   ZCC           a cross C compiler driver taking -target (zig cc)
 #   PENGUIN       a penguin checkout (penhost.py, pyhost.py's pmem, osicdef.py)
+#   IGLOO_DRIVER  an igloo_driver checkout (penstub's hyper/consts.py: the portal ops)
 #   PLUGINS       the TCG plugins built from plugins/*.c
 #   GEN           built inputs: initrds, pagetest builds, syms-*.env, sysprof-*.txt, ours-*
 #   OUTROOT       where runs write out-*/ directories
@@ -16,6 +17,7 @@ export KERNEL_DIR=${KERNEL_DIR:-$H/dl/kernels}
 export BUSYBOX_DIST=${BUSYBOX_DIST:-$H/dl/busybox-dist}
 export ZCC=${ZCC:-"$H/dl/zig/bin/python -m ziglang cc"}
 export PENGUIN=${PENGUIN:-$H/../../../penguin}
+export IGLOO_DRIVER=${IGLOO_DRIVER:-$H/../../../igloo_driver}
 export GEN=${GEN:-$H/gen}
 export PLUGINS=${PLUGINS:-$GEN/plugins}
 export OUTROOT=${OUTROOT:-$H/out}

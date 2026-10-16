@@ -1,5 +1,5 @@
 #!/bin/sh
-# usage: run.sh <arch> <4.10|6.13> <tests,comma,sep> [plugin args...]  (env: SMP PLUGIN LOG TMO QBUILD ACCEL=kvm QEXTRA)
+# usage: run.sh <arch> <4.10|6.13> <tests,comma,sep> [plugin args...]  (env: SMP PLUGIN LOG TMO QBUILD ACCEL=kvm QEXTRA CMDLINE)
 # PYHOST=<scenario> PROF=<profile>: QEMU in-process under pyhost.py (penguin_syscall_* hooks)
 # PENHOST=<scenario>: under penhost.py (penguin's qemu_compat, Syscalls with backend=trap, mem)
 H=$(cd "$(dirname "$0")" && pwd)
@@ -35,5 +35,5 @@ elif [ -n "$PYHOST" ]; then
 fi
 timeout ${TMO:-300} $RUN -M $MACH ${CPU:+-cpu $CPU} -m $MEM -smp ${SMP:-1} -nographic -no-reboot $EXTRA \
    -kernel $K -initrd $INITRD $DRV \
-   $QEXTRA -append "console=$CON nokaslr norandmaps panic=-1 oops=panic quiet pt=$T" $P
+   $QEXTRA -append "console=$CON nokaslr norandmaps panic=-1 oops=panic quiet pt=$T${CMDLINE:+ $CMDLINE}" $P
 rc=$?; rm -f $SW; exit $rc

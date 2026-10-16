@@ -654,6 +654,57 @@ def scenario_takeover():
     hook('on_all_sys_enter', readback, comm='pagetest')
 
 
+def scenario_kmod():
+    """a kernel module from the hypervisor (L2 by injection): at pid 1's first
+    syscall, mmap a buffer, copy $KMOD in, init_module it, munmap; later, the
+    test's first syscall reads /proc/modules back.  No kernel symbol is needed:
+    the trap is the syscall instruction, the calls are pid 1's own"""
+    inject = plugins.syscalls.inject
+    ko = open(os.environ['KMOD'], 'rb').read()
+    params = os.environ.get('KMOD_PARAMS', '').encode() + b'\0'
+    state = {}
+
+    def first(regs, proto, sc, *args):
+        if state:
+            return
+        state['seen'] = sc.syscall_name
+        pid = yield from inject('getpid')
+        if pid != 1:
+            state.clear()
+            return
+        size = (len(ko) + len(params) + 4095) & ~4095
+        m = yield from inject('mmap', 0, size + 4096, 3, 0x22, -1, 0)
+        w = yield from plugins.mem.write_bytes(m, ko)
+        yield from plugins.mem.write_bytes(m + size, params)
+        back = yield from plugins.mem.read_bytes(m, len(ko))
+        bad = [i for i in range(0, len(ko), 4096) if back[i:i + 4096] != ko[i:i + 4096]]
+        head = (len(back), len(bad), bad[:4])
+        r = yield from inject('init_module', m, len(ko), m + size)
+        out(f'SC data tag=kmod-check nr={trap.number("init_module")} head={head!r}')
+        yield from inject('munmap', m, size + 4096)
+        out(f'SC data tag=kmod-load call={sc.syscall_name} size={len(ko)} write_bytes={w} '
+            f'init_module={r}')
+    hook('on_all_sys_enter', first, comm=None)
+    done = []
+
+    def modules(regs, proto, sc, *args):
+        """later, with /proc mounted: the module list, as the test sees it"""
+        if done:
+            return
+        done.append(1)
+        m = yield from inject('mmap', 0, 8192, 3, 0x22, -1, 0)
+        yield from plugins.mem.write_bytes(m, b'/proc/modules\0')
+        f = yield from inject('openat', -100, m, 0, 0)
+        k = f
+        if f is not None and f >= 0:
+            k = yield from inject('read', f, m, 8192)
+        data = (yield from plugins.mem.read_bytes(m, k)) if k and k > 0 else b''
+        yield from inject('close', f)
+        yield from inject('munmap', m, 8192)
+        out(f'SC data tag=kmod-modules fd={f} read={k} data={data!r}')
+    hook('on_all_sys_enter', modules, comm='pagetest')
+
+
 def scenario_osi():
     """apis/hostosi.py (C walks) at an entry and at a return, and osiref.py's
     Python walks at the entry"""
@@ -766,7 +817,8 @@ if scenario.startswith('bench-'):
 else:
     {'pen': scenario_pen, 'fault': scenario_fault, 'reap': scenario_reap,
      'osi': scenario_osi, 'inject': scenario_inject,
-     'first': scenario_first, 'takeover': scenario_takeover}[scenario]()
+     'first': scenario_first, 'takeover': scenario_takeover,
+     'kmod': scenario_kmod}[scenario]()
 
 if os.environ.get('MICRO'):
     # the event path alone, on a synthetic event for the first hook: no guest
