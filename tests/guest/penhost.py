@@ -719,6 +719,27 @@ def scenario_kmod():
     hook('on_all_sys_enter', modules, comm='pagetest')
 
 
+def scenario_hcwrite():
+    """a hypercall's write into the guest (send_hypercall's shape): QEMU's
+    permission-checked write and the debug write, at the hypercall"""
+    ffi, lib = panda.ffi, panda.lib
+
+    def handler(cpu):
+        addr = panda.arch.get_arg(cpu, 1, convention="syscall")
+        data = b'written\0'
+        buf = ffi.new('char[]', data)
+        ok = lib.penguin_syscall_write_memory(cpu, addr, buf, len(data))
+        st = ffi.new('uint64_t[40]')
+        n = lib.penguin_syscall_regs(cpu, 0, 40, st)
+        out(f'HC data tag=hc-write addr={addr:#x} checked={int(ok)} nregs={n} '
+            f'cs={st[18]:#x} eflags={st[17]:#x}')
+        if not ok:
+            r = lib.cpu_memory_rw_debug(cpu, addr, buf, len(data), True)
+            out(f'HC data tag=hc-write debug={r}')
+        return 0
+    plugins.hypercall.hypercall(0xb335a535)(handler)
+
+
 def scenario_osi():
     """apis/hostosi.py (C walks) at an entry and at a return, and osiref.py's
     Python walks at the entry"""
@@ -843,7 +864,7 @@ else:
     {'pen': scenario_pen, 'fault': scenario_fault, 'reap': scenario_reap,
      'osi': scenario_osi, 'inject': scenario_inject,
      'first': scenario_first, 'takeover': scenario_takeover,
-     'kmod': scenario_kmod}[scenario]()
+     'kmod': scenario_kmod, 'hcwrite': scenario_hcwrite}[scenario]()
 
 if os.environ.get('MICRO'):
     # the event path alone, on a synthetic event for the first hook: no guest

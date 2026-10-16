@@ -2039,6 +2039,30 @@ static int t_sc_inject(void)
     return bad != 0;
 }
 
+/*
+ * hc-write: send_hypercall's shape (x86_64: outl to port 0x88, number in
+ * eax, a buffer in rdi): the host writes into a zeroed stack buffer from
+ * the hypercall, with the guest's permissions (penhost hcwrite).
+ */
+static int t_hc_write(void)
+{
+#if defined(__x86_64__)
+    char out[0x1000] = {0};
+    register unsigned long rdi __asm__("rdi") = (unsigned long)out;
+    unsigned long rax = 0xb335a535;
+
+    if (syscall(SYS_iopl, 3)) {
+        printf("HC iopl failed\n");
+        return 1;
+    }
+    __asm__ volatile("outl %%eax, $0x88" : "+a"(rax) : "r"(rdi) : "memory");
+    printf("HC out=%p got=%.40s\n", (void *)out, out);
+    return strncmp(out, "written", 7) != 0;
+#else
+    return 0;
+#endif
+}
+
 static int t_osi(char **argv)
 {
     char exe[256];
@@ -2238,6 +2262,7 @@ int main(int argc, char **argv)
     if (!strcmp(t, "sc-fault")) return t_sc_fault();
     if (!strcmp(t, "sc-reap")) return t_sc_reap();
     if (!strcmp(t, "sc-inject")) return t_sc_inject();
+    if (!strcmp(t, "hc-write")) return t_hc_write();
     if (!strcmp(t, "sc-bench")) return t_sc_bench(NARG(200000));
     if (!strcmp(t, "sc-fdbench")) return t_sc_fdbench(NARG(200000));
     if (!strcmp(t, "sc-tbench")) return t_sc_tbench(NARG(200000));
