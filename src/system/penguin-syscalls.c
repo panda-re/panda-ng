@@ -209,17 +209,22 @@ static void psc_rebuild(void)
         if (!h->h.enabled || !(h->h.on_enter || h->h.on_return)) {
             continue;
         }
+        /*
+         * Newest first in each list, as igloo's hlists run them: a later
+         * hook sees what an earlier one changed (args, retval), so the
+         * order is the one penguin's plugins have been written against.
+         */
         if (h->h.on_all) {
-            g_ptr_array_add(all, h);
+            g_ptr_array_insert(all, 0, h);
         } else if (h->h.on_unknown) {
-            g_ptr_array_add(unknown, h);
+            g_ptr_array_insert(unknown, 0, h);
         } else if (h->norm[0]) {
             GPtrArray *a = g_hash_table_lookup(byname, h->norm);
             if (!a) {
                 a = g_ptr_array_new();
                 g_hash_table_insert(byname, h->norm, a);
             }
-            g_ptr_array_add(a, h);
+            g_ptr_array_insert(a, 0, h);
         }
     }
     t->all = psc_list(all);
