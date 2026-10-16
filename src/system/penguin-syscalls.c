@@ -37,7 +37,7 @@
 #define PSC_STR_MAX 4096        /* igloo's MAX_SAFE_ALLOC */
 #define PSC_ERESTARTSYS 512
 #define PSC_TRIES   2           /* faults on one page without progress */
-#define PSC_FAULTS  32          /* faults per dispatch */
+#define PSC_FAULTS  32          /* faults per command, past the pages it spans */
 #define PSC_BAD     8           /* pages the guest refused, per dispatch */
 
 typedef struct PHook {
@@ -461,6 +461,7 @@ typedef struct PRun {
     int64_t ret;                /* the return value as the hooks left it */
     uint64_t fpage;             /* the page of the last fault */
     unsigned streak, total;     /* faults on it without progress, all */
+    unsigned budget;            /* the faults total may reach (this command's) */
     uint64_t bad[PSC_BAD];      /* pages the guest would not map */
     unsigned nbad;
 } PRun;
@@ -483,7 +484,7 @@ static bool psc_may_fault(PCtx *c, uint64_t page)
             return false;
         }
     }
-    return r->total < PSC_FAULTS &&
+    return r->total < r->budget &&
            !(page == r->fpage && r->streak >= PSC_TRIES);
 }
 
@@ -736,6 +737,7 @@ static PRun *psc_run_new(PCtx *c, int phase)
     PRun *r = g_new0(PRun, 1);
 
     r->phase = phase;
+    r->budget = PSC_FAULTS;
     memcpy(r->args, c->sc->args, sizeof(r->args));
     memcpy(r->orig, c->sc->args, sizeof(r->orig));
     r->ret = c->retval;
@@ -859,11 +861,21 @@ static void psc_rbuf(PRun *r, size_t n)
     }
 }
 
-/* validate the callback's command; copy what it writes */
+/*
+ * Validate the callback's command; copy what it writes.  Its fault budget:
+ * one for each page it spans, and PSC_FAULTS more (a page the guest takes
+ * away again); PSC_TRIES still ends a page that makes no progress.
+ */
 static bool psc_cmd_take(PRun *r)
 {
     struct penguin_sc_cmd *k = &r->cmd;
+    uint64_t pg = qemu_target_page_size();
 
+    r->total = 0;
+    r->budget = PSC_FAULTS;
+    if (k->op == PENGUIN_SC_OP_READ || k->op == PENGUIN_SC_OP_WRITE) {
+        r->budget += ((k->addr & (pg - 1)) + MIN(k->size, PENGUIN_SC_IO_MAX) + pg - 1) / pg;
+    }
     switch (k->op) {
     case PENGUIN_SC_OP_READ:
         return k->size && k->size <= PENGUIN_SC_IO_MAX;
