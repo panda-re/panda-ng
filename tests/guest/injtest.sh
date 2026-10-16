@@ -5,7 +5,7 @@
 # any run is not ok.
 #   CONFIGS="x86_64:6.13 aarch64:6.13 ..."  arch:kernel pairs (x86_64:4.10 is left
 #     out: the syscall trap core delivers it one event, then none)
-#   ABIS="sc-inject c32-sc-inject"           native, and 32-bit (refused)
+#   ABIS="sc-inject c32-sc-inject"           native, and 32-bit (AArch32: injected; i386: refused)
 # Each run: <out>/<arch>-<kernel>-<test>.{con,log}; the table: <out>/summary.txt
 H=$(cd "$(dirname "$0")" && pwd)
 . "$H/env.sh"

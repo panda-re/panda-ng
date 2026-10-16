@@ -392,9 +392,11 @@ def scenario_inject():
     hook('getpgid', many, enter=True, arg_filters=[9408])
 
     def compat(regs, proto, sc, *args):
+        """a 32-bit task: an AArch32 one's EABI getpid runs (its pid), an
+        i386 one's is refused (1)"""
         count(sc, 'inj-compat')
         r = yield from inject('getpid')
-        skip(sc, 1 if r is None else 0)
+        skip(sc, 1 if r is None else r)
     hook('getpgid', compat, enter=True, arg_filters=[9409])
 
 
@@ -663,6 +665,9 @@ def scenario_kmod():
     inject = plugins.syscalls.inject
     ko = open(os.environ['KMOD'], 'rb').read()
     params = os.environ.get('KMOD_PARAMS', '').encode() + b'\0'
+    # KMOD_COMM: the first call of a task with that comm instead of pid 1's
+    # (the c32 tests' 32-bit pagetest is an AArch32 task on arm64)
+    task = os.environ.get('KMOD_COMM')
     state = {}
 
     def first(regs, proto, sc, *args):
@@ -670,13 +675,16 @@ def scenario_kmod():
             return
         state['seen'] = sc.syscall_name
         pid = yield from inject('getpid')
-        if pid != 1:
+        if pid != 1 and not task:
             state.clear()
             return
+        # an AArch32 task (EABI): mmap2, whose offset is in pages (0 here)
+        mmap = 'mmap2' if sc.abi == 3 else 'mmap'
         size = (len(ko) + len(params) + 4095) & ~4095
         # KMOD_POPULATE: MAP_POPULATE, for a kernel with no fault guard
         flags = 0x22 | (0x8000 if os.environ.get('KMOD_POPULATE') else 0)
-        m = yield from inject('mmap', 0, size + 4096, 3, flags, -1, 0)
+        m = yield from inject(mmap, 0, size + 4096, 3, flags, -1, 0)
+        out(f'SC data tag=kmod-task pid={pid} abi={sc.abi} {mmap}={m if m is None else hex(m)}')
         w = yield from plugins.mem.write_bytes(m, ko)
         yield from plugins.mem.write_bytes(m + size, params)
         back = yield from plugins.mem.read_bytes(m, len(ko))
@@ -687,7 +695,7 @@ def scenario_kmod():
         yield from inject('munmap', m, size + 4096)
         out(f'SC data tag=kmod-load call={sc.syscall_name} size={len(ko)} write_bytes={w} '
             f'init_module={r}')
-    hook('on_all_sys_enter', first, comm=None)
+    hook('on_all_sys_enter', first, comm=task)
     done = []
 
     def modules(regs, proto, sc, *args):
@@ -695,7 +703,7 @@ def scenario_kmod():
         if done:
             return
         done.append(1)
-        m = yield from inject('mmap', 0, 8192, 3, 0x22, -1, 0)
+        m = yield from inject('mmap2' if sc.abi == 3 else 'mmap', 0, 8192, 3, 0x22, -1, 0)
         yield from plugins.mem.write_bytes(m, b'/proc/modules\0')
         f = yield from inject('openat', -100, m, 0, 0)
         k = f

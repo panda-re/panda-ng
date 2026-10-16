@@ -1998,9 +1998,15 @@ static int t_sc_inject(void)
     r = syscall(SYS_getpgid, 9408);
     INJ_CHECK("many", r == pid, "got=%ld want=%d", r, pid);
 #else
-    /* a 32-bit task's call: refused */
+#if defined(__arm__)
+    /* an AArch32 task on an AArch64 kernel: EABI calls are injected */
+    r = syscall(SYS_getpgid, 9409);
+    INJ_CHECK("compat", r == pid, "got=%ld pid=%d", r, pid);
+#else
+    /* an i386 task's call: refused */
     r = syscall(SYS_getpgid, 9409);
     INJ_CHECK("compat", r == 1, "got=%ld pid=%d", r, pid);
+#endif
 #endif
     return bad != 0;
 }
