@@ -236,9 +236,9 @@ static int sc_hold(uint64_t k1, uint64_t k2, uint64_t pc, unsigned len,
  * injected call's.  False if the table cannot keep it (the call is
  * dropped, and runs as it is).
  */
-static bool sc_inject(uint64_t k1, uint64_t k2, uint64_t pc, unsigned len,
-                      SyscallTrap *sc, int64_t num, uint64_t args[6],
-                      uint64_t *ret)
+static bool sc_inject(CPUState *cpu, uint64_t k1, uint64_t k2, uint64_t pc,
+                      unsigned len, SyscallTrap *sc, int64_t num,
+                      uint64_t args[6], uint64_t *ret)
 {
     int64_t inum = sc->inject_num;
     uint64_t iargs[6];
@@ -247,8 +247,8 @@ static bool sc_inject(uint64_t k1, uint64_t k2, uint64_t pc, unsigned len,
     memcpy(iargs, sc->inject_args, sizeof(iargs));
     sc->inject = false;
     sc->injected = false;
-    /* the targets put the registers back for these ABIs only */
-    if (sc->abi != SYSCALL_ABI_X86_64 && sc->abi != SYSCALL_ABI_AARCH64) {
+    /* the target puts the registers back for these ABIs only */
+    if (!(cpu->syscall_inject_abis & (1u << sc->abi))) {
         sc_drop(sc);
         return false;
     }
@@ -341,7 +341,7 @@ deliver:
             return sc_hold(k1, k2, pc, len, &sc, SC_HELD_ENTER);
         }
         if (sc.inject) {
-            return sc_inject(k1, k2, pc, len, &sc, num, args, ret)
+            return sc_inject(cpu, k1, k2, pc, len, &sc, num, args, ret)
                    ? SYSCALL_TRAP_INJECT : 0;
         }
         if (memcmp(sc.args, args, sizeof(sc.args))) {

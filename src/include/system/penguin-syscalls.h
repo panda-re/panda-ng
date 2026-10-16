@@ -170,8 +170,10 @@ enum penguin_sc_status {
  * injected call's registers in its frame), the task can block in it, and
  * the task's other threads see what it does (a new fd, a mapping) while it
  * lasts.  Hooks see neither the injected call nor its restarts.
- * Status FAIL, nothing run: not at an entry event, not a 64-bit x86 or
- * AArch64 task's call, or a call that would not come back to the trap
+ * Status FAIL, nothing run: not at an entry event, not a call of an ABI
+ * the target can put the registers back for (x86_64, AArch64, and an
+ * AArch32 EABI task on an AArch64 kernel; num is then the EABI number, the
+ * arguments 32 bits), or a call that would not come back to the trap
  * (exit, exit_group, the sigreturns, and fork, vfork, clone, clone3, whose
  * child would run on in the task's code; execve and execveat without
  * penguin_syscall_set_exec()).

@@ -909,8 +909,9 @@ static bool psc_may_inject(PCtx *c, int64_t num)
     unsigned n = qatomic_read(&psc_exec_hooked) ? 4 : ARRAY_SIZE(never);
     const PNum *pn;
 
-    if (!c->at_enter || (c->sc->abi != SYSCALL_ABI_X86_64 &&
-                         c->sc->abi != SYSCALL_ABI_AARCH64)) {
+    /* the ABIs the target can put the task's registers back for */
+    if (!c->at_enter || c->sc->abi >= 32 ||
+        !(c->cpu->syscall_inject_abis & (1u << c->sc->abi))) {
         return false;
     }
     if (!c->t->nums[c->sc->abi] || num >= SYSCALL_TRAP_NUMS) {
