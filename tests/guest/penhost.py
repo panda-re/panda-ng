@@ -51,7 +51,8 @@ class KFFI:
     """plugins.kffi: the kernel's types and symbols (its ISF)"""
     def __init__(self, path):
         self.isf = path
-        self.ffi = DFFI([path])
+        # "none": a kernel with no ISF (the trap backend's uapi mode)
+        self.ffi = None if path == 'none' else DFFI([path])
 
     def new(self, type_, init=None):
         return self.ffi.new(type_, init)
@@ -673,7 +674,9 @@ def scenario_kmod():
             state.clear()
             return
         size = (len(ko) + len(params) + 4095) & ~4095
-        m = yield from inject('mmap', 0, size + 4096, 3, 0x22, -1, 0)
+        # KMOD_POPULATE: MAP_POPULATE, for a kernel with no fault guard
+        flags = 0x22 | (0x8000 if os.environ.get('KMOD_POPULATE') else 0)
+        m = yield from inject('mmap', 0, size + 4096, 3, flags, -1, 0)
         w = yield from plugins.mem.write_bytes(m, ko)
         yield from plugins.mem.write_bytes(m + size, params)
         back = yield from plugins.mem.read_bytes(m, len(ko))
@@ -778,6 +781,17 @@ BENCH = {   # sctest.sh's rule sets, as penguin hooks (no comm filter but comm's
     'wfdpass': lambda: hook('write', count_only, enter=True, comm=None, arg_filters=[
         ValueFilter.fd_path(ValueFilter.string_endswith('/dev/null'))]),
 }
+
+if os.environ.get('DUMPNUMS'):
+    # the native numbers and argument counts the trap learnt at boot (json)
+    import atexit
+    import json
+
+    def dumpnums():
+        with open(os.environ['DUMPNUMS'], 'w') as f:
+            json.dump({'numbers': trap.numbers, 'nargs': getattr(trap, 'nargs', {})}, f,
+                      sort_keys=True)
+    atexit.register(dumpnums)
 
 if os.environ.get('PROFILE'):
     # cProfile around each Syscalls dispatch (the vCPU thread's calls)

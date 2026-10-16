@@ -1,5 +1,5 @@
 #!/bin/sh
-# usage: run.sh <arch> <4.10|6.13> <tests,comma,sep> [plugin args...]  (env: SMP PLUGIN LOG TMO QBUILD ACCEL=kvm QEXTRA CMDLINE)
+# usage: run.sh <arch> <4.10|6.13> <tests,comma,sep> [plugin args...]  (env: SMP PLUGIN LOG TMO QBUILD ACCEL=kvm QEXTRA CMDLINE; ISF=none: penhost with no kernel ISF)
 # PYHOST=<scenario> PROF=<profile>: QEMU in-process under pyhost.py (penguin_syscall_* hooks)
 # PENHOST=<scenario>: under penhost.py (penguin's qemu_compat, Syscalls with backend=trap, mem)
 H=$(cd "$(dirname "$0")" && pwd)
@@ -29,7 +29,7 @@ RUN=$QBUILD/qemu-system-$QARCH
 if [ -n "$PENHOST" ]; then
   # penguin's own stack: qemu_compat + Syscalls (trap backend) + mem
   case $A in aarch64) KA=arm64;; *) KA=$A;; esac
-  RUN="python3 $H/penhost.py $QBUILD/libqemu-system-$QARCH.so $A $KERNEL_DIR/$V/cosi.$KA.json.xz $PENHOST ${LOG:-$H/plugin.log} -- qemu-system-$QARCH -L $QBUILD/pc-bios -L $QBUILD/../pc-bios"
+  RUN="python3 $H/penhost.py $QBUILD/libqemu-system-$QARCH.so $A ${ISF:-$KERNEL_DIR/$V/cosi.$KA.json.xz} $PENHOST ${LOG:-$H/plugin.log} -- qemu-system-$QARCH -L $QBUILD/pc-bios -L $QBUILD/../pc-bios"
 elif [ -n "$PYHOST" ]; then
   RUN="python3 $H/pyhost.py $QBUILD/libqemu-system-$QARCH.so $PROF $PYHOST ${LOG:-$H/plugin.log} -- qemu-system-$QARCH -L $QBUILD/pc-bios -L $QBUILD/../pc-bios"
 fi
