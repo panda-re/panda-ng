@@ -398,13 +398,14 @@ def scenario_func():
     hook('read', logger(), 'blockread', enter=True, ret=True, args={2: 777})
     hook('fork', logger(), 'forkret', ret=True)
     hook('clone', logger(), 'forkret', ret=True)
-    hook('getpgid', setter(skip=777), 'override', enter=True, args={0: 4242})
+    # igloo runs a call's hooks newest first: each pair is registered in reverse
     hook('getpgid', tag='afterskip', enter=True, args={0: 4242})
+    hook('getpgid', setter(skip=777), 'override', enter=True, args={0: 4242})
     hook('getpgid', logger(), 'skipret', ret=True, args={0: 4242})
-    hook('dup3', setter(a1=101), 'setarg', enter=True, args={1: 100})
     hook('dup3', logger(), 'setarg2', enter=True, args={1: 100})
-    hook('getpgid', setter(ret=54), 'setret1', ret=True, args={0: 4343})
+    hook('dup3', setter(a1=101), 'setarg', enter=True, args={1: 100})
     hook('getpgid', setter(ret=55), 'setret', ret=True, args={0: 4343})
+    hook('getpgid', setter(ret=54), 'setret1', ret=True, args={0: 4343})
     hook('getpid', tag='getpid', enter=True)
     hook('getsid', tag='siderr', ret=True, retval=(ERROR,))
     hook('getsid', tag='sidok', ret=True, retval=(SUCCESS,))
@@ -450,13 +451,14 @@ def scenario_pen():
         hook('getsid', logger(), 'pidfilter', enter=True, args={0: 7171}, pid=ev.pid)
     hook('getpgid', add_pid, 'addpid', enter=True, args={0: 6363})
 
-    hook('getpgid', setter(skip=616), 'skip', enter=True, args={0: 6161})
+    # igloo runs a call's hooks newest first: each pair is registered in reverse
     hook('getpgid', tag='afterskip', enter=True, args={0: 6161})
+    hook('getpgid', setter(skip=616), 'skip', enter=True, args={0: 6161})
     hook('getpgid', logger(), 'skipret', ret=True, args={0: 6161})
-    hook('getpgid', setter(ret=1), 'ret1', ret=True, args={0: 6262})
     hook('getpgid', setter(ret=2), 'ret2', ret=True, args={0: 6262})
-    hook('dup3', setter(a1=201), 'arg1', enter=True, args={1: 200})
+    hook('getpgid', setter(ret=1), 'ret1', ret=True, args={0: 6262})
     hook('dup3', setter(a1=202), 'arg2', enter=True, args={1: 200})
+    hook('dup3', setter(a1=201), 'arg1', enter=True, args={1: 200})
     hook(None, tag='allneg', enter=True, on_all=True, comm='nomatch')
 
 

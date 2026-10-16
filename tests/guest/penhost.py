@@ -236,13 +236,14 @@ def scenario_pen():
         hook('getsid', logger('pidfilter'), enter=True, arg_filters=[7171], pid_filter=sc.pid)
     hook('getpgid', logger('addpid', then=add_pid), enter=True, arg_filters=[6363])
 
-    hook('getpgid', logger('skip', then=setter(skip=616)), enter=True, arg_filters=[6161])
+    # igloo runs a call's hooks newest first: each pair is registered in reverse
     hook('getpgid', counter('afterskip'), enter=True, arg_filters=[6161])
+    hook('getpgid', logger('skip', then=setter(skip=616)), enter=True, arg_filters=[6161])
     hook('getpgid', logger('skipret'), ret=True, arg_filters=[6161])
-    hook('getpgid', logger('ret1', then=setter(ret=1)), ret=True, arg_filters=[6262])
     hook('getpgid', logger('ret2', then=setter(ret=2)), ret=True, arg_filters=[6262])
-    hook('dup3', logger('arg1', then=setter(a1=201)), enter=True, arg_filters=[None, 200])
+    hook('getpgid', logger('ret1', then=setter(ret=1)), ret=True, arg_filters=[6262])
     hook('dup3', logger('arg2', then=setter(a1=202)), enter=True, arg_filters=[None, 200])
+    hook('dup3', logger('arg1', then=setter(a1=201)), enter=True, arg_filters=[None, 200])
     # penguin's every-syscall hooks: the on_all_sys_* patterns
     hook('on_all_sys_enter', counter('allneg'), comm='nomatch')
 
