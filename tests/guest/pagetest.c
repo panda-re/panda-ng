@@ -1990,9 +1990,37 @@ static int t_sc_inject(void)
     close(p[0]);
     close(p[1]);
 
-    /* at a return there is no injecting */
+    /* at a return: the injected call's value, as the callback returns it */
     r = syscall(SYS_getpgid, 9407);
-    INJ_CHECK("atreturn", r == 1, "got=%ld", r);
+    INJ_CHECK("atreturn", r == pid, "got=%ld pid=%d", r, pid);
+
+    /* ... and the task's registers but the result are its own again */
+    {
+        unsigned long a1 = 0x1111, a2 = 0x2222, a3 = 0x3333, a4 = 0x4444, a5 = 0x5555;
+        long rv = 9410, nr = SYS_getpgid;
+#if defined(__aarch64__)
+        register long x0 __asm__("x0") = rv;
+        register unsigned long x1 __asm__("x1") = a1, x2 __asm__("x2") = a2,
+            x3 __asm__("x3") = a3, x4 __asm__("x4") = a4, x5 __asm__("x5") = a5;
+        register long x8 __asm__("x8") = nr;
+        __asm__ volatile("svc #0" : "+r"(x0), "+r"(x1), "+r"(x2), "+r"(x3), "+r"(x4),
+                         "+r"(x5), "+r"(x8) : : "memory");
+        rv = x0; a1 = x1; a2 = x2; a3 = x3; a4 = x4; a5 = x5; nr = x8;
+#else
+        /* rdi, rsi, rdx, r10, r8, r9; rax the number, then the result */
+        register unsigned long r10 __asm__("r10") = a3, r8 __asm__("r8") = a4,
+            r9 __asm__("r9") = a5;
+        unsigned long rdi = 9410, rax = nr;
+        __asm__ volatile("syscall" : "+a"(rax), "+D"(rdi), "+S"(a1), "+d"(a2), "+r"(r10),
+                         "+r"(r8), "+r"(r9) : : "rcx", "r11", "memory");
+        rv = rax; a3 = r10; a4 = r8; a5 = r9;
+        a1 = rdi == 9410 ? a1 : 0;      /* the first argument too */
+#endif
+        INJ_CHECK("atreturn-regs", rv == pid && a1 == 0x1111 && a2 == 0x2222 &&
+                  a3 == 0x3333 && a4 == 0x4444 && a5 == 0x5555 && nr == SYS_getpgid,
+                  "ret=%ld pid=%d a1=%lx a2=%lx a3=%lx a4=%lx a5=%lx nr=%ld",
+                  rv, pid, a1, a2, a3, a4, a5, nr);
+    }
 
     /* many in one callback */
     r = syscall(SYS_getpgid, 9408);

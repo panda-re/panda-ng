@@ -377,10 +377,13 @@ def scenario_inject():
     hook('getpgid', restart, enter=True, arg_filters=[9406])
 
     def atreturn(regs, proto, sc, *args):
+        """at a return: the injected call runs, then the task's own call
+        returns what the callback says, its other registers its own"""
         count(sc, 'inj-ret')
         r = yield from inject('getpid')
-        sc.retval = 1 if r is None else 0
+        sc.retval = -1 if r is None else r
     hook('getpgid', atreturn, ret=True, arg_filters=[9407])
+    hook('getpgid', atreturn, ret=True, arg_filters=[9410])
 
     def many(regs, proto, sc, *args):
         count(sc, 'inj-many')
