@@ -17,14 +17,14 @@ src/include/system/syscall-trap.h.
  include/accel/tcg/probe.h           |  14 +++
  include/hw/core/cpu.h               |  11 +++
  system/meson.build                  |   1 +
- target/arm/helper.c                 | 130 ++++++++++++++++++++++++++++
+ target/arm/helper.c                 | 130 +++++++++++++++++++++++++++
  target/arm/internals.h              |   7 ++
- target/arm/tcg/helper-a64.c         |  42 +++++++++
+ target/arm/tcg/helper-a64.c         |  56 ++++++++++++
  target/i386/tcg/emit.c.inc          |   1 +
- target/i386/tcg/seg_helper.c        | 124 ++++++++++++++++++++++++++
+ target/i386/tcg/seg_helper.c        | 132 ++++++++++++++++++++++++++++
  target/i386/tcg/seg_helper.h        |  21 +++++
  target/i386/tcg/system/seg_helper.c |  51 +++++++++++
- 11 files changed, 415 insertions(+)
+ 11 files changed, 437 insertions(+)
 
 diff --git a/accel/tcg/cputlb.c b/accel/tcg/cputlb.c
 index 7f7c208ba1219d2967ee1c2ef170d5af942ff113..d7f51c94c29454c80b54d56252c73035e73747e8 100644
@@ -281,7 +281,7 @@ index 4026f67579e768232b51cddc792e156adfb1d680..c55a98b1c5c9471ff61ce36ca19d5e32
  {
      switch (mode) {
 diff --git a/target/arm/tcg/helper-a64.c b/target/arm/tcg/helper-a64.c
-index 05ab9ab6d31b638606c4dd79bedbfbb0b69748ff..5fde658778ef668cc25d1e8aa0ec13b134c23afe 100644
+index 05ab9ab6d31b638606c4dd79bedbfbb0b69748ff..0419b282cf980ed5112c83612fad7b3d7737cb16 100644
 --- a/target/arm/tcg/helper-a64.c
 +++ b/target/arm/tcg/helper-a64.c
 @@ -28,6 +28,7 @@
@@ -292,7 +292,7 @@ index 05ab9ab6d31b638606c4dd79bedbfbb0b69748ff..5fde658778ef668cc25d1e8aa0ec13b1
  #include "qemu/crc32c.h"
  #include "exec/cpu-common.h"
  #include "accel/tcg/cpu-ldst.h"
-@@ -762,6 +763,47 @@ void HELPER(exception_return)(CPUARMState *env, uint64_t new_pc)
+@@ -762,6 +763,61 @@ void HELPER(exception_return)(CPUARMState *env, uint64_t new_pc)
      arm_call_el_change_hook(cpu);
      bql_unlock();
  
@@ -324,6 +324,20 @@ index 05ab9ab6d31b638606c4dd79bedbfbb0b69748ff..5fde658778ef668cc25d1e8aa0ec13b1
 +            break;
 +        }
 +
++        if (r & SYSCALL_TRAP_RESTORE) {
++            /* back from a call injected at the return: this call's registers */
++            if (return_to_aa64 && rw.abi == SYSCALL_ABI_AARCH64) {
++                env->xregs[8] = rw.num;
++                for (int i = 1; i < 6; i++) {
++                    env->xregs[i] = rw.args[i];
++                }
++            } else if (!return_to_aa64 && rw.abi == SYSCALL_ABI_ARM) {
++                env->regs[7] = rw.num;
++                for (int i = 1; i < 6; i++) {
++                    env->regs[i] = (uint32_t)rw.args[i];
++                }
++            }
++        }
 +        if (r & SYSCALL_TRAP_RET) {
 +            if (return_to_aa64) {
 +                env->xregs[0] = ret;
@@ -353,7 +367,7 @@ index 473f415766f93cefbed48d0f556526efb5714370..aa00d2c3f13a957e9006ca863e3f632d
      s->base.is_jmp = DISAS_EOB_ONLY;
  }
 diff --git a/target/i386/tcg/seg_helper.c b/target/i386/tcg/seg_helper.c
-index d5c174b7fd7aae91a5ed1313d27c45d1ec44b0b4..40d9a8513bae2f394b78cfdab42e9bd357ff7eb8 100644
+index d5c174b7fd7aae91a5ed1313d27c45d1ec44b0b4..522f8208e06078335b26cb3fec0f77f4312f9f88 100644
 --- a/target/i386/tcg/seg_helper.c
 +++ b/target/i386/tcg/seg_helper.c
 @@ -30,6 +30,7 @@
@@ -374,7 +388,7 @@ index d5c174b7fd7aae91a5ed1313d27c45d1ec44b0b4..40d9a8513bae2f394b78cfdab42e9bd3
  }
  
  /* real mode interrupt */
-@@ -1193,6 +1197,106 @@ static void do_interrupt_real(CPUX86State *env, int intno, int is_int,
+@@ -1193,6 +1197,114 @@ static void do_interrupt_real(CPUX86State *env, int intno, int is_int,
      env->eflags &= ~(IF_MASK | TF_MASK | AC_MASK | RF_MASK);
  }
  
@@ -396,6 +410,14 @@ index d5c174b7fd7aae91a5ed1313d27c45d1ec44b0b4..40d9a8513bae2f394b78cfdab42e9bd3
 +                                x86_sc_percpu(env), X86_SC_KMMU, &ret, &rw);
 +        if (r & SYSCALL_TRAP_RET) {
 +            env->regs[R_EAX] = ret;
++        }
++        if ((r & SYSCALL_TRAP_RESTORE) && rw.abi == SYSCALL_ABI_X86_64) {
++            /* back from a call injected at the return: this call's arguments */
++            static const int a[6] = { R_EDI, R_ESI, R_EDX, 10, 8, 9 };
++
++            for (int i = 0; i < 6; i++) {
++                env->regs[a[i]] = rw.args[i];
++            }
 +        }
 +        if ((r & SYSCALL_TRAP_REWIND) && rw.abi == SYSCALL_ABI_X86_64) {
 +            /* an injected call is back: the task's own call, again */
@@ -481,7 +503,7 @@ index d5c174b7fd7aae91a5ed1313d27c45d1ec44b0b4..40d9a8513bae2f394b78cfdab42e9bd3
  /*
   * Begin execution of an interruption. is_int is TRUE if coming from
   * the int instruction. next_eip is the env->eip value AFTER the interrupt
-@@ -1238,6 +1342,13 @@ void do_interrupt_all(X86CPU *cpu, int intno, int is_int,
+@@ -1238,6 +1350,13 @@ void do_interrupt_all(X86CPU *cpu, int intno, int is_int,
              count++;
          }
      }
@@ -495,7 +517,7 @@ index d5c174b7fd7aae91a5ed1313d27c45d1ec44b0b4..40d9a8513bae2f394b78cfdab42e9bd3
      if (env->cr[0] & CR0_PE_MASK) {
  #if !defined(CONFIG_USER_ONLY)
          if (env->hflags & HF_GUEST_MASK) {
-@@ -2285,6 +2396,9 @@ void helper_iret_protected(CPUX86State *env, int shift, int next_eip)
+@@ -2285,6 +2404,9 @@ void helper_iret_protected(CPUX86State *env, int shift, int next_eip)
          helper_ret_protected(env, shift, 1, 0, GETPC());
      }
      env->hflags2 &= ~HF2_NMI_MASK;
@@ -505,7 +527,7 @@ index d5c174b7fd7aae91a5ed1313d27c45d1ec44b0b4..40d9a8513bae2f394b78cfdab42e9bd3
  }
  
  void helper_lret_protected(CPUX86State *env, int shift, int addend)
-@@ -2297,6 +2411,13 @@ void helper_sysenter(CPUX86State *env)
+@@ -2297,6 +2419,13 @@ void helper_sysenter(CPUX86State *env)
      if (env->sysenter_cs == 0) {
          raise_exception_err_ra(env, EXCP0D_GPF, 0, GETPC());
      }
@@ -519,7 +541,7 @@ index d5c174b7fd7aae91a5ed1313d27c45d1ec44b0b4..40d9a8513bae2f394b78cfdab42e9bd3
      env->eflags &= ~(VM_MASK | IF_MASK | RF_MASK);
  
  #ifdef TARGET_X86_64
-@@ -2362,6 +2483,9 @@ void helper_sysexit(CPUX86State *env, int dflag)
+@@ -2362,6 +2491,9 @@ void helper_sysexit(CPUX86State *env, int dflag)
      }
      env->regs[R_ESP] = env->regs[R_ECX];
      env->eip = env->regs[R_EDX];
