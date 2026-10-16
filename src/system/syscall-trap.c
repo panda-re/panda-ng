@@ -45,8 +45,11 @@ static const bool sc_is32[SYSCALL_ABI_COUNT] = {
     [SYSCALL_ABI_RISCV32] = true,
 };
 
-/* SC_INJECT: held while the task runs a call in its place (inject) */
-enum { SC_PENDING, SC_HELD_ENTER, SC_HELD_RETURN, SC_INJECT };
+/*
+ * SC_INJECT: held while the task runs a call in its place (inject);
+ * SC_INJECT_RET: the same at its return, the task's return held
+ */
+enum { SC_PENDING, SC_HELD_ENTER, SC_HELD_RETURN, SC_INJECT, SC_INJECT_RET };
 
 typedef struct {
     uint64_t k1, k2, pc;        /* pc 0: empty */
@@ -54,7 +57,7 @@ typedef struct {
     uint8_t state;              /* waiting for its return, or held */
     uint64_t seq;               /* when it was added */
     SyscallTrap sc;
-    int64_t num;                /* SC_INJECT: the registers it replaced */
+    int64_t num;                /* SC_INJECT*: the registers it replaced */
     uint64_t args[6];
 } SCSlot;
 
@@ -162,7 +165,8 @@ static void sc_evict(void)
         if (sc_slots[i].pc) {
             /* a task running an injected call needs its registers back */
             if (sc_slots[i].seq + SC_SLOTS / 2 >= sc_seq ||
-                sc_slots[i].state == SC_INJECT) {
+                sc_slots[i].state == SC_INJECT ||
+                sc_slots[i].state == SC_INJECT_RET) {
                 keep[n++] = sc_slots[i];
             } else {
                 sc_forget(&sc_slots[i]);
@@ -285,7 +289,8 @@ static int sc_take_held(uint64_t k1, uint64_t k2, uint64_t pc,
         sc_delete(s);
         qatomic_dec(&syscall_trap_pending);
         found = SC_HELD_ENTER;
-    } else if (s && s->pc && s->state == SC_INJECT) {
+    } else if (s && s->pc && (s->state == SC_INJECT ||
+                              s->state == SC_INJECT_RET)) {
         found = SC_INJECT;
     }
     sc_unlock();
@@ -362,6 +367,60 @@ deliver:
     return r;
 }
 
+/*
+ * A return run that asked for an injected call (sc->inject), or one that is
+ * back from one (@restore: the task has the injected call's registers).
+ * Inject: hold the return as SC_INJECT_RET with the call's own number and
+ * arguments (@onum, @oargs) and send the task back to the trap instruction
+ * with the injected call's (REWIND).  Otherwise, with @restore, the task
+ * gets its own call's registers back and the run's return value (RESTORE,
+ * RET), and is held for a fault or done.
+ */
+static int sc_ret_after(CPUState *cpu, uint64_t k1, uint64_t k2,
+                        uint64_t key, unsigned len, SyscallTrap *sc,
+                        int64_t onum, const uint64_t oargs[6], bool restore,
+                        uint64_t *ret, SyscallTrapRewind *rw)
+{
+    int r = 0;
+
+    if (sc->inject) {
+        SCSlot *s = NULL;
+
+        sc->inject = false;
+        sc->injected = false;
+        if (!sc->restart && (cpu->syscall_inject_abis & (1u << sc->abi))) {
+            qemu_mutex_lock(&sc_lock);
+            s = sc_put(k1, k2, key, len, sc, SC_INJECT_RET);
+            if (s) {
+                s->num = onum;
+                memcpy(s->args, oargs, sizeof(s->args));
+            }
+            sc_unlock();
+        }
+        if (s) {
+            rw->abi = sc->abi;
+            rw->num = sc->inject_num;
+            memcpy(rw->args, sc->inject_args, sizeof(rw->args));
+            rw->len = len;
+            return SYSCALL_TRAP_REWIND;
+        }
+        sc_drop(sc);            /* the run is aborted */
+    } else if (sc->fault) {
+        r = sc_hold(k1, k2, key, len, sc, SC_HELD_RETURN);
+    } else {
+        sc_drop(sc);
+    }
+    if (restore) {
+        rw->abi = sc->abi;
+        rw->num = onum;
+        memcpy(rw->args, oargs, sizeof(rw->args));
+        rw->len = 0;
+        *ret = sc_is32[sc->abi] ? (uint32_t)sc->ret : (uint64_t)sc->ret;
+        r |= SYSCALL_TRAP_RESTORE | SYSCALL_TRAP_RET;
+    }
+    return r;
+}
+
 int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
                         uint64_t percpu, uint32_t kmmu, uint64_t *ret,
                         SyscallTrapRewind *rw)
@@ -391,6 +450,36 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
         sc_unlock();
         return SYSCALL_TRAP_REWIND;
     }
+    if (s && s->pc && s->state == SC_INJECT_RET) {
+        /*
+         * A call injected at a return is back: the held return run gets its
+         * answer, and the task its own call's registers and return value.
+         */
+        int64_t onum = s->num;
+        uint64_t oargs[6];
+
+        sc = s->sc;
+        memcpy(oargs, s->args, sizeof(oargs));
+        len = s->len;
+        key = s->pc;
+        sc_forget(s);
+        sc_delete(s);
+        qatomic_dec(&syscall_trap_pending);
+        sc_unlock();
+        if (!ops || !ops->ret) {
+            sc_drop(&sc);
+            return 0;
+        }
+        sc.injected = true;
+        sc.inject_ret = sc_is32[sc.abi] ? (int32_t)*ret : (int64_t)*ret;
+        sc.resumed = true;
+        sc.percpu = percpu;
+        cpu->syscall_kmmu = kmmu;
+        ops->ret(cpu, &sc, sc_opaque);
+        cpu->syscall_kmmu = 0;
+        return sc_ret_after(cpu, k1, k2, key, len, &sc, onum, oargs, true,
+                            ret, rw);
+    }
     if (!s || !s->pc || s->state == SC_HELD_ENTER) {
         /*
          * The kernel rewound the task to the trap: a restart, or the
@@ -401,7 +490,8 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
         for (int i = 0; i < ARRAY_SIZE(lens) && !s; i++) {
             SCSlot *t = sc_find(k1, k2, pc + lens[i]);
             if (t && t->pc && t->len == lens[i] &&
-                t->state != SC_HELD_ENTER && t->state != SC_INJECT) {
+                t->state != SC_HELD_ENTER && t->state != SC_INJECT &&
+                t->state != SC_INJECT_RET) {
                 s = t;
             }
         }
@@ -436,6 +526,10 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
     cpu->syscall_kmmu = kmmu;
     ops->ret(cpu, &sc, sc_opaque);
     cpu->syscall_kmmu = 0;
+    if (sc.inject) {
+        return sc_ret_after(cpu, k1, k2, key, len, &sc, sc.num, sc.args,
+                            false, ret, rw);
+    }
     if (sc.fault) {
         return sc_hold(k1, k2, key, len, &sc, SC_HELD_RETURN);
     }

@@ -909,8 +909,11 @@ static bool psc_may_inject(PCtx *c, int64_t num)
     unsigned n = qatomic_read(&psc_exec_hooked) ? 4 : ARRAY_SIZE(never);
     const PNum *pn;
 
-    /* the ABIs the target can put the task's registers back for */
-    if (!c->at_enter || c->sc->abi >= 32 ||
+    /*
+     * At an entry, or a return the kernel is not restarting; for the ABIs
+     * the target can put the task's registers back for
+     */
+    if ((!c->at_enter && c->sc->restart) || c->sc->abi >= 32 ||
         !(c->cpu->syscall_inject_abis & (1u << c->sc->abi))) {
         return false;
     }

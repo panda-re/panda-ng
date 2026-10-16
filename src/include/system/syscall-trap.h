@@ -148,9 +148,17 @@ bool syscall_trap_access(CPUState *cpu, vaddr addr, void *buf, size_t len,
  * that the call traps again.
  */
 #define SYSCALL_TRAP_REWIND 32
+/*
+ * Return: a call injected at this call's return is back.  The target puts
+ * this call's own registers back as they are at its return: its arguments
+ * (SyscallTrapRewind args), its number where the ABI keeps it in a register
+ * of its own (AArch64 x8, EABI r7), and *ret (SYSCALL_TRAP_RET, set too);
+ * the PC stays.
+ */
+#define SYSCALL_TRAP_RESTORE 64
 
 typedef struct SyscallTrapRewind {
-    int abi;                /* the call's: x86_64's or AArch64's only */
+    int abi;                /* the call's: one the target injects into */
     int64_t num;
     uint64_t args[6];
     unsigned len;
