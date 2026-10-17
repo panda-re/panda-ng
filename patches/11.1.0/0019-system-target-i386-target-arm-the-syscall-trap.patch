@@ -15,16 +15,16 @@ src/include/system/syscall-trap.h.
 ---
  accel/tcg/cputlb.c                  |  13 +++
  include/accel/tcg/probe.h           |  14 +++
- include/hw/core/cpu.h               |  11 +++
+ include/hw/core/cpu.h               |  19 ++++
  system/meson.build                  |   1 +
- target/arm/helper.c                 | 130 +++++++++++++++++++++++++++
+ target/arm/helper.c                 | 142 +++++++++++++++++++++++++++-
  target/arm/internals.h              |   7 ++
- target/arm/tcg/helper-a64.c         |  56 ++++++++++++
+ target/arm/tcg/helper-a64.c         |  56 +++++++++++
  target/i386/tcg/emit.c.inc          |   1 +
- target/i386/tcg/seg_helper.c        | 132 ++++++++++++++++++++++++++++
- target/i386/tcg/seg_helper.h        |  21 +++++
- target/i386/tcg/system/seg_helper.c |  51 +++++++++++
- 11 files changed, 437 insertions(+)
+ target/i386/tcg/seg_helper.c        | 132 ++++++++++++++++++++++++++
+ target/i386/tcg/seg_helper.h        |  21 ++++
+ target/i386/tcg/system/seg_helper.c |  51 ++++++++++
+ 11 files changed, 456 insertions(+), 1 deletion(-)
 
 diff --git a/accel/tcg/cputlb.c b/accel/tcg/cputlb.c
 index 7f7c208ba1219d2967ee1c2ef170d5af942ff113..d7f51c94c29454c80b54d56252c73035e73747e8 100644
@@ -74,10 +74,10 @@ index 0b788901ba0ee8ecb461686755ab3170a9e4b1d2..ecac77f5d55dabfb99ec4a58ee4e0bb7
 +
  #endif
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index cac4af61a465f576ebf47d1227c6a01b6a69de65..a7b535452891dd3242095aca5c8ee32385780f2b 100644
+index cac4af61a465f576ebf47d1227c6a01b6a69de65..c34b0dff8086a57f2e1e34e4e00959d72ae28572 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
-@@ -563,6 +563,17 @@ struct CPUState {
+@@ -563,6 +563,25 @@ struct CPUState {
      int32_t exception_index;
      /* host return address into the block while a TCG hook runs, or 0 */
      uintptr_t tcg_hook_ra;
@@ -92,6 +92,14 @@ index cac4af61a465f576ebf47d1227c6a01b6a69de65..a7b535452891dd3242095aca5c8ee323
 +     * whose registers the target can put back after an injected call.
 +     */
 +    uint32_t syscall_inject_abis;
++    /*
++     * The kernel's current task where the target can see it with no
++     * symbol, or 0: on AArch64 the last kernel address the kernel wrote to
++     * SP_EL0 at EL1 (Linux 4.10+ keeps current there in the kernel, and
++     * the last such write before a return to EL0 is the returning task's).
++     * See penguin_syscall_set_current_source().
++     */
++    uint64_t syscall_current;
  
      bool vcpu_dirty;
      AccelCPUState *accel;
@@ -108,7 +116,7 @@ index 10c41e709040ac1a37a215dcb9930951ba2c1ea9..4f8de182a383d804d8771b279af6d49c
    'runstate-action.c',
    'runstate-hmp-cmds.c',
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index af45234ad2a7e86bbc02f6faa6c5534436133e1b..fd922bac7ba706058c8c86d56687349e249a4a63 100644
+index af45234ad2a7e86bbc02f6faa6c5534436133e1b..b563257553a889feea24fa254217d37e9b2ce072 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -35,6 +35,7 @@
@@ -119,7 +127,33 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..fd922bac7ba706058c8c86d56687349e
  
  static void switch_mode(CPUARMState *env, int mode);
  #ifndef CONFIG_USER_ONLY
-@@ -9618,6 +9619,130 @@ static void tcg_handle_semihosting(CPUState *cs)
+@@ -3278,6 +3279,16 @@ static uint64_t aa64_dczid_read(CPUARMState *env, const ARMCPRegInfo *ri)
+     return cpu->isar.idregs[DCZID_EL0_IDX] | dzp_bit;
+ }
+ 
++static void sp_el0_write(CPUARMState *env, const ARMCPRegInfo *ri,
++                         uint64_t value)
++{
++    env->sp_el[0] = value;
++    /* a kernel address: Linux's current (CPUState.syscall_current) */
++    if (value >> 63) {
++        env_cpu(env)->syscall_current = value;
++    }
++}
++
+ static CPAccessResult sp_el0_access(CPUARMState *env, const ARMCPRegInfo *ri,
+                                     bool isread)
+ {
+@@ -3650,7 +3661,7 @@ static const ARMCPRegInfo v8_cp_reginfo[] = {
+     { .name = "SP_EL0", .state = ARM_CP_STATE_AA64,
+       .opc0 = 3, .opc1 = 0, .crn = 4, .crm = 1, .opc2 = 0,
+       .access = PL1_RW, .accessfn = sp_el0_access,
+-      .type = ARM_CP_ALIAS,
++      .type = ARM_CP_ALIAS, .writefn = sp_el0_write,
+       .fieldoffset = offsetof(CPUARMState, sp_el[0]) },
+     { .name = "SP_EL1", .state = ARM_CP_STATE_AA64,
+       .opc0 = 3, .opc1 = 4, .crn = 4, .crm = 1, .opc2 = 0,
+@@ -9618,6 +9629,130 @@ static void tcg_handle_semihosting(CPUState *cs)
   *       and KVM to re-inject guest debug exceptions, and to
   *       inject a Synchronous-External-Abort.
   */
@@ -250,7 +284,7 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..fd922bac7ba706058c8c86d56687349e
  void arm_cpu_do_interrupt(CPUState *cs)
  {
      ARMCPU *cpu = ARM_CPU(cs);
-@@ -9657,6 +9782,11 @@ void arm_cpu_do_interrupt(CPUState *cs)
+@@ -9657,6 +9792,11 @@ void arm_cpu_do_interrupt(CPUState *cs)
      }
  #endif
  
