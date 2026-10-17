@@ -91,6 +91,7 @@ static PTable *psc_table;       /* RCU */
 static bool psc_dirty;
 static bool psc_booted;
 static bool psc_scope;
+static bool psc_cur_cpu;             /* tasks from CPUState.syscall_current */
 
 static penguin_syscall_cb_t psc_cb;
 static void *psc_cb_opaque;
@@ -380,6 +381,8 @@ static bool psc_task(PCtx *c)
         if (l->cur_mask) {
             c->task = psc_ptr(c, (c->sc->percpu & l->cur_mask) + l->cur_offset,
                               0);
+        } else if (qatomic_read(&psc_cur_cpu)) {
+            c->task = c->cpu->syscall_current;
         }
     }
     return c->task != 0;
@@ -1563,6 +1566,12 @@ void __attribute__((visibility("default")))
 penguin_syscall_set_scope(bool enabled)
 {
     qatomic_set(&psc_scope, enabled);
+}
+
+void __attribute__((visibility("default")))
+penguin_syscall_set_current_source(bool from_cpu)
+{
+    qatomic_set(&psc_cur_cpu, from_cpu);
 }
 
 uint64_t __attribute__((visibility("default")))

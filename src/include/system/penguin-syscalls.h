@@ -291,6 +291,14 @@ bool penguin_syscall_set_exec(uint64_t set_task_comm);
 /* scope filters on: only tasks outside the initial UTS namespace match */
 void penguin_syscall_set_scope(bool enabled);
 
+/*
+ * Where an event's task comes from when the layout has no per-CPU slot
+ * (cur_mask 0, no __entry_task or current_task symbol): with @from_cpu,
+ * the target's CPUState.syscall_current (AArch64: SP_EL0 as the kernel
+ * last set it, Linux 4.10+).  Off by default.
+ */
+void penguin_syscall_set_current_source(bool from_cpu);
+
 /* returns the hook's id, or 0 */
 uint64_t penguin_syscall_register(const struct penguin_sc_hook *hook);
 bool penguin_syscall_unregister(uint64_t id);

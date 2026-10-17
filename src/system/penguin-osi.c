@@ -1105,7 +1105,8 @@ static int o_vma(OCtx *o, uint64_t mm, uint64_t rmnt, uint64_t rdentry,
     r->end = P(o, v, vma_end);
     flags = r->flags = P(o, v, vma_flags);
     /* before the stack guard gap: stack_guard_page_start() */
-    if (!l->stack_guard_gap && (flags & VM_GROWSDOWN) &&
+    if (!l->stack_guard_gap && qatomic_read(&okver) < (4 << 8 | 12) &&
+        (flags & VM_GROWSDOWN) &&
         !(prev_end == r->start && (prev_flags & VM_GROWSDOWN))) {
         r->start += OSI_PAGE;
     }

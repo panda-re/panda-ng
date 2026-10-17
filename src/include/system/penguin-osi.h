@@ -96,7 +96,8 @@ struct penguin_osi_layout {
      * Where /proc's rules changed with no structure to show it: the kernel's
      * release string (init_uts_ns.name.release: 6.6 made the heap's bounds
      * strict), and stack_guard_gap (4.12, and the stable kernels the fix
-     * went to: before it, /proc hid a stack's guard page).
+     * went to: before it, /proc hid a stack's guard page).  A 4.12+ release
+     * has the gap whether or not the symbol is known.
      */
     uint64_t uts_release, stack_guard_gap;
 };
