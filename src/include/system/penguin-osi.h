@@ -100,6 +100,12 @@ struct penguin_osi_layout {
      * has the gap whether or not the symbol is known.
      */
     uint64_t uts_release, stack_guard_gap;
+    /*
+     * With a d_dname function above unknown (a kernel lifted with exports
+     * only), the filesystem's magic picks the name it would have printed:
+     * dentry.d_sb, super_block.s_magic.
+     */
+    int32_t dentry_sb, sb_magic;
 };
 
 struct penguin_osi_proc {

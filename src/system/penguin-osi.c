@@ -135,6 +135,64 @@ static const uint8_t *o_fast(uint64_t va)
 
 static void o_map(OCtx *o);
 static uint32_t o_cstr(OCtx *o, uint64_t va, char *buf, uint32_t max);
+static uint64_t o_opt(OCtx *o, uint64_t va, int32_t off, unsigned size);
+
+/* the filesystems whose d_dname a name can be told from (include/uapi/linux/magic.h) */
+#define OSI_SOCKFS_MAGIC        0x534F434BULL
+#define OSI_PIPEFS_MAGIC        0x50495045ULL
+#define OSI_ANON_INODE_FS_MAGIC 0x09041934ULL
+#define OSI_TMPFS_MAGIC         0x01021994ULL
+#define OSI_DMA_BUF_MAGIC       0x444d4142ULL
+
+/*
+ * A d_dname dentry's name by its filesystem's magic, where that
+ * filesystem's d_dname symbol is unknown; -1 if it cannot be told
+ */
+static int o_dname_by_magic(OCtx *o, uint64_t dentry, const char *name,
+                            uint64_t ino, char *out, int outlen)
+{
+    const struct penguin_osi_layout *l = o->l;
+    uint64_t sb = o_opt(o, dentry, l->dentry_sb, 8);
+    uint64_t magic = sb && l->sb_magic >= 0 ? o_opt(o, sb, l->sb_magic, 8) : 0;
+
+    if (o->bad || !magic) {
+        o->bad = false;
+        return -1;
+    }
+    if (magic == OSI_SOCKFS_MAGIC && !l->fn_sockfs_dname) {
+        return snprintf(out, outlen, "socket:[%" PRIu64 "]", ino);
+    } else if (magic == OSI_PIPEFS_MAGIC && !l->fn_pipefs_dname) {
+        return snprintf(out, outlen, "pipe:[%" PRIu64 "]", ino);
+    } else if (magic == OSI_ANON_INODE_FS_MAGIC && !l->fn_anon_inodefs_dname) {
+        return snprintf(out, outlen, "anon_inode:%s", name);
+    } else if (magic == OSI_TMPFS_MAGIC && !l->fn_simple_dname) {
+        return snprintf(out, outlen, "/%s (deleted)", name);    /* shmem: simple_dname */
+    } else if (magic == OSI_DMA_BUF_MAGIC && !l->fn_dmabuffs_dname) {
+        return snprintf(out, outlen, "/dmabuf:%s", name);
+    }
+    return -1;
+}
+
+/*
+ * A special mapping's name ([vdso], [sigpage], ...) with neither vm_ops'
+ * name nor special_mapping_name known: a file-less vma's vm_private_data
+ * as a struct vm_special_mapping, if its name reads as "[...]"
+ */
+static int o_special_name(OCtx *o, uint64_t vma, char *name, uint32_t nlen)
+{
+    const struct penguin_osi_layout *l = o->l;
+    uint64_t sm = o_opt(o, vma, l->vma_private, 8);
+    uint64_t nm = sm && l->special_mapping_name >= 0 ?
+        o_opt(o, sm, l->special_mapping_name, 8) : 0;
+    uint32_t n = nm ? o_cstr(o, nm, name, nlen) : 0;
+
+    if (o->bad || n < 2 || name[0] != '[' || name[n - 1] != ']') {
+        o->bad = false;
+        name[0] = 0;
+        return -1;
+    }
+    return n;
+}
 
 static bool o_init(OCtx *o, CPUState *cs)
 {
@@ -723,7 +781,7 @@ static int o_d_path_m(OCtx *o, uint64_t rmnt, uint64_t rdentry, uint64_t mnt,
                 n = snprintf(out, outlen, "/%s (deleted)", name);
             } else if (fn == l->fn_dmabuffs_dname) {
                 n = snprintf(out, outlen, "/dmabuf:%s", name);
-            } else {
+            } else if ((n = o_dname_by_magic(o, dentry, name, ino, out, outlen)) < 0) {
                 n = snprintf(out, outlen, "[d_dname 0x%" PRIx64 "]", fn);
             }
             if (o->bad) {
@@ -1127,7 +1185,10 @@ static int o_vma(OCtx *o, uint64_t mm, uint64_t rmnt, uint64_t rdentry,
         }
         return n;
     }
-    ops = P(o, v, vma_ops);
+    if (l->gate_vma && v == l->gate_vma) {
+        return snprintf(name, nlen, "[vsyscall]");      /* x86_64's gate_vma */
+    }
+    ops = o_opt(o, v, l->vma_ops, 8);
     if (ops) {
         uint64_t fn = o_opt(o, ops, l->vmops_name, 8);
         if (fn && fn == l->fn_special_mapping_name) {
@@ -1137,6 +1198,9 @@ static int o_vma(OCtx *o, uint64_t mm, uint64_t rmnt, uint64_t rdentry,
             return snprintf(name, nlen, "[vsyscall]");
         } else if (fn) {
             return snprintf(name, nlen, "[vm_ops 0x%" PRIx64 "]", fn);
+        } else if (!l->fn_special_mapping_name &&
+                   (n = o_special_name(o, v, name, nlen)) > 0) {
+            return n;
         }
     }
     if (!vmm) {
