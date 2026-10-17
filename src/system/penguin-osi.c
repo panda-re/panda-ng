@@ -527,7 +527,8 @@ bool penguin_osi_proc(CPUState *cs, uint64_t task, struct penguin_osi_proc *p)
     p->comm[sizeof(p->comm) - 1] = 0;
     mm = p->mm = P(&o, task, task_mm);
     if (mm) {
-        p->pgd = P(&o, mm, mm_pgd);
+        /* only reads of the task's memory need it (penguin_osi_user_read) */
+        p->pgd = o_opt(&o, mm, l->mm_pgd, 8);
         p->map_count = (int32_t)o_opt(&o, mm, l->mm_map_count, 4);
         p->start_brk = P(&o, mm, mm_start_brk);
         p->brk = P(&o, mm, mm_brk);
