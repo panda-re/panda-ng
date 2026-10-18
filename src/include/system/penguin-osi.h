@@ -116,6 +116,11 @@ struct penguin_osi_layout {
      * own TLB refill handler says: QEMU's debug reads take the TLB only).
      */
     int32_t big_endian, mips32;
+    /*
+     * Before 2.6.29 (no struct cred) the ids are the task's own: cred_uid
+     * and the rest are then offsets in task_struct.
+     */
+    int32_t ids_in_task;
 };
 
 struct penguin_osi_proc {

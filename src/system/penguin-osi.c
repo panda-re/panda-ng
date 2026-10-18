@@ -583,7 +583,7 @@ bool penguin_osi_proc(CPUState *cs, uint64_t task, struct penguin_osi_proc *p)
     parent = P(&o, task, task_real_parent);
     p->ppid = parent ? (int32_t)U32(&o, parent, task_tgid) : 0;
     p->create_time = o_opt(&o, task, l->task_start_time, 8);
-    cred = P(&o, task, task_cred);
+    cred = l->ids_in_task ? task : P(&o, task, task_cred);
     if (cred) {
         p->uid = U32(&o, cred, cred_uid);
         p->gid = U32(&o, cred, cred_gid);
