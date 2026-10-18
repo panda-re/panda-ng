@@ -14,18 +14,18 @@ Vendored sources: src/system/syscall-trap.c,
 src/include/system/syscall-trap.h.
 ---
  accel/tcg/cputlb.c                  |  13 ++
- include/accel/tcg/probe.h           |  14 +++
+ include/accel/tcg/probe.h           |  14 ++
  include/hw/core/cpu.h               |  19 +++
  system/meson.build                  |   1 +
- target/arm/helper.c                 | 185 +++++++++++++++++++++++++++-
+ target/arm/helper.c                 | 190 +++++++++++++++++++++++++++-
  target/arm/internals.h              |   8 ++
- target/arm/tcg/helper-a64.c         |  56 +++++++++
+ target/arm/tcg/helper-a64.c         |  56 ++++++++
  target/arm/tcg/op_helper.c          |  10 ++
  target/i386/tcg/emit.c.inc          |   1 +
- target/i386/tcg/seg_helper.c        | 132 ++++++++++++++++++++
- target/i386/tcg/seg_helper.h        |  21 ++++
+ target/i386/tcg/seg_helper.c        | 132 +++++++++++++++++++
+ target/i386/tcg/seg_helper.h        |  21 +++
  target/i386/tcg/system/seg_helper.c |  51 ++++++++
- 12 files changed, 510 insertions(+), 1 deletion(-)
+ 12 files changed, 515 insertions(+), 1 deletion(-)
 
 diff --git a/accel/tcg/cputlb.c b/accel/tcg/cputlb.c
 index 7f7c208ba1219d2967ee1c2ef170d5af942ff113..d7f51c94c29454c80b54d56252c73035e73747e8 100644
@@ -117,7 +117,7 @@ index 10c41e709040ac1a37a215dcb9930951ba2c1ea9..4f8de182a383d804d8771b279af6d49c
    'runstate-action.c',
    'runstate-hmp-cmds.c',
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index af45234ad2a7e86bbc02f6faa6c5534436133e1b..74f82038fe9f77d8380fcaa4acada3fe1a13edf3 100644
+index af45234ad2a7e86bbc02f6faa6c5534436133e1b..d92764eba159de91a78fe00ae37d00b4b7a9dc30 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -35,6 +35,7 @@
@@ -154,7 +154,7 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..74f82038fe9f77d8380fcaa4acada3fe
        .fieldoffset = offsetof(CPUARMState, sp_el[0]) },
      { .name = "SP_EL1", .state = ARM_CP_STATE_AA64,
        .opc0 = 3, .opc1 = 4, .crn = 4, .crm = 1, .opc2 = 0,
-@@ -9618,6 +9629,173 @@ static void tcg_handle_semihosting(CPUState *cs)
+@@ -9618,6 +9629,178 @@ static void tcg_handle_semihosting(CPUState *cs)
   *       and KVM to re-inject guest debug exceptions, and to
   *       inject a Synchronous-External-Abort.
   */
@@ -169,8 +169,13 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..74f82038fe9f77d8380fcaa4acada3fe
 +    return is_a64(env) ? env->xregs[31] : env->regs[13];
 +}
 +
-+uint32_t arm_sc_kmmu(void)
++uint32_t arm_sc_kmmu(CPUARMState *env)
 +{
++    /* a Secure AArch32 kernel runs at EL3: its regime is Secure PL1, not EL1 */
++    if (arm_is_secure_below_el3(env) && !arm_el_is_aa64(env, 3)) {
++        return (1u << arm_to_core_mmu_idx(ARMMMUIdx_E3)) |
++               (1u << arm_to_core_mmu_idx(ARMMMUIdx_E30_3_PAN));
++    }
 +    return (1u << arm_to_core_mmu_idx(ARMMMUIdx_E10_1)) |
 +           (1u << arm_to_core_mmu_idx(ARMMMUIdx_E10_1_PAN));
 +}
@@ -236,7 +241,7 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..74f82038fe9f77d8380fcaa4acada3fe
 +        1u << SYSCALL_ABI_ARM;          /* an AArch32 kernel: EABI, not OABI */
 +    while ((r = syscall_trap_enter(env_cpu(env), abi, num, args, pc, len,
 +                                   arm_sc_key(env), arm_sc_usp(env),
-+                                   arm_sc_percpu(env), arm_sc_kmmu(),
++                                   arm_sc_percpu(env), arm_sc_kmmu(env),
 +                                   &ret)) & SYSCALL_TRAP_FAULT) {
 +        /*
 +         * Take a data abort at the svc instead: back to it, still at EL0,
@@ -295,7 +300,7 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..74f82038fe9f77d8380fcaa4acada3fe
 +        SyscallTrapRewind rw;
 +        int r = syscall_trap_return(env_cpu(env), env->regs[15],
 +                                    arm_sc_key(env), arm_sc_usp(env),
-+                                    arm_sc_percpu(env), arm_sc_kmmu(), &ret,
++                                    arm_sc_percpu(env), arm_sc_kmmu(env), &ret,
 +                                    &rw);
 +
 +        if ((r & SYSCALL_TRAP_REWIND) && rw.abi == SYSCALL_ABI_ARM) {
@@ -328,7 +333,7 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..74f82038fe9f77d8380fcaa4acada3fe
  void arm_cpu_do_interrupt(CPUState *cs)
  {
      ARMCPU *cpu = ARM_CPU(cs);
-@@ -9657,6 +9835,11 @@ void arm_cpu_do_interrupt(CPUState *cs)
+@@ -9657,6 +9840,11 @@ void arm_cpu_do_interrupt(CPUState *cs)
      }
  #endif
  
@@ -341,7 +346,7 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..74f82038fe9f77d8380fcaa4acada3fe
       * Hooks may change global state so BQL should be held, also the
       * BQL needs to be held for any modification of
 diff --git a/target/arm/internals.h b/target/arm/internals.h
-index 4026f67579e768232b51cddc792e156adfb1d680..d3696e138ac9214776a5d385310fbcc33e9a1323 100644
+index 4026f67579e768232b51cddc792e156adfb1d680..8a7432e64fc866a1c7fb027c0776d8ecfa414f45 100644
 --- a/target/arm/internals.h
 +++ b/target/arm/internals.h
 @@ -366,6 +366,14 @@ static inline unsigned int aarch64_banked_spsr_index(unsigned int el)
@@ -352,7 +357,7 @@ index 4026f67579e768232b51cddc792e156adfb1d680..d3696e138ac9214776a5d385310fbcc3
 +uint64_t arm_sc_key(CPUARMState *env);
 +uint64_t arm_sc_percpu(CPUARMState *env);
 +uint64_t arm_sc_usp(CPUARMState *env);
-+uint32_t arm_sc_kmmu(void);
++uint32_t arm_sc_kmmu(CPUARMState *env);
 +void arm_sc_return_aa32(CPUARMState *env);
 +#endif
 +
@@ -360,7 +365,7 @@ index 4026f67579e768232b51cddc792e156adfb1d680..d3696e138ac9214776a5d385310fbcc3
  {
      switch (mode) {
 diff --git a/target/arm/tcg/helper-a64.c b/target/arm/tcg/helper-a64.c
-index 05ab9ab6d31b638606c4dd79bedbfbb0b69748ff..0419b282cf980ed5112c83612fad7b3d7737cb16 100644
+index 05ab9ab6d31b638606c4dd79bedbfbb0b69748ff..6cc9ddfb31915a5777cecc877a4713cb57c463b7 100644
 --- a/target/arm/tcg/helper-a64.c
 +++ b/target/arm/tcg/helper-a64.c
 @@ -28,6 +28,7 @@
@@ -381,7 +386,7 @@ index 05ab9ab6d31b638606c4dd79bedbfbb0b69748ff..0419b282cf980ed5112c83612fad7b3d
 +        int r = syscall_trap_return(env_cpu(env),
 +                                    return_to_aa64 ? env->pc : env->regs[15],
 +                                    arm_sc_key(env), arm_sc_usp(env),
-+                                    arm_sc_percpu(env), arm_sc_kmmu(), &ret,
++                                    arm_sc_percpu(env), arm_sc_kmmu(env), &ret,
 +                                    &rw);
 +
 +        if ((r & SYSCALL_TRAP_REWIND) && return_to_aa64 &&
