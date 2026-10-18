@@ -121,6 +121,11 @@ struct penguin_osi_layout {
      * and the rest are then offsets in task_struct.
      */
     int32_t ids_in_task;
+    /*
+     * Before mm_struct.exe_file (2.6.25), /proc/PID/exe is the file of the
+     * first VMA with this flag (VM_EXECUTABLE); 0 = use mm_exe_file.
+     */
+    int32_t vm_executable;
 };
 
 struct penguin_osi_proc {

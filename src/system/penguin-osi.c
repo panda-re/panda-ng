@@ -987,6 +987,28 @@ int penguin_osi_fd_path(CPUState *cs, uint64_t task, int32_t fd,
                           : -1;
 }
 
+/* the task's executable: mm->exe_file, or before it the first VM_EXECUTABLE VMA's file */
+static uint64_t o_exe_file(OCtx *o, uint64_t mm)
+{
+    const struct penguin_osi_layout *l = o->l;
+    uint32_t n = 0;
+
+    if (!mm) {
+        return 0;
+    }
+    if (!l->vm_executable || l->mm_mmap < 0 || l->vma_flags < 0 || l->vma_file < 0) {
+        return o_opt(o, mm, l->mm_exe_file, o->w);
+    }
+    for (uint64_t v = P(o, mm, mm_mmap); v && !o->bad && n++ < OSI_LIST;
+         v = P(o, v, vma_next)) {
+        uint64_t f = P(o, v, vma_file);
+        if (f && (P(o, v, vma_flags) & (uint32_t)l->vm_executable)) {
+            return f;
+        }
+    }
+    return 0;
+}
+
 int penguin_osi_exe_path(CPUState *cs, uint64_t task, char *buf, uint32_t len)
 {
     OCtx o;
@@ -996,7 +1018,7 @@ int penguin_osi_exe_path(CPUState *cs, uint64_t task, char *buf, uint32_t len)
         return -1;
     }
     mm = P(&o, task, task_mm);
-    exe = mm ? o_opt(&o, mm, ol.mm_exe_file, o.w) : 0;
+    exe = o_exe_file(&o, mm);
     return exe && !o.bad ? o_file_path(&o, rmnt, rdentry, exe, buf, len) : -1;
 }
 
@@ -1064,9 +1086,7 @@ static int o_exe_match(CPUState *cs, uint64_t task, int how,
         return -1;
     }
     mm = P(&o, task, task_mm);
-    return mm ? o_file_match(&o, task, o_opt(&o, mm, ol.mm_exe_file, o.w), how,
-                             pat, plen)
-              : -1;
+    return mm ? o_file_match(&o, task, o_exe_file(&o, mm), how, pat, plen) : -1;
 }
 
 /* mappings */
