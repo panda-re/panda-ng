@@ -2107,8 +2107,15 @@ static int t_osi_run(void)
     DIR *d;
     struct dirent *e;
 
-    if (chdir("/mnt") != 0 || pipe(p) != 0 || pipe(go) != 0) {
-        return 1;
+    /* the raw pipe2 syscall: MIPS's pipe returns its fds in v0/v1, and this
+       libc's pipe (and pipe2 with no flags) hands back v0 as the result */
+    {
+        int a = chdir("/mnt"), b = syscall(SYS_pipe2, p, 0), c = syscall(SYS_pipe2, go, 0);
+
+        if (a || b || c) {
+            printf("OSI fail setup chdir=%d pipe=%d pipe=%d errno=%d\n", a, b, c, errno);
+            return 1;
+        }
     }
     fd = open("/mnt/data.bin", O_RDONLY);
     socket(AF_UNIX, SOCK_STREAM, 0);
@@ -2121,6 +2128,7 @@ static int t_osi_run(void)
     m = mmap(NULL, 2 * PG, PROT_READ, MAP_PRIVATE, fd, PG);
     mmap(NULL, 3 * PG, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (m == MAP_FAILED) {
+        printf("OSI fail mmap fd=%d errno=%d\n", fd, errno);
         return 1;
     }
     child = fork();

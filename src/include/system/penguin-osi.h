@@ -111,6 +111,11 @@ struct penguin_osi_layout {
      * kernel (short-descriptor page tables); 0 means 8.
      */
     int32_t ptr_size;
+    /*
+     * A big-endian kernel; a MIPS32 one (its tables walked as the kernel's
+     * own TLB refill handler says: QEMU's debug reads take the TLB only).
+     */
+    int32_t big_endian, mips32;
 };
 
 struct penguin_osi_proc {

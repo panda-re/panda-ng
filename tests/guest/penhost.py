@@ -115,7 +115,7 @@ from apis.syscalls import Syscalls, ValueFilter  # noqa: E402
 
 plugins.mem = Mem()
 # the scenarios that run without the syscall trap (MIPS has none)
-NO_TRAP = ('khook',)
+NO_TRAP = ('khook', 'khook-osi')
 if scenario not in NO_TRAP:
     plugins.syscalls = Syscalls()
     trap = plugins.syscalls._trap
@@ -776,6 +776,47 @@ def scenario_khook():
 keep = []
 
 
+def _drive(gen):
+    """run an OSI generator outside a portal (its calls yield nothing here)"""
+    try:
+        while True:
+            next(gen)
+    except StopIteration as e:
+        return e.value
+
+
+def scenario_khook_osi():
+    """HostOSI with no syscall trap (MIPS): at pagetest osi-run's
+    getpgid(9301), a kernel hook at sys_getpgid answers for the current task
+    (MIPS: $28 is its thread_info, the task at 0) as osi's enter lines"""
+    import struct
+    from apis.hostosi import HostOSI
+    ffi, lib = panda.ffi, panda.lib
+    osi = HostOSI()
+    addr = int(plugins.kffi.ffi.get_symbol('sys_getpgid').address)
+    big = panda.endianness == 'big'
+
+    def cb(cs, pc, opaque):
+        v = ffi.new('uint64_t[1]')
+        if lib.penguin_syscall_regs(cs, 4, 1, v) != 1 or (v[0] & 0xffffffff) != 9301:
+            return 0
+        lib.penguin_syscall_regs(cs, 28, 1, v)
+        b = ffi.new('uint8_t[4]')
+        lib.penguin_syscall_read_memory(cs, v[0] & 0xffffffff, b, 4)
+        st = panda._callback_state()
+        st.cpu, st.task = cs, struct.unpack('>I' if big else '<I', bytes(b))[0]
+        panda._current_cpu = cs
+        try:
+            got, _ = _drive(osi_answers(osi))
+            for line in got:
+                out(f'OSI got enter {line}')
+        finally:
+            st.task = 0
+        return 0
+    keep.append(ffi.callback('uint64_t(CPUState *, uint64_t, void *)', cb))
+    out(f'KHOOK at {addr:#x} id={lib.penguin_kernel_hook(addr, keep[-1], ffi.NULL):#x}')
+
+
 def scenario_osi():
     """apis/hostosi.py (C walks) at an entry and at a return, and osiref.py's
     Python walks at the entry"""
@@ -907,7 +948,7 @@ else:
      'osi': scenario_osi, 'inject': scenario_inject,
      'first': scenario_first, 'takeover': scenario_takeover,
      'kmod': scenario_kmod, 'hcwrite': scenario_hcwrite,
-     'khook': scenario_khook}[scenario]()
+     'khook': scenario_khook, 'khook-osi': scenario_khook_osi}[scenario]()
 
 if os.environ.get('MICRO'):
     # the event path alone, on a synthetic event for the first hook: no guest

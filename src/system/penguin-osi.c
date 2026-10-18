@@ -54,7 +54,8 @@ typedef struct OCtx {
     CPUState *cs;
     const struct penguin_osi_layout *l;
     bool bad;                   /* a read failed: the answer is not good */
-    unsigned w;                 /* the kernel's word: 8, or 4 (32-bit ARM) */
+    unsigned w;                 /* the kernel's word: 8, or 4 (32-bit) */
+    bool be;                    /* a big-endian kernel */
     unsigned n, copies;
     OPage last;                 /* the page read last */
     OPage pg[OSI_PAGES];
@@ -202,6 +203,7 @@ static bool o_init(OCtx *o, CPUState *cs)
     o->cs = cs;
     o->l = &ol;
     o->w = ol.ptr_size == 4 ? 4 : 8;
+    o->be = ol.big_endian;
     o->bad = false;
     o->n = o->copies = 0;
     o->last.page = 1;           /* no page */
@@ -324,11 +326,11 @@ static uint64_t o_u(OCtx *o, uint64_t va, int32_t off, unsigned size)
     case 1:
         return *b;
     case 2:
-        return lduw_le_p(b);
-    case 4:
-        return (uint32_t)ldl_le_p(b);   /* a 32-bit kernel's word: not signed */
+        return o->be ? lduw_be_p(b) : lduw_le_p(b);
+    case 4:                             /* a 32-bit kernel's word: not signed */
+        return (uint32_t)(o->be ? ldl_be_p(b) : ldl_le_p(b));
     default:
-        return ldq_le_p(b);
+        return o->be ? ldq_be_p(b) : ldq_le_p(b);
     }
 }
 
@@ -1418,6 +1420,91 @@ static const uint8_t *o_user_page32(OCtx *o, uint64_t pgd, uint32_t va)
     return t ? t + (pa & (OSI_PAGE - 1)) : NULL;
 }
 
+/*
+ * MIPS32: the layout of a task's tables, from the TLB refill handler the
+ * kernel generates at boot (0x80000000): PGDIR_SHIFT from its first "srl
+ * k0, k0, N", and EntryLo = PTE >> S from the "srl rt, rt, S" before "mtc0
+ * rt, EntryLo0".  After decode_refill() in kmodinject-mips.c (a sister lane's
+ * MIPS module loader).
+ */
+static struct {
+    bool ok;
+    unsigned pgdir_shift, lo_shift;
+} omips;
+
+static bool o_mips_refill(OCtx *o)
+{
+    uint32_t insn[32];
+    unsigned pgdir_shift = 0, lo_shift = 0;
+    bool have_hi = false, have_pgd = false;
+
+    if (qatomic_read(&omips.ok)) {
+        return true;
+    }
+    for (int i = 0; i < 32; i++) {
+        insn[i] = o_u(o, 0x80000000ULL, 4 * i, 4);
+    }
+    if (o->bad) {
+        o->bad = false;                 /* not yet: try again later */
+        return false;
+    }
+    for (int i = 0; i < 32; i++) {
+        uint32_t x = insn[i], op = x >> 26, rs = (x >> 21) & 31,
+                 rt = (x >> 16) & 31, rd = (x >> 11) & 31, fn = x & 63;
+
+        if (!have_pgd && op == 0x0f && (rt == 26 || rt == 27)) {
+            have_hi = true;                             /* lui k0/k1, pgd_current */
+        } else if (have_hi && !have_pgd && op == 0x23 && (rs == 26 || rs == 27)) {
+            have_pgd = true;                            /* lw k?, %lo(pgd_current) */
+        } else if (op == 0 && fn == 2 && !pgdir_shift && have_pgd) {
+            pgdir_shift = (x >> 6) & 31;                /* srl k0, k0, PGDIR_SHIFT */
+        } else if (op == 0x10 && rs == 4 && rd == 2 && i > 0) {
+            uint32_t p = insn[i - 1];                   /* mtc0 rt, EntryLo0 */
+
+            if (p >> 26 == 0 && (p & 63) == 2 && ((p >> 11) & 31) == rt) {
+                lo_shift = (p >> 6) & 31;               /* srl/rotr rt, rt, S */
+            }
+            break;
+        }
+    }
+    if (!have_pgd || pgdir_shift < 20 || pgdir_shift > 24 || !lo_shift) {
+        return false;
+    }
+    omips.pgdir_shift = pgdir_shift;
+    omips.lo_shift = lo_shift;
+    qatomic_set(&omips.ok, true);
+    return true;
+}
+
+/*
+ * A MIPS32 task's page: the pgd and the PTE table are KSEG0 addresses; a
+ * PTE is present by _PAGE_PRESENT (bit 0; the V bit comes only with the
+ * first access), its frame EntryLo's PFN.  Its host address, or NULL.
+ */
+static const uint8_t *o_user_page_mips(OCtx *o, uint64_t pgd, uint32_t va)
+{
+    unsigned sh, lo;
+    uint32_t pde, pte, pa;
+    const uint8_t *t;
+
+    if (!o_mips_refill(o)) {
+        return NULL;
+    }
+    sh = omips.pgdir_shift;
+    lo = omips.lo_shift;
+    pde = o_u(o, pgd, (va >> sh) * 4, 4);
+    if (o->bad || !pde) {
+        return NULL;
+    }
+    pte = o_u(o, pde & ~0xfffu, ((va >> 12) & ((1u << (sh - 12)) - 1)) * 4, 4);
+    if (o->bad || !(pte & 1)) {
+        return NULL;
+    }
+    pa = (((pte >> lo) >> 6) & 0xffffff) << 12;
+    t = pa ? o_ram(pa) : NULL;
+    return t ? t + (va & 0xfff) : NULL;
+}
+
 int penguin_osi_user_read(CPUState *cs, uint64_t task, uint64_t va,
                           void *buf, uint32_t len)
 {
@@ -1436,7 +1523,8 @@ int penguin_osi_user_read(CPUState *cs, uint64_t task, uint64_t va,
         while (pgd && !o.bad && done < len) {
             uint32_t a = va + done;
             uint32_t k = MIN(len - done, OSI_PAGE - (a & (OSI_PAGE - 1)));
-            const uint8_t *p = o_user_page32(&o, pgd, a);
+            const uint8_t *p = ol.mips32 ? o_user_page_mips(&o, pgd, a) :
+                o_user_page32(&o, pgd, a);
 
             if (!p) {
                 break;

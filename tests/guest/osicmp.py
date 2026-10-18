@@ -40,7 +40,8 @@ t = keyed(truth)
 t['childargs'] = t['args']
 bad = 0
 # osiref.py's Python walks run on 64-bit kernels only: none, no comparison
-for at in ('enter', 'return', 'ref') if got['ref'] else ('enter', 'return'):
+# return lines: none when the host answered at a kernel hook (no syscall trap)
+for at in [a for a in ('enter', 'return', 'ref') if a == 'enter' or got[a]]:
     g = keyed(got[at])
     for k in sorted(set(t) | set(g)):
         if t.get(k) != g.get(k):
