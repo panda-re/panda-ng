@@ -29,6 +29,7 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -1912,13 +1913,29 @@ static void inj_timer(long ms)
         printf("\n");                                                   \
     } while (0)
 
+/* a 32-bit ARM task on an AArch64 kernel (compat), not a 32-bit kernel */
+static int inj_arm_compat(void)
+{
+    struct utsname u;
+
+    return !uname(&u) && (!strcmp(u.machine, "armv8l") || !strcmp(u.machine, "aarch64"));
+}
+
 static int t_sc_inject(void)
 {
     pid_t pid = getpid();
     int bad = 0;
     long r;
 
-#if defined(__x86_64__) || defined(__aarch64__)
+#if defined(__arm__)
+    if (inj_arm_compat()) {
+        /* an AArch32 task on an AArch64 kernel: EABI calls are injected */
+        r = syscall(SYS_getpgid, 9409);
+        INJ_CHECK("compat", r == pid, "got=%ld pid=%d", r, pid);
+        return bad != 0;
+    }
+#endif
+#if defined(__x86_64__) || defined(__aarch64__) || defined(__arm__)
     struct sigaction sa;
     struct { int64_t fd, n, closed, unmapped; char data[256]; } res;
     char own[256] = "";
@@ -2006,6 +2023,15 @@ static int t_sc_inject(void)
         __asm__ volatile("svc #0" : "+r"(x0), "+r"(x1), "+r"(x2), "+r"(x3), "+r"(x4),
                          "+r"(x5), "+r"(x8) : : "memory");
         rv = x0; a1 = x1; a2 = x2; a3 = x3; a4 = x4; a5 = x5; nr = x8;
+#elif defined(__arm__)
+        /* a 32-bit kernel's EABI: r0-r5, r7 the number */
+        register long r0 __asm__("r0") = rv;
+        register unsigned long r1 __asm__("r1") = a1, r2 __asm__("r2") = a2,
+            r3 __asm__("r3") = a3, r4 __asm__("r4") = a4, r5 __asm__("r5") = a5;
+        register long r7 __asm__("r7") = nr;
+        __asm__ volatile("svc #0" : "+r"(r0), "+r"(r1), "+r"(r2), "+r"(r3), "+r"(r4),
+                         "+r"(r5), "+r"(r7) : : "memory");
+        rv = r0; a1 = r1; a2 = r2; a3 = r3; a4 = r4; a5 = r5; nr = r7;
 #else
         /* rdi, rsi, rdx, r10, r8, r9; rax the number, then the result */
         register unsigned long r10 __asm__("r10") = a3, r8 __asm__("r8") = a4,
@@ -2026,15 +2052,9 @@ static int t_sc_inject(void)
     r = syscall(SYS_getpgid, 9408);
     INJ_CHECK("many", r == pid, "got=%ld want=%d", r, pid);
 #else
-#if defined(__arm__)
-    /* an AArch32 task on an AArch64 kernel: EABI calls are injected */
-    r = syscall(SYS_getpgid, 9409);
-    INJ_CHECK("compat", r == pid, "got=%ld pid=%d", r, pid);
-#else
     /* an i386 task's call: refused */
     r = syscall(SYS_getpgid, 9409);
     INJ_CHECK("compat", r == 1, "got=%ld pid=%d", r, pid);
-#endif
 #endif
     return bad != 0;
 }
