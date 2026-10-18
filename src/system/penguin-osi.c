@@ -41,7 +41,9 @@
 
 static struct penguin_osi_layout ol;
 static bool ol_set;
-static int okver;               /* the kernel's major << 8 | minor; 0: unread */
+static int okver;               /* the kernel's KV(); 0: unread */
+/* a release a.b.c[.d] (2.6 has four parts; later stables' c passes 255) */
+#define KV(a, b, c, d) ((a) << 26 | (b) << 18 | MIN(c, 1023) << 8 | MIN(d, 255))
 
 typedef struct OPage {
     uint64_t page;
@@ -208,11 +210,11 @@ static bool o_init(OCtx *o, CPUState *cs)
     }
     if (!qatomic_read(&okver) && ol.uts_release) {
         char rel[16];
-        unsigned maj = 0, min = 0;
+        unsigned maj = 0, min = 0, sub = 0, ext = 0;
 
         o_cstr(o, ol.uts_release, rel, sizeof(rel));
-        if (!o->bad && sscanf(rel, "%u.%u", &maj, &min) == 2) {
-            qatomic_set(&okver, (int)(maj << 8 | min));
+        if (!o->bad && sscanf(rel, "%u.%u.%u.%u", &maj, &min, &sub, &ext) >= 2) {
+            qatomic_set(&okver, (int)KV(maj, min, sub, ext));
         }
         o->bad = false;
     }
@@ -907,8 +909,13 @@ int penguin_osi_fds(CPUState *cs, uint64_t task, int32_t start,
     uint32_t nfds, used = 0;
     int n = 0, k;
 
-    if (!o_init(&o, cs) || !task || !o_root(&o, task, &rmnt, &rdentry)) {
+    if (!o_init(&o, cs) || !task) {
         return -1;
+    }
+    if (!o_root(&o, task, &rmnt, &rdentry)) {
+        /* no root (fs_struct's not known): names up to the namespace's */
+        rmnt = rdentry = 0;
+        o.bad = false;
     }
     if (start == PENGUIN_OSI_AT_FDCWD) {
         uint64_t fs = P(&o, task, task_fs);
@@ -1155,6 +1162,30 @@ static void o_vmas(OCtx *o, uint64_t mm, OVmas *vs)
  * @v's /proc/<pid>/maps line; @prev_end, @prev_flags: the mapping before
  * it's (0: none)
  */
+/*
+ * Does /proc hide a stack's guard page (show_map's start + PAGE_SIZE)?
+ * From the guard page's 2.6.36 (and its stable backports: 2.6.27.52,
+ * 2.6.32.19, 2.6.34.4, 2.6.35.2) until stack_guard_gap (4.12, and the
+ * stable kernels that took that, which have the symbol).  An unknown
+ * release: as if it did.
+ */
+static bool o_hides_guard_page(const struct penguin_osi_layout *l)
+{
+    int v = qatomic_read(&okver);
+
+    if (l->stack_guard_gap) {
+        return false;
+    }
+    if (!v) {
+        return true;
+    }
+    return (v >= KV(2, 6, 36, 0) && v < KV(4, 12, 0, 0)) ||
+           (v >= KV(2, 6, 35, 2) && v < KV(2, 6, 36, 0)) ||
+           (v >= KV(2, 6, 34, 4) && v < KV(2, 6, 35, 0)) ||
+           (v >= KV(2, 6, 32, 19) && v < KV(2, 6, 33, 0)) ||
+           (v >= KV(2, 6, 27, 52) && v < KV(2, 6, 28, 0));
+}
+
 static int o_vma(OCtx *o, uint64_t mm, uint64_t rmnt, uint64_t rdentry,
                  uint64_t v, uint64_t prev_end, uint64_t prev_flags,
                  struct penguin_osi_vma *r, char *name, uint32_t nlen)
@@ -1168,8 +1199,7 @@ static int o_vma(OCtx *o, uint64_t mm, uint64_t rmnt, uint64_t rdentry,
     r->end = P(o, v, vma_end);
     flags = r->flags = P(o, v, vma_flags);
     /* before the stack guard gap: stack_guard_page_start() */
-    if (!l->stack_guard_gap && qatomic_read(&okver) < (4 << 8 | 12) &&
-        (flags & VM_GROWSDOWN) &&
+    if (o_hides_guard_page(l) && (flags & VM_GROWSDOWN) &&
         !(prev_end == r->start && (prev_flags & VM_GROWSDOWN))) {
         r->start += OSI_PAGE;
     }
@@ -1215,7 +1245,7 @@ static int o_vma(OCtx *o, uint64_t mm, uint64_t rmnt, uint64_t rdentry,
     /* vma_is_initial_heap(), 6.6; inclusive before */
     lo = P(o, mm, mm_start_brk);
     hi = P(o, mm, mm_brk);
-    if (qatomic_read(&okver) >= (6 << 8 | 6) || !qatomic_read(&okver) ?
+    if (qatomic_read(&okver) >= KV(6, 6, 0, 0) || !qatomic_read(&okver) ?
         P(o, v, vma_start) < hi && r->end > lo :
         P(o, v, vma_start) <= hi && r->end >= lo) {
         return snprintf(name, nlen, "[heap]");
@@ -1239,8 +1269,13 @@ int penguin_osi_mappings(CPUState *cs, uint64_t task,
     uint32_t used = 0;
     int total;
 
-    if (!o_init(&o, cs) || !task || !o_root(&o, task, &rmnt, &rdentry)) {
+    if (!o_init(&o, cs) || !task) {
         return -1;
+    }
+    if (!o_root(&o, task, &rmnt, &rdentry)) {
+        /* no root (fs_struct's not known): names up to the namespace's */
+        rmnt = rdentry = 0;
+        o.bad = false;
     }
     mm = P(&o, task, task_mm);
     if (!mm) {
