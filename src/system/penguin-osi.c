@@ -595,19 +595,23 @@ bool penguin_osi_proc(CPUState *cs, uint64_t task, struct penguin_osi_proc *p)
     mm = p->mm = P(&o, task, task_mm);
     if (mm) {
         /* only reads of the task's memory need it (penguin_osi_user_read) */
+        /*
+         * every range optional: a layout without one (a lifted ISF that does
+         * not trust it) still gives the record; what needs it is unavailable
+         */
         p->pgd = o_opt(&o, mm, l->mm_pgd, o.w);
         p->map_count = (int32_t)o_opt(&o, mm, l->mm_map_count, 4);
-        p->start_brk = P(&o, mm, mm_start_brk);
-        p->brk = P(&o, mm, mm_brk);
-        p->start_stack = P(&o, mm, mm_start_stack);
-        p->start_code = P(&o, mm, mm_start_code);
-        p->end_code = P(&o, mm, mm_end_code);
-        p->start_data = P(&o, mm, mm_start_data);
-        p->end_data = P(&o, mm, mm_end_data);
-        p->arg_start = P(&o, mm, mm_arg_start);
-        p->arg_end = P(&o, mm, mm_arg_end);
-        p->env_start = P(&o, mm, mm_env_start);
-        p->env_end = P(&o, mm, mm_env_end);
+        p->start_brk = o_opt(&o, mm, l->mm_start_brk, o.w);
+        p->brk = o_opt(&o, mm, l->mm_brk, o.w);
+        p->start_stack = o_opt(&o, mm, l->mm_start_stack, o.w);
+        p->start_code = o_opt(&o, mm, l->mm_start_code, o.w);
+        p->end_code = o_opt(&o, mm, l->mm_end_code, o.w);
+        p->start_data = o_opt(&o, mm, l->mm_start_data, o.w);
+        p->end_data = o_opt(&o, mm, l->mm_end_data, o.w);
+        p->arg_start = o_opt(&o, mm, l->mm_arg_start, o.w);
+        p->arg_end = o_opt(&o, mm, l->mm_arg_end, o.w);
+        p->env_start = o_opt(&o, mm, l->mm_env_start, o.w);
+        p->env_end = o_opt(&o, mm, l->mm_env_end, o.w);
         p->mmap_base = o_opt(&o, mm, l->mm_mmap_base, o.w);
         p->task_size = o_opt(&o, mm, l->mm_task_size, o.w);
     }
@@ -1245,15 +1249,15 @@ static int o_vma(OCtx *o, uint64_t mm, uint64_t rmnt, uint64_t rdentry,
         return snprintf(name, nlen, "[vdso]");
     }
     /* vma_is_initial_heap(), 6.6; inclusive before */
-    lo = P(o, mm, mm_start_brk);
-    hi = P(o, mm, mm_brk);
+    lo = o_opt(o, mm, l->mm_start_brk, o->w);    /* 0: not known */
+    hi = o_opt(o, mm, l->mm_brk, o->w);
     if (qatomic_read(&okver) >= KV(6, 6, 0, 0) || !qatomic_read(&okver) ?
         P(o, v, vma_start) < hi && r->end > lo :
         P(o, v, vma_start) <= hi && r->end >= lo) {
         return snprintf(name, nlen, "[heap]");
     }
     {
-        uint64_t ss = P(o, mm, mm_start_stack);
+        uint64_t ss = o_opt(o, mm, l->mm_start_stack, o->w);
         if (r->start <= ss && r->end >= ss) {
             return snprintf(name, nlen, "[stack]");
         }
