@@ -476,12 +476,27 @@ typedef struct PRun {
 
 /* filters */
 
+static int psc_arch(void);
+
+/*
+ * the kernel-function hooks (guard, exec) are measured on x86_64 and
+ * AArch64 kernels; on 32-bit ARM the guard did not refuse a fault the
+ * kernel would not fix (sctest sc-fault: the task got SIGSEGV), so there
+ * no faults are raised and no exec is injected.  Unknown yet: not either.
+ */
+static bool psc_hooks_ok(void)
+{
+    int k = psc_arch();
+
+    return k == 1 || k == 2;
+}
+
 /* may the dispatch raise a fault for @page? */
 static bool psc_may_fault(PCtx *c, uint64_t page)
 {
     const PRun *r = c->r;
 
-    if (!qatomic_read(&psc_guarded)) {
+    if (!qatomic_read(&psc_guarded) || !psc_hooks_ok()) {
         return false;
     }
     if (!r) {
@@ -914,7 +929,7 @@ static bool psc_may_inject(PCtx *c, int64_t num)
         "fork", "vfork", "clone", "clone3", "execve", "execveat",
     };
     /* an exec that succeeds does not come back: only with the exec hook */
-    unsigned n = qatomic_read(&psc_exec_hooked) ? 4 : ARRAY_SIZE(never);
+    unsigned n = qatomic_read(&psc_exec_hooked) && psc_hooks_ok() ? 4 : ARRAY_SIZE(never);
     const PNum *pn;
 
     /*
@@ -1324,13 +1339,16 @@ static void psc_set_reg(CPUState *cpu, int n, uint64_t v)
     gdb_write_register(cpu, b, n);
 }
 
-/* gdb register numbers: x86_64 rax 0, rdx 3, rsi 4, rdi 5, rsp 7; AArch64 xN */
-static bool psc_x86;
+/*
+ * gdb register numbers: x86_64 rax 0, rdx 3, rsi 4, rdi 5, rsp 7; AArch64
+ * xN; 32-bit ARM rN, lr 14 (the same argument registers as AArch64's)
+ */
+static bool psc_x86, psc_arm32;
 static int psc_arch_kind = -1;
 
 /*
  * The guest's architecture, for the kernel-function hooks' registers: 1
- * x86_64, 2 AArch64, 0 another, -1 not known yet.  QEMU knows its target
+ * x86_64, 2 AArch64, 3 32-bit ARM, 0 another, -1 not known yet.  QEMU knows its target
  * only once it is initialized, and the setters below may come first: they
  * accept then, and the hooks check when they run.
  */
@@ -1345,8 +1363,10 @@ static int psc_arch(void)
             return -1;
         }
         k = !strcmp(ti->target_name, "x86_64") ? 1 :
-            !strcmp(ti->target_name, "aarch64") ? 2 : 0;
+            !strcmp(ti->target_name, "aarch64") ? 2 :
+            !strcmp(ti->target_name, "arm") || !strcmp(ti->target_name, "armel") ? 3 : 0;
         psc_x86 = k == 1;
+        psc_arm32 = k == 3;
         qatomic_set(&psc_arch_kind, k);
     }
     return k;
@@ -1362,12 +1382,13 @@ static void psc_guard_cb(CPUState *cpu, vaddr pc, void *opaque)
         return;
     }
     if (info) {
-        /* force_sig_info(sig, info, task): si_addr at 16 */
+        /* force_sig_info(sig, info, task): si_addr at 16 (12 on 32-bit) */
         uint64_t p = psc_reg(cpu, psc_x86 ? 4 : 1);
-        if (cpu_memory_rw_debug(cpu, p + 16, b, 8, false)) {
+        if (cpu_memory_rw_debug(cpu, p + (psc_arm32 ? 12 : 16), b,
+                                psc_arm32 ? 4 : 8, false)) {
             return;
         }
-        addr = ldq_le_p(b);
+        addr = psc_arm32 ? ldl_le_p(b) : ldq_le_p(b);
     } else {
         addr = psc_reg(cpu, psc_x86 ? 3 : 2);
     }
@@ -1383,7 +1404,7 @@ static void psc_guard_cb(CPUState *cpu, vaddr pc, void *opaque)
         psc_set_reg(cpu, 7, sp + 8);
         psc_set_reg(cpu, 0, 0);
     } else {
-        ra = psc_reg(cpu, 30);
+        ra = psc_reg(cpu, psc_arm32 ? 14 : 30);
         psc_set_reg(cpu, 0, 0);
     }
     tcg_hook_set_pc(cpu, ra);
@@ -1501,7 +1522,7 @@ penguin_syscall_set_guard(uint64_t force_sig_fault, uint64_t force_sig_info)
     static bool done;
 
     /* may come before the accelerator is chosen: under KVM, no events */
-    if (psc_arch() == 0 || !(force_sig_fault || force_sig_info)) {
+    if (psc_arch() == 0 || psc_arch() == 3 || !(force_sig_fault || force_sig_info)) {
         return false;
     }
     QEMU_LOCK_GUARD(&psc_lock);
@@ -1547,7 +1568,7 @@ penguin_syscall_set_exec(uint64_t set_task_comm)
 #ifdef CONFIG_TCG
     static bool done;
 
-    if (psc_arch() == 0 || !set_task_comm) {
+    if (psc_arch() == 0 || psc_arch() == 3 || !set_task_comm) {
         return false;
     }
     QEMU_LOCK_GUARD(&psc_lock);

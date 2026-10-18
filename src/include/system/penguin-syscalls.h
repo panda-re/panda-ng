@@ -267,7 +267,8 @@ bool penguin_syscall_set_layout(const struct penguin_sc_layout *layout);
  * Let the engine raise faults: the kernel's force_sig_fault(sig, code,
  * addr), or before 4.20 force_sig_info(sig, info, task) (either may be 0),
  * is hooked so that the signal for a fault the guest refuses (no mapping
- * there) is dropped, as pagein's guard does.  x86_64 and AArch64 kernels.
+ * there) is dropped, as pagein's guard does.  x86_64 and AArch64 kernels (not yet
+ * 32-bit ARM: refused there).
  */
 bool penguin_syscall_set_guard(uint64_t force_sig_fault,
                                uint64_t force_sig_info);
@@ -284,7 +285,7 @@ bool penguin_syscall_set_reaper(uint64_t release_task);
  * Drop a task's calls when it execs: the kernel's __set_task_comm(task,
  * name, exec) is hooked, for exec true.  The calls cannot come back to the
  * image the task left; counted as reaped.  Lets SYSCALL run execve and
- * execveat.  x86_64 and AArch64 kernels.
+ * execveat.  x86_64 and AArch64 kernels (not yet 32-bit ARM).
  */
 bool penguin_syscall_set_exec(uint64_t set_task_comm);
 
