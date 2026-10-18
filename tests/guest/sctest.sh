@@ -1,5 +1,5 @@
 #!/bin/sh
-# sctest.sh [func|bench]...: syscall hooks (plugin/syscalls.c) on 6.13 kernels
+# sctest.sh [func|bench]...: syscall hooks (plugin/syscalls.c) on 6.13 kernels (KVER: another)
 # env: OUT (default ../out-sctest), ARCHS, PAR
 #   func   guest sc-func with sc-rules.txt, 1 vCPU and (not mips) 2 vCPUs;
 #          verdicts from sctest.py, exit status 1 on any failure
@@ -34,12 +34,12 @@ one() {
   n=$1; a=$2; t=$3; r=$4
   s0=$(date +%s.%N)
   if [ -n "$PYHOST$PENHOST" ]; then
-    SMP=${SMP:-1} PROF=$GEN/sysprof-6.13-$a.txt LOG=$O/$a-$n.log TMO=600 ./run.sh $a 6.13 $t \
+    SMP=${SMP:-1} PROF=$GEN/sysprof-6.13-$a.txt LOG=$O/$a-$n.log TMO=600 ./run.sh $a ${KVER:-6.13} $t \
       < /dev/null > $O/$a-$n.con 2>&1
   elif [ "$r" = none ]; then
-    SMP=${SMP:-1} TMO=600 ./run.sh $a 6.13 $t < /dev/null > $O/$a-$n.con 2>&1
+    SMP=${SMP:-1} TMO=600 ./run.sh $a ${KVER:-6.13} $t < /dev/null > $O/$a-$n.con 2>&1
   else
-    SMP=${SMP:-1} PLUGIN=$P LOG=$O/$a-$n.log TMO=600 ./run.sh $a 6.13 $t \
+    SMP=${SMP:-1} PLUGIN=$P LOG=$O/$a-$n.log TMO=600 ./run.sh $a ${KVER:-6.13} $t \
       profile=$GEN/sysprof-6.13-$a.txt rules=$r ${MODE:+mode=$MODE} < /dev/null > $O/$a-$n.con 2>&1
   fi
   rc=$?
@@ -73,7 +73,7 @@ bench() { a=$1
     done
   done; }
 
-TRAPARCHS="x86_64 aarch64"
+TRAPARCHS="x86_64 aarch64"   # armel: no guard or reaper yet (32-bit ARM)
 tfunc() { a=$1
   case " $TRAPARCHS " in *" $a "*) ;; *) return;; esac
   (MODE=trap; one tfunc $a sc-func $H/sc-rules.txt
