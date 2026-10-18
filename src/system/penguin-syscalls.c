@@ -1589,6 +1589,67 @@ penguin_syscall_set_scope(bool enabled)
     qatomic_set(&psc_scope, enabled);
 }
 
+#ifdef CONFIG_TCG
+typedef struct PKHook {
+    penguin_kernel_hook_cb_t cb;
+    void *opaque;
+    TCGHook *h;
+} PKHook;
+
+static void pkh_fn(CPUState *cpu, vaddr pc, void *opaque)
+{
+    PKHook *k = opaque;
+    uint64_t to;
+
+    tcg_hook_restore_state(cpu);
+    to = k->cb(cpu, pc, k->opaque);
+    if (to && to != pc) {
+        tcg_hook_set_pc(cpu, to);       /* after the host's code has returned */
+    }
+}
+#endif
+
+uint64_t __attribute__((visibility("default")))
+penguin_kernel_hook(uint64_t addr, penguin_kernel_hook_cb_t cb, void *opaque)
+{
+#ifdef CONFIG_TCG
+    PKHook *k;
+
+    if (!cb) {
+        return 0;
+    }
+    /* may come before the accelerator is chosen; under KVM it never runs */
+    k = g_new0(PKHook, 1);
+    k->cb = cb;
+    k->opaque = opaque;
+    k->h = tcg_hook_insert(addr, pkh_fn, k);
+    if (!k->h) {
+        g_free(k);
+        return 0;
+    }
+    return (uintptr_t)k;
+#else
+    return 0;
+#endif
+}
+
+bool __attribute__((visibility("default")))
+penguin_kernel_unhook(uint64_t id)
+{
+#ifdef CONFIG_TCG
+    PKHook *k = (PKHook *)(uintptr_t)id;
+
+    if (!k || !k->h) {
+        return false;
+    }
+    tcg_hook_remove(k->h);
+    k->h = NULL;        /* kept: a vCPU may be in its callback (a few bytes) */
+    return true;
+#else
+    return false;
+#endif
+}
+
 void __attribute__((visibility("default")))
 penguin_syscall_set_current_source(bool from_cpu)
 {

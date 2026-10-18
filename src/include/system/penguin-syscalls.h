@@ -300,6 +300,21 @@ void penguin_syscall_set_scope(bool enabled);
  */
 void penguin_syscall_set_current_source(bool from_cpu);
 
+/*
+ * A call into the host before the instruction at a kernel (or any) address
+ * runs, on the vCPU thread: for kernels the syscall trap does not serve
+ * (MIPS), and for OSI at a point the host picks.  The PC and registers are
+ * exact; registers may be written (gdb numbering).  The callback returns 0
+ * to run the instruction, or an address to resume at instead (the jump is
+ * made after it returns: it must not leave by a longjmp itself).  TCG only.
+ * penguin_kernel_hook() returns an id, 0 if it cannot hook.
+ */
+typedef uint64_t (*penguin_kernel_hook_cb_t)(CPUState *cs, uint64_t pc,
+                                             void *opaque);
+uint64_t penguin_kernel_hook(uint64_t addr, penguin_kernel_hook_cb_t cb,
+                             void *opaque);
+bool penguin_kernel_unhook(uint64_t id);
+
 /* returns the hook's id, or 0 */
 uint64_t penguin_syscall_register(const struct penguin_sc_hook *hook);
 bool penguin_syscall_unregister(uint64_t id);

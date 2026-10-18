@@ -100,7 +100,8 @@ class Hypercall:
 plugins.kffi = KFFI(isf)
 from compat.qemu_compat import QemuCompat  # noqa: E402
 
-qarch = {'x86_64': 'x86_64', 'aarch64': 'aarch64', 'armel': 'armel'}[parch]
+qarch = {'x86_64': 'x86_64', 'aarch64': 'aarch64', 'armel': 'armel',
+         'mipseb': 'mipseb', 'mipsel': 'mipsel'}[parch]
 panda = QemuCompat(lib_path, qarch, mode='system')
 Plugin.panda = panda
 Plugin.args = {'outdir': os.path.dirname(os.path.abspath(log_path)), 'backend': 'trap',
@@ -113,9 +114,12 @@ from apis.mem import Mem  # noqa: E402
 from apis.syscalls import Syscalls, ValueFilter  # noqa: E402
 
 plugins.mem = Mem()
-plugins.syscalls = Syscalls()
-trap = plugins.syscalls._trap
-assert trap is not None
+# the scenarios that run without the syscall trap (MIPS has none)
+NO_TRAP = ('khook',)
+if scenario not in NO_TRAP:
+    plugins.syscalls = Syscalls()
+    trap = plugins.syscalls._trap
+    assert trap is not None
 ABIS = ['x86_64', 'i386', 'aarch64', 'arm', 'arm_oabi']
 
 counts = {}
@@ -745,6 +749,33 @@ def scenario_hcwrite():
     plugins.hypercall.hypercall(0xb335a535)(handler)
 
 
+def scenario_khook():
+    """penguin_kernel_hook: the host at a kernel address (sys_getpgid), with
+    exact registers; pagetest osi-run's getpgid(9301..9303) are counted by
+    their first argument"""
+    ffi, lib = panda.ffi, panda.lib
+    sym = plugins.kffi.ffi.get_symbol('sys_getpgid')
+    addr = int(sym.address)
+    seen = {}
+
+    def cb(cs, pc, opaque):
+        v = ffi.new('uint64_t[1]')
+        a0 = v[0] if lib.penguin_syscall_regs(cs, 4, 1, v) == 1 else None
+        seen['all'] = seen.get('all', 0) + 1
+        if seen['all'] <= 5:
+            out(f'KHOOK any pc={pc:#x} a0={a0}')
+        if a0 is not None and 6000 < (a0 & 0xffffffff) < 9999:
+            seen[a0] = seen.get(a0, 0) + 1
+            out(f'KHOOK hit pc={pc:#x} a0={a0} n={seen[a0]}')
+        return 0
+    keep.append(ffi.callback('uint64_t(CPUState *, uint64_t, void *)', cb))
+    hid = lib.penguin_kernel_hook(addr, keep[-1], ffi.NULL)
+    out(f'KHOOK at {addr:#x} id={hid:#x}')
+
+
+keep = []
+
+
 def scenario_osi():
     """apis/hostosi.py (C walks) at an entry and at a return, and osiref.py's
     Python walks at the entry"""
@@ -875,7 +906,8 @@ else:
     {'pen': scenario_pen, 'fault': scenario_fault, 'reap': scenario_reap,
      'osi': scenario_osi, 'inject': scenario_inject,
      'first': scenario_first, 'takeover': scenario_takeover,
-     'kmod': scenario_kmod, 'hcwrite': scenario_hcwrite}[scenario]()
+     'kmod': scenario_kmod, 'hcwrite': scenario_hcwrite,
+     'khook': scenario_khook}[scenario]()
 
 if os.environ.get('MICRO'):
     # the event path alone, on a synthetic event for the first hook: no guest
@@ -943,8 +975,8 @@ if osi_ticks:
     calls = c1[4] - c0[4]
     out(f'OSI matchers calls={calls} ns_per_call={(c1[5] - c0[5]) / per_ns / max(calls, 1):.1f} '
         f'pages_per_call=' + '/'.join(f'{(c1[i] - c0[i]) / max(calls, 1):.1f}' for i in range(4)))
-st = stats()
-out(f'SC exit pending={st["pending"]} stale={st["stale"]} full={st["full"]} mode=penguin '
+st = stats() if scenario not in NO_TRAP else None
+st and out(f'SC exit pending={st["pending"]} stale={st["stale"]} full={st["full"]} mode=penguin '
     f'enters={st["enters"]} events={st["events"]} commands={st["commands"]} '
     f'faults={st["faults"]} refused={st["refused"]} kept={st["kept"]} reaped={st["reaped"]} '
     f'injected={st["injected"]} aborts={closed[0]} runs={len(trap.runs)} protos={len(plugins.syscalls._syscall_info_table)}')
