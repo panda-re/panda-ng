@@ -13,18 +13,19 @@ anything is waiting.  TLB-only lookups for the consumer's reads.
 Vendored sources: src/system/syscall-trap.c,
 src/include/system/syscall-trap.h.
 ---
- accel/tcg/cputlb.c                  |  13 +++
+ accel/tcg/cputlb.c                  |  13 ++
  include/accel/tcg/probe.h           |  14 +++
- include/hw/core/cpu.h               |  19 ++++
+ include/hw/core/cpu.h               |  19 +++
  system/meson.build                  |   1 +
- target/arm/helper.c                 | 142 +++++++++++++++++++++++++++-
- target/arm/internals.h              |   7 ++
- target/arm/tcg/helper-a64.c         |  56 +++++++++++
+ target/arm/helper.c                 | 185 +++++++++++++++++++++++++++-
+ target/arm/internals.h              |   8 ++
+ target/arm/tcg/helper-a64.c         |  56 +++++++++
+ target/arm/tcg/op_helper.c          |  10 ++
  target/i386/tcg/emit.c.inc          |   1 +
- target/i386/tcg/seg_helper.c        | 132 ++++++++++++++++++++++++++
+ target/i386/tcg/seg_helper.c        | 132 ++++++++++++++++++++
  target/i386/tcg/seg_helper.h        |  21 ++++
- target/i386/tcg/system/seg_helper.c |  51 ++++++++++
- 11 files changed, 456 insertions(+), 1 deletion(-)
+ target/i386/tcg/system/seg_helper.c |  51 ++++++++
+ 12 files changed, 510 insertions(+), 1 deletion(-)
 
 diff --git a/accel/tcg/cputlb.c b/accel/tcg/cputlb.c
 index 7f7c208ba1219d2967ee1c2ef170d5af942ff113..d7f51c94c29454c80b54d56252c73035e73747e8 100644
@@ -116,7 +117,7 @@ index 10c41e709040ac1a37a215dcb9930951ba2c1ea9..4f8de182a383d804d8771b279af6d49c
    'runstate-action.c',
    'runstate-hmp-cmds.c',
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index af45234ad2a7e86bbc02f6faa6c5534436133e1b..b563257553a889feea24fa254217d37e9b2ce072 100644
+index af45234ad2a7e86bbc02f6faa6c5534436133e1b..74f82038fe9f77d8380fcaa4acada3fe1a13edf3 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -35,6 +35,7 @@
@@ -153,7 +154,7 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..b563257553a889feea24fa254217d37e
        .fieldoffset = offsetof(CPUARMState, sp_el[0]) },
      { .name = "SP_EL1", .state = ARM_CP_STATE_AA64,
        .opc0 = 3, .opc1 = 4, .crn = 4, .crm = 1, .opc2 = 0,
-@@ -9618,6 +9629,130 @@ static void tcg_handle_semihosting(CPUState *cs)
+@@ -9618,6 +9629,173 @@ static void tcg_handle_semihosting(CPUState *cs)
   *       and KVM to re-inject guest debug exceptions, and to
   *       inject a Synchronous-External-Abort.
   */
@@ -230,8 +231,9 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..b563257553a889feea24fa254217d37e
 +     * An injected call's registers go back on the way out to EL0: AArch64's,
 +     * and an AArch32 task's when the kernel is AArch64 (helper-a64.c).
 +     */
-+    env_cpu(env)->syscall_inject_abis = (1u << SYSCALL_ABI_AARCH64) |
-+        (arm_el_is_aa64(env, 1) ? 1u << SYSCALL_ABI_ARM : 0);
++    env_cpu(env)->syscall_inject_abis = arm_el_is_aa64(env, 1) ?
++        (1u << SYSCALL_ABI_AARCH64) | (1u << SYSCALL_ABI_ARM) :
++        1u << SYSCALL_ABI_ARM;          /* an AArch32 kernel: EABI, not OABI */
 +    while ((r = syscall_trap_enter(env_cpu(env), abi, num, args, pc, len,
 +                                   arm_sc_key(env), arm_sc_usp(env),
 +                                   arm_sc_percpu(env), arm_sc_kmmu(),
@@ -281,10 +283,52 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..b563257553a889feea24fa254217d37e
 +    return false;
 +}
 +
++/*
++ * An AArch32 kernel's exception return to user mode (cpsr_write_eret: the
++ * PC and the user registers are in place): report it, and put back what an
++ * injection changed, as helper_exception_return does for AArch64 kernels.
++ */
++void arm_sc_return_aa32(CPUARMState *env)
++{
++    while (syscall_trap_waiting()) {
++        uint64_t ret = (uint32_t)env->regs[0];
++        SyscallTrapRewind rw;
++        int r = syscall_trap_return(env_cpu(env), env->regs[15],
++                                    arm_sc_key(env), arm_sc_usp(env),
++                                    arm_sc_percpu(env), arm_sc_kmmu(), &ret,
++                                    &rw);
++
++        if ((r & SYSCALL_TRAP_REWIND) && rw.abi == SYSCALL_ABI_ARM) {
++            /* an injected call is back: r7, r0-r5, back on the svc */
++            env->regs[7] = rw.num;
++            for (int i = 0; i < 6; i++) {
++                env->regs[i] = (uint32_t)rw.args[i];
++            }
++            env->regs[15] -= rw.len;
++            break;
++        }
++        if ((r & SYSCALL_TRAP_RESTORE) && rw.abi == SYSCALL_ABI_ARM) {
++            /* back from a call injected at the return: this call's registers */
++            env->regs[7] = rw.num;
++            for (int i = 1; i < 6; i++) {
++                env->regs[i] = (uint32_t)rw.args[i];
++            }
++        }
++        if (r & SYSCALL_TRAP_RET) {
++            env->regs[0] = (uint32_t)ret;
++        }
++        if (!(r & SYSCALL_TRAP_FAULT)) {
++            break;
++        }
++        /* the state is exact: the task is back in user mode */
++        syscall_trap_fault(env_cpu(env), 0);
++    }
++}
++
  void arm_cpu_do_interrupt(CPUState *cs)
  {
      ARMCPU *cpu = ARM_CPU(cs);
-@@ -9657,6 +9792,11 @@ void arm_cpu_do_interrupt(CPUState *cs)
+@@ -9657,6 +9835,11 @@ void arm_cpu_do_interrupt(CPUState *cs)
      }
  #endif
  
@@ -297,10 +341,10 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..b563257553a889feea24fa254217d37e
       * Hooks may change global state so BQL should be held, also the
       * BQL needs to be held for any modification of
 diff --git a/target/arm/internals.h b/target/arm/internals.h
-index 4026f67579e768232b51cddc792e156adfb1d680..c55a98b1c5c9471ff61ce36ca19d5e322ee70707 100644
+index 4026f67579e768232b51cddc792e156adfb1d680..d3696e138ac9214776a5d385310fbcc33e9a1323 100644
 --- a/target/arm/internals.h
 +++ b/target/arm/internals.h
-@@ -366,6 +366,13 @@ static inline unsigned int aarch64_banked_spsr_index(unsigned int el)
+@@ -366,6 +366,14 @@ static inline unsigned int aarch64_banked_spsr_index(unsigned int el)
  }
  
  /* Map CPU modes onto saved register banks.  */
@@ -309,6 +353,7 @@ index 4026f67579e768232b51cddc792e156adfb1d680..c55a98b1c5c9471ff61ce36ca19d5e32
 +uint64_t arm_sc_percpu(CPUARMState *env);
 +uint64_t arm_sc_usp(CPUARMState *env);
 +uint32_t arm_sc_kmmu(void);
++void arm_sc_return_aa32(CPUARMState *env);
 +#endif
 +
  static inline int bank_number(int mode)
@@ -388,6 +433,34 @@ index 05ab9ab6d31b638606c4dd79bedbfbb0b69748ff..0419b282cf980ed5112c83612fad7b3d
      return;
  
  illegal_return:
+diff --git a/target/arm/tcg/op_helper.c b/target/arm/tcg/op_helper.c
+index 943e0129e6a02892383353a73b41bbec790ed6ea..9ffa6d0690f9e3bd20895f285e440bdbede81bd5 100644
+--- a/target/arm/tcg/op_helper.c
++++ b/target/arm/tcg/op_helper.c
+@@ -27,6 +27,9 @@
+ #include "accel/tcg/probe.h"
+ #include "cpregs.h"
+ #include "system/penguin.h"
++#ifndef CONFIG_USER_ONLY
++#include "system/syscall-trap.h"
++#endif
+ 
+ #define SIGNBIT (uint32_t)0x80000000
+ #define SIGNBIT64 ((uint64_t)1 << 63)
+@@ -829,6 +832,13 @@ void HELPER(cpsr_write_eret)(CPUARMState *env, uint32_t val)
+     bql_lock();
+     arm_call_el_change_hook(env_archcpu(env));
+     bql_unlock();
++#ifndef CONFIG_USER_ONLY
++    /* an AArch32 kernel back to user mode: the syscall trap's return */
++    if ((env->uncached_cpsr & CPSR_M) == ARM_CPU_MODE_USR &&
++        !arm_el_is_aa64(env, 1) && syscall_trap_waiting()) {
++        arm_sc_return_aa32(env);
++    }
++#endif
+ }
+ 
+ /* Access to user mode registers from privileged modes.  */
 diff --git a/target/i386/tcg/emit.c.inc b/target/i386/tcg/emit.c.inc
 index 473f415766f93cefbed48d0f556526efb5714370..aa00d2c3f13a957e9006ca863e3f632dfaca4269 100644
 --- a/target/i386/tcg/emit.c.inc
