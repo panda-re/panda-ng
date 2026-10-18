@@ -52,6 +52,7 @@ typedef struct OCtx {
     CPUState *cs;
     const struct penguin_osi_layout *l;
     bool bad;                   /* a read failed: the answer is not good */
+    unsigned w;                 /* the kernel's word: 8, or 4 (32-bit ARM) */
     unsigned n, copies;
     OPage last;                 /* the page read last */
     OPage pg[OSI_PAGES];
@@ -152,8 +153,8 @@ static int o_dname_by_magic(OCtx *o, uint64_t dentry, const char *name,
                             uint64_t ino, char *out, int outlen)
 {
     const struct penguin_osi_layout *l = o->l;
-    uint64_t sb = o_opt(o, dentry, l->dentry_sb, 8);
-    uint64_t magic = sb && l->sb_magic >= 0 ? o_opt(o, sb, l->sb_magic, 8) : 0;
+    uint64_t sb = o_opt(o, dentry, l->dentry_sb, o->w);
+    uint64_t magic = sb && l->sb_magic >= 0 ? o_opt(o, sb, l->sb_magic, o->w) : 0;
 
     if (o->bad || !magic) {
         o->bad = false;
@@ -181,9 +182,9 @@ static int o_dname_by_magic(OCtx *o, uint64_t dentry, const char *name,
 static int o_special_name(OCtx *o, uint64_t vma, char *name, uint32_t nlen)
 {
     const struct penguin_osi_layout *l = o->l;
-    uint64_t sm = o_opt(o, vma, l->vma_private, 8);
+    uint64_t sm = o_opt(o, vma, l->vma_private, o->w);
     uint64_t nm = sm && l->special_mapping_name >= 0 ?
-        o_opt(o, sm, l->special_mapping_name, 8) : 0;
+        o_opt(o, sm, l->special_mapping_name, o->w) : 0;
     uint32_t n = nm ? o_cstr(o, nm, name, nlen) : 0;
 
     if (o->bad || n < 2 || name[0] != '[' || name[n - 1] != ']') {
@@ -198,6 +199,7 @@ static bool o_init(OCtx *o, CPUState *cs)
 {
     o->cs = cs;
     o->l = &ol;
+    o->w = ol.ptr_size == 4 ? 4 : 8;
     o->bad = false;
     o->n = o->copies = 0;
     o->last.page = 1;           /* no page */
@@ -322,7 +324,7 @@ static uint64_t o_u(OCtx *o, uint64_t va, int32_t off, unsigned size)
     case 2:
         return lduw_le_p(b);
     case 4:
-        return ldl_le_p(b);
+        return (uint32_t)ldl_le_p(b);   /* a 32-bit kernel's word: not signed */
     default:
         return ldq_le_p(b);
     }
@@ -334,7 +336,7 @@ static uint64_t o_opt(OCtx *o, uint64_t va, int32_t off, unsigned size)
     return off < 0 ? 0 : o_u(o, va, off, size);
 }
 
-#define P(o, va, f)   o_u(o, va, (o)->l->f, 8)
+#define P(o, va, f)   o_u(o, va, (o)->l->f, (o)->w)
 #define U32(o, va, f) o_u(o, va, (o)->l->f, 4)
 
 /* a kernel string, into @buf (NUL-terminated); its length */
@@ -401,6 +403,9 @@ static void o_map(OCtx *o)
     uint64_t va[2], t;
     bool ok = false;
 
+    if (o->w == 4) {
+        goto out;       /* 32-bit: no fast path; reads take the CPU's tables */
+    }
     /* the first tasks after init_task: in the direct map */
     t = o_u(o, l->init_task + l->task_tasks, 0, 8);
     va[0] = t ? t - l->task_tasks : 0;
@@ -500,7 +505,7 @@ bool penguin_osi_set_layout(const struct penguin_osi_layout *layout)
 static int o_list(OCtx *o, uint64_t head, int32_t off,
                   bool (*fn)(OCtx *, uint64_t, void *), void *opaque)
 {
-    uint64_t node = o_u(o, head, 0, 8);
+    uint64_t node = o_u(o, head, 0, o->w);
     int n = 0;
 
     while (node && node != head && !o->bad) {
@@ -510,7 +515,7 @@ static int o_list(OCtx *o, uint64_t head, int32_t off,
         if (fn(o, node - off, opaque)) {
             break;
         }
-        node = o_u(o, node, 0, 8);
+        node = o_u(o, node, 0, o->w);
     }
     return o->bad ? -1 : n;
 }
@@ -586,7 +591,7 @@ bool penguin_osi_proc(CPUState *cs, uint64_t task, struct penguin_osi_proc *p)
     mm = p->mm = P(&o, task, task_mm);
     if (mm) {
         /* only reads of the task's memory need it (penguin_osi_user_read) */
-        p->pgd = o_opt(&o, mm, l->mm_pgd, 8);
+        p->pgd = o_opt(&o, mm, l->mm_pgd, o.w);
         p->map_count = (int32_t)o_opt(&o, mm, l->mm_map_count, 4);
         p->start_brk = P(&o, mm, mm_start_brk);
         p->brk = P(&o, mm, mm_brk);
@@ -599,8 +604,8 @@ bool penguin_osi_proc(CPUState *cs, uint64_t task, struct penguin_osi_proc *p)
         p->arg_end = P(&o, mm, mm_arg_end);
         p->env_start = P(&o, mm, mm_env_start);
         p->env_end = P(&o, mm, mm_env_end);
-        p->mmap_base = o_opt(&o, mm, l->mm_mmap_base, 8);
-        p->task_size = o_opt(&o, mm, l->mm_task_size, 8);
+        p->mmap_base = o_opt(&o, mm, l->mm_mmap_base, o.w);
+        p->task_size = o_opt(&o, mm, l->mm_task_size, o.w);
     }
     return !o.bad;
 }
@@ -759,12 +764,12 @@ static int o_d_path_m(OCtx *o, uint64_t rmnt, uint64_t rdentry, uint64_t mnt,
     }
     is_root = P(o, dentry, dentry_parent) == dentry;
     /* a dentry with its own name: sockets, pipes, anon inodes, ... */
-    op = o_opt(o, dentry, l->dentry_op, 8);
+    op = o_opt(o, dentry, l->dentry_op, o->w);
     if (op && (!is_root || dentry != P(o, mnt, vfsmount_root))) {
-        uint64_t fn = o_opt(o, op, l->dops_dname, 8);
+        uint64_t fn = o_opt(o, op, l->dops_dname, o->w);
         if (fn) {
             uint64_t inode = P(o, dentry, dentry_inode);
-            uint64_t ino = inode ? o_u(o, inode, l->inode_ino, 8) : 0;
+            uint64_t ino = inode ? o_u(o, inode, l->inode_ino, o->w) : 0;
 
             if (m) {
                 out = tmp;
@@ -922,7 +927,7 @@ int penguin_osi_fds(CPUState *cs, uint64_t task, int32_t start,
         return -1;
     }
     for (uint32_t fd = start; fd < nfds && n < max; fd++) {
-        uint64_t file = o_u(&o, arr, fd * 8, 8);
+        uint64_t file = o_u(&o, arr, fd * o.w, o.w);
 
         if (o.bad) {
             return -1;
@@ -964,7 +969,7 @@ int penguin_osi_fd_path(CPUState *cs, uint64_t task, int32_t fd,
     if (fd < 0 || !o_fdt(&o, task, &nfds, &arr) || (uint32_t)fd >= nfds) {
         return -1;
     }
-    file = o_u(&o, arr, fd * 8, 8);
+    file = o_u(&o, arr, fd * o.w, o.w);
     return file && !o.bad ? o_file_path(&o, rmnt, rdentry, file, buf, len)
                           : -1;
 }
@@ -978,7 +983,7 @@ int penguin_osi_exe_path(CPUState *cs, uint64_t task, char *buf, uint32_t len)
         return -1;
     }
     mm = P(&o, task, task_mm);
-    exe = mm ? o_opt(&o, mm, ol.mm_exe_file, 8) : 0;
+    exe = mm ? o_opt(&o, mm, ol.mm_exe_file, o.w) : 0;
     return exe && !o.bad ? o_file_path(&o, rmnt, rdentry, exe, buf, len) : -1;
 }
 
@@ -1033,7 +1038,7 @@ static int o_fd_path_match(CPUState *cs, uint64_t task, int32_t fd,
         !o_fdt(&o, task, &nfds, &arr) || (uint32_t)fd >= nfds) {
         return -1;
     }
-    return o_file_match(&o, task, o_u(&o, arr, fd * 8, 8), how, pat, plen);
+    return o_file_match(&o, task, o_u(&o, arr, fd * o.w, o.w), how, pat, plen);
 }
 
 static int o_exe_match(CPUState *cs, uint64_t task, int how,
@@ -1046,7 +1051,7 @@ static int o_exe_match(CPUState *cs, uint64_t task, int how,
         return -1;
     }
     mm = P(&o, task, task_mm);
-    return mm ? o_file_match(&o, task, o_opt(&o, mm, ol.mm_exe_file, 8), how,
+    return mm ? o_file_match(&o, task, o_opt(&o, mm, ol.mm_exe_file, o.w), how,
                              pat, plen)
               : -1;
 }
@@ -1186,11 +1191,12 @@ static int o_vma(OCtx *o, uint64_t mm, uint64_t rmnt, uint64_t rdentry,
         return n;
     }
     if (l->gate_vma && v == l->gate_vma) {
-        return snprintf(name, nlen, "[vsyscall]");      /* x86_64's gate_vma */
+        /* x86_64's gate_vma, or 32-bit ARM's vectors page */
+        return snprintf(name, nlen, o->w == 4 ? "[vectors]" : "[vsyscall]");
     }
-    ops = o_opt(o, v, l->vma_ops, 8);
+    ops = o_opt(o, v, l->vma_ops, o->w);
     if (ops) {
-        uint64_t fn = o_opt(o, ops, l->vmops_name, 8);
+        uint64_t fn = o_opt(o, ops, l->vmops_name, o->w);
         if (fn && fn == l->fn_special_mapping_name) {
             uint64_t sm = P(o, v, vma_private);
             return o_cstr(o, P(o, sm, special_mapping_name), name, nlen);
@@ -1244,6 +1250,8 @@ int penguin_osi_mappings(CPUState *cs, uint64_t task,
     if (ol.gate_vma && ol.pt_x86 && ol.mm_context_flags >= 0 &&
         (o_u(&o, mm, ol.mm_context_flags, 8) & (1 << MM_CONTEXT_HAS_VSYSCALL))) {
         o_push(&vs, ol.gate_vma);
+    } else if (ol.gate_vma && o.w == 4) {
+        o_push(&vs, ol.gate_vma);       /* 32-bit ARM's vectors (KUSER_HELPERS) */
     }
     if (o.bad) {
         g_free(vs.v);
@@ -1332,6 +1340,49 @@ static bool o_user_pa(OCtx *o, const OPt *pt, uint64_t pgd, uint64_t va,
     return true;
 }
 
+/*
+ * A 32-bit ARM task's page, by its short-descriptor tables: the L1 entry
+ * through the pgd's kernel address, then the hardware L2 table and the
+ * page in guest RAM (whichever half of its page the kernel keeps them in,
+ * the L1 entry points at the hardware table).  Its host address, or NULL.
+ */
+static const uint8_t *o_user_page32(OCtx *o, uint64_t pgd, uint32_t va)
+{
+    uint32_t e = o_u(o, pgd, (va >> 20) * 4, 4), pa;
+    const uint8_t *t;
+
+    if (o->bad) {
+        return NULL;
+    }
+    switch (e & 3) {
+    case 1:                                     /* a page table */
+        t = o_ram(e & 0xfffffc00);
+        if (!t) {
+            return NULL;
+        }
+        e = ldl_le_p(t + ((va >> 12) & 0xff) * 4);
+        if (e & 2) {                            /* a 4K small page */
+            pa = (e & 0xfffff000) | (va & 0xfff);
+        } else if (e & 1) {                     /* a 64K large page */
+            pa = (e & 0xffff0000) | (va & 0xffff);
+        } else {
+            return NULL;                        /* not mapped (or not young) */
+        }
+        break;
+    case 2:
+        if (e & (1 << 18)) {                    /* a 16M supersection */
+            pa = (e & 0xff000000) | (va & 0xffffff);
+        } else {                                /* a 1M section */
+            pa = (e & 0xfff00000) | (va & 0xfffff);
+        }
+        break;
+    default:
+        return NULL;
+    }
+    t = o_ram(pa & ~(uint32_t)(OSI_PAGE - 1));
+    return t ? t + (pa & (OSI_PAGE - 1)) : NULL;
+}
+
 int penguin_osi_user_read(CPUState *cs, uint64_t task, uint64_t va,
                           void *buf, uint32_t len)
 {
@@ -1341,7 +1392,26 @@ int penguin_osi_user_read(CPUState *cs, uint64_t task, uint64_t va,
 
     OPt pt;
 
-    if (!o_init(&o, cs) || !task || !o_pt(&o, &pt)) {
+    if (!o_init(&o, cs) || !task) {
+        return -1;
+    }
+    if (o.w == 4) {
+        mm = P(&o, task, task_mm);
+        pgd = mm ? P(&o, mm, mm_pgd) : 0;
+        while (pgd && !o.bad && done < len) {
+            uint32_t a = va + done;
+            uint32_t k = MIN(len - done, OSI_PAGE - (a & (OSI_PAGE - 1)));
+            const uint8_t *p = o_user_page32(&o, pgd, a);
+
+            if (!p) {
+                break;
+            }
+            memcpy((uint8_t *)buf + done, p, k);
+            done += k;
+        }
+        return done ? (int)done : -1;
+    }
+    if (!o_pt(&o, &pt)) {
         return -1;
     }
     mm = P(&o, task, task_mm);

@@ -749,8 +749,12 @@ def scenario_osi():
     """apis/hostosi.py (C walks) at an entry and at a return, and osiref.py's
     Python walks at the entry"""
     from apis.hostosi import HostOSI
-    from osiref import PyOSI
-    osi, ref = HostOSI(), PyOSI()
+    from osiref import OSIError, PyOSI
+    osi = HostOSI()
+    try:
+        ref = PyOSI()
+    except OSIError:
+        ref = None              # osiref.py's walks: 64-bit kernels only
 
     def report(regs, proto, sc, *args):
         count(sc, 'osi')
@@ -767,13 +771,15 @@ def scenario_osi():
             out(f'OSI got {at} {line}')
         if sc.is_enter:
             yield from osi_match_check(osi)
-            got, _ = yield from osi_answers(ref)
-            for line in got:
-                out(f'OSI ref {line}')
+            if ref:
+                got, _ = yield from osi_answers(ref)
+                for line in got:
+                    out(f'OSI ref {line}')
             return
         yield from osi_costs(osi, 'c', pid, 2000)
         osi_raw(osi, pid)
-        yield from osi_costs(ref, 'py', pid, 10)
+        if ref:
+            yield from osi_costs(ref, 'py', pid, 10)
     hook('getpgid', report, enter=True, arg_filters=[9301])
     hook('getpgid', report, ret=True, arg_filters=[9302])
     # the engine's OSI filters, decided in C: an fd argument's name, the exe

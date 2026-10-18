@@ -39,7 +39,8 @@ t = keyed(truth)
 # the child's arguments are the parent's (fork, no exec)
 t['childargs'] = t['args']
 bad = 0
-for at in ('enter', 'return', 'ref'):
+# osiref.py's Python walks run on 64-bit kernels only: none, no comparison
+for at in ('enter', 'return', 'ref') if got['ref'] else ('enter', 'return'):
     g = keyed(got[at])
     for k in sorted(set(t) | set(g)):
         if t.get(k) != g.get(k):

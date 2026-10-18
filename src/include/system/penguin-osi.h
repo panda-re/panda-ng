@@ -106,6 +106,11 @@ struct penguin_osi_layout {
      * dentry.d_sb, super_block.s_magic.
      */
     int32_t dentry_sb, sb_magic;
+    /*
+     * The kernel's word (unsigned long, pointers): 8, or 4 for a 32-bit ARM
+     * kernel (short-descriptor page tables); 0 means 8.
+     */
+    int32_t ptr_size;
 };
 
 struct penguin_osi_proc {
