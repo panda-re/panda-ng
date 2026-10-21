@@ -31,6 +31,11 @@ def remove_functions(code):
 	for node in traverse_tree(tree):
 		if node.type == 'function_definition':
 			remove_lines.append((node.start_point[0], node.end_point[0]))
+		if node.type == 'function_declarator':
+			if not node.is_named:
+				continue
+			if node.text.startswith(b'__assert_fail ') or node.text.startswith(b'__assert_perror_fail ') or node.text.startswith(b'__assert '):
+				remove_lines.append((node.start_point[0], node.end_point[0]))
 	
 	codelines = code.split("\n")
 	code = code.split("\n")
@@ -130,8 +135,6 @@ def preprocess(arch, source, include_defines=False): #,fake_sysroot=True):
 		"panda/include",
 		"build",
 		"include",
-		"/usr/include/glib-2.0",
-		"/usr/lib/x86_64-linux-gnu/glib-2.0/include",
 		f"target/{arch_to_generic(arch)}",
 		f"include/tcg/{arch}",
 		f"tcg/x86_64",
@@ -143,14 +146,16 @@ def preprocess(arch, source, include_defines=False): #,fake_sysroot=True):
 		".",
 	]
 
-	
+	glib_includes = check_output(['pkg-config', '--cflags-only-I', 'glib-2.0']).decode('utf-8', errors='ignore').strip()
+
 	with open("/tmp/simple.c","w") as f:
 		f.write(source)
 	includes = " ".join([f"-I{realpath(join(root, include))}" for include in includes])
+	includes += ' ' + glib_includes
 
 	defines = '-dD' if include_defines else ''
 
-	cmd = f"/usr/bin/gcc -E {defines} -pthread -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -fPIC -UNDEBUG {includes} /tmp/simple.c -o /tmp/simple.out -m64 -Wall -Winvalid-pch -std=gnu11 -O2 -g -fstack-protector-strong -Wempty-body -Wendif-labels -Wexpansion-to-defined -Wformat-security -Wformat-y2k -Wignored-qualifiers -Wimplicit-fallthrough=2 -Winit-self -Wmissing-format-attribute -Wmissing-prototypes -Wnested-externs -Wold-style-declaration -Wold-style-definition -Wredundant-decls -Wshadow=local -Wstrict-prototypes -Wtype-limits -Wundef -Wvla -Wwrite-strings -Wno-missing-include-dirs -Wno-psabi -Wno-shift-negative-value"
+	cmd = f"gcc -E {defines} -pthread -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -fPIC -UNDEBUG {includes} /tmp/simple.c -o /tmp/simple.out -m64 -Wall -Winvalid-pch -std=gnu11 -O2 -g -fstack-protector-strong -Wempty-body -Wendif-labels -Wexpansion-to-defined -Wformat-security -Wformat-y2k -Wignored-qualifiers -Wimplicit-fallthrough=2 -Winit-self -Wmissing-format-attribute -Wmissing-prototypes -Wnested-externs -Wold-style-declaration -Wold-style-definition -Wredundant-decls -Wshadow=local -Wstrict-prototypes -Wtype-limits -Wundef -Wvla -Wwrite-strings -Wno-missing-include-dirs -Wno-psabi -Wno-shift-negative-value"
 	print(cmd)
 	check_output(cmd, shell=True)
 	
@@ -186,6 +191,14 @@ def compile_target(arch, target):
 	#include "exec/target_long.h"
 	#include "system/runstate.h"
 	#include "system/arch_init.h"
+	#include "system/memory.h"
+	#include "system/address-spaces.h"
+	#include "system/iothread.h"
+	#include "qemu/main-loop.h"
+	#include "qemu/thread.h"
+	#include "exec/cpu-common.h"
+	#include "exec/hwaddr.h"
+	#include "exec/memattrs.h"
 
 	#include "qemu/plugin.h"
 	#include "qemu/plugin-event.h"

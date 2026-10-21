@@ -11,7 +11,7 @@ BUILD_PY=$(realpath $LOCAL_DIR/build.py)
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) 
 
-gdb $LIBPANDA -ex "source $BUILD_PY" -ex "extract_types $ROOT $LIBPANDA $SCRIPT_DIR" -ex "q"
+gdb $LIBPANDA -ex "set pagination off" -ex "source $BUILD_PY" -ex "extract_types $ROOT $LIBPANDA $SCRIPT_DIR" -ex "q"
 
 if [ $? -ne 100 ]; then
     echo "Failed to extract types for $LIBPANDA"

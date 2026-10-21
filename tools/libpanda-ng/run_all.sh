@@ -1,6 +1,8 @@
 #!/bin/bash
 
-if [[ $? -ne 1 ]]; then
+set -e
+
+if [[ $# -ne 1 ]]; then
     echo "Usage: run_all.sh [QEMU_PATH]"
 fi
 

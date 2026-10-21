@@ -11,9 +11,17 @@ typedef int __builtin_va_list;
 #define _BITS_STRING_FORTIFIED_H
 #define __G_UTILS_H__
 #define __int128_t int
+#define __int128 __int128_t
 #define __uint128_t int
 #define __extension__
 #define __asm__(...)
 #define _Static_assert(...)
 #define __thread
 #define asm(...)
+
+typedef uint64_t hwaddr;
+typedef uint32_t MemTxResult;
+typedef uint64_t MemTxAttrs;
+typedef struct MemoryRegion MemoryRegion;
+typedef struct CPUState CPUState;
+typedef struct TranslationBlock TranslationBlock;
