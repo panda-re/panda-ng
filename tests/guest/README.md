@@ -18,7 +18,8 @@ The guest program (`pagetest.c`) checks itself against its own view (its
 own reads, `/proc`), and the host side logs what QEMU saw. The `.sh`
 scripts compare the two and write verdicts and tables.
 
-It is not run in CI: it needs about 20 kernel boots per suite and minutes of
+It is not run in CI, except the off-cost gate (`offcost.sh`, by hand from the
+Off-cost workflow): the suites need about 20 kernel boots each and minutes of
 guest time. It is the check for any change to the files above.
 
 ## Inputs
@@ -66,6 +67,7 @@ and exits non-zero if a check failed.
 | `ositest.sh` | the host OSI against the guest's /proc (`osiref.py` walks the same structures in Python); `osicdef.py` checks penguin's cdef against `src/include/system/penguin-osi.h` | same |
 | `setpctest.sh` | `qemu_plugin_set_pc()` from a syscall entry callback resumes the task, not the trap again (`plugins/scsetpc.c`) | x86_64, aarch64, armel 6.13 |
 | `osibench.sh` | what the engine's OSI filters cost per rejected call | x86_64, aarch64 |
+| `offcost.sh STOCK SERIES` | the off-cost gate: the series with nothing loaded against stock (the series at `STOCK_REF`, default `origin/main`; same tarball, same configure line; `scripts/offcost-gate.sh` builds both), and an rr-ready launch against a plain one; wall time per workload (boot and translation, syscalls, virtio swap), fails above `TOL` (5%) / `RRTOL` (10%) | x86_64, aarch64 6.13 |
 | `PENHOST=first run.sh <arch> <ver> user-novma` | injection at the system's first syscall (init's), before init has run | same |
 | `PENHOST=takeover run.sh <arch> <ver> user-novma` | pid 1 runs `ours.c` from a memfd, then the real init | same |
 
