@@ -35,12 +35,20 @@ bin_cp = find_program(
         required: true,
 )
 
-if fs.exists('local_packages/panda-ng')
-    panda_ng_include = include_directories('local_packages')
-elif fs.exists('/usr/include/panda-ng')
-    panda_ng_include = include_directories('/usr/include')
-else
-    assert(false, 'panda-ng not found. Install it from pandare.deb or put it in local packages')
-endif
+# The plugins build against the engine's PANDA plugin API (<panda/plugin.h>). The Dockerfile
+# installs the engine (engine/, qemu_builder) under /usr/local. engine/ does not carry the PANDA
+# API yet (pandang's spine and families are still being ported onto it), so without it the
+# plugins are skipped rather than failing the build.
+panda_ng_include = []
+foreach d : ['local_packages', '/usr/local/include', '/usr/include']
+    if panda_ng_include.length() == 0 and fs.exists(d / 'panda-ng')
+        panda_ng_include = [include_directories(d)]
+    endif
+endforeach
 
-subdir('plugins')
+if panda_ng_include.length() > 0
+    subdir('plugins')
+else
+    warning('no PANDA plugin API in local_packages, /usr/local/include (the engine) or ' +
+            '/usr/include: plugins not built')
+endif

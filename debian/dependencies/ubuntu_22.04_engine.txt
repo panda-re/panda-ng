@@ -1,0 +1,13 @@
+# building QEMU from engine/ (import-series.sh, configure, ninja); the -dev
+# packages also bring the libraries the installed engine runs against
+git
+xz-utils
+python3-venv
+python3-tomli
+flex
+bison
+libpixman-1-dev
+libslirp-dev
+libfdt-dev
+zlib1g-dev
+libzstd-dev

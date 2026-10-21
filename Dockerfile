@@ -2,10 +2,9 @@
 ARG REGISTRY="docker.io"
 ARG BASE_IMAGE="ubuntu:22.04"
 ARG TARGET_LIST="x86_64-softmmu,i386-softmmu,arm-softmmu,aarch64-softmmu,mips-softmmu,mipsel-softmmu,mips64-softmmu,mips64el-softmmu"
-ARG PANDA_VERSION="pandav0.0.49"
 
-### BASE IMAGE
-FROM ${REGISTRY}/$BASE_IMAGE AS base
+### DEPENDENCIES
+FROM ${REGISTRY}/$BASE_IMAGE AS deps
 ARG BASE_IMAGE
 
 # Copy dependencies lists into container. We copy them all and then do a mv because
@@ -23,12 +22,38 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 
 RUN pip3 install meson pycparser
 
-ARG PANDA_VERSION
-RUN wget -O /tmp/pandare.deb \
-    https://github.com/panda-re/qemu/releases/download/${PANDA_VERSION}/pandare_22.04.deb && \
-    apt-get -qq update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -yy --fix-missing -f /tmp/pandare.deb && \
+### ENGINE: QEMU built from engine/ (qemu_builder: a pinned upstream release tarball plus the
+### patch series), installed under /usr/local. It replaces the released pandare.deb.
+FROM deps AS engine
+ARG BASE_IMAGE
+ARG TARGET_LIST
+COPY ./debian/dependencies/${BASE_IMAGE/:/_}_engine.txt /tmp/engine_dep.txt
+RUN apt-get -qq update && \
+    DEBIAN_FRONTEND=noninteractive apt-get -qq install -y --no-install-recommends $(cat /tmp/engine_dep.txt | grep -o '^[^#]*') && \
     rm -rf /var/lib/apt/lists/*
+COPY engine /engine
+# engine/base.json pins the tarball by sha256; import-series.sh applies the series strictly and
+# overlays engine/src
+RUN python3 -c 'import json; ((v, e),) = json.load(open("/engine/base.json")).items(); print(v, e["url"], e["sha256"])' > /tmp/base && \
+    read -r version url sha256 < /tmp/base && \
+    curl -sSL --retry 3 -o /tmp/qemu.tar.xz "$url" && \
+    echo "$sha256  /tmp/qemu.tar.xz" | sha256sum -c - && \
+    /engine/scripts/import-series.sh "$version" /tmp/qemu.tar.xz /engine-src && \
+    rm /tmp/qemu.tar.xz
+RUN mkdir /engine-src/build && cd /engine-src/build && \
+    ../configure --prefix=/usr/local --target-list=${TARGET_LIST} --enable-plugins \
+        --disable-docs --disable-werror --disable-gtk --disable-sdl --disable-opengl \
+        --disable-virglrenderer --disable-spice --disable-vnc && \
+    ninja && ninja install
+
+### BASE IMAGE: the engine plus panda-ng's plugins and Python package
+FROM deps AS base
+ARG BASE_IMAGE
+COPY ./debian/dependencies/${BASE_IMAGE/:/_}_engine.txt /tmp/engine_dep.txt
+RUN apt-get -qq update && \
+    DEBIAN_FRONTEND=noninteractive apt-get -qq install -y --no-install-recommends $(cat /tmp/engine_dep.txt | grep -o '^[^#]*') && \
+    rm -rf /var/lib/apt/lists/*
+COPY --from=engine /usr/local /usr/local
 
 RUN mkdir /panda-ng
 COPY meson.build /panda-ng
