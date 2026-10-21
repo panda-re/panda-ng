@@ -1,0 +1,84 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: igloo <nix@local>
+Date: Wed, 19 Aug 2026 23:02:41 -0400
+Subject: [PATCH] target/riscv: route guest hypercalls into Penguin
+
+Same helper as the other targets.
+
+Note the upstream path: op_helper.c and translate.c moved from target/riscv/
+to target/riscv/tcg/ after v11.0.0, so this patch is against the tcg/
+subdirectory.
+
+Folds: 797f446cf8 (partial), d7f87bf73e (partial), 087a668076 (partial)
+---
+ target/riscv/helper.h        |  1 +
+ target/riscv/tcg/op_helper.c | 15 +++++++++++++++
+ target/riscv/tcg/translate.c | 11 +++++++++++
+ 3 files changed, 27 insertions(+)
+
+diff --git a/target/riscv/helper.h b/target/riscv/helper.h
+index 542b7c264fc057b6ed5766cff20455291e6db909..2da85dfe8d3230253d3817ae6ed6c2af6a45e781 100644
+--- a/target/riscv/helper.h
++++ b/target/riscv/helper.h
+@@ -1,5 +1,6 @@
+ /* Exceptions */
+ DEF_HELPER_2(raise_exception, noreturn, env, i32)
++DEF_HELPER_7(penguin_guest_hypercall, tl, env, tl, tl, tl, tl, tl, tl)
+ 
+ /* Floating Point - rounding mode */
+ DEF_HELPER_FLAGS_2(set_rounding_mode, TCG_CALL_NO_WG, void, env, i32)
+diff --git a/target/riscv/tcg/op_helper.c b/target/riscv/tcg/op_helper.c
+index ba3c7da375a2fe822ded6426ac92d6a568175600..e940381eb641bc306d393b9cd99aa5c768d6fe7a 100644
+--- a/target/riscv/tcg/op_helper.c
++++ b/target/riscv/tcg/op_helper.c
+@@ -29,6 +29,7 @@
+ #include "exec/helper-proto.h"
+ #include "exec/tlb-flags.h"
+ #include "trace.h"
++#include "system/penguin.h"
+ 
+ /* Exceptions processing helpers */
+ G_NORETURN void riscv_raise_exception(CPURISCVState *env,
+@@ -50,6 +51,20 @@ void helper_raise_exception(CPURISCVState *env, uint32_t exception)
+     riscv_raise_exception(env, exception, 0);
+ }
+ 
++target_ulong helper_penguin_guest_hypercall(CPURISCVState *env, target_ulong nr,
++                                            target_ulong a0, target_ulong a1,
++                                            target_ulong a2, target_ulong a3,
++                                            target_ulong a4)
++{
++    CPUState *cs = env_cpu(env);
++    uint64_t ret = 0;
++
++    if (penguin_handle_guest_hypercall(cs, nr, a0, a1, a2, a3, a4, 0, &ret)) {
++        return ret;
++    }
++    return a0;
++}
++
+ target_ulong helper_csrr(CPURISCVState *env, int csr)
+ {
+     /*
+diff --git a/target/riscv/tcg/translate.c b/target/riscv/tcg/translate.c
+index 9684dbe7528e3555114b53b93305b80bb4b1ddc1..0418e153d47cdc4949409e23a2ba92c2f568868e 100644
+--- a/target/riscv/tcg/translate.c
++++ b/target/riscv/tcg/translate.c
+@@ -866,6 +866,17 @@ static int ex_rvc_shiftri(DisasContext *ctx, int imm)
+ static bool gen_logic_imm_fn(DisasContext *ctx, arg_i *a,
+                              void (*func)(TCGv, TCGv, target_long))
+ {
++    if (a->rs1 == 0 && a->rd == 0 && a->imm == 0 &&
++        func == tcg_gen_xori_tl) {
++        TCGv ret = tcg_temp_new();
++        gen_helper_penguin_guest_hypercall(ret, tcg_env,
++                                           cpu_gpr[17], cpu_gpr[10],
++                                           cpu_gpr[11], cpu_gpr[12],
++                                           cpu_gpr[13], cpu_gpr[14]);
++        gen_set_gpr(ctx, 10, ret);
++        return true;
++    }
++
+     TCGv dest = dest_gpr(ctx, a->rd);
+     TCGv src1 = get_gpr(ctx, a->rs1, EXT_NONE);
+ 

@@ -1,0 +1,141 @@
+name: Upstream canary
+
+# The whole point of this repo is that the delta is "easier to apply across
+# upstream versions". This is what turns that into something measured instead of
+# claimed: weekly, probe the committed series against upstream QEMU's master and
+# report which patches would need a human.
+#
+# It does NOT gate anything. It is early warning, so a conflict is found while
+# it is one patch instead of at rebase time when it is several.
+#
+# Runs in strict-only mode (PROBE_STRICT_ONLY=1). `git am --3way` reconstructs a
+# patch's pre-image from its index-line blob hashes, and a fresh upstream clone
+# does not contain our blobs -- so the drift-vs-conflict split would be
+# meaningless here. Strict apply is blob-free and still answers the question
+# that matters: does the series still land?
+#
+# The cost of that choice: the reported count is an UPPER BOUND. Measured
+# 2026-08-20 against upstream/master, a full-clone probe gives
+# ok=9 drift=2 conflict=1, while strict-only gives ok=9 conflict=3 -- the two
+# drift patches are counted as needing work when 3-way would fix them by itself.
+# The issue body says so; a canary that overstates gets ignored.
+
+on:
+  schedule:
+    # Mondays, 07:00 UTC.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      refs:
+        description: "Upstream refs to probe (space-separated)"
+        required: false
+        default: "upstream/master"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  probe:
+    runs-on: rehosting-arc
+    env:
+      USER: runner
+      LOGNAME: runner
+      TMPDIR: /home/runner/_work/_temp
+      XDG_CACHE_HOME: /home/runner/_work/.cache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare runner directories
+        run: mkdir -p "$TMPDIR" "$XDG_CACHE_HOME"
+
+      - name: Fetch upstream refs
+        id: upstream
+        run: |
+          set -eux
+          REFS="${{ github.event.inputs.refs || 'upstream/master' }}"
+          git init -q "$TMPDIR/qemu-upstream"
+          cd "$TMPDIR/qemu-upstream"
+          git remote add upstream https://gitlab.com/qemu-project/qemu.git
+          for r in $REFS; do
+            # Shallow is enough: the probe only ever checks out the ref itself.
+            git fetch -q --depth 1 upstream "${r#upstream/}"
+            git update-ref "refs/remotes/$r" FETCH_HEAD
+          done
+          echo "head=$(git rev-parse --short refs/remotes/upstream/master)" >> "$GITHUB_OUTPUT"
+
+      - name: Probe the series
+        id: probe
+        run: |
+          set -eu
+          REFS="${{ github.event.inputs.refs || 'upstream/master' }}"
+          PROBE_STRICT_ONLY=1 ./scripts/probe-versions.sh 11.1.0 \
+            "$TMPDIR/qemu-upstream" $REFS | tee probe.txt
+          # conflict=N over all probed refs
+          sum() { grep -o "$1=[0-9]*" probe.txt | cut -d= -f2 | awk '{n+=$1} END {print n+0}'; }
+          echo "conflicts=$(sum conflict)" >> "$GITHUB_OUTPUT"
+          echo "moved=$(sum moved)" >> "$GITHUB_OUTPUT"
+
+      # rehosting-arc has no `gh` CLI, so this talks to the REST API with
+      # curl + jq. One rolling issue, updated rather than duplicated weekly.
+      - name: Report
+        if: ${{ steps.probe.outputs.conflicts != '0' || steps.probe.outputs.moved != '0' }}
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -eu
+          {
+            echo "Probed against upstream QEMU at \`${{ steps.upstream.outputs.head }}\`."
+            echo
+            echo "- patches that no longer apply with strict context: **${{ steps.probe.outputs.conflicts }}**"
+            echo "- patches whose target file moved upstream: **${{ steps.probe.outputs.moved }}**"
+            echo
+            echo "The first number is an **upper bound**, not a work estimate. Strict-only"
+            echo "mode cannot tell context drift (which \`git am --3way\` resolves by itself)"
+            echo "from a real conflict, so both land in the same bucket. Re-run"
+            echo "\`scripts/probe-versions.sh\` locally against a full clone -- which has our"
+            echo "patches' pre-image blobs -- to get the drift/conflict split."
+            echo
+            echo '```'
+            cat probe.txt
+            echo '```'
+            echo
+            echo "A \`moved\` entry is usually a path rewrite. Neither class breaks the base --"
+            echo "\`patches/11.1.0/\` still gates green. This is early warning for the"
+            echo "next rebase."
+            echo
+            echo "[run]($RUN_URL)"
+          } > body.md
+
+          EXISTING=$(curl -sS -H "Authorization: Bearer $TOKEN" \
+            "https://api.github.com/repos/$REPO/issues?state=open&labels=upstream-canary&per_page=1" \
+            | jq -r '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            jq -n --rawfile b body.md '{body: $b}' > payload.json
+            curl -sS -X POST -H "Authorization: Bearer $TOKEN" \
+              "https://api.github.com/repos/$REPO/issues/$EXISTING/comments" \
+              -d @payload.json > /dev/null
+            echo "commented on issue #$EXISTING"
+          else
+            jq -n --rawfile b body.md \
+              '{title: "Upstream canary: the series needs porting", labels: ["upstream-canary"], body: $b}' \
+              > payload.json
+            curl -sS -X POST -H "Authorization: Bearer $TOKEN" \
+              "https://api.github.com/repos/$REPO/issues" -d @payload.json > /dev/null
+            echo "opened a new canary issue"
+          fi
+
+      - name: Summary
+        run: |
+          {
+            echo "### Upstream canary"
+            echo
+            echo "upstream master: \`${{ steps.upstream.outputs.head }}\`"
+            echo
+            echo '```'
+            cat probe.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

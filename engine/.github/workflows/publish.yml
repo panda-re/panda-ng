@@ -1,0 +1,121 @@
+name: Release
+
+# Mirrors rehosting/qemu's publish.yml.
+#
+# DELIBERATELY MANUAL FOR NOW. rehosting/qemu is still the live publisher of
+# penguin-qemu.tar.gz, and penguin's non-Nix image path resolves a QEMU_VERSION
+# release tag. Two repos cutting releases of the same artifact under separate
+# version lines is exactly the kind of confusion the "non-destructive first"
+# sequencing exists to avoid. When rehosting/qemu is frozen and
+# penguin/flake.nix's input is flipped, uncomment the push trigger below and
+# this becomes the publisher.
+#
+#   push:
+#     branches: [main, master]
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "release"
+  cancel-in-progress: false
+
+jobs:
+  series:
+    uses: ./.github/workflows/series.yml
+
+  build_release:
+    needs: series
+    runs-on: rehosting-arc
+    env:
+      USER: runner
+      LOGNAME: runner
+      TMPDIR: /home/runner/_work/_temp
+      XDG_CACHE_HOME: /home/runner/_work/.cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare runner directories
+        run: mkdir -p "$TMPDIR" "$XDG_CACHE_HOME"
+
+      # No `increment:` input on purpose -- setting it overrides the tag-derived
+      # version line. To move to a new line, push a bare marker tag instead.
+      - name: Get next version
+        uses: reecetech/version-increment@2024.10.1
+        id: version
+        with:
+          release_branch: ${{ github.ref_name }}
+          use_api: true
+
+      - name: Set up Nix
+        uses: rehosting/ci/actions/nix-setup@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-backend: cachix
+          cachix-name: rehosting-tools
+          cachix-auth-token: ${{ secrets.CACHIX_REHOSTING }}
+          # Non-PR build: nix-setup pushes built paths to rehosting-tools to
+          # populate the cache for downstream flakes (penguin's, notably).
+          enable-kvm: false
+          extra-nix-config: |
+            max-jobs = 8
+            cores = 8
+
+      - name: Build release artifact
+        run: |
+          set -eux
+          nix build -L .#dist
+          mkdir -p dist
+          cp --dereference result dist/penguin-qemu.tar.gz
+
+      - name: Verify release artifact
+        run: |
+          set -eux
+          test -s dist/penguin-qemu.tar.gz
+          tar tzf dist/penguin-qemu.tar.gz | grep -q '^lib/libqemu-system-'
+          tar tzf dist/penguin-qemu.tar.gz | grep -q '^include/penguin-qemu-cffi/'
+          tar tzf dist/penguin-qemu.tar.gz | grep -q '^lib/penguin-qemu-env/'
+          tar tzf dist/penguin-qemu.tar.gz | grep -q '^bin/qemu-img$'
+          (cd dist && sha256sum penguin-qemu.tar.gz > SHA256SUMS)
+
+      - name: IGLOO delta is present in the built libraries
+        run: |
+          set -eux
+          nix build -L .#penguin-qemu --out-link built
+          ./scripts/check-delta-present.sh built
+
+      # Record which upstream release this artifact was built from, so a
+      # consumer can tell a v11.1.0-based build from a later rebase without
+      # unpacking the tarball.
+      - name: Record the upstream base
+        run: |
+          set -eux
+          python3 - <<'PY' > dist/BASE
+          import json
+          b = json.load(open("base.json"))
+          (ver,) = list(b)
+          print(f"upstream-qemu={b[ver]['tag']}")
+          print(f"tarball-sha256={b[ver]['sha256']}")
+          print(f"patched-tree={b[ver]['patchedTree']}")
+          PY
+          cat dist/BASE
+
+      - name: Upload package release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.v-version }}
+          name: Release ${{ steps.version.outputs.v-version }}
+          draft: false
+          generate_release_notes: true
+          prerelease: false
+          files: |
+            dist/penguin-qemu.tar.gz
+            dist/SHA256SUMS
+            dist/BASE

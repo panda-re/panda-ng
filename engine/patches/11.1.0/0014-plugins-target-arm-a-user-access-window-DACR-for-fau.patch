@@ -1,0 +1,185 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 7 Oct 2026 12:05:34 -0400
+Subject: [PATCH] plugins, target/arm: a user-access window (DACR) for faulting
+ reads
+
+Kernel-mode reads of user memory on short-descriptor ARM with software
+domain PAN take a domain fault, which Linux treats as fatal. Open the
+window an OS uaccess_enable() would open (no-access domains -> client)
+around the access; it survives the guest fault and is closed before the
+API returns.
+---
+ include/accel/tcg/cpu-ops.h |  8 +++++++
+ plugins/api-system.c        | 22 +++++++++++++----
+ target/arm/cpu.c            | 47 +++++++++++++++++++++++++++++++++++++
+ target/arm/cpu.h            |  4 ++++
+ 4 files changed, 76 insertions(+), 5 deletions(-)
+
+diff --git a/include/accel/tcg/cpu-ops.h b/include/accel/tcg/cpu-ops.h
+index 9e5fbef4cc89ad394cb3c74b7d51f0cfde65e3b5..310dd8b8038cf789f8368dd2f7bff307173d9d84 100644
+--- a/include/accel/tcg/cpu-ops.h
++++ b/include/accel/tcg/cpu-ops.h
+@@ -109,6 +109,14 @@ struct TCGCPUOps {
+      * e.g. what AArch64 LDTR or x86 CPL3 uses.  Optional.
+      */
+     int (*user_mmu_index)(CPUState *cpu);
++    /**
++     * @user_access_window: Open (@open true) or close the window in which
++     * privileged code may access user memory, as an OS uaccess_enable()
++     * would (e.g. the ARM DACR user domain).  The window may stay open
++     * across a guest exception: the guest saves and restores it with the
++     * rest of the interrupted context.  Optional.
++     */
++    void (*user_access_window)(CPUState *cpu, bool open);
+ 
+ #ifdef CONFIG_USER_ONLY
+     /**
+diff --git a/plugins/api-system.c b/plugins/api-system.c
+index 4f6f88df2322cbc5bb0b299314be250ad8bb5260..db5a3ebdd7a319710c259c5dd3ad08e3d97c0219 100644
+--- a/plugins/api-system.c
++++ b/plugins/api-system.c
+@@ -147,7 +147,8 @@ int qemu_plugin_read_memory_vaddr_fault(uint64_t addr, GByteArray *data,
+     CPUState *cpu = current_cpu;
+     CPUArchState *env;
+     size_t done = 0, page_size = qemu_target_page_size();
+-    int mmu_idx;
++    void (*window)(CPUState *, bool) = NULL;
++    int mmu_idx, ret = QEMU_PLUGIN_VADDR_OK;
+ 
+     g_assert(cpu);
+     env = cpu_env(cpu);
+@@ -159,6 +160,10 @@ int qemu_plugin_read_memory_vaddr_fault(uint64_t addr, GByteArray *data,
+         if (!cpu->cc->tcg_ops->user_mmu_index) {
+             return QEMU_PLUGIN_VADDR_BAD_MODE;
+         }
++        window = cpu->cc->tcg_ops->user_access_window;
++        if (window) {
++            window(cpu, true);
++        }
+         mmu_idx = cpu->cc->tcg_ops->user_mmu_index(cpu);
+     } else {
+         mmu_idx = cpu_mmu_index(cpu, false);
+@@ -181,24 +186,31 @@ int qemu_plugin_read_memory_vaddr_fault(uint64_t addr, GByteArray *data,
+ 
+             if (!fault || !ra ||
+                 qemu_plugin_get_cb_flags() != QEMU_PLUGIN_CB_RW_REGS_PC) {
+-                return QEMU_PLUGIN_VADDR_UNMAPPED;
++                ret = QEMU_PLUGIN_VADDR_UNMAPPED;
++                break;
+             }
+             /*
+              * Raise the exception a guest load at the start of the current
+              * instruction would take (#PF, data abort, TLBL, DSI ...).  The
+              * guest resolves it and resumes at the same instruction, so the
+              * callback runs again.  Returns only if the translation became
+-             * valid in the meantime.
++             * valid in the meantime.  A user access window stays open:
++             * the guest saves it with the interrupted context and restores
++             * it when it resumes here; we close it on the way out.
+              */
+             probe_access(env, a, 0, MMU_DATA_LOAD, mmu_idx, ra);
+             continue;
+         }
+         if (flags & TLB_MMIO) {
+             /* Not RAM: a read could have device side effects. */
+-            return QEMU_PLUGIN_VADDR_IO;
++            ret = QEMU_PLUGIN_VADDR_IO;
++            break;
+         }
+         memcpy(data->data + done, host, chunk);
+         done += chunk;
+     }
+-    return QEMU_PLUGIN_VADDR_OK;
++    if (window) {
++        window(cpu, false);
++    }
++    return ret;
+ }
+diff --git a/target/arm/cpu.c b/target/arm/cpu.c
+index ab9511215feed6741aba19db402bb6f0047bc3e7..fb1feb8a7c77c7d788b9f01a122c0fb14c3c8e6c 100644
+--- a/target/arm/cpu.c
++++ b/target/arm/cpu.c
+@@ -35,6 +35,7 @@
+ #include "internals.h"
+ #include "cpu-features.h"
+ #include "exec/target_page.h"
++#include "exec/cputlb.h"
+ #include "hw/core/qdev-properties.h"
+ #if !defined(CONFIG_USER_ONLY)
+ #include "hw/core/loader.h"
+@@ -136,6 +137,51 @@ static int arm_cpu_user_mmu_index(CPUState *cs)
+     return arm_to_core_mmu_idx(arm_mmu_idx_el(cpu_env(cs), 0));
+ }
+ 
++/*
++ * Short-descriptor translation checks domains.  Kernels that protect user
++ * memory with domains (Linux CPU_SW_DOMAIN_PAN) make the user domain "no
++ * access" outside uaccess routines; opening the window turns every
++ * no-access domain into "client" so the page tables' AP bits decide, just
++ * like uaccess_save_and_enable().
++ */
++static void arm_cpu_user_access_window(CPUState *cs, bool open)
++{
++    ARMCPU *cpu = ARM_CPU(cs);
++    CPUARMState *env = &cpu->env;
++    ARMMMUIdx idx = arm_mmu_idx(env);
++    uint64_t *dacr;
++
++    if (open && (arm_feature(env, ARM_FEATURE_M) || is_a64(env) ||
++                 arm_current_el(env) == 0 ||
++                 arm_s1_regime_using_lpae_format(env, idx))) {
++        return;
++    }
++    dacr = regime_el(idx) == 1 ? &env->cp15.dacr_ns : &env->cp15.dacr_s;
++    if (open) {
++        uint64_t v = *dacr;
++        for (int d = 0; d < 16; d++) {
++            if (((v >> (d * 2)) & 3) == 0) {
++                v |= 1ull << (d * 2);
++            }
++        }
++        if (v == *dacr) {
++            return;
++        }
++        if (!cpu->uaccess_open) {
++            cpu->uaccess_saved_dacr = *dacr;
++            cpu->uaccess_open = true;
++        }
++        *dacr = v;
++    } else {
++        if (!cpu->uaccess_open) {
++            return;
++        }
++        *dacr = cpu->uaccess_saved_dacr;
++        cpu->uaccess_open = false;
++    }
++    tlb_flush(cs);     /* domains are not tracked in the TLB */
++}
++
+ #endif /* CONFIG_TCG */
+ 
+ #ifndef CONFIG_USER_ONLY
+@@ -2601,6 +2647,7 @@ static const TCGCPUOps arm_tcg_ops = {
+     .restore_state_to_opc = arm_restore_state_to_opc,
+     .mmu_index = arm_cpu_mmu_index,
+     .user_mmu_index = arm_cpu_user_mmu_index,
++    .user_access_window = arm_cpu_user_access_window,
+ 
+ #ifdef CONFIG_USER_ONLY
+     .record_sigsegv = arm_cpu_record_sigsegv,
+diff --git a/target/arm/cpu.h b/target/arm/cpu.h
+index c0492c8dfbc4d77aecd6a17ec7ef434f1ccdf90f..b8c22306f509f9c7aa5764aa0a06723663fa3f18 100644
+--- a/target/arm/cpu.h
++++ b/target/arm/cpu.h
+@@ -1170,6 +1170,10 @@ struct ArchCPU {
+ 
+     /* Generic timer counter frequency, in Hz */
+     uint64_t gt_cntfrq_hz;
++
++    /* user_access_window(): DACR to restore when the window closes */
++    uint64_t uaccess_saved_dacr;
++    bool uaccess_open;
+ };
+ 
+ typedef struct ARMCPUInfo {
