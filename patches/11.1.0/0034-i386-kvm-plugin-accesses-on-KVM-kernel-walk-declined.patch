@@ -65,7 +65,7 @@ index 5590ca72c96b9b96559ab0c98c40581125d4bf93..61e9d76fbf8bfa8f1dd8b1fe362ca4e2
 +{
 +}
 diff --git a/plugins/api.c b/plugins/api.c
-index b95c16f373d86b46bc18bb81b3151b83cc4894cb..9093f3c74846643db05316d3f11320ce09d36d93 100644
+index a4cab38fa6dc6348c1c2adb18a29f053c10027df..6580b5b4c1441744b35a72468f6a20f22fa5ce44 100644
 --- a/plugins/api.c
 +++ b/plugins/api.c
 @@ -484,6 +484,7 @@ bool qemu_plugin_read_register(struct qemu_plugin_register *reg,
