@@ -16,6 +16,13 @@
  * into one.  A PIE mapped at a new address on every exec keeps reusing
  * its translations unless its own pages are hooked.
  *
+ * So a page that gains its first site needs no flush, though CF_PCREL
+ * blocks for it stay cached: goto_tb only chains within the page a block
+ * starts on, so the way into one is a lookup on that page, and the commit
+ * (exclusive: every vCPU leaves cpu_exec) makes each vCPU look up again.
+ * That depends on same-page goto_tb, the page stop and the exclusive
+ * commit; keep all three.  hktest `late` tests it.
+ *
  * New sites are invalidated in batches, in exclusive context: the first
  * batch flushes everything (blocks translated before hooks were in use
  * may cross pages), later ones invalidate only the blocks whose guest
