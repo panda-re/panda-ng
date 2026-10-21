@@ -23,8 +23,17 @@ typedef struct QemuPluginHwOps {
                      bool user, hwaddr *phys, uint64_t *fault);
     /* Queue that fault for delivery at the current instruction. */
     void (*raise)(CPUState *cpu, vaddr addr, uint64_t fault);
-    /* Open or close a user-access window (x86 EFLAGS.AC under SMAP). */
-    void (*window)(CPUState *cpu, bool open);
+    /*
+     * Open or close a user-access window (x86 EFLAGS.AC under SMAP), as
+     * TCGCPUOps.user_access_window.
+     */
+    bool (*window)(CPUState *cpu, bool open, uint64_t *saved);
+    /*
+     * The gdbstub is about to read or write register @regno (gdb
+     * numbering) for a plugin: make env authoritative for it, if the
+     * accelerator synchronized only part of the vCPU.  Optional.
+     */
+    void (*regs)(CPUState *cpu, int regno);
 } QemuPluginHwOps;
 
 #ifdef CONFIG_PLUGIN

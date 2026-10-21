@@ -27,6 +27,7 @@
 #define OSI_COPIES  8           /* of them copied, not in the TLB */
 #define OSI_DEPTH   256         /* path components walked */
 #define OSI_LIST    65536       /* list nodes walked */
+#define OSI_NODES   (4 * OSI_LIST)  /* nodes one call visits, every walk */
 #define OSI_NAME    256         /* NAME_MAX + 1 */
 #define OSI_PATH    4096        /* PATH_MAX */
 #define OSI_MAPLE   16          /* maple tree height */
@@ -57,6 +58,7 @@ typedef struct OCtx {
     unsigned w;                 /* the kernel's word: 8, or 4 (32-bit) */
     bool be;                    /* a big-endian kernel */
     unsigned n, copies;
+    unsigned nodes;             /* left of OSI_NODES: bounds guest-driven work */
     OPage last;                 /* the page read last */
     OPage pg[OSI_PAGES];
 } OCtx;
@@ -206,6 +208,7 @@ static bool o_init(OCtx *o, CPUState *cs)
     o->be = ol.big_endian;
     o->bad = false;
     o->n = o->copies = 0;
+    o->nodes = OSI_NODES;
     o->last.page = 1;           /* no page */
     if (!qatomic_read(&ol_set) || !cs) {
         return false;
@@ -338,6 +341,31 @@ static uint64_t o_u(OCtx *o, uint64_t va, int32_t off, unsigned size)
 static uint64_t o_opt(OCtx *o, uint64_t va, int32_t off, unsigned size)
 {
     return off < 0 ? 0 : o_u(o, va, off, size);
+}
+
+/*
+ * One more node (list entry, tree node, mapping) for this call.  The
+ * budget is shared by every walk the call makes, nested ones included, so
+ * a corrupt or hostile guest structure (a cycle, a tree that is a DAG)
+ * costs a bounded amount of host work.  Spent: the answer is bad.
+ */
+static bool o_step(OCtx *o)
+{
+    if (!o->nodes) {
+        o->bad = true;
+        return false;
+    }
+    o->nodes--;
+    return true;
+}
+
+/* the kernel's word (unsigned long) in a buffer read from it */
+static uint64_t o_word(OCtx *o, const uint8_t *b)
+{
+    if (o->w == 4) {
+        return (uint32_t)(o->be ? ldl_be_p(b) : ldl_le_p(b));
+    }
+    return o->be ? ldq_be_p(b) : ldq_le_p(b);
 }
 
 #define P(o, va, f)   o_u(o, va, (o)->l->f, (o)->w)
@@ -513,7 +541,8 @@ static int o_list(OCtx *o, uint64_t head, int32_t off,
     int n = 0;
 
     while (node && node != head && !o->bad) {
-        if (n++ >= OSI_LIST) {
+        if (n++ >= OSI_LIST || !o_step(o)) {
+            o->bad = true;              /* the caller's walk stops too */
             return -1;
         }
         if (fn(o, node - off, opaque)) {
@@ -999,8 +1028,8 @@ static uint64_t o_exe_file(OCtx *o, uint64_t mm)
     if (!l->vm_executable || l->mm_mmap < 0 || l->vma_flags < 0 || l->vma_file < 0) {
         return o_opt(o, mm, l->mm_exe_file, o->w);
     }
-    for (uint64_t v = P(o, mm, mm_mmap); v && !o->bad && n++ < OSI_LIST;
-         v = P(o, v, vma_next)) {
+    for (uint64_t v = P(o, mm, mm_mmap); v && !o->bad && n++ < OSI_LIST &&
+         o_step(o); v = P(o, v, vma_next)) {
         uint64_t f = P(o, v, vma_file);
         if (f && (P(o, v, vma_flags) & (uint32_t)l->vm_executable)) {
             return f;
@@ -1096,8 +1125,12 @@ typedef struct OVmas {
     int n, cap;
 } OVmas;
 
-static void o_push(OVmas *vs, uint64_t vma)
+static void o_push(OCtx *o, OVmas *vs, uint64_t vma)
 {
+    if (vs->n >= OSI_LIST || !o_step(o)) {
+        o->bad = true;
+        return;
+    }
     if (vs->n == vs->cap) {
         vs->cap = vs->cap ? vs->cap * 2 : 64;
         vs->v = g_renew(uint64_t, vs->v, vs->cap);
@@ -1111,11 +1144,11 @@ static void o_maple(OCtx *o, uint64_t enc, uint64_t lo, uint64_t hi,
 {
     const struct penguin_osi_layout *l = o->l;
     uint8_t pb[OSI_PIVOTS * 8], sb[(OSI_PIVOTS + 1) * 8];
-    uint64_t node = enc & ~(uint64_t)0xff, smin = lo;
-    unsigned typ = (enc >> 3) & 0xf, np, end;
+    uint64_t node = enc & ~(uint64_t)0xff, smin = lo, last;
+    unsigned typ = (enc >> 3) & 0xf, np, end, w = o->w;
     int32_t poff, soff, moff;
 
-    if (depth > OSI_MAPLE) {
+    if (depth > OSI_MAPLE || !o_step(o)) {
         o->bad = true;
         return;
     }
@@ -1129,14 +1162,16 @@ static void o_maple(OCtx *o, uint64_t enc, uint64_t lo, uint64_t hi,
         o->bad = true;
         return;
     }
-    if (!np || !o_read(o, node + poff, pb, np * 8) ||
-        !o_read(o, node + soff, sb, (np + 1) * 8)) {
+    /* pivots and slots are unsigned longs: 4 bytes on a 32-bit kernel */
+    if (!np || np > OSI_PIVOTS || !o_read(o, node + poff, pb, np * w) ||
+        !o_read(o, node + soff, sb, (np + 1) * w)) {
         o->bad = true;
         return;
     }
-    if (typ == l->maple_arange_64 || !ldq_le_p(pb + (np - 1) * 8)) {
+    last = o_word(o, pb + (np - 1) * w);
+    if (typ == l->maple_arange_64 || !last) {
         end = o_u(o, node, moff, 1);
-    } else if (ldq_le_p(pb + (np - 1) * 8) == hi) {
+    } else if (last == hi) {
         end = np - 1;
     } else {
         end = np;
@@ -1146,13 +1181,13 @@ static void o_maple(OCtx *o, uint64_t enc, uint64_t lo, uint64_t hi,
         return;
     }
     for (unsigned i = 0; i <= end && !o->bad; i++) {
-        uint64_t piv = i < np ? ldq_le_p(pb + i * 8) : 0;
+        uint64_t piv = i < np ? o_word(o, pb + i * w) : 0;
         uint64_t smax = piv ? piv : hi;
-        uint64_t s = ldq_le_p(sb + i * 8);
+        uint64_t s = o_word(o, sb + i * w);
 
         if (s) {
             if (typ == l->maple_leaf_64) {
-                o_push(vs, s);
+                o_push(o, vs, s);
             } else {
                 o_maple(o, s, smin, smax, vs, depth + 1);
             }
@@ -1166,20 +1201,17 @@ static void o_vmas(OCtx *o, uint64_t mm, OVmas *vs)
     const struct penguin_osi_layout *l = o->l;
 
     if (l->mm_mt_root >= 0) {
-        uint64_t root = o_u(o, mm, l->mm_mt_root, 8);
+        uint64_t root = o_u(o, mm, l->mm_mt_root, o->w);
         if ((root & 3) == 2 && root > 4096) {           /* xa_is_node() */
-            o_maple(o, root, 0, UINT64_MAX, vs, 0);
+            /* the whole range: 0..ULONG_MAX */
+            o_maple(o, root, 0, o->w == 4 ? UINT32_MAX : UINT64_MAX, vs, 0);
         } else if (root) {
-            o_push(vs, root);
+            o_push(o, vs, root);
         }
         return;
     }
     for (uint64_t v = P(o, mm, mm_mmap); v && !o->bad; v = P(o, v, vma_next)) {
-        if (vs->n >= OSI_LIST) {
-            o->bad = true;
-            break;
-        }
-        o_push(vs, v);
+        o_push(o, vs, v);
     }
 }
 
@@ -1310,9 +1342,9 @@ int penguin_osi_mappings(CPUState *cs, uint64_t task,
     o_vmas(&o, mm, &vs);
     if (ol.gate_vma && ol.pt_x86 && ol.mm_context_flags >= 0 &&
         (o_u(&o, mm, ol.mm_context_flags, 8) & (1 << MM_CONTEXT_HAS_VSYSCALL))) {
-        o_push(&vs, ol.gate_vma);
+        o_push(&o, &vs, ol.gate_vma);
     } else if (ol.gate_vma && o.w == 4) {
-        o_push(&vs, ol.gate_vma);       /* 32-bit ARM's vectors (KUSER_HELPERS) */
+        o_push(&o, &vs, ol.gate_vma);       /* 32-bit ARM's vectors (KUSER_HELPERS) */
     }
     if (o.bad) {
         g_free(vs.v);

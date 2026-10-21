@@ -48,6 +48,12 @@ static void sc_call(qemu_plugin_syscall_event_cb_t cb, CPUState *cpu,
     struct qemu_plugin_syscall p;
 
     sc_to_plugin(&p, sc);
+    /*
+     * Entered from a helper or from interrupt delivery, not through the
+     * instruction-callback trampoline: there is no return address into a
+     * block, and a stale one would unwind against an unrelated block.
+     */
+    cpu->neg.plugin_cb_ra = 0;
     qemu_plugin_set_cb_flags(cpu, QEMU_PLUGIN_CB_RW_REGS_PC);
     cb(sc_id, cpu->cpu_index, &p, sc_udata);
     qemu_plugin_set_cb_flags(cpu, QEMU_PLUGIN_CB_NO_REGS);

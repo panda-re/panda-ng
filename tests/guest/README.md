@@ -64,6 +64,7 @@ and exits non-zero if a check failed.
 | `sctest.sh pyplug` | penguin's own `Syscalls` (backend `trap`) and `mem` on penguin's `qemu_compat`, under `penhost.py` | x86_64, aarch64 |
 | `injtest.sh` | syscall injection: ids, ENOSYS, a /proc read through injected calls, signals, EINTR, restarts, a failed execve, refusals, 1000 calls | x86_64 6.13, aarch64 6.13 and 4.10 |
 | `ositest.sh` | the host OSI against the guest's /proc (`osiref.py` walks the same structures in Python); `osicdef.py` checks penguin's cdef against `src/include/system/penguin-osi.h` | same |
+| `setpctest.sh` | `qemu_plugin_set_pc()` from a syscall entry callback resumes the task, not the trap again (`plugins/scsetpc.c`) | x86_64, aarch64, armel 6.13 |
 | `osibench.sh` | what the engine's OSI filters cost per rejected call | x86_64, aarch64 |
 | `PENHOST=first run.sh <arch> <ver> user-novma` | injection at the system's first syscall (init's), before init has run | same |
 | `PENHOST=takeover run.sh <arch> <ver> user-novma` | pid 1 runs `ours.c` from a memfd, then the real init | same |

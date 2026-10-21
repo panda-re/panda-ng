@@ -45,6 +45,7 @@
 #include "tb-context.h"
 #include "internal-common.h"
 #include "hooks-internal.h"
+#include "system/tcg.h"
 #include "qemu/timer.h"
 #include "trace.h"
 
@@ -213,6 +214,16 @@ static void hooks_commit(CPUState *cpu, run_on_cpu_data unused)
     pcs = pending;
     pending = g_array_new(false, false, sizeof(vaddr));
     commit_queued = false;
+    if (!tcg_enabled()) {
+        /*
+         * A TCG+KVM build under -accel kvm: no translated code to
+         * invalidate, and tb_flush() would abort.  Callers (the penguin
+         * syscall engine) may insert hooks before they know the
+         * accelerator; the sites stay, unused.
+         */
+        qemu_mutex_unlock(&hooks_lock);
+        return;
+    }
     flush = !pcrel_off || pcs->len > MAX_TARGETED;
     pcrel_off = true;
     qemu_mutex_unlock(&hooks_lock);

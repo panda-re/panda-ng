@@ -32,7 +32,7 @@ if [ ! -x "$H/dl/zig/bin/python" ] && [ "$ZCC" = "$H/dl/zig/bin/python -m ziglan
   python3 -m venv "$H/dl/zig" && "$H/dl/zig/bin/pip" install -q "ziglang==$ZIG_VERSION"
 fi
 if [ -n "$QSRC" ]; then
-  for p in pagein syscalls hooktest; do
+  for p in pagein syscalls hooktest scsetpc; do
     [ -f "$PLUGINS/lib$p.so" ] && continue
     echo ">>> plugin $p"
     gcc -shared -fPIC -O2 -Wall -o "$PLUGINS/lib$p.so" "$H/plugins/$p.c" \
