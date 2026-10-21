@@ -32,3 +32,5 @@
 11.1.0/0032-plugins-targets-a-user-access-window-owned-by-the-ac.patch
 11.1.0/0033-plugins-qemu_plugin_set_pc-from-a-syscall-entry-call.patch
 11.1.0/0034-i386-kvm-plugin-accesses-on-KVM-kernel-walk-declined.patch
+11.1.0/0035-plugins-bind-a-CF_PCREL-block-to-its-virtual-address.patch
+11.1.0/0036-accel-tcg-address-hooks-keep-CF_PCREL-on-outside-hoo.patch

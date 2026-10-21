@@ -9,9 +9,10 @@
  *
  * Hooks match the guest virtual address in every address space.  A
  * callback that only cares about one process filters on its own (e.g. by
- * page-table root).  While hooks are in use, CF_PCREL is turned off, so a
- * translated block is never reused at a virtual address other than the
- * one it was translated for.
+ * page-table root).  Code on a page that holds a hooked address is
+ * translated for its virtual address (no CF_PCREL), so it is never reused
+ * at another; code elsewhere keeps CF_PCREL and is shared between
+ * mappings as usual.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
