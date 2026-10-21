@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <Luke.Craig@ll.mit.edu>
+Date: Wed, 21 Oct 2026 15:19:50 -0400
+Subject: [PATCH] replay: declare replay_mutex_locked() in system/replay.h
+
+0028 calls replay_mutex_locked() from system/cpus.c, but it was declared
+only in replay/replay-internal.h, which cpus.c does not include. gcc 13
+treats the implicit declaration as a warning (and --disable-werror hides
+it); clang and gcc 14 reject it, so the series did not build on macOS.
+
+Move the declaration next to replay_mutex_lock()/unlock().
+---
+ include/system/replay.h  | 1 +
+ replay/replay-internal.h | 1 -
+ 2 files changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/system/replay.h b/include/system/replay.h
+index 3b00386821b6b99c8f4d88a85ffc36d8ffd773f7..59314d26ae3a7bde1a69c7aa3b55f2e09801e62d 100644
+--- a/include/system/replay.h
++++ b/include/system/replay.h
+@@ -60,6 +60,7 @@ extern char *replay_snapshot;
+ 
+ void replay_mutex_lock(void);
+ void replay_mutex_unlock(void);
++bool replay_mutex_locked(void);
+ 
+ /* Processing the instructions */
+ 
+diff --git a/replay/replay-internal.h b/replay/replay-internal.h
+index 42c393542eb3151564c62a7383788502782d4b2f..2f8df0b3ff4c070ab302cce1182d22c292732e29 100644
+--- a/replay/replay-internal.h
++++ b/replay/replay-internal.h
+@@ -126,7 +126,6 @@ void replay_get_array_alloc(uint8_t **buf, size_t *size);
+  * synchronisation between vCPU and main-loop threads. */
+ 
+ void replay_mutex_init(void);
+-bool replay_mutex_locked(void);
+ 
+ /*! Checks error status of the file. */
+ void replay_check_error(void);

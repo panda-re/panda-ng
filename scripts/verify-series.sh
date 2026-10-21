@@ -52,6 +52,10 @@ WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 extract_tarball "$TARBALL" "$WORK/src"
 cd "$WORK/src"
 git init -q .
+# Case-sensitive ignore matching on every host. macOS git defaults to
+# core.ignorecase=true, so roms/edk2/.gitignore's "Build/" also drops every
+# lowercase build/ directory (273 files) and the tree hash differs from Linux.
+git config core.ignorecase false
 # QEMU tarballs ship expanded submodule contents; nothing in the series touches
 # roms/ or tests/lcitool, but they must be tracked for the tree hash to be stable.
 git add -A

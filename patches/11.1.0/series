@@ -26,3 +26,5 @@
 11.1.0/0026-target-i386-keep-the-guest-TSC-continuous-across-a-c.patch
 11.1.0/0027-accel-tcg-x-tsc-vclock-the-x86-TSC-from-the-virtual-.patch
 11.1.0/0028-system-cpus-run_on_cpu-under-record-replay-release-t.patch
+11.1.0/0029-qapi-a-weak-default-penguin_handle_qmp-so-the-tools-.patch
+11.1.0/0030-replay-declare-replay_mutex_locked-in-system-replay..patch

@@ -22,6 +22,10 @@ TAG=$(python3 -c "import json;print(json.load(open('$REPO_ROOT/base.json'))['$VE
 extract_tarball "$TARBALL" "$WORKDIR"
 cd "$WORKDIR"
 git init -q .
+# Case-sensitive ignore matching on every host. macOS git defaults to
+# core.ignorecase=true, so roms/edk2/.gitignore's "Build/" also drops every
+# lowercase build/ directory (273 files) and the tree hash differs from Linux.
+git config core.ignorecase false
 git add -A
 git -c user.email=dev@local -c user.name=dev commit -qm "pristine qemu-${VERSION}"
 git tag "base-${TAG}"
