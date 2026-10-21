@@ -19,3 +19,4 @@
 11.1.0/0019-system-target-i386-target-arm-the-syscall-trap.patch
 11.1.0/0020-plugins-address-hooks-register-pointers-TLB-first-re.patch
 11.1.0/0021-system-build-the-penguin-syscall-engine-and-host-sid.patch
+11.1.0/0022-i386-resume-a-KVM-snapshot-under-TCG-and-a-TCG-snaps.patch
