@@ -821,6 +821,8 @@ static void (*volatile p_phase)(long) = hk_phase;
 static long (*volatile p_regs)(long) = hk_regs;
 static long (*volatile p_redirect)(long) = hk_redirect;
 static void (*volatile p_fault)(const void *) = hk_fault;
+/* only the plugin's redirect reaches hk_other: a reference keeps the linker from dropping it */
+static long (*volatile p_other)(long) = hk_other;
 
 static void calls(long (*f)(long), long k, long mul, long add)
 {
@@ -867,7 +869,7 @@ static int t_hk_count(long k)
     p_phase(1);
     printf("HK expect window=0 target=%ld target2=%ld\n", k, 2 * k);
     printf("HK regs got=%ld want=1006\n", p_regs(5));
-    printf("HK redir got=%ld want=2\n", p_redirect(7));
+    printf("HK redir got=%ld want=%ld\n", p_redirect(7), p_other(7));
 
     int fd = open("/mnt/span.bin", O_RDONLY);
     char *base = mmap(NULL, 64 * FPG, PROT_READ, MAP_PRIVATE, fd, 0);
