@@ -22,3 +22,7 @@
 11.1.0/0022-i386-resume-a-KVM-snapshot-under-TCG-and-a-TCG-snaps.patch
 11.1.0/0023-target-arm-kvm-penguin-hypercalls-under-arm64-KVM-SM.patch
 11.1.0/0024-target-arm-arm_gic-resume-an-aarch64-KVM-snapshot-un.patch
+11.1.0/0025-system-cpu-timers-continue-the-virtual-clock-when-an.patch
+11.1.0/0026-target-i386-keep-the-guest-TSC-continuous-across-a-c.patch
+11.1.0/0027-accel-tcg-x-tsc-vclock-the-x86-TSC-from-the-virtual-.patch
+11.1.0/0028-system-cpus-run_on_cpu-under-record-replay-release-t.patch

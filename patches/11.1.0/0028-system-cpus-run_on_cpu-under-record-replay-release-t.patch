@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 21 Oct 2026 12:54:13 -0400
+Subject: [PATCH] system/cpus: run_on_cpu under record/replay: release the
+ replay mutex while waiting
+
+Under record/replay the main loop holds the replay mutex with the BQL. A vCPU thread that has
+started running takes the replay mutex before serving queued work, so synchronous work requested
+from the main loop (x86 vapic_post_load on a loadvm after start) deadlocks. Let the vCPU have the
+mutex while we wait and re-take both in lock order.
+
+NEEDS REVIEW: dropping and retaking the BQL inside run_on_cpu changes its locking contract for
+every caller under replay. From observe's rr spike (gate/rrux).
+---
+ system/cpus.c | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/system/cpus.c b/system/cpus.c
+index 97e5a5edee23b70d8bd170c2b984568f4e804672..f7f83899d0d6992458f8a725b0515c5ec5c9c8f1 100644
+--- a/system/cpus.c
++++ b/system/cpus.c
+@@ -438,6 +438,23 @@ void qemu_init_cpu_loop(void)
+ 
+ void run_on_cpu(CPUState *cpu, run_on_cpu_func func, run_on_cpu_data data)
+ {
++    /*
++     * rrux: under record/replay the main loop holds the replay mutex while
++     * it holds the BQL.  A vCPU thread that has started running takes the
++     * replay mutex before it serves queued work (tcg-accel-ops-rr.c), so
++     * synchronous work requested from the main loop (x86 vapic_post_load on
++     * a loadvm after start, e.g. x-rr-begin-record) deadlocks.  Let the
++     * vCPU have the mutex while we wait; re-take it in lock order.
++     */
++    if (replay_mode != REPLAY_MODE_NONE && !current_cpu &&
++        replay_mutex_locked() && bql_locked()) {
++        replay_mutex_unlock();
++        do_run_on_cpu(cpu, func, data, &bql);
++        bql_unlock();
++        replay_mutex_lock();
++        bql_lock();
++        return;
++    }
+     do_run_on_cpu(cpu, func, data, &bql);
+ }
+ 
