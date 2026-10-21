@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <luke.craig@ll.mit.edu>
+Date: Wed, 21 Oct 2026 16:14:04 -0400
+Subject: [PATCH] plugins: qemu_plugin_set_pc from a syscall entry callback
+ must not deliver the trap again
+
+The syscall entry callback runs inside the delivery of the trap (arm svc,
+x86 int 0x80) with exception_index still set; set_pc's cpu_loop_exit
+resumed the loop, which delivered the same trap again and the kernel ran the
+call the plugin had skipped.  Clear exception_index first.
+
+Test: tests/guest/plugins/scsetpc.c (sc-bench): before, aarch64 and armel
+re-delivered 50 of 50 skipped getppid calls; after, none.
+
+Review blocker 6.
+---
+ plugins/api.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/plugins/api.c b/plugins/api.c
+index b279fbaa451a4e696da48468fae858deaa07f132..b95c16f373d86b46bc18bb81b3151b83cc4894cb 100644
+--- a/plugins/api.c
++++ b/plugins/api.c
+@@ -541,6 +541,12 @@ void qemu_plugin_set_pc(uint64_t vaddr)
+     }
+ #endif
+     cpu_set_pc(current_cpu, vaddr);
++    /*
++     * A syscall-entry callback runs inside the delivery of the trap (arm
++     * svc, x86 int 0x80): the guest continues at @vaddr instead, so the
++     * trap must not be delivered again when the loop resumes.
++     */
++    current_cpu->exception_index = -1;
+     cpu_loop_exit(current_cpu);
+ }
+ 

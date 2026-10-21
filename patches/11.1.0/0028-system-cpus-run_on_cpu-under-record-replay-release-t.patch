@@ -2,24 +2,33 @@ From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Luke Craig <lacraig3@gmail.com>
 Date: Wed, 21 Oct 2026 12:54:13 -0400
 Subject: [PATCH] system/cpus: run_on_cpu under record/replay: release the
- replay mutex while waiting
+ replay mutex while the VM is stopped
 
 Under record/replay the main loop holds the replay mutex with the BQL. A vCPU thread that has
 started running takes the replay mutex before serving queued work, so synchronous work requested
-from the main loop (x86 vapic_post_load on a loadvm after start) deadlocks. Let the vCPU have the
-mutex while we wait and re-take both in lock order.
+from the main loop (x86 vapic_post_load on a loadvm) deadlocks. Let the vCPU have the mutex while
+we wait and re-take both in lock order (BQL off, replay, BQL).
 
-NEEDS REVIEW: dropping and retaking the BQL inside run_on_cpu changes its locking contract for
-every caller under replay. From observe's rr spike (gate/rrux).
+Only while the VM is stopped (!runstate_is_running(); loadvm stops it first): the virtual clock is
+frozen and no vCPU runs guest code, so the vCPU thread cannot interleave timer or guest events into
+the replay log while it holds the mutex. A caller with the VM running keeps the stock behaviour.
+Trace event run_on_cpu_replay_release marks each hand-over.
+
+Locking contract: stock do_run_on_cpu already drops the BQL while it waits; what changes is that
+the replay mutex is released too, for main-loop run_on_cpu calls under record/replay with the VM
+stopped. Test: record from a -loadvm'd snapshot (observe exp.py twoproc, -trace
+run_on_cpu_replay_release) and replay twice: the release fires in the record (3x) and the
+replays (6x); consoles and rrdig digests identical. From observe's rr spike (gate/rrux).
 ---
- system/cpus.c | 17 +++++++++++++++++
- 1 file changed, 17 insertions(+)
+ system/cpus.c       | 23 +++++++++++++++++++++++
+ system/trace-events |  1 +
+ 2 files changed, 24 insertions(+)
 
 diff --git a/system/cpus.c b/system/cpus.c
-index 97e5a5edee23b70d8bd170c2b984568f4e804672..f7f83899d0d6992458f8a725b0515c5ec5c9c8f1 100644
+index 97e5a5edee23b70d8bd170c2b984568f4e804672..5f5310fdd35e4e6f30ee075b261546c6575e1a0d 100644
 --- a/system/cpus.c
 +++ b/system/cpus.c
-@@ -438,6 +438,23 @@ void qemu_init_cpu_loop(void)
+@@ -438,6 +438,29 @@ void qemu_init_cpu_loop(void)
  
  void run_on_cpu(CPUState *cpu, run_on_cpu_func func, run_on_cpu_data data)
  {
@@ -30,9 +39,15 @@ index 97e5a5edee23b70d8bd170c2b984568f4e804672..f7f83899d0d6992458f8a725b0515c5e
 +     * synchronous work requested from the main loop (x86 vapic_post_load on
 +     * a loadvm after start, e.g. x-rr-begin-record) deadlocks.  Let the
 +     * vCPU have the mutex while we wait; re-take it in lock order.
++     *
++     * Only while the VM is stopped (loadvm stops it first): the virtual
++     * clock is frozen and no vCPU can run guest code, so handing over the
++     * mutex cannot interleave timer or guest events into the replay log.
++     * A caller with the VM running keeps the stock behaviour.
 +     */
 +    if (replay_mode != REPLAY_MODE_NONE && !current_cpu &&
-+        replay_mutex_locked() && bql_locked()) {
++        !runstate_is_running() && replay_mutex_locked() && bql_locked()) {
++        trace_run_on_cpu_replay_release(cpu->cpu_index);
 +        replay_mutex_unlock();
 +        do_run_on_cpu(cpu, func, data, &bql);
 +        bql_unlock();
@@ -43,3 +58,15 @@ index 97e5a5edee23b70d8bd170c2b984568f4e804672..f7f83899d0d6992458f8a725b0515c5e
      do_run_on_cpu(cpu, func, data, &bql);
  }
  
+diff --git a/system/trace-events b/system/trace-events
+index 51b4a4679a21079d25cef0f630672a1389c73525..40f385abe2be6949e140072abc3916891693de3e 100644
+--- a/system/trace-events
++++ b/system/trace-events
+@@ -43,6 +43,7 @@ subpage_write(void *subpage, unsigned len, uint64_t addr, uint64_t value) "subpa
+ 
+ # cpus.c
+ vm_stop_flush_all(int ret) "ret %d"
++run_on_cpu_replay_release(int cpu_index) "cpu %d"
+ 
+ # vl.c
+ vm_state_notify(int running, int reason, const char *reason_str) "running %d reason %d (%s)"

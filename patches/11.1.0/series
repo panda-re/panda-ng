@@ -28,3 +28,7 @@
 11.1.0/0028-system-cpus-run_on_cpu-under-record-replay-release-t.patch
 11.1.0/0029-qapi-a-weak-default-penguin_handle_qmp-so-the-tools-.patch
 11.1.0/0030-replay-declare-replay_mutex_locked-in-system-replay..patch
+11.1.0/0031-accel-tcg-forget-the-plugin-callback-s-return-addres.patch
+11.1.0/0032-plugins-targets-a-user-access-window-owned-by-the-ac.patch
+11.1.0/0033-plugins-qemu_plugin_set_pc-from-a-syscall-entry-call.patch
+11.1.0/0034-i386-kvm-plugin-accesses-on-KVM-kernel-walk-declined.patch

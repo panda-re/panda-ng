@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <luke.craig@ll.mit.edu>
+Date: Wed, 21 Oct 2026 16:14:03 -0400
+Subject: [PATCH] accel/tcg: forget the plugin callback's return address and
+ flags after a longjmp
+
+A callback that leaves through cpu_loop_exit (qemu_plugin_set_pc, a raised
+guest fault) left cpu->neg.plugin_cb_ra, tcg_hook_ra and the callback's
+register flags set.  A later faulting plugin read, or a set_pc from a context
+that sets none of them (a syscall event, the KVM path), then unwound against
+the earlier, unrelated block: a wrong PC or cc_op, or the fault raised at the
+wrong instruction.  Clear them in cpu_exec_longjmp_cleanup.  (The syscall
+event entry, src/plugins/syscall-system.c, now zeroes ra itself.)
+
+Review blocker 1 (review-notes/qemu_builder-panda-next.md).
+---
+ accel/tcg/cpu-exec.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 257211235dbb94d6d9cce1862126bc248c399f17..b777f094c957abaaa712ac6649c2ee641724fb5a 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -542,6 +542,18 @@ static void cpu_exec_longjmp_cleanup(CPUState *cpu)
+         tb_unlock_pages(tcg_ctx->gen_tb);
+         tcg_ctx->gen_tb = NULL;
+     }
++#endif
++    /*
++     * A hook or plugin callback that left the block by longjmp (a fault
++     * raised from it, qemu_plugin_set_pc(), cpu_loop_exit()) never cleared
++     * its return address into the block.  Left set, a later callback with
++     * no block of its own (a syscall event, a vCPU-loop callback) would
++     * cpu_restore_state() against an unrelated block.
++     */
++    cpu->tcg_hook_ra = 0;
++#ifdef CONFIG_PLUGIN
++    cpu->neg.plugin_cb_ra = 0;
++    cpu->neg.plugin_cb_flags = QEMU_PLUGIN_CB_NO_REGS;
+ #endif
+     if (bql_locked()) {
+         bql_unlock();
