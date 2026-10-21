@@ -34,3 +34,7 @@
 11.1.0/0034-i386-kvm-plugin-accesses-on-KVM-kernel-walk-declined.patch
 11.1.0/0035-plugins-bind-a-CF_PCREL-block-to-its-virtual-address.patch
 11.1.0/0036-accel-tcg-address-hooks-keep-CF_PCREL-on-outside-hoo.patch
+11.1.0/0037-accel-tcg-rr-ready-launch-a-VM-so-that-a-recording-c.patch
+11.1.0/0038-replay-write-the-log-header-first-and-flush-the-log-.patch
+11.1.0/0039-replay-x-rr-begin-record-and-x-rr-begin-replay-recor.patch
+11.1.0/0040-replay-x-rr-end-record-end-a-recording-and-keep-runn.patch

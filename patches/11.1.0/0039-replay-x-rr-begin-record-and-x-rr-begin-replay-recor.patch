@@ -1,0 +1,774 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <luke.craig@ll.mit.edu>
+Date: Wed, 21 Oct 2026 18:30:04 -0400
+Subject: [PATCH] replay: x-rr-begin-record and x-rr-begin-replay, recording a
+ running VM
+
+PANDA's begin_record on QEMU's own engine and log format.  x-rr-begin-record
+stops a TCG VM, switches it to icount if it was started without
+(icount_enable_runtime: the virtual clock continues, CF_USE_ICOUNT on every
+vCPU, the icount TCG ops, a TB flush), adds filter-replay to every netdev
+that has none, journals the chosen chardevs (default serial*/parallel*),
+saves the start snapshot, reloads it (loading is not the identity: an
+overdue timer becomes vCPU work) and opens the log.  It refuses virtio
+transports with ioeventfd on (kicks would bypass the log, and it cannot be
+turned off after realize) and reports writable drives not behind blkreplay.
+
+x-rr-begin-replay does the same in a process started with -S and the same
+argv, then replays from the snapshot: a log begun at run time does not
+contain machine init, which rr=replay would replay.
+
+A begin that fails undoes itself (no log; icount switched off again if it
+switched it on), with icount_disable_runtime.
+
+Loading the start snapshot needs run_on_cpu() to hand the replay mutex to a
+waiting vCPU (x86 vapic_post_load), which 0028 does by dropping and
+retaking the BQL.
+
+From observe's rrux spike (replay/replay-begin.c), R3 of the panda-next
+plan.
+---
+ accel/tcg/icount-common.c | 102 +++++++++++
+ accel/tcg/tcg-accel-ops.c |  32 ++--
+ include/exec/icount.h     |   6 +
+ qapi/replay.json          |  75 ++++++++
+ replay/meson.build        |   1 +
+ replay/replay-begin.c     | 350 ++++++++++++++++++++++++++++++++++++++
+ replay/replay-internal.h  |   6 +
+ replay/replay.c           |  26 +++
+ replay/stubs-system.c     |  16 ++
+ stubs/icount.c            |  10 ++
+ 10 files changed, 614 insertions(+), 10 deletions(-)
+ create mode 100644 replay/replay-begin.c
+
+diff --git a/accel/tcg/icount-common.c b/accel/tcg/icount-common.c
+index b1b6c005fe71fefb29f302f114d3b7a086cf4a52..3e8d226db72b6e2c684969c5fbb521407e175dd1 100644
+--- a/accel/tcg/icount-common.c
++++ b/accel/tcg/icount-common.c
+@@ -37,6 +37,10 @@
+ #include "hw/core/cpu.h"
+ #include "exec/icount.h"
+ #include "system/cpu-timers-internal.h"
++#include "system/cpu-timers.h"
++#include "system/tcg.h"
++#include "exec/tb-flush.h"
++#include "exec/translation-block.h"
+ 
+ /*
+  * ICOUNT: Instruction Counter
+@@ -500,3 +504,101 @@ void icount_notify_exit(void)
+         qemu_clock_notify(QEMU_CLOCK_VIRTUAL);
+     }
+ }
++
++/* Reset every vCPU's icount state and drop TBs translated for the old mode. */
++static void icount_switch_vcpus(bool on)
++{
++    CPUState *cpu;
++
++    tcg_accel_ops_set_icount(on);
++    CPU_FOREACH(cpu) {
++        if (on) {
++            tcg_cflags_set(cpu, CF_USE_ICOUNT);
++        } else {
++            cpu->tcg_cflags &= ~CF_USE_ICOUNT;
++        }
++        cpu->cflags_next_tb = -1;
++        cpu->icount_budget = 0;
++        cpu->icount_extra = 0;
++        cpu->neg.icount_decr.u16.low = 0;
++    }
++    tb_flush__exclusive_or_serial();
++}
++
++/*
++ * Switch a TCG VM that was started without icount to icount, at run time
++ * (x-rr-begin-record).  The VM must be stopped and use the round-robin vCPU
++ * thread (-accel tcg,thread=single).  The guest's virtual clock continues
++ * from where it stopped: qemu_icount restarts at 0 and the bias carries the
++ * time.
++ */
++bool icount_enable_runtime(QemuOpts *opts, Error **errp)
++{
++    int64_t vclock;
++
++    if (icount_enabled()) {
++        error_setg(errp, "icount is already enabled");
++        return false;
++    }
++    if (!tcg_enabled()) {
++        error_setg(errp, "icount needs TCG");
++        return false;
++    }
++    if (qemu_tcg_mttcg_enabled()) {
++        error_setg(errp, "icount needs the round-robin TCG vCPU thread: "
++                   "start the VM with -accel tcg,thread=single");
++        return false;
++    }
++    if (runstate_is_running()) {
++        error_setg(errp, "stop the VM first");
++        return false;
++    }
++    vclock = cpu_get_clock();
++    if (!icount_configure(opts, errp)) {
++        return false;
++    }
++    if (!icount_enabled()) {
++        error_setg(errp, "icount options need shift=");
++        return false;
++    }
++    qatomic_set(&timers_state.qemu_icount, 0);
++    qatomic_set(&timers_state.qemu_icount_bias, vclock);
++    icount_switch_vcpus(true);
++    return true;
++}
++
++/*
++ * The reverse, after a recording ends (x-rr-end-record): the stopped VM goes
++ * back to the host-driven virtual clock, continuing from the icount time.
++ */
++bool icount_disable_runtime(Error **errp)
++{
++    int64_t vclock;
++
++    if (!icount_enabled()) {
++        error_setg(errp, "icount is not enabled");
++        return false;
++    }
++    if (runstate_is_running()) {
++        error_setg(errp, "stop the VM first");
++        return false;
++    }
++    vclock = icount_get();
++    timer_free(timers_state.icount_warp_timer);
++    timer_free(timers_state.icount_rt_timer);
++    timer_free(timers_state.icount_vm_timer);
++    timers_state.icount_warp_timer = NULL;
++    timers_state.icount_rt_timer = NULL;
++    timers_state.icount_vm_timer = NULL;
++    timers_state.vm_clock_warp_start = -1;
++    use_icount = ICOUNT_DISABLED;
++
++    /* stopped, cpu_get_clock() is cpu_clock_offset: resume from vclock */
++    seqlock_write_lock(&timers_state.vm_clock_seqlock,
++                       &timers_state.vm_clock_lock);
++    timers_state.cpu_clock_offset = vclock;
++    seqlock_write_unlock(&timers_state.vm_clock_seqlock,
++                         &timers_state.vm_clock_lock);
++    icount_switch_vcpus(false);
++    return true;
++}
+diff --git a/accel/tcg/tcg-accel-ops.c b/accel/tcg/tcg-accel-ops.c
+index 7668e55254a462fd0b4539e85119ca632314a81c..0ff08bc7046179ba89206db1ec450bc2a97624a7 100644
+--- a/accel/tcg/tcg-accel-ops.c
++++ b/accel/tcg/tcg-accel-ops.c
+@@ -50,6 +50,7 @@
+ #include "tcg-accel-ops-rr.h"
+ #include "tcg-accel-ops-icount.h"
+ #include "system/cpu-timers.h"
++#include "qemu/accel.h"
+ 
+ /* common functionality among all TCG variants */
+ 
+@@ -204,6 +205,26 @@ static void tcg_remove_all_gdbstub_breakpoints(CPUState *cpu)
+  * so they keep their value and rate across a later switch to icount. */
+ bool tcg_tsc_vclock;
+ 
++/* The round-robin ops that depend on icount. */
++static void rr_ops_set_icount(AccelOpsClass *ops, bool on)
++{
++    if (on) {
++        ops->handle_interrupt = icount_handle_interrupt;
++        ops->get_virtual_clock = icount_get;
++        ops->get_elapsed_ticks = icount_get;
++    } else {
++        ops->handle_interrupt = tcg_handle_interrupt;
++        ops->get_virtual_clock = NULL;
++        ops->get_elapsed_ticks = tcg_tsc_vclock ? cpu_get_clock : NULL;
++    }
++}
++
++/* icount switched on or off after machine init (replay/replay-begin.c) */
++void tcg_accel_ops_set_icount(bool on)
++{
++    rr_ops_set_icount(ACCEL_GET_CLASS(current_accel())->ops, on);
++}
++
+ static void tcg_accel_ops_init(AccelClass *ac)
+ {
+     AccelOpsClass *ops = ac->ops;
+@@ -216,16 +237,7 @@ static void tcg_accel_ops_init(AccelClass *ac)
+         ops->create_vcpu_thread = rr_start_vcpu_thread;
+         ops->kick_vcpu_thread = rr_kick_vcpu_thread;
+ 
+-        if (icount_enabled()) {
+-            ops->handle_interrupt = icount_handle_interrupt;
+-            ops->get_virtual_clock = icount_get;
+-            ops->get_elapsed_ticks = icount_get;
+-        } else {
+-            ops->handle_interrupt = tcg_handle_interrupt;
+-            if (tcg_tsc_vclock) {
+-                ops->get_elapsed_ticks = cpu_get_clock;
+-            }
+-        }
++        rr_ops_set_icount(ops, icount_enabled());
+     }
+ 
+     ops->cpu_reset_hold = tcg_cpu_reset_hold;
+diff --git a/include/exec/icount.h b/include/exec/icount.h
+index 7a26b40084dbf8c14560607f3350b89b49fa41bd..4f84aa7e71e7ad1f1cd685a857b11c4ca1d9b5b5 100644
+--- a/include/exec/icount.h
++++ b/include/exec/icount.h
+@@ -65,6 +65,12 @@ int64_t icount_to_ns(int64_t icount);
+  */
+ bool icount_configure(QemuOpts *opts, Error **errp);
+ 
++/* switch a stopped, round-robin TCG VM to icount at run time, and back */
++bool icount_enable_runtime(QemuOpts *opts, Error **errp);
++bool icount_disable_runtime(Error **errp);
++/* the TCG ops that depend on icount (accel/tcg/tcg-accel-ops.c) */
++void tcg_accel_ops_set_icount(bool on);
++
+ /* used by tcg vcpu thread to calc icount budget */
+ int64_t icount_round(int64_t count);
+ 
+diff --git a/qapi/replay.json b/qapi/replay.json
+index ccf84da68efcd8061fed2eab29019d36538e4892..1325130ecdd21439063f85bb1cb515f5f8d08b63 100644
+--- a/qapi/replay.json
++++ b/qapi/replay.json
+@@ -120,3 +120,78 @@
+ #     <- { "return": {} }
+ ##
+ { 'command': 'replay-seek', 'data': { 'icount': 'int' } }
++
++##
++# @RrBeginRecordInfo:
++#
++# What `x-rr-begin-record` set up.
++#
++# @icount: instruction count at the start of the recording
++#
++# @chardevs: chardevs journalled, in registration order
++#
++# @netfilters: netdevs that carry a filter-replay, in registration
++#     order
++#
++# @unrecorded: devices whose input is not journalled
++#
++# Since: 11.1
++##
++{ 'struct': 'RrBeginRecordInfo',
++  'data': { 'icount': 'int', 'chardevs': ['str'], 'netfilters': ['str'],
++            'unrecorded': ['str'] } }
++
++##
++# @x-rr-begin-record:
++#
++# Start recording a running VM: switch it to icount if needed, move
++# its devices onto their replay paths, save the internal snapshot
++# @snapshot and log to @file.  Replay with -icount
++# ...,rr=replay,rrfile=@file,rrsnapshot=@snapshot.
++#
++# @snapshot: internal snapshot saved at the start point
++#
++# @file: the replay log
++#
++# @icount: icount options when icount is off (default "shift=auto")
++#
++# @chardevs: chardev ids to journal (default: serialN and parallelN)
++#
++# Features:
++#
++# @unstable: experimental
++#
++# Since: 11.1
++##
++{ 'command': 'x-rr-begin-record',
++  'data': { 'snapshot': 'str', 'file': 'str', '*icount': 'str',
++            '*chardevs': ['str'] },
++  'returns': 'RrBeginRecordInfo',
++  'features': [ 'unstable' ] }
++
++##
++# @x-rr-begin-replay:
++#
++# Replay a recording made by `x-rr-begin-record`.  Start the VM with
++# the recording's command line and -S; this loads @snapshot, enters
++# replay mode and resumes.
++#
++# @snapshot: the snapshot the recording began at
++#
++# @file: the replay log
++#
++# @icount: icount options when icount is off (default "shift=auto")
++#
++# @chardevs: chardev ids to replay, as given to `x-rr-begin-record`
++#
++# Features:
++#
++# @unstable: experimental
++#
++# Since: 11.1
++##
++{ 'command': 'x-rr-begin-replay',
++  'data': { 'snapshot': 'str', 'file': 'str', '*icount': 'str',
++            '*chardevs': ['str'] },
++  'returns': 'RrBeginRecordInfo',
++  'features': [ 'unstable' ] }
+diff --git a/replay/meson.build b/replay/meson.build
+index 4b4175e8dd4c1cb4751e9c8d90f112451fc28c44..6f86061e40de66f91118653db3b22e2428e29eb4 100644
+--- a/replay/meson.build
++++ b/replay/meson.build
+@@ -10,4 +10,5 @@ system_ss.add(when: 'CONFIG_TCG', if_true: files(
+   'replay-audio.c',
+   'replay-random.c',
+   'replay-debugging.c',
++  'replay-begin.c',
+ ), if_false: files('stubs-system.c'))
+diff --git a/replay/replay-begin.c b/replay/replay-begin.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..514bfee2dc64fb8099d33867b481619907aa2a16
+--- /dev/null
++++ b/replay/replay-begin.c
+@@ -0,0 +1,350 @@
++/*
++ * Record/replay begun and ended on a running VM, PANDA style.
++ *
++ * x-rr-begin-record stops the VM, switches it to icount if it was started
++ * without (icount_enable_runtime), moves every replay-relevant device onto
++ * its replay path (chardevs journalled, filter-replay on every netdev; virtio
++ * ioeventfd must already be off), saves an internal snapshot as the start
++ * point, reloads it and opens the log.  x-rr-begin-replay does the same in a
++ * process started with -S and replays from the snapshot.
++ *
++ * Loading the start snapshot relies on run_on_cpu() handing the replay mutex
++ * to a vCPU while it waits (system/cpus.c), which drops and retakes the BQL.
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++
++#include "qemu/osdep.h"
++#include "qemu/main-loop.h"
++#include "qapi/error.h"
++#include "qapi/qapi-commands-replay.h"
++#include "qemu/option.h"
++#include "qemu/config-file.h"
++#include "qom/object.h"
++#include "qom/object_interfaces.h"
++#include "system/replay.h"
++#include "system/runstate.h"
++#include "system/cpus.h"
++#include "exec/icount.h"
++#include "migration/snapshot.h"
++#include "chardev/char.h"
++#include "chardev/chardev-internal.h"
++#include "net/net.h"
++#include "net/filter.h"
++#include "system/block-backend.h"
++#include "block/block_int.h"
++#include "hw/virtio/virtio-pci.h"
++#include "hw/virtio/virtio-mmio.h"
++#include "replay-internal.h"
++
++#define MAX_NETDEVS 64
++
++/* icount was switched on by a begin command, so undoing it switches it off */
++static bool icount_by_begin;
++
++static bool want_chardev(const char *id, strList *explicit)
++{
++    strList *e;
++
++    for (e = explicit; e; e = e->next) {
++        if (!strcmp(e->value, id)) {
++            return true;
++        }
++    }
++    if (explicit) {
++        return false;
++    }
++    /* default: what a plain -serial/-parallel would have journalled */
++    return g_str_has_prefix(id, "serial") || g_str_has_prefix(id, "parallel");
++}
++
++typedef struct BeginCtx {
++    strList *explicit;
++    strList **chardevs;
++    Error **errp;
++} BeginCtx;
++
++static int begin_chardev(Object *obj, void *opaque)
++{
++    BeginCtx *c = opaque;
++    Chardev *chr = CHARDEV(obj);
++
++    if (!want_chardev(chr->label, c->explicit)) {
++        return 0;
++    }
++    if (CHARDEV_GET_CLASS(chr)->chr_ioctl) {
++        error_setg(c->errp, "chardev '%s': ioctl-capable backends (serial "
++                   "tty/pty-like) cannot be replayed", chr->label);
++        return -1;
++    }
++    /* registered after replay_enable_record(): it is a no-op in mode NONE */
++    QAPI_LIST_APPEND(c->chardevs, g_strdup(chr->label));
++    return 0;
++}
++
++static int ioeventfd_on(Object *obj, void *opaque)
++{
++    strList ***tail = opaque;
++    uint32_t flags = 0, bit = 0;
++
++    if (object_dynamic_cast(obj, TYPE_VIRTIO_PCI)) {
++        flags = VIRTIO_PCI(obj)->flags;
++        bit = VIRTIO_PCI_FLAG_USE_IOEVENTFD;
++    } else if (object_dynamic_cast(obj, TYPE_VIRTIO_MMIO)) {
++        flags = VIRTIO_MMIO(obj)->flags;
++        bit = VIRTIO_IOMMIO_FLAG_USE_IOEVENTFD;
++    }
++    if (flags & bit) {
++        /*
++         * Not fixable here: devices decide at realize whether they use
++         * ioeventfd (e.g. virtio-blk's ioeventfd_disabled), and stopping it
++         * afterwards makes virtio-blk drop kicks.  rr from boot clears the
++         * flag at realize (virtio-pci.c/virtio-mmio.c).
++         */
++        QAPI_LIST_APPEND(*tail, g_strdup_printf("%s (%s)",
++                         object_get_canonical_path(obj),
++                         object_get_typename(obj)));
++    }
++    return 0;
++}
++
++/*
++ * Everything begin-record and begin-replay do identically, so that the
++ * registration order of chardevs and network filters matches.
++ */
++static bool rr_prepare(RrBeginRecordInfo *info, const char *icount,
++                       strList *chardevs, Error **errp)
++{
++    NetClientState *ncs[MAX_NETDEVS];
++    strList *ioev = NULL, **ioev_tail = &ioev;
++    strList **nf_tail = &info->netfilters, **un_tail = &info->unrecorded;
++    BeginCtx ctx;
++    BlockBackend *blk;
++    int i, n;
++
++    object_child_foreach_recursive(object_get_root(), ioeventfd_on, &ioev_tail);
++    if (ioev) {
++        g_autoptr(GString) s = g_string_new("");
++        for (strList *e = ioev; e; e = e->next) {
++            g_string_append_printf(s, " %s", e->value);
++        }
++        error_setg(errp, "virtio transports with ioeventfd on (kicks would "
++                   "bypass the log; start the VM with -global "
++                   "<transport>.ioeventfd=off):%s", s->str);
++        qapi_free_strList(ioev);
++        return false;
++    }
++
++    if (!icount_enabled()) {
++        QemuOpts *opts = qemu_opts_parse(qemu_find_opts("icount"),
++                                         icount ? icount : "shift=auto",
++                                         false, errp);
++        if (!opts || !icount_enable_runtime(opts, errp)) {
++            return false;
++        }
++        icount_by_begin = true;
++    }
++
++    n = qemu_find_net_clients_except(NULL, ncs, NET_CLIENT_DRIVER_NIC,
++                                     MAX_NETDEVS);
++    for (i = 0; i < n && i < MAX_NETDEVS; i++) {
++        NetFilterState *nf;
++        bool has = false;
++
++        QTAILQ_FOREACH(nf, &ncs[i]->filters, next) {
++            if (object_dynamic_cast(OBJECT(nf), "filter-replay")) {
++                has = true;
++            }
++        }
++        if (!has) {
++            g_autofree char *id = g_strdup_printf("rr-filter-%s", ncs[i]->name);
++            Object *o = object_new_with_props("filter-replay",
++                                              object_get_objects_root(), id,
++                                              errp, "netdev", ncs[i]->name,
++                                              NULL);
++            if (!o) {
++                return false;
++            }
++        }
++        QAPI_LIST_APPEND(nf_tail, g_strdup(ncs[i]->name));
++    }
++
++    for (blk = blk_next(NULL); blk; blk = blk_next(blk)) {
++        BlockDriverState *bs = blk_bs(blk);
++        g_autofree char *dev = blk_get_attached_dev_id(blk);
++
++        if (!bs || !dev || !*dev || !blk_is_writable(blk)) {
++            continue;
++        }
++        if (!bs->drv || strcmp(bs->drv->format_name, "blkreplay")) {
++            QAPI_LIST_APPEND(un_tail,
++                g_strdup_printf("block %s (%s): writable, not behind blkreplay; "
++                                "safe only if the device does synchronous I/O "
++                                "(pflash)", blk_name(blk), dev));
++        }
++    }
++
++    ctx.explicit = chardevs;
++    ctx.chardevs = &info->chardevs;
++    ctx.errp = errp;
++    if (object_child_foreach(get_chardevs_root(), begin_chardev, &ctx)) {
++        return false;
++    }
++    return true;
++}
++
++static void rr_register_chardevs(RrBeginRecordInfo *info)
++{
++    for (strList *e = info->chardevs; e; e = e->next) {
++        Chardev *chr = qemu_chr_find(e->value);
++        qemu_chr_set_feature(chr, QEMU_CHAR_FEATURE_REPLAY);
++        replay_register_char_driver(chr);
++    }
++}
++
++/*
++ * load_snapshot() of the start snapshot.  Some post_load hooks need
++ * synchronous vCPU work (x86 vapic_post_load -> run_on_cpu); a vCPU thread
++ * that has run blocks on the replay mutex this (main-loop) thread holds, so
++ * run_on_cpu() hands the mutex over while it waits (0028).
++ */
++static bool rr_load_start(const char *snapshot, Error **errp)
++{
++    return load_snapshot(snapshot, NULL, false, NULL, errp);
++}
++
++/* Undo a begin that failed: no log, and icount as it was. */
++static void rr_abandon(void)
++{
++    replay_finish();
++    if (icount_by_begin) {
++        icount_disable_runtime(&error_abort);
++        icount_by_begin = false;
++    }
++}
++
++RrBeginRecordInfo *qmp_x_rr_begin_record(const char *snapshot,
++                                         const char *file,
++                                         const char *icount,
++                                         bool has_chardevs,
++                                         strList *chardevs,
++                                         Error **errp)
++{
++    ERRP_GUARD();
++    RrBeginRecordInfo *info;
++    bool was_running = runstate_is_running();
++    FILE *probe;
++
++    if (replay_mode != REPLAY_MODE_NONE) {
++        error_setg(errp, "record/replay is already active");
++        return NULL;
++    }
++    if (replay_check_blockers(errp)) {
++        return NULL;
++    }
++    probe = fopen(file, "wb");
++    if (!probe) {
++        error_setg_errno(errp, errno, "cannot open '%s'", file);
++        return NULL;
++    }
++    fclose(probe);
++
++    info = g_new0(RrBeginRecordInfo, 1);
++    if (was_running) {
++        vm_stop(RUN_STATE_PAUSED);
++    }
++    if (!rr_prepare(info, icount, chardevs, errp)) {
++        rr_abandon();
++        goto fail;
++    }
++
++    /* the same sequence vl.c runs for -icount rr=record,rrsnapshot= */
++    replay_set_snapshot_name(snapshot);
++    replay_vmstate_register();
++    replay_enable_record(file);
++    rr_register_chardevs(info);
++    replay_vmstate_init();          /* save_snapshot(snapshot) */
++    /*
++     * The replay starts by loading this snapshot; start the recording from
++     * the loaded state too.  Loading is not the identity: a virtual timer
++     * that is already due becomes vCPU work on load (util/qemu-timer.c,
++     * timer_mod_ns_locked under replay) but fires from the main loop, with
++     * a CHECKPOINT_CLOCK_VIRTUAL, in a VM that was merely paused.
++     */
++    if (!rr_load_start(snapshot, errp)) {
++        error_prepend(errp, "reloading the start snapshot: ");
++        rr_abandon();
++        goto fail;
++    }
++    replay_start();
++    info->icount = replay_get_current_icount();
++
++    if (was_running) {
++        vm_start();
++    }
++    return info;
++
++fail:
++    if (was_running) {
++        vm_start();
++    }
++    qapi_free_RrBeginRecordInfo(info);
++    return NULL;
++}
++
++/*
++ * Replay a recording made by x-rr-begin-record.  Upstream's rr=replay
++ * journals machine init (e.g. the virt board's fdt rng-seed draws a random
++ * event), which a recording begun at run time does not contain; so the
++ * replaying process boots normally (start it with -S) and enters replay at
++ * the snapshot, the way PANDA's -replay did.
++ */
++RrBeginRecordInfo *qmp_x_rr_begin_replay(const char *snapshot,
++                                         const char *file,
++                                         const char *icount,
++                                         bool has_chardevs,
++                                         strList *chardevs,
++                                         Error **errp)
++{
++    ERRP_GUARD();
++    RrBeginRecordInfo *info;
++    FILE *probe;
++
++    if (replay_mode != REPLAY_MODE_NONE) {
++        error_setg(errp, "record/replay is already active");
++        return NULL;
++    }
++    if (runstate_is_running()) {
++        error_setg(errp, "start the replaying VM paused (-S)");
++        return NULL;
++    }
++    if (replay_check_blockers(errp)) {
++        return NULL;
++    }
++    probe = fopen(file, "rb");
++    if (!probe) {
++        error_setg_errno(errp, errno, "cannot open '%s'", file);
++        return NULL;
++    }
++    fclose(probe);
++
++    info = g_new0(RrBeginRecordInfo, 1);
++    if (!rr_prepare(info, icount, chardevs, errp)) {
++        rr_abandon();
++        qapi_free_RrBeginRecordInfo(info);
++        return NULL;
++    }
++    replay_set_snapshot_name(snapshot);
++    replay_vmstate_register();
++    replay_enable_play(file);
++    rr_register_chardevs(info);
++    if (!rr_load_start(snapshot, errp)) {      /* seeks the log */
++        rr_abandon();
++        qapi_free_RrBeginRecordInfo(info);
++        return NULL;
++    }
++    replay_start();
++    info->icount = replay_get_current_icount();
++    vm_start();
++    return info;
++}
+diff --git a/replay/replay-internal.h b/replay/replay-internal.h
+index 2f8df0b3ff4c070ab302cce1182d22c292732e29..19273427947e3894406944cb4a464346525938b4 100644
+--- a/replay/replay-internal.h
++++ b/replay/replay-internal.h
+@@ -213,4 +213,10 @@ G_NORETURN void replay_sync_error(const char *error);
+    to make cached timers available for post_load functions. */
+ void replay_vmstate_register(void);
+ 
++/* x-rr-begin-record, x-rr-begin-replay (replay-begin.c) */
++bool replay_check_blockers(Error **errp);
++void replay_set_snapshot_name(const char *name);
++void replay_enable_record(const char *fname);
++void replay_enable_play(const char *fname);
++
+ #endif
+diff --git a/replay/replay.c b/replay/replay.c
+index 6376d3ab21bffeeb82c629cbd4b248f5656169bc..d9582cb2deffd5d9ded99bd7b1de345f1910d4de 100644
+--- a/replay/replay.c
++++ b/replay/replay.c
+@@ -532,3 +532,29 @@ const char *replay_get_filename(void)
+ {
+     return replay_filename;
+ }
++
++/* for x-rr-begin-record and x-rr-begin-replay (replay-begin.c) */
++bool replay_check_blockers(Error **errp)
++{
++    if (replay_blockers) {
++        error_setg(errp, "%s", error_get_pretty(replay_blockers->data));
++        return true;
++    }
++    return false;
++}
++
++void replay_set_snapshot_name(const char *name)
++{
++    g_free(replay_snapshot);
++    replay_snapshot = g_strdup(name);
++}
++
++void replay_enable_record(const char *fname)
++{
++    replay_enable(fname, REPLAY_MODE_RECORD);
++}
++
++void replay_enable_play(const char *fname)
++{
++    replay_enable(fname, REPLAY_MODE_PLAY);
++}
+diff --git a/replay/stubs-system.c b/replay/stubs-system.c
+index f8e17dcf1ce91d8aefb8d82cafd3196a4fd9edf6..5a4df130367b5efaca5d80ca1dc29d666473a8e3 100644
+--- a/replay/stubs-system.c
++++ b/replay/stubs-system.c
+@@ -100,3 +100,19 @@ void qmp_replay_seek(int64_t icount, Error **errp)
+     error_set(errp, ERROR_CLASS_COMMAND_NOT_FOUND,
+               "replay support not available");
+ }
++
++RrBeginRecordInfo *qmp_x_rr_begin_record(const char *snapshot, const char *file,
++                                         const char *icount, bool has_chardevs, strList *chardevs,
++                                         Error **errp)
++{
++    error_setg(errp, "replay support not available");
++    return NULL;
++}
++
++RrBeginRecordInfo *qmp_x_rr_begin_replay(const char *snapshot, const char *file,
++                                         const char *icount, bool has_chardevs, strList *chardevs,
++                                         Error **errp)
++{
++    error_setg(errp, "replay support not available");
++    return NULL;
++}
+diff --git a/stubs/icount.c b/stubs/icount.c
+index ceb73b4fc2ce5a6aac78242799e3714dca55b9b2..5518bd82d090e6e0ccb6b734354690f87358c2a2 100644
+--- a/stubs/icount.c
++++ b/stubs/icount.c
+@@ -30,3 +30,13 @@ void icount_notify_exit(void)
+ {
+     abort();
+ }
++bool icount_enable_runtime(QemuOpts *opts, Error **errp)
++{
++    error_setg(errp, "cannot enable icount, TCG support not available");
++    return false;
++}
++bool icount_disable_runtime(Error **errp)
++{
++    error_setg(errp, "icount is not enabled");
++    return false;
++}
