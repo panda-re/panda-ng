@@ -33,6 +33,12 @@ void penguin_unregister_guest_hypercall(uint64_t nr);
 void penguin_clear_guest_hypercalls(void);
 bool penguin_guest_hypercall_registered(uint64_t nr);
 void set_kvm_penguin_hypercall_callback(kvm_penguin_hypercall_cb_t cb);
+/*
+ * Whether penguin_handle_guest_hypercall() would hand @nr to a callback.
+ * Lets a hardware accelerator answer unwanted numbers without pulling the
+ * vCPU state in first (arm64 KVM: ~330 ONE_REG ioctls each way).
+ */
+bool penguin_guest_hypercall_wanted(uint64_t nr);
 
 bool penguin_handle_guest_hypercall(CPUState *cs, uint64_t nr,
                                     uint64_t a0, uint64_t a1,

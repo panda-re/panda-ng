@@ -86,6 +86,13 @@ set_kvm_penguin_hypercall_callback(kvm_penguin_hypercall_cb_t cb)
     kvm_penguin_hypercall_cb = cb;
 }
 
+bool penguin_guest_hypercall_wanted(uint64_t nr)
+{
+    return (penguin_guest_hypercall_cb &&
+            penguin_guest_hypercall_registered(nr)) ||
+           kvm_penguin_hypercall_cb;
+}
+
 bool penguin_handle_guest_hypercall(CPUState *cs, uint64_t nr,
                                     uint64_t a0, uint64_t a1,
                                     uint64_t a2, uint64_t a3,
