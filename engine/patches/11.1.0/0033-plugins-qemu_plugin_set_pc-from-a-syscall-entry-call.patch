@@ -1,0 +1,88 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <luke.craig@ll.mit.edu>
+Date: Wed, 21 Oct 2026 16:14:04 -0400
+Subject: [PATCH] plugins: qemu_plugin_set_pc from a syscall entry callback
+ must not deliver the trap again
+
+The syscall entry callback runs inside the delivery of the trap (arm svc,
+x86 int 0x80) with exception_index still set; set_pc's cpu_loop_exit
+resumed the loop, which delivered the same trap again and the kernel ran the
+call the plugin had skipped.  The syscall entry now marks the vCPU
+(neg.plugin_syscall_entry, src/plugins/syscall-system.c), and set_pc clears
+exception_index only then: from any other callback a pending exception is
+still delivered.  The mark is dropped when the callback returns and on any
+longjmp (cpu_exec_longjmp_cleanup).  The qemu_plugin_set_pc API comment says
+so.
+
+Test: tests/guest/plugins/scsetpc.c (sc-bench): before, aarch64 and armel
+re-delivered 50 of 50 skipped getppid calls; after, none.
+
+Review blocker 6.
+---
+ accel/tcg/cpu-exec.c          |  1 +
+ include/hw/core/cpu.h         |  2 ++
+ include/plugins/qemu-plugin.h |  4 ++++
+ plugins/api.c                 | 10 ++++++++++
+ 4 files changed, 17 insertions(+)
+
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index b777f094c957abaaa712ac6649c2ee641724fb5a..0130d18aa08ea61f24b2237f865938119082d62a 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -554,6 +554,7 @@ static void cpu_exec_longjmp_cleanup(CPUState *cpu)
+ #ifdef CONFIG_PLUGIN
+     cpu->neg.plugin_cb_ra = 0;
+     cpu->neg.plugin_cb_flags = QEMU_PLUGIN_CB_NO_REGS;
++    cpu->neg.plugin_syscall_entry = false;
+ #endif
+     if (bql_locked()) {
+         bql_unlock();
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index 802f0f506757dbc63a072a7f65e74aede0773738..8033d4470b435a9a0a195b4ed6e10975752a4d12 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -371,6 +371,8 @@ typedef struct CPUNegativeOffsetState {
+     uint64_t plugin_mem_value_high;
+     int32_t plugin_cb_flags;
+     uintptr_t plugin_cb_ra;
++    /* in a syscall entry callback: the trap is being delivered */
++    bool plugin_syscall_entry;
+ #endif
+     IcountDecr icount_decr;
+     bool can_do_io;
+diff --git a/include/plugins/qemu-plugin.h b/include/plugins/qemu-plugin.h
+index 17efbb9da04a5618e7b49853df67b748b643f450..3a119fbe079c912e1082f3cbd78fa2375804c68c 100644
+--- a/include/plugins/qemu-plugin.h
++++ b/include/plugins/qemu-plugin.h
+@@ -1619,6 +1619,10 @@ void qemu_plugin_hook_remove(struct qemu_plugin_hook *hook);
+  *
+  * This function sets the program counter for the current vCPU to @vaddr and
+  * resumes execution at that address. This function does not return.
++ *
++ * From a syscall event's entry callback, the trap is not delivered: the
++ * task continues at @vaddr without entering the kernel.  From any other
++ * callback, an exception already pending on the vCPU is still delivered.
+  */
+ QEMU_PLUGIN_API
+ __attribute__((__noreturn__))
+diff --git a/plugins/api.c b/plugins/api.c
+index b279fbaa451a4e696da48468fae858deaa07f132..a4cab38fa6dc6348c1c2adb18a29f053c10027df 100644
+--- a/plugins/api.c
++++ b/plugins/api.c
+@@ -541,6 +541,16 @@ void qemu_plugin_set_pc(uint64_t vaddr)
+     }
+ #endif
+     cpu_set_pc(current_cpu, vaddr);
++    /*
++     * A syscall-entry callback runs inside the delivery of the trap (arm
++     * svc, x86 int 0x80): the guest continues at @vaddr instead, so the
++     * trap must not be delivered again when the loop resumes.  Any other
++     * callback keeps a pending exception.
++     */
++    if (current_cpu->neg.plugin_syscall_entry) {
++        current_cpu->neg.plugin_syscall_entry = false;
++        current_cpu->exception_index = -1;
++    }
+     cpu_loop_exit(current_cpu);
+ }
+ 

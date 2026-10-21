@@ -18,7 +18,8 @@ The guest program (`pagetest.c`) checks itself against its own view (its
 own reads, `/proc`), and the host side logs what QEMU saw. The `.sh`
 scripts compare the two and write verdicts and tables.
 
-It is not run in CI: it needs about 20 kernel boots per suite and minutes of
+It is not run in CI, except the off-cost gate (`offcost.sh`, by hand from the
+Off-cost workflow): the suites need about 20 kernel boots each and minutes of
 guest time. It is the check for any change to the files above.
 
 ## Inputs
@@ -57,14 +58,16 @@ and exits non-zero if a check failed.
 |---|---|---|
 | `full.sh [phase...]` | pagein on every kernel: reads, writes, hazards (no VMA, EOF, PROT_NONE, read-only), contention, multi-page and batched accesses; `summary.py <out>` tabulates | 18 kernels |
 | `kvm.sh` | the same matrix under x86 KVM | x86_64 hosts |
-| `hktest.sh` | address hooks: hit counts, mid-block and delay-slot sites, register writes, redirects, faults, aliasing, insert/remove from a callback, conditional hooks, SMP | 11 arches |
+| `hktest.sh` | address hooks: hit counts, mid-block and delay-slot sites, register writes, redirects, faults, aliasing, insert/remove from a callback, conditional hooks, SMP, a hook inserted into a hot loop on a page that ran CF_PCREL (`late`) | 11 arches |
 | `hkbench.sh` | address-hook costs | 11 arches |
 | `sctest.sh func tfunc sctrap` | the syscall plugin (`plugins/syscalls.c`) on its own and on the trap | 11 arches / x86_64, aarch64 |
 | `sctest.sh pen` | the `penguin_syscall_*` C ABI under `pyhost.py`: filters, signals, restarts, vfork, execve, threads, faults held across a callback, the reaper, table eviction | x86_64, aarch64 |
 | `sctest.sh pyplug` | penguin's own `Syscalls` (backend `trap`) and `mem` on penguin's `qemu_compat`, under `penhost.py` | x86_64, aarch64 |
 | `injtest.sh` | syscall injection: ids, ENOSYS, a /proc read through injected calls, signals, EINTR, restarts, a failed execve, refusals, 1000 calls | x86_64 6.13, aarch64 6.13 and 4.10 |
 | `ositest.sh` | the host OSI against the guest's /proc (`osiref.py` walks the same structures in Python); `osicdef.py` checks penguin's cdef against `src/include/system/penguin-osi.h` | same |
+| `setpctest.sh` | `qemu_plugin_set_pc()` from a syscall entry callback resumes the task, not the trap again (`plugins/scsetpc.c`) | x86_64, aarch64, armel 6.13 |
 | `osibench.sh` | what the engine's OSI filters cost per rejected call | x86_64, aarch64 |
+| `offcost.sh STOCK SERIES` | the off-cost gate: the series with nothing loaded against stock (the series at `STOCK_REF`, default `origin/main`; same tarball, same configure line; `scripts/offcost-gate.sh` builds both), and an rr-ready launch against a plain one; wall time per workload (boot and translation, syscalls, virtio swap), fails above `TOL` (5%) / `RRTOL` (10%) | x86_64, aarch64 6.13 |
 | `PENHOST=first run.sh <arch> <ver> user-novma` | injection at the system's first syscall (init's), before init has run | same |
 | `PENHOST=takeover run.sh <arch> <ver> user-novma` | pid 1 runs `ours.c` from a memfd, then the real init | same |
 

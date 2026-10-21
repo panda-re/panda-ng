@@ -821,6 +821,8 @@ static void (*volatile p_phase)(long) = hk_phase;
 static long (*volatile p_regs)(long) = hk_regs;
 static long (*volatile p_redirect)(long) = hk_redirect;
 static void (*volatile p_fault)(const void *) = hk_fault;
+/* only the plugin's redirect reaches hk_other: a reference keeps the linker from dropping it */
+static long (*volatile p_other)(long) = hk_other;
 
 static void calls(long (*f)(long), long k, long mul, long add)
 {
@@ -867,7 +869,7 @@ static int t_hk_count(long k)
     p_phase(1);
     printf("HK expect window=0 target=%ld target2=%ld\n", k, 2 * k);
     printf("HK regs got=%ld want=1006\n", p_regs(5));
-    printf("HK redir got=%ld want=2\n", p_redirect(7));
+    printf("HK redir got=%ld want=%ld\n", p_redirect(7), p_other(7));
 
     int fd = open("/mnt/span.bin", O_RDONLY);
     char *base = mmap(NULL, 64 * FPG, PROT_READ, MAP_PRIVATE, fd, 0);
@@ -921,6 +923,59 @@ static int t_hk_dyn(long k)
     printf("HK expect window=1 target=%ld target2=0\n", k);
     printf("HK expect window=2 target=0 target2=0\n");
     printf("HK expect window=3 target=%ld target2=0\n", k);
+    return 0;
+}
+
+/*
+ * hk-late: a hook inserted on a page whose code already ran must fire, also
+ * in a loop that never leaves the page (its back-edge chains block to block
+ * without a lookup).  hk_late_loop is alone at the start of a 64 KiB-aligned
+ * page; hk_late_site is inside its loop.  A child on another CPU spins in it;
+ * the parent has the plugin insert target= there (dyn=on, phase 1) once the
+ * loop is hot, and lets it run k more iterations.
+ */
+__attribute__((noinline, aligned(65536)))
+void hk_late_loop(volatile long *stop, volatile long *n)
+{
+    while (!*stop) {
+        __asm__ volatile(".globl hk_late_site\nhk_late_site:" ::: "memory");
+        (*n)++;
+    }
+}
+
+static int t_hk_late(long k)
+{
+    volatile long *m = mmap(NULL, PG, PROT_READ | PROT_WRITE,
+                            MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    long ncpu = sysconf(_SC_NPROCESSORS_ONLN), before, after, end;
+    cpu_set_t set;
+    pid_t pid;
+
+    printf("HK late cpus=%ld\n", ncpu);
+    p_phase(0);
+    pid = fork();
+    if (pid == 0) {
+        CPU_ZERO(&set);
+        CPU_SET(ncpu > 1 ? 1 : 0, &set);
+        sched_setaffinity(0, sizeof(set), &set);
+        hk_late_loop(&m[0], &m[1]);
+        _exit(0);
+    }
+    CPU_ZERO(&set);
+    CPU_SET(0, &set);
+    sched_setaffinity(0, sizeof(set), &set);
+    while (m[1] < k) {                  /* hot, unhooked */
+    }
+    before = m[1];
+    p_phase(1);                         /* the plugin inserts the hook */
+    after = m[1];
+    while (m[1] < after + k) {
+    }
+    m[0] = 1;
+    waitpid(pid, NULL, 0);
+    end = m[1];
+    p_phase(2);
+    printf("HK late before=%ld after=%ld end=%ld\n", before, after, end);
     return 0;
 }
 
@@ -2280,6 +2335,7 @@ int main(int argc, char **argv)
     if (!strcmp(t, "hk-alias")) return t_hk_alias(NARG(100));
     if (!strcmp(t, "hk-dyn")) return t_hk_dyn(NARG(100));
     if (!strcmp(t, "hk-kern")) return t_hk_kern(NARG(1000));
+    if (!strcmp(t, "hk-late")) return t_hk_late(NARG(1000000));
     if (!strcmp(t, "hk-smp")) return t_hk_smp(NARG(20000));
     if (!strcmp(t, "sc-func")) return t_sc_func();
     if (!strcmp(t, "sc-trap")) return t_sc_trap();

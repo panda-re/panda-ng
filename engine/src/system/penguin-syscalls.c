@@ -483,6 +483,8 @@ static int psc_arch(void);
  * AArch64 kernels; on 32-bit ARM the guard did not refuse a fault the
  * kernel would not fix (sctest sc-fault: the task got SIGSEGV), so there
  * no faults are raised and no exec is injected.  Unknown yet: not either.
+ * (psc_reg() read 32-bit ARM's 4-byte registers as 0 then, the likely
+ * cause; it is fixed, but stays off here until an armel run shows it.)
  */
 static bool psc_hooks_ok(void)
 {
@@ -1323,19 +1325,37 @@ static const SyscallTrapOps psc_ops = {
  * the dispatch finds its fault refused.
  */
 #ifdef CONFIG_TCG
+/*
+ * The gdbstub's view of a register: its own size (4 bytes on 32-bit ARM,
+ * 8 on x86_64 and AArch64) in target byte order.
+ */
 static uint64_t psc_reg(CPUState *cpu, int n)
 {
     g_autoptr(GByteArray) b = g_byte_array_new();
+    int len = gdb_read_register(cpu, b, n);
 
-    gdb_read_register(cpu, b, n);
-    return b->len >= 8 ? ldq_le_p(b->data) : 0;
+    if (len == 8) {
+        return target_big_endian() ? ldq_be_p(b->data) : ldq_le_p(b->data);
+    }
+    if (len == 4) {
+        return target_big_endian() ? ldl_be_p(b->data) : ldl_le_p(b->data);
+    }
+    return 0;
 }
 
 static void psc_set_reg(CPUState *cpu, int n, uint64_t v)
 {
+    g_autoptr(GByteArray) cur = g_byte_array_new();
+    int len = gdb_read_register(cpu, cur, n);
     uint8_t b[8];
 
-    stq_le_p(b, v);
+    if (len == 8) {
+        target_big_endian() ? stq_be_p(b, v) : stq_le_p(b, v);
+    } else if (len == 4) {
+        target_big_endian() ? stl_be_p(b, v) : stl_le_p(b, v);
+    } else {
+        return;
+    }
     gdb_write_register(cpu, b, n);
 }
 
@@ -1388,7 +1408,8 @@ static void psc_guard_cb(CPUState *cpu, vaddr pc, void *opaque)
                                 psc_arm32 ? 4 : 8, false)) {
             return;
         }
-        addr = psc_arm32 ? ldl_le_p(b) : ldq_le_p(b);
+        addr = psc_arm32 ? (target_big_endian() ? ldl_be_p(b) : ldl_le_p(b))
+                         : ldq_le_p(b);
     } else {
         addr = psc_reg(cpu, psc_x86 ? 3 : 2);
     }

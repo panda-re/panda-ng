@@ -7,7 +7,7 @@ import sys
 O = sys.argv[1]
 ARCHS = ['x86_64', 'aarch64', 'armel', 'mipsel', 'mipseb', 'mips64el', 'mips64eb',
          'powerpc64', 'powerpc64le', 'riscv64', 'loongarch64']
-CASES = ['count', 'direct', 'many', 'alias', 'dyn', 'multi', 'kern', 'cond', 'smp', 'rp']
+CASES = ['count', 'direct', 'many', 'alias', 'dyn', 'multi', 'kern', 'cond', 'smp', 'rp', 'late']
 
 
 def kv(line):
@@ -134,6 +134,25 @@ class Case:
                        f"register_ptr looked up on vCPUs {[f['vcpu'] for f in found]}")
         d = self.lines('HOOKTEST direct checked=')
         self.check(d and d[-1]['mismatch'] == '0', f'direct vs gdbstub: {d and d[-1]}')
+
+    def c_late(self):
+        m = re.search(r'HK late cpus=(\d+)', self.con or '')
+        if m and int(m.group(1)) < 2:
+            self.skip = f'SKIP (guest sees {m.group(1)} CPU)'
+        pg = lambda a: int(a, 16) >> 12
+        self.check(pg(self.args['target']) != pg(self.args['phase']),
+                   'setup: the loop shares a page with hk_phase')
+        r = self.lines('HK late before=', self.con)
+        ph = [p for p in self.lines('HOOKTEST phase=') if p['phase'] in ('0', '1', '2')]
+        self.check(r and len(ph) == 3, f'no result ({len(ph)} phase logs)')
+        if not (r and len(ph) == 3):
+            return
+        r = {k: int(v) for k, v in r[-1].items()}
+        w0 = int(ph[1]['target']) - int(ph[0]['target'])
+        hits = int(ph[2]['target']) - int(ph[1]['target'])
+        self.check(w0 == 0, f'{w0} hits before the insert')
+        self.check(r['end'] - r['after'] <= hits <= r['end'] - r['before'] + 1,
+                   f"{hits} hits, want {r['end'] - r['after']}..{r['end'] - r['before'] + 1}")
 
     def c_rp(self):
         self.c_count()

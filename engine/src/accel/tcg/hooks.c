@@ -7,12 +7,29 @@
  * hook count before calling, so removing the last hook leaves a load and a
  * branch until the block is retranslated.
  *
+ * CF_PCREL stays on, except on the guest virtual pages that hold a site:
+ * a lookup there asks for a block translated for its virtual address
+ * (tcg_hooks_cflags), and only such blocks get hook calls.  While hooks
+ * are in use, a CF_PCREL block never extends past its first page
+ * (translator_loop), so it cannot reach a hooked page by running on, and
+ * a lookup on a hooked page never returns one, nor do blocks there chain
+ * into one.  A PIE mapped at a new address on every exec keeps reusing
+ * its translations unless its own pages are hooked.
+ *
+ * So a page that gains its first site needs no flush, though CF_PCREL
+ * blocks for it stay cached: goto_tb only chains within the page a block
+ * starts on, so the way into one is a lookup on that page, and the commit
+ * (exclusive: every vCPU leaves cpu_exec) makes each vCPU look up again.
+ * That depends on same-page goto_tb, the page stop and the exclusive
+ * commit; keep all three.  hktest `late` tests it.
+ *
  * New sites are invalidated in batches, in exclusive context: the first
- * also turns CF_PCREL off on every vCPU and flushes everything, later ones
- * invalidate only the blocks whose guest range contains them.  To find
- * those without scanning every block, blocks linked while hooks are in use
- * are indexed by guest virtual page (4 KiB buckets) until the next flush;
- * a block's memory stays valid until then even after it is invalidated.
+ * batch flushes everything (blocks translated before hooks were in use
+ * may cross pages), later ones invalidate only the blocks whose guest
+ * range contains them.  To find those without scanning every block,
+ * blocks linked without CF_PCREL are indexed by guest virtual page (4 KiB
+ * buckets) until the next flush; a block's memory stays valid until then
+ * even after it is invalidated.
  *
  * A guarded hook carries conditions that the generated code tests before
  * calling it: on guest registers (read from their TCG globals) or on a
@@ -45,6 +62,7 @@
 #include "tb-context.h"
 #include "internal-common.h"
 #include "hooks-internal.h"
+#include "system/tcg.h"
 #include "qemu/timer.h"
 #include "trace.h"
 
@@ -67,12 +85,14 @@ struct TCGHook {
 };
 
 bool tcg_hooks_enabled;
+unsigned long tcg_hooks_pages[BITS_TO_LONGS(1 << TCG_HOOKS_PAGE_BITS)];
 
 static QemuMutex hooks_lock;            /* writers: sites, lists, pending */
 static struct qht sites;
 static GArray *pending;                 /* new site pcs to invalidate */
 static bool commit_queued;
-static bool pcrel_off;                  /* CF_PCREL cleared + flushed */
+static bool flushed;                    /* the first commit flushed */
+static bool pages_pending;              /* sites inserted before the page size */
 
 /* invalidating more pcs than this at once flushes everything instead */
 #define MAX_TARGETED 1024
@@ -205,7 +225,6 @@ static void hooks_commit(CPUState *cpu, run_on_cpu_data unused)
 {
     g_autoptr(GArray) pcs = NULL;
     bool flush;
-    CPUState *c;
     int64_t t0 = get_clock();
     unsigned scanned = 0, invalidated = 0;
 
@@ -213,16 +232,20 @@ static void hooks_commit(CPUState *cpu, run_on_cpu_data unused)
     pcs = pending;
     pending = g_array_new(false, false, sizeof(vaddr));
     commit_queued = false;
-    flush = !pcrel_off || pcs->len > MAX_TARGETED;
-    pcrel_off = true;
+    if (!tcg_enabled()) {
+        /*
+         * A TCG+KVM build under -accel kvm: no translated code to
+         * invalidate, and tb_flush() would abort.  Callers (the penguin
+         * syscall engine) may insert hooks before they know the
+         * accelerator; the sites stay, unused.
+         */
+        qemu_mutex_unlock(&hooks_lock);
+        return;
+    }
+    flush = !flushed || pcs->len > MAX_TARGETED;
+    flushed = true;
     qemu_mutex_unlock(&hooks_lock);
 
-    CPU_FOREACH(c) {
-        if (c->tcg_cflags & CF_PCREL) {
-            qatomic_set(&c->tcg_cflags, c->tcg_cflags & ~CF_PCREL);
-            flush = true;
-        }
-    }
     if (flush) {
         tb_flush__exclusive_or_serial();
     } else if (pcs->len) {
@@ -248,11 +271,8 @@ static void queue_commit(vaddr pc)
     CPUState *cpu = current_cpu ? current_cpu : first_cpu;
 
     if (!cpu) {
-        /*
-         * No vCPU yet: no translated code either, and every vCPU's cflags
-         * are fixed in tcg_hooks_vcpu_cflags() when it is created.
-         */
-        pcrel_off = true;
+        /* No vCPU yet: no translated code either. */
+        flushed = true;
         return;
     }
     g_array_append_val(pending, pc);
@@ -267,11 +287,30 @@ static void queue_commit(vaddr pc)
     }
 }
 
-void tcg_hooks_vcpu_cflags(CPUState *cpu)
+static void mark_page(vaddr pc)
 {
-    if (qatomic_read(&tcg_hooks_enabled)) {
-        cpu->tcg_cflags &= ~CF_PCREL;
+    unsigned long b = tcg_hooks_page_bit(pc);
+
+    qatomic_or(&tcg_hooks_pages[BIT_WORD(b)], BIT_MASK(b));
+}
+
+static void mark_site_page(void *p, uint32_t h, void *up)
+{
+    mark_page(((TCGHookSite *)p)->pc);
+}
+
+/*
+ * An embedder may insert hooks before the target page size is decided;
+ * it is by the time a vCPU exists, and nothing is translated before.
+ */
+void tcg_hooks_vcpu_init(CPUState *cpu)
+{
+    qemu_mutex_lock(&hooks_lock);
+    if (pages_pending) {
+        qht_iter(&sites, mark_site_page, NULL);
+        pages_pending = false;
     }
+    qemu_mutex_unlock(&hooks_lock);
 }
 
 static TCGHook *hook_insert(vaddr pc, TCGHookFn fn, void *opaque,
@@ -292,6 +331,11 @@ static TCGHook *hook_insert(vaddr pc, TCGHookFn fn, void *opaque,
         s = site_lookup(pc);
     }
     if (!s) {
+        if (target_page.decided) {
+            mark_page(pc);
+        } else {
+            pages_pending = true;       /* marked in tcg_hooks_vcpu_init() */
+        }
         s = g_new0(TCGHookSite, 1);
         s->pc = pc;
         QLIST_INIT(&s->hooks);
@@ -692,6 +736,9 @@ void tcg_hooks_gen(DisasContextBase *db)
     TCGv_i32 n;
     TCGLabel *skip;
 
+    if (tb_cflags(db->tb) & CF_PCREL) {
+        return;                 /* not on a hooked page: tcg_hooks_cflags() */
+    }
     WITH_RCU_READ_LOCK_GUARD() {
         s = site_lookup(db->pc_next);
     }

@@ -13,6 +13,8 @@
 #   cond    conditional hooks on arg0 (==, <, mask, range, signed) and on a
 #           host variable switched between windows
 #   smp     2 vCPUs hitting the same hooks at once, register_ptr per vCPU
+#   late    a hook inserted (from vCPU 0) in a hot loop running on vCPU 1 on a
+#           page with no hook before, so its code ran CF_PCREL and chained
 #   rp      register_ptr battery: argument/sp/ra registers found and equal to
 #           the gdbstub on every hit, lookups change no register, pc/flags NULL
 # exit status: 0 if every case passed (SKIP allowed), 1 otherwise
@@ -23,7 +25,7 @@ P=$PLUGINS/libhooktest.so
 ALL="x86_64 aarch64 armel mipsel mipseb mips64el mips64eb powerpc64 powerpc64le riscv64 loongarch64"
 ARCHS=${ARCHS:-$ALL}
 PAR=${PAR:-6}
-CASES=${CASES:-count direct many alias dyn multi kern cond smp rp}
+CASES=${CASES:-count direct many alias dyn multi kern cond smp rp late}
 
 # one <case> <arch> <guest test> <plugin args...>
 one() {
@@ -50,6 +52,12 @@ arch() {
             *) (SMP=2; one smp $a hk-smp:20000 api=hook direct=on reads=1 $S);;
             esac;;
     rp)     one rp $a hk-count:100 api=hook rptest=on $S;;
+    late)   case $a in
+            mips*) echo "malta with penguin's mips kernels panics at boot with 2 CPUs, plugin or not" > $O/$a-late.skip;;
+            loongarch64) echo "no CF_PCREL; and zig 0.x's compiler-rt cannot build pagetest for loongarch64 (fp_to_fp16), so its initrd predates hk-late" > $O/$a-late.skip;;
+            *) L=$(./hksyms.sh $a late | grep -o 'late=[^ ]*' | cut -d= -f2)
+               (SMP=2; one late $a hk-late:1000000 api=hook dyn=on $PH target=$L);;
+            esac;;
     esac
   done
 }
