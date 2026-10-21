@@ -9,6 +9,7 @@ llvm-readelf -s $E | awk '
   { m[$8] = "0x" $2 }
   END { printf "target=%s target2=%s phase=%s regs=%s redir=%s other=%s fault=%s",
         m["hk_target"], m["hk_target2"], m["hk_phase"], m["hk_regs"], m["hk_redirect"], m["hk_other"], m["hk_fault"] }'
+[ "$2" = late ] && { llvm-readelf -s $E | awk '$8 == "hk_late_site" { printf " late=0x%s", $2 }'; echo; exit; }
 case $1 in
 loongarch64)   # fixed-size instructions; llvm-objdump 14 has no loongarch
   T=$(llvm-readelf -s $E | awk '$8 == "hk_target" { print $2 }')

@@ -57,7 +57,7 @@ and exits non-zero if a check failed.
 |---|---|---|
 | `full.sh [phase...]` | pagein on every kernel: reads, writes, hazards (no VMA, EOF, PROT_NONE, read-only), contention, multi-page and batched accesses; `summary.py <out>` tabulates | 18 kernels |
 | `kvm.sh` | the same matrix under x86 KVM | x86_64 hosts |
-| `hktest.sh` | address hooks: hit counts, mid-block and delay-slot sites, register writes, redirects, faults, aliasing, insert/remove from a callback, conditional hooks, SMP | 11 arches |
+| `hktest.sh` | address hooks: hit counts, mid-block and delay-slot sites, register writes, redirects, faults, aliasing, insert/remove from a callback, conditional hooks, SMP, a hook inserted into a hot loop on a page that ran CF_PCREL (`late`) | 11 arches |
 | `hkbench.sh` | address-hook costs | 11 arches |
 | `sctest.sh func tfunc sctrap` | the syscall plugin (`plugins/syscalls.c`) on its own and on the trap | 11 arches / x86_64, aarch64 |
 | `sctest.sh pen` | the `penguin_syscall_*` C ABI under `pyhost.py`: filters, signals, restarts, vfork, execve, threads, faults held across a callback, the reaper, table eviction | x86_64, aarch64 |
