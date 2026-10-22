@@ -66,3 +66,14 @@
  	#include "system/memory.h"
  	#include "system/address-spaces.h"
  	#include "system/iothread.h"
+--- a/includes/python_fixes.h
++++ b/includes/python_fixes.h
+@@ -19,6 +19,8 @@
+ #define __thread
+ #define asm(...)
+ 
++/* The typedefs below use these; cffi needs them defined first. */
++#include <stdint.h>
+ typedef uint64_t hwaddr;
+ typedef uint32_t MemTxResult;
+ typedef uint64_t MemTxAttrs;

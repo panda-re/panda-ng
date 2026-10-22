@@ -182,21 +182,84 @@
               mkdir -p local_packages
               ln -s ${engine}/include/panda-ng local_packages/panda-ng
             '';
+            # meson installs only the rust plugins. Install the build tree's layout, which is what
+            # libpanda's plugin search and syscalls2 (dso_info libraries in syscalls2/) expect.
+            installPhase = ''
+              runHook preInstall
+              mkdir -p $out/lib/panda/plugins
+              (cd plugins && find . -name '*.so' -not -path './rust/*' -not -path '*.p/*' \
+                -exec cp --parents -t $out/lib/panda/plugins {} +)
+              runHook postInstall
+            '';
           };
 
-          # Everything a user installs: the engine, its plugin-interface library and headers, and
-          # the plugins, under one prefix.
+          python = pkgs.python3;
+          pluginDir = "${plugins}/lib/panda/plugins";
+
+          # pandare2, with this engine and these plugins ahead of its /usr/local defaults.
+          pandare2 = python.pkgs.buildPythonPackage {
+            pname = "pandare2";
+            inherit version;
+            src = builtins.path {
+              path = ./.;
+              name = "panda-ng";
+            };
+            format = "setuptools";
+            sourceRoot = "panda-ng/python/core";
+            # setup.py generates the cffi bindings from the engine's headers and plugins/.
+            postUnpack = ''
+              chmod -R u+w panda-ng
+              mkdir -p panda-ng/local_packages
+              ln -s ${engine}/include/panda-ng panda-ng/local_packages/panda-ng
+            '';
+            postPatch = ''
+              echo ${version} > pandare2/version.txt
+              substituteInPlace pandare2/utils.py \
+                --replace-fail 'pot_paths = [system_build,' 'pot_paths = ["${engine}/lib", system_build,'
+              substituteInPlace pandare2/panda.py \
+                --replace-fail 'realpath(pjoin(__file__, "../../../../build/plugins")),' \
+                  '"${pluginDir}", realpath(pjoin(__file__, "../../../../build/plugins")),' \
+                --replace-fail 'f"/usr/local/lib/panda/{self.arch_name}"' '"${pluginDir}"' \
+                --replace-fail 'realpath(pjoin(self.panda, f"../contrib/plugins/libpanda_plugin_interface.{self.dll_extension}"))' \
+                  '"${engine}/lib/libpanda_plugin_interface.so"' \
+                --replace-fail '"/usr/local/share/panda",' '"${engine}/share/qemu", "/usr/local/share/panda",'
+            '';
+            build-system = [
+              python.pkgs.setuptools
+              python.pkgs.cffi
+            ];
+            dependencies = [ python.pkgs.cffi ];
+            pythonImportsCheck = [ "pandare2" ];
+          };
+
+          # The Python users run PANDA from: pandare2 and its optional plog reader (protobuf).
+          pandaPython = python.withPackages (ps: [
+            pandare2
+            ps.protobuf
+          ]);
+
+          # Everything a user installs under one prefix: the engine (with its plugin-interface
+          # library and headers), the plugins, and a Python with pandare2. bin/ adds
+          # panda-python and panda-system-<arch>, the names the .deb puts in /usr/bin.
           dist = pkgs.symlinkJoin {
             name = "panda-next-${version}";
             paths = [
               engine
               plugins
+              pandaPython
             ];
+            postBuild = ''
+              ln -s python3 $out/bin/panda-python
+              for b in $out/bin/qemu-system-*; do
+                ln -s $(basename $b) $out/bin/panda-system-''${b##*/qemu-system-}
+              done
+            '';
           };
 
           # A .deb of dist's runtime closure, copied as is into /nix/store, with dist linked to
-          # /opt/panda-next and its binaries to /usr/bin. It needs nothing from the host's packages,
-          # so one .deb per arch installs on any Debian or Ubuntu release.
+          # /opt/panda-next. It needs nothing from the host's packages (not even its glibc), so one
+          # .deb per arch installs on any Debian or Ubuntu release. Only names no distro package
+          # uses go in /usr/bin.
           debArch =
             {
               x86_64-linux = "amd64";
@@ -214,7 +277,7 @@
                 mkdir -p $root/nix/store $root/opt $root/usr/bin $root/DEBIAN
                 xargs -a $closure/store-paths cp -a -t $root/nix/store/
                 ln -s ${dist} $root/opt/panda-next
-                for b in ${dist}/bin/*; do
+                for b in ${dist}/bin/panda-*; do
                   ln -s /opt/panda-next/bin/$(basename $b) $root/usr/bin/
                 done
                 cat > $root/DEBIAN/control <<EOF
@@ -222,9 +285,9 @@
                 Version: ${version}
                 Architecture: ${debArch}
                 Maintainer: PANDA developers
-                Description: PANDA engine (QEMU with the PANDA API) and plugins
+                Description: PANDA engine (QEMU with the PANDA API), plugins and pandare2
                  Built with nix. The runtime closure is under /nix/store; the install is at
-                 /opt/panda-next.
+                 /opt/panda-next. Run pandare2 scripts with panda-python.
                 EOF
                 chmod -R u+w $root
                 dpkg-deb --root-owner-group -Zxz --build $root $out
@@ -234,6 +297,8 @@
           inherit
             engine
             plugins
+            pandare2
+            pandaPython
             dist
             deb
             mkEngine
@@ -264,9 +329,11 @@
             engine
             engine-x86_64
             plugins
+            pandare2
             dist
             deb
             ;
+          python = p.pandaPython;
           default = p.plugins;
         }
       );
