@@ -1,6 +1,32 @@
 --- a/build.py
 +++ b/build.py
-@@ -126,6 +126,9 @@
+@@ -52,8 +52,24 @@
+ 	cmd = code.decode(errors="ignore").replace('\n',' ')
+ 	print(f"cmd={cmd}")
+ 	cmd = cmd.replace("__fd_mask", "unsigned int")	
+-	result = gdb.execute(f"p {cmd}",to_string=True).split(" = ")[1].strip()
++	try:
++		result = gdb.execute(f"p {cmd}",to_string=True).split(" = ")[1].strip()
++	except gdb.error:
++		# The expression names a host type the debug info lacks (e.g. ELF_NGREG's
++		# struct user_regs_struct on aarch64 hosts): ask the host compiler instead.
++		result = host_eval(cmd)
+ 	return result.encode()
++
++def host_eval(expr):
++	from subprocess import check_output
++	from tempfile import TemporaryDirectory
++	glib = check_output(['pkg-config', '--cflags', 'glib-2.0']).decode().strip()
++	with TemporaryDirectory() as d:
++		with open(join(d, "eval.c"), "w") as f:
++			f.write('#include "includes/sys_includes.h"\n#include <stdio.h>\n'
++				f'int main(void) {{ printf("%lld", (long long)({expr})); return 0; }}\n')
++		check_output(f"gcc -I{script_dir} {glib} {join(d, 'eval.c')} -o {join(d, 'eval')}", shell=True)
++		return check_output([join(d, "eval")]).decode().strip()
+ 	
+ def simplify_brackets(code):
+ 	code_bytes = bytes(code, 'utf8')
+@@ -126,6 +142,9 @@
  		return "riscv"
  	return arch
  
@@ -10,7 +36,7 @@
  def preprocess(arch, source, include_defines=False): #,fake_sysroot=True):
  	from subprocess import check_output
  	from os.path import realpath
-@@ -137,8 +140,8 @@
+@@ -137,8 +156,8 @@
  		"include",
  		f"target/{arch_to_generic(arch)}",
  		f"include/tcg/{arch}",
@@ -21,7 +47,7 @@
  		"include/tcg",
  		"contrib/plugins",
  		"include/qemu",
-@@ -155,7 +158,7 @@
+@@ -155,7 +174,7 @@
  
  	defines = '-dD' if include_defines else ''
  
@@ -30,3 +56,13 @@
  	print(cmd)
  	check_output(cmd, shell=True)
  	
+@@ -190,7 +209,9 @@
+ 	#include "target/{arch_to_generic(arch)}/cpu-param.h"
+ 	#include "exec/target_long.h"
+ 	#include "system/runstate.h"
++	#if __has_include("system/arch_init.h") /* gone in QEMU 11 */
+ 	#include "system/arch_init.h"
++	#endif
+ 	#include "system/memory.h"
+ 	#include "system/address-spaces.h"
+ 	#include "system/iothread.h"
