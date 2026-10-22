@@ -29,6 +29,15 @@ CODE = {
                                  0xD2800000,  # mov x0, #0
                                  0xD2800BA8,  # mov x8, #93
                                  0xD4000001)),  # svc #0
+    # a0 = a7 = MAGIC; the hypercall instruction; exit(0)
+    "riscv64": (243, struct.pack("<7I",
+                                 ((MAGIC + 0x800) >> 12) << 12 | 10 << 7 | 0x37,  # lui a0, %hi
+                                 (MAGIC & 0xfff) << 20 | 10 << 15 | 10 << 7 | 0x1B,  # addiw a0, a0, %lo
+                                 0x00050893,  # mv a7, a0
+                                 0x00004013,  # xori x0, x0, 0
+                                 0x00000513,  # li a0, 0
+                                 0x05D00893,  # li a7, 93
+                                 0x00000073)),  # ecall
 }
 
 

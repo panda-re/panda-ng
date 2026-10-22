@@ -77,6 +77,13 @@ target_ptr_t default_get_current_task_struct(CPUState *cpu)
     fixupendian2(ts);
     return ts;
 
+#elif defined(TARGET_RISCV64)
+    // current is tp in the kernel and sscratch in user mode (the trap entry swaps them); a user
+    // tp, or a kernel tp before the swap, isn't a kernel pointer.
+    CPUArchState *env = (CPUArchState *)panda_cpu_env(cpu);
+    ts = (env->priv != 0 /* PRV_U */ && (int64_t)env->gpr[4] < 0) ? env->gpr[4] : env->sscratch;
+    return (int64_t)ts < 0 ? ts : 0;
+
 #else // x86/64
     current_task_addr = ki.task.current_task_addr;
 #endif

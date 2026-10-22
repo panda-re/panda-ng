@@ -24,6 +24,7 @@ enum ProfileType {
     PROFILE_WINDOWS_7_X64,
     PROFILE_LINUX_X64,
     PROFILE_FREEBSD_X64,
+    PROFILE_LINUX_RISCV64,
     PROFILE_LAST
 };
 
@@ -63,6 +64,7 @@ struct Profile {
 // grep -hE '^.*syscall_(enter|return)_switch_[^(]*\(' *.cpp | sed 's/ {$/;/'
 void syscall_enter_switch_freebsd_x64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
 void syscall_enter_switch_linux_arm64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
+void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
 void syscall_enter_switch_linux_arm(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
 void syscall_enter_switch_linux_mips(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
 void syscall_enter_switch_linux_mips64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
@@ -76,6 +78,7 @@ void syscall_enter_switch_windows_xpsp2_x86(CPUState *cpu, int profile, target_p
 void syscall_enter_switch_windows_xpsp3_x86(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
 void syscall_return_switch_freebsd_x64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
 void syscall_return_switch_linux_arm64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
+void syscall_return_switch_linux_riscv64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
 void syscall_return_switch_linux_arm(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
 void syscall_return_switch_linux_mips(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
 void syscall_return_switch_linux_mips64n32(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);

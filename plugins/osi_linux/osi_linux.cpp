@@ -1318,7 +1318,7 @@ bool init_plugin(void *self) {
     }
 
     // Register callbacks to the PANDA core.
-#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_MIPS)
+#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_MIPS) || defined(TARGET_RISCV64)
     {
         // Whenever we load a snapshot, we need to find cpu offsets again
         // (particularly if KASLR is enabled) and we also may need to re-initialize

@@ -83,6 +83,7 @@ def handle_python(arch, total, plugin_dir):
 		"x86_64": "syscalls_ext_typedefs_x64.h",
 		"arm": "syscalls_ext_typedefs_arm.h",
 		"aarch64": "syscalls_ext_typedefs_arm64.h",
+		"riscv64": "syscalls_ext_typedefs_riscv64.h",
 		"mips": "syscalls_ext_typedefs_mips.h",
 		"mipsel": "syscalls_ext_typedefs_mips.h",
 		"mips64": "syscalls_ext_typedefs_mips64.h",

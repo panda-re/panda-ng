@@ -80,12 +80,14 @@ uint64_t get_64_linux_x86(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint64_t get_64_linux_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint64_t get_64_linux_arm(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint64_t get_64_linux_mips(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
+uint64_t get_64_linux_riscv(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint64_t get_64_windows_x86(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint64_t get_64_windows_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint32_t get_32_linux_x86(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint32_t get_32_linux_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint32_t get_32_linux_arm(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint32_t get_32_linux_mips(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
+uint32_t get_32_linux_riscv(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint32_t get_32_windows_x86(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 uint32_t get_32_windows_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum);
 target_ulong calc_retaddr_windows_x86(CPUState *cpu, target_ulong pc);
@@ -95,6 +97,8 @@ target_ulong calc_retaddr_linux_x86_int80(CPUState *cpu, target_ulong pc);
 target_ulong calc_retaddr_linux_x64(CPUState *cpu, target_ulong pc);
 target_ulong calc_retaddr_linux_arm(CPUState *cpu, target_ulong pc);
 target_ulong calc_retaddr_linux_mips(CPUState *cpu, target_ulong pc); // TODO
+target_ulong calc_retaddr_linux_riscv(CPUState *cpu, target_ulong pc);
+target_long get_return_val_riscv(CPUState *cpu);
 
 void syscall_enter_linux_mips64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
 void syscall_return_linux_mips64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
@@ -357,6 +361,23 @@ Profile profiles[PROFILE_LAST] = {
         .windows_return_addr_register = -1,
         .windows_arg_offset = -1,
         .syscall_interrupt_number = 0x80,
+    },
+    {   /* PROFILE_LINUX_RISCV64 */
+        .enter_switch = syscall_enter_switch_linux_riscv64,
+        .return_switch = syscall_return_switch_linux_riscv64,
+        .get_return_val = get_return_val_riscv,
+        .calc_retaddr = calc_retaddr_linux_riscv,
+        .get_32 = get_32_linux_riscv,
+        .get_s32 = get_s32_generic,
+        .get_64 = get_64_linux_riscv,
+        .get_s64 = get_s64_generic,
+        .get_return_32 = get_32_linux_riscv,
+        .get_return_s32 = get_return_s32_generic,
+        .get_return_64 = get_64_linux_riscv,
+        .get_return_s64 = get_return_s64_generic,
+        .windows_return_addr_register = -1,
+        .windows_arg_offset = -1,
+        .syscall_interrupt_number = -1,
     }
 };
 
@@ -401,6 +422,15 @@ target_long get_return_val_mips(CPUState *cpu){
     // See: https://www.linux-mips.org/wiki/Syscall
     CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
     return static_cast<target_long>(env->active_tc.gpr[2]);
+#endif
+    return 0;
+}
+
+target_long get_return_val_riscv(CPUState *cpu){
+#if defined(TARGET_RISCV)
+    // a0
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
+    return static_cast<target_long>(env->gpr[10]);
 #endif
     return 0;
 }
@@ -549,6 +579,11 @@ target_ulong calc_retaddr_linux_mips(CPUState* cpu, target_ulong pc) {
 #endif
 }
 
+target_ulong calc_retaddr_linux_riscv(CPUState* cpu, target_ulong pc) {
+    // ecall is 4 bytes (no compressed form); sepc+4 is where the kernel returns
+    return pc + 4;
+}
+
 // Argument getting (at syscall entry)
 uint32_t get_linux_x86_argnum(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 #if defined(TARGET_I386)
@@ -656,6 +691,10 @@ uint32_t get_32_linux_arm (CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 #endif
 }
 
+uint32_t get_32_linux_riscv (CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
+    return (uint32_t) get_64_linux_riscv(cpu, ctx, argnum);
+}
+
 uint32_t get_32_linux_mips (CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 #ifdef TARGET_MIPS
     CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
@@ -740,6 +779,17 @@ uint64_t get_64_linux_x86(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 uint64_t get_64_linux_x64(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
     assert (argnum < 6);
     return (uint64_t) get_linux_x64_argnum(cpu, ctx, argnum);
+}
+
+uint64_t get_64_linux_riscv(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
+#ifdef TARGET_RISCV
+    // args in a0-a5 (x10-x15)
+    CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
+    assert (argnum < 6);
+    return (uint64_t) env->gpr[10 + argnum];
+#else
+    return 0;
+#endif
 }
 
 uint64_t get_64_linux_arm(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
@@ -927,6 +977,8 @@ void sysinfo_load(int profile){
         arch = "mips64n32";
     }
 #endif
+#elif defined(TARGET_RISCV64)
+    arch = "riscv64";
 #else
     // will fail on dlopen because dso file won't exist
     arch = "unknown";
@@ -1177,6 +1229,12 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, i
 
     return 0;
 
+#elif defined(TARGET_RISCV64)
+    // ecall: 73 00 00 00 (no compressed form)
+    if (size == 4 && buf[0] == 0x73 && buf[1] == 0 && buf[2] == 0 && buf[3] == 0) {
+        return pc;
+    }
+    return 0;
 #elif defined(TARGET_PPC)
     return 0;
 #else
@@ -1310,7 +1368,7 @@ const syscall_meta_t *get_syscall_meta(void) {
 /* ### Plugin bootstrapping ############################################# */
 bool init_plugin(void *self) {
 // Don't bother if we're not on a supported target
-#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_MIPS)
+#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_MIPS) || defined(TARGET_RISCV64)
     panda_arg_list *plugin_args = panda_get_args(PLUGIN_NAME);
 
     // Unused in some architectures
@@ -1351,6 +1409,10 @@ bool init_plugin(void *self) {
         std::cerr << PANDA_MSG "using profile for linux mips32" << std::endl;
         default_profile = PROFILE_LINUX_MIPS32;
 #endif
+#endif
+#if defined(TARGET_RISCV64)
+        std::cerr << PANDA_MSG "using profile for linux riscv64" << std::endl;
+        default_profile = PROFILE_LINUX_RISCV64;
 #endif
     } else if (panda_os_familyno == OS_WINDOWS) {
         if ((panda_os_bits != 32) && (0 != strncmp(panda_os_variant, "7", 1))) {
@@ -1423,7 +1485,7 @@ bool init_plugin(void *self) {
 		hooks = panda_get_plugin_by_name("hooks");
 	}
     hooks_add_hook = (void(*)(struct hook*)) dlsym(hooks, "add_hook");
-#elif defined(TARGET_PPC) || defined(TARGET_RISCV64) || defined(TARGET_RISCV32) || defined(TARGET_LOONGARCH)
+#elif defined(TARGET_PPC) || defined(TARGET_RISCV32) || defined(TARGET_LOONGARCH)
     fprintf(stderr,"The syscalls plugin is not currently supported on this platform.\n");
     return false;
 #else //not x86/arm/mips

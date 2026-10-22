@@ -37,6 +37,12 @@ void uninit_plugin(void *);
 
 namespace {
 
+#if defined(TARGET_RISCV)
+constexpr bool HAVE_REG_CURRENT = true;   // current is a register (tp/sscratch), not a variable
+#else
+constexpr bool HAVE_REG_CURRENT = false;
+#endif
+
 isf::Profile prof;
 
 constexpr uint64_t PAGE_SIZE_GUEST = 4096;
@@ -144,9 +150,17 @@ uint64_t per_cpu_base(CPUState *cpu) {
 }
 
 uint64_t current_task(CPUState *cpu) {
+#if defined(TARGET_RISCV)
+    // riscv keeps current in tp while in the kernel and in sscratch while in user mode (the
+    // trap entry swaps them); a user tp, or a kernel tp before the swap, isn't a kernel pointer.
+    CPUArchState *env = (CPUArchState *)panda_cpu_env(cpu);
+    uint64_t tp = env->gpr[4];
+    uint64_t ts = (env->priv != 0 /* PRV_U */ && is_kernel_ptr(tp)) ? tp : env->sscratch;
+#else
     if (sym_current == 0) return 0;
     uint64_t addr = current_is_percpu ? per_cpu_base(cpu) + sym_current : sym_current;
     uint64_t ts = ptr_at(cpu, addr);
+#endif
     return is_kernel_ptr(ts) ? ts : 0;
 }
 
@@ -610,7 +624,7 @@ bool init_plugin(void *self) {
         return false;
     }
     printf(PLUGIN_NAME ": %s, %zu symbols, %zu types%s\n", prof.kernel.c_str(), prof.symbols.size(),
-           prof.user_types.size(), sym_current ? "" : "; no per-CPU current task for this arch");
+           prof.user_types.size(), (sym_current || HAVE_REG_CURRENT) ? "" : "; no per-CPU current task for this arch");
 
     panda_require("osi");
     assert(init_osi_api());

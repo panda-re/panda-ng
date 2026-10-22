@@ -358,8 +358,8 @@ void execveat_cb (CPUState* cpu, target_ptr_t pc, int dfd, target_ptr_t filename
 
 bool init_plugin(void *self) {
     self_ptr = self;
-    #if defined(TARGET_PPC) || defined(TARGET_RISCV64) || defined(TARGET_RISCV32) || defined(TARGET_LOONGARCH)
-        fprintf(stderr, "[ERROR] proc_start_linux: PPC architecture not supported by syscalls2!\n");
+    #if defined(TARGET_PPC) || defined(TARGET_RISCV32) || defined(TARGET_LOONGARCH)
+        fprintf(stderr, "[ERROR] proc_start_linux: architecture not supported by syscalls2!\n");
         return false;
     #else
         pcb_sbe_execve.start_block_exec = sbe;
@@ -382,7 +382,7 @@ bool init_plugin(void *self) {
 }
 
 void uninit_plugin(void *self) {
-#if defined(TARGET_PPC) || defined(TARGET_RISCV64) || defined(TARGET_RISCV32) || defined(TARGET_LOONGARCH)
+#if defined(TARGET_PPC) || defined(TARGET_RISCV32) || defined(TARGET_LOONGARCH)
 #else
 
     void* syscalls = panda_get_plugin_by_name("syscalls2");

@@ -60,6 +60,9 @@ void sysinfo_load_profile(int profile, syscall_info_t **syscall_info, syscall_me
 #if defined(TARGET_ARM) && defined(TARGET_AARCH64)
 #include "syscalls_ext_typedefs_arm64.h"
 #endif
+#if defined(TARGET_RISCV64)
+#include "syscalls_ext_typedefs_riscv64.h"
+#endif
 #if defined(TARGET_ARM)
 #include "syscalls_ext_typedefs_arm.h"
 #endif
