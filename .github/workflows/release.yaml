@@ -1,0 +1,63 @@
+name: Build and release the .deb # Only for the main panda-re repo, not forks
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  version:
+    if: github.repository == 'panda-re/panda-ng' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      v-version: ${{ steps.version.outputs.v-version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Get next version
+        uses: reecetech/version-increment@2023.10.2
+        id: version
+        with:
+          release_branch: main
+          use_api: true
+
+  deb:
+    needs: version
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - name: Build
+        run: |
+          echo "${{ needs.version.outputs.version }}" > VERSION
+          nix build -L --out-link result-deb .#deb
+          cp -L result-deb panda-next_${{ needs.version.outputs.version }}_${{ matrix.arch }}.deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: panda-next_*.deb
+
+  release:
+    needs: [version, deb]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: deb-*
+          merge-multiple: true
+      - name: Upload the .debs to a release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.version.outputs.v-version }}
+          files: panda-next_*.deb

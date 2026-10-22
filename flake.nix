@@ -26,7 +26,8 @@
         "aarch64-linux"
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
-      version = "0.0.0-next";
+      # CI writes the release version to VERSION before building.
+      version = nixpkgs.lib.fileContents ./VERSION;
 
       defaultTargets = [
         "x86_64-softmmu"
@@ -79,6 +80,8 @@
               src = qemu-builder.packages.${system}.src;
 
               nativeBuildInputs = with pkgs; [
+                # QEMU's bundled meson drops nix's rpaths at install; put them back.
+                autoPatchelfHook
                 pkg-config
                 ninja
                 perl
@@ -142,6 +145,12 @@
                 cp ../libpanda-ng/*.h $out/include/panda-ng/
                 runHook postInstall
               '';
+
+              # After autoPatchelf (fixup): the engine has to load its libraries.
+              doInstallCheck = true;
+              installCheckPhase = ''
+                $out/bin/qemu-system-${lib.removeSuffix "-softmmu" (builtins.head targets)} --version
+              '';
             };
 
           engine = mkEngine { };
@@ -174,9 +183,61 @@
               ln -s ${engine}/include/panda-ng local_packages/panda-ng
             '';
           };
+
+          # Everything a user installs: the engine, its plugin-interface library and headers, and
+          # the plugins, under one prefix.
+          dist = pkgs.symlinkJoin {
+            name = "panda-next-${version}";
+            paths = [
+              engine
+              plugins
+            ];
+          };
+
+          # A .deb of dist's runtime closure, copied as is into /nix/store, with dist linked to
+          # /opt/panda-next and its binaries to /usr/bin. It needs nothing from the host's packages,
+          # so one .deb per arch installs on any Debian or Ubuntu release.
+          debArch =
+            {
+              x86_64-linux = "amd64";
+              aarch64-linux = "arm64";
+            }
+            .${system};
+          deb =
+            pkgs.runCommand "panda-next_${version}_${debArch}.deb"
+              {
+                nativeBuildInputs = [ pkgs.dpkg ];
+                closure = pkgs.closureInfo { rootPaths = [ dist ]; };
+              }
+              ''
+                root=$TMPDIR/root
+                mkdir -p $root/nix/store $root/opt $root/usr/bin $root/DEBIAN
+                xargs -a $closure/store-paths cp -a -t $root/nix/store/
+                ln -s ${dist} $root/opt/panda-next
+                for b in ${dist}/bin/*; do
+                  ln -s /opt/panda-next/bin/$(basename $b) $root/usr/bin/
+                done
+                cat > $root/DEBIAN/control <<EOF
+                Package: panda-next
+                Version: ${version}
+                Architecture: ${debArch}
+                Maintainer: PANDA developers
+                Description: PANDA engine (QEMU with the PANDA API) and plugins
+                 Built with nix. The runtime closure is under /nix/store; the install is at
+                 /opt/panda-next.
+                EOF
+                chmod -R u+w $root
+                dpkg-deb --root-owner-group -Zxz --build $root $out
+              '';
         in
         {
-          inherit engine plugins mkEngine;
+          inherit
+            engine
+            plugins
+            dist
+            deb
+            mkEngine
+            ;
           # For running libpanda-ng by hand against a build tree:
           #   nix develop .#libpanda-ng -c bash run_one.sh <qemu-src-with-build/> <libpanda-*.so>
           libpanda-ng-shell = pkgs.mkShell {
@@ -199,7 +260,13 @@
           p = perSystem system;
         in
         {
-          inherit (p) engine engine-x86_64 plugins;
+          inherit (p)
+            engine
+            engine-x86_64
+            plugins
+            dist
+            deb
+            ;
           default = p.plugins;
         }
       );

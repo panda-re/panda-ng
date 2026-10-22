@@ -29,16 +29,20 @@ bin_cargo = find_program(
     required: true,
     version: '>=1.63',
 )
+bin_sh = find_program(
+        'sh',
+        native: true,
+        required: true,
+)
 bin_cp = find_program(
         'cp',
         native: true,
         required: true,
 )
 
-# The plugins build against the engine's PANDA plugin API (<panda/plugin.h>). The Dockerfile
-# installs the engine (engine/, qemu_builder) under /usr/local. engine/ does not carry the PANDA
-# API yet (pandang's spine and families are still being ported onto it), so without it the
-# plugins are skipped rather than failing the build.
+# The plugins build against the headers libpanda-ng generates from the engine (panda-ng/). The
+# flake links them into local_packages/; without them the plugins are skipped rather than
+# failing the build.
 panda_ng_include = []
 foreach d : ['local_packages', '/usr/local/include', '/usr/include']
     if panda_ng_include.length() == 0 and fs.exists(d / 'panda-ng')

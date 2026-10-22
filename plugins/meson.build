@@ -15,8 +15,12 @@ foreach plugin: plugin_list
             output: [out_h],
             install_dir: 'plugin/' + plugin,
             install: true,
-            command: [python_exe, '../utils/scripts/apigen.py',
-                '@INPUT@', 
+            # Plugins include it as <plugin>/<plugin>_ext.h; the copy at @OUTPUT@ is what meson
+            # tracks and installs.
+            command: [bin_sh, '-c', '"$1" "$2" "$3" "$4" "$5" && cp "$4" "$0"',
+                '@OUTPUT@',
+                python_exe, '../utils/scripts/apigen.py',
+                '@INPUT@',
                 join_paths('plugins', plugin, out_h),
                 '-I' + fake_libc_include])}
     endif
@@ -90,10 +94,9 @@ foreach plugin: plugin_list
 
                 tgt1 = custom_target('panda-@0@_@1@'.format(plugin, tgt),
                     input: [cargo_toml]+ sources,
-                    install: true,
+                    # A stamp cargo never writes; the _final copy below is what installs.
                     build_by_default: true,
                     build_always_stale: true,
-                    install_dir: 'plugin/' + plugin,
                     output: ['rust_@0@_@1@'.format(plugin,tgt)],
                     command: rust_build_cmd,
                     )
