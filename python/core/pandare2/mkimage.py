@@ -153,8 +153,12 @@ def isf(vmlinux, out):
     dwarf2json = shutil.which("dwarf2json")
     if dwarf2json is None:
         raise RuntimeError("ISF generation needs dwarf2json")
+    # Through a pipe: given the LZMAFile as stdout, subprocess would write to its raw fileno.
     with lzma.open(out, "wb") as f:
-        subprocess.run([dwarf2json, "linux", "--elf", vmlinux], check=True, stdout=f)
+        proc = subprocess.Popen([dwarf2json, "linux", "--elf", vmlinux], stdout=subprocess.PIPE)
+        shutil.copyfileobj(proc.stdout, f)
+        if proc.wait() != 0:
+            raise subprocess.CalledProcessError(proc.returncode, proc.args)
 
 
 def add_symbols(name, out_dir, cache_dir):

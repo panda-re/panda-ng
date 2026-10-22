@@ -178,6 +178,9 @@
             buildInputs = with pkgs; [
               glib
               curl
+              # osi_isf reads xz-compressed ISF JSON.
+              nlohmann_json
+              xz
               (python3.withPackages (ps: [ ps.pycparser ]))
             ];
           };

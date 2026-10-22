@@ -6,6 +6,7 @@ hypercaller
 hypersyscalls
 osi
 osi_linux
+osi_isf
 proc_start_linux
 rust_skeleton
 syscalls2
