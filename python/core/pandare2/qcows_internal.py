@@ -89,6 +89,16 @@ class Qcows():
     '''
 
     @staticmethod
+    def load_image_json(json_path):
+        '''
+        Load an image description written by pandare2.mkimage. Its qcow is relative to the json.
+        '''
+        with open(json_path) as f:
+            data = json.load(f)
+        image = Image(**{k: data.get(k) for k in Image._fields})
+        return image._replace(qcow=path.join(path.dirname(path.abspath(json_path)), image.qcow))
+
+    @staticmethod
     def get_qcow_info(name=None):
         '''
         Get information about supported image as specified by name.
@@ -102,6 +112,9 @@ class Qcows():
         if name is None:
             logger.warning("No qcow name provided. Defaulting to i386")
             name = "i386"
+
+        if name.endswith(".json") and path.isfile(name):
+            return Qcows.load_image_json(name)
 
         if path.isfile(name):
             raise RuntimeError("TODO: can't automatically determine system info from custom qcows. Use one of: {}".format(", ".join(SUPPORTED_IMAGES.keys())))
@@ -133,6 +146,9 @@ class Qcows():
         if name is None:
             logger.warning("No qcow name provided. Defaulting to i386")
             name = "i386"
+
+        if name.endswith(".json") and path.isfile(name):
+            return Qcows.load_image_json(name).qcow
 
         if path.isfile(name):
             logger.debug("Provided qcow name appears to be a path, returning it directly: %s", name)

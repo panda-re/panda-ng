@@ -296,8 +296,9 @@ class Expect(object):
                         lines_out[cur_line] = " "*len(lines_out[cur_line])
 
                 elif typ == 'H':
-                    n = args[0]-1
-                    m = args[1]-1
+                    # Row and column default to 1 (ESC[H is home)
+                    n = (args[0] if len(args) > 0 else 1)-1
+                    m = (args[1] if len(args) > 1 else 1)-1
                     cur_line = n
                     line_pos = m
 
@@ -327,7 +328,8 @@ class Expect(object):
                     pass
 
                 else:
-                    raise ValueError(f"Unsupported ANSI command {typ}")
+                    # Firmware and bootloaders send sequences we don't model (e.g. ESC[!p): skip them
+                    pass
             #_dump(lines_out, cur_line, line_pos)
 
         # Done processing - update variables
@@ -364,7 +366,9 @@ class Expect(object):
                 time_left = timeout - time_passed
             else:
                 time_left = float("inf")
-            ready = self.poller.poll(min(time_left, 1))
+            # poll() takes milliseconds and blocks forever on a negative timeout, which time_left
+            # is on the pass where the deadline goes by.
+            ready = self.poller.poll(max(0, min(time_left, 1)) * 1000)
 
             # Debug - flush debug logs
             if self.logfile:

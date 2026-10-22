@@ -1,6 +1,0 @@
-result
-result-*
-build-system/
-build-kvm/
-pyvenv/
-*.tar.gz

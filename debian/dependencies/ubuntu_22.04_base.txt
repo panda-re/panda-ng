@@ -1,9 +1,0 @@
-# base dependency
-libc6
-libgcc-s1
-libstdc++6
-libglib2.0-0
-libpcre3
-
-# osi_linux
-libcurl3-gnutls

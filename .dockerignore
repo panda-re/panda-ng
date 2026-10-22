@@ -1,6 +1,0 @@
-build
-Dockerfile
-.git
-.gitignore
-.dockerignore
-qemu

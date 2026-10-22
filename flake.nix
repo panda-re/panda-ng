@@ -143,6 +143,18 @@
                 cp build/contrib/plugins/libpanda_plugin_interface.so $out/lib/
                 mkdir -p $out/include/panda-ng
                 cp ../libpanda-ng/*.h $out/include/panda-ng/
+                # libqemu-system-<name>.so (with penguin's alias names), libqemu-kvm-<target>.so and
+                # libpanda-<target>-softmmu.so are links of the same objects; only the soname differs,
+                # and all of them are dlopened by path. Keep libpanda-* and link the rest to it.
+                declare -A alias=([intel64]=x86_64 [armel]=arm [mipseb]=mips [mips64eb]=mips64
+                  [powerpc]=ppc [powerpc64]=ppc64 [powerpc64le]=ppc64)
+                for f in $out/lib/libqemu-system-*.so $out/lib/libqemu-kvm-*.so; do
+                  name=''${f##*/libqemu-system-}; name=''${name##*/libqemu-kvm-}; name=''${name%.so}
+                  target=''${alias[$name]:-$name}
+                  if [ -f $out/lib/libpanda-$target-softmmu.so ]; then
+                    ln -sf libpanda-$target-softmmu.so $f
+                  fi
+                done
                 runHook postInstall
               '';
 
@@ -174,7 +186,18 @@
           plugins = pkgs.stdenv.mkDerivation {
             pname = "panda-plugins";
             inherit version;
-            src = ./.;
+            src = lib.fileset.toSource {
+              root = ./.;
+              fileset = lib.fileset.unions [
+                ./meson.build
+                ./meson.options
+                ./configs
+                ./include
+                ./plugins
+                ./rust
+                ./utils
+              ];
+            };
             inherit (pluginTools) nativeBuildInputs buildInputs;
             NIX_CFLAGS_COMPILE = "-std=c++17";
             mesonFlags = [ (lib.mesonOption "targets" (lib.concatStringsSep "," defaultTargets)) ];
@@ -200,20 +223,29 @@
           pandare2 = python.pkgs.buildPythonPackage {
             pname = "pandare2";
             inherit version;
-            src = builtins.path {
-              path = ./.;
-              name = "panda-ng";
+            # setup.py reads python/core and the plugins' PPP headers.
+            src = lib.fileset.toSource {
+              root = ./.;
+              fileset = lib.fileset.unions [
+                ./python/core
+                ./plugins
+              ];
             };
             format = "setuptools";
-            sourceRoot = "panda-ng/python/core";
+            sourceRoot = "source/python/core";
             # setup.py generates the cffi bindings from the engine's headers and plugins/.
             postUnpack = ''
-              chmod -R u+w panda-ng
-              mkdir -p panda-ng/local_packages
-              ln -s ${engine}/include/panda-ng panda-ng/local_packages/panda-ng
+              chmod -R u+w source
+              mkdir -p source/local_packages
+              ln -s ${engine}/include/panda-ng source/local_packages/panda-ng
             '';
             postPatch = ''
               echo ${version} > pandare2/version.txt
+              # pandare2.mkimage generates osi_linux kernelinfo with it.
+              cp ../../plugins/osi_linux/utils/kernelinfo_gdb/extract_kernelinfo.py pandare2/
+              substituteInPlace pandare2/mkimage.py \
+                --replace-fail '[shutil.which("gdb-multiarch")' '["${pkgs.gdb}/bin/gdb", shutil.which("gdb-multiarch")' \
+                --replace-fail 'shutil.which("dwarf2json")' '"${pkgs.dwarf2json}/bin/dwarf2json"'
               substituteInPlace pandare2/utils.py \
                 --replace-fail 'pot_paths = [system_build,' 'pot_paths = ["${engine}/lib", system_build,'
               substituteInPlace pandare2/panda.py \
@@ -249,7 +281,20 @@
               pandaPython
             ];
             postBuild = ''
-              ln -s python3 $out/bin/panda-python
+              # nix's Python doesn't look in the host's CA paths: use the host's bundle when there
+              # is one (it has local CAs), else nix's.
+              cat > $out/bin/panda-python <<EOF
+              #!${pkgs.runtimeShell}
+              if [ -z "\''${SSL_CERT_FILE:-}" ]; then
+                if [ -r /etc/ssl/certs/ca-certificates.crt ]; then
+                  export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+                else
+                  export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
+                fi
+              fi
+              exec $out/bin/python3 "\$@"
+              EOF
+              chmod +x $out/bin/panda-python
               for b in $out/bin/qemu-system-*; do
                 ln -s $(basename $b) $out/bin/panda-system-''${b##*/qemu-system-}
               done

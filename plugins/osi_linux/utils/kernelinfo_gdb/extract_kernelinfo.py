@@ -36,7 +36,7 @@ class KernelInfo(gdb.Command):
         release = get_symbol_as_string("init_uts_ns->name->release")
         versions = release.split(".")
         # version.c can have a bunch of junk - just extract a number
-        versions[2] = re.search("\d+",versions[2]).group(0)
+        versions[2] = re.search(r"\d+",versions[2]).group(0)
         versions = tuple(int(ver) for ver in versions)
         print(f"version.a = {versions[0]}",file=file_out)
         print(f"version.b = {versions[1]}",file=file_out)
