@@ -1,0 +1,32 @@
+--- a/build.py
++++ b/build.py
+@@ -126,6 +126,9 @@
+ 		return "riscv"
+ 	return arch
+ 
++# QEMU names its per-host directories (tcg/<host>, host/include/<host>) after uname -m
++host_arch = __import__("platform").machine()
++
+ def preprocess(arch, source, include_defines=False): #,fake_sysroot=True):
+ 	from subprocess import check_output
+ 	from os.path import realpath
+@@ -137,8 +140,8 @@
+ 		"include",
+ 		f"target/{arch_to_generic(arch)}",
+ 		f"include/tcg/{arch}",
+-		f"tcg/x86_64",
+-		f"host/include/x86_64/",
++		f"tcg/{host_arch}",
++		f"host/include/{host_arch}/",
+ 		"include/tcg",
+ 		"contrib/plugins",
+ 		"include/qemu",
+@@ -155,7 +158,7 @@
+ 
+ 	defines = '-dD' if include_defines else ''
+ 
+-	cmd = f"gcc -E {defines} -pthread -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -fPIC -UNDEBUG {includes} /tmp/simple.c -o /tmp/simple.out -m64 -Wall -Winvalid-pch -std=gnu11 -O2 -g -fstack-protector-strong -Wempty-body -Wendif-labels -Wexpansion-to-defined -Wformat-security -Wformat-y2k -Wignored-qualifiers -Wimplicit-fallthrough=2 -Winit-self -Wmissing-format-attribute -Wmissing-prototypes -Wnested-externs -Wold-style-declaration -Wold-style-definition -Wredundant-decls -Wshadow=local -Wstrict-prototypes -Wtype-limits -Wundef -Wvla -Wwrite-strings -Wno-missing-include-dirs -Wno-psabi -Wno-shift-negative-value"
++	cmd = f"gcc -E {defines} -pthread -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -fPIC -UNDEBUG {includes} /tmp/simple.c -o /tmp/simple.out {'-m64' if host_arch == 'x86_64' else ''} -Wall -Winvalid-pch -std=gnu11 -O2 -g -fstack-protector-strong -Wempty-body -Wendif-labels -Wexpansion-to-defined -Wformat-security -Wformat-y2k -Wignored-qualifiers -Wimplicit-fallthrough=2 -Winit-self -Wmissing-format-attribute -Wmissing-prototypes -Wnested-externs -Wold-style-declaration -Wold-style-definition -Wredundant-decls -Wshadow=local -Wstrict-prototypes -Wtype-limits -Wundef -Wvla -Wwrite-strings -Wno-missing-include-dirs -Wno-psabi -Wno-shift-negative-value"
+ 	print(cmd)
+ 	check_output(cmd, shell=True)
+ 	

@@ -1,212 +1,214 @@
 {
-  description = "PANDA: Platform for Architecture-Neutral Dynamic Analysis";
+  description = "panda-next: the PANDA engine (qemu_builder + --enable-panda), its generated headers, and plugins";
+
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-    panda-qemu-src = {
-      url = "github:panda-re/qemu?ref=wrapup-rebase";
-      flake = false;
-    };
+    # The engine: qemu_builder's patched 11.1 source (series + vendored src/, PANDA included).
+    # Local development: --override-input qemu-builder path:/path/to/qemu_builder
+    qemu-builder.url = "github:rehosting/qemu_builder?ref=workspace/panda-next-pandang";
+    # One nixpkgs for everything, the one qemu_builder (and penguin) pin.
+    nixpkgs.follows = "qemu-builder/nixpkgs";
     libpanda-ng-src = {
       url = "github:panda-re/libpanda-ng";
       flake = false;
     };
   };
+
   outputs =
     {
       nixpkgs,
-      panda-qemu-src,
+      qemu-builder,
       libpanda-ng-src,
       ...
     }:
     let
-      forAllSystems = nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed;
-      version = "main";
-      perSystem = forAllSystems (
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
+      forAllSystems = nixpkgs.lib.genAttrs systems;
+      version = "0.0.0-next";
+
+      defaultTargets = [
+        "x86_64-softmmu"
+        "i386-softmmu"
+        "arm-softmmu"
+        "aarch64-softmmu"
+        "mips-softmmu"
+        "mipsel-softmmu"
+        "mips64-softmmu"
+        "mips64el-softmmu"
+        "ppc-softmmu"
+        "ppc64-softmmu"
+        "loongarch64-softmmu"
+        "riscv32-softmmu"
+        "riscv64-softmmu"
+      ];
+
+      perSystem =
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          libExt = if pkgs.stdenv.isDarwin then "dylib" else "so";
-          pyPkgs = pkgs.python3Packages;
-          targetList = [
-            "x86_64-softmmu"
-            "i386-softmmu"
-            "arm-softmmu"
-            "aarch64-softmmu"
-            "ppc-softmmu"
-            "mips-softmmu"
-            "mipsel-softmmu"
-            "mips64-softmmu"
-            "ppc64-softmmu"
-            "mips64el-softmmu"
-            "loongarch64-softmmu"
-            "riscv32-softmmu"
-            "riscv64-softmmu"
-          ];
-          # TODO remove this patch once wrapup-rebase branch is rebased again
-          libpandaPatch = pkgs.fetchpatch {
-            url = "https://patch-diff.githubusercontent.com/raw/panda-re/libpanda-ng/pull/3.diff";
-            hash = "sha256-FN1OUdRhOIK+meOlJH9kPysjrM50qYQVnl/Ll6zGF6w=";
-            revert = true;
-          };
-          qemuSubprojects = pkgs.stdenv.mkDerivation {
-            name = "qemu-subprojects";
-            inherit version;
-            src = panda-qemu-src;
-            nativeBuildInputs = with pkgs; [
-              meson
-              git
-              cacert
-            ];
-            buildCommand = ''
-              mkdir -pv work
-              cp -r --no-preserve=mode $src/meson.build work/
-              cp -r --no-preserve=mode $src/meson_options.txt work/
-              cp -r --no-preserve=mode $src/subprojects work/subprojects
+          lib = pkgs.lib;
 
-              pushd work
-              meson subprojects download
-              find subprojects -type d -name .git -prune -execdir rm -r {} +
-              popd
-
-              cp -r work/subprojects $out
-            '';
-            outputHash = "sha256-eUw7yBWxRKJbfhKvZDRNpTSaxrnDYr31Tkx35Myx4Fs=";
-            outputHashAlgo = "sha256";
-            outputHashMode = "recursive";
+          # libpanda-ng with local fixes until they land upstream.
+          libpanda-ng = pkgs.applyPatches {
+            name = "libpanda-ng";
+            src = libpanda-ng-src;
+            patches = [ ./nix/libpanda-ng-fixes.patch ];
           };
-          qemu = pkgs.qemu.overrideAttrs (old: {
-            inherit version;
-            src = panda-qemu-src;
-            nativeBuildInputs =
-              (old.nativeBuildInputs or [ ])
-              ++ (with pkgs; [
-                pyPkgs.python
-                pyPkgs.cffi
-                pyPkgs.tree-sitter
-                pyPkgs.tree-sitter-grammars.tree-sitter-c
+
+          gdbPythonPath = pkgs.python3.pkgs.makePythonPath (
+            with pkgs.python3.pkgs;
+            [
+              cffi
+              pycparser
+              tree-sitter
+              tree-sitter-grammars.tree-sitter-c
+            ]
+          );
+
+          # The engine. Keeps nothing of the build tree but what it installs, plus the headers
+          # libpanda-ng generates from it (which need the tree, so they are made here).
+          mkEngine =
+            {
+              targets ? defaultTargets,
+            }:
+            pkgs.stdenv.mkDerivation {
+              pname = "panda-engine";
+              inherit version;
+              src = qemu-builder.packages.${system}.src;
+
+              nativeBuildInputs = with pkgs; [
+                pkg-config
+                ninja
+                perl
+                git
                 gdb
-              ]);
-            configureFlags = [
-              "--enable-plugins"
-              "--disable-containers"
-              "--target-list=${builtins.concatStringsSep "," targetList}"
-            ];
-            postUnpack = ''
-              cp -r --no-preserve=mode ${qemuSubprojects}/. ./source/subprojects/
-              cp -r --no-preserve=mode ${libpanda-ng-src} ./libpanda-ng
-              patch --verbose -d libpanda-ng -p0 --unified --strip 1 < ${libpandaPatch}
-              patchShebangs ./source/scripts
-            '';
-            postBuild =
-              if pkgs.stdenv.isLinux then
-                ''
-                  pushd $TMPDIR/libpanda-ng
-                  bash run_all.sh ../source
-                  popd
-                ''
-              else
-                "";
-            postInstall = ''
-              cp -v ./contrib/plugins/libpanda_plugin_interface.${libExt} $out/lib/
-            ''
-            + (
-              if pkgs.stdenv.isLinux then
-                ''
-                  cp $TMPDIR/libpanda-ng/*.h $out/include/
-                ''
-              else
-                ""
-            );
-          });
-          panda = pkgs.stdenv.mkDerivation (finalAttrs: {
-            name = "panda";
-            inherit version;
-            src = ./.;
+                (python3.withPackages (ps: [
+                  ps.setuptools
+                  ps.wheel
+                  ps.pip
+                  ps.cffi
+                  ps.tree-sitter
+                  ps.tree-sitter-grammars.tree-sitter-c
+                ]))
+              ];
+              buildInputs = with pkgs; [
+                glib
+                pixman
+                zlib
+                zstd
+                libcap_ng
+                libslirp
+                dtc
+              ];
+
+              # The source is read-only in the store; configure writes pyvenv/ and build/.
+              unpackPhase = ''
+                cp -r $src source
+                chmod -R u+w source
+                cd source
+                patchShebangs scripts
+              '';
+
+              configurePhase = ''
+                runHook preConfigure
+                mkdir build && cd build
+                ../configure --prefix=$out \
+                  --target-list=${lib.concatStringsSep "," targets} \
+                  --enable-plugins --enable-panda \
+                  --disable-docs --disable-werror --disable-gtk --disable-sdl --disable-opengl \
+                  --disable-virglrenderer --disable-spice --disable-vnc --disable-containers
+                cd ..
+                runHook postConfigure
+              '';
+
+              buildPhase = ''
+                runHook preBuild
+                ninja -C build -j$NIX_BUILD_CORES
+                # libpanda-ng: gdb reads each build/libpanda-<target>.so and writes
+                # panda_{c,cpp,...}_<target>.h next to its scripts.
+                # gdb embeds its own python3 (same nixpkgs); give it build.py's modules.
+                cp -r --no-preserve=mode ${libpanda-ng} ../libpanda-ng
+                (cd ../libpanda-ng && PYTHONPATH=${gdbPythonPath} bash run_all.sh $PWD/../source)
+                runHook postBuild
+              '';
+
+              installPhase = ''
+                runHook preInstall
+                ninja -C build install
+                cp build/contrib/plugins/libpanda_plugin_interface.so $out/lib/
+                mkdir -p $out/include/panda-ng
+                cp ../libpanda-ng/*.h $out/include/panda-ng/
+                runHook postInstall
+              '';
+            };
+
+          engine = mkEngine { };
+
+          pluginTools = {
             nativeBuildInputs = with pkgs; [
               pkg-config
               meson
               ninja
               cargo
+              rustc
             ];
             buildInputs = with pkgs; [
               glib
               curl
-              pyPkgs.python
-              pyPkgs.pycparser
+              (python3.withPackages (ps: [ ps.pycparser ]))
             ];
+          };
+
+          # panda-ng's plugins, built against the engine's generated headers.
+          plugins = pkgs.stdenv.mkDerivation {
+            pname = "panda-plugins";
+            inherit version;
+            src = ./.;
+            inherit (pluginTools) nativeBuildInputs buildInputs;
             NIX_CFLAGS_COMPILE = "-std=c++17";
-            mesonFlags = [
-              (pkgs.lib.strings.mesonOption "targets" (builtins.concatStringsSep "," targetList))
-            ];
+            mesonFlags = [ (lib.mesonOption "targets" (lib.concatStringsSep "," defaultTargets)) ];
             preConfigure = ''
               mkdir -p local_packages
-              ln -s ${perSystem.x86_64-linux.qemu}/include local_packages/panda-ng
+              ln -s ${engine}/include/panda-ng local_packages/panda-ng
             '';
-            preInstall = ''
-              cp plugins/*/*.h plugins/
-              for dir in plugins/rust/rust_skeleton/*; do
-                arch=$(basename $dir)
-                cp -r $dir plugins/rust_rust_skeleton_$arch
-              done
-            '';
-            postInstall = ''
-              mkdir -pv $out/lib/panda/panda
-              mv $out/plugin $out/lib/panda/panda/plugins
-            '';
-          });
-          pypandaBuilder =
-            ps:
-            ps.buildPythonPackage {
-              pname = "pandare2";
-              inherit version;
-              format = "setuptools";
-              src = ./python/core;
-              propagatedBuildInputs = with ps; [
-                cffi
-                colorama
-              ];
-              preBuild = ''
-                substituteInPlace setup.py --replace-fail /usr/include/panda-ng ${perSystem.x86_64-linux.qemu}/include
-                grep 'plugin_dir =' setup.py
-                sed -i 's,plugin_dir = .*,plugin_dir="${panda.src}/plugins",' setup.py
-              '';
-              postInstall = ''
-                mkdir -pv $out/lib/qemu/build
-                cp -R ${qemu}/lib/libpanda-*.${libExt} $out/lib/qemu/build/
-                mkdir -pv $out/lib/qemu/build/contrib/plugins
-                cp -R ${qemu}/lib/libpanda_plugin_interface.${libExt} $out/lib/qemu/build/contrib/plugins/
-                mkdir -pv $out/lib/qemu/pc-bios
-                cp -R ${qemu}/share/qemu/*.rom ${qemu}/share/qemu/*.bin $out/lib/qemu/pc-bios/
-              '';
-            };
-          pypanda = pypandaBuilder pyPkgs;
-          pythonWithPypanda = pyPkgs.python.withPackages (ps: [ pypanda ]);
+          };
         in
         {
-          inherit
-            qemu
-            qemuSubprojects
-            panda
-            pypanda
-            pythonWithPypanda
-            pypandaBuilder
-            ;
-        }
-      );
+          inherit engine plugins mkEngine;
+          # For running libpanda-ng by hand against a build tree:
+          #   nix develop .#libpanda-ng -c bash run_one.sh <qemu-src-with-build/> <libpanda-*.so>
+          libpanda-ng-shell = pkgs.mkShell {
+            packages = with pkgs; [
+              gdb
+              pkg-config
+              glib
+            ];
+            PYTHONPATH = gdbPythonPath;
+          };
+          plugins-shell = pkgs.mkShell (pluginTools // { NIX_CFLAGS_COMPILE = "-std=c++17"; });
+          # A fast engine for iterating on the build: one target.
+          engine-x86_64 = mkEngine { targets = [ "x86_64-softmmu" ]; };
+        };
     in
     {
-      packages = forAllSystems (system: {
-        inherit (perSystem.${system})
-          qemu
-          qemuSubprojects
-          panda
-          pypanda
-          pythonWithPypanda
-          ;
+      packages = forAllSystems (
+        system:
+        let
+          p = perSystem system;
+        in
+        {
+          inherit (p) engine engine-x86_64 plugins;
+          default = p.plugins;
+        }
+      );
+      devShells = forAllSystems (system: {
+        libpanda-ng = (perSystem system).libpanda-ng-shell;
+        # The plugins' toolchain without the engine: point local_packages/panda-ng at headers yourself.
+        plugins = (perSystem system).plugins-shell;
       });
-      lib = forAllSystems (system: {
-        inherit (perSystem.${system}) pypandaBuilder;
-      });
+      lib = forAllSystems (system: { inherit (perSystem system) mkEngine; });
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt-rfc-style);
     };
 }
