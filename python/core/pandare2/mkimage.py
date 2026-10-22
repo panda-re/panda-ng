@@ -21,7 +21,11 @@ import lzma
 import shutil
 import subprocess
 import tarfile
+import threading
 import urllib.request
+from functools import partial
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+from tempfile import TemporaryDirectory
 from os import makedirs, path, remove
 from time import monotonic
 
@@ -30,7 +34,11 @@ from .panda_expect import TimeoutExpired
 
 DEBIAN_13 = "https://cloud.debian.org/images/cloud/trixie/20261021-2638/"
 
+UBUNTU_2404 = "https://cloud-images.ubuntu.com/releases/noble/release-20261017/"
+
 # Debian's nocloud images log root in without a password and run a getty on the serial console.
+# Ubuntu's cloud images need cloud-init data (seed=True): the build boot gets it over HTTP (NoCloud,
+# via -smbios), which sets a root password and then turns cloud-init off.
 RECIPES = {
     "debian-13-x86_64": dict(
         arch="x86_64",
@@ -46,6 +54,33 @@ RECIPES = {
         mem="1G",
         extra_args="-M virt -cpu max -bios edk2-aarch64-code.fd -display none -nic user,model=virtio-net-pci",
     ),
+    "debian-13-riscv64": dict(
+        arch="riscv64",
+        url=DEBIAN_13 + "debian-13-nocloud-riscv64-20261021-2638.qcow2",
+        sha512="454a225ab88061d3cf40ac8e76576821f3a80e8221163bd5edc816da91bfc757d0fc73364da4f1a03b86a58484c321513795130a8026f552f49ef41fac580870",
+        mem="1G",
+        # OpenSBI (QEMU's default) then EDK2 from pflash; no variable store, which savevm can't snapshot.
+        extra_args="-M virt,pflash0=pf0 -blockdev driver=file,filename={biospath}/edk2-riscv-code.fd,"
+                   "node-name=pf0,read-only=on -cpu rv64 -display none "
+                   # virt makes no NIC from -nic here: add the device itself.
+                   "-netdev user,id=net0 -device virtio-net-pci,netdev=net0",
+    ),
+    "ubuntu-24.04-x86_64": dict(
+        arch="x86_64",
+        url=UBUNTU_2404 + "ubuntu-24.04-server-cloudimg-amd64.img",
+        sha256="04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94",
+        mem="2G",
+        seed=True,
+        extra_args="-display none -nic user,model=virtio-net-pci",
+    ),
+    "ubuntu-24.04-aarch64": dict(
+        arch="aarch64",
+        url=UBUNTU_2404 + "ubuntu-24.04-server-cloudimg-arm64.img",
+        sha256="50e24e1fb79e89116e939d90aa7738f7af48c442fa1bc2510131e0b39c50348e",
+        mem="2G",
+        seed=True,
+        extra_args="-M virt -cpu max -bios edk2-aarch64-code.fd -display none -nic user,model=virtio-net-pci",
+    ),
     "debian-13-ppc64": dict(
         arch="ppc64",
         url=DEBIAN_13 + "debian-13-nocloud-ppc64el-20261021-2638.qcow2",
@@ -58,51 +93,76 @@ RECIPES = {
 PROMPT = r"root@[\w.-]+:[^#\n]*# "
 FIRSTBOOT_PASSWORD = "panda"
 
-DEBIAN_ARCH = {"x86_64": "amd64", "aarch64": "arm64", "ppc64": "ppc64el"}
-DEBIAN_ARCHIVES = [
-    ("https://deb.debian.org/debian/", "trixie"),
-    ("https://deb.debian.org/debian/", "trixie-updates"),
-    ("https://security.debian.org/debian-security/", "trixie-security"),
-]
+DEBIAN_ARCH = {"x86_64": "amd64", "aarch64": "arm64", "ppc64": "ppc64el", "riscv64": "riscv64"}
+# Where each distribution's kernel debug package is: (archive, suite) pairs, and its name.
+SYMBOLS = {
+    "debian": dict(archives=[("https://deb.debian.org/debian/", "trixie"),
+                             ("https://deb.debian.org/debian/", "trixie-updates"),
+                             ("https://security.debian.org/debian-security/", "trixie-security")],
+                   packages=["linux-image-{kernel}-dbg"]),
+    "ubuntu": dict(archives=[("http://ddebs.ubuntu.com/", "noble-updates"),
+                             ("http://ddebs.ubuntu.com/", "noble")],
+                   packages=["linux-image-unsigned-{kernel}-dbgsym", "linux-image-{kernel}-dbgsym"]),
+}
+
+CLOUD_INIT_USER_DATA = f"""#cloud-config
+disable_root: false
+chpasswd:
+  expire: false
+  users:
+    - {{name: root, password: {FIRSTBOOT_PASSWORD}, type: text}}
+runcmd:
+  - touch /etc/cloud/cloud-init.disabled
+"""
 
 
-def download(url, sha512, dest):
-    if path.isfile(dest) and _sha512(dest) == sha512:
+class QuietHandler(SimpleHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+
+def download(url, algo, digest, dest):
+    if path.isfile(dest) and _digest(dest, algo) == digest:
         return
     print(f"Downloading {url}")
     with urllib.request.urlopen(url) as r, open(dest + ".tmp", "wb") as f:
         shutil.copyfileobj(r, f)
-    got = _sha512(dest + ".tmp")
-    if got != sha512:
+    got = _digest(dest + ".tmp", algo)
+    if got != digest:
         remove(dest + ".tmp")
-        raise RuntimeError(f"{url}: sha512 {got}, expected {sha512}")
+        raise RuntimeError(f"{url}: {algo} {got}, expected {digest}")
     shutil.move(dest + ".tmp", dest)
 
 
-def _sha512(p):
-    h = hashlib.sha512()
+def _digest(p, algo):
+    h = hashlib.new(algo)
     with open(p, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
 
 
-def debian_vmlinux(arch, kernel, cache_dir):
-    '''Fetch the -dbg package for a Debian kernel release and return its vmlinux (with DWARF).'''
-    vmlinux = path.join(cache_dir, f"vmlinux-{kernel}")
+def kernel_vmlinux(distro, arch, kernel, cache_dir):
+    '''Fetch the debug package for a distribution's kernel release and return its vmlinux (with
+    DWARF).'''
+    # Keyed by arch too: Ubuntu's release names (6.8.0-147-generic) are the same on every arch.
+    vmlinux = path.join(cache_dir, f"vmlinux-{arch}-{kernel}")
     if path.isfile(vmlinux):
         return vmlinux
-    package = f"linux-image-{kernel}-dbg"
-    for base, suite in DEBIAN_ARCHIVES:
+    where = SYMBOLS[distro]
+    packages = [p.format(kernel=kernel) for p in where["packages"]]
+    fields = []
+    for base, suite in where["archives"]:
         index = f"{base}dists/{suite}/main/binary-{DEBIAN_ARCH[arch]}/Packages.xz"
         with urllib.request.urlopen(index) as r:
             stanzas = lzma.decompress(r.read()).decode().split("\n\n")
         fields = [dict(l.split(": ", 1) for l in st.splitlines() if ": " in l and not l.startswith(" "))
-                  for st in stanzas if st.startswith(f"Package: {package}\n")]
+                  for package in packages for st in stanzas if st.startswith(f"Package: {package}\n")]
         if fields:
+            package = fields[0]["Package"]
             break
     else:
-        raise RuntimeError(f"{package} is in none of the Debian archives")
+        raise RuntimeError(f"none of {packages} is in the {distro} archives")
     deb = path.join(cache_dir, path.basename(fields[0]["Filename"]))
     if not path.isfile(deb):
         print(f"Downloading {package} for kernelinfo")
@@ -169,7 +229,7 @@ def add_symbols(name, out_dir, cache_dir):
     # os is linux-<bits>-<distro>:<kernel>; osi_linux's default group for it is <distro>:<kernel>:<bits>.
     variant, kernel = image["os"].split(":", 1)
     _, bits, distro = variant.split("-")
-    vmlinux = debian_vmlinux(image["arch"], kernel, cache_dir)
+    vmlinux = kernel_vmlinux(distro, image["arch"], kernel, cache_dir)
     image["isf"] = name + ".isf.json.xz"
     isf(vmlinux, path.join(out_dir, image["isf"]))
     image["kconf_file"] = name + ".kernelinfo.conf"
@@ -183,12 +243,27 @@ def build(name, out_dir, cache_dir, boot_timeout):
     makedirs(out_dir, exist_ok=True)
     makedirs(cache_dir, exist_ok=True)
     base = path.join(cache_dir, recipe["url"].split("/")[-1])
-    download(recipe["url"], recipe["sha512"], base)
+    algo = "sha512" if "sha512" in recipe else "sha256"
+    download(recipe["url"], algo, recipe[algo], base)
     qcow = path.join(out_dir, name + ".qcow2")
     shutil.copyfile(base, qcow)
 
+    build_args = recipe["extra_args"].split()
+    if recipe.get("seed"):
+        # cloud-init's NoCloud data over HTTP from here (the guest reaches the host as 10.0.2.2).
+        # Only the build boot gets it; the image's arguments don't (cloud-init is off after it).
+        seed = TemporaryDirectory()
+        with open(path.join(seed.name, "user-data"), "w") as f:
+            f.write(CLOUD_INIT_USER_DATA)
+        with open(path.join(seed.name, "meta-data"), "w") as f:
+            f.write(f"instance-id: {name}\nlocal-hostname: panda\n")
+        open(path.join(seed.name, "vendor-data"), "w").close()   # else cloud-init retries it
+        server = HTTPServer(("127.0.0.1", 0), partial(QuietHandler, directory=seed.name))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        build_args += ["-smbios", f"type=1,serial=ds=nocloud;s=http://10.0.2.2:{server.server_port}/"]
+
     panda = Panda(arch=recipe["arch"], qcow=qcow, mem=recipe["mem"],
-                  extra_args=recipe["extra_args"].split(), expect_prompt=PROMPT)
+                  extra_args=build_args, expect_prompt=PROMPT)
     info = {}
 
     def boot_to_shell():

@@ -24,6 +24,7 @@ from pandare2 import Panda  # noqa: E402
 
 MAGIC = 0x50616e64
 MARKER = b"AAAAAAAABBBBBBBBCCCCCCCCtailtail"
+RETADDR_REG = {"aarch64": "LR", "riscv64": "RA"}
 MAP_ADDR = 0x10_0000_0000      # 64 GiB: past the test images' RAM, inside both arches' phys space
 EXPECTED_OUTPUT = "VIRTWRITPHYSWRITSTOREDOKtailtail"
 PROGRAM_BASE, PROGRAM_END = 0x400000, 0x420000
@@ -49,11 +50,14 @@ GAPS = {
     "before_handle_interrupt fires": "the cpu_exec_interrupt wrapper is commented out in panda/src/wrap_ops.c",
     "current_pc is the hypercall's pc (precise pc)":
         "panda_enable_precise_pc sets panda_update_pc, which nothing reads; pc is the TB's start",
-    ("current_asid is the last asid_changed value", "aarch64"):
-        "current_asid is TTBR0_EL1's ASID field (0 under Linux, which keeps it in TTBR1: TCR.A1); "
-        "asid_changed passes TTBR values",
-    ("current_asid is nonzero for a user process", "aarch64"): "as above",
 }
+# aarch64: current_asid is TTBR0_EL1's ASID field, while asid_changed passes TTBR values (open
+# question for Luke). Kernels that keep the ASID in TTBR1 (TCR.A1, Debian's 6.12) leave TTBR0's at 0;
+# Ubuntu's 6.8 doesn't, so "nonzero" is a gap only where current_asid reads 0.
+GAPS[("current_asid is the last asid_changed value", "aarch64")] = (
+    "current_asid is TTBR0_EL1's ASID field; asid_changed passes TTBR values")
+AARCH64_ASID_GAPS = {"current_asid is nonzero for a user process":
+                     "TTBR0_EL1's ASID is 0 on this kernel, which keeps it in TTBR1 (TCR.A1)"}
 checks = {}
 counts = Counter()
 seen = {"tb_pc_exec": [0, []], "tb_pc_translate": [0, []], "blk": [], "sbe": [], "insn_pcs": set(), "virt_writes": [], "virt_reads": [], "phys_writes": [],
@@ -167,10 +171,10 @@ def ebe(cpu, tb):
     if in_program(tb.pc):
         counts["end_block_exec"] += 1
         # The TB at label 1, past the hypercall and a jump (x86: out, jmp, 2 bytes each), ends in a
-        # call (x86) or bl (aarch64), after zeroing where its return address goes.
+        # call (x86), bl (aarch64) or jal (riscv64), after zeroing where its return address goes.
         if tb.pc == seen["hc1"] + (4 if arch == "x86_64" else 8) and "call_slot" not in seen:
             seen["call_slot"] = (panda.virtual_memory_read(cpu, seen["sp"] - 8, 8, fmt="int")
-                                 if arch == "x86_64" else panda.arch.get_reg(cpu, "LR"))
+                                 if arch == "x86_64" else panda.arch.get_reg(cpu, RETADDR_REG[arch]))
 
 
 @window_cb(panda.cb_insn_translate, "insn_translate")
@@ -244,8 +248,13 @@ def hypercall_1(cpu, marker, sp, pc):
     check("in_kernel is false in user mode",
           not panda.in_kernel(cpu) and not panda.in_kernel_mode(cpu) and not panda.in_kernel_code_linux(cpu))
     asid = panda.current_asid(cpu)
-    check("current_asid is the last asid_changed value", seen["asids"] and asid == seen["asids"][-1],
-          f"{asid:#x} last {seen['asids'][-1] if seen['asids'] else None}")
+    if arch == "aarch64" and asid == 0:
+        GAPS.update(AARCH64_ASID_GAPS)
+    last = seen["asids"][-1] if seen["asids"] else None
+    if arch == "riscv64" and last is not None:
+        last = (last >> 44) & 0xffff   # asid_changed passes satp; current_asid is its ASID field
+    check("current_asid is the last asid_changed value", last is not None and asid == last,
+          f"{asid:#x} last {last}")
     check("current_asid is nonzero for a user process", asid != 0, f"{asid:#x}")
 
     # User memory.
@@ -292,6 +301,8 @@ def hypercall_1(cpu, marker, sp, pc):
 
 
 def hypercall_2(cpu):
+    # Unloading happens before the next TB lookup (before_find_fast); many have run since hypercall 1.
+    seen["unloaded"] = panda.libpanda.panda_get_plugin_by_name(b"cskeleton") == panda.ffi.NULL
     for name in WINDOW:
         panda.disable_callback(name)
     panda.disable_memcb()
@@ -385,6 +396,7 @@ check("savevm, loadvm restores the saved state", seen.get("after_revert") == "on
       f"savevm={seen.get('savevm')!r} cat={seen.get('after_revert')!r}")
 check("map_memory adds RAM that physical memory r/w reaches", seen.get("mapped") == b"MAPPEDOK",
       seen.get("mapped"))
+check("unload_plugin unloads it (by hypercall 2)", seen.get("unloaded"))
 check("delvm removes the snapshot", "api-test" not in seen.get("snapshots", "api-test"))
 
 print(f"API arch={arch} counts={dict(counts)}")

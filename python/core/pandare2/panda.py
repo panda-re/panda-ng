@@ -241,17 +241,20 @@ class Panda():
                     biospath = bp
                     break
         assert biospath is not None, "biospath cannot be found"
+        self.biospath = biospath
         self.panda_args.append("-L")
         self.panda_args.append(biospath)
 
         if self.qcow:
-            if self.arch_name in ['mips64', 'mips64el']:
-                # XXX: mips64 needs virtio interface for the qcow
+            if self.arch_name in ['mips64', 'mips64el', 'riscv64']:
+                # XXX: mips64 (and riscv64's virt, which has no IDE) need virtio for the qcow
                 self.panda_args.extend(["-drive", f"file={self.qcow},if=virtio"])
             else:
                 self.panda_args.append(self.qcow)
 
-        self.panda_args += extra_args
+        # "{biospath}" in an argument is the firmware directory (-L), for firmware QEMU doesn't look
+        # up there itself (pflash: riscv64's EDK2).
+        self.panda_args += [a.replace("{biospath}", biospath) for a in extra_args]
 
         # Configure memory options
         self.panda_args.extend(['-m', self.mem])
@@ -2848,16 +2851,21 @@ class Panda():
             if name is None:
                 local_name = fun.__name__
 
-            # 0 works for all callbacks except void. We check later on
-            # to see if we need to return None otherwise we return 0
-            return_from_exception = 0
+            # What a callback returns once a Python exception has stopped the analysis: 0, except where 0
+            # changes what the guest does. before_handle_exception/interrupt return the index they got,
+            # which leaves it alone (0 is a different exception, which QEMU may abort on).
+            passthrough = pandatype is self.callback.before_handle_exception or \
+                pandatype is self.callback.before_handle_interrupt
+
+            def neutral(args):
+                return self.ffi.cast(return_type, args[1] if passthrough else 0)
 
             def _run_and_catch(*args, **kwargs): # Run function but if it raises an exception, stop panda and raise it
                 if hasattr(self, "exit_exception"):
                     # An exception has been raised previously - do not even run the function. But we need to match the expected
                     # return type or we'll raise more errors.
                     if return_type:
-                        return self.ffi.cast(return_type, 0)
+                        return neutral(args)
                 else:
                     try:
                         r = fun(*args, **kwargs)
@@ -2879,7 +2887,7 @@ class Panda():
                         else:
                             raise e
                         if return_type is not None:
-                            return self.ffi.cast(return_type, 0)
+                            return neutral(args)
 
             cast_rc = pandatype(_run_and_catch)
             return_type = self.ffi.typeof(cast_rc).result
