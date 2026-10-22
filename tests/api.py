@@ -24,6 +24,7 @@ from pandare2 import Panda  # noqa: E402
 
 MAGIC = 0x50616e64
 MARKER = b"AAAAAAAABBBBBBBBCCCCCCCCtailtail"
+MAP_ADDR = 0x10_0000_0000      # 64 GiB: past the test images' RAM, inside both arches' phys space
 EXPECTED_OUTPUT = "VIRTWRITPHYSWRITSTOREDOKtailtail"
 PROGRAM_BASE, PROGRAM_END = 0x400000, 0x420000
 
@@ -327,6 +328,10 @@ def drive():
     seen["after_revert"] = panda.run_serial_cmd("cat /tmp/snap").strip()
     panda.run_monitor_cmd("delvm api-test")
     seen["snapshots"] = panda.run_monitor_cmd("info snapshots")
+    # map_memory: new RAM past the guest's, read back through physical memory.
+    panda.map_memory("api-test-ram", 0x10000, MAP_ADDR)
+    panda.physical_memory_write(MAP_ADDR + 0x100, b"MAPPEDOK")
+    seen["mapped"] = bytes(panda.physical_memory_read(MAP_ADDR + 0x100, 8))
     panda.end_analysis()
 
 
@@ -378,6 +383,8 @@ for name in ["before_block_translate", "after_block_translate", "before_block_ex
 check("after_loadvm fires on each revert", counts["after_loadvm"] == 2, counts["after_loadvm"])
 check("savevm, loadvm restores the saved state", seen.get("after_revert") == "one",
       f"savevm={seen.get('savevm')!r} cat={seen.get('after_revert')!r}")
+check("map_memory adds RAM that physical memory r/w reaches", seen.get("mapped") == b"MAPPEDOK",
+      seen.get("mapped"))
 check("delvm removes the snapshot", "api-test" not in seen.get("snapshots", "api-test"))
 
 print(f"API arch={arch} counts={dict(counts)}")

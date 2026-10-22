@@ -1106,13 +1106,14 @@ class Panda():
             size (int): number of bytes the region should be.
             address (int): start address of region
 
-        Returns:
-            None
+        Raises:
+            RuntimeError: if the region could not be made (QEMU reports why)
         '''
 
         name_c = self.ffi.new("char[]", bytes(name, "utf-8"))
-        size = ceil(size/1024)*1024 # Must be page-aligned
-        return self.libpanda.map_memory(name_c, size, address)
+        size = ceil(size/4096)*4096 # Must be page-aligned
+        if self.libpanda.map_memory(name_c, size, address) != 0:
+            raise RuntimeError(f"map_memory {name} at {address:#x}: failed")
 
     def read_str(self, cpu, ptr, max_length=None):
         '''
