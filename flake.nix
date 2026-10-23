@@ -78,6 +78,11 @@
               pname = "panda-engine";
               inherit version;
               src = qemu-builder.packages.${system}.src;
+              # sdk: what an external board or device (a panda module) compiles against; mkBoard.
+              outputs = [
+                "out"
+                "sdk"
+              ];
 
               nativeBuildInputs = with pkgs; [
                 # QEMU's bundled meson drops nix's rpaths at install; put them back.
@@ -145,6 +150,8 @@
                 runHook preInstall
                 ninja -C build install
                 cp build/contrib/plugins/libpanda_plugin_interface.so $out/lib/
+                # The board SDK: headers, per-target cflags, panda-board-cc (scripts/panda-sdk.sh).
+                bash scripts/panda-sdk.sh build $sdk
                 mkdir -p $out/include/panda-ng
                 cp ../libpanda-ng/*.h $out/include/panda-ng/
                 # libqemu-system-<name>.so (with penguin's alias names), libqemu-kvm-<target>.so and
@@ -170,6 +177,39 @@
             };
 
           engine = mkEngine { };
+
+          # mkBoard: an external board (or device) shared object built with an engine's SDK, for
+          # -M <out>/lib/panda-boards/<name>.so[:MACHINE] (or -module). The load check runs the
+          # engine on it, so a board built against the wrong SDK fails here, not in a run.
+          mkBoard =
+            {
+              name,
+              target, # e.g. "arm-softmmu"
+              src, # a directory of *.c (and headers)
+              engine ? mkEngine { },
+              extraCflags ? [ ],
+            }:
+            pkgs.stdenv.mkDerivation {
+              pname = "panda-board-${name}";
+              inherit version src;
+              nativeBuildInputs = [ pkgs.python3 ];
+              dontConfigure = true;
+              buildPhase = ''
+                runHook preBuild
+                mkdir -p $out/lib/panda-boards
+                ${engine.sdk}/bin/panda-board-cc ${target} -o $out/lib/panda-boards/${name}.so \
+                  ${lib.concatStringsSep " " extraCflags} $(find . -name '*.c')
+                runHook postBuild
+              '';
+              dontInstall = true;
+              doInstallCheck = true;
+              installCheckPhase = ''
+                ${engine}/bin/qemu-system-${lib.removeSuffix "-softmmu" target} \
+                  -M $out/lib/panda-boards/${name}.so,help > /dev/null 2> err || \
+                  ${engine}/bin/qemu-system-${lib.removeSuffix "-softmmu" target} \
+                  -module $out/lib/panda-boards/${name}.so -M none,help > /dev/null
+              '';
+            };
 
           pluginTools = {
             nativeBuildInputs = with pkgs; [
@@ -387,6 +427,12 @@
             ;
           python = p.pandaPython;
           default = p.plugins;
+          # mkBoard's own check: qemu_builder's tests/modules/ext-devices.c (two devices) as a module.
+          board-example = p.mkBoard {
+            name = "ext-devices";
+            target = "aarch64-softmmu";
+            src = "${qemu-builder}/tests/modules";
+          };
         }
       );
       devShells = forAllSystems (system: {
@@ -394,7 +440,7 @@
         # The plugins' toolchain without the engine: point local_packages/panda-ng at headers yourself.
         plugins = (perSystem system).plugins-shell;
       });
-      lib = forAllSystems (system: { inherit (perSystem system) mkEngine; });
+      lib = forAllSystems (system: { inherit (perSystem system) mkEngine mkBoard; });
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt-rfc-style);
     };
 }
