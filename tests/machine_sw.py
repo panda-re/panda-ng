@@ -33,11 +33,11 @@ def run(arch):
         panda.physical_memory_write(BASE, struct.pack(f"<{len(words)}I", *words))
         panda.arch.set_pc(cpu, BASE)
 
-    @panda.cb_insn_translate
+    @panda.cb_insn_translate(name="sw_insn_translate")
     def it(cpu, pc):
         return BASE <= pc < BASE + 0x100
 
-    @panda.cb_insn_exec
+    @panda.cb_insn_exec(name="sw_insn_exec")
     def ie(cpu, pc):
         seen["insns"].add(pc)
         return 0
@@ -46,6 +46,10 @@ def run(arch):
     def hc(cpu):
         seen["arg"] = panda.arch.get_arg(cpu, 2, convention="syscall")
         seen["pc"] = panda.arch.get_pc(cpu)
+        # Off before ending: the program spins on, and a vCPU still running insn_exec while the
+        # main thread tears the callback lists down segfaults (panda_cb_list_next, REPORT.md).
+        panda.disable_callback("sw_insn_exec")
+        panda.disable_callback("sw_insn_translate")
         panda.end_analysis()
 
     timer = threading.Timer(60, lambda: (print("TIMEOUT", flush=True), os._exit(2)))

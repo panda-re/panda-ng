@@ -49,18 +49,18 @@ def ami(cpu):
     seen["pc"] = panda.arch.get_pc(cpu)
 
 
-@panda.cb_before_block_exec
+@panda.cb_before_block_exec(name="b_bbe")
 def bbe(cpu, tb):
     if in_program(tb.pc):
         counts["before_block_exec"] += 1
 
 
-@panda.cb_insn_translate
+@panda.cb_insn_translate(name="b_it")
 def it(cpu, pc):
     return in_program(pc)
 
 
-@panda.cb_insn_exec
+@panda.cb_insn_exec(name="b_ie")
 def ie(cpu, pc):
     counts["insn_exec"] += 1
     return 0
@@ -76,6 +76,8 @@ def hc(cpu):
     p = bytes(panda.physical_memory_read(BASE, 16))
     check("virtual and physical reads of the board's SDRAM agree (MMU off), the program is there",
           v == p and v in base64.b64decode(PROGRAMS["at91"]), v.hex())
+    for name in ("b_bbe", "b_it", "b_ie"):   # see tests/machine_sw.py
+        panda.disable_callback(name)
     panda.end_analysis()
 
 
