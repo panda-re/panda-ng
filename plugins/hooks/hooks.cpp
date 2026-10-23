@@ -67,6 +67,11 @@ void disable_hooking() {
 
 void add_hook(struct hook* h) {
     struct hook local_h = *h;
+    // Hooks are found at translation (cb_block_translate_callback), keyed by virtual address. A
+    // CF_PCREL block is shared by every mapping of its code, so one translated where no hook was
+    // (libc at another address in another process) would run here without it: translate this
+    // page per virtual address, and drop blocks already translated over the hook.
+    panda_mark_hook_address(h->addr);
 
     for (int i = 0; i < qemu_plugin_num_vcpus(); ++i) {
         assert(i < sizeof(per_guest_cpu_temp_hooks)/sizeof(per_guest_cpu_temp_hooks[0]));
@@ -149,7 +154,8 @@ void cb_block_translate_callback (CPUState* cpu, struct qemu_plugin_tb *tb) {
     memset(&hook_container, 0, sizeof(hook_container));
     // The block's address without reading it through the plugin API, which would bind every TB
     // to its address (patch 0035) and stop CF_PCREL sharing: at translation the CPU's pc is the
-    // block's start. A TB that gets a hook is bound below.
+    // block's start. Hooked pages translate per virtual address (add_hook); a TB that gets a hook
+    // is bound below as well.
     uint64_t tb_vaddr = panda_current_pc(cpu);
     uint64_t tb_size = qemu_plugin_tb_size(tb);
     hook_container.addr = tb_vaddr;
