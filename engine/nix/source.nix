@@ -31,7 +31,9 @@ let
   readSeries =
     patchesRoot: version:
     let
-      lines = lib.splitString "\n" (builtins.readFile "${patchesRoot}/${version}/series");
+      # Read through the path, not a store copy, so evaluation needs no store write
+      # (`nix flake check --no-build`); the patches themselves are copied as before.
+      lines = lib.splitString "\n" (builtins.readFile (patchesRoot + "/${version}/series"));
       keep = l: l != "" && !(lib.hasPrefix "#" l);
     in
     map (l: "${patchesRoot}/${l}") (builtins.filter keep (map lib.trim lines));
