@@ -432,7 +432,10 @@
           board-example = p.mkBoard {
             name = "ext-devices";
             target = "aarch64-softmmu";
-            src = "${qemu-builder}/tests/modules";
+            # only ext-devices.c: tests/modules also holds ext-clash.c, which clashes with pl011 on purpose
+            src = nixpkgs.legacyPackages.${system}.runCommand "ext-devices-src" { } ''
+              mkdir $out; cp ${qemu-builder}/tests/modules/ext-devices.c $out/
+            '';
           };
         }
       );
