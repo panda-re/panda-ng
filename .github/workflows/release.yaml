@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+# The token is read-only unless a job asks for more; only the release job writes (it creates the release).
+permissions:
+  contents: read
+
 jobs:
   version:
     if: github.repository == 'panda-re/panda-ng' && github.ref == 'refs/heads/main'
@@ -69,6 +73,8 @@ jobs:
   release:
     needs: [version, deb, wheel]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
