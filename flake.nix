@@ -465,13 +465,21 @@
           wheelLicenses =
             let
               noCtx = builtins.unsafeDiscardStringContext;
+              # mirror://gnome/... -> the first https mirror.
+              mirrors = import (pkgs.path + "/pkgs/build-support/fetchurl/mirrors.nix");
+              unmirror =
+                u:
+                let
+                  m = builtins.match "mirror://([^/]+)/(.*)" u;
+                in
+                if m == null then u else builtins.head mirrors.${builtins.head m} + builtins.elemAt m 1;
               third = map (e: rec {
                 name = e.pkg.pname or (builtins.parseDrvName e.pkg.name).name;
                 version = e.pkg.version or "";
                 inherit (e) spdx;
                 src = e.src or e.pkg.src;
                 files = e.files or [ ];
-                urls = src.urls or [ (src.url or "") ];
+                urls = lib.unique (map unmirror (src.urls or [ (src.url or "") ]));
                 prefixes = map (o: noCtx (toString e.pkg.${o})) e.pkg.outputs;
               }) wheelThirdParty;
               engineSrc = qemu-builder.packages.${system}.src;
@@ -496,7 +504,8 @@
                   source = [
                     "panda-ng (pandare2, the PANDA plugins, the qemu-system launcher)"
                     "  repository: https://github.com/panda-re/panda-ng"
-                    "  commit: ${self.rev or self.dirtyRev or "unknown (not a git checkout)"}"
+                    "  commit: ${self.rev or self.dirtyRev or "unknown (not built from a git checkout)"}"
+                    "  (a -dirty commit: release builds write VERSION into the tree before building)"
                   ];
                 };
                 thirdParty = map (t: {
