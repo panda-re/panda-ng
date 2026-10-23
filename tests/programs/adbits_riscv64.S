@@ -1,5 +1,6 @@
 /* tests/fastrestore.py's hardware A/D program; see adbits_x86_64.S. No compressed instructions. */
     .option norvc
+    .option norelax         /* no gp-relative addressing: _start never sets gp */
     .globl _start
 _start:
     li a0, -100             /* openat(AT_FDCWD, path, O_RDWR|O_CREAT, 0600) */
