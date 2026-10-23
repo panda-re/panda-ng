@@ -101,6 +101,8 @@ def abe(cpu, tb, exit_code):
     n["after_block_exec"] += 1
     pc = tb_pc(cpu, tb)
     t, want = last["bbe"]
+    if t is None:
+        return   # the block was running when the callbacks were enabled
     if t != tb or want != pc:
         bad("after_block_exec", f"{pc:#x} entered {want}")
 
@@ -115,6 +117,8 @@ def ebe(cpu, tb):
     n["end_block_exec"] += 1
     pc = tb_pc(cpu, tb)
     t, want = last["sbe"]
+    if t is None:
+        return   # the block was running when the callbacks were enabled
     if t != tb or want != pc:
         bad("end_block_exec", f"{pc:#x} started {want}")
 
