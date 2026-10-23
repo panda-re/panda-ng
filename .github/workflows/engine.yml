@@ -1,0 +1,109 @@
+name: Engine
+
+# The engine's gates (engine/README.md), ported from qemu_builder's series.yml and build.yml.
+# Builds and checks only: nothing here publishes. The one publisher is release.yaml (push to main).
+#
+#   series  fast, no nix: the pinned tarball, a strict-context apply of the series, the patched
+#           tree's hash against base.json's patchedTree, and the import/export round trip.
+#   engine  gated on series: the source derivation, a one-target engine, and the delta check
+#           (every patch that should contribute code to the library did).
+
+on:
+  pull_request:
+    paths:
+      - "engine/**"
+      - "flake.nix"
+      - "flake.lock"
+      - ".github/workflows/engine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  series:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read base.json
+        id: base
+        run: |
+          set -eux
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          b = json.load(open("base.json"))
+          (ver,) = list(b)          # one live version, by design
+          e = b[ver]
+          print(f"version={ver}")
+          print(f"tag={e['tag']}")
+          print(f"url={e['url']}")
+          print(f"sha256={e['sha256']}")
+          PY
+
+      # Keyed on the pinned sha256: invalidated exactly when the upstream base changes.
+      - name: Cache upstream tarball
+        id: tarball-cache
+        uses: actions/cache@v4
+        with:
+          path: engine/upstream-tarball
+          key: qemu-${{ steps.base.outputs.tag }}-${{ steps.base.outputs.sha256 }}
+
+      - name: Fetch upstream tarball
+        if: steps.tarball-cache.outputs.cache-hit != 'true'
+        run: |
+          set -eux
+          mkdir -p upstream-tarball
+          curl -sSL --retry 3 -o "upstream-tarball/qemu-${{ steps.base.outputs.tag }}.tar.xz" \
+            "${{ steps.base.outputs.url }}"
+
+      - name: Series file and patches agree
+        run: |
+          set -eu
+          v=${{ steps.base.outputs.version }}
+          listed=$(grep -vE '^\s*(#.*)?$' "patches/$v/series" | sort)
+          present=$(cd patches && find "$v" -maxdepth 1 -name '*.patch' | sort)
+          if [ "$listed" != "$present" ]; then
+            echo "::error::patches/$v/series and patches/$v/*.patch disagree"
+            diff <(echo "$listed") <(echo "$present") || true
+            exit 1
+          fi
+          echo "ok: $(echo "$listed" | wc -l) patches, all listed"
+
+      # THE gate: pinned tarball, strict-context apply, patched tree == base.json's patchedTree.
+      - name: Verify series
+        run: |
+          ./scripts/verify-series.sh "${{ steps.base.outputs.version }}" \
+            "upstream-tarball/qemu-${{ steps.base.outputs.tag }}.tar.xz"
+
+      # The committed series must be what export-series.sh emits from its own import. A patch
+      # edited by hand in a way the export would not produce fails here.
+      - name: Round trip is byte-identical
+        run: |
+          set -eux
+          ./scripts/import-series.sh "${{ steps.base.outputs.version }}" \
+            "upstream-tarball/qemu-${{ steps.base.outputs.tag }}.tar.xz" "$RUNNER_TEMP/roundtrip"
+          ./scripts/export-series.sh "${{ steps.base.outputs.version }}" "$RUNNER_TEMP/roundtrip"
+          if ! git diff --exit-code -- patches/; then
+            echo "::error::export-series.sh does not reproduce the committed series (engine/README.md: exporting)."
+            exit 1
+          fi
+
+  engine:
+    needs: series
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - name: Source derivation (series + src/ overlay)
+        run: nix build -L --out-link result-src .#engine-src
+      - name: One-target engine
+        run: nix build -L --out-link result-engine .#engine-x86_64
+      # A guest boot passes even if the IGLOO/PANDA delta were inert; this asserts the symbols the
+      # core, hypercall and syscall-engine patches must contribute are in the built library.
+      - name: The delta is in the built library
+        run: ./engine/scripts/check-delta-present.sh result-engine
