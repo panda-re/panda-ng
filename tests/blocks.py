@@ -20,10 +20,24 @@ runs twice: with TB chaining on (the default) and with it off. Each time:
   and riscv64's ecall are (it ran all its instructions, then left by longjmp: exit code 3);
 - before_block_exec_invalidate_opt asks at every start of "loop" but the one right after it
   returned true, which is a fresh translation of it (asked too if an interrupt came between);
-and both runs execute the same instructions the same number of times. Guest time comes from
--icount, so the slow per-block Python callbacks can't starve the program under timer ticks.
+and both runs execute the same instructions the same number of times. Every block's CPU pc at
+before_block_exec is its tb->pc (non-PCREL blocks), and after_block_exec of a program block that ran to its end sees
+the pc of the program's next block.
+
+A third run ("hooked page") puts a TCG hook on the program's first page (on its ELF header, never
+executed): the engine then translates that page without CF_PCREL, so the program's blocks chain
+without storing the pc, as on mips and ppc (tests/blocks_bare.py), and the same checks apply.
+
+Another run ("toggle", before the hooked one) has only before/after_block_exec (and the insn callbacks) on. At the 10th
+start of "odd", before_block_exec disables both: no block-exec callback is enabled. insn_exec
+re-enables them at "loop"'s first instruction, which "odd" chains into. "odd"'s after_block_exec,
+disabled when it ended, must not run late, at the start the gate reopened for.
+
+Guest time comes from -icount, so the slow per-block Python callbacks can't starve the program
+under timer ticks.
 """
 import base64
+import cffi
 import json
 import os
 import sys
@@ -39,6 +53,8 @@ N = 1000
 PROGRAM_BASE, PROGRAM_END = 0x400000, 0x420000
 LABELS = ["setup", "loop", "odd", "even", "fault", "fault_store", "sys"]
 TB_EXIT_IDX1 = 1
+CF_PCREL = 0x00020000
+TOGGLE_AT = 10
 
 # Guest time from instructions (-icount), not the host clock. Every block in the window, the
 # kernel's too, runs Python callbacks; with time following the host, timer ticks then come every
@@ -59,8 +75,19 @@ def check(name, ok, detail=""):
     checks[name] = (bool(ok), detail)
 
 
-def in_program(pc):
-    return PROGRAM_BASE <= pc < PROGRAM_END
+def address_space(cpu):
+    """The running process's page-table root. (panda_current_asid is the hardware ASID on aarch64,
+    which Linux keeps in TTBR1: 0 for every process. The tbpc lane changes it to the page-table
+    address; until then, read TTBR0 here.)"""
+    if arch == "aarch64":
+        return panda.arch.cpu_env(cpu).cp15.ttbr0_el[1] & ((1 << 48) - 1)
+    return panda.current_asid(cpu)
+
+
+def in_program(pc, cpu=None):
+    """In the program's range, and (given the CPU) in its address space: another process may run
+    code at those addresses (seen on aarch64: a non-PIE process's blocks at 0x41f3f0)."""
+    return PROGRAM_BASE <= pc < PROGRAM_END and (cpu is None or address_space(cpu) == cur.asid)
 
 
 class Run:
@@ -73,6 +100,11 @@ class Run:
         self.se_cur = None
         self.invalidated = False
         self.labels = {}
+        self.asid = None             # the program's, from hypercall 1
+        self.pc_wrong = []           # before_block_exec where the CPU pc wasn't tb->pc
+        self.prog_tbs = Counter()    # program blocks started: PCREL or not
+        self.odd_starts = 0          # toggle run
+        self.toggled = self.reenabled = False
 
 
 runs = []
@@ -88,11 +120,25 @@ def bbe(cpu, tb):
     r = cur
     pc = panda.arch.get_pc(cpu)
     r.blocks_all += 1
+    # (A CF_PCREL TB keeps the pc current; its tb->pc is a binding detail, so only non-PCREL ones.)
+    if not tb.cflags & CF_PCREL and pc != tb.pc and len(r.pc_wrong) < 1000:
+        r.pc_wrong.append((pc, tb.pc))
     if r.be_cur is not None:
         r.viol["before_block_exec while a block was open"] += 1
-    r.be_cur = (tbptr(tb), pc)
-    if in_program(pc):
+    prog = in_program(pc, cpu)
+    r.be_cur = (tbptr(tb), pc, prog)
+    if prog:
         r.ev.append(("b", pc, tb.icount))
+        r.prog_tbs["pcrel" if tb.cflags & CF_PCREL else "not pcrel"] += 1
+        if r.name == "toggle" and pc == r.labels["odd"]:
+            r.odd_starts += 1
+            if r.odd_starts == TOGGLE_AT:
+                # the last block-exec callbacks off: this block's after_block_exec won't run
+                panda.disable_callback("bbe")
+                panda.disable_callback("abe")
+                r.toggled = True
+                r.be_cur = None
+                r.ev.append(("x", pc))
 
 
 @panda.cb_after_block_exec(name="abe", enabled=False)
@@ -101,11 +147,13 @@ def abe(cpu, tb, exit_code):
     if r.be_cur is None or r.be_cur[0] != tbptr(tb):
         r.viol["after_block_exec without its before_block_exec"] += 1
         r.be_cur = None
+        if r.name == "toggle" and in_program(tb.pc, cpu):
+            r.ev.append(("a", tb.pc, exit_code, panda.arch.get_pc(cpu)))
         return
-    pc = r.be_cur[1]
+    pc, prog = r.be_cur[1:]
     r.be_cur = None
-    if in_program(pc):
-        r.ev.append(("a", pc, exit_code))
+    if prog:
+        r.ev.append(("a", pc, exit_code, panda.arch.get_pc(cpu)))
 
 
 @panda.cb_start_block_exec(name="sbe", enabled=False)
@@ -114,8 +162,9 @@ def sbe(cpu, tb):
     pc = panda.arch.get_pc(cpu)
     if r.se_cur is not None:
         r.viol["start_block_exec while a block was open"] += 1
-    r.se_cur = (tbptr(tb), pc)
-    if in_program(pc):
+    prog = in_program(pc, cpu)
+    r.se_cur = (tbptr(tb), pc, prog)
+    if prog:
         r.ev.append(("s", pc))
 
 
@@ -126,9 +175,9 @@ def ebe(cpu, tb):
         r.viol["end_block_exec without its start_block_exec"] += 1
         r.se_cur = None
         return
-    pc = r.se_cur[1]
+    pc, prog = r.se_cur[1:]
     r.se_cur = None
-    if in_program(pc):
+    if prog:
         r.ev.append(("e", pc))
 
 
@@ -136,7 +185,7 @@ def ebe(cpu, tb):
 def inv(cpu, tb):
     r = cur
     pc = panda.arch.get_pc(cpu)
-    if not in_program(pc):
+    if not in_program(pc, cpu):
         return False
     yes = pc == r.labels.get("loop") and not r.invalidated
     r.invalidated |= yes
@@ -146,7 +195,7 @@ def inv(cpu, tb):
 
 @panda.cb_before_block_translate(name="bbt", enabled=False)
 def bbt(cpu, pc):
-    if in_program(pc):
+    if in_program(pc, cpu):
         cur.ev.append(("t", pc))
 
 
@@ -157,8 +206,14 @@ def it(cpu, pc):
 
 @panda.cb_insn_exec(name="ie", enabled=False)
 def ie(cpu, pc):
-    if in_program(pc):
-        cur.ev.append(("i", pc))
+    r = cur
+    if in_program(pc, cpu):
+        r.ev.append(("i", pc))
+        if r.toggled and not r.reenabled and pc == r.labels["loop"]:
+            panda.enable_callback("bbe")
+            panda.enable_callback("abe")
+            r.reenabled = True
+            r.ev.append(("y", pc))
     return 0
 
 
@@ -172,9 +227,10 @@ def hypercall(cpu):
     table = panda.arch.get_arg(cpu, 3, convention="syscall")
     print(f"progress: [{cur.name}] hypercall {op}", flush=True)
     if op == 1:
+        cur.asid = address_space(cpu)
         raw = bytes(panda.virtual_memory_read(cpu, table, 8 * len(LABELS)))
         cur.labels = {k: int.from_bytes(raw[8 * i:8 * i + 8], "little") for i, k in enumerate(LABELS)}
-        for name in WINDOW:
+        for name in (["bbe", "abe", "it", "ie"] if cur.name == "toggle" else WINDOW):
             panda.enable_callback(name)
     elif op == 2:
         for name in WINDOW:
@@ -242,6 +298,19 @@ def analyse(r):
     check(p + "every block's before/after_block_exec pair up, on the same TB (kernel's too)",
           not r.viol and r.blocks_all > 0, f"{dict(r.viol)} of {r.blocks_all} blocks")
     check(p + "program events are b, its instructions, a", not bad_seq, bad_seq[:5])
+    check(p + "CPU pc == tb->pc at before_block_exec (every non-PCREL block)", not r.pc_wrong,
+          f"{len(r.pc_wrong)}: " + str([(hex(a), hex(b)) for a, b in r.pc_wrong[:4]]))
+    # A program block that ran to its end: after_block_exec sees the pc where the program goes on
+    # (its next block; kernel blocks, e.g. an interrupt's, may come between). Not "sys": x86_64's
+    # syscall jumps to the kernel within the block.
+    bad_next = []
+    for i, e in enumerate(ev):
+        if e[0] == "a" and e[2] <= TB_EXIT_IDX1 and e[1] != L["sys"]:
+            nxt = next((x[1] for x in ev[i + 1:] if x[0] == "b"), None)
+            if nxt is not None and e[3] != nxt:
+                bad_next.append(f"{e[1]:#x}: CPU pc {e[3]:#x}, next block {nxt:#x}")
+    check(p + "after_block_exec of a block that ran to its end sees the next block's pc", not bad_next,
+          f"{len(bad_next)}: {bad_next[:4]}")
     check(p + "start/end_block_exec see the same blocks as before/after_block_exec",
           s_pcs == b_pcs and e_pcs == a_pcs,
           f"b={len(b_pcs)} s={len(s_pcs)} a={len(a_pcs)} e={len(e_pcs)}")
@@ -293,6 +362,43 @@ def analyse(r):
     return dict(insn_at), sum(len(b[3]) for b in blocks)
 
 
+# A TCG hook (accel/tcg/hooks.h) on the program's first page, at its ELF header (never executed):
+# the page's code is then translated without CF_PCREL.
+hffi = cffi.FFI()
+hffi.cdef("void *tcg_hook_insert(uint64_t pc, void (*fn)(void *cpu, uint64_t pc, void *opaque), "
+          "void *opaque);")
+hook_hits = []
+
+
+@hffi.callback("void(void *, uint64_t, void *)")
+def hook_fn(cpu, pc, opaque):
+    hook_hits.append(pc)
+
+
+def hook_page():
+    hlib = hffi.dlopen(panda.libpanda_path)
+    assert hlib.tcg_hook_insert(PROGRAM_BASE, hook_fn, hffi.NULL) != hffi.NULL
+
+
+def analyse_toggle(r):
+    p = f"[{r.name}] "
+    ev = r.ev
+    check(p + f"before_block_exec disabled both at odd's {TOGGLE_AT}th start; insn_exec re-enabled them",
+          r.toggled and r.reenabled, (r.toggled, r.reenabled))
+    if not (r.toggled and r.reenabled):
+        return
+    ix = next(i for i, e in enumerate(ev) if e[0] == "x")
+    iy = next(i for i, e in enumerate(ev) if e[0] == "y")
+    ib = next((i for i in range(iy, len(ev)) if ev[i][0] == "b"), len(ev))
+    late = [e for e in ev[ix:ib] if e[0] == "a"]
+    check(p + "no after_block_exec for the block running when they were disabled (none late)",
+          not late, [(hex(e[1]), e[2], hex(e[3])) for e in late])
+    check(p + "before/after_block_exec pair up on the same TB, before and after the toggle",
+          not r.viol, dict(r.viol))
+    n_after = sum(1 for e in ev[ib:] if e[0] == "b" and e[1] == r.labels["loop"])
+    check(p + "the callbacks run again after the re-enable", n_after > 0, n_after)
+
+
 @panda.queue_blocking
 def drive():
     global cur
@@ -303,7 +409,9 @@ def drive():
         chunk = "".join(f"\\x{b:02x}" for b in data[i:i + 64])
         panda.run_serial_cmd(f"printf '{chunk}' >> /tmp/blocks")
     panda.run_serial_cmd("chmod +x /tmp/blocks")
-    for name, chaining in (("chaining on", True), ("chaining off", False)):
+    # toggle before the hook: its page stays hooked for the rest of the process
+    for name, chaining in (("chaining on", True), ("chaining off", False), ("toggle", True),
+                           ("hooked page", True)):
         cur = Run(name)
         cur.done = False
         runs.append(cur)
@@ -311,6 +419,8 @@ def drive():
             panda.enable_tb_chaining()
         else:
             panda.disable_tb_chaining()
+        if name == "hooked page":
+            hook_page()
         print(f"progress: [{name}] running the program", flush=True)
         cur.output = panda.run_serial_cmd("/tmp/blocks; echo rc=$?")
     panda.enable_tb_chaining()
@@ -323,10 +433,17 @@ results = []
 for r in runs:
     check(f"[{r.name}] the program ran between its hypercalls and exited 0",
           r.done and "rc=0" in r.output, repr(r.output))
+    if r.name == "toggle":
+        analyse_toggle(r)
+        continue
     results.append(analyse(r))
-if len(results) == 2:
-    check("chaining on and off: the same instructions, each as many times",
-          results[0] == results[1], results)
+    want = {"not pcrel"} if r.name == "hooked page" else {"pcrel"}
+    check(f"[{r.name}] program TBs are " + ("not " if r.name == "hooked page" else "") + "CF_PCREL",
+          set(r.prog_tbs) == want, dict(r.prog_tbs))
+if len(results) == 3:
+    check("chaining on, off, and on a hooked page: the same instructions, each as many times",
+          results[0] == results[1] == results[2], results)
+check("the hook on the ELF header never ran", not hook_hits, hook_hits[:3])
 
 print(f"BLOCKS arch={arch} " + " ".join(f"[{r.name}] insns={res[1]} all={r.blocks_all}"
                                          for r, res in zip(runs, results)))
