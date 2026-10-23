@@ -21,6 +21,7 @@ PANDAENDCOMMENT */
 #include <osi/osi_types.h>
 #include <set>
 #include <queue>
+#include <deque>
 #include <vector>
 #include <tuple>
 
@@ -75,10 +76,21 @@ void add_hook(struct hook* h) {
     }
 }
 
-void cb_tcg_codegen_middle_filter(unsigned int vcpu_index, void *_tb) {
+// An instrumented hook address: the insn callback's udata. The callback can't take the pc from the
+// CPU: these callbacks don't sync registers (NO_REGS), so inside a block the CPU's pc is still the
+// block's start, and a hook there or past it never matched. Sites live as long as the plugin (one
+// per instrumented translation of a hooked instruction), per translating vCPU like the hook sets.
+struct hook_site {
+    TranslationBlock *tb;
+    uint64_t addr;
+};
+static std::deque<hook_site> hook_sites[16];
+
+void cb_tcg_codegen_middle_filter(unsigned int vcpu_index, void *_site) {
     CPUState *cpu = panda_cpu_by_index(vcpu_index);
-    TranslationBlock *tb = (TranslationBlock *)_tb;
-    uint64_t pc = panda_current_pc(cpu);
+    hook_site *site = (hook_site *)_site;
+    TranslationBlock *tb = site->tb;
+    uint64_t pc = site->addr;
     assert(vcpu_index < sizeof(per_guest_cpu_temp_hooks)/sizeof(per_guest_cpu_temp_hooks[0]));
     auto& temp_hooks = per_guest_cpu_temp_hooks[vcpu_index];
     auto& hooks = per_guest_cpu_hooks[vcpu_index];
@@ -168,8 +180,9 @@ void cb_block_translate_callback (CPUState* cpu, struct qemu_plugin_tb *tb) {
                             struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn_by_vaddr(tb, h->addr);
                             if (insn != NULL){
                                 qemu_plugin_tb_vaddr(tb);   // hooked: bind the TB to this address
-                                TranslationBlock *real_tb = panda_get_tb(tb);
-                                qemu_plugin_register_vcpu_insn_exec_cb(insn, cb_tcg_codegen_middle_filter, QEMU_PLUGIN_CB_NO_REGS, (void*) real_tb);
+                                auto& sites = hook_sites[cpu->cpu_index];
+                                sites.push_back({panda_get_tb(tb), h->addr});
+                                qemu_plugin_register_vcpu_insn_exec_cb(insn, cb_tcg_codegen_middle_filter, QEMU_PLUGIN_CB_NO_REGS, (void*) &sites.back());
                                 inserted_addresses.insert(h->addr);
                             }
                         } 
