@@ -15,13 +15,21 @@ sees, panda.tb_pc must be where the block is executing:
   - after_block_translate reports before_block_translate's pc;
   - before_block_exec and start_block_exec report the CPU's pc at entry.
 """
+import json
 import sys
 from collections import Counter, defaultdict
 
 from pandare2 import Panda
 
 CF_PCREL = 0x00020000
-panda = Panda(generic=sys.argv[1])
+# Guest time from instructions on x86_64/riscv64 (as tests/blocks.py): with Python callbacks on
+# every block and time following the host, timer ticks and the scheduling they cause take all of
+# the slowed guest's time and the workload starves. aarch64's root snapshot doesn't load with
+# -icount; it hasn't starved.
+with open(sys.argv[1]) as f:
+    image_arch = json.load(f)["arch"]
+panda = Panda(generic=sys.argv[1],
+              extra_args=[] if image_arch == "aarch64" else ["-icount", "shift=6,sleep=off"])
 arch = panda.arch_name
 TOP = 1 << 63                  # kernel addresses have the top bit set on all three arches
 BAD = (-1, 2**64 - 1)
@@ -87,6 +95,8 @@ def bbt(cpu, pc):
 def abt(cpu, tb):
     n["after_block_translate"] += 1
     pc = tb_pc(cpu, tb)
+    if last["translating"] is None:
+        return   # translation began before the callbacks were enabled
     if pc != last["translating"]:
         bad("after_block_translate", f"{pc:#x} translating {last['translating']}")
 
@@ -129,10 +139,15 @@ NAMES = ["bbt", "abt", "bbe", "abe", "sbe", "ebe"]
 @panda.queue_blocking
 def drive():
     panda.revert_sync("root")
-    panda.run_serial_cmd("true")
+    # A short command to type while the callbacks run: the serial driver busy-waits per character.
+    panda.run_serial_cmd(f"echo '{WORK}' > /tmp/w.sh")
+    # With chaining on, a Python callback on every block starves the guest's serial output (its
+    # driver busy-waits on the transmitter): commands crawl. The callbacks run from the blocks'
+    # own code either way (lane-chain), after/end_block_exec once the block has stopped.
+    panda.disable_tb_chaining()
     for name in NAMES:
         panda.enable_callback(name)
-    panda.run_serial_cmd(WORK, timeout=1200)
+    panda.run_serial_cmd("sh /tmp/w.sh", timeout=3000)
     for name in NAMES:
         panda.disable_callback(name)
     st["out"] = panda.run_serial_cmd("cat /tmp/o1 /tmp/o2")
