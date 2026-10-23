@@ -1,6 +1,9 @@
 """Snapshot-and-restore fuzzing through pandare2 on an image built by pandare2.mkimage.
 
-Run: panda-python tests/fuzz.py <dir>/debian-13-x86_64.json [iterations]
+Run: panda-python tests/fuzz.py <dir>/debian-13-x86_64.json [iterations] [--fast]
+
+--fast restores with panda_fast_snap/panda_fast_restore (RAM and device state in host memory, no
+disk) instead of a qcow2 snapshot (Panda.snap, loadvm).
 
 The guest runs `cat /etc/os-release`. When cat's openat of /etc/os-release enters the kernel, the
 test takes a snapshot (Panda.snap from the callback). Each iteration then reverts to it, writes an
@@ -21,8 +24,10 @@ INPUTS = [(b"/etc/hostname", True), (b"/nonexistent", False), (b"/etc/passwd", T
 
 
 def main():
-    image = sys.argv[1]
-    iterations = int(sys.argv[2]) if len(sys.argv) > 2 else 10
+    fast = "--fast" in sys.argv
+    args = [a for a in sys.argv[1:] if a != "--fast"]
+    image = args[0]
+    iterations = int(args[1]) if len(args) > 1 else 10
     panda = Panda(generic=image)
     st = {"snap": False, "asid": None, "path": None, "i": -1, "outcomes": [], "t0": None,
           "failed": None, "done": False, "loadvm": 0}
@@ -39,7 +44,10 @@ def main():
             return
         data, _ = INPUTS[st["i"] % len(INPUTS)]
         panda.vm_stop()
-        panda.queue_main_loop_wait_fn(panda.libpanda.panda_revert, [panda.ffi.new("char[]", b"fuzz")])
+        if fast:
+            panda.queue_main_loop_wait_fn(panda.libpanda.panda_fast_restore)
+        else:
+            panda.queue_main_loop_wait_fn(panda.libpanda.panda_revert, [panda.ffi.new("char[]", b"fuzz")])
         panda.queue_main_loop_wait_fn(write_input, [data])
         panda.queue_main_loop_wait_fn(panda.libpanda.panda_cont)
 
@@ -64,7 +72,12 @@ def main():
         st["path"] = panda.virt_to_phys(cpu, filename)
         if (filename & 0xfff) + len(ORIG) + 1 > 0x1000:
             st["failed"] = "path crosses a page"
-        panda.snap("fuzz")
+        if fast:
+            panda.vm_stop()
+            panda.queue_main_loop_wait_fn(panda.libpanda.panda_fast_snap)
+            panda.queue_main_loop_wait_fn(panda.libpanda.panda_cont)
+        else:
+            panda.snap("fuzz")
         # after the snapshot is taken (cont), the first iteration reverts to it
         panda.queue_main_loop_wait_fn(lambda: st.__setitem__("t0", time()))
         panda.queue_main_loop_wait_fn(next_input)
@@ -99,14 +112,15 @@ def main():
     elapsed = time() - (st["t0"] or t_start)
     want = [INPUTS[i % len(INPUTS)][1] for i in range(iterations)]
     got = st["outcomes"]
-    print(f"FUZZ iterations={len(got)} outcomes={got} {len(got) / elapsed:.2f} it/s"
+    print(f"FUZZ {'fast ' if fast else ''}iterations={len(got)} outcomes={got} {len(got) / elapsed:.2f} it/s"
           + (f" failed={st['failed']}" if st["failed"] else ""))
     checks = {
         "snapshot taken from the openat callback": st["snap"],
         f"all {iterations} iterations ran": len(got) == iterations,
         "each iteration saw only its own input": got == want,
         "no memory write failed": st["failed"] is None,
-        "after_loadvm fired for the root revert and each iteration": st["loadvm"] == iterations + 1,
+        "after_loadvm fired for the root revert and each iteration":
+            st["loadvm"] == (1 if fast else iterations + 1),
     }
     for k, ok in checks.items():
         print(f"  {'PASS' if ok else 'FAIL'} {k}")
