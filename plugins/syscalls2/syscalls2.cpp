@@ -1133,7 +1133,14 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, i
     unsigned char buf[4] = {};
     int n = qemu_plugin_tb_n_insns(tb);
     struct qemu_plugin_insn *last = qemu_plugin_tb_get_insn(tb, n - 1);
-    target_ulong UNUSED(pc) = qemu_plugin_insn_vaddr(last);
+    // The last instruction's address without qemu_plugin_insn_vaddr, which would bind every TB to
+    // its address (engine patch 0035) and stop CF_PCREL sharing: the block starts at the CPU's pc
+    // (at translation) and its instructions are contiguous. block_translate binds the TBs that
+    // hold a system call, whose instrumentation carries the address.
+    target_ulong UNUSED(pc) = panda_current_pc(cpu);
+    for (int i = 0; i < n - 1; i++) {
+        pc += qemu_plugin_insn_size(qemu_plugin_tb_get_insn(tb, i));
+    }
     int size = qemu_plugin_insn_size(last);
     // syscalls are at most 4 bytes long
     if (size > 4) {
@@ -1263,6 +1270,7 @@ void block_translate(CPUState *cpu, struct qemu_plugin_tb *tb){
     if(res != 0 && res != (target_ulong) -1){
         struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn_by_vaddr(tb, res);
         if (insn != NULL){
+            qemu_plugin_insn_vaddr(insn);   // bind the TB: the callback is keyed by this address
             assert(cpu->cpu_index < sizeof(per_guest_cpu_syscall_info_map)/sizeof(per_guest_cpu_syscall_info_map[0]));
             per_guest_cpu_syscall_info_map[cpu->cpu_index][res] = {profile, static_callno};
             qemu_plugin_register_vcpu_insn_exec_cb(insn, syscall_callback, QEMU_PLUGIN_CB_NO_REGS, (void*) (uint64_t)res);
