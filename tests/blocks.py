@@ -60,12 +60,9 @@ TOGGLE_AT = 10
 # kernel's too, runs Python callbacks; with time following the host, timer ticks then come every
 # ~1000 blocks, the tick and the scheduling it triggers take about that long, and the program can
 # starve for minutes (seen on debian-13 x86_64 and riscv64: run_serial_cmd timed out). icount may
-# split a block when its budget runs out; the checks below allow for that. Not on aarch64: its
-# root snapshot (taken without icount) fails to load with it (cpu post_load), and it hasn't starved.
-with open(sys.argv[1]) as f:
-    image_arch = json.load(f)["arch"]
-panda = Panda(generic=sys.argv[1],
-              extra_args=[] if image_arch == "aarch64" else ["-icount", "shift=6,sleep=off"])
+# split a block when its budget runs out; the checks below allow for that. On every arch: an aarch64
+# root snapshot taken without icount loads with it since engine patch 0081 (PMCEID0).
+panda = Panda(generic=sys.argv[1], extra_args=["-icount", "shift=6,sleep=off"])
 arch = panda.arch_name
 ffi = panda.ffi
 checks = {}
