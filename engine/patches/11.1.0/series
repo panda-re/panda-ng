@@ -52,7 +52,7 @@
 11.1.0/0052-replay-x-rr-begin-record-rewinds-the-log-to-the-star.patch
 11.1.0/0053-panda-main_loop_wait-callback-at-each-main-loop-iter.patch
 11.1.0/0054-panda-after_loadvm-callback-when-load_snapshot-succe.patch
-11.1.0/0055-hw-block-pflash_cfi01-one-post_load-state-handler-at-a-time.patch
+11.1.0/0055-hw-block-pflash_cfi01-one-post_load-state-handler-at.patch
 11.1.0/0056-hw-core-loader-rom_reset-logs-the-RAM-it-rewrites.patch
-11.1.0/0057-target-arm-ptw-log-hardware-access-flag-and-dirty-state-updates.patch
-11.1.0/0058-panda-block-callbacks-learn-of-a-longjmp-out-of-the-blo.patch
+11.1.0/0057-target-arm-ptw-log-hardware-access-flag-and-dirty-st.patch
+11.1.0/0058-panda-block-callbacks-learn-of-a-longjmp-out-of-the-.patch
