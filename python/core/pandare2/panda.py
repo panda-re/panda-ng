@@ -114,8 +114,15 @@ class Panda():
             raise Exception(f"Unsupported System {platform.system()}: expected one of {platform_dll_extensions.keys()}")
         self.arch_name = arch
         self.machine = machine
-        if machine is not None and machine.mem is not None:
-            mem = machine.mem
+        if machine is not None:
+            if machine.arch is not None and machine.arch != arch:
+                raise ValueError(f"MachineBuilder({machine.arch!r}) given to Panda(arch={arch!r})")
+            # The builder's RAM, or none: an unmapped -m RAM would still be allocated and saved
+            # by every snapshot. An external board keeps the default (it maps -m itself).
+            if machine.mem is not None:
+                mem = machine.mem
+            elif not machine.is_board:
+                mem = "0"
         self.mem = mem
         self.os = os_version
         self.os_type = os

@@ -63,8 +63,13 @@ class MachineBuilder:
         return self
 
     def ram(self, base, size):
-        """RAM at `base`: -m `size` mapped at ram-base. Without it, -m RAM is not mapped."""
-        self._ram = (int(base), parse_size(size))
+        """RAM at `base`: -m `size` mapped at ram-base. Without it there is no -m RAM (Panda
+        passes -m 0). `size` is a multiple of 8 KiB (QEMU rounds -m up to that)."""
+        size = parse_size(size)
+        if size <= 0 or size % 0x2000:
+            raise ValueError(f"ram size {size:#x}: must be a positive multiple of 8 KiB "
+                             "(use region() for other sizes)")
+        self._ram = (int(base), size)
         return self
 
     def entry(self, addr):
@@ -75,7 +80,7 @@ class MachineBuilder:
     def kernel(self, path):
         """-kernel: an ELF (loaded, its entry used unless entry() is set), or a raw image
         loaded at the RAM base."""
-        self._kernel = os.fspath(path)
+        self._kernel = os.path.abspath(os.fspath(path))
         return self
 
     # --- memory map --------------------------------------------------------------------
@@ -87,7 +92,7 @@ class MachineBuilder:
             raise ValueError(f"region {name}: kind must be ram, rom or unimp, not {kind!r}")
         r = {"name": name, "base": int(base), "size": parse_size(size), "kind": kind}
         if file is not None:
-            r["file"] = os.fspath(file)
+            r["file"] = os.path.abspath(os.fspath(file))
         if file_offset is not None:
             r["file-offset"] = int(file_offset)
         if file_size is not None:
@@ -173,6 +178,11 @@ class MachineBuilder:
     def mem(self):
         """The -m value, from ram(), or None."""
         return f"{self._ram[1] >> 10}K" if self._ram else None
+
+    @property
+    def is_board(self):
+        """True for an external board (board()), which maps -m RAM itself."""
+        return self._board is not None
 
     def validate(self):
         """Raise ValueError for what can be checked without the engine."""
