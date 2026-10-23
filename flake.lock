@@ -56,11 +56,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1792711878,
-        "narHash": "sha256-SzDtyzwLqQfm7irbjv5xK+v/CbJdMtEHzs8tDOE6Qoc=",
+        "lastModified": 1792721427,
+        "narHash": "sha256-JhfsyJR7vOov5RTN04C6Ilsm4ZY/HZjQkW+x72IEH/w=",
         "ref": "workspace/panda-next-pandang",
-        "rev": "623336bc67a264667a0e9b132159da0e890c951d",
-        "revCount": 82,
+        "rev": "3f8ca84838eb0895fc47be7fbcb4d8c5d58cda8a",
+        "revCount": 87,
         "type": "git",
         "url": "https://github.com/rehosting/qemu_builder"
       },

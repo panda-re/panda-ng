@@ -68,6 +68,7 @@ class Panda():
             biospath=None,
             plugin_path=None,
             load_plugin_interface=True, # load the plugin interface (for low-level callbacks)
+            rr=False, # make the VM recordable (virtio kicks through the log); pass it to the replay too
             ):
         '''
         Construct a new `Panda` object.  Note that multiple Panda objects cannot coexist in the same Python instance.
@@ -75,6 +76,7 @@ class Panda():
             arch: architecture string (e.g. "i386", "x86_64", "arm", "mips", "mipsel")
             generic: specify a generic qcow to use from `pandare.qcows.SUPPORTED_IMAGES` and set all subsequent arguments. Will automatically download qcow if necessary.
             mem: size of memory for machine (e.g. "128M", "1G")
+            rr: make the VM recordable (-accel tcg,thread=single,rr-ready=on). Pass it to a replay too: it needs the recording's command line.
             expect_prompt: Regular expression describing the prompt exposed by the guest
                     on a serial console. Used so we know when a running command has finished
                     with its output.
@@ -255,6 +257,13 @@ class Panda():
         # "{biospath}" in an argument is the firmware directory (-L), for firmware QEMU doesn't look
         # up there itself (pflash: riscv64's EDK2).
         self.panda_args += [a.replace("{biospath}", biospath) for a in extra_args]
+
+        # Record/replay needs what can't change on a running VM (rr-ready): one TCG vCPU thread,
+        # virtio kicks as MMIO exits rather than eventfds, an x86 TSC that keeps its rate under
+        # icount. Off by default: runs that never record would pay for it. A replay needs the
+        # recording's command line, so pass rr=True to both.
+        if rr:
+            self.panda_args += ["-accel", "tcg,thread=single,rr-ready=on"]
 
         # Configure memory options
         self.panda_args.extend(['-m', self.mem])
@@ -643,8 +652,7 @@ class Panda():
         self.plugins = plugin_list(self)
         # Write PANDALOG, if any
         #self.libpanda.panda_cleanup_record()
-        if self._in_replay:
-            self.reset()
+        # A replay ends with the VM shut down (the log's end); there is nothing to reset.
         if hasattr(self, "exit_exception"):
             saved_exception = self.exit_exception
             del self.exit_exception
@@ -671,6 +679,10 @@ class Panda():
 
     def record(self, recording_name, snapshot_name=None):
         """Begins active recording with name provided.
+
+        The recording is the log `<recording_name>-rr-nondet.log` plus the internal snapshot
+        `rr-<basename>` in the disk image, which `run_replay` loads. The request runs from the
+        main loop: from a non-callback thread, `wait_rr("record")` waits for it.
 
         Args:
             recording_name (string): name of recording to save.
@@ -710,8 +722,28 @@ class Panda():
         Returns:
             boolean: true if file exists, false otherwise
         '''
-        if exists(name + "-rr-snp") or rr2_contains_member(name, "snapshot"):
-            return True
+        return exists(name + "-rr-nondet.log")
+
+    def wait_rr(self, mode, timeout=60):
+        '''
+        Waits (from a thread that isn't running guest code, e.g. a @blocking function) until a
+        record/replay request has been carried out.
+
+        Args:
+            mode (str): "record", "replay" or "off"
+            timeout (float): seconds
+
+        Raises:
+            TimeoutError: the state wasn't reached in time (the request failed, see the log)
+        '''
+        want = {"record": lambda: self.libpanda.rr_in_record(),
+                "replay": lambda: self.libpanda.rr_in_replay(),
+                "off": lambda: not self.libpanda.rr_on()}[mode]
+        deadline = time() + timeout
+        while not want():
+            if time() > deadline:
+                raise TimeoutError(f"record/replay state {mode} not reached")
+            sleep(0.05)
 
     def run_replay(self, replaypfx):
         '''
@@ -723,7 +755,7 @@ class Panda():
         Returns:
             None
         '''
-        if (not isfile(replaypfx+"-rr-snp") or not isfile(replaypfx+"-rr-nondet.log")) and not rr2_recording(replaypfx):
+        if not isfile(replaypfx+"-rr-nondet.log"):
             raise ValueError("Replay files not present to run replay of {}".format(replaypfx))
 
         self.ending = False
@@ -731,11 +763,38 @@ class Panda():
         if debug:
             progress ("Replaying %s" % replaypfx)
 
+        if not self._initialized_panda:  # the request needs the main loop's context
+            self.initializing.set()
+            self._initialize_panda()
+            self.initializing.clear()
         charptr = self.ffi.new("char[]",bytes(replaypfx,"utf-8"))
-        self.libpanda.panda_replay_begin(charptr)
+        result = self.libpanda.panda_replay_begin(charptr)
+        if result != 0:
+            raise Exception(f"replay of {replaypfx} failed with RRCTRL_ret {result}")
         self._in_replay = True
+        # The replay writes the guest's serial output to the socket again; nothing reads it, and a
+        # full socket would block the replaying vCPU. Keep it drained (bytes in replay_serial).
+        self.replay_serial = b""
+        drain = None
+        if self.serial_socket is not None:
+            drain = threading.Thread(target=self._drain_serial, daemon=True)
+            drain.start()
         self.run()
         self._in_replay = False
+        if drain is not None:
+            drain.join(timeout=1)
+
+    def _drain_serial(self):
+        while self._in_replay:
+            try:
+                readable, _, _ = select.select([self.serial_socket], [], [], 0.2)
+                if readable:
+                    data = self.serial_socket.recv(65535)
+                    if not data:
+                        return
+                    self.replay_serial += data
+            except (OSError, ValueError):
+                return
 
 
     def end_replay(self):
@@ -2514,7 +2573,7 @@ class Panda():
         XXX: This doesn't work in replay mode
         '''
         reason = self.libpanda.SHUTDOWN_CAUSE_GUEST_SHUTDOWN
-        self.libpanda.qemu_system_shutdown_request(reason)
+        self.libpanda.panda_shutdown_request(reason)  # safe while recording, from any thread
 
     @blocking
     def run_serial_cmd(self, cmd, no_timeout=False, timeout=None):
@@ -2726,9 +2785,8 @@ class Panda():
             0) Revert to the specified snapshot name if one is set. By default 'root'. Set to `None` if you have already set up the guest and are ready to record with no revert
             1) Create an ISO of files that need to be copied into the guest if copy_directory is specified. Copy them in
             2) Run the setup_command in the guest, if provided
-            3) Type the command you wish to record but do not press enter to begin execution. This avoids the recording capturing the command being typed
-            4) Begin the recording (name controlled by recording_name)
-            5) Press enter in the guest to begin the command. Wait until it finishes.
+            3) Begin the recording (name controlled by recording_name)
+            4) Run the command in the guest (typing included) and wait until it finishes.
             6) End the recording
         '''
         # 0) Revert to the specified snapshot
@@ -2746,14 +2804,14 @@ class Panda():
             r = self.run_serial_cmd(setup_command)
             print(f"Setup command results: {r}")
 
-        # 3) type commmand (note we type command, start recording, finish command)
-        self.type_serial_cmd(guest_command)
+        # 3) start recording. The command's typing is in the recording too: input still in
+        # flight while the serial port switches to the record/replay log was lost (the old order
+        # typed first, then began recording, then pressed enter).
+        self.record(recording_name)
+        self.wait_rr("record")
 
-        # 4) start recording
-        self.run_monitor_cmd("begin_record {}".format(recording_name))
-
-        # 5) finish command
-        result = self.finish_serial_cmd()
+        # 4) run the command and wait until it finishes
+        result = self.run_serial_cmd(guest_command)
 
         if debug:
             progress("Result of `{}`:".format(guest_command))
@@ -2767,8 +2825,9 @@ class Panda():
             print("Bad output running command: {}".format(result))
             raise RuntimeError("Could not execute binary while taking recording")
 
-        # 6) End recording
-        self.run_monitor_cmd("end_record")
+        # 5) End recording
+        self.end_record()
+        self.wait_rr("off")
 
         print("Finished recording")
 
