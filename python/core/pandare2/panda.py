@@ -210,7 +210,11 @@ class Panda():
         if self.os:
             self.set_os_name(self.os)
         
+        # An explicit plugin_path, then $PANDA_PLUGIN_DIR, then the wheel's bundled plugins,
+        # then a build tree.
         extra_plugin_paths = [
+            environ.get("PANDA_PLUGIN_DIR", ""),
+            pjoin(dirname(__file__), "data", "plugins"),
             realpath(pjoin(__file__, "../../../../build/plugins")),
             "/panda-ng/build/plugins",
         ]
@@ -218,7 +222,7 @@ class Panda():
             extra_plugin_paths = [plugin_path] + extra_plugin_paths
         
         for plugin_path in extra_plugin_paths:
-            if exists(plugin_path):
+            if plugin_path and exists(plugin_path):
                 self.plugin_path = plugin_path
                 self._set_extra_plugin_path(plugin_path)
                 break
@@ -226,7 +230,11 @@ class Panda():
         # Setup argv for panda
         self.panda_args = [self.panda]
         if self.load_plugin_interface:
-            plugin_interface = realpath(pjoin(self.panda, f"../contrib/plugins/libpanda_plugin_interface.{self.dll_extension}"))
+            # A build tree has it under contrib/plugins; installs put it next to libpanda.
+            interface_name = f"libpanda_plugin_interface.{self.dll_extension}"
+            candidates = [realpath(pjoin(self.panda, f"../contrib/plugins/{interface_name}")),
+                          pjoin(dirname(self.panda), interface_name)]
+            plugin_interface = next((p for p in candidates if isfile(p)), candidates[0])
             self.plugin_interface = self.ffi.dlopen(plugin_interface, self.ffi.RTLD_GLOBAL)
             self.panda_args.extend(["-plugin", plugin_interface])
 
@@ -234,6 +242,8 @@ class Panda():
             possible_biospaths = [
                 # hack since pc-bios is in the core not build now
                 realpath(pjoin(self.get_build_dir(), "..", "pc-bios")), # XXX: necessary for network drivers for arm/mips, so 'pc-bios' is a misleading name
+                pjoin(dirname(__file__), "data", "share", "qemu"),  # wheel installs
+                realpath(pjoin(dirname(self.panda), "..", "share", "qemu")),  # <prefix>/lib/libpanda-*
                 "/usr/local/share/panda",
                 "/usr/local/share/qemu",
             ]

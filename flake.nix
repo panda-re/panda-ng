@@ -250,14 +250,12 @@
                 --replace-fail '[shutil.which("gdb-multiarch")' '["${pkgs.gdb}/bin/gdb", shutil.which("gdb-multiarch")' \
                 --replace-fail 'shutil.which("dwarf2json")' '"${pkgs.dwarf2json}/bin/dwarf2json"'
               substituteInPlace pandare2/utils.py \
-                --replace-fail 'pot_paths = [system_build,' 'pot_paths = ["${engine}/lib", system_build,'
+                --replace-fail 'pot_paths = [pjoin(python_package, "lib"),' 'pot_paths = ["${engine}/lib", pjoin(python_package, "lib"),'
+              # The plugin interface and firmware are found next to libpanda (lib/, share/qemu/).
               substituteInPlace pandare2/panda.py \
                 --replace-fail 'realpath(pjoin(__file__, "../../../../build/plugins")),' \
                   '"${pluginDir}", realpath(pjoin(__file__, "../../../../build/plugins")),' \
-                --replace-fail 'f"/usr/local/lib/panda/{self.arch_name}"' '"${pluginDir}"' \
-                --replace-fail 'realpath(pjoin(self.panda, f"../contrib/plugins/libpanda_plugin_interface.{self.dll_extension}"))' \
-                  '"${engine}/lib/libpanda_plugin_interface.so"' \
-                --replace-fail '"/usr/local/share/panda",' '"${engine}/share/qemu", "/usr/local/share/panda",'
+                --replace-fail 'f"/usr/local/lib/panda/{self.arch_name}"' '"${pluginDir}"'
             '';
             build-system = [
               python.pkgs.setuptools
