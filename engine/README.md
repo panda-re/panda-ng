@@ -124,7 +124,7 @@ Known for 11.1.2 (checked 2026-10-23: all patches then applied with strict conte
 
 ## What came from qemu_builder, and what did not
 
-Imported (qemu_builder `integ` 8d74b84, see `IMPORT`): `base.json`, the whole series
+Imported (qemu_builder `integ`, dc1aed4 at the time of writing; see `IMPORT`): `base.json`, the whole series
 (`patches/11.1.0/`, 0001-0058), `src/` (minus the three penguin packaging scripts below),
 `scripts/` and `tests/`. Not imported, because they build or check penguin's artifact
 (`penguin-qemu.tar.gz`: `libqemu-system-*.so` + CFFI bindings for penguin's Python), which panda-ng
