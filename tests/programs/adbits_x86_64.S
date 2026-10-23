@@ -34,11 +34,14 @@ _start:
     mov edi, 0x50616e64     /* hypercall 1 */
     mov eax, edi
     mov esi, 1
-    mov rdx, r13
+    lea rdx, [rip + go]
     xor r10, r10
     lea r8, [rip + hc1]
 hc1:
     out 0x88, eax
+spin:                       /* until the host has its snapshot and sets go */
+    cmp byte ptr [rip + go], 0
+    je spin
     mov qword ptr [r13], 0x1234   /* the walker sets D */
     mov edi, 0x50616e64     /* hypercall 2 */
     mov eax, edi
@@ -52,5 +55,7 @@ hc2:
     xor edi, edi
     syscall
     .data
+go:
+    .byte 0
 path:
     .asciz "/dev/shm/adbits"

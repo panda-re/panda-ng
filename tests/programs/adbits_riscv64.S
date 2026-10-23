@@ -25,11 +25,15 @@ _start:
     li a0, 0x50616e64       /* hypercall 1 */
     mv a7, a0
     li a1, 1
-    mv a2, s2
+    lla a2, go
     li a3, 0
     lla a4, hc1
 hc1:
     .4byte 0x00004013
+    lla t1, go
+spin:                       /* until the host has its snapshot and sets go */
+    lbu t2, 0(t1)
+    beqz t2, spin
     li t0, 0x1234
     sd t0, 0(s2)            /* the walker sets D (Svadu, or no Svade) */
     li a0, 0x50616e64       /* hypercall 2 */
@@ -44,5 +48,7 @@ hc2:
     li a7, 93
     ecall
     .data
+go:
+    .byte 0
 path:
     .asciz "/dev/shm/adbits"

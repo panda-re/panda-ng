@@ -25,11 +25,15 @@ _start:
     movk x0, #0x5061, lsl #16
     mov x8, x0
     mov x1, #1
-    mov x2, x20
+    adr x2, go
     mov x3, #0
     adr x4, hc1
 hc1:
     .inst 0xd500501f
+    adr x10, go
+spin:                       /* until the host has its snapshot and sets go */
+    ldrb w11, [x10]
+    cbz w11, spin
     mov x9, #0x1234
     str x9, [x20]           /* the walker sets the dirty state (FEAT_HAFDBS) */
     movz x0, #0x6e64        /* hypercall 2 */
@@ -45,5 +49,7 @@ hc2:
     mov x8, #93
     svc #0
     .data
+go:
+    .byte 0
 path:
     .asciz "/dev/shm/adbits"
