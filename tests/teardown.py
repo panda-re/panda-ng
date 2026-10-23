@@ -8,6 +8,7 @@ callbacks on every block:
 - a callback that deletes itself on its first call, from the vCPU (others follow it in the list);
 - a churn thread that registers 8 block callbacks, lets them run, and deletes them: half directly
   from its own thread, half queued to the main loop (vCPUs running);
+- a main-loop callback unloads the C plugins and deletes itself mid-walk (deferred to the walk's end);
 - at the end, the C plugins (syscalls2, from a ppp callback) and the Python callbacks are unloaded
   from the main loop with the vCPU still running (Panda.unload_plugins, no stop first), then the
   run ends. That is what end_analysis did before pandare2 stopped the VM first.
@@ -114,6 +115,32 @@ def drive():
         def late_hot(cpu, tb):
             pass
         time.sleep(1)
+
+        # C plugins unloaded from inside a main-loop callback walk, by a callback that then deletes
+        # itself, with another main-loop callback after it in the list: the engine defers the
+        # unload to the end of the walk (no dlclose under the walk, no BQL drop mid-walk).
+        def loaded():
+            return panda.libpanda.panda_get_plugin_by_name(b"syscalls2") != panda.ffi.NULL
+
+        @panda.cb_main_loop_wait(name="mlw_unload")
+        def mlw_unload():
+            if st.get("mlw_go") and "in_walk_after" not in st:
+                st["before_call"] = loaded()
+                panda.libpanda.panda_unload_plugins()
+                st["in_walk_after"] = loaded()       # still loaded: deferred past this walk
+                panda.delete_callback("mlw_unload")
+
+        @panda.cb_main_loop_wait(name="mlw_after")
+        def mlw_after():
+            st["mlw_after"] = st.get("mlw_after", 0) + 1
+            if "in_walk_after" in st and "after_walk" not in st:
+                st["after_walk"] = None              # next walk: by then it must be gone
+            elif st.get("after_walk", 0) is None:
+                st["after_walk"] = loaded()
+
+        st["mlw_go"] = True
+        panda.libpanda.panda_main_loop_kick()
+        time.sleep(3)
         panda.unload_plugins()       # main loop: Python callbacks, then every C plugin; vCPU running
         panda.queue_main_loop_wait_fn(lambda: st.__setitem__("unloaded", True))
         time.sleep(3)
@@ -132,6 +159,9 @@ checks = {
     "the guest loops finished": st.get("loop_out") == "loopdone",
     "C plugin (syscalls2 ppp) callbacks ran": st["openat"] > 0,
     "plugins unloaded while the vCPU ran": st["unloaded"],
+    "unload from inside a main-loop callback: deferred past the walk, then done":
+        st.get("before_call") is True and st.get("in_walk_after") is True
+        and st.get("after_walk") is False and st.get("mlw_after", 0) > 1,
     "no error": st["err"] is None,
 }
 for k, ok in checks.items():
