@@ -17,7 +17,11 @@ def main():
     if not os.path.isfile(exe):
         sys.exit(f"{basename(sys.argv[0])}: this pandare2 has no bundled engine ({exe} is missing)")
     if not os.access(exe, os.X_OK):
-        os.chmod(exe, 0o755)
+        try:
+            os.chmod(exe, 0o755)
+        except OSError as e:
+            sys.exit(f"{basename(sys.argv[0])}: {exe} is not executable and can't be made so ({e.strerror}); "
+                     f"run: chmod +x {exe}")
     name = basename(sys.argv[0])
     if not name.startswith(("qemu-system-", "panda-system-")):
         sys.exit(f"{name}: run as qemu-system-<arch>")

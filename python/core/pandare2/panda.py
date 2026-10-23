@@ -227,6 +227,15 @@ class Panda():
                 self._set_extra_plugin_path(plugin_path)
                 break
 
+        # The wheel's engine with plugins from elsewhere (a stale $PANDA_PLUGIN_DIR from a .deb or
+        # an old panda): they were built against other headers and may not fail cleanly.
+        bundled = pjoin(dirname(__file__), "data")
+        if (environ.get("PANDA_PLUGIN_DIR") and self.plugin_path == environ["PANDA_PLUGIN_DIR"]
+                and realpath(self.libpanda_path).startswith(realpath(bundled) + "/")
+                and realpath(self.plugin_path) != realpath(pjoin(bundled, "plugins"))):
+            warn(f"PANDA_PLUGIN_DIR={self.plugin_path} overrides the plugins bundled with this "
+                 f"engine ({pjoin(bundled, 'plugins')}); they must be built for the same engine")
+
         # Setup argv for panda
         self.panda_args = [self.panda]
         if self.load_plugin_interface:
