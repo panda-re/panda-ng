@@ -18,7 +18,7 @@ runs twice: with TB chaining on (the default) and with it off. Each time:
 - the system call block: x86_64's syscall is not an exception in QEMU (exit code 0), aarch64's svc
   and riscv64's ecall are (it ran all its instructions, then left by longjmp: exit code 3);
 - before_block_exec_invalidate_opt asks at every start of "loop" but the one right after it
-  returned true, which is a fresh translation of it;
+  returned true, which is a fresh translation of it (asked too if an interrupt came between);
 and both runs see the same per-block counts.
 """
 import base64
@@ -265,8 +265,10 @@ def analyse(r):
           all(b[0] in (L["fault"], L["sys"]) for b in early), [hex(b[0]) for b in early])
     check(p + "invalidate_opt: true once for loop, then a fresh translation of it starts",
           r.invalidated and retrans_ok == "ok", retrans_ok)
+    # The start right after a true isn't asked if it is the retranslated block. When an interrupt
+    # comes between (the kernel's blocks start first), it is asked again, once: N + 1.
     check(p + "invalidate_opt asked at every start of loop but the retranslated one",
-          asked[L["loop"]] == N, f"asked {asked[L['loop']]} want {N}")
+          asked[L["loop"]] in (N, N + 1), f"asked {asked[L['loop']]} want {N} (or {N + 1})")
     return by_label, len(blocks), sum(len(b[3]) for b in blocks)
 
 
