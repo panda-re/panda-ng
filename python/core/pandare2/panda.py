@@ -466,12 +466,12 @@ class Panda():
         '''
         try:
             # Then run any and all requested commands
-            if len(self.main_loop_wait_fnargs) == 0: return
-            #progress("Entering main_loop_wait_cb")
-            for fnargs in self.main_loop_wait_fnargs:
-                (fn, args) = fnargs
-                ret = fn(*args)
-            self.main_loop_wait_fnargs = []
+            # Only what was queued before this pass: a vCPU callback that queues more has asked
+            # for a stop first, and the engine runs the next pass after acting on it. pop(0) is
+            # atomic against those appends.
+            for _ in range(len(self.main_loop_wait_fnargs)):
+                (fn, args) = self.main_loop_wait_fnargs.pop(0)
+                fn(*args)
         except KeyboardInterrupt:
             self.end_analysis()
 
@@ -481,6 +481,7 @@ class Panda():
         fn is a function we want to run, args are arguments to apss to it
         '''
         self.main_loop_wait_fnargs.append((fn, args))
+        self.libpanda.panda_main_loop_kick()  # the main loop may be asleep with the VM stopped
 
     def exit_cpu_loop(self):
         '''
@@ -2796,7 +2797,7 @@ class Panda():
             progress(f"[Setup command]: {setup_result}")
 
     @blocking
-    def record_cmd(self, guest_command, copy_directory=None, iso_name=None, setup_command=None, recording_name="recording", snap_name="root", ignore_errors=False):
+    def record_cmd(self, guest_command, copy_directory=None, iso_name=None, setup_command=None, recording_name="recording", snap_name="root", ignore_errors=False, timeout=None):
         '''
         Take a recording as follows:
             0) Revert to the specified snapshot name if one is set. By default 'root'. Set to `None` if you have already set up the guest and are ready to record with no revert
@@ -2828,7 +2829,7 @@ class Panda():
         self.wait_rr("record")
 
         # 4) run the command and wait until it finishes
-        result = self.run_serial_cmd(guest_command)
+        result = self.run_serial_cmd(guest_command, timeout=timeout)
 
         if debug:
             progress("Result of `{}`:".format(guest_command))

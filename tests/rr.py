@@ -49,7 +49,7 @@ def child(mode, image, name, out):
             panda.revert_sync("root")
             # ls -R reads directories the snapshot has not cached: disk I/O while recording.
             panda.record_cmd("cat /etc/os-release; ls -R /usr/share/doc | wc -l", recording_name=name,
-                             snap_name=None)
+                             snap_name=None, timeout=600)
             seen["output"] = "recorded"
             panda.end_analysis()
         panda.run()

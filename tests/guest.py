@@ -88,6 +88,8 @@ def auxv(cpu, tb, av):
 @panda.hypercall(MAGIC)
 def hypercall(cpu):
     seen["hypercall"].append(panda.arch.get_arg(cpu, 1, convention="syscall"))
+    # while running: end_analysis unloads the plugins
+    seen["hypersyscalls"] = panda.libpanda.panda_get_plugin_by_name(b"hypersyscalls") != panda.ffi.NULL
 
 
 @panda.queue_blocking
@@ -120,7 +122,7 @@ checks = {
     "proc_start_linux argv": len(cat_starts) > 0 and cat_starts[0][0].endswith("/cat"),
     "osi_linux name and pid": len(cat_starts) > 0 and cat_starts[0][2] == ("cat", seen["pid"]),
     "hypercaller": seen["hypercall"] == [MAGIC] and seen["hc"].endswith("rc=0"),
-    "hypersyscalls loaded": panda.libpanda.panda_get_plugin_by_name(b"hypersyscalls") != panda.ffi.NULL,
+    "hypersyscalls loaded": seen.get("hypersyscalls", False),
 }
 for name, ok in checks.items():
     print(f"  {'PASS' if ok else 'FAIL'} {name}")
