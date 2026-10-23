@@ -699,11 +699,8 @@ class Panda():
         '''
         self.athread.ending = True
         self.ending = True
-        if self.running.is_set():
-            # Stop the vCPUs before the plugins go: the C plugins are unloaded from the main
-            # loop, and a vCPU still running a plugin's callback crashed (fuzz.py --fast on
-            # aarch64). The stop request is handled before the queued unload runs (0053).
-            self.vm_stop()
+        # No vm_stop first: the engine pauses running vCPUs itself while it unloads C plugins, and
+        # frees callback-list entries only once no vCPU can be walking them.
         self.unload_plugins()
         if self.running.is_set() or self.initializing.is_set():
 
