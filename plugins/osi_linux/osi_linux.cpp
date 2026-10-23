@@ -1178,12 +1178,12 @@ void init_per_cpu_offsets(CPUState *cpu) {
 void restore_after_snapshot(CPUState* cpu) {
     LOG_INFO("Snapshot loaded. Re-initializing");
 
-    // By setting these, we'll redo our init logic which determines
-    // if OSI is ready at the first time it's used, otherwise 
-    // it runs at the first syscall (and asserts if it fails)
+    // By setting these, we'll redo our init logic the next time OSI is used (as after
+    // loading the plugin); that defers to the first syscall only if it must. Registering
+    // on_first_syscall here asserted on x86_64: at the first syscall entry after a revert
+    // the current task isn't readable yet.
     osi_initialized=false;
     first_osi_check = true;
-    PPP_REG_CB("syscalls2", on_all_sys_enter, on_first_syscall);
 }
 
 

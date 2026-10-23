@@ -25,7 +25,11 @@ def main():
     iterations = int(sys.argv[2]) if len(sys.argv) > 2 else 10
     panda = Panda(generic=image)
     st = {"snap": False, "asid": None, "path": None, "i": -1, "outcomes": [], "t0": None,
-          "failed": None, "done": False}
+          "failed": None, "done": False, "loadvm": 0}
+
+    @panda.cb_after_loadvm
+    def after_loadvm(cpu):
+        st["loadvm"] += 1
 
     def next_input():
         st["i"] += 1
@@ -102,6 +106,7 @@ def main():
         f"all {iterations} iterations ran": len(got) == iterations,
         "each iteration saw only its own input": got == want,
         "no memory write failed": st["failed"] is None,
+        "after_loadvm fired for the root revert and each iteration": st["loadvm"] == iterations + 1,
     }
     for k, ok in checks.items():
         print(f"  {'PASS' if ok else 'FAIL'} {k}")

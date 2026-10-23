@@ -43,7 +43,6 @@ with lzma.open(os.path.join(image_dir, image["isf"])) as f:
 # that passes fails the run, so this list stays true. before_loadvm isn't registered at all: its
 # trampoline is commented out in panda/src/callbacks.c and registering it aborts.
 GAPS = {
-    "after_loadvm fires on each revert": "no call site for panda_callbacks_after_loadvm",
     "mmio_before_write fires": "no call site for panda_callbacks_mmio_before_write",
     "mmio_after_read fires": "commented out in contrib/plugins/panda_plugin_interface.c",
     "before_handle_interrupt fires": "the cpu_exec_interrupt wrapper is commented out in panda/src/wrap_ops.c",
