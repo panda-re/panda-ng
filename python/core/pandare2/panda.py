@@ -1505,16 +1505,32 @@ class Panda():
 
     def current_asid(self, cpu):
         '''
-        Get current Application Specific ID
+        Get the current process's identifier: the physical address of its top-level page table
+        (x86 CR3, arm TTBR0, riscv satp) where the architecture has one, else the hardware ASID
+        (mips, ppc). asid_changed callbacks get the old and new values of this.
 
         Args:
             cpu (CPUState): CPUState structure
 
         Returns:
-            integer: value of current ASID
+            integer: the current process's identifier
         '''
         return self.libpanda.panda_current_asid(cpu)
-    
+
+    def current_asid_field(self, cpu):
+        '''
+        Get the hardware address-space id field (x86 PCID, arm ASID, riscv satp.ASID, mips
+        EntryHi.ASID, ppc PID). Guests recycle these, so unlike current_asid they don't identify a
+        process.
+
+        Args:
+            cpu (CPUState): CPUState structure
+
+        Returns:
+            integer: the ASID field
+        '''
+        return self.libpanda.panda_current_asid_field(cpu)
+
     def tb_pc(self, cpu, tb):
         '''
         Get the guest virtual address of the block a block callback (before/after_block_exec,
