@@ -173,5 +173,14 @@ Until the cutover, engine work still lands in qemu_builder branches. `tools/engi
 patches/, src/, scripts/, tests/, minus the paths above), keeps panda-ng's own `nix/source.nix`,
 `scripts/import-series.sh` and `scripts/offcost-gate.sh`, records the commit in `IMPORT`, and is
 idempotent. If qemu_builder changes one of the files panda-ng carries its own version of, the
-import says so and prints the diff to port. After the cutover, engine/ is the source of truth and
-the script is for history only.
+import says so and prints the diff to port (exit status 1; re-run with `IMPORT_ACK_OWNED=1` once
+ported).
+
+The import mirrors qemu_builder faithfully, including a series that `export-series.sh` would
+write differently (hand-named or hand-formatted patches). After an import, run the round trip
+(import-series, export-series) and commit any normalization, or CI's round-trip check fails.
+
+At the cutover (the last import, after which engine/ is the source of truth) the script is
+deleted: a mirror would overwrite engine work done here, and a later penguin change in
+qemu_builder (to the IGLOO patches, say) is better ported as a patch than imported. `IMPORT`
+stays as the record of where engine/ came from.
