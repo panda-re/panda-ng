@@ -5,8 +5,8 @@
 #
 # Transitional. Until the cutover, the engine is still developed in qemu_builder branches (the lanes
 # merge into its `integ`); this copies a committed qemu_builder state into panda-ng's engine/ and
-# records where it came from in engine/IMPORT. After the cutover the engine is edited here and
-# this script is kept only to pull in later qemu_builder commits by hand (see engine/README.md).
+# records where it came from in engine/IMPORT. At the cutover (the last import) the engine becomes
+# panda-ng's own and this script is deleted (engine/README.md, "Provenance and the import script").
 #
 # What it does:
 #   - reads <ref> (default HEAD) of the qemu_builder repo with `git archive`: committed state only,
