@@ -49,17 +49,10 @@ GAPS = {
     "current_pc is the hypercall's pc (precise pc)":
         "panda_enable_precise_pc sets panda_update_pc, which nothing reads; pc is the TB's start",
 }
-# aarch64: current_asid is TTBR0_EL1's ASID field, while asid_changed passes TTBR values (open
-# question for Luke). Kernels that keep the ASID in TTBR1 (TCR.A1, Debian's 6.12) leave TTBR0's at 0;
-# Ubuntu's 6.8 doesn't, so "nonzero" is a gap only where current_asid reads 0.
-GAPS[("current_asid is the last asid_changed value", "aarch64")] = (
-    "current_asid is TTBR0_EL1's ASID field; asid_changed passes TTBR values")
-AARCH64_ASID_GAPS = {"current_asid is nonzero for a user process":
-                     "TTBR0_EL1's ASID is 0 on this kernel, which keeps it in TTBR1 (TCR.A1)"}
 checks = {}
 counts = Counter()
 seen = {"tb_pc_exec": [0, []], "tb_pc_translate": [0, []], "blk": [], "sbe": [], "insn_pcs": set(), "virt_writes": [], "virt_reads": [], "phys_writes": [],
-        "before_writes": [], "before_reads": [], "phys_before_writes": [], "asids": []}
+        "before_writes": [], "before_reads": [], "phys_before_writes": [], "asids": [], "asid_pairs": []}
 
 
 def check(name, ok, detail=""):
@@ -75,6 +68,9 @@ def in_program(pc):
 def asid_changed(cpu, old, new):
     counts["asid_changed"] += 1
     seen["asids"].append(new)
+    if len(seen["asid_pairs"]) < 5000:
+        # asid_changed runs before the write: current_asid is still the old value.
+        seen["asid_pairs"].append((old, new, panda.current_asid(cpu)))
     return False
 
 
@@ -135,42 +131,50 @@ def bbt(cpu, pc):
         counts["before_block_translate"] += 1
 
 
+# Block addresses come from panda.tb_pc (tb.pc is 0 for a shared CF_PCREL block). Here
+# insn_translate is registered, so every TB is bound and tb_pc is tb.pc; tests/tbpc.py covers
+# unbound blocks.
 @window_cb(panda.cb_after_block_translate, "after_block_translate")
 def abt(cpu, tb):
-    tb_pc_check("tb_pc_translate", tb.pc, seen.get("translating"))
-    if in_program(tb.pc):
+    pc = panda.tb_pc(cpu, tb)
+    tb_pc_check("tb_pc_translate", pc, seen.get("translating"))
+    if in_program(pc):
         counts["after_block_translate"] += 1
 
 
 @window_cb(panda.cb_before_block_exec, "before_block_exec")
 def bbe(cpu, tb):
-    tb_pc_check("tb_pc_exec", tb.pc, panda.arch.get_pc(cpu))
-    if in_program(tb.pc):
+    pc = panda.tb_pc(cpu, tb)
+    tb_pc_check("tb_pc_exec", pc, panda.arch.get_pc(cpu))
+    if in_program(pc):
         counts["before_block_exec"] += 1
-        seen["blk"].append(("b", tb.pc, None))
+        seen["blk"].append(("b", pc, None))
 
 
 @window_cb(panda.cb_after_block_exec, "after_block_exec")
 def abe(cpu, tb, exit_code):
-    if in_program(tb.pc):
+    pc = panda.tb_pc(cpu, tb)
+    if in_program(pc):
         counts["after_block_exec"] += 1
-        seen["blk"].append(("a", tb.pc, exit_code))
+        seen["blk"].append(("a", pc, exit_code))
 
 
 @window_cb(panda.cb_start_block_exec, "start_block_exec")
 def sbe(cpu, tb):
-    if in_program(tb.pc):
+    pc = panda.tb_pc(cpu, tb)
+    if in_program(pc):
         counts["start_block_exec"] += 1
-        seen["sbe"].append(tb.pc)
+        seen["sbe"].append(pc)
 
 
 @window_cb(panda.cb_end_block_exec, "end_block_exec")
 def ebe(cpu, tb):
-    if in_program(tb.pc):
+    pc = panda.tb_pc(cpu, tb)
+    if in_program(pc):
         counts["end_block_exec"] += 1
         # The TB at label 1, past the hypercall and a jump (x86: out, jmp, 2 bytes each), ends in a
         # call (x86), bl (aarch64) or jal (riscv64), after zeroing where its return address goes.
-        if tb.pc == seen["hc1"] + (4 if arch == "x86_64" else 8) and "call_slot" not in seen:
+        if pc == seen["hc1"] + (4 if arch == "x86_64" else 8) and "call_slot" not in seen:
             seen["call_slot"] = (panda.virtual_memory_read(cpu, seen["sp"] - 8, 8, fmt="int")
                                  if arch == "x86_64" else panda.arch.get_reg(cpu, RETADDR_REG[arch]))
 
@@ -246,14 +250,16 @@ def hypercall_1(cpu, marker, sp, pc):
     check("in_kernel is false in user mode",
           not panda.in_kernel(cpu) and not panda.in_kernel_mode(cpu) and not panda.in_kernel_code_linux(cpu))
     asid = panda.current_asid(cpu)
-    if arch == "aarch64" and asid == 0:
-        GAPS.update(AARCH64_ASID_GAPS)
     last = seen["asids"][-1] if seen["asids"] else None
-    if arch == "riscv64" and last is not None:
-        last = (last >> 44) & 0xffff   # asid_changed passes satp; current_asid is its ASID field
     check("current_asid is the last asid_changed value", last is not None and asid == last,
           f"{asid:#x} last {last}")
     check("current_asid is nonzero for a user process", asid != 0, f"{asid:#x}")
+    # The process identifier is the top-level page table's physical address. Not always page
+    # aligned: arm64 kernels whose top level is smaller than a page (52-bit VA built, 48-bit at
+    # run time) take it from a cache (debian-13-aarch64: 0x...a00). x86 PAE's is 32-byte aligned.
+    check("current_asid is a page table's address (32-byte aligned, RAM)",
+          asid % 32 == 0 and panda.physical_memory_read(asid, 8) is not None, f"{asid:#x}")
+    seen["asid_field"] = panda.current_asid_field(cpu)
 
     # User memory.
     data = panda.virtual_memory_read(cpu, marker, len(MARKER))
@@ -365,7 +371,7 @@ check("phys_mem_after_write sees the store",
 for key, where in [("tb_pc_translate", "after_block_translate (before_block_translate's pc)"),
                    ("tb_pc_exec", "before_block_exec (the CPU's pc)")]:
     n, bad = seen[key]
-    check(f"tb.pc is the block's address in {where}", n and not bad, f"{n} TBs, {bad}")
+    check(f"tb_pc is the block's address in {where}", n and not bad, f"{n} TBs, {bad}")
 # The window opens inside hypercall 1's block (whose start passed with the callbacks off: no
 # before/after for it) and closes inside hypercall 2's (before ran, after didn't).
 blk = seen["blk"]
@@ -386,6 +392,13 @@ for name in ["before_block_translate", "after_block_translate", "before_block_ex
              "phys_mem_after_read", "asid_changed", "before_handle_exception", "before_handle_interrupt",
              "main_loop_wait", "mmio_after_read", "mmio_before_write"]:
     check(f"{name} fires", counts[name] > 0, counts[name])
+pairs = seen["asid_pairs"]
+bad = [(hex(o), hex(n), hex(c)) for o, n, c in pairs if o == n or c != o]
+chain = [i for i in range(1, len(pairs)) if pairs[i][0] != pairs[i - 1][1]]
+check("asid_changed: old != new, old is current_asid, each old is the previous new",
+      pairs and not bad and len(chain) <= 3,   # a loadvm restores another asid without a write
+      f"{len(pairs)} changes, bad {bad[:4]}, breaks at {chain[:4]}")
+check("current_asid_field reads", isinstance(seen.get("asid_field"), int), seen.get("asid_field"))
 check("after_loadvm fires on each revert", counts["after_loadvm"] == 2, counts["after_loadvm"])
 check("savevm, loadvm restores the saved state", seen.get("after_revert") == "one",
       f"savevm={seen.get('savevm')!r} cat={seen.get('after_revert')!r}")

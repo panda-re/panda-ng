@@ -147,7 +147,10 @@ void cb_block_translate_callback (CPUState* cpu, struct qemu_plugin_tb *tb) {
     struct hook hook_container;
     std::set<target_ulong> inserted_addresses;
     memset(&hook_container, 0, sizeof(hook_container));
-    uint64_t tb_vaddr = qemu_plugin_tb_vaddr(tb);
+    // The block's address without reading it through the plugin API, which would bind every TB
+    // to its address (patch 0035) and stop CF_PCREL sharing: at translation the CPU's pc is the
+    // block's start. A TB that gets a hook is bound below.
+    uint64_t tb_vaddr = panda_current_pc(cpu);
     uint64_t tb_size = qemu_plugin_tb_size(tb);
     hook_container.addr = tb_vaddr;
     for (auto& a : hooks){
@@ -164,6 +167,7 @@ void cb_block_translate_callback (CPUState* cpu, struct qemu_plugin_tb *tb) {
                         if (exclude == inserted_addresses.end()){
                             struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn_by_vaddr(tb, h->addr);
                             if (insn != NULL){
+                                qemu_plugin_tb_vaddr(tb);   // hooked: bind the TB to this address
                                 TranslationBlock *real_tb = panda_get_tb(tb);
                                 qemu_plugin_register_vcpu_insn_exec_cb(insn, cb_tcg_codegen_middle_filter, QEMU_PLUGIN_CB_NO_REGS, (void*) real_tb);
                                 inserted_addresses.insert(h->addr);
