@@ -14,6 +14,7 @@ PANDAENDCOMMENT */
  * current_task, arm64's __entry_task), memory mappings come from the mm's maple tree (6.1+) or its
  * mmap list, and task changes are reported from finish_task_switch.
  */
+#include <cinttypes>
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -593,9 +594,19 @@ void resolve() {
 // The banner at its ISF address says whether the kernel runs where the ISF says (no KASLR slide).
 void check_banner(CPUState *cpu) {
     static bool checked = false;
+    static int unreadable = 0;
     if (checked || sym_banner == 0) return;
     std::string b = read_cstr(cpu, sym_banner, 128);
-    if (b.empty()) return;  // not mapped yet
+    if (b.empty()) {
+        // Not mapped yet early in boot; still unreadable after this many address-space switches,
+        // the ISF is not this kernel's (another arch or build) or the kernel moved.
+        if (++unreadable == 200) {
+            checked = true;
+            fprintf(stderr, PLUGIN_NAME ": linux_banner at its ISF address (0x%" PRIx64 ") is unreadable; "
+                    "is the ISF for this kernel (and arch)? Boot the guest with nokaslr\n", (uint64_t)sym_banner);
+        }
+        return;
+    }
     checked = true;
     if (b.rfind("Linux version ", 0) != 0) {
         fprintf(stderr, PLUGIN_NAME ": linux_banner isn't at its ISF address; boot the guest with nokaslr\n");
