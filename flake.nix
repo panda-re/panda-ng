@@ -394,6 +394,7 @@
             dist
             deb
             mkEngine
+            mkBoard
             ;
           # For running libpanda-ng by hand against a build tree:
           #   nix develop .#libpanda-ng -c bash run_one.sh <qemu-src-with-build/> <libpanda-*.so>
