@@ -213,7 +213,8 @@ def _find_build_dir(arch_name, find_executable=False, mode="softmmu"):
                 f"libpanda-{arch_name}-{mode}.{dll_extension}"
 
     # system path could have panda-system-X or libpanda-X.[ext]. Others would have an arch_name - softmmu directory
-    pot_paths = [system_build,
+    pot_paths = [pjoin(python_package, "lib"),  # wheel installs: pandare2/data/lib
+                 system_build,
                  pjoin(python_package, arch_dir),
                  pjoin(local_build),
                  "/usr/local/lib/x86_64-linux-gnu/",
