@@ -3073,10 +3073,8 @@ class Panda():
         if not enabled: # Note the registered_callbacks dict starts with enabled true and then we update it to false as necessary here
             self.disable_callback(name)
 
-        if "block" in cb.name and "start" not in cb.name and "end" not in cb.name:
-            if not self.disabled_tb_chaining:
-                print("Warning: disabling TB chaining to support {} callback".format(cb.name))
-                self.disable_tb_chaining()
+        # Block-exec callbacks run from each block's own code and fire once per block with TB
+        # chaining on: no need to turn it off (PANDA 1/2 did, at 1.5-4x the run time).
 
 
     def is_callback_enabled(self, name):
