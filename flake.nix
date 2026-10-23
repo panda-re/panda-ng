@@ -434,7 +434,11 @@
             { pkg = zlib; spdx = "Zlib"; }
             { pkg = zstd; spdx = "BSD-3-Clause OR GPL-2.0-only"; }
             { pkg = libslirp; spdx = "BSD-3-Clause"; }
-            { pkg = dtc; spdx = "GPL-2.0-or-later OR BSD-2-Clause"; } # libfdt
+            {
+              pkg = dtc;
+              spdx = "GPL-2.0-or-later OR BSD-2-Clause"; # libfdt
+              files = [ "README.license" "BSD-2-Clause" "GPL" ];
+            }
             { pkg = libcap_ng; spdx = "LGPL-2.1-or-later"; }
             { pkg = pcre2; spdx = "BSD-3-Clause WITH PCRE2-exception"; }
             { pkg = libffi; spdx = "MIT"; }
@@ -466,6 +470,7 @@
                 version = e.pkg.version or "";
                 inherit (e) spdx;
                 src = e.src or e.pkg.src;
+                files = e.files or [ ];
                 urls = src.urls or [ (src.url or "") ];
                 prefixes = map (o: noCtx (toString e.pkg.${o})) e.pkg.outputs;
               }) wheelThirdParty;
@@ -509,19 +514,21 @@
                 mkdir -p $out
                 cp $manifestPath $out/manifest.json
                 # Top-level license files of a source tarball or directory.
+                # Extra file names (beyond COPYING*, LICENSE*, ...) after the source.
                 licenses() {
                   local name=$1 src=$2 x=$TMPDIR/x-$1
+                  shift 2
                   mkdir -p $x $out/$name
                   if [ -d "$src" ]; then
                     x=$src
                   else
                     tar -xf "$src" -C $x --no-wildcards-match-slash --wildcards \
                       '*/COPYING*' '*/LICENSE*' '*/LICENCE*' '*/COPYRIGHT*' '*/NOTICE*' \
-                      '*/LICENSES/*' 2>/dev/null || true
+                      '*/LICENSES/*' "''${@/#/*/}" 2>/dev/null || true
                     # Single top-level directory.
                     local d=( $x/* ); [ ''${#d[@]} = 1 ] && [ -d "''${d[0]}" ] && x=''${d[0]}
                   fi
-                  for f in $x/COPYING* $x/LICENSE* $x/LICENCE* $x/COPYRIGHT* $x/NOTICE*; do
+                  for f in $x/COPYING* $x/LICENSE* $x/LICENCE* $x/COPYRIGHT* $x/NOTICE* "''${@/#/$x/}"; do
                     [ -f "$f" ] && cp "$f" $out/$name/
                   done
                   [ -d $x/LICENSES ] && cp -r $x/LICENSES $out/$name/
@@ -532,7 +539,7 @@
                 }
                 licenses qemu-panda-engine ${engineSrc}
                 cp ${engineSrc}/pc-bios/README $out/qemu-panda-engine/pc-bios-README
-                ${lib.concatMapStringsSep "\n" (t: "licenses ${t.name} ${t.src}") third}
+                ${lib.concatMapStringsSep "\n" (t: "licenses ${t.name} ${t.src} ${toString t.files}") third}
               '';
 
           wheel =
