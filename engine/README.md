@@ -171,7 +171,7 @@ The "no" rows are candidates to drop later; nothing has been dropped (Luke decid
 Until the cutover, engine work still lands in qemu_builder branches. `tools/engine-import.sh
 <qemu_builder checkout> [<ref>]` mirrors a committed qemu_builder state into engine/ (base.json,
 patches/, src/, scripts/, tests/, minus the paths above), keeps panda-ng's own `nix/source.nix`,
-`scripts/import-series.sh` and `scripts/offcost-gate.sh`, records the commit in `IMPORT`, and is
+`scripts/import-series.sh`, `scripts/offcost-gate.sh` and `scripts/check-delta-present.sh`, records the commit in `IMPORT`, and is
 idempotent. If qemu_builder changes one of the files panda-ng carries its own version of, the
 import says so and prints the diff to port (exit status 1; re-run with `IMPORT_ACK_OWNED=1` once
 ported).
