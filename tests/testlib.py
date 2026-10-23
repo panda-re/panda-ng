@@ -14,7 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "programs"))
 
 MAGIC = 0x50616e64
-PROGRAM_BASE, PROGRAM_END = 0x400000, 0x420000
+PROGRAM_BASE, PROGRAM_END = 0x400000, 0x402000   # the programs' text is < 4 KiB; other processes run code at 0x41f000 (debian-13 aarch64)
 T0 = time.time()
 
 

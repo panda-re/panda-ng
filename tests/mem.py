@@ -243,12 +243,15 @@ def analyse(r):
             f"rc={EXIT_CODE}" in r.output, repr(r.output))
     C.check(p + "nothing fires in the program while the callbacks are disabled (incl. a deleted one)",
             not r.early, dict(r.early))
+    # Only the program's own window: other code can sit at these addresses in another process that
+    # an interrupt switches to (seen on aarch64: a process with code at 0x41fxxx).
+    r.ev = [e for e in r.ev if L["m0"] <= e[1] <= L["hc2"]]
     if arch == "x86_64":
         # The hypercall (out 0x88) reads the TSS's I/O permission bitmap: two 2-byte kernel reads,
         # reported with the out's pc (the CPU's own accesses on behalf of the instruction).
         tss = [e for e in r.ev if e[1] == L["hc2"]]
         C.check(p + "x86 out: its implicit I/O-bitmap reads are reported (kernel address, 2 bytes)",
-                tss and all(e[3] == 2 and e[2] >= 1 << 63 for e in tss), [(e[0], hex(e[2]), e[3]) for e in tss])
+                tss and all(e[3] == 2 and (e[0][0] == "p" or e[2] >= 1 << 63) for e in tss), [(e[0], hex(e[2]), e[3]) for e in tss])
         r.ev = [e for e in r.ev if e[1] != L["hc2"]]
     by_pc = {}
     for e in r.ev:

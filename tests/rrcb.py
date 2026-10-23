@@ -75,7 +75,10 @@ def child(mode, image, name, out, with_cbs):
         op = hypercall_args(panda, cpu)[0]
         if not panda.libpanda.rr_on():
             return
-        seen["hc"].append((op, panda.rr_get_guest_instr_count()))
+        # RRCB_NO_ICOUNT=1: don't read the instruction count here (riscv64/aarch64 record aborts on it,
+        # see the report); the other checks still compare record and replay.
+        icount = None if os.environ.get("RRCB_NO_ICOUNT") else panda.rr_get_guest_instr_count()
+        seen["hc"].append((op, icount))
         progress(f"[{mode}] hypercall {op} at instruction {seen['hc'][-1][1]}")
         for n in window:
             (panda.enable_callback if op == 1 else panda.disable_callback)(n)

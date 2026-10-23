@@ -60,6 +60,13 @@ S = {"kernel": None}
 fields = dict(ffi.typeof("panda_cb").fields)
 
 
+def read_or_error(cpu, addr, n):
+    try:
+        return bytes(panda.virtual_memory_read(cpu, addr, n))
+    except ValueError as e:
+        return repr(e)
+
+
 def make(name):
     ftype = fields[name].type
     ftype = ftype.item if ftype.kind == "pointer" else ftype
@@ -73,7 +80,7 @@ def make(name):
             S["kernel"] = {
                 "in_kernel": bool(panda.in_kernel(cpu)), "in_kernel_mode": bool(panda.in_kernel_mode(cpu)),
                 "in_kernel_code_linux": bool(panda.in_kernel_code_linux(cpu)),
-                "banner": bytes(panda.virtual_memory_read(cpu, banner_addr, 14)),
+                "banner": read_or_error(cpu, banner_addr, 14),
                 "ksp": panda.libpanda.panda_current_ksp(cpu), "pc": panda.arch.get_pc(cpu)}
         if passthrough:
             return args[1]
@@ -113,13 +120,17 @@ def drive():
     panda.type_serial_cmd("echo typed-$((6*7))")
     S["typed"] = panda.finish_serial_cmd()
     progress("snapshot: snap, change, revert_sync, delvm_sync")
-    panda.run_serial_cmd("echo before > /root/snapfile")
-    panda.snap("cbtest")
-    panda.run_serial_cmd("echo after > /root/snapfile")
-    panda.revert_sync("cbtest")
-    S["snapfile"] = panda.run_serial_cmd("cat /root/snapfile").strip()
-    panda.delvm_sync("cbtest")
-    S["snapshots"] = panda.run_monitor_cmd("info snapshots")
+    try:
+        panda.run_serial_cmd("echo before > /root/snapfile")
+        panda.snap("cbtest")
+        panda.run_serial_cmd("echo after > /root/snapfile", timeout=60)
+        panda.revert_sync("cbtest")
+        S["snapfile"] = panda.run_serial_cmd("cat /root/snapfile").strip()
+        panda.delvm_sync("cbtest")
+        S["snapshots"] = panda.run_monitor_cmd("info snapshots")
+    except Exception as e:  # noqa: BLE001 - report it as a failed check, still end the analysis
+        S["snap_error"] = repr(e)[:300]
+        progress(f"snapshot step failed: {S['snap_error']}")
     progress("end_analysis")
     panda.end_analysis()
 
@@ -131,7 +142,8 @@ for name in registered:
     if name in EXERCISED_ONLY_ON and arch not in EXERCISED_ONLY_ON[name]:
         continue
     C.check(f"{name} fires", counts[name] > 0, counts[name])
-C.check("after_loadvm: once per revert (root, cbtest)", counts["after_loadvm"] == 2, counts["after_loadvm"])
+C.check("after_loadvm: once per revert (root, cbtest)", counts["after_loadvm"] == (1 if "snap_error" in S else 2),
+        counts["after_loadvm"])
 k = S["kernel"] or {}
 C.check("in asid_changed (kernel mode): in_kernel, in_kernel_mode, in_kernel_code_linux",
         k.get("in_kernel") and k.get("in_kernel_mode") and k.get("in_kernel_code_linux"), k)
@@ -145,6 +157,7 @@ if arch == "x86_64":
             "ff" in S.get("port", "") and "w=0" in S.get("port", ""), repr(S.get("port")))
 C.check("run_monitor_cmd returns the monitor's output", "running" in S.get("monitor", ""), repr(S.get("monitor")))
 C.check("type_serial_cmd + finish_serial_cmd", "typed-42" in (S.get("typed") or ""), repr(S.get("typed")))
-C.check("snap / revert_sync restores the snapshot's state", S.get("snapfile") == "before", repr(S.get("snapfile")))
+C.check("snap / revert_sync restores the snapshot's state", S.get("snapfile") == "before",
+        S.get("snap_error") or repr(S.get("snapfile")))
 C.check("delvm_sync deletes it", "cbtest" not in S.get("snapshots", "cbtest"), repr(S.get("snapshots")))
 sys.exit(C.report(f"CALLBACKS arch={arch} " + " ".join(f"{n}={counts[n]}" for n in registered)))

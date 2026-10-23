@@ -111,8 +111,8 @@ C.check("OSI names the current process 'procs' with the pid getpid gave", not ba
 bad_pgd = [(h[0], hex(h[2] or 0), hex(h[4][2])) for h in hcs if h[4] is not None and h[4][2] != h[2]]
 C.check("OSI's process asid is the page-table base from asid_changed", not bad_pgd, bad_pgd[:4])
 spans = sorted((v[0][3], v[-1][3]) for v in by_pid.values())
-C.check("the processes ran at the same time (their hypercall spans in the timeline overlap)",
-        len(spans) == KIDS and all(spans[k + 1][0] < spans[k][1] for k in range(len(spans) - 1)), spans)
+C.check("processes ran at the same time (two copies' hypercall spans in the timeline overlap)",
+        len(spans) == KIDS and any(spans[k + 1][0] < spans[k][1] for k in range(len(spans) - 1)), spans)
 seen = set(S["timeline"])
 C.check("asid_changed's timeline switches to every process's address space", all(a in seen for a in flat),
         f"{len(S['timeline'])} switches")

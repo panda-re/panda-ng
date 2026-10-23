@@ -36,7 +36,7 @@ from pandare2 import Panda  # noqa: E402
 
 MAGIC = 0x50616e64
 N = 1000
-PROGRAM_BASE, PROGRAM_END = 0x400000, 0x420000
+PROGRAM_BASE, PROGRAM_END = 0x400000, 0x402000   # the programs' text is < 4 KiB; other processes run code at 0x41f000 (debian-13 aarch64)
 LABELS = ["setup", "loop", "odd", "even", "fault", "fault_store", "sys"]
 TB_EXIT_IDX1 = 1
 
