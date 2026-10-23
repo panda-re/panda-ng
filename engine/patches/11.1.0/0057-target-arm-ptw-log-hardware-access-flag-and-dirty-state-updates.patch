@@ -18,7 +18,7 @@ handles TLB_NOTDIRTY. Only hardware AF/DBM updates pay for it.
  1 file changed, 9 insertions(+)
 
 diff --git a/target/arm/ptw.c b/target/arm/ptw.c
-index a29de0385f4e9990457d4b8009e8e8ec57888939..9afc1aa0e7c7971cc6a670af8dde781bf8a77492 100644
+index a29de03..9afc1aa 100644
 --- a/target/arm/ptw.c
 +++ b/target/arm/ptw.c
 @@ -962,6 +962,11 @@ static uint64_t arm_casq_ptw(CPUARMState *env, uint64_t old_val,

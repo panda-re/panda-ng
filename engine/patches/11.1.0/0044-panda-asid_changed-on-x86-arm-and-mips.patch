@@ -3,18 +3,19 @@ From: Luke Craig <lacraig3@gmail.com>
 Date: Thu, 22 Oct 2026 10:11:21 -0400
 Subject: [PATCH] panda: asid_changed on x86, arm and mips
 
-CR3 (x86), TTBR (arm) and EntryHi (mips) writes call panda_callbacks_asid_changed first; a
-plugin returning true vetoes the write. On arm the veto now comes before the TLB flush.
+CR3 (x86), TTBR (arm) and EntryHi (mips) writes go through panda_asid_reg_write first. When the
+write changes the process identifier (panda_current_asid), asid_changed runs with the old and new
+identifiers, and a plugin returning true vetoes the write; a write that leaves it alone (a TTBR1 or
+ASID-only write, KPTI's CR3 toggle) fires nothing. On arm the veto comes before the TLB flush.
 From pandang 0006, 0009 and 0012.
 ---
- target/arm/helper.c                 |  9 +++++++++
- target/i386/helper.c                | 14 +++++++++-----
- target/mips/tcg/system/cp0_helper.c | 15 +++++++++++++--
- target/mips/tcg/system/tlb_helper.c | 12 +++++++++++-
- 4 files changed, 42 insertions(+), 8 deletions(-)
+ target/arm/helper.c                 | 11 +++++++++++
+ target/i386/helper.c                |  5 +++++
+ target/mips/tcg/system/cp0_helper.c | 11 +++++++++--
+ 3 files changed, 25 insertions(+), 2 deletions(-)
 
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index ef7b823e393a00af1c749ec27ff514fdbb5e0de7..85f880a50a09fd94837427dffb69488d1a3a42c2 100644
+index ef7b823e393a00af1c749ec27ff514fdbb5e0de7..1c592e13769d94290852a4399b7a936f996c1993 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -35,6 +35,7 @@
@@ -25,30 +26,32 @@ index ef7b823e393a00af1c749ec27ff514fdbb5e0de7..85f880a50a09fd94837427dffb69488d
  #include "system/syscall-trap.h"
  
  static void switch_mode(CPUARMState *env, int mode);
-@@ -2821,6 +2822,10 @@ static void vmsa_tcr_el12_write(CPUARMState *env, const ARMCPRegInfo *ri,
+@@ -2821,6 +2822,11 @@ static void vmsa_tcr_el12_write(CPUARMState *env, const ARMCPRegInfo *ri,
  static void vmsa_ttbr_write(CPUARMState *env, const ARMCPRegInfo *ri,
                              uint64_t value)
  {
-+    /* A PANDA plugin may veto the change. */
-+    if (panda_callbacks_asid_changed(env_cpu(env), raw_read(env, ri), value)) {
++    /* A PANDA plugin may veto a change of process (panda_current_asid). */
++    if (panda_asid_reg_write(env_cpu(env), (char *)env + ri->fieldoffset,
++                             cpreg_field_type(ri) == MO_64 ? 8 : 4, value)) {
 +        return;
 +    }
      /* If the ASID changes (with a 64-bit write), we must flush the TLB.  */
      if (cpreg_field_type(ri) == MO_64 &&
          extract64(raw_read(env, ri) ^ value, 48, 16) != 0) {
-@@ -2833,6 +2838,10 @@ static void vmsa_ttbr_write(CPUARMState *env, const ARMCPRegInfo *ri,
+@@ -2833,6 +2839,11 @@ static void vmsa_ttbr_write(CPUARMState *env, const ARMCPRegInfo *ri,
  static void vmsa_tcr_ttbr_el2_write(CPUARMState *env, const ARMCPRegInfo *ri,
                                      uint64_t value)
  {
-+    /* A PANDA plugin may veto the change. */
-+    if (panda_callbacks_asid_changed(env_cpu(env), raw_read(env, ri), value)) {
++    /* A PANDA plugin may veto a change of process (panda_current_asid). */
++    if (panda_asid_reg_write(env_cpu(env), (char *)env + ri->fieldoffset,
++                             cpreg_field_type(ri) == MO_64 ? 8 : 4, value)) {
 +        return;
 +    }
      /*
       * If we are running with E2&0 regime, then an ASID is active.
       * Flush if that might be changing.  Note we're not checking
 diff --git a/target/i386/helper.c b/target/i386/helper.c
-index 683621416213049f8a40dadac40f6e97b6e8c41d..1ed3485acea8cc5d86aae83b22fff5cabe8fddff 100644
+index 683621416213049f8a40dadac40f6e97b6e8c41d..93be0b9357e69e1feb38f0f076631b02c5b72046 100644
 --- a/target/i386/helper.c
 +++ b/target/i386/helper.c
 @@ -35,6 +35,7 @@
@@ -59,28 +62,19 @@ index 683621416213049f8a40dadac40f6e97b6e8c41d..1ed3485acea8cc5d86aae83b22fff5ca
  
  void cpu_sync_avx_hflag(CPUX86State *env)
  {
-@@ -177,11 +178,14 @@ void cpu_x86_update_cr0(CPUX86State *env, uint32_t new_cr0)
+@@ -177,6 +178,10 @@ void cpu_x86_update_cr0(CPUX86State *env, uint32_t new_cr0)
     the PDPT */
  void cpu_x86_update_cr3(CPUX86State *env, target_ulong new_cr3)
  {
--    env->cr[3] = new_cr3;
--    if (env->cr[0] & CR0_PG_MASK) {
--        qemu_log_mask(CPU_LOG_MMU,
--                        "CR3 update: CR3=" TARGET_FMT_lx "\n", new_cr3);
--        tlb_flush(env_cpu(env));
-+    /* A PANDA plugin may veto the CR3 change. */
-+    if (!panda_callbacks_asid_changed(env_cpu(env), env->cr[3], new_cr3)) {
-+        env->cr[3] = new_cr3;
-+        if (env->cr[0] & CR0_PG_MASK) {
-+            qemu_log_mask(CPU_LOG_MMU,
-+                            "CR3 update: CR3=" TARGET_FMT_lx "\n", new_cr3);
-+            tlb_flush(env_cpu(env));
-+        }
-     }
- }
- 
++    /* A PANDA plugin may veto a change of process (panda_current_asid). */
++    if (panda_asid_reg_write(env_cpu(env), &env->cr[3], sizeof(env->cr[3]), new_cr3)) {
++        return;
++    }
+     env->cr[3] = new_cr3;
+     if (env->cr[0] & CR0_PG_MASK) {
+         qemu_log_mask(CPU_LOG_MMU,
 diff --git a/target/mips/tcg/system/cp0_helper.c b/target/mips/tcg/system/cp0_helper.c
-index ba6b487b751f4d1f3e176f9a749afda982b9c3a2..fa29e4bfbd2d1f68687efa75272513f964d72ca1 100644
+index ba6b487b751f4d1f3e176f9a749afda982b9c3a2..1cccf7ea149fc632a525a81008a4feba0acd419a 100644
 --- a/target/mips/tcg/system/cp0_helper.c
 +++ b/target/mips/tcg/system/cp0_helper.c
 @@ -29,6 +29,7 @@
@@ -91,63 +85,27 @@ index ba6b487b751f4d1f3e176f9a749afda982b9c3a2..fa29e4bfbd2d1f68687efa75272513f9
  
  
  /* SMP helpers.  */
-@@ -1096,7 +1097,15 @@ void helper_mtc0_entryhi(CPUMIPSState *env, target_ulong arg1)
+@@ -1096,7 +1097,10 @@ void helper_mtc0_entryhi(CPUMIPSState *env, target_ulong arg1)
  #endif
      old = env->CP0_EntryHi;
      val = (arg1 & mask) | (old & ~mask);
 -    env->CP0_EntryHi = val;
-+    if ((env->CP0_EntryHi & env->CP0_EntryHi_ASID_mask) != (val & env->CP0_EntryHi_ASID_mask)) {
-+      // Actually an asid change, trigger CB
-+      if (!panda_callbacks_asid_changed(env_cpu(env), env->CP0_EntryHi, val)){
-+          env->CP0_EntryHi = val;
-+      }
-+    }else{
-+      // not an asid change, no cb
-+      env->CP0_EntryHi = val;
++    /* A PANDA plugin may veto a change of process (panda_current_asid). */
++    if (!panda_asid_reg_write(env_cpu(env), &env->CP0_EntryHi, sizeof(env->CP0_EntryHi), val)) {
++        env->CP0_EntryHi = val;
 +    }
      if (ase_mt_available(env)) {
          sync_c0_entryhi(env, env->current_tc);
      }
-@@ -1112,7 +1121,9 @@ void helper_mttc0_entryhi(CPUMIPSState *env, target_ulong arg1)
+@@ -1112,7 +1116,10 @@ void helper_mttc0_entryhi(CPUMIPSState *env, target_ulong arg1)
      int other_tc = env->CP0_VPEControl & (0xff << CP0VPECo_TargTC);
      CPUMIPSState *other = mips_cpu_map_tc(env, &other_tc);
  
 -    other->CP0_EntryHi = arg1;
-+    if (!panda_callbacks_asid_changed(env_cpu(env), env->CP0_EntryHi, arg1)){
-+          other->CP0_EntryHi = arg1;
++    if (!panda_asid_reg_write(env_cpu(other), &other->CP0_EntryHi, sizeof(other->CP0_EntryHi),
++                              arg1)) {
++        other->CP0_EntryHi = arg1;
 +    }
      sync_c0_entryhi(other, other_tc);
  }
  
-diff --git a/target/mips/tcg/system/tlb_helper.c b/target/mips/tcg/system/tlb_helper.c
-index 4398c6f80b45712ba2771b4bf77a0d422dba5306..f3c67a6d3bedf280bbf4d3ff73d0ec2c6bed51f1 100644
---- a/target/mips/tcg/system/tlb_helper.c
-+++ b/target/mips/tcg/system/tlb_helper.c
-@@ -29,6 +29,7 @@
- #include "accel/tcg/cpu-loop.h"
- #include "exec/log.h"
- #include "exec/helper-proto.h"
-+#include "panda/hooks.h"
- 
- /* TLB management */
- static void r4k_mips_tlb_flush_extra(CPUMIPSState *env, int first)
-@@ -561,9 +562,18 @@ static void raise_mmu_exception(CPUMIPSState *env, target_ulong address,
-     }
-     env->CP0_Context = (env->CP0_Context & ~0x007fffff) |
-                        ((address >> 9) & 0x007ffff0);
--    env->CP0_EntryHi = (env->CP0_EntryHi & env->CP0_EntryHi_ASID_mask) |
-+    target_ulong val = (env->CP0_EntryHi & env->CP0_EntryHi_ASID_mask) |
-                        (env->CP0_EntryHi & (1 << CP0EnHi_EHINV)) |
-                        (address & (TARGET_PAGE_MASK << 1));
-+    if ((env->CP0_EntryHi & env->CP0_EntryHi_ASID_mask) != (val & env->CP0_EntryHi_ASID_mask)) {
-+      // it's actually changing the asid, trigger out CB and let plugins reject the change
-+      if (!panda_callbacks_asid_changed(env_cpu(env), env->CP0_EntryHi & env->CP0_EntryHi_ASID_mask, val & env->CP0_EntryHi_ASID_mask)){
-+          env->CP0_EntryHi = val;
-+      }
-+    }else {
-+      // asid unchanged, just an update to other fields here - do it without a callback
-+      env->CP0_EntryHi = val;
-+    }
- #if defined(TARGET_MIPS64)
-     env->CP0_EntryHi &= env->SEGMask;
-     env->CP0_XContext =

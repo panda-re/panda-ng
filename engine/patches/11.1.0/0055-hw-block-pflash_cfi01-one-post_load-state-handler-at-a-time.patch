@@ -19,7 +19,7 @@ fastsnap set carries the same change (0015) for the leak it also causes.
  1 file changed, 9 insertions(+)
 
 diff --git a/hw/block/pflash_cfi01.c b/hw/block/pflash_cfi01.c
-index 5b9ddb20b18c1b6e950324dd0fbc1bb87d95f2e2..213c5886a879cf2442c6c2db6f1ea5f977ed85c1 100644
+index 5b9ddb2..213c588 100644
 --- a/hw/block/pflash_cfi01.c
 +++ b/hw/block/pflash_cfi01.c
 @@ -1031,6 +1031,15 @@ static int pflash_post_load(void *opaque, int version_id)

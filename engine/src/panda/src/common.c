@@ -6,6 +6,9 @@
 #include "panda/debug.h"
 #include "panda/plugin.h"
 #include "panda/common.h"
+#if defined(TARGET_ARM)
+#include "target/arm/internals.h"
+#endif
 // #include "panda/plog-cc-bridge.h"
 
 #if defined(TARGET_ARM) && defined(CONFIG_SOFTMMU) && defined(TARGET_LATER)
@@ -97,61 +100,232 @@ bool arm_get_vaddr_table(CPUState *cpu, uint32_t *table, uint32_t address)
 #endif
 
 /*
-  returns current asid or address-space id.
-  architecture-independent
-*/
+ * The process identifier: panda_current_asid() and asid_changed.
+ *
+ * PANDA needs something that broadly identifies the running process. The hardware ASID field is
+ * not it: kernels recycle ASIDs (arm64 and riscv by generation rollover, arm32 and mips from 8-bit
+ * pools), arm64 Linux keeps the ASID in TTBR1 (TCR.A1) and leaves TTBR0's at 0, and a riscv CPU
+ * may not implement ASIDs at all. The physical address of the process's top-level page table is
+ * stable for the process's life and unique among live processes, and it is what OSI reports
+ * (osi_isf: the physical address of mm->pgd). So, per architecture:
+ *
+ *   x86      CR3's page-table base: PCID (CR4.PCIDE), PWT/PCD and the NOFLUSH bit dropped (PAE
+ *            without long mode keeps bits 31:5). KPTI gives each process two tables, 4 KiB apart
+ *            in one 8 KiB allocation, and switches CR3 between them on every kernel entry and
+ *            exit: once that is seen (x86_kpti_note), bit 12 is dropped too, so both fold to the
+ *            kernel table's address (mm->pgd).
+ *   arm64    TTBR0_EL1's base (TTBR0_EL2's in an EL2 host regime, E2H+TGE): ASID and CnP dropped.
+ *   arm32    TTBR0's base (16 KiB >> TTBCR.N aligned; LPAE: ASID and CnP dropped).
+ *   riscv    satp.PPN << 12, the root page table's address (ASID and MODE dropped).
+ *   mips     EntryHi.ASID: no register holds the page table (Linux keeps pgd_current in memory).
+ *   ppc      BookE/4xx: the PID register; 64-bit: PIDR (radix: the mm's context id; 0 under the
+ *            hash MMU); 32-bit hash: SR0, whose VSID derives from the mm's context.
+ *   loongarch CSR.ASID (unchanged).
+ *
+ * Where it falls short:
+ *   - arm64: a context switch goes through the reserved (empty) TTBR0 table, so asid_changed
+ *     fires twice per switch (old -> reserved -> new). Kernels with software PAN
+ *     (CONFIG_ARM64_SW_TTBR0_PAN on a CPU without PAN, e.g. cortex-a57) run the kernel with the
+ *     reserved table in TTBR0, so in kernel mode every process reads the same value. 52-bit PAs
+ *     keep PA[51:48] in bits 5:2, so the value isn't the table's address. Kernel threads borrow
+ *     the last process's tables (lazy TLB), on every arch.
+ *   - x86: KPTI is recognized at its first switch (from a running guest that is the first
+ *     syscall); until then, and after loading a snapshot taken in user mode under KPTI, a process
+ *     in user mode reads its user table (bit 12 set). 32-bit PAE kernels with PTI aren't
+ *     recognized. Windows' KVA shadow uses unrelated tables, so it gives two values per process.
+ *   - mips: EntryHi.ASID is 8 bits (MMID-capable kernels use MemoryMapID instead), recycled by
+ *     generation and per CPU: not unique. hw_proc_id's r28 cache identifies processes on mips.
+ *   - ppc: no asid_changed call site. 64-bit hash MMU: 0 for every process.
+ *   - riscv32: the address is truncated to 32 bits when the table is above 4 GiB.
+ *   - Writes to registers that only select which table counts (TCR/TTBCR, HCR_EL2, CR4, EFER)
+ *     don't fire asid_changed; operating systems set those once.
+ * panda_current_asid_field() keeps the hardware ASID field for whoever wants it.
+ */
+#if defined(TARGET_I386)
+static bool x86_kpti;
+
+static uint64_t x86_cr3_base(CPUX86State *env, uint64_t cr3)
+{
+    if (env->hflags & HF_LMA_MASK) {
+        cr3 &= 0x000ffffffffff000ULL;
+    } else if (env->cr[4] & CR4_PAE_MASK) {
+        cr3 &= 0xffffffe0ULL;
+    } else {
+        cr3 &= 0xfffff000ULL;
+    }
+    return x86_kpti ? cr3 & ~0x1000ULL : cr3;
+}
+
+/*
+ * A CR3 write from @old_cr3 to @new_cr3. Under KPTI (long mode) a process's user table is its
+ * kernel table + 4 KiB, and maps almost none of the kernel half (entries 256-511) that every kernel
+ * table shares with init_mm. Two processes' tables that happen to be 4 KiB apart have the same
+ * kernel half, so a switch between tables that differ only in bit 12 is KPTI's when their kernel
+ * halves differ.
+ */
+static void x86_kpti_note(CPUState *cpu, uint64_t old_cr3, uint64_t new_cr3)
+{
+    CPUX86State *env = cpu_env(cpu);
+    uint8_t a[2048], b[2048];
+
+    if (likely(x86_kpti) || !(env->hflags & HF_LMA_MASK)) {
+        return;
+    }
+    old_cr3 = x86_cr3_base(env, old_cr3);
+    new_cr3 = x86_cr3_base(env, new_cr3);
+    if ((old_cr3 ^ new_cr3) != 0x1000) {
+        return;
+    }
+    if (panda_physical_memory_read(old_cr3 + 2048, a, sizeof(a)) != 0 ||
+        panda_physical_memory_read(new_cr3 + 2048, b, sizeof(b)) != 0 ||
+        memcmp(a, b, sizeof(a)) == 0) {
+        return;
+    }
+    x86_kpti = true;
+    fprintf(stderr, PANDA_MSG_FMT "KPTI: a process's user and kernel CR3 (bit 12) are one "
+            "process to panda_current_asid\n", PANDA_CORE_NAME);
+}
+#endif
+
+#if defined(TARGET_ARM)
+/* The EL whose TTBRs map EL0 and the kernel: 2 in an EL2 host regime (VHE: E2H and TGE). */
+static inline int arm_os_el(CPUARMState *env)
+{
+    return (env->cp15.hcr_el2 & (HCR_E2H | HCR_TGE)) == (HCR_E2H | HCR_TGE) ? 2 : 1;
+}
+
+static inline bool arm_a32_secure(CPUARMState *env)
+{
+    return arm_is_secure(env) && !arm_el_is_aa64(env, 3);
+}
+#endif
+
+/* Notes a guest write of @new_val over @old_val to a register panda_current_asid reads (before
+ * the identifiers are compared). */
+void panda_asid_note_write(CPUState *cpu, uint64_t old_val, uint64_t new_val)
+{
+#if defined(TARGET_I386)
+    x86_kpti_note(cpu, old_val, new_val);
+#endif
+}
+
 /**
- * panda_current_asid() - Obtain guest ASID.
- * @env: Pointer to cpu state.
- * 
- * This function figures out and returns the ASID (address space
- * identifier) for a number of archiectures (e.g., cr3 for x86). In
- * many cases, this can be used to distinguish between processes.
- * 
- * Return: A guest pointer is returned, the ASID.
-*/
+ * panda_current_asid() - The current process's identifier.
+ * @cpu: Pointer to cpu state.
+ *
+ * See the comment above: the top-level page table's physical address where the architecture has
+ * a register for it (x86 CR3, arm TTBR0, riscv satp), else the hardware ASID. asid_changed passes
+ * its old and new values.
+ *
+ * Return: the identifier.
+ */
 target_ulong panda_current_asid(CPUState *cpu) {
 #ifdef CONFIG_SOFTMMU
   #if defined(TARGET_I386)
-    CPUArchState *env = cpu_env(cpu);
-    return env->cr[3];
+    CPUX86State *env = cpu_env(cpu);
+    return x86_cr3_base(env, env->cr[3]);
   #elif defined(TARGET_ARM)
     CPUARMState *env = cpu_env(cpu);
-    #if defined(TARGET_AARCH64)
-      // In AArch64, ASID is in bits [63:48] of TTBR0_EL1
-      // ASID size can be 8 or 16 bits based on TCR_EL1.AS
-      if (extract64(env->cp15.tcr_el[1], 36, 1)) {
-        // 16-bit ASID
-        return extract64(env->cp15.ttbr0_el[1], 48, 16);
-    } else {
-        // 8-bit ASID
-        return extract64(env->cp15.ttbr0_el[1], 56, 8);
+    if (arm_el_is_aa64(env, 1)) {
+        return env->cp15.ttbr0_el[arm_os_el(env)] & 0x0000fffffffffffeULL;
     }
-    #else
-      // For ARM32, get ASID from CONTEXTIDR register
-      // ASID is in bits [7:0] of CONTEXTIDR
-      return env->cp15.contextidr_el[1] & 0xFF;
-    #endif
+    bool sec = arm_a32_secure(env);
+    uint64_t ttbr0 = sec ? env->cp15.ttbr0_s : env->cp15.ttbr0_ns;
+    uint64_t ttbcr = env->cp15.tcr_el[sec ? 3 : 1];
+    if (ttbcr & TTBCR_EAE) {
+        return ttbr0 & 0x000000fffffffffeULL;
+    }
+    return ttbr0 & 0xffffffffULL & ~((1ULL << (14 - (ttbcr & 7))) - 1);
   #elif defined(TARGET_PPC)
-    return ((CPUPPCState*)cpu_env(cpu))->sr[0];
+    CPUPPCState *env = cpu_env(cpu);
+    switch (env->mmu_model) {
+    case POWERPC_MMU_BOOKE:
+    case POWERPC_MMU_BOOKE206:
+        return env->spr[SPR_BOOKE_PID];
+    case POWERPC_MMU_SOFT_4xx:
+        return env->spr[SPR_40x_PID];
+    default:
+        if (mmu_is_64bit(env->mmu_model)) {
+            return env->spr[SPR_BOOKS_PID];
+        }
+        return env->sr[0];
+    }
   #elif defined(TARGET_MIPS)
     CPUMIPSState *env = cpu_env(cpu);
     return (env->CP0_EntryHi & env->CP0_EntryHi_ASID_mask);
   #elif defined(TARGET_RISCV)
     CPURISCVState *env = cpu_env(cpu);
-
-    #if defined(TARGET_RISCV64)
-        // RV64: ASID is in bits 59:44 of SATP
-        return (env->satp >> 44) & 0xffff;
-    #elif defined(TARGET_RISCV32)
-        // RV32: ASID is in bits 30:22 of SATP
-        return (env->satp >> 22) & 0x1ff;
-    #endif
+    if (riscv_cpu_mxl(env) == MXL_RV32) {
+        return (target_ulong)((env->satp & 0x3fffffULL) << 12);
+    }
+    return (target_ulong)((env->satp & ((1ULL << 44) - 1)) << 12);
   #elif defined(TARGET_LOONGARCH)
     CPUArchState *env = cpu_env(cpu);
     return (env_sys(env)->CSR_ASID & 0xff);
   #else
   #error "panda_current_asid() not implemented for target architecture."
+    return 0;
+  #endif
+#else
+  return 0;
+#endif
+}
+
+/**
+ * panda_current_asid_field() - The hardware address-space id field.
+ * @cpu: Pointer to cpu state.
+ *
+ * x86: the PCID (0 without CR4.PCIDE); arm64: the ASID from TTBR1 or TTBR0 (TCR.A1), 8 or 16 bits
+ * (TCR.AS); arm32: CONTEXTIDR's ASID (LPAE: the TTBR's, per TTBCR.A1); riscv: satp.ASID; mips:
+ * EntryHi.ASID; ppc: the PID register (0 on 32-bit hash MMUs); loongarch: CSR.ASID. Guests
+ * recycle these, so they are not process identifiers (panda_current_asid is).
+ */
+target_ulong panda_current_asid_field(CPUState *cpu) {
+#ifdef CONFIG_SOFTMMU
+  #if defined(TARGET_I386)
+    CPUX86State *env = cpu_env(cpu);
+    return (env->cr[4] & CR4_PCIDE_MASK) ? env->cr[3] & 0xfff : 0;
+  #elif defined(TARGET_ARM)
+    CPUARMState *env = cpu_env(cpu);
+    if (arm_el_is_aa64(env, 1)) {
+        int el = arm_os_el(env);
+        uint64_t tcr = env->cp15.tcr_el[el];
+        uint64_t ttbr = (tcr & TTBCR_A1) ? env->cp15.ttbr1_el[el] : env->cp15.ttbr0_el[el];
+        return extract64(ttbr, 48, (tcr & (1ULL << 36)) ? 16 : 8);
+    }
+    bool sec = arm_a32_secure(env);
+    uint64_t ttbcr = env->cp15.tcr_el[sec ? 3 : 1];
+    if (ttbcr & TTBCR_EAE) {
+        uint64_t ttbr = (ttbcr & TTBCR_A1) ? (sec ? env->cp15.ttbr1_s : env->cp15.ttbr1_ns)
+                                           : (sec ? env->cp15.ttbr0_s : env->cp15.ttbr0_ns);
+        return extract64(ttbr, 48, 8);
+    }
+    return (sec ? env->cp15.contextidr_s : env->cp15.contextidr_ns) & 0xff;
+  #elif defined(TARGET_PPC)
+    CPUPPCState *env = cpu_env(cpu);
+    switch (env->mmu_model) {
+    case POWERPC_MMU_BOOKE:
+    case POWERPC_MMU_BOOKE206:
+        return env->spr[SPR_BOOKE_PID];
+    case POWERPC_MMU_SOFT_4xx:
+        return env->spr[SPR_40x_PID];
+    default:
+        return mmu_is_64bit(env->mmu_model) ? env->spr[SPR_BOOKS_PID] : 0;
+    }
+  #elif defined(TARGET_MIPS)
+    CPUMIPSState *env = cpu_env(cpu);
+    return (env->CP0_EntryHi & env->CP0_EntryHi_ASID_mask);
+  #elif defined(TARGET_RISCV)
+    CPURISCVState *env = cpu_env(cpu);
+    if (riscv_cpu_mxl(env) == MXL_RV32) {
+        return (env->satp >> 22) & 0x1ff;
+    }
+    return (env->satp >> 44) & 0xffff;
+  #elif defined(TARGET_LOONGARCH)
+    CPUArchState *env = cpu_env(cpu);
+    return (env_sys(env)->CSR_ASID & 0x3ff);
+  #else
+  #error "panda_current_asid_field() not implemented for target architecture."
     return 0;
   #endif
 #else

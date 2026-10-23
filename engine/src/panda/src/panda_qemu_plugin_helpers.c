@@ -47,15 +47,7 @@ unsigned panda_bridge_wants(void){
         || panda_has_callback_registered(PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT)) {
         wants |= PANDA_BRIDGE_BLOCK;
     }
-    if (wants & PANDA_BRIDGE_BLOCK
-        || panda_has_callback_registered(PANDA_CB_BEFORE_BLOCK_EXEC)
-        || panda_has_callback_registered(PANDA_CB_AFTER_BLOCK_EXEC)
-        || panda_has_callback_registered(PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT)
-        || panda_has_callback_registered(PANDA_CB_AFTER_BLOCK_TRANSLATE)
-        || panda_has_callback_registered(PANDA_CB_BEFORE_TCG_CODEGEN)
-        || panda_has_callback_registered(PANDA_CB_CPU_RESTORE_STATE)) {
-        wants |= PANDA_BRIDGE_TB_PC;
-    }
+    // No block callback binds its TB (patch 0035): they get its address from panda_tb_pc.
     return wants;
 }
 
@@ -90,6 +82,7 @@ bool panda_memcb_phys_before(bool is_store){
  * start_block_exec didn't leave it, its end_block_exec) not yet run. */
 typedef struct PandaPendingBlock {
     TranslationBlock *tb;
+    uint64_t pc;              /* its address: the CPU's pc at its start (panda_tb_pc) */
     bool end;                 /* start_block_exec returned: end_block_exec is owed too */
     bool skip_invalidate;     /* the next block start at skip_pc is the retranslation */
     uint64_t skip_pc;
@@ -97,6 +90,46 @@ typedef struct PandaPendingBlock {
 
 #define PANDA_END_SLOTS 1024
 static PandaPendingBlock pending[PANDA_END_SLOTS];
+
+/*
+ * Block addresses (panda_tb_pc). A CF_PCREL TB runs at every virtual address that maps its code;
+ * its tb->pc is 0 unless address-keyed instrumentation bound it (patch 0035: insn_translate, the
+ * memory callbacks, the hooks plugin, anything calling qemu_plugin_tb_vaddr/insn_vaddr). At a
+ * block's start the CPU's pc is the block's address (what makes CF_PCREL work), so
+ * before_block_exec, start_block_exec and after_block_translate read it from the CPU. end_block_exec
+ * and after_block_exec run once the block has stopped, when the CPU is at the next block (or the
+ * fault): the pending block keeps its start pc, published in `ending` while they run.
+ */
+typedef struct {
+    TranslationBlock *tb;
+    uint64_t pc;
+} PandaBlockPc;
+static PandaBlockPc ending[PANDA_END_SLOTS];
+
+target_ulong panda_tb_pc(CPUState *cpu, TranslationBlock *tb)
+{
+    if (tb == NULL) {
+        return 0;
+    }
+    if (tb_pc_exact(tb)) {
+        return tb->pc;
+    }
+    if (cpu == NULL) {
+        cpu = current_cpu;
+    }
+    if (cpu == NULL) {
+        return 0;
+    }
+    if (cpu->cpu_index < PANDA_END_SLOTS) {
+        if (ending[cpu->cpu_index].tb == tb) {
+            return ending[cpu->cpu_index].pc;
+        }
+        if (pending[cpu->cpu_index].tb == tb) {
+            return pending[cpu->cpu_index].pc;
+        }
+    }
+    return cpu->cc->get_pc(cpu);
+}
 
 static bool panda_any_enabled(panda_cb_type type){
     for (panda_cb_list *plist = panda_cbs[type]; plist != NULL; plist = plist->next) {
@@ -113,11 +146,14 @@ static void panda_block_end(CPUState *cpu, uint8_t exit_code){
         TranslationBlock *tb = p->tb;
         if (unlikely(tb)) {
             bool end = p->end;
+            PandaBlockPc prev = ending[cpu->cpu_index];
+            ending[cpu->cpu_index] = (PandaBlockPc){ tb, p->pc };
             p->tb = NULL;
             if (end) {
                 panda_callbacks_end_block_exec(cpu, tb);
             }
             panda_callbacks_after_block_exec_dispatch(cpu, tb, exit_code);
+            ending[cpu->cpu_index] = prev;
         }
     }
 }
@@ -175,6 +211,7 @@ void panda_block_start(CPUState *cpu, TranslationBlock *tb){
     }
     panda_callbacks_before_block_exec_dispatch(cpu, tb);
     p->tb = tb;
+    p->pc = tb_pc_exact(tb) ? tb->pc : cpu->cc->get_pc(cpu);
     p->end = false;
     panda_callbacks_start_block_exec(cpu, tb);  /* may leave the block (panda_break_exec) */
     p->end = true;

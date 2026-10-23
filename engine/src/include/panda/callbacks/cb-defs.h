@@ -155,7 +155,9 @@ typedef union panda_cb {
 
        Arguments:
         CPUState *env:        the current CPU state
-        TranslationBlock *tb: the TB we are about to execute
+        TranslationBlock *tb: the TB we are about to execute. Its address is
+                              panda_tb_pc(env, tb), not tb->pc (0 for a CF_PCREL block shared
+                              between virtual addresses), in this and every block callback.
 
        Helper call location: cpu-exec.c
 
@@ -683,23 +685,26 @@ typedef union panda_cb {
     /* Callback ID: PANDA_CB_ASID_CHANGED
 
        asid_changed:
-        Called when asid changes.
+        Called when the process identifier (panda_current_asid) is about to change: a guest
+        write to the register it comes from (x86 CR3, arm TTBRs, riscv satp, mips EntryHi)
+        changes it.
 
        Arguments:
         CPUState *env:       pointer to CPUState
-        uint64_t oldval: old asid value
-        uint64_t newval: new asid value
+        uint64_t oldval: the old identifier (panda_current_asid until the write)
+        uint64_t newval: the new identifier
 
-       Helper call location: target/i386/helper.c, target/arm/helper.c
+       Helper call location: panda_asid_reg_write, from target/i386/helper.c,
+        target/arm/helper.c, target/riscv/tcg/csr.c, target/mips/tcg/system/cp0_helper.c
 
        Return value:
         true if the asid should be prevented from being changed
         false otherwise
 
        Notes:
-        The callback is only invoked implemented for x86 and ARM.
-        This should break plugins which rely on it to detect context
-        switches in any other architecture.
+        Writes that leave the identifier alone (an arm TTBR1 or ASID-only write, KPTI's
+        user/kernel CR3 switch) don't call it. Not invoked on ppc and loongarch. On arm64 a
+        context switch passes through the kernel's reserved (empty) table: two calls.
     */
     bool (*asid_changed)(CPUState *env, uint64_t oldval, uint64_t newval);
 
@@ -1151,7 +1156,9 @@ typedef union panda_cb_with_context {
 
        Arguments:
         CPUState *env:        the current CPU state
-        TranslationBlock *tb: the TB we are about to execute
+        TranslationBlock *tb: the TB we are about to execute. Its address is
+                              panda_tb_pc(env, tb), not tb->pc (0 for a CF_PCREL block shared
+                              between virtual addresses), in this and every block callback.
 
        Helper call location: cpu-exec.c
 
@@ -1671,23 +1678,26 @@ typedef union panda_cb_with_context {
     /* Callback ID: PANDA_CB_ASID_CHANGED
 
        asid_changed:
-        Called when asid changes.
+        Called when the process identifier (panda_current_asid) is about to change: a guest
+        write to the register it comes from (x86 CR3, arm TTBRs, riscv satp, mips EntryHi)
+        changes it.
 
        Arguments:
         CPUState *env:       pointer to CPUState
-        uint64_t oldval: old asid value
-        uint64_t newval: new asid value
+        uint64_t oldval: the old identifier (panda_current_asid until the write)
+        uint64_t newval: the new identifier
 
-       Helper call location: target/i386/helper.c, target/arm/helper.c
+       Helper call location: panda_asid_reg_write, from target/i386/helper.c,
+        target/arm/helper.c, target/riscv/tcg/csr.c, target/mips/tcg/system/cp0_helper.c
 
        Return value:
         true if the asid should be prevented from being changed
         false otherwise
 
        Notes:
-        The callback is only invoked implemented for x86 and ARM.
-        This should break plugins which rely on it to detect context
-        switches in any other architecture.
+        Writes that leave the identifier alone (an arm TTBR1 or ASID-only write, KPTI's
+        user/kernel CR3 switch) don't call it. Not invoked on ppc and loongarch. On arm64 a
+        context switch passes through the kernel's reserved (empty) table: two calls.
     */
     bool (*asid_changed)(void* context, CPUState *env, uint64_t oldval, uint64_t newval);
 

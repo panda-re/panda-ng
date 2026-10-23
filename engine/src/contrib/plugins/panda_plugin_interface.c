@@ -115,8 +115,10 @@ static void vcpu_mem(unsigned int cpu_index, qemu_plugin_meminfo_t info,
 
 // Instruments only for the PANDA callbacks registered (panda_bridge_wants): with none, a TB gets
 // no callbacks and its address is never read, so a CF_PCREL TB stays shared between the virtual
-// addresses that map it. Callbacks get synced registers (RW_REGS): PANDA plugins read and write
-// the CPU state directly.
+// addresses that map it. Block callbacks don't read it either (they get the block's address from
+// panda_tb_pc); reading an instruction's address (insn_translate, memory callbacks) binds the TB
+// to it (patch 0035): those callbacks are keyed by address. Callbacks get synced registers
+// (RW_REGS): PANDA plugins read and write the CPU state directly.
 static void vcpu_tb_trans(struct qemu_plugin_tb *tb, void *userdata)
 {
     CPUState *cpu = panda_cpu_in_translate();
@@ -124,9 +126,6 @@ static void vcpu_tb_trans(struct qemu_plugin_tb *tb, void *userdata)
     int mem_rw[2] = { panda_memcb_rw(false), panda_memcb_rw(true) };
     size_t n_insns = qemu_plugin_tb_n_insns(tb);
 
-    if (wants & PANDA_BRIDGE_TB_PC) {
-        qemu_plugin_tb_vaddr(tb);   // binds the TB to its address (patch 0035): tb->pc is right
-    }
     if ((wants & PANDA_BRIDGE_INSN) || mem_rw[0] || mem_rw[1]) {
         for (size_t i = 0; i < n_insns; i++) {
             struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn(tb, i);

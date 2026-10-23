@@ -13,6 +13,7 @@
 #include "panda/callbacks/cb-macros.h"
 #include "panda/panda_qemu_plugin_helpers.h"
 #include "panda/callbacks/cb-trampolines.h"
+#include "panda/hooks.h"
 #include "exec/tb-flush.h"
 #include "panda/panda_api.h"
 
@@ -270,6 +271,36 @@ MAKE_CALLBACK(void, TOP_LOOP, top_loop,
 MAKE_CALLBACK(bool, ASID_CHANGED, asid_changed,
                     CPUState*, env, uint64_t, old_asid,
                     uint64_t, new_asid);
+
+static inline uint64_t asid_reg_get(const void *reg, unsigned size)
+{
+    return size == 8 ? *(const uint64_t *)reg : *(const uint32_t *)reg;
+}
+
+static inline void asid_reg_set(void *reg, unsigned size, uint64_t val)
+{
+    if (size == 8) {
+        *(uint64_t *)reg = val;
+    } else {
+        *(uint32_t *)reg = val;
+    }
+}
+
+// A write of @val to a register that panda_current_asid reads. asid_changed gets process
+// identifiers, so the identifier after the write is found by making it and undoing it; a write
+// that leaves the identifier alone (a TTBR1 or ASID-only write, KPTI's CR3 toggle) fires nothing.
+bool panda_asid_reg_write(CPUState *cpu, void *reg, unsigned size, uint64_t val) {
+    uint64_t old = asid_reg_get(reg, size);
+    panda_asid_note_write(cpu, old, val);
+    if (likely(panda_cbs[PANDA_CB_ASID_CHANGED] == NULL)) {
+        return false;
+    }
+    uint64_t old_id = panda_current_asid(cpu);
+    asid_reg_set(reg, size, val);
+    uint64_t new_id = panda_current_asid(cpu);
+    asid_reg_set(reg, size, old);
+    return old_id != new_id && panda_callbacks_asid_changed(cpu, old_id, new_id);
+}
 
 
 // target-i386/misc_helpers.c

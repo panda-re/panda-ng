@@ -15,7 +15,7 @@ bytes. Mark the rewritten range dirty, as the other path does.
  1 file changed, 8 insertions(+)
 
 diff --git a/hw/core/loader.c b/hw/core/loader.c
-index 5cbfba0a86d24569923c863d6ecda125ce43bceb..8da69dcfc7e325c879748de7c05270c05288e801 100644
+index 5cbfba0..8da69dc 100644
 --- a/hw/core/loader.c
 +++ b/hw/core/loader.c
 @@ -1270,6 +1270,14 @@ static void rom_reset(void *unused)
