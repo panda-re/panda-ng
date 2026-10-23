@@ -135,42 +135,50 @@ def bbt(cpu, pc):
         counts["before_block_translate"] += 1
 
 
+# Block addresses come from panda.tb_pc (tb.pc is 0 for a shared CF_PCREL block). Here
+# insn_translate is registered, so every TB is bound and tb_pc is tb.pc; tests/tbpc.py covers
+# unbound blocks.
 @window_cb(panda.cb_after_block_translate, "after_block_translate")
 def abt(cpu, tb):
-    tb_pc_check("tb_pc_translate", tb.pc, seen.get("translating"))
-    if in_program(tb.pc):
+    pc = panda.tb_pc(cpu, tb)
+    tb_pc_check("tb_pc_translate", pc, seen.get("translating"))
+    if in_program(pc):
         counts["after_block_translate"] += 1
 
 
 @window_cb(panda.cb_before_block_exec, "before_block_exec")
 def bbe(cpu, tb):
-    tb_pc_check("tb_pc_exec", tb.pc, panda.arch.get_pc(cpu))
-    if in_program(tb.pc):
+    pc = panda.tb_pc(cpu, tb)
+    tb_pc_check("tb_pc_exec", pc, panda.arch.get_pc(cpu))
+    if in_program(pc):
         counts["before_block_exec"] += 1
-        seen["blk"].append(("b", tb.pc, None))
+        seen["blk"].append(("b", pc, None))
 
 
 @window_cb(panda.cb_after_block_exec, "after_block_exec")
 def abe(cpu, tb, exit_code):
-    if in_program(tb.pc):
+    pc = panda.tb_pc(cpu, tb)
+    if in_program(pc):
         counts["after_block_exec"] += 1
-        seen["blk"].append(("a", tb.pc, exit_code))
+        seen["blk"].append(("a", pc, exit_code))
 
 
 @window_cb(panda.cb_start_block_exec, "start_block_exec")
 def sbe(cpu, tb):
-    if in_program(tb.pc):
+    pc = panda.tb_pc(cpu, tb)
+    if in_program(pc):
         counts["start_block_exec"] += 1
-        seen["sbe"].append(tb.pc)
+        seen["sbe"].append(pc)
 
 
 @window_cb(panda.cb_end_block_exec, "end_block_exec")
 def ebe(cpu, tb):
-    if in_program(tb.pc):
+    pc = panda.tb_pc(cpu, tb)
+    if in_program(pc):
         counts["end_block_exec"] += 1
         # The TB at label 1, past the hypercall and a jump (x86: out, jmp, 2 bytes each), ends in a
         # call (x86), bl (aarch64) or jal (riscv64), after zeroing where its return address goes.
-        if tb.pc == seen["hc1"] + (4 if arch == "x86_64" else 8) and "call_slot" not in seen:
+        if pc == seen["hc1"] + (4 if arch == "x86_64" else 8) and "call_slot" not in seen:
             seen["call_slot"] = (panda.virtual_memory_read(cpu, seen["sp"] - 8, 8, fmt="int")
                                  if arch == "x86_64" else panda.arch.get_reg(cpu, RETADDR_REG[arch]))
 
@@ -365,7 +373,7 @@ check("phys_mem_after_write sees the store",
 for key, where in [("tb_pc_translate", "after_block_translate (before_block_translate's pc)"),
                    ("tb_pc_exec", "before_block_exec (the CPU's pc)")]:
     n, bad = seen[key]
-    check(f"tb.pc is the block's address in {where}", n and not bad, f"{n} TBs, {bad}")
+    check(f"tb_pc is the block's address in {where}", n and not bad, f"{n} TBs, {bad}")
 # The window opens inside hypercall 1's block (whose start passed with the callbacks off: no
 # before/after for it) and closes inside hypercall 2's (before ran, after didn't).
 blk = seen["blk"]

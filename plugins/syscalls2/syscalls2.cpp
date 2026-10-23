@@ -1086,7 +1086,7 @@ static inline std::string context_map_t_dump(context_map_t &cm) {
  */
 void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
     target_ulong current_asid = get_id(cpu);
-    target_ulong pc = (tb->pc == 0) ? panda_current_pc(cpu) : tb->pc;
+    target_ulong pc = panda_tb_pc(cpu, tb);
     auto k = std::make_pair(pc, current_asid);
     auto ctxi = running_syscalls.find(k);
     [[maybe_unused]] int no = -1;

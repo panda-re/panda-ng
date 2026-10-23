@@ -1515,6 +1515,22 @@ class Panda():
         '''
         return self.libpanda.panda_current_asid(cpu)
     
+    def tb_pc(self, cpu, tb):
+        '''
+        Get the guest virtual address of the block a block callback (before/after_block_exec,
+        start/end_block_exec, after_block_translate) was called for. Use it instead of tb.pc,
+        which is 0 for a block QEMU shares between the virtual addresses that map its code
+        (CF_PCREL) unless address-keyed instrumentation bound it to one.
+
+        Args:
+            cpu (CPUState): CPUState structure
+            tb (TranslationBlock): the callback's TranslationBlock
+
+        Returns:
+            integer: the block's virtual address
+        '''
+        return self.libpanda.panda_tb_pc(cpu, tb)
+
     def get_id(self, cpu):
         '''
         Get current hw_proc_id ID
