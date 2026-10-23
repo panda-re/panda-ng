@@ -60,6 +60,7 @@ DROP=(
 OWNED=(
     scripts/import-series.sh               # no configs/ or build.sh to overlay
     scripts/offcost-gate.sh                # STOCK_REF reads engine/ of a panda-ng ref
+    scripts/check-delta-present.sh         # i386 takes the x86 I/O-port path
 )
 # qemu_builder files panda-ng reimplements outside the mirrored paths: tracked like OWNED.
 TRACKED=(

@@ -56,7 +56,8 @@ ARM_TRAP_SYM=arm_sc_key
 TCG_SYM=helper_penguin_guest_hypercall   # every target EXCEPT x86
 IOPORT_STR=penguin-hypercall             # x86 only: the port-0x88 MemoryRegion name
 
-is_x86() { case "$1" in x86_64|intel64) return 0 ;; *) return 1 ;; esac; }
+# i386 (panda-ng builds it; penguin does not) takes the same I/O-port path as x86_64.
+is_x86() { case "$1" in x86_64|intel64|i386) return 0 ;; *) return 1 ;; esac; }
 is_arm() { case "$1" in aarch64|arm|armel) return 0 ;; *) return 1 ;; esac; }
 
 shopt -s nullglob
