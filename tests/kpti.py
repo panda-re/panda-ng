@@ -74,7 +74,8 @@ def kernel_block(cpu, tb):
 def drive():
     console = panda.serial_console
     console.use_unansi = False
-    console.update_expectation(r"login: ")
+    # The serial console may log root in by itself (it does on debian-13): a prompt ends the wait too.
+    console.update_expectation(f"(?:login: |{PROMPT})")
     deadline = monotonic() + 3600   # a full TCG boot
     while True:
         try:
@@ -84,9 +85,10 @@ def drive():
             if monotonic() > deadline:
                 raise
             console.send(b"\r")      # a getty that printed its prompt to a busy console
-    console.update_expectation(f"(?:{PROMPT}|Password: )")
-    console.sendline(b"root")
-    console.expect(timeout=300)
+    if "login" in console.last_prompt:
+        console.update_expectation(f"(?:{PROMPT}|Password: )")
+        console.sendline(b"root")
+        console.expect(timeout=300)
     console.update_expectation(PROMPT)
     console.sendline(b"bind 'set enable-bracketed-paste off'")
     console.expect(timeout=120)
