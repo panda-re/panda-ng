@@ -13,15 +13,18 @@ runs twice: with TB chaining on (the default) and with it off. Each time:
 - per-instruction ground truth (insn_exec on every program instruction): a block that ran to its
   end (exit code TB_EXIT_IDX0) executed exactly tb->icount instructions, starting at its own pc;
   one that left early (exit code > TB_EXIT_IDX1) fewer or as many;
-- the loop's blocks fire exactly N, N/2, N/2 times;
+- the loop's instructions run exactly N, N/2, N times, and its blocks start N, N/2, N/2 times
+  (plus one "even" start for each "odd" block icount split);
 - the faulting block exits early once, at the store, which then starts a block of its own;
 - the system call block: x86_64's syscall is not an exception in QEMU (exit code 0), aarch64's svc
   and riscv64's ecall are (it ran all its instructions, then left by longjmp: exit code 3);
 - before_block_exec_invalidate_opt asks at every start of "loop" but the one right after it
   returned true, which is a fresh translation of it (asked too if an interrupt came between);
-and both runs see the same per-block counts.
+and both runs execute the same instructions the same number of times. Guest time comes from
+-icount, so the slow per-block Python callbacks can't starve the program under timer ticks.
 """
 import base64
+import json
 import os
 import sys
 from collections import Counter
@@ -37,7 +40,16 @@ PROGRAM_BASE, PROGRAM_END = 0x400000, 0x420000
 LABELS = ["setup", "loop", "odd", "even", "fault", "fault_store", "sys"]
 TB_EXIT_IDX1 = 1
 
-panda = Panda(generic=sys.argv[1])
+# Guest time from instructions (-icount), not the host clock. Every block in the window, the
+# kernel's too, runs Python callbacks; with time following the host, timer ticks then come every
+# ~1000 blocks, the tick and the scheduling it triggers take about that long, and the program can
+# starve for minutes (seen on debian-13 x86_64 and riscv64: run_serial_cmd timed out). icount may
+# split a block when its budget runs out; the checks below allow for that. Not on aarch64: its
+# root snapshot (taken without icount) fails to load with it (cpu post_load), and it hasn't starved.
+with open(sys.argv[1]) as f:
+    image_arch = json.load(f)["arch"]
+panda = Panda(generic=sys.argv[1],
+              extra_args=[] if image_arch == "aarch64" else ["-icount", "shift=6,sleep=off"])
 arch = panda.arch_name
 ffi = panda.ffi
 checks = {}
@@ -158,6 +170,7 @@ def hypercall(cpu):
     # (MAGIC, n, &labels, 0, pc), as tests/api.py's program passes them
     op = panda.arch.get_arg(cpu, 2, convention="syscall")
     table = panda.arch.get_arg(cpu, 3, convention="syscall")
+    print(f"progress: [{cur.name}] hypercall {op}", flush=True)
     if op == 1:
         raw = bytes(panda.virtual_memory_read(cpu, table, 8 * len(LABELS)))
         cur.labels = {k: int.from_bytes(raw[8 * i:8 * i + 8], "little") for i, k in enumerate(LABELS)}
@@ -247,9 +260,17 @@ def analyse(r):
 
     count = Counter(pc for pc, *_ in blocks)
     by_label = {k: count[L[k]] for k in LABELS}
-    check(p + f"loop blocks fire exactly N={N}, N/2, N/2 times",
-          (by_label["loop"], by_label["odd"], by_label["even"], by_label["setup"]) == (N, N // 2, N // 2, 1),
-          by_label)
+    insn_at = Counter(i for b in blocks for i in b[3])
+    # Instructions are ground truth: loop's first instruction runs N times, odd's N/2 and even's N
+    # (odd falls into it). Blocks: loop and odd start N and N/2 times; even starts N/2 times, plus
+    # once for each odd block that icount split before even's instruction.
+    split_odd = sum(1 for pc, ic, c, ins in blocks if pc == L["odd"] and c == 0 and L["even"] not in ins)
+    check(p + f"loop instructions run exactly N={N}, N/2, N times",
+          (insn_at[L["loop"]], insn_at[L["odd"]], insn_at[L["even"]]) == (N, N // 2, N),
+          (insn_at[L["loop"]], insn_at[L["odd"]], insn_at[L["even"]]))
+    check(p + f"loop blocks fire exactly N={N}, N/2, N/2 (+ icount splits) times",
+          (by_label["loop"], by_label["odd"], by_label["even"], by_label["setup"])
+          == (N, N // 2, N // 2 + split_odd, 1), (by_label, f"odd blocks split by icount: {split_odd}"))
     early = [(pc, code, ins) for pc, _, code, ins in blocks if code > TB_EXIT_IDX1]
     fault_early = [b for b in early if b[0] == L["fault"]]
     check(p + "the faulting block exits early once, at the faulting store",
@@ -269,7 +290,7 @@ def analyse(r):
     # comes between (the kernel's blocks start first), it is asked again, once: N + 1.
     check(p + "invalidate_opt asked at every start of loop but the retranslated one",
           asked[L["loop"]] in (N, N + 1), f"asked {asked[L['loop']]} want {N} (or {N + 1})")
-    return by_label, len(blocks), sum(len(b[3]) for b in blocks)
+    return dict(insn_at), sum(len(b[3]) for b in blocks)
 
 
 @panda.queue_blocking
@@ -290,6 +311,7 @@ def drive():
             panda.enable_tb_chaining()
         else:
             panda.disable_tb_chaining()
+        print(f"progress: [{name}] running the program", flush=True)
         cur.output = panda.run_serial_cmd("/tmp/blocks; echo rc=$?")
     panda.enable_tb_chaining()
     panda.end_analysis()
@@ -303,10 +325,10 @@ for r in runs:
           r.done and "rc=0" in r.output, repr(r.output))
     results.append(analyse(r))
 if len(results) == 2:
-    check("chaining on and off: the same per-block counts and instructions",
+    check("chaining on and off: the same instructions, each as many times",
           results[0] == results[1], results)
 
-print(f"BLOCKS arch={arch} " + " ".join(f"[{r.name}] blocks={res[1]} insns={res[2]} all={r.blocks_all}"
+print(f"BLOCKS arch={arch} " + " ".join(f"[{r.name}] insns={res[1]} all={r.blocks_all}"
                                          for r, res in zip(runs, results)))
 failed = False
 for name, (ok, detail) in checks.items():
