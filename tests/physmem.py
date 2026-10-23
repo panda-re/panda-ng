@@ -12,8 +12,8 @@ positive (1), so pandare2 never reports a failed physical access (separate, pre-
 With the VM stopped after the root revert, from the main loop:
 - a write and a read across a page boundary inside RAM succeed and read back;
 - a write and a read across the end of RAM fail cleanly (no crash), and the in-RAM half of the
-  write landed (as address_space_rw would);
-- x86_64: a write from RAM into the VGA window at 0xa0000 fails cleanly.
+  write landed (as address_space_rw would).
+(Not checked: RAM into x86's VGA window at 0xa0000; std-vga maps it as RAM there, so it is direct.)
 """
 import sys
 import threading
@@ -68,10 +68,6 @@ def main():
         res["in-RAM half written"] = (read(end - 16, 16)) == b"\x5a" * 16
         write(end - 16, before)
         attempt("read across the end of RAM", lambda: (read(end - 16, 32)))
-        if q.arch == "x86_64":
-            low = (read(0xa0000 - 16, 16))
-            attempt("write from RAM into the VGA window", lambda: write(0xa0000 - 16, b"\x5a" * 32))
-            write(0xa0000 - 16, low)
         done.set()
 
     @panda.queue_blocking
@@ -95,9 +91,6 @@ def main():
     check("a write across the end of RAM fails cleanly", res.get("write across the end of RAM", ("",))[0] == "error")
     check("its in-RAM half was written", res.get("in-RAM half written"))
     check("a read across the end of RAM fails cleanly", res.get("read across the end of RAM", ("",))[0] == "error")
-    if q.arch == "x86_64":
-        check("a write from RAM into the VGA window fails cleanly",
-              res.get("write from RAM into the VGA window", ("",))[0] == "error")
     sys.exit(0 if ok else 1)
 
 
