@@ -1,0 +1,9 @@
+# rules for the sc-trap guest test (plugin/syscalls.c mode=trap)
+read enter return log comm=pagetest a2=778 tag=eintr
+getpgid return log comm=pagetest a0=5151 tag=inhandler
+read enter return log comm=pagetest a2=779 tag=restart
+vfork return log comm=pagetest tag=vfork
+clone return log comm=pagetest a0&=0x4000 tag=vfork
+getpgid return log comm=pagetest a0=5252 tag=vchild
+execve return log comm=pagetest tag=exec
+read return log comm=pagetest a2=780 tag=thr

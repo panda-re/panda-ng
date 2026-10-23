@@ -1,0 +1,182 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 14 Oct 2026 20:39:48 -0400
+Subject: [PATCH] accel/tcg: translation-time address hooks and register
+ pointers
+
+A guest virtual address -> a helper call before the instruction, inserted
+at translation time; a per-VA-page TB index for invalidation; CF_PCREL off
+while hooks are in use.  register_ptr: where a register lives in the vCPU
+state, for direct reads.
+
+Vendored sources: src/accel/tcg/hooks.c, hooks-internal.h,
+src/include/accel/tcg/hooks.h.
+---
+ accel/tcg/meson.build     | 1 +
+ accel/tcg/tb-maint.c      | 2 ++
+ accel/tcg/tcg-accel-ops.c | 2 ++
+ accel/tcg/trace-events    | 4 ++++
+ accel/tcg/translate-all.c | 4 ++++
+ accel/tcg/translator.c    | 5 +++++
+ include/hw/core/cpu.h     | 2 ++
+ include/qom/object.h      | 8 ++++++++
+ qom/object.c              | 5 +++++
+ 9 files changed, 33 insertions(+)
+
+diff --git a/accel/tcg/meson.build b/accel/tcg/meson.build
+index 002aa8f4588e6335f5151136f1dec33f3bc4c018..3f169d648697fa91ea07bae118c728c34283314b 100644
+--- a/accel/tcg/meson.build
++++ b/accel/tcg/meson.build
+@@ -7,6 +7,7 @@ tcg_ss = ss.source_set()
+ tcg_ss.add(files(
+   'cpu-exec.c',
+   'cpu-exec-common.c',
++  'hooks.c',
+   'tcg-runtime.c',
+   'tcg-runtime-gvec.c',
+   'tb-maint.c',
+diff --git a/accel/tcg/tb-maint.c b/accel/tcg/tb-maint.c
+index 4313864d2c5d24e30dc1cfbcdf9a81eb7eb0e323..1944ad5dd5543b594a2a18de6dcedf6a61ec4dfa 100644
+--- a/accel/tcg/tb-maint.c
++++ b/accel/tcg/tb-maint.c
+@@ -42,6 +42,7 @@
+ #include "system/runstate.h"
+ #endif
+ #include "trace.h"
++#include "hooks-internal.h"
+ 
+ /* List iterators for lists of tagged pointers in TranslationBlock. */
+ #define TB_FOR_EACH_TAGGED(head, tb, n, field)                          \
+@@ -784,6 +785,7 @@ void tb_flush__exclusive_or_serial(void)
+ 
+     qht_reset_size(&tb_ctx.htable, CODE_GEN_HTABLE_SIZE);
+     tb_remove_all();
++    tcg_hooks_tb_flush();
+ 
+     tcg_region_reset_all();
+     /* XXX: flush processor icache at this point if cache flush is expensive */
+diff --git a/accel/tcg/tcg-accel-ops.c b/accel/tcg/tcg-accel-ops.c
+index 560fe2554baf226da665b12e26056a59f7b0a7ec..df1b6bd24a09372c5fb91bdb54fc6fa5b5dc9bb4 100644
+--- a/accel/tcg/tcg-accel-ops.c
++++ b/accel/tcg/tcg-accel-ops.c
+@@ -45,6 +45,7 @@
+ #include "hw/core/cpu.h"
+ 
+ #include "tcg-accel-ops.h"
++#include "hooks-internal.h"
+ #include "tcg-accel-ops-mttcg.h"
+ #include "tcg-accel-ops-rr.h"
+ #include "tcg-accel-ops-icount.h"
+@@ -68,6 +69,7 @@ void tcg_cpu_init_cflags(CPUState *cpu, bool parallel)
+     cflags |= parallel ? CF_PARALLEL : 0;
+     cflags |= icount_enabled() ? CF_USE_ICOUNT : 0;
+     tcg_cflags_set(cpu, cflags);
++    tcg_hooks_vcpu_cflags(cpu);
+ }
+ 
+ void tcg_cpu_destroy(CPUState *cpu)
+diff --git a/accel/tcg/trace-events b/accel/tcg/trace-events
+index 0816cafd3361f1979e72ad72c42cc8cb4ecce586..eba116e81208c8b0e0093f0fc297233d47e11423 100644
+--- a/accel/tcg/trace-events
++++ b/accel/tcg/trace-events
+@@ -28,3 +28,7 @@ store_atom16_fallback(uint32_t memop, uintptr_t ra) "mop:0x%"PRIx32", ra:0x%"PRI
+ 
+ # tb-maint.c
+ tb_flush(void) ""
++
++# hooks.c
++tcg_hooks_commit(int flush, unsigned pcs, unsigned tbs, unsigned invalidated, int64_t ns) "flush=%d new_sites=%u tbs_scanned=%u tbs_invalidated=%u ns=%" PRId64
++tcg_hooks_regloc_reject(int regno, int write, long first, long last) "register %d: write %d changed bytes %ld..%ld of the CPU state"
+diff --git a/accel/tcg/translate-all.c b/accel/tcg/translate-all.c
+index 328d96aba306a50309ba94f65a8db3527d83b26f..b85b1c25c6bb6bd065be9354edea3340cc8f2a6d 100644
+--- a/accel/tcg/translate-all.c
++++ b/accel/tcg/translate-all.c
+@@ -37,6 +37,7 @@
+ #include "internal-common.h"
+ #include "tcg/perf.h"
+ #include "tcg/insn-start-words.h"
++#include "hooks-internal.h"
+ 
+ TBContext tb_ctx;
+ 
+@@ -537,6 +538,9 @@ TranslationBlock *tb_gen_code(CPUState *cpu, TCGTBCPUState s)
+         tcg_tb_remove(tb);
+         return existing_tb;
+     }
++    if (unlikely(qatomic_read(&tcg_hooks_enabled))) {
++        tcg_hooks_tb_linked(tb);
++    }
+     return tb;
+ }
+ 
+diff --git a/accel/tcg/translator.c b/accel/tcg/translator.c
+index cd7d079fe050bcba229905bfd1de3df659264e81..96314e16aafd650b93c9e54cb1ae0271d7e90d84 100644
+--- a/accel/tcg/translator.c
++++ b/accel/tcg/translator.c
+@@ -20,6 +20,7 @@
+ #include "internal-common.h"
+ #include "disas/disas.h"
+ #include "tb-internal.h"
++#include "hooks-internal.h"
+ 
+ static void set_can_do_io(DisasContextBase *db, bool val)
+ {
+@@ -165,6 +166,10 @@ void translator_loop(CPUState *cpu, TranslationBlock *tb, int *max_insns,
+         }
+         tcg_debug_assert(db->is_jmp == DISAS_NEXT);  /* no early exit */
+ 
++        if (unlikely(qatomic_read(&tcg_hooks_enabled))) {
++            tcg_hooks_gen(db);
++        }
++
+         if (plugin_enabled) {
+             plugin_gen_insn_start(cpu, db);
+         }
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index 66a1bb43c0044c3b67362e1571ab7794e4fc6d35..cac4af61a465f576ebf47d1227c6a01b6a69de65 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -561,6 +561,8 @@ struct CPUState {
+     uint32_t tcg_cflags;
+     uint32_t halted;
+     int32_t exception_index;
++    /* host return address into the block while a TCG hook runs, or 0 */
++    uintptr_t tcg_hook_ra;
+ 
+     bool vcpu_dirty;
+     AccelCPUState *accel;
+diff --git a/include/qom/object.h b/include/qom/object.h
+index 11f55613fcd085f58aed1c76b1d72a218fe5ff53..8e2bb2161b06aeb3dcbd62a44ac3253a8434aa5b 100644
+--- a/include/qom/object.h
++++ b/include/qom/object.h
+@@ -1063,6 +1063,14 @@ ObjectClass *object_class_get_parent(ObjectClass *klass);
+  */
+ const char *object_class_get_name(ObjectClass *klass);
+ 
++/**
++ * object_class_get_instance_size:
++ * @klass: The class to obtain the instance size for.
++ *
++ * Returns: The size in bytes of an instance of @klass.
++ */
++size_t object_class_get_instance_size(ObjectClass *klass);
++
+ /**
+  * object_class_is_abstract:
+  * @klass: The class to obtain the abstractness for.
+diff --git a/qom/object.c b/qom/object.c
+index f79b2cf3618369a87d25685b1bd834f8b2218936..001aeaf8e2be7f37bd2b465d6d5b15a8c5dd562e 100644
+--- a/qom/object.c
++++ b/qom/object.c
+@@ -1145,6 +1145,11 @@ const char *object_class_get_name(ObjectClass *klass)
+     return klass->type->name;
+ }
+ 
++size_t object_class_get_instance_size(ObjectClass *klass)
++{
++    return klass->type->instance_size;
++}
++
+ ObjectClass *object_class_by_name(const char *typename)
+ {
+     TypeImpl *type = type_get_by_name_noload(typename);

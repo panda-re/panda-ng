@@ -1,0 +1,96 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 22 Oct 2026 10:11:20 -0400
+Subject: [PATCH] plugins: add qemu_plugin_tb_size and
+ qemu_plugin_tb_get_insn_by_vaddr
+
+Used by PANDA's plugin interface. From pandang 0002.
+---
+ include/plugins/qemu-plugin.h | 24 ++++++++++++++++++++++++
+ plugins/api.c                 | 24 ++++++++++++++++++++++++
+ 2 files changed, 48 insertions(+)
+
+diff --git a/include/plugins/qemu-plugin.h b/include/plugins/qemu-plugin.h
+index 3a119fbe079c912e1082f3cbd78fa2375804c68c..bc4b680c40a925eebb6e2bd6818b6ba6a0a5e5ee 100644
+--- a/include/plugins/qemu-plugin.h
++++ b/include/plugins/qemu-plugin.h
+@@ -574,6 +574,15 @@ void qemu_plugin_register_vcpu_insn_exec_inline_per_vcpu(
+ QEMU_PLUGIN_API
+ size_t qemu_plugin_tb_n_insns(const struct qemu_plugin_tb *tb);
+ 
++/**
++ * qemu_plugin_tb_size() - query helper for size of TB
++ * @tb: opaque handle to TB passed to callback
++ *
++ * Returns: size of block in bytes (the sum of its instructions' sizes)
++ */
++QEMU_PLUGIN_API
++size_t qemu_plugin_tb_size(const struct qemu_plugin_tb *tb);
++
+ /**
+  * qemu_plugin_tb_vaddr() - query helper for vaddr of TB start
+  * @tb: opaque handle to TB passed to callback
+@@ -598,6 +607,21 @@ QEMU_PLUGIN_API
+ struct qemu_plugin_insn *
+ qemu_plugin_tb_get_insn(const struct qemu_plugin_tb *tb, size_t idx);
+ 
++/**
++ * qemu_plugin_tb_get_insn_by_vaddr() - retrieve handle for instruction by vaddr
++ * @tb: opaque handle to TB passed to callback
++ * @vaddr: virtual address of the instruction
++ *
++ * Like qemu_plugin_tb_get_insn(), the handle is only valid for the
++ * lifetime of the callback.
++ *
++ * Returns: opaque handle to instruction, or NULL if @tb has none at @vaddr
++ */
++QEMU_PLUGIN_API
++struct qemu_plugin_insn *
++qemu_plugin_tb_get_insn_by_vaddr(const struct qemu_plugin_tb *tb,
++                                 uint64_t vaddr);
++
+ /**
+  * qemu_plugin_insn_data() - copy instruction data
+  * @insn: opaque instruction handle from qemu_plugin_tb_get_insn()
+diff --git a/plugins/api.c b/plugins/api.c
+index 89de232a7829ce0444e81c710391b1bf35e51d8a..64f71ee9d7b0e844496d28c13b7f247ae46e59b5 100644
+--- a/plugins/api.c
++++ b/plugins/api.c
+@@ -252,6 +252,17 @@ size_t qemu_plugin_tb_n_insns(const struct qemu_plugin_tb *tb)
+     return tb->n;
+ }
+ 
++size_t qemu_plugin_tb_size(const struct qemu_plugin_tb *tb)
++{
++    size_t size = 0;
++
++    for (size_t i = 0; i < tb->n; i++) {
++        struct qemu_plugin_insn *insn = g_ptr_array_index(tb->insns, i);
++        size += qemu_plugin_insn_size(insn);
++    }
++    return size;
++}
++
+ /*
+  * The answer depends on the virtual address the TB was translated at, so
+  * the TB must not run at others (see plugin_gen_tb_end()).
+@@ -278,6 +289,19 @@ qemu_plugin_tb_get_insn(const struct qemu_plugin_tb *tb, size_t idx)
+     return g_ptr_array_index(tb->insns, idx);
+ }
+ 
++struct qemu_plugin_insn *
++qemu_plugin_tb_get_insn_by_vaddr(const struct qemu_plugin_tb *tb,
++                                 uint64_t vaddr)
++{
++    for (size_t i = 0; i < tb->n; i++) {
++        struct qemu_plugin_insn *insn = g_ptr_array_index(tb->insns, i);
++        if (insn->vaddr == vaddr) {
++            return insn;
++        }
++    }
++    return NULL;
++}
++
+ /*
+  * Instruction information
+  *

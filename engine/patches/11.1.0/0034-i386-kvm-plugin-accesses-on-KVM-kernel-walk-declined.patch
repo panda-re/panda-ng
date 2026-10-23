@@ -1,0 +1,230 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 21 Oct 2026 16:14:04 -0400
+Subject: [PATCH] i386/kvm: plugin accesses on KVM: kernel walk, declined
+ breakpoints, full register sync
+
+- The IDT read used the user-mode walk, so it failed from a CPL3 hook and
+  the plugin access was silently dropped: kvm_plugin_rw_virt walks as the
+  kernel (kvm_plugin_walk(as_user) split out of kvm_plugin_translate).
+- A plugin that declined its own hardware breakpoint fell through to
+  vm_stop(RUN_STATE_DEBUG): the breakpoint is stepped over instead.
+- The light sync exposed stale FPU/MSR state and dropped writes to anything
+  but the GPRs: a register read or write past the GPRs (new hw op regs,
+  called from qemu_plugin_read/write_register) does a full sync first.
+- The KVM user-access window takes the stateless signature.
+(The hook commit's tb_flush under -accel kvm in a TCG+KVM build is fixed in
+src/accel/tcg/hooks.c.)
+
+Review blocker 7a-d.  Compiled only (x86_64-softmmu --enable-kvm, amd64
+container); no x86 KVM host here.
+---
+ plugins/api-system.c  |  8 +++++
+ plugins/api-user.c    |  4 +++
+ plugins/api.c         |  2 ++
+ plugins/plugin.h      |  3 ++
+ target/i386/kvm/kvm.c | 74 +++++++++++++++++++++++++++++++++++--------
+ 5 files changed, 77 insertions(+), 14 deletions(-)
+
+diff --git a/plugins/api-system.c b/plugins/api-system.c
+index a4bc5a00e4b83e20594bf6623fcaba0b9d3411dd..b9fa9b859ff5574265bb3ff3076d541107654cfb 100644
+--- a/plugins/api-system.c
++++ b/plugins/api-system.c
+@@ -25,6 +25,7 @@
+ #include "qemu/plugin-hw.h"
+ #include "system/memory.h"
+ #include "system/tcg.h"
++#include "plugin.h"
+ 
+ /*
+  * In system mode we cannot trace the binary being executed so the
+@@ -212,6 +213,13 @@ void qemu_plugin_set_hw_ops(const QemuPluginHwOps *ops)
+     hw_ops = ops;
+ }
+ 
++void plugin_hw_regs(CPUState *cpu, int regno)
++{
++    if (!tcg_enabled() && hw_ops && hw_ops->regs) {
++        hw_ops->regs(cpu, regno);
++    }
++}
++
+ bool qemu_plugin_bp_enabled(void)
+ {
+     return bp_cb;
+diff --git a/plugins/api-user.c b/plugins/api-user.c
+index 5590ca72c96b9b96559ab0c98c40581125d4bf93..61e9d76fbf8bfa8f1dd8b1fe362ca4e2ba9e81de 100644
+--- a/plugins/api-user.c
++++ b/plugins/api-user.c
+@@ -89,3 +89,7 @@ int qemu_plugin_hw_breakpoint_insert(uint64_t vaddr)
+ {
+     return -ENOTSUP;
+ }
++
++void plugin_hw_regs(CPUState *cpu, int regno)
++{
++}
+diff --git a/plugins/api.c b/plugins/api.c
+index a4cab38fa6dc6348c1c2adb18a29f053c10027df..6580b5b4c1441744b35a72468f6a20f22fa5ce44 100644
+--- a/plugins/api.c
++++ b/plugins/api.c
+@@ -484,6 +484,7 @@ bool qemu_plugin_read_register(struct qemu_plugin_register *reg,
+         return false;
+     }
+ 
++    plugin_hw_regs(current_cpu, GPOINTER_TO_INT(reg) >> 1);
+     return (gdb_read_register(current_cpu, buf, GPOINTER_TO_INT(reg) >> 1) > 0);
+ }
+ 
+@@ -501,6 +502,7 @@ bool qemu_plugin_write_register(struct qemu_plugin_register *reg,
+         return false;
+     }
+ 
++    plugin_hw_regs(current_cpu, GPOINTER_TO_INT(reg) >> 1);
+     return (gdb_write_register(current_cpu, buf->data, GPOINTER_TO_INT(reg) >> 1) > 0);
+ }
+ 
+diff --git a/plugins/plugin.h b/plugins/plugin.h
+index c901016b8c18f1b625e3e504296207bc83d377b9..719611cd579cce94f8d085213ba357e22ed8945a 100644
+--- a/plugins/plugin.h
++++ b/plugins/plugin.h
+@@ -126,4 +126,7 @@ void plugin_scoreboard_free(struct qemu_plugin_scoreboard *score);
+  */
+ void qemu_plugin_fillin_mode_info(qemu_info_t *info);
+ 
++/* before a plugin's register access: see QemuPluginHwOps.regs */
++void plugin_hw_regs(CPUState *cpu, int regno);
++
+ #endif /* PLUGIN_H */
+diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+index 706cfbd95aeeddadcba7763d237336b8e2528ac1..abf2770bcbc0265f29a67807be039329076d97dc 100644
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -3456,13 +3456,12 @@ static int xen_init(MachineState *ms, KVMState *s)
+  * Plugin guest-memory access under KVM (see qemu/plugin-hw.h): walk the
+  * guest page tables as the MMU would, and hand misses to the guest as #PF.
+  */
+-static int kvm_plugin_translate(CPUState *cs, vaddr addr,
+-                                MMUAccessType access_type, bool user,
+-                                hwaddr *phys, uint64_t *fault)
++static int kvm_plugin_walk(CPUState *cs, vaddr addr,
++                           MMUAccessType access_type, bool as_user,
++                           hwaddr *phys, uint64_t *fault)
+ {
+     CPUX86State *env = &X86_CPU(cs)->env;
+     bool cpl3 = (env->hflags & HF_CPL_MASK) == 3;
+-    bool as_user = user || cpl3;
+     bool wr = access_type == MMU_DATA_STORE;
+     /* the error code of a fault taken at this instruction */
+     uint32_t err = (wr ? PG_ERROR_W_MASK : 0) | (cpl3 ? PG_ERROR_U_MASK : 0);
+@@ -3518,6 +3517,18 @@ static int kvm_plugin_translate(CPUState *cs, vaddr addr,
+     return 0;
+ }
+ 
++/* as the guest's own access at this instruction would be checked */
++static int kvm_plugin_translate(CPUState *cs, vaddr addr,
++                                MMUAccessType access_type, bool user,
++                                hwaddr *phys, uint64_t *fault)
++{
++    CPUX86State *env = &X86_CPU(cs)->env;
++
++    return kvm_plugin_walk(cs, addr, access_type,
++                           user || (env->hflags & HF_CPL_MASK) == 3,
++                           phys, fault);
++}
++
+ /*
+  * Supervisor access to [addr, addr + len) within one page, without
+  * cpu_memory_rw_debug(): that syncs the whole vCPU, discarding what a
+@@ -3529,9 +3540,9 @@ static bool kvm_plugin_rw_virt(CPUState *cs, vaddr addr, void *buf, int len,
+     hwaddr pa;
+     uint64_t f;
+ 
+-    if (kvm_plugin_translate(cs, addr, is_write ? MMU_DATA_STORE
+-                                                : MMU_DATA_LOAD,
+-                             false, &pa, &f)) {
++    /* supervisor even when the vCPU is at CPL 3 (the IDT, a #PF frame) */
++    if (kvm_plugin_walk(cs, addr, is_write ? MMU_DATA_STORE : MMU_DATA_LOAD,
++                        false, &pa, &f)) {
+         return false;
+     }
+     return address_space_rw(cs->as, pa, MEMTXATTRS_UNSPECIFIED, buf, len,
+@@ -3556,28 +3567,54 @@ static void kvm_plugin_raise(CPUState *cs, vaddr addr, uint64_t fault)
+ }
+ 
+ /* As x86_cpu_user_access_window() under TCG: stac/clac around the access */
+-static void kvm_plugin_window(CPUState *cs, bool open)
++static bool kvm_plugin_window(CPUState *cs, bool open, uint64_t *saved)
+ {
+-    X86CPU *cpu = X86_CPU(cs);
+-    CPUX86State *env = &cpu->env;
++    CPUX86State *env = cpu_env(cs);
+ 
+     if (open) {
+         if ((env->hflags & HF_CPL_MASK) == 3 ||
+             !(env->cr[4] & CR4_SMAP_MASK) || (env->eflags & AC_MASK)) {
+-            return;
++            return false;
+         }
+         env->eflags |= AC_MASK;
+-        cpu->uaccess_open = true;
+-    } else if (cpu->uaccess_open) {
++    } else {
+         env->eflags &= ~AC_MASK;
+-        cpu->uaccess_open = false;
+     }
++    return true;
++}
++
++static int kvm_getput_regs(X86CPU *cpu, int set);
++
++/* a plugin breakpoint callback is running under the light sync */
++static __thread bool plugin_light;
++
++/*
++ * The light sync fetched the GPRs, RIP and RFLAGS (and the paging state).
++ * A plugin reading or writing any other register (segments, FPU, MSRs,
++ * ...) gets the whole vCPU: put back what the callback wrote so far, then
++ * synchronize fully, which makes env authoritative until the next run.
++ */
++static void kvm_plugin_regs(CPUState *cs, int regno)
++{
++#ifdef TARGET_X86_64
++    const int light_regs = 18;      /* rax..r15, rip, eflags */
++#else
++    const int light_regs = 10;      /* eax..edi, eip, eflags */
++#endif
++
++    if (!plugin_light || cs->vcpu_dirty || regno < light_regs ||
++        plugin_raised) {
++        return;     /* a queued fault would be lost: keep the light view */
++    }
++    kvm_getput_regs(X86_CPU(cs), 1);
++    cpu_synchronize_state(cs);
+ }
+ 
+ static const QemuPluginHwOps kvm_plugin_hw_ops = {
+     .translate = kvm_plugin_translate,
+     .raise = kvm_plugin_raise,
+     .window = kvm_plugin_window,
++    .regs = kvm_plugin_regs,
+ };
+ 
+ int kvm_arch_init(MachineState *ms, KVMState *s)
+@@ -6495,7 +6532,16 @@ static bool kvm_plugin_debug(X86CPU *cpu, struct kvm_debug_exit_arch *arch_info)
+     }
+     plugin_raised = false;
+     eip = env->eip;
++    plugin_light = light;
+     handled = qemu_plugin_vcpu_bp(cs, arch_info->pc, sw);
++    plugin_light = false;
++    if (!handled && hw && !plugin_raised && env->eip == eip) {
++        /*
++         * The plugin's own breakpoint, declined: it is not the gdbstub's
++         * (kvm_handle_debug() would stop the VM for it), so step over it.
++         */
++        handled = true;
++    }
+     if (!handled) {
+         if (light && !cs->vcpu_dirty) {
+             kvm_getput_regs(cpu, 1);    /* the callback may have written */

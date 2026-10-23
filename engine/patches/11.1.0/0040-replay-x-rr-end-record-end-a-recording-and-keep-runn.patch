@@ -1,0 +1,106 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 21 Oct 2026 18:30:05 -0400
+Subject: [PATCH] replay: x-rr-end-record, end a recording and keep running
+
+PANDA's end_record.  The log is finalized as at exit (a shutdown event, so
+a replay stops at this point, then the end event and the header).  If
+x-rr-begin-record switched icount on, icount_disable_runtime switches it
+off: the icount timers go, the TCG ops and every vCPU's cflags go back,
+TBs are flushed, and the host-driven virtual clock resumes from the icount
+time.  The VM keeps running; chardevs and filters left on their replay
+paths pass through in replay mode none.
+
+R4 of the panda-next plan.
+---
+ qapi/replay.json      | 17 +++++++++++++++++
+ replay/replay-begin.c | 33 ++++++++++++++++++++++++++++++++-
+ replay/stubs-system.c |  5 +++++
+ 3 files changed, 54 insertions(+), 1 deletion(-)
+
+diff --git a/qapi/replay.json b/qapi/replay.json
+index 1325130ecdd21439063f85bb1cb515f5f8d08b63..29c55e07ac0a0eede8db15616c7dde52bb1219de 100644
+--- a/qapi/replay.json
++++ b/qapi/replay.json
+@@ -195,3 +195,20 @@
+             '*chardevs': ['str'] },
+   'returns': 'RrBeginRecordInfo',
+   'features': [ 'unstable' ] }
++
++##
++# @x-rr-end-record:
++#
++# End a recording started by `x-rr-begin-record` (or -icount
++# rr=record) and keep the VM running.  The log is finalized; a replay
++# of it stops here.  If `x-rr-begin-record` switched icount on, it is
++# switched off again and the guest clock continues.
++#
++# Features:
++#
++# @unstable: experimental
++#
++# Since: 11.1
++##
++{ 'command': 'x-rr-end-record',
++  'features': [ 'unstable' ] }
+diff --git a/replay/replay-begin.c b/replay/replay-begin.c
+index 514bfee2dc64fb8099d33867b481619907aa2a16..4e3b320c55b596cccc50cc4c84bcf8b847fa85f8 100644
+--- a/replay/replay-begin.c
++++ b/replay/replay-begin.c
+@@ -6,7 +6,9 @@
+  * its replay path (chardevs journalled, filter-replay on every netdev; virtio
+  * ioeventfd must already be off), saves an internal snapshot as the start
+  * point, reloads it and opens the log.  x-rr-begin-replay does the same in a
+- * process started with -S and replays from the snapshot.
++ * process started with -S and replays from the snapshot.  x-rr-end-record
++ * closes the log and, if begin switched icount on, switches it off again:
++ * the VM keeps running.
+  *
+  * Loading the start snapshot relies on run_on_cpu() handing the replay mutex
+  * to a vCPU while it waits (system/cpus.c), which drops and retakes the BQL.
+@@ -348,3 +350,32 @@ RrBeginRecordInfo *qmp_x_rr_begin_replay(const char *snapshot,
+     vm_start();
+     return info;
+ }
++
++/*
++ * End a recording and keep running.  The log is finalized as at exit (an
++ * EVENT_SHUTDOWN, so a replay stops here, then the end event and header).
++ * If x-rr-begin-record switched icount on, it goes off again, and the guest
++ * clock continues from the icount time.
++ */
++void qmp_x_rr_end_record(Error **errp)
++{
++    bool was_running = runstate_is_running();
++
++    if (replay_mode != REPLAY_MODE_RECORD) {
++        error_setg(errp, "not recording");
++        return;
++    }
++    if (was_running) {
++        vm_stop(RUN_STATE_PAUSED);
++    }
++    replay_finish();
++    if (icount_by_begin) {
++        icount_by_begin = false;
++        if (!icount_disable_runtime(errp)) {
++            return;
++        }
++    }
++    if (was_running) {
++        vm_start();
++    }
++}
+diff --git a/replay/stubs-system.c b/replay/stubs-system.c
+index 5a4df130367b5efaca5d80ca1dc29d666473a8e3..e0a389e47a0c00d09afcdcb6f6e9bac082c3c36a 100644
+--- a/replay/stubs-system.c
++++ b/replay/stubs-system.c
+@@ -116,3 +116,8 @@ RrBeginRecordInfo *qmp_x_rr_begin_replay(const char *snapshot, const char *file,
+     error_setg(errp, "replay support not available");
+     return NULL;
+ }
++
++void qmp_x_rr_end_record(Error **errp)
++{
++    error_setg(errp, "replay support not available");
++}

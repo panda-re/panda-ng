@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 22 Oct 2026 19:14:23 -0400
+Subject: [PATCH] panda: before_find_fast before each TB lookup
+
+panda_do_flush_tb() (pandare2 flush_tb, enable_precise_pc and friends) and plugin unload only set
+flags, which panda_callbacks_before_find_fast acts on; nothing called it, so neither ever happened.
+Call it before each TB lookup in cpu_exec_loop, where pandang had it. Without --enable-panda it is
+an empty inline.
+---
+ accel/tcg/cpu-exec.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 7e66f40ef6ee24aaef4cb3bb909e6dc2ab416702..26cb333c709ab30d83d45d88131e4591c31beecf 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -1005,6 +1005,9 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
+                 break;
+             }
+ 
++            /* PANDA: pending plugin unloads and TB flushes (may leave the loop) */
++            panda_callbacks_before_find_fast();
++
+             tb = tb_lookup(cpu, s);
+             if (tb == NULL) {
+                 CPUJumpCache *jc;

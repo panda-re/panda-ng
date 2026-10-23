@@ -1,0 +1,396 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 22 Oct 2026 17:48:02 -0400
+Subject: [PATCH] plugins: memory callbacks before the access
+
+QEMU_PLUGIN_MEM_BEFORE and QEMU_PLUGIN_MEM_AFTER are or-ed into a memory
+callback registration; qemu_plugin_mem_is_before() tells them apart. A
+registration without either is after-only, as before, so existing plugins
+see no new calls.
+
+Before a load the value is not known; before a store it is (stores now put
+their value in plugin_mem_value ahead of the access, which the after event
+reuses, so nothing more runs per access). Atomics get a read and a write
+before event from atomic_mmu_lookup, without a value. 128-bit TCG accesses
+have no before events yet.
+
+From aking's before/after memory callbacks on panda-re/qemu wrapup-rebase
+(25af52e0, 6539fa00, 303df341, 858992b9), reworked: the phase is a flag that
+defaults to after rather than a new meaning for MEM_R/W, so plugins that do
+not ask for it are not called twice.
+---
+ accel/tcg/cputlb.c            |  7 +++++++
+ accel/tcg/ldst_common.c.inc   | 38 ++++++++++++++++++++++-------------
+ accel/tcg/plugin-gen.c        |  8 +++-----
+ include/plugins/qemu-plugin.h | 20 ++++++++++++++++++
+ include/qemu/plugin.h         | 14 +++++++++++++
+ plugins/api.c                 |  5 +++++
+ plugins/core.c                |  4 ++--
+ tcg/tcg-op-ldst.c             | 32 +++++++++++++++++++++++++----
+ 8 files changed, 103 insertions(+), 25 deletions(-)
+
+diff --git a/accel/tcg/cputlb.c b/accel/tcg/cputlb.c
+index d7f51c94c29454c80b54d56252c73035e73747e8..f1ba05a5c0efc8421864b511fe0f95601025411c 100644
+--- a/accel/tcg/cputlb.c
++++ b/accel/tcg/cputlb.c
+@@ -1910,6 +1910,13 @@ static void *atomic_mmu_lookup(CPUState *cpu, vaddr addr, MemOpIdx oi,
+                              full->attrs, wp_flags, retaddr);
+     }
+ 
++    if (cpu_plugin_mem_cbs_enabled(cpu)) {
++        qemu_plugin_vcpu_mem_cb(cpu, addr, 0, 0, oi,
++                                QEMU_PLUGIN_MEM_R | QEMU_PLUGIN_MEM_BEFORE);
++        qemu_plugin_vcpu_mem_cb(cpu, addr, 0, 0, oi,
++                                QEMU_PLUGIN_MEM_W | QEMU_PLUGIN_MEM_BEFORE);
++    }
++
+     return hostaddr;
+ 
+  stop_the_world:
+diff --git a/accel/tcg/ldst_common.c.inc b/accel/tcg/ldst_common.c.inc
+index 57f3e06192480a53045b0e171e53aa0077aeb48d..5d127261ea3348d66f5b6ac8312d698a7281dafe 100644
+--- a/accel/tcg/ldst_common.c.inc
++++ b/accel/tcg/ldst_common.c.inc
+@@ -126,12 +126,12 @@ void helper_st_i128(CPUArchState *env, uint64_t addr, Int128 val, MemOpIdx oi)
+ static void plugin_load_cb(CPUArchState *env, vaddr addr,
+                            uint64_t value_low,
+                            uint64_t value_high,
+-                           MemOpIdx oi)
++                           MemOpIdx oi, enum qemu_plugin_mem_rw rw)
+ {
+     if (cpu_plugin_mem_cbs_enabled(env_cpu(env))) {
+         qemu_plugin_vcpu_mem_cb(env_cpu(env), addr,
+                                 value_low, value_high,
+-                                oi, QEMU_PLUGIN_MEM_R);
++                                oi, QEMU_PLUGIN_MEM_R | rw);
+     }
+ }
+ 
+@@ -140,8 +140,9 @@ uint8_t cpu_ldb_mmu(CPUArchState *env, vaddr addr, MemOpIdx oi, uintptr_t ra)
+     uint8_t ret;
+ 
+     tcg_debug_assert((get_memop(oi) & MO_SIZE) == MO_UB);
++    plugin_load_cb(env, addr, 0, 0, oi, QEMU_PLUGIN_MEM_BEFORE);
+     ret = do_ld1_mmu(env_cpu(env), addr, oi, ra, MMU_DATA_LOAD);
+-    plugin_load_cb(env, addr, ret, 0, oi);
++    plugin_load_cb(env, addr, ret, 0, oi, QEMU_PLUGIN_MEM_AFTER);
+     return ret;
+ }
+ 
+@@ -151,8 +152,9 @@ uint16_t cpu_ldw_mmu(CPUArchState *env, vaddr addr,
+     uint16_t ret;
+ 
+     tcg_debug_assert((get_memop(oi) & MO_SIZE) == MO_16);
++    plugin_load_cb(env, addr, 0, 0, oi, QEMU_PLUGIN_MEM_BEFORE);
+     ret = do_ld2_mmu(env_cpu(env), addr, oi, ra, MMU_DATA_LOAD);
+-    plugin_load_cb(env, addr, ret, 0, oi);
++    plugin_load_cb(env, addr, ret, 0, oi, QEMU_PLUGIN_MEM_AFTER);
+     return ret;
+ }
+ 
+@@ -162,8 +164,9 @@ uint32_t cpu_ldl_mmu(CPUArchState *env, vaddr addr,
+     uint32_t ret;
+ 
+     tcg_debug_assert((get_memop(oi) & MO_SIZE) == MO_32);
++    plugin_load_cb(env, addr, 0, 0, oi, QEMU_PLUGIN_MEM_BEFORE);
+     ret = do_ld4_mmu(env_cpu(env), addr, oi, ra, MMU_DATA_LOAD);
+-    plugin_load_cb(env, addr, ret, 0, oi);
++    plugin_load_cb(env, addr, ret, 0, oi, QEMU_PLUGIN_MEM_AFTER);
+     return ret;
+ }
+ 
+@@ -173,8 +176,9 @@ uint64_t cpu_ldq_mmu(CPUArchState *env, vaddr addr,
+     uint64_t ret;
+ 
+     tcg_debug_assert((get_memop(oi) & MO_SIZE) == MO_64);
++    plugin_load_cb(env, addr, 0, 0, oi, QEMU_PLUGIN_MEM_BEFORE);
+     ret = do_ld8_mmu(env_cpu(env), addr, oi, ra, MMU_DATA_LOAD);
+-    plugin_load_cb(env, addr, ret, 0, oi);
++    plugin_load_cb(env, addr, ret, 0, oi, QEMU_PLUGIN_MEM_AFTER);
+     return ret;
+ }
+ 
+@@ -184,8 +188,9 @@ Int128 cpu_ld16_mmu(CPUArchState *env, vaddr addr,
+     Int128 ret;
+ 
+     tcg_debug_assert((get_memop(oi) & MO_SIZE) == MO_128);
++    plugin_load_cb(env, addr, 0, 0, oi, QEMU_PLUGIN_MEM_BEFORE);
+     ret = do_ld16_mmu(env_cpu(env), addr, oi, ra);
+-    plugin_load_cb(env, addr, int128_getlo(ret), int128_gethi(ret), oi);
++    plugin_load_cb(env, addr, int128_getlo(ret), int128_gethi(ret), oi, QEMU_PLUGIN_MEM_AFTER);
+     return ret;
+ }
+ 
+@@ -196,50 +201,55 @@ Int128 cpu_ld16_mmu(CPUArchState *env, vaddr addr,
+ static void plugin_store_cb(CPUArchState *env, vaddr addr,
+                             uint64_t value_low,
+                             uint64_t value_high,
+-                            MemOpIdx oi)
++                            MemOpIdx oi, enum qemu_plugin_mem_rw rw)
+ {
+     if (cpu_plugin_mem_cbs_enabled(env_cpu(env))) {
+         qemu_plugin_vcpu_mem_cb(env_cpu(env), addr,
+                                 value_low, value_high,
+-                                oi, QEMU_PLUGIN_MEM_W);
++                                oi, QEMU_PLUGIN_MEM_W | rw);
+     }
+ }
+ 
+ void cpu_stb_mmu(CPUArchState *env, vaddr addr, uint8_t val,
+                  MemOpIdx oi, uintptr_t retaddr)
+ {
++    plugin_store_cb(env, addr, val, 0, oi, QEMU_PLUGIN_MEM_BEFORE);
+     helper_stb_mmu(env, addr, val, oi, retaddr);
+-    plugin_store_cb(env, addr, val, 0, oi);
++    plugin_store_cb(env, addr, val, 0, oi, QEMU_PLUGIN_MEM_AFTER);
+ }
+ 
+ void cpu_stw_mmu(CPUArchState *env, vaddr addr, uint16_t val,
+                  MemOpIdx oi, uintptr_t retaddr)
+ {
+     tcg_debug_assert((get_memop(oi) & MO_SIZE) == MO_16);
++    plugin_store_cb(env, addr, val, 0, oi, QEMU_PLUGIN_MEM_BEFORE);
+     do_st2_mmu(env_cpu(env), addr, val, oi, retaddr);
+-    plugin_store_cb(env, addr, val, 0, oi);
++    plugin_store_cb(env, addr, val, 0, oi, QEMU_PLUGIN_MEM_AFTER);
+ }
+ 
+ void cpu_stl_mmu(CPUArchState *env, vaddr addr, uint32_t val,
+                     MemOpIdx oi, uintptr_t retaddr)
+ {
+     tcg_debug_assert((get_memop(oi) & MO_SIZE) == MO_32);
++    plugin_store_cb(env, addr, val, 0, oi, QEMU_PLUGIN_MEM_BEFORE);
+     do_st4_mmu(env_cpu(env), addr, val, oi, retaddr);
+-    plugin_store_cb(env, addr, val, 0, oi);
++    plugin_store_cb(env, addr, val, 0, oi, QEMU_PLUGIN_MEM_AFTER);
+ }
+ 
+ void cpu_stq_mmu(CPUArchState *env, vaddr addr, uint64_t val,
+                  MemOpIdx oi, uintptr_t retaddr)
+ {
+     tcg_debug_assert((get_memop(oi) & MO_SIZE) == MO_64);
++    plugin_store_cb(env, addr, val, 0, oi, QEMU_PLUGIN_MEM_BEFORE);
+     do_st8_mmu(env_cpu(env), addr, val, oi, retaddr);
+-    plugin_store_cb(env, addr, val, 0, oi);
++    plugin_store_cb(env, addr, val, 0, oi, QEMU_PLUGIN_MEM_AFTER);
+ }
+ 
+ void cpu_st16_mmu(CPUArchState *env, vaddr addr, Int128 val,
+                   MemOpIdx oi, uintptr_t retaddr)
+ {
+     tcg_debug_assert((get_memop(oi) & MO_SIZE) == MO_128);
++    plugin_store_cb(env, addr, int128_getlo(val), int128_gethi(val), oi, QEMU_PLUGIN_MEM_BEFORE);
+     do_st16_mmu(env_cpu(env), addr, val, oi, retaddr);
+-    plugin_store_cb(env, addr, int128_getlo(val), int128_gethi(val), oi);
++    plugin_store_cb(env, addr, int128_getlo(val), int128_gethi(val), oi, QEMU_PLUGIN_MEM_AFTER);
+ }
+diff --git a/accel/tcg/plugin-gen.c b/accel/tcg/plugin-gen.c
+index 5778330b9b8f5d167b6a47d6604690b53bdf91c6..9e6430bd6af81efb49b18e54f47fab916050c344 100644
+--- a/accel/tcg/plugin-gen.c
++++ b/accel/tcg/plugin-gen.c
+@@ -275,13 +275,13 @@ static void inject_mem_cb(struct qemu_plugin_dyn_cb *cb,
+ {
+     switch (cb->type) {
+     case PLUGIN_CB_MEM_REGULAR:
+-        if (rw & cb->regular.rw) {
++        if (plugin_mem_rw_match(cb->regular.rw, rw)) {
+             gen_mem_cb(&cb->regular, meminfo, addr);
+         }
+         break;
+     case PLUGIN_CB_INLINE_ADD_U64:
+     case PLUGIN_CB_INLINE_STORE_U64:
+-        if (rw & cb->inline_insn.rw) {
++        if (plugin_mem_rw_match(cb->inline_insn.rw, rw)) {
+             inject_cb(cb);
+         }
+         break;
+@@ -381,9 +381,7 @@ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb)
+         {
+             TCGv_i64 addr = temp_tcgv_i64(arg_temp(op->args[0]));
+             qemu_plugin_meminfo_t meminfo = op->args[1];
+-            enum qemu_plugin_mem_rw rw =
+-                (qemu_plugin_mem_is_store(meminfo)
+-                 ? QEMU_PLUGIN_MEM_W : QEMU_PLUGIN_MEM_R);
++            enum qemu_plugin_mem_rw rw = get_plugin_meminfo_rw(meminfo);
+             struct qemu_plugin_insn *insn;
+             const GArray *cbs;
+             int i, n;
+diff --git a/include/plugins/qemu-plugin.h b/include/plugins/qemu-plugin.h
+index bc4b680c40a925eebb6e2bd6818b6ba6a0a5e5ee..9c509144d41cadd41e5a75164ae75196f081b400 100644
+--- a/include/plugins/qemu-plugin.h
++++ b/include/plugins/qemu-plugin.h
+@@ -344,11 +344,20 @@ enum qemu_plugin_cb_flags {
+  * @QEMU_PLUGIN_MEM_R: memory read access only
+  * @QEMU_PLUGIN_MEM_W: memory write access only
+  * @QEMU_PLUGIN_MEM_RW: memory read and write access
++ * @QEMU_PLUGIN_MEM_BEFORE: or-ed in: run before the access
++ * @QEMU_PLUGIN_MEM_AFTER: or-ed in: run after the access (the default)
+  */
+ enum qemu_plugin_mem_rw {
+     QEMU_PLUGIN_MEM_R = 1,
+     QEMU_PLUGIN_MEM_W,
+     QEMU_PLUGIN_MEM_RW,
++    /*
++     * Phase, or-ed into a registration: BEFORE runs the callback before the
++     * access (a load's value is not known yet), AFTER after it. Without either
++     * a callback runs after the access only, as it always has.
++     */
++    QEMU_PLUGIN_MEM_BEFORE = 0x10,
++    QEMU_PLUGIN_MEM_AFTER = 0x20,
+ };
+ 
+ /**
+@@ -704,6 +713,17 @@ bool qemu_plugin_mem_is_big_endian(qemu_plugin_meminfo_t info);
+ QEMU_PLUGIN_API
+ bool qemu_plugin_mem_is_store(qemu_plugin_meminfo_t info);
+ 
++/**
++ * qemu_plugin_mem_is_before() - is this callback before the access?
++ * @info: opaque memory transaction handle
++ *
++ * Only callbacks registered with QEMU_PLUGIN_MEM_BEFORE see such accesses.
++ *
++ * Returns: true if the access has not happened yet
++ */
++QEMU_PLUGIN_API
++bool qemu_plugin_mem_is_before(qemu_plugin_meminfo_t info);
++
+ /**
+  * qemu_plugin_mem_get_value() - return last value loaded/stored
+  * @info: opaque memory transaction handle
+diff --git a/include/qemu/plugin.h b/include/qemu/plugin.h
+index 49c49c97e3ccb062feea4614224a698c24820075..1c214d796afc0dcb4b749e375bb2feeb2d69abdf 100644
+--- a/include/qemu/plugin.h
++++ b/include/qemu/plugin.h
+@@ -27,6 +27,20 @@ typedef QTAILQ_HEAD(, qemu_plugin_desc) QemuPluginList;
+ /*
+  * Construct a qemu_plugin_meminfo_t.
+  */
++/*
++ * Does a memory callback registered for @cb_rw run for an access of @ev_rw?
++ * Either without a phase means QEMU_PLUGIN_MEM_AFTER.
++ */
++static inline bool plugin_mem_rw_match(enum qemu_plugin_mem_rw cb_rw,
++                                       enum qemu_plugin_mem_rw ev_rw)
++{
++    const int phases = QEMU_PLUGIN_MEM_BEFORE | QEMU_PLUGIN_MEM_AFTER;
++    int cb_phase = (cb_rw & phases) ?: QEMU_PLUGIN_MEM_AFTER;
++    int ev_phase = (ev_rw & phases) ?: QEMU_PLUGIN_MEM_AFTER;
++
++    return (cb_rw & ev_rw & QEMU_PLUGIN_MEM_RW) && (cb_phase & ev_phase);
++}
++
+ static inline qemu_plugin_meminfo_t
+ make_plugin_meminfo(MemOpIdx oi, enum qemu_plugin_mem_rw rw)
+ {
+diff --git a/plugins/api.c b/plugins/api.c
+index 64f71ee9d7b0e844496d28c13b7f247ae46e59b5..6e77ca84524f1233d23f3973ca2fc8b7e4067a98 100644
+--- a/plugins/api.c
++++ b/plugins/api.c
+@@ -401,6 +401,11 @@ bool qemu_plugin_mem_is_store(qemu_plugin_meminfo_t info)
+     return get_plugin_meminfo_rw(info) & QEMU_PLUGIN_MEM_W;
+ }
+ 
++bool qemu_plugin_mem_is_before(qemu_plugin_meminfo_t info)
++{
++    return get_plugin_meminfo_rw(info) & QEMU_PLUGIN_MEM_BEFORE;
++}
++
+ qemu_plugin_mem_value qemu_plugin_mem_get_value(qemu_plugin_meminfo_t info)
+ {
+     uint64_t low = current_cpu->neg.plugin_mem_value_low;
+diff --git a/plugins/core.c b/plugins/core.c
+index 4fe93eef4b8d388d43610a940090e0505945224b..938e66104b76e89ce94c14c3b846b665e0d373e7 100644
+--- a/plugins/core.c
++++ b/plugins/core.c
+@@ -795,7 +795,7 @@ void qemu_plugin_vcpu_mem_cb(CPUState *cpu, uint64_t vaddr,
+ 
+         switch (cb->type) {
+         case PLUGIN_CB_MEM_REGULAR:
+-            if (rw & cb->regular.rw) {
++            if (plugin_mem_rw_match(cb->regular.rw, rw)) {
+                 qemu_plugin_set_cb_flags(cpu,
+                     tcg_call_to_qemu_plugin_cb_flags(cb->regular.info->flags));
+ 
+@@ -807,7 +807,7 @@ void qemu_plugin_vcpu_mem_cb(CPUState *cpu, uint64_t vaddr,
+             break;
+         case PLUGIN_CB_INLINE_ADD_U64:
+         case PLUGIN_CB_INLINE_STORE_U64:
+-            if (rw & cb->inline_insn.rw) {
++            if (plugin_mem_rw_match(cb->inline_insn.rw, rw)) {
+                 exec_inline_op(cb->type, &cb->inline_insn, cpu->cpu_index);
+             }
+             break;
+diff --git a/tcg/tcg-op-ldst.c b/tcg/tcg-op-ldst.c
+index 22211ccb452d8445843e3d160a19b58f7fd77aa6..412e6a082a76f7eb62a3869652793d211789e8be 100644
+--- a/tcg/tcg-op-ldst.c
++++ b/tcg/tcg-op-ldst.c
+@@ -190,6 +190,26 @@ plugin_gen_mem_callbacks(TCGv_i64 copy_addr, TCGTemp *orig_addr, MemOpIdx oi,
+ }
+ #endif
+ 
++static void
++plugin_gen_mem_before(TCGTemp *addr, MemOpIdx oi, enum qemu_plugin_mem_rw rw)
++{
++#ifdef CONFIG_PLUGIN
++    if (tcg_ctx->plugin_insn != NULL) {
++        plugin_gen_mem_callbacks(NULL, addr, oi, rw | QEMU_PLUGIN_MEM_BEFORE);
++    }
++#endif
++}
++
++static void
++plugin_gen_mem_after_store(TCGTemp *addr, MemOpIdx oi)
++{
++#ifdef CONFIG_PLUGIN
++    if (tcg_ctx->plugin_insn != NULL) {
++        plugin_gen_mem_callbacks(NULL, addr, oi, QEMU_PLUGIN_MEM_W);
++    }
++#endif
++}
++
+ static void
+ plugin_gen_mem_callbacks_i32(TCGv_i32 val,
+                              TCGv_i64 copy_addr, TCGTemp *orig_addr,
+@@ -261,6 +281,7 @@ static void tcg_gen_qemu_ld_i32_int(TCGv_i32 val, TCGTemp *addr,
+ 
+     addr_new = tci_extend_addr(addr);
+     copy_addr = plugin_maybe_preserve_addr(addr);
++    plugin_gen_mem_before(addr, orig_oi, QEMU_PLUGIN_MEM_R);
+     gen_ldst1(INDEX_op_qemu_ld, TCG_TYPE_I32, tcgv_i32_temp(val), addr_new, oi);
+ 
+     if ((orig_memop ^ memop) & MO_BSWAP) {
+@@ -319,9 +340,10 @@ static void tcg_gen_qemu_st_i32_int(TCGv_i32 orig_val, TCGTemp *addr,
+     }
+ 
+     addr_new = tci_extend_addr(addr);
+-    gen_ldst1(INDEX_op_qemu_st, TCG_TYPE_I32, tcgv_i32_temp(val), addr_new, oi);
+     plugin_gen_mem_callbacks_i32(orig_val, NULL, addr, orig_oi,
+-                                 QEMU_PLUGIN_MEM_W);
++                                 QEMU_PLUGIN_MEM_W | QEMU_PLUGIN_MEM_BEFORE);
++    gen_ldst1(INDEX_op_qemu_st, TCG_TYPE_I32, tcgv_i32_temp(val), addr_new, oi);
++    plugin_gen_mem_after_store(addr, orig_oi);
+     maybe_free_addr(addr, addr_new);
+ 
+     if (val != orig_val) {
+@@ -360,6 +382,7 @@ static void tcg_gen_qemu_ld_i64_int(TCGv_i64 val, TCGTemp *addr,
+ 
+     addr_new = tci_extend_addr(addr);
+     copy_addr = plugin_maybe_preserve_addr(addr);
++    plugin_gen_mem_before(addr, orig_oi, QEMU_PLUGIN_MEM_R);
+     gen_ld_i64(val, addr_new, oi);
+ 
+     if ((orig_memop ^ memop) & MO_BSWAP) {
+@@ -425,9 +448,10 @@ static void tcg_gen_qemu_st_i64_int(TCGv_i64 orig_val, TCGTemp *addr,
+     }
+ 
+     addr_new = tci_extend_addr(addr);
+-    gen_st_i64(val, addr_new, oi);
+     plugin_gen_mem_callbacks_i64(orig_val, NULL, addr, orig_oi,
+-                                 QEMU_PLUGIN_MEM_W);
++                                 QEMU_PLUGIN_MEM_W | QEMU_PLUGIN_MEM_BEFORE);
++    gen_st_i64(val, addr_new, oi);
++    plugin_gen_mem_after_store(addr, orig_oi);
+     maybe_free_addr(addr, addr_new);
+ 
+     if (val != orig_val) {

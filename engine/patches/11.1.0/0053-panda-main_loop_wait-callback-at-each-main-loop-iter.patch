@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 22 Oct 2026 22:46:30 -0400
+Subject: [PATCH] panda: main_loop_wait callback at each main-loop iteration
+
+pandare2 runs its queued main-loop work (snap, revert_async, cont) from
+this callback; it had no call site.  It runs after main_loop_should_exit()
+and not while a stop request waits (a vCPU callback asks for the stop,
+then queues the work), and outside main_loop_wait itself, so savevm and
+loadvm are not nested in an aio dispatch.
+---
+ system/runstate.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/system/runstate.c b/system/runstate.c
+index 569841239f1dee0918a65cd85fc2da6f425d6eef..ae95fdb43bc4a8bf652e6675d7b0d3b2d50f95a3 100644
+--- a/system/runstate.c
++++ b/system/runstate.c
+@@ -57,6 +57,7 @@
+ #include "system/replay.h"
+ #include "system/reset.h"
+ #include "system/runstate.h"
++#include "panda/hooks.h"
+ #include "system/runstate-action.h"
+ #include "system/confidential-guest-support.h"
+ #include "system/system.h"
+@@ -950,6 +951,13 @@ int qemu_main_loop(void)
+     int status = EXIT_SUCCESS;
+ 
+     while (!main_loop_should_exit(&status)) {
++        /*
++         * Not while a stop request waits: a vCPU callback asks for the stop
++         * before it queues work for here (savevm, loadvm, cont).
++         */
++        if (vmstop_requested == RUN_STATE__MAX) {
++            panda_callbacks_main_loop_wait();
++        }
+         main_loop_wait(false);
+     }
+ 

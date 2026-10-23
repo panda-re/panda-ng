@@ -1,0 +1,121 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 21 Oct 2026 18:31:07 -0400
+Subject: [PATCH] replay: write the log header first and flush the log every
+ second
+
+The record log's header was written only at a clean exit: the file was
+opened, the writer skipped the header, and replay_finish() seeked back to
+write the version.  A recording killed before that (SIGKILL, a crash, the
+host going away) was unreadable: "invalid input log file version".
+
+Write the header when the log is opened (the same bytes: the version and 8
+zero bytes) and fflush the log from a QEMU_CLOCK_REALTIME timer every
+second while recording, from the main loop, which holds the replay mutex
+there.  A host-time timer adds nothing to the log.  A killed recording now
+replays up to about a second before the kill and then stops with "error
+reading the replay data".  The log format is unchanged.
+
+R2 of the panda-next plan.
+---
+ replay/replay.c | 43 ++++++++++++++++++++++++++++++++++++-------
+ 1 file changed, 36 insertions(+), 7 deletions(-)
+
+diff --git a/replay/replay.c b/replay/replay.c
+index 14437b32566b71f2b889215be45eaef22a93b781..6376d3ab21bffeeb82c629cbd4b248f5656169bc 100644
+--- a/replay/replay.c
++++ b/replay/replay.c
+@@ -16,6 +16,7 @@
+ #include "system/runstate.h"
+ #include "replay-internal.h"
+ #include "qemu/main-loop.h"
++#include "qemu/timer.h"
+ #include "qemu/option.h"
+ #include "system/cpus.h"
+ #include "qemu/error-report.h"
+@@ -26,6 +27,13 @@
+ /* Size of replay log header */
+ #define HEADER_SIZE                 (sizeof(uint32_t) + sizeof(uint64_t))
+ 
++/*
++ * A record flushes its log this often (host time), so a recording that is
++ * killed replays up to about this long before the kill.
++ */
++#define REPLAY_FLUSH_MS             1000
++static QEMUTimer *replay_flush_timer;
++
+ ReplayMode replay_mode = REPLAY_MODE_NONE;
+ char *replay_snapshot;
+ 
+@@ -373,9 +381,14 @@ static void replay_enable(const char *fname, int mode)
+     replay_state.current_event = 0;
+     replay_state.has_unread_data = 0;
+ 
+-    /* skip file header for RECORD and check it for PLAY */
++    /*
++     * write the file header for RECORD now, so that a log that is never
++     * finalized is still readable; check it for PLAY
++     */
+     if (replay_mode == REPLAY_MODE_RECORD) {
+-        fseek(replay_file, HEADER_SIZE, SEEK_SET);
++        replay_put_dword(REPLAY_VERSION);
++        replay_put_qword(0);
++        assert(ftell(replay_file) == HEADER_SIZE);
+     } else if (replay_mode == REPLAY_MODE_PLAY) {
+         unsigned int version = replay_get_dword();
+         if (version != REPLAY_VERSION) {
+@@ -433,6 +446,16 @@ out:
+     loc_pop(&loc);
+ }
+ 
++/* Runs in the main loop, which holds the replay mutex outside its poll. */
++static void replay_flush(void *opaque)
++{
++    if (replay_file && replay_mode == REPLAY_MODE_RECORD) {
++        fflush(replay_file);
++        timer_mod(replay_flush_timer,
++                  qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + REPLAY_FLUSH_MS);
++    }
++}
++
+ void replay_start(void)
+ {
+     if (replay_mode == REPLAY_MODE_NONE) {
+@@ -450,6 +473,14 @@ void replay_start(void)
+ 
+     /* Timer for snapshotting will be set up here. */
+ 
++    if (replay_mode == REPLAY_MODE_RECORD) {
++        /* a host-time timer: it adds nothing to the log */
++        replay_flush_timer = timer_new_ms(QEMU_CLOCK_REALTIME,
++                                          replay_flush, NULL);
++        timer_mod(replay_flush_timer,
++                  qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + REPLAY_FLUSH_MS);
++    }
++
+     replay_enable_events();
+ }
+ 
+@@ -460,6 +491,8 @@ void replay_finish(void)
+     }
+ 
+     replay_save_instructions();
++    timer_free(replay_flush_timer);
++    replay_flush_timer = NULL;
+ 
+     /* finalize the file */
+     if (replay_file) {
+@@ -469,12 +502,8 @@ void replay_finish(void)
+              * add shutdown event here for the case of Ctrl-C.
+              */
+             replay_shutdown_request(SHUTDOWN_CAUSE_HOST_SIGNAL);
+-            /* write end event */
++            /* write end event; the header was written at the start */
+             replay_put_event(EVENT_END);
+-
+-            /* write header */
+-            fseek(replay_file, 0, SEEK_SET);
+-            replay_put_dword(REPLAY_VERSION);
+         }
+ 
+         fclose(replay_file);

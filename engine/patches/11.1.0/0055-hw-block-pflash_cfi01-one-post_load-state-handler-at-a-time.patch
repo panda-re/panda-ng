@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 10:40:00 -0400
+Subject: [PATCH] hw/block/pflash_cfi01: one post_load state handler at a time
+
+pflash_post_load() registers postload_update_cb() as a VM change state
+handler, and the callback deletes pfl->vmstate when it runs. Two loads before
+the VM runs (a loadvm followed by an in-memory device-state restore, as
+panda_fast_restore does) registered two handlers with pfl->vmstate naming the
+second; the first to run deleted the other while vm_state_notify was walking
+the list (QTAILQ_FOREACH_SAFE only protects the current element), and the walk
+called freed memory (SIGBUS/SIGSEGV in vm_state_notify on aarch64 virt).
+
+Drop an outstanding handler before registering the next. On the usual path
+pfl->vmstate is NULL here, so nothing changes. rehosting/qemu_builder's
+fastsnap set carries the same change (0015) for the leak it also causes.
+---
+ hw/block/pflash_cfi01.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/hw/block/pflash_cfi01.c b/hw/block/pflash_cfi01.c
+index 5b9ddb2..213c588 100644
+--- a/hw/block/pflash_cfi01.c
++++ b/hw/block/pflash_cfi01.c
+@@ -1031,6 +1031,15 @@ static int pflash_post_load(void *opaque, int version_id)
+     PFlashCFI01 *pfl = opaque;
+ 
+     if (!pfl->ro) {
++        /*
++         * One handler at a time. A second load before the VM runs (a loadvm then an
++         * in-memory device-state restore) used to register a second handler: the first
++         * one to run deletes pfl->vmstate, the other one, while vm_state_notify walks
++         * the list, and the walk then calls freed memory.
++         */
++        if (pfl->vmstate) {
++            qemu_del_vm_change_state_handler(pfl->vmstate);
++        }
+         pfl->vmstate = qemu_add_vm_change_state_handler(postload_update_cb,
+                                                         pfl);
+     }

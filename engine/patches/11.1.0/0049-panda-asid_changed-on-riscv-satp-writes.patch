@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 22 Oct 2026 19:30:38 -0400
+Subject: [PATCH] panda: asid_changed on riscv satp writes
+
+---
+ target/riscv/tcg/csr.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/target/riscv/tcg/csr.c b/target/riscv/tcg/csr.c
+index 36f2004bc56067a65ba4b58077a8d22ddc63ae60..40a0c7898024b5d03fcd042ab34e6ac6e7ef018b 100644
+--- a/target/riscv/tcg/csr.c
++++ b/target/riscv/tcg/csr.c
+@@ -34,6 +34,7 @@
+ #include "internals.h"
+ #if !defined(CONFIG_USER_ONLY)
+ #include "target/riscv/tcg/debug.h"
++#include "panda/hooks.h"
+ #endif
+ 
+ /* CSR function table public API */
+@@ -4430,7 +4431,11 @@ static RISCVException write_satp(CPURISCVState *env, int csrno,
+         return RISCV_EXCP_NONE;
+     }
+ 
+-    env->satp = legalize_xatp(env, env->satp, val);
++    val = legalize_xatp(env, env->satp, val);
++    /* A PANDA plugin may veto the satp change. */
++    if (!panda_callbacks_asid_changed(env_cpu(env), env->satp, val)) {
++        env->satp = val;
++    }
+     return RISCV_EXCP_NONE;
+ }
+ 

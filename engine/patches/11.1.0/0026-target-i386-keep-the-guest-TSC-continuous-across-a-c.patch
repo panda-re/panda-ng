@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 21 Oct 2026 12:54:13 -0400
+Subject: [PATCH] target/i386: keep the guest TSC continuous across a
+ clock-domain change
+
+Under TCG env->tsc is otherwise unused: save the guest TSC into it in pre_save, and when the
+snapshot came from another clock domain (no icount, or KVM) set tsc_offset on load so the TSC
+keeps its value. From observe's rr spike (gate/rrux, P2).
+---
+ target/i386/machine.c | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/target/i386/machine.c b/target/i386/machine.c
+index df0e0c178e436050ecede6d576fc25bc5846692c..33231a7a7c3d6c46c7d3e98c259f5d838f53ee6f 100644
+--- a/target/i386/machine.c
++++ b/target/i386/machine.c
+@@ -11,6 +11,7 @@
+ #include "system/kvm.h"
+ #include "system/kvm_xen.h"
+ #include "system/tcg.h"
++#include "system/cpu-timers.h"
+ 
+ #include "qemu/error-report.h"
+ 
+@@ -307,6 +308,11 @@ static int cpu_pre_save(void *opaque)
+         }
+     }
+ 
++    /* rrux: under TCG env->tsc is otherwise unused; save the guest TSC */
++    if (tcg_enabled()) {
++        env->tsc = cpu_get_tsc(env) + env->tsc_offset;
++    }
++
+     return 0;
+ }
+ 
+@@ -317,6 +323,15 @@ static int cpu_post_load(void *opaque, int version_id)
+     CPUX86State *env = &cpu->env;
+     int i;
+ 
++    /*
++     * rrux: the snapshot came from another clock domain (no icount, or KVM)
++     * and this process runs TCG with icount: keep the guest TSC's value
++     * (env->tsc, written by the saver) continuous.
++     */
++    if (tcg_enabled() && cpu_timers_clock_domain_changed()) {
++        env->tsc_offset = env->tsc - cpu_get_tsc(env);
++    }
++
+     if (env->tsc_khz && env->user_tsc_khz &&
+         env->tsc_khz != env->user_tsc_khz) {
+         error_report("Mismatch between user-specified TSC frequency and "

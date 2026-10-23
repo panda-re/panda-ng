@@ -1,0 +1,8 @@
+# Written by tools/engine-import.sh. Do not edit by hand.
+source rehosting/qemu_builder
+commit 8d74b843207d2c5bc4577174bd339b3e842eed56
+subject Merge lane-chain: block-exec callbacks from the block's own code, chaining on (its 0055 renumbered 0058; patchedTree re-recorded for 58)
+owned:scripts/import-series.sh 0012a33f4daa8516ef652a41f21fd02d0214e4e6
+owned:scripts/offcost-gate.sh 35eb74e740f4df1db018d2c166bbbecdf01108c8
+owned:nix/source.nix aa41532957f3d5a23d5a9eae571bc03ea8d187ed
+owned:flake.nix 48cbe1a2a5b309487739ca264860e992e335c021

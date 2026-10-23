@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 12:00:00 -0400
+Subject: [PATCH] target/arm/ptw: log hardware access flag and dirty state
+ updates
+
+arm_casq_ptw() updates a descriptor (FEAT_HAFDBS: AF, DBM) with a cmpxchg
+through the host pointer the walk found. The store probe that would mark the
+page dirty only runs while the walk doesn't yet know the page is writable;
+when it does (the usual case), the update reaches RAM without a dirty bit.
+Dirty-memory clients never see it: in-memory snapshots that copy back only
+dirty pages left set AF bits behind (Ubuntu 24.04 arm64: 7 page-table pages
+per restore differing by bit 10), and live migration can lose the update the
+same way. Probe for the store in that case too; probe_access_full_mmu()
+handles TLB_NOTDIRTY. Only hardware AF/DBM updates pay for it.
+---
+ target/arm/ptw.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/target/arm/ptw.c b/target/arm/ptw.c
+index a29de03..9afc1aa 100644
+--- a/target/arm/ptw.c
++++ b/target/arm/ptw.c
+@@ -962,6 +962,11 @@ static uint64_t arm_casq_ptw(CPUARMState *env, uint64_t old_val,
+     /*
+      * Raising a stage2 Protection fault for an atomic update to a read-only
+      * page is delayed until it is certain that there is a change to make.
++     *
++     * The store probe also marks the page dirty (TLB_NOTDIRTY handling in
++     * probe_access_full_mmu): the update below writes through the host
++     * pointer, which dirty-memory clients (migration) would otherwise never
++     * see. So probe even when the walk already knows the page is writable.
+      */
+     if (unlikely(!ptw->out_rw)) {
+         int flags;
+@@ -990,6 +995,10 @@ static uint64_t arm_casq_ptw(CPUARMState *env, uint64_t old_val,
+ 
+         /* In case CAS mismatches and we loop, remember writability. */
+         ptw->out_rw = true;
++    } else {
++        probe_access_full_mmu(env, ptw->out_virt, 0, MMU_DATA_STORE,
++                              arm_to_core_mmu_idx(ptw->in_ptw_idx),
++                              NULL, NULL);
+     }
+ 
+     if (ptw->out_be) {

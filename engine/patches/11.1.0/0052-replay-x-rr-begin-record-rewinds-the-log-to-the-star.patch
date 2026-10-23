@@ -1,0 +1,58 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 22 Oct 2026 22:09:55 -0400
+Subject: [PATCH] replay: x-rr-begin-record rewinds the log to the start
+ snapshot
+
+The record side saves the start snapshot and then reloads it; both write
+events (the rtc reads the host clock in pre_save and in the reset that
+load_snapshot does) after the log offset the snapshot holds.  A replay
+resets and loads before it seeks to that offset, so it never reads them
+and its vCPU stalls on the first.  Truncate the log back to the offset.
+---
+ replay/replay-begin.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/replay/replay-begin.c b/replay/replay-begin.c
+index ec75bb0c8f42f955ff16aeece15f742a82d41483..a88b16186de4b23731bb17d72d38125898f673bf 100644
+--- a/replay/replay-begin.c
++++ b/replay/replay-begin.c
+@@ -19,6 +19,7 @@
+ #include "qemu/osdep.h"
+ #include "qemu/main-loop.h"
+ #include "qapi/error.h"
++#include "qemu/error-report.h"
+ #include "qapi/qapi-commands-replay.h"
+ #include "qemu/option.h"
+ #include "qemu/config-file.h"
+@@ -217,6 +218,22 @@ static bool rr_load_start(const char *snapshot, Error **errp)
+     return load_snapshot(snapshot, NULL, false, NULL, errp);
+ }
+ 
++/*
++ * Drop what the save and the reload wrote after the snapshot's log offset
++ * (e.g. the rtc reads the host clock in pre_save and in the reset that
++ * load_snapshot does).  A replay loads the snapshot (and resets) before it
++ * seeks to that offset, so it never reads them, and the first one left
++ * would stall its vCPU: the log must go on from the offset with the run.
++ */
++static void rr_rewind_log(void)
++{
++    fflush(replay_file);
++    if (ftruncate(fileno(replay_file), replay_state.file_offset) ||
++        fseek(replay_file, replay_state.file_offset, SEEK_SET)) {
++        error_report("replay: cannot rewind the log: %s", strerror(errno));
++    }
++}
++
+ /* Undo a begin that failed: no log, and icount as it was. */
+ static void rr_abandon(void)
+ {
+@@ -280,6 +297,7 @@ RrBeginRecordInfo *qmp_x_rr_begin_record(const char *snapshot,
+         rr_abandon();
+         goto fail;
+     }
++    rr_rewind_log();
+     replay_start();
+     info->icount = replay_get_current_icount();
+ 

@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 11:30:00 -0400
+Subject: [PATCH] hw/core/loader: rom_reset logs the RAM it rewrites
+
+rom_reset() puts a blob back into its RAM in one of two ways: through
+address_space_write_rom(), which marks the pages dirty, or, for a blob with
+its own MemoryRegion (fw_cfg files such as etc/acpi/tables), with a memcpy
+into the region, which does not. Dirty-memory clients then never learn that
+the region changed: an in-memory snapshot that copies back only dirty pages
+(panda_fast_restore) left x86's etc/acpi/tables with the reset's unpatched
+bytes. Mark the rewritten range dirty, as the other path does.
+---
+ hw/core/loader.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/hw/core/loader.c b/hw/core/loader.c
+index 5cbfba0..8da69dc 100644
+--- a/hw/core/loader.c
++++ b/hw/core/loader.c
+@@ -1270,6 +1270,14 @@ static void rom_reset(void *unused)
+             void *host = memory_region_get_ram_ptr(rom->mr);
+             memcpy(host, rom->data, rom->datasize);
+             memset(host + rom->datasize, 0, rom->romsize - rom->datasize);
++            /*
++             * Log the rewrite as address_space_write_rom() does on the other
++             * path: dirty-memory clients (migration, in-memory snapshots that
++             * copy back only dirty pages) must see that this RAM changed.
++             */
++            memory_region_set_dirty(rom->mr, 0,
++                                    MIN(rom->romsize,
++                                        memory_region_size(rom->mr)));
+         } else {
+             address_space_write_rom(rom->as, rom->addr, MEMTXATTRS_UNSPECIFIED,
+                                     rom->data, rom->datasize);
