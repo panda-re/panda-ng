@@ -6,7 +6,7 @@
 # Before the per-target setup, MIPS and PPC dereferenced NULL in the host on the timer read.
 # Also runs the targets pandare2's machine.py can't (mips64 and ppc64 with the 32-bit programs,
 # i386/x86_64 in real mode) and checks that a target with no setup is refused with an error.
-# Default ARCHs: mips mipsel mips64 mips64el ppc ppc64 i386 x86_64 aarch64 arm riscv64 loongarch64.
+# Default ARCHs: mips mipsel mips64 mips64el ppc ppc64 e500 405 i386 x86_64 aarch64 arm riscv64 loongarch64.
 set -u
 E=$(cd "$1" && pwd); shift
 H=$(cd "$(dirname "$0")" && pwd); T=$(mktemp -d); fail=0
@@ -16,8 +16,8 @@ for a,p in PROGRAMS.items(): open('$T/cfg_%s.elf'%a,'wb').write(base64.b64decode
 printf 'ROMDATA!' > $T/rom.bin
 rom() { echo "region.0.name=boot,region.0.base=$1,region.0.size=0x1000,region.0.kind=rom,region.0.file=$T/rom.bin"; }
 uart() { echo "device.0.type=serial-mm,device.0.id=uart0,device.0.mmio.0=$1,device.0.irq.0=$2,device.0.prop.chardev=serial0"; }
-for a in ${@:-mips mipsel mips64 mips64el ppc ppc64 i386 x86_64 aarch64 arm riscv64 loongarch64}; do
-  q=$E/qemu-system-$a
+for a in ${@:-mips mipsel mips64 mips64el ppc ppc64 e500 405 i386 x86_64 aarch64 arm riscv64 loongarch64}; do
+  q=$E/qemu-system-$a; case $a in e500|405) q=$E/qemu-system-ppc;; esac
   [ -x $q ] || { echo "SKIP $a (no qemu-system-$a)"; continue; }
   want="TIMER-OK"
   case $a in
@@ -26,6 +26,10 @@ for a in ${@:-mips mipsel mips64 mips64el ppc ppc64 i386 x86_64 aarch64 arm risc
       M="configurable,ram-base=0x40000000,$(rom 0x1fc00000),region.1.name=io,region.1.base=0x1f010000,region.1.size=0x1000,region.1.kind=unimp,$(uart 0x1f000000 cpu:2)";;
     ppc|ppc64) p=ppc; cpu=$([ $a = ppc64 ] && echo 970fx || echo 750)
       M="configurable,ram-base=0x0,$(rom 0x1fc00000),region.1.name=io,region.1.base=0x10010000,region.1.size=0x1000,region.1.kind=unimp,$(uart 0x10000000 cpu:5)";;
+    e500|405) # BookE (TCR) and 40x (PIT) timers; qemu-system-ppc
+      p=$([ $a = e500 ] && echo ppcbooke || echo ppc40x)
+      cpu=$([ $a = e500 ] && echo e500v2_v30 || echo 405gpd)
+      M="configurable,ram-base=0x0,device.0.type=serial-mm,device.0.mmio.0=0x10000000,device.0.prop.chardev=serial0";;
     i386|x86_64) p=x86; cpu=$([ $a = i386 ] && echo qemu32 || echo qemu64)
       # no sysbus UART in the x86 targets: the program's bytes go to an unimp region, logged by -d unimp
       M="configurable,entry=0xfff0,region.0.name=bios,region.0.base=0xffff0000,region.0.size=0x10000,region.0.kind=rom,region.1.name=con,region.1.base=0x80000,region.1.size=0x1000,region.1.kind=unimp";;
