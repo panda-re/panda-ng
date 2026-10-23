@@ -16,13 +16,16 @@ plugins = ["cskeleton"] + (["syscalls2"] if arch.startswith(("x86_64", "i386", "
 for p in plugins:
     panda.load_plugin(p)
 blocks = 0
+loaded = []
 @panda.cb_before_block_exec
 def bbe(cpu, tb):
-    global blocks
+    global blocks, loaded
     blocks += 1
     if blocks == 20000:
+        # Before end_analysis: it queues the plugins' unload for the next main-loop turn, which
+        # may or may not come before the run stops.
+        loaded = [p for p in plugins if panda.libpanda.panda_get_plugin_by_name(p.encode()) != panda.ffi.NULL]
         panda.end_analysis()
 panda.run()
-loaded = [p for p in plugins if panda.libpanda.panda_get_plugin_by_name(p.encode()) != panda.ffi.NULL]
 print(f"PANDA_SMOKE arch={arch} blocks={blocks} plugins={loaded}")
 assert blocks >= 20000 and loaded == plugins
