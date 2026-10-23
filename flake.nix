@@ -388,7 +388,7 @@
               x86_64-linux = "amd64";
               aarch64-linux = "arm64";
             }
-            .${system} or "unsupported";
+            .${system} or (throw "panda-next: no .deb architecture for ${system}");
           deb =
             pkgs.runCommand "panda-next_${version}_${debArch}.deb"
               {
@@ -422,6 +422,135 @@
           enginePortable = mkEngine { portable = true; };
           pluginsPortable = mkPlugins enginePortable;
           qemuPortable = mkQemu enginePortable;
+
+          # What the wheel ships besides pandare2, with the license of the part it ships (not
+          # nixpkgs' meta.license, which covers the whole package: util-linux's libmount is
+          # LGPL, its tools GPL). repair.py fails if it bundles a library from a store path none
+          # of these packages' outputs own, and copies each used entry's license files (from the
+          # upstream source: COPYING*, LICENSE*, ...) into the wheel's dist-info/licenses/<name>/.
+          wheelThirdParty = with pkgs; [
+            { pkg = glib; spdx = "LGPL-2.1-or-later"; }
+            { pkg = pixman; spdx = "MIT"; }
+            { pkg = zlib; spdx = "Zlib"; }
+            { pkg = zstd; spdx = "BSD-3-Clause OR GPL-2.0-only"; }
+            { pkg = libslirp; spdx = "BSD-3-Clause"; }
+            {
+              pkg = dtc;
+              spdx = "GPL-2.0-or-later OR BSD-2-Clause"; # libfdt
+              files = [ "README.license" "BSD-2-Clause" "GPL" ];
+            }
+            { pkg = libcap_ng; spdx = "LGPL-2.1-or-later"; }
+            { pkg = pcre2; spdx = "BSD-3-Clause WITH PCRE2-exception"; }
+            { pkg = libffi; spdx = "MIT"; }
+            { pkg = util-linuxMinimal; spdx = "LGPL-2.1-or-later"; } # libblkid, libmount
+            { pkg = libselinux; spdx = "LicenseRef-Public-Domain"; }
+            { pkg = stdenv.cc.cc; spdx = "GPL-3.0-or-later WITH GCC-exception-3.1"; } # libstdc++, libgcc_s
+            { pkg = xz; spdx = "0BSD"; } # liblzma
+            { pkg = curl; spdx = "curl"; }
+            { pkg = nghttp2; spdx = "MIT"; }
+            { pkg = nghttp3; spdx = "MIT"; }
+            { pkg = ngtcp2; spdx = "MIT"; }
+            { pkg = libidn2; spdx = "LGPL-3.0-or-later OR GPL-2.0-or-later"; src = libidn2.passthru.out.src; }
+            { pkg = libunistring; spdx = "LGPL-3.0-or-later OR GPL-2.0-or-later"; }
+            { pkg = libpsl; spdx = "MIT"; }
+            { pkg = libssh2; spdx = "BSD-3-Clause"; }
+            { pkg = openssl; spdx = "Apache-2.0"; }
+            { pkg = krb5; spdx = "MIT"; }
+            { pkg = keyutils; spdx = "LGPL-2.1-or-later"; } # libkeyutils
+            { pkg = brotli; spdx = "MIT"; }
+          ];
+          # repair.py's --licenses dir: manifest.json plus <name>/<license files>. The engine and
+          # panda-ng are always in it; SOURCES (written by repair.py) says where the corresponding
+          # source of each is.
+          wheelLicenses =
+            let
+              noCtx = builtins.unsafeDiscardStringContext;
+              # mirror://gnome/... -> the first https mirror.
+              mirrors = import (pkgs.path + "/pkgs/build-support/fetchurl/mirrors.nix");
+              unmirror =
+                u:
+                let
+                  m = builtins.match "mirror://([^/]+)/(.*)" u;
+                in
+                if m == null then u else builtins.head mirrors.${builtins.head m} + builtins.elemAt m 1;
+              third = map (e: rec {
+                name = e.pkg.pname or (builtins.parseDrvName e.pkg.name).name;
+                version = e.pkg.version or "";
+                inherit (e) spdx;
+                src = e.src or e.pkg.src;
+                files = e.files or [ ];
+                urls = lib.unique (map unmirror (src.urls or [ (src.url or "") ]));
+                prefixes = map (o: noCtx (toString e.pkg.${o})) e.pkg.outputs;
+              }) wheelThirdParty;
+              engineSrc = qemu-builder.packages.${system}.src;
+              manifest = {
+                engine = {
+                  name = "qemu-panda-engine";
+                  spdx = "GPL-2.0-only";
+                  source = [
+                    "QEMU ${engineSrc.version or "11.1.0"} with the PANDA patch series, from qemu_builder"
+                    "  repository: https://github.com/rehosting/qemu_builder"
+                    "  commit: ${qemu-builder.rev or qemu-builder.dirtyRev or "unknown (not a git checkout)"}"
+                    "  patch series: patches/11.1.0/series in that commit (the PANDA overlay is its src/)"
+                    "  patched tree as built: ${noCtx (toString engineSrc)} (nix: the qemu-builder flake's packages.<system>.src)"
+                    "  firmware in pandare2/data/share/qemu comes from that tree's pc-bios/ (see its LICENSE and pc-bios/README;"
+                    "  firmware sources are in the roms/ submodules of upstream QEMU ${engineSrc.version or "11.1.0"})"
+                  ];
+                };
+                panda-ng = {
+                  name = "panda-ng";
+                  # setup.cfg's license. panda-ng has no LICENSE file yet.
+                  spdx = "MIT";
+                  source = [
+                    "panda-ng (pandare2, the PANDA plugins, the qemu-system launcher)"
+                    "  repository: https://github.com/panda-re/panda-ng"
+                    "  commit: ${self.rev or self.dirtyRev or "unknown (not built from a git checkout)"}"
+                    "  (a -dirty commit: release builds write VERSION into the tree before building)"
+                  ];
+                };
+                thirdParty = map (t: {
+                  inherit (t) name version spdx urls prefixes;
+                }) third;
+              };
+            in
+            pkgs.runCommand "pandare2-wheel-licenses-${version}"
+              {
+                nativeBuildInputs = [ pkgs.lzip ];
+                manifest = builtins.toJSON manifest;
+                passAsFile = [ "manifest" ];
+              }
+              ''
+                mkdir -p $out
+                cp $manifestPath $out/manifest.json
+                # Top-level license files of a source tarball or directory.
+                # Extra file names (beyond COPYING*, LICENSE*, ...) after the source.
+                licenses() {
+                  local name=$1 src=$2 x=$TMPDIR/x-$1
+                  shift 2
+                  mkdir -p $x $out/$name
+                  if [ -d "$src" ]; then
+                    x=$src
+                  else
+                    tar -xf "$src" -C $x --no-wildcards-match-slash --wildcards \
+                      '*/COPYING*' '*/LICENSE*' '*/LICENCE*' '*/COPYRIGHT*' '*/NOTICE*' \
+                      '*/LICENSES/*' "''${@/#/*/}" 2>/dev/null || true
+                    # Single top-level directory.
+                    local d=( $x/* ); [ ''${#d[@]} = 1 ] && [ -d "''${d[0]}" ] && x=''${d[0]}
+                  fi
+                  for f in $x/COPYING* $x/LICENSE* $x/LICENCE* $x/COPYRIGHT* $x/NOTICE* "''${@/#/$x/}"; do
+                    [ -f "$f" ] && cp "$f" $out/$name/
+                  done
+                  [ -d $x/LICENSES ] && cp -r $x/LICENSES $out/$name/
+                  if [ -z "$(ls -A $out/$name)" ]; then
+                    echo "wheelLicenses: no license file in $name's source $src" >&2
+                    exit 1
+                  fi
+                }
+                licenses qemu-panda-engine ${engineSrc}
+                cp ${engineSrc}/pc-bios/README $out/qemu-panda-engine/pc-bios-README
+                ${lib.concatMapStringsSep "\n" (t: "licenses ${t.name} ${t.src} ${toString t.files}") third}
+              '';
+
           wheel =
             pkgs.runCommand "pandare2-wheel-${version}"
               {
@@ -434,6 +563,7 @@
                     ps.pip
                     ps.cffi
                     ps.pyelftools
+                    ps.packaging
                   ]))
                 ];
               }
@@ -448,7 +578,7 @@
                 python ${./tools/wheel/repair.py} --wheel $TMPDIR/pure/pandare2-*.whl \
                   --engine ${enginePortable} --plugins ${pluginsPortable}/lib/panda/plugins \
                   --launcher ${qemuPortable}/bin/panda-qemu \
-                  --arches ${lib.concatStringsSep "," arches} --out $out
+                  --arches ${lib.concatStringsSep "," arches} --licenses ${wheelLicenses} --out $out
               '';
 
           # Headers for building a PANDA plugin outside this tree: panda-ng's include/ and the
@@ -456,7 +586,8 @@
           pluginSdk = pkgs.runCommand "panda-plugin-sdk-${version}" { } ''
             mkdir -p $out/include
             cp -r ${./include}/. $out/include/
-            cp -r ${./plugins} $out/include/plugins
+            # The plugins' public headers (foo.h, foo_ppp.h, ...), not their sources.
+            (cd ${./plugins} && find . \( -name '*.h' -o -name '*.hpp' \) -exec install -Dm644 {} $out/include/plugins/{} \;)
             ln -s ${engine}/include/panda-ng $out/include/panda-ng
           '';
 
@@ -636,6 +767,26 @@
             done
             touch $out
           '';
+          # repair.py on a synthetic engine: shipped siblings aren't bundled again, RUNPATHs keep
+          # $ORIGIN, licenses and License-Expression are written (no engine build needed).
+          wheel-repair =
+            pkgs.runCommandCC "panda-wheel-repair-check"
+              {
+                nativeBuildInputs = [
+                  pkgs.patchelf
+                  (pkgs.python3.withPackages (ps: [
+                    ps.wheel
+                    ps.pyelftools
+                    ps.packaging
+                  ]))
+                ];
+              }
+              ''
+                cp ${./tools/wheel/repair.py} repair.py
+                cp ${./tools/wheel/test_repair.py} test_repair.py
+                python3 test_repair.py
+                touch $out
+              '';
         }
       );
 

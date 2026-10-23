@@ -58,6 +58,12 @@ int main(int argc, char **argv)
         argv[0] = name;
     }
 
+    /* The arch becomes part of a path: no directories in it. */
+    if (strchr(arch, '/') || strcmp(arch, "..") == 0) {
+        fprintf(stderr, "%s: bad arch '%s'\n", base, arch);
+        return 2;
+    }
+
     const char *libdir = getenv("PANDA_QEMU_LIBDIR");
     if (!libdir || !*libdir) {
         ssize_t n = readlink("/proc/self/exe", self, sizeof(self) - 1);

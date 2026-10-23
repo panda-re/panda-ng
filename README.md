@@ -43,7 +43,16 @@ Build it with `nix build .#wheel` (the wheel is in `result/`). How it's made:
    gives the launcher the standard ELF interpreter, fails if anything still points into
    `/nix/store` or needs a glibc newer than 2.38, and tags the wheel
    `manylinux_2_<highest GLIBC_2.N needed>_<arch>`. (auditwheel itself won't bundle libstdc++,
-   and nix's is newer than the hosts'.)
+   and nix's is newer than the hosts'.) Libraries the wheel ships itself (engine, plugins) are
+   never copied again, every RUNPATH is `$ORIGIN:$ORIGIN/<to pandare2.libs>`, and no soname is
+   bundled twice.
+4. Licenses: the wheel contains GPL-2.0-only QEMU and LGPL/BSD/MIT/... libraries, not just the
+   MIT Python package. `pandare2-*.dist-info/licenses/` holds each component's license files
+   (taken from its upstream source) and `SOURCES.txt`, which says where each one's source is
+   (the qemu_builder commit and patch series for the engine, the panda-ng commit, each library's
+   upstream tarball). METADATA has the combined `License-Expression`. The list of libraries and
+   their licenses is `wheelThirdParty` in flake.nix; repair.py fails if it bundles a library from
+   a package not on it.
 
 pandare2 looks for its engine, plugins and firmware in `pandare2/data/` first, so the same
 source works from the wheel, from nix, and from a build tree. `PANDA_PLUGIN_DIR` overrides the
@@ -106,6 +115,8 @@ plugin against the engine, runs a pandare2 script that loads it, and re-exports 
   `python`, and:
   - `buildPandaPlugin { pname, src, targets ? [ "x86_64" "aarch64" "riscv64" ], buildInputs, extraCFlags }`:
     compiles every `*.c` in `src` into `lib/panda/plugins/libpanda-<pname>_<arch>-softmmu.so`.
+    It builds against `engine`'s generated headers; such a plugin also works with the wheel's
+    engine (`enginePortable`) only while both come from the same engine source revision.
   - `pluginDirWith [ drv ... ]`: a plugin directory with panda-ng's plugins and yours, for
     `PANDA_PLUGIN_DIR` or `Panda(plugin_path=...)`.
   - `mkEngine { targets, portable }`: an engine for other targets.

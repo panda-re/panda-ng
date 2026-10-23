@@ -1,0 +1,70 @@
+name: Build and test the pandare2 wheel
+
+# release.yaml calls this for each release. It can also be run by hand (Actions > "Build and test
+# the pandare2 wheel" > Run workflow, on any branch or fork) to try the build without releasing.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to write to VERSION (empty: keep the tree's)"
+        type: string
+        default: ""
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: ""
+
+jobs:
+  wheel:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    # No binary cache: this builds the portable engine (13 targets), the plugins and the wheel
+    # from source.
+    timeout-minutes: 360
+    steps:
+      # The runner images start with ~14-20 GB free; the engine's build tree plus its closure
+      # needs more. Drop toolchains this job doesn't use.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache /usr/local/share/boost /usr/share/swift /usr/local/share/powershell \
+            /usr/local/lib/node_modules /opt/microsoft /opt/google /usr/lib/jvm
+          sudo docker image prune --all --force > /dev/null || true
+          df -h /
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          # Let nix collect garbage during the build if the disk runs low.
+          extra_nix_config: |
+            min-free = 4294967296
+            max-free = 12884901888
+      - name: Build
+        env:
+          VERSION_IN: ${{ inputs.version }}
+        run: |
+          if [ -n "$VERSION_IN" ]; then echo "$VERSION_IN" > VERSION; fi
+          nix build -L --out-link result-wheel .#wheel
+          cp -L result-wheel/*.whl .
+          ls -l pandare2-*.whl
+          df -h /
+      # Install the wheel in a stock container and run it before it can be attached to a release.
+      - name: Test the wheel on Ubuntu 24.04
+        run: |
+          docker run --rm -v "$PWD:/w:ro" ubuntu:24.04 \
+            bash -c 'bash /w/tools/wheel/smoke.sh /w/pandare2-*.whl /w/tests'
+      - name: Test the wheel on Debian 13
+        run: |
+          docker run --rm -v "$PWD:/w:ro" debian:13 \
+            bash -c 'bash /w/tools/wheel/smoke.sh /w/pandare2-*.whl /w/tests'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.arch }}
+          path: pandare2-*.whl
