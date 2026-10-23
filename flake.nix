@@ -146,6 +146,10 @@
                 # panda_{c,cpp,...}_<target>.h next to its scripts.
                 # gdb embeds its own python3 (same nixpkgs); give it build.py's modules.
                 cp -r --no-preserve=mode ${libpanda-ng} ../libpanda-ng
+                # build.py preprocesses through /tmp/simple.{c,out}: concurrent engine builds
+                # (no sandbox in the VM) overwrite each other's and one target's header comes out
+                # wrong. Keep it in this build's directory.
+                sed -i "s|/tmp/simple|$NIX_BUILD_TOP/simple|g" ../libpanda-ng/build.py
                 (cd ../libpanda-ng && PYTHONPATH=${gdbPythonPath} bash run_all.sh $PWD/../source)
                 runHook postBuild
               '';
