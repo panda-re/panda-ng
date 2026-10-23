@@ -13,16 +13,28 @@ the page cache) it stops, overwrites both pages from the host, restores, and che
 - the guest then runs on from the snapshot again (the next round reaches /tmp/fr-end).
 The last round loads the root snapshot (loadvm, untracked RAM writes) before the fast restore: that
 restore must take the full path and still verify. Reports restore times.
+
+Before that, a hardware A/D round: tests/programs/adbits_<arch>.S maps a tmpfs page MAP_SHARED and
+reads it (the kernel maps it writable but clean), makes hypercall 1 (fast snapshot), writes the page
+(the CPU's page walker sets the PTE's dirty bit itself: no fault, no kernel store), and makes
+hypercall 2 (restore, which must verify: the PTE's page must have been logged dirty). The guest
+then re-runs from hypercall 1 to its end.
 """
+import base64
+import os
 import sys
 from time import perf_counter
 
-from pandare2 import Panda
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "programs"))
+from adbits_programs import PROGRAMS  # noqa: E402
+
+from pandare2 import Panda  # noqa: E402
 
 START, END = "/tmp/fr-start", "/tmp/fr-end"
 CMD = (f"cat {START}; echo 3 > /proc/sys/vm/drop_caches; cat /usr/share/common-licenses/* | md5sum; "
        f"cat {END}")
 RAM_BASE = {"x86_64": 0, "aarch64": 0x40000000, "riscv64": 0x80000000}
+MAGIC = 0x50616e64
 
 
 def main():
@@ -31,6 +43,7 @@ def main():
     panda = Panda(generic=image)
     lib = panda.libpanda
     st = {"snap": False, "pages": {}, "round": 0, "at_end": False, "results": [], "err": None}
+    ad = {"snap": False, "restored": False, "reran": False, "res": None, "hc": []}
 
     def info():
         return dict(kv.split("=", 1) for kv in panda.ffi.string(lib.panda_fast_info()).decode().split())
@@ -71,6 +84,41 @@ def main():
         st["at_end"] = False
         lib.panda_cont()
 
+    def ad_snap():
+        if lib.panda_fast_snap() != 0:
+            st["err"] = "adbits: panda_fast_snap failed"
+
+    def ad_restore():
+        r = {}
+        try:
+            r["differ_before"] = lib.panda_fast_verify()
+            r["rc"] = lib.panda_fast_restore()
+            i = info()
+            r["full"] = i["last_full"] == "1"
+            r["copied"] = int(i["last_pages"])
+            r["differ_after"] = lib.panda_fast_verify()
+        except Exception as e:  # noqa: BLE001
+            st["err"] = f"adbits: {e!r}"
+        ad["res"] = r
+        print(f"FAST adbits {r}", flush=True)
+        lib.panda_cont()
+
+    @panda.hypercall(MAGIC)
+    def ad_hypercall(cpu):
+        op = panda.arch.get_arg(cpu, 2, convention="syscall")
+        ad["hc"].append(op)
+        if op == 1 and not ad["snap"]:
+            ad["snap"] = True
+            panda.vm_stop()
+            panda.queue_main_loop_wait_fn(ad_snap)
+            panda.queue_main_loop_wait_fn(lib.panda_cont)
+        elif op == 2 and not ad["restored"]:
+            ad["restored"] = True
+            panda.vm_stop()
+            panda.queue_main_loop_wait_fn(ad_restore)
+        elif op == 2:
+            ad["reran"] = True
+
     @panda.ppp("syscalls2", "on_sys_openat_enter")
     def openat(cpu, pc, dfd, filename, flags, *mode):
         try:
@@ -96,6 +144,12 @@ def main():
     @panda.queue_blocking
     def drive():
         panda.revert_sync("root")
+        data = base64.b64decode(PROGRAMS[panda.arch_name])
+        panda.run_serial_cmd("rm -f /tmp/adbits")
+        for i in range(0, len(data), 64):
+            chunk = "".join(f"\\x{b:02x}" for b in data[i:i + 64])
+            panda.run_serial_cmd(f"printf '{chunk}' >> /tmp/adbits")
+        ad["out"] = panda.run_serial_cmd("chmod +x /tmp/adbits; /tmp/adbits; echo rc=$?", timeout=300)
         try:
             panda.run_serial_cmd(CMD, timeout=300)
         except Exception:
@@ -109,6 +163,13 @@ def main():
         ok &= bool(cond)
         print(f"  {'PASS' if cond else 'FAIL'} {name}")
 
+    a = ad["res"] or {}
+    print(f"FAST adbits hypercalls={ad['hc']} out={ad.get('out', '')!r} {a}")
+    check("adbits: the program ran, snapshot at hypercall 1, restore at hypercall 2, then re-ran to its end",
+          ad["hc"] == [1, 2, 1, 2] and "rc=0" in ad.get("out", "") and ad["reran"])
+    check("adbits: dirty-page restore returned 0", a.get("rc") == 0 and a.get("full") is False)
+    check("adbits: RAM equals the snapshot after the restore (hardware A/D PTE update was logged)",
+          a.get("differ_after") == 0)
     res = [r for r in st["results"] if "rc" in r]
     for r in res:
         print(f"FAST round={r['round']} full={int(r['full'])} differ_before={r['differ_before']} "
