@@ -3,7 +3,7 @@
 Run: panda-python tests/fuzz.py <dir>/debian-13-x86_64.json [iterations] [--fast]
 
 --fast restores with panda_fast_snap/panda_fast_restore (RAM and device state in host memory, no
-disk) instead of a qcow2 snapshot (Panda.snap, loadvm).
+disk; only the pages dirtied since are copied back) instead of a qcow2 snapshot (Panda.snap, loadvm).
 
 The guest runs `cat /etc/os-release`. When cat's openat of /etc/os-release enters the kernel, the
 test takes a snapshot (Panda.snap from the callback). Each iteration then reverts to it, writes an
@@ -122,6 +122,12 @@ def main():
         "after_loadvm fired for the root revert and each iteration":
             st["loadvm"] == (1 if fast else iterations + 1),
     }
+    if fast:
+        info = panda.ffi.string(panda.libpanda.panda_fast_info()).decode()
+        print(f"FAST {info}")
+        kv = dict(x.split("=", 1) for x in info.split())
+        # the first restore after the snapshot already has a valid dirty set
+        checks["every fast restore took the dirty-page path"] = kv.get("full_restores") == "0"
     for k, ok in checks.items():
         print(f"  {'PASS' if ok else 'FAIL'} {k}")
     sys.exit(0 if all(checks.values()) else 1)
