@@ -56,6 +56,17 @@
             name = "libpanda-ng";
             src = libpanda-ng-src;
             patches = [ ./nix/libpanda-ng-fixes.patch ];
+            # build.py preprocessed through a fixed /tmp/simple.c: two engine builds at once (the
+            # VM's nix builds unsandboxed) overwrote each other's and generated a broken header.
+            postPatch = ''
+              substituteInPlace build.py \
+                --replace-fail 'from os.path import join, realpath' 'import os
+              from os.path import join, realpath' \
+                --replace-fail 'open("/tmp/simple.c","w")' 'open(SIMPLE + ".c","w")' \
+                --replace-fail '/tmp/simple.c -o /tmp/simple.out' '{SIMPLE}.c -o {SIMPLE}.out' \
+                --replace-fail 'open("/tmp/simple.out")' 'open(SIMPLE + ".out")'
+              sed -i '/^import os$/a SIMPLE = os.path.join(os.environ.get("TMPDIR", "/tmp"), "simple-%d" % os.getpid())' build.py
+            '';
           };
 
           gdbPythonPath = pkgs.python3.pkgs.makePythonPath (

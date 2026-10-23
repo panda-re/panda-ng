@@ -293,8 +293,7 @@ def hypercall_1(cpu, marker, sp, pc):
     panda.enable_memcb()
     for name in WINDOW:
         panda.enable_callback(name)
-    # Every TB back to cpu_exec, so before/after_block_exec run per TB rather than per chain.
-    panda.disable_tb_chaining()
+    # TB chaining stays on: the block-exec callbacks run from each block's own code.
     panda.flush_tb()
 
 
@@ -304,7 +303,6 @@ def hypercall_2(cpu):
     for name in WINDOW:
         panda.disable_callback(name)
     panda.disable_memcb()
-    panda.enable_tb_chaining()
     seen["window_closed"] = True
 
 
@@ -368,20 +366,19 @@ for key, where in [("tb_pc_translate", "after_block_translate (before_block_tran
                    ("tb_pc_exec", "before_block_exec (the CPU's pc)")]:
     n, bad = seen[key]
     check(f"tb.pc is the block's address in {where}", n and not bad, f"{n} TBs, {bad}")
-# A TB that exits at its entry (an interrupt pending: TB_EXIT_REQUESTED, exit code > TB_EXIT_IDX1)
-# gets before/after_block_exec from cpu_tb_exec but never starts: drop those pairs.
+# The window opens inside hypercall 1's block (whose start passed with the callbacks off: no
+# before/after for it) and closes inside hypercall 2's (before ran, after didn't).
 blk = seen["blk"]
-for i in range(len(blk) - 1, 0, -1):
-    if blk[i][0] == "a" and blk[i][2] > 1 and blk[i - 1][:2] == ("b", blk[i][1]):
-        del blk[i - 1:i + 1]
 seen["bbe"] = [e[1] for e in blk if e[0] == "b"]
 seen["abe"] = [e[1] for e in blk if e[0] == "a"]
-check("chaining off: before/after_block_exec pair up on every TB start_block_exec sees",
-      # The window opens inside hypercall 1's TB and closes inside hypercall 2's: after_block_exec
-      # sees the first and not the last.
-      seen["bbe"] and seen["abe"][1:] == seen["bbe"][:-1] and seen["sbe"] == seen["bbe"],
+alternate = all(blk[i][0] == ("b" if i % 2 == 0 else "a") and (i % 2 == 0 or blk[i][1] == blk[i - 1][1])
+                for i in range(len(blk)))
+check("chaining on: before/after_block_exec pair up on every block start_block_exec sees",
+      seen["bbe"] and alternate and seen["abe"] == seen["bbe"][:-1] and seen["sbe"] == seen["bbe"],
       f"before={[hex(p) for p in seen['bbe']]} after={[hex(p) for p in seen['abe']]} "
       f"start={[hex(p) for p in seen['sbe']]} blk={[(k, hex(p), c) for k, p, c in blk]}")
+check("after_block_exec: every program block ran to its end (exit code 0)",
+      all(c == 0 for k, _, c in blk if k == "a"), [c for k, _, c in blk if k == "a"])
 check("end_block_exec runs after the block's last instruction", seen.get("call_slot"),
       f"return address {seen.get('call_slot')}")
 for name in ["before_block_translate", "after_block_translate", "before_block_exec", "after_block_exec",
