@@ -11,6 +11,7 @@ Example plugins are available in the [examples directory](https://github.com/pan
 """
 
 from .panda import Panda, blocking
+from .machine import MachineBuilder
 from .pyplugin import PyPlugin
 
 try:
@@ -23,7 +24,7 @@ except ImportError:
     # plog reader isn't widely used - let's make this optional
     PLogReader = None
 
-__all__ = ['Panda', 'PLogReader', 'Callbacks', 'PyPlugin']
+__all__ = ['Panda', 'PLogReader', 'Callbacks', 'PyPlugin', 'MachineBuilder']
 
 __pdoc__ = {}
 
