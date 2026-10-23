@@ -2,7 +2,7 @@
 
 Run: panda-python tests/rr.py <dir>/debian-13-x86_64.json [workdir]
 
-Records `cat /etc/os-release` with Panda.record_cmd in one process, then replays it twice, each in
+Records `cat /etc/os-release; ls -R /usr/share/doc | wc -l` (disk reads) with Panda.record_cmd in one process, then replays it twice, each in
 a fresh process with the same command line. Each process reports what PANDA saw while recording or
 replaying (asid_changed values, the openat of /etc/os-release, the instruction count at the end);
 the replays must match the recording and each other.
@@ -47,7 +47,9 @@ def child(mode, image, name, out):
         @panda.queue_blocking
         def drive():
             panda.revert_sync("root")
-            panda.record_cmd("cat /etc/os-release", recording_name=name, snap_name=None)
+            # ls -R reads directories the snapshot has not cached: disk I/O while recording.
+            panda.record_cmd("cat /etc/os-release; ls -R /usr/share/doc | wc -l", recording_name=name,
+                             snap_name=None)
             seen["output"] = "recorded"
             panda.end_analysis()
         panda.run()

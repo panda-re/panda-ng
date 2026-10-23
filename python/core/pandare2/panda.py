@@ -247,7 +247,20 @@ class Panda():
         self.panda_args.append("-L")
         self.panda_args.append(biospath)
 
-        if self.qcow:
+        # The disk device each arch gets for a bare qcow, when rr needs to name it.
+        rr_disk = {'x86_64': 'ide-hd,bus=ide.0,unit=0', 'i386': 'ide-hd,bus=ide.0,unit=0',
+                   'aarch64': 'virtio-blk-pci', 'riscv64': 'virtio-blk-pci',
+                   'mips64': 'virtio-blk-pci', 'mips64el': 'virtio-blk-pci'}
+        if self.qcow and rr and self.arch_name in rr_disk:
+            # Under record/replay, disk I/O completes asynchronously: blkreplay journals the
+            # completions. -blockdev, so only the blkreplay node has a BlockBackend and savevm
+            # snapshots the qcow2 (through the filter) once.
+            self.panda_args += ["-blockdev", f"driver=file,filename={self.qcow},node-name=panda-disk-file",
+                                "-blockdev", "driver=qcow2,file=panda-disk-file,node-name=panda-disk-qcow2",
+                                "-blockdev", "driver=blkreplay,image=panda-disk-qcow2,node-name=panda-disk"]
+        elif self.qcow:
+            if rr:
+                warn(f"rr: no blkreplay disk for {self.arch_name}; a replay may diverge on disk I/O")
             if self.arch_name in ['mips64', 'mips64el', 'riscv64']:
                 # XXX: mips64 (and riscv64's virt, which has no IDE) need virtio for the qcow
                 self.panda_args.extend(["-drive", f"file={self.qcow},if=virtio"])
@@ -257,6 +270,10 @@ class Panda():
         # "{biospath}" in an argument is the firmware directory (-L), for firmware QEMU doesn't look
         # up there itself (pflash: riscv64's EDK2).
         self.panda_args += [a.replace("{biospath}", biospath) for a in extra_args]
+        if self.qcow and rr and self.arch_name in rr_disk:
+            # After extra_args' -devices, where a -drive's own device goes: the same PCI slot, so
+            # the image's snapshots still load.
+            self.panda_args += ["-device", f"{rr_disk[self.arch_name]},drive=panda-disk"]
 
         # Record/replay needs what can't change on a running VM (rr-ready): one TCG vCPU thread,
         # virtio kicks as MMIO exits rather than eventfds, an x86 TSC that keeps its rate under
