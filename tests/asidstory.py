@@ -38,12 +38,9 @@ C = Checks(arch)
 
 
 def pgd(value):
-    """The page-table base in an asid_changed value."""
-    if arch == "x86_64":
-        return value & 0x000ffffffffff000 & ~(1 << 12)       # PCID bits and PTI's user-half bit off
-    if arch == "aarch64":
-        return value & 0x0000fffffffffffe                    # TTBR: ASID [63:48] and CnP off
-    return (value & ((1 << 44) - 1)) << 12                   # satp: PPN
+    """The page-table base in an asid_changed value: since tbpc the identifier is that base on
+    x86_64 (CR3 51:12, PTI's user-half bit dropped), aarch64 (TTBR0 base) and riscv64 (satp.PPN << 12)."""
+    return value
 
 
 S = {"timeline": [], "hcs": [], "on": False, "filtered_prog": 0, "filtered_other_user": []}

@@ -73,9 +73,10 @@ def label_of(pc):
 
 @panda.cb_after_block_translate(name="abt", enabled=False)
 def abt(cpu, tb):
-    if in_program(tb.pc):
-        code = bytes(panda.virtual_memory_read(cpu, tb.pc, tb.size))
-        S["kind"][(tb.pc, tb.size)] = (classify(code), tb.pc + tb.size)
+    pc = panda.tb_pc(cpu, tb)       # tb.pc is 0 for an unbound CF_PCREL block
+    if in_program(pc):
+        code = bytes(panda.virtual_memory_read(cpu, pc, tb.size))
+        S["kind"][(pc, tb.size)] = (classify(code), pc + tb.size)
 
 
 @panda.cb_before_block_exec(name="bbe", enabled=False)
@@ -109,9 +110,10 @@ def bbe(cpu, tb):
 
 @panda.cb_after_block_exec(name="abe", enabled=False)
 def abe(cpu, tb, exit_code):
-    if not in_program(tb.pc):
+    pc = panda.tb_pc(cpu, tb)
+    if not in_program(pc):
         return
-    kind = S["kind"].get((tb.pc, tb.size))
+    kind = S["kind"].get((pc, tb.size))
     if kind is None:
         S["untracked_calls"] += 1   # executed but never seen translated (window opened after)
         return
