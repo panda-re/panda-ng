@@ -4,7 +4,7 @@
   inputs = {
     # The engine: qemu_builder's patched 11.1 source (series + vendored src/, PANDA included).
     # Local development: --override-input qemu-builder path:/path/to/qemu_builder
-    qemu-builder.url = "git+https://github.com/rehosting/qemu_builder?ref=workspace/panda-next-pandang";
+    qemu-builder.url = "git+https://github.com/rehosting/qemu_builder?ref=workspace/panda-next-integ";
     # One nixpkgs for everything, the one qemu_builder (and penguin) pin.
     nixpkgs.follows = "qemu-builder/nixpkgs";
     libpanda-ng-src = {

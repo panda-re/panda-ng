@@ -56,16 +56,16 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1792726628,
-        "narHash": "sha256-/bW8E/hR7JUO8labX2x6gGOhuevfnOXTLAVHHt4rWRE=",
-        "ref": "workspace/panda-next-pandang",
-        "rev": "92fc7a5b07e59e8322d61e7539de3f0f97284dc5",
-        "revCount": 97,
+        "lastModified": 1792799768,
+        "narHash": "sha256-jMMV4fbdXg5KanWkd+aM25VKgp2vue2BUv7c4rVoCHU=",
+        "ref": "workspace/panda-next-integ",
+        "rev": "136d2e31c598310d027601c84a55da0ce5bfcbf7",
+        "revCount": 135,
         "type": "git",
         "url": "https://github.com/rehosting/qemu_builder"
       },
       "original": {
-        "ref": "workspace/panda-next-pandang",
+        "ref": "workspace/panda-next-integ",
         "type": "git",
         "url": "https://github.com/rehosting/qemu_builder"
       }
