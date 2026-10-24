@@ -3,7 +3,7 @@
 Run: panda-python tests/asidstory.py <dir>/debian-13-x86_64.json
 
 Three copies of tests/programs/procs_<arch>.S run at once. Each makes M=20 hypercalls
-(MAGIC, 5, its pid from getpid, i, pc) with a 2 ms sleep between them. asidstory kept, per
+(MAGIC, 5, its pid from getpid, i, pc) with a 10 ms sleep between them. asidstory kept, per
 address space, when it was seen and which process OSI said it was; here asid_changed builds the
 timeline and each hypercall says which process is running. Checks:
 - each copy's hypercalls arrive in order (i = 0..M-1), from its own pid;
@@ -28,7 +28,12 @@ from pandare2 import Panda
 
 M, KIDS = 20, 3
 
-panda = Panda(generic=sys.argv[1])
+# Guest time from instructions. With time following the host, the hypercall handler's host time
+# (OSI) and the per-block procname callback pass as guest time: a copy's 20 sleeps were over before
+# the next copy's exec was (aarch64 under load: the copies ran one after another). Under icount
+# both the exec and the sleeps are counted in instructions, so their overlap doesn't depend on the
+# host; 10 ms sleeps (not 2) leave the overlap a wide margin.
+panda = Panda(generic=sys.argv[1], extra_args=["-icount", "shift=6,sleep=off"])
 arch = panda.arch_name
 with open(sys.argv[1]) as f:
     isf = os.path.join(os.path.dirname(os.path.abspath(sys.argv[1])), json.load(f)["isf"])

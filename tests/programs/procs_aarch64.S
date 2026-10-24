@@ -27,4 +27,4 @@ hc:
     mov x8, #93
     svc #0
     .data
-ts: .quad 0, 2000000        /* 2 ms */
+ts: .quad 0, 10000000       /* 10 ms */

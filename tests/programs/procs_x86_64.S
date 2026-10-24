@@ -1,5 +1,5 @@
 /* tests/asidstory.py's guest program: M times, hypercall (MAGIC, 5, getpid(), i, pc of the
- * hypercall), then sleep 2 ms; then exit(0). Several run at once. */
+ * hypercall), then sleep 10 ms; then exit(0). Several run at once. */
     .intel_syntax noprefix
     .set M, 20
     .globl _start
@@ -33,4 +33,4 @@ hc:
     xor edi, edi
     syscall
     .data
-ts: .quad 0, 2000000        /* 2 ms */
+ts: .quad 0, 10000000       /* 10 ms */

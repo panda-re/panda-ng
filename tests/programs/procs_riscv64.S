@@ -27,4 +27,4 @@ hc:
     li a7, 93
     ecall
     .data
-ts: .quad 0, 2000000        /* 2 ms */
+ts: .quad 0, 10000000       /* 10 ms */
