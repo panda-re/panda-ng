@@ -15,21 +15,18 @@ sees, panda.tb_pc must be where the block is executing:
   - after_block_translate reports before_block_translate's pc;
   - before_block_exec and start_block_exec report the CPU's pc at entry.
 """
-import json
 import sys
 from collections import Counter, defaultdict
 
 from pandare2 import Panda
 
 CF_PCREL = 0x00020000
-# Guest time from instructions on x86_64/riscv64 (as tests/blocks.py): with Python callbacks on
-# every block and time following the host, timer ticks and the scheduling they cause take all of
-# the slowed guest's time and the workload starves. aarch64's root snapshot doesn't load with
-# -icount; it hasn't starved.
-with open(sys.argv[1]) as f:
-    image_arch = json.load(f)["arch"]
-panda = Panda(generic=sys.argv[1],
-              extra_args=[] if image_arch == "aarch64" else ["-icount", "shift=6,sleep=off"])
+# Guest time from instructions (as tests/blocks.py): with Python callbacks on every block and time
+# following the host, timer ticks and the scheduling they cause take all of the slowed guest's time
+# and the workload starves (seen on all three arches; on aarch64 it ran past the 30-minute limit).
+# On every arch: an aarch64 root snapshot taken without icount loads with it since engine patch
+# 0081 (PMCEID0).
+panda = Panda(generic=sys.argv[1], extra_args=["-icount", "shift=6,sleep=off"])
 arch = panda.arch_name
 TOP = 1 << 63                  # kernel addresses have the top bit set on all three arches
 BAD = (-1, 2**64 - 1)
