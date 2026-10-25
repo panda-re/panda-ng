@@ -12,6 +12,11 @@ x-rr-begin-record's save_snapshot, and a load of a snapshot so marked
 converts (the name rule stays for start snapshots saved before the mark).
 The log's format is unchanged.
 
+Only that save writes the mark, and every load of the "replay" section
+clears it before the subsection loads, so loading a marked snapshot any
+other way (loadvm or panda_revert with rr off, -loadvm, fast restore) does
+not mark the snapshots saved after it.
+
 Such a recording replayed in a fresh process with -icount
 rr=replay,rrfile=,rrsnapshot= cannot work: its log has nothing of machine
 init, nor of the snapshot load's block requests (x-rr-begin-record saved and
@@ -40,14 +45,14 @@ taken before the timers ran): say so.
 ---
  include/system/replay.h        |  18 +++++
  migration/migration-hmp-cmds.c |   6 ++
- migration/savevm.c             |  12 ++++
- replay/replay-internal.h       |   6 ++
- replay/replay-random.c         |   6 ++
- replay/replay-snapshot.c       | 127 +++++++++++++++++++++++++++++++--
- replay/replay.c                |   4 ++
+ migration/savevm.c             |  12 +++
+ replay/replay-internal.h       |   7 ++
+ replay/replay-random.c         |   7 ++
+ replay/replay-snapshot.c       | 144 +++++++++++++++++++++++++++++++--
+ replay/replay.c                |   4 +
  replay/stubs-system.c          |  11 +++
  system/vl.c                    |   2 +
- 9 files changed, 186 insertions(+), 6 deletions(-)
+ 9 files changed, 205 insertions(+), 6 deletions(-)
 
 diff --git a/include/system/replay.h b/include/system/replay.h
 index 01d7f3f448d13254b78fa6332b97266d9e03242c..ce93b2d2303ad6e58240070b2117fed362fbf5c9 100644
@@ -147,52 +152,72 @@ index e19f6420a610a8d63f32e2c98d9ea7c5f4fe7a50..490aa7e5ae056780c82308566bb327cf
  
      qmp_snapshot_job_free(s);
 diff --git a/replay/replay-internal.h b/replay/replay-internal.h
-index 1ff43cd59429afe9ee925321a14693014b2953f1..f891f1e46a72d3e1d0dbf17358f9554a17c38f06 100644
+index 1ff43cd59429afe9ee925321a14693014b2953f1..7651d28fcd2cb4e1d403ad8bc951971a01f67dcb 100644
 --- a/replay/replay-internal.h
 +++ b/replay/replay-internal.h
-@@ -98,6 +98,12 @@ typedef struct ReplayState {
+@@ -98,6 +98,13 @@ typedef struct ReplayState {
      uint64_t block_request_id;
      uint64_t read_event_id;
      size_t n_audio_samples;
 +    /*
 +     * x-rr-begin-record's start snapshot: true while it is saved (the
 +     * "replay/begin" subsection marks it), and after a load of a snapshot
-+     * so marked
++     * so marked (cleared by every load of the "replay" section; only that
++     * save writes the mark)
 +     */
 +    bool begin_start;
  } ReplayState;
  extern ReplayState replay_state;
  
 diff --git a/replay/replay-random.c b/replay/replay-random.c
-index 7f4c46f74d9cd7bbb635151af23f4f21641bb1c2..33330e195acee853450a49c65d0d6897f51abde9 100644
+index 7f4c46f74d9cd7bbb635151af23f4f21641bb1c2..fa62441566be9061a8633937a85c1dede83b00ad 100644
 --- a/replay/replay-random.c
 +++ b/replay/replay-random.c
-@@ -38,6 +38,12 @@ int replay_read_random(void *buf, size_t len)
+@@ -38,6 +38,13 @@ int replay_read_random(void *buf, size_t len)
          g_assert(buf_size == len);
      } else {
          error_report("Missing random event in the replay log");
 +        if (!replay_events_enabled()) {
 +            /* -icount rr=replay at startup: machine init */
-+            error_printf("The board draws random data at machine init; a "
-+                         "recording begun at run time (x-rr-begin-record) "
-+                         "has none: replay it with x-rr-begin-replay.\n");
++            error_printf("The board draws random data at machine init: if "
++                         "this recording was begun at run time "
++                         "(x-rr-begin-record), its log has none; replay it "
++                         "with x-rr-begin-replay.\n");
 +        }
          exit(1);
      }
      return ret;
 diff --git a/replay/replay-snapshot.c b/replay/replay-snapshot.c
-index 54e32abc01f9d7cf2d9a56053092e9c7a1bec21c..bc968fb87affe988e1dbdb972969362bc6d82c78 100644
+index 54e32abc01f9d7cf2d9a56053092e9c7a1bec21c..bbd9faa9be506b6b25f96abfb4c5b23c304eb560 100644
 --- a/replay/replay-snapshot.c
 +++ b/replay/replay-snapshot.c
-@@ -52,12 +52,70 @@ static int replay_post_load(void *opaque, int version_id)
+@@ -52,12 +52,89 @@ static int replay_post_load(void *opaque, int version_id)
      return 0;
  }
  
++static int replay_pre_load(void *opaque)
++{
++    ReplayState *state = opaque;
++
++    /* set again by "replay/begin" if the snapshot being loaded is marked */
++    state->begin_start = false;
++
++    return 0;
++}
++
++/* replay_vmstate_init() saves the start snapshot */
++static bool replay_saving_start;
++
 +static bool replay_begin_needed(void *opaque)
 +{
 +    ReplayState *state = opaque;
 +
-+    return state->begin_start;
++    /*
++     * Only x-rr-begin-record's own save marks: after a load of a marked
++     * snapshot by any other path (loadvm, panda_revert, -loadvm, ...)
++     * begin_start is still set, and a later savevm is not a start snapshot.
++     */
++    return replay_saving_start && state->begin_start;
 +}
 +
 +/* replay_vmstate_init() loads the -icount rrsnapshot= snapshot at startup */
@@ -247,6 +272,7 @@ index 54e32abc01f9d7cf2d9a56053092e9c7a1bec21c..bc968fb87affe988e1dbdb972969362b
      .version_id = 3,
      .minimum_version_id = 3,
      .pre_save = replay_pre_save,
++    .pre_load = replay_pre_load,
      .post_load = replay_post_load,
 +    .subsections = (const VMStateDescription * const []) {
 +        &vmstate_replay_begin,
@@ -255,18 +281,16 @@ index 54e32abc01f9d7cf2d9a56053092e9c7a1bec21c..bc968fb87affe988e1dbdb972969362b
      .fields = (const VMStateField[]) {
          VMSTATE_INT64_ARRAY(cached_clock, ReplayState, REPLAY_CLOCK_COUNT),
          VMSTATE_UINT64(current_icount, ReplayState),
-@@ -73,6 +131,10 @@ static const VMStateDescription vmstate_replay = {
+@@ -73,6 +150,8 @@ static const VMStateDescription vmstate_replay = {
  };
  
  static bool replay_vmstate_registered;
-+/* replay_vmstate_init() saves the start snapshot */
-+static bool replay_saving_start;
 +/* replay_load_snapshot() or -loadvm (replay_permit_load()) loads */
 +static bool replay_loading;
  
  void replay_vmstate_register(void)
  {
-@@ -93,14 +155,26 @@ void replay_vmstate_init(void)
+@@ -93,14 +172,26 @@ void replay_vmstate_init(void)
  
      if (replay_snapshot) {
          if (replay_mode == REPLAY_MODE_RECORD) {
@@ -296,7 +320,7 @@ index 54e32abc01f9d7cf2d9a56053092e9c7a1bec21c..bc968fb87affe988e1dbdb972969362b
                  error_report_err(err);
                  error_report("Could not load snapshot for icount replay");
                  exit(1);
-@@ -112,7 +186,8 @@ void replay_vmstate_init(void)
+@@ -112,7 +203,8 @@ void replay_vmstate_init(void)
  /*
   * Load a snapshot in record/replay mode: the start snapshot of
   * x-rr-begin-record/-replay, the -icount rrsnapshot= one at startup, or the
@@ -306,7 +330,7 @@ index 54e32abc01f9d7cf2d9a56053092e9c7a1bec21c..bc968fb87affe988e1dbdb972969362b
   *
   * The devices' virtual timers are re-armed while QEMU_CLOCK_VIRTUAL still
   * runs at the loading process's time (see timer_replay_load_begin()), so
-@@ -128,16 +203,56 @@ void replay_vmstate_init(void)
+@@ -128,16 +220,56 @@ void replay_vmstate_init(void)
   */
  bool replay_load_snapshot(const char *name, Error **errp)
  {
