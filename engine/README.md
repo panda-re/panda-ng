@@ -3,9 +3,11 @@
 The engine is upstream QEMU (a pinned release tarball) plus a patch series plus an overlay of
 source files we wrote. `nix build .#engine` builds it with `--enable-panda`; everything else in
 panda-ng (the generated headers, plugins, pandare2, the wheel, the .deb, `qemu-system-<arch>`)
-is built on top of it. It used to live in `rehosting/qemu_builder` (branch
-`workspace/panda-next-pandang`), which panda-ng's flake took as an input. It moved here in
-October 2026 so that panda-ng is self-contained. qemu_builder stays penguin's.
+is built on top of it. It used to live in `rehosting/qemu_builder` (branches
+`workspace/panda-next-pandang`, then `workspace/panda-next-integ`), which panda-ng's flake took as
+an input. It moved here in October 2026 so that panda-ng is self-contained: the flake has no
+qemu-builder input, and engine work (patches, the overlay, the engine's tests) is done here, in
+panda-ng branches and PRs. qemu_builder stays penguin's.
 
 ## Layout
 
@@ -22,7 +24,11 @@ engine/
                         probe-versions.sh, offcost-gate.sh, check-delta-present.sh, lib-extract.sh
   tests/guest/          the engine-level guest harness (address hooks, page-in, syscall trap/engine,
                         OSI, rr, off-cost); not run in CI except through the off-cost gate
-  IMPORT                provenance: the qemu_builder commit engine/ was last imported from
+  tests/modules/        panda modules and the configurable machine on an aarch64 engine build
+                        (run.sh BUILD SDK, configurable.sh BUILD; ext-devices.c is also the
+                        flake's `board-example`)
+  IMPORT                provenance: the qemu_builder commit engine/ was imported from (the last
+                        import, 3198bab, at the cutover)
 ```
 
 The configure line, targets and install layout are in the flake (`mkEngine` in `flake.nix`), not
@@ -88,7 +94,8 @@ Export rules (from the qemu_builder workflow):
 | `nix build .#engine-src`, `.#engine-x86_64` + `scripts/check-delta-present.sh` | the series + overlay build; every library carries the core, hypercall and syscall-engine symbols | CI (`engine.yml`) |
 | `scripts/offcost-gate.sh` | stock vs this series, same configure line, guest workloads on x86_64 and aarch64: within `TOL` (5%) | manual (`engine-offcost.yml`, a quiet host) |
 | `scripts/probe-versions.sh <ver> <qemu.git> <refs>` | per patch: ok / drift (3-way) / moved / conflict on other upstream refs | weekly (`engine-canary.yml`, strict-only) |
-| panda-ng's `tests/*.py` on real guests | guest, api, blocks, rr, fastrestore, ... on debian-13 x86_64, aarch64, riscv64 | by hand in the VM |
+| panda-ng's `tests/*.py` on real guests | guest, api, blocks, rr, fastrestore, ... on debian-13 x86_64, aarch64, riscv64 and ubuntu-24.04 x86_64, aarch64 | by hand in the VM |
+| `tests/modules/run.sh`, `configurable.sh`; `nix build .#board-example` | panda modules, the SDK, the configurable machine | by hand in the VM |
 
 ## Rebasing onto a new QEMU release (next: 11.1.2)
 
@@ -124,8 +131,8 @@ Known for 11.1.2 (checked 2026-10-23: all patches then applied with strict conte
 
 ## What came from qemu_builder, and what did not
 
-Imported (qemu_builder `integ`, dc1aed4 at the time of writing; see `IMPORT`): `base.json`, the whole series
-(`patches/11.1.0/`, 0001-0058), `src/` (minus the three penguin packaging scripts below),
+Imported (qemu_builder `integ` 3198bab, the last import; see `IMPORT`): `base.json`, the whole series
+(`patches/11.1.0/`, 73 patches, renumbered 0001-0073 by the export), `src/` (minus the three penguin packaging scripts below),
 `scripts/` and `tests/`. Not imported, because they build or check penguin's artifact
 (`penguin-qemu.tar.gz`: `libqemu-system-*.so` + CFFI bindings for penguin's Python), which panda-ng
 does not build:
@@ -161,26 +168,30 @@ means re-porting the series and re-testing. Which ones PANDA uses:
 | 0022, 0024 | resume a KVM snapshot under TCG (x86, aarch64 + GIC) | not today; would let a KVM-booted snapshot be analysed under TCG |
 | 0025-0028, 0030, 0037-0040, 0050-0052 | record/replay (icount clock continuity, run_on_cpu under rr, rr-ready, begin/end record) | yes: pandare2 rr |
 | 0031, 0035 | plugin callback return address; CF_PCREL binding | yes |
-| 0041-0049, 0053, 0054, 0058 | the PANDA spine and callbacks | yes |
-| 0055-0057 | dirty logging gaps found by fast restore | yes: `panda_fast_restore` |
+| 0041-0049, 0053, 0054, 0058, 0059 | the PANDA spine and callbacks (0059: after_block_exec once the PC is synchronized, panda_tb_pc) | yes |
+| 0055-0057, 0060 | dirty logging gaps found by fast restore; vhost devices that can't log | yes: `panda_fast_restore` |
+| 0061 | before_loadvm hook | yes |
+| 0062 | cpu_exec_step_atomic under RCU | yes (robustness) |
+| 0063, 0064 | aarch64 snapshot loads across icount on/off (PMCEID0); riscv64 hardware A/D updates logged as dirty | yes: rr, fast restore |
+| 0065 | plugin memory access direction kept out of the MemOp | yes: memory callbacks |
+| 0066-0068, 0072, 0073 | rr: replay mutex ownership, rr vCPU loop, replay vmstate registration, snapshot loads judge timers at the loaded clock, loads refused while recording | yes: pandare2 rr |
+| 0069-0071 | panda modules (`-module`, `-M path:name`), the configurable machine and its QAPI | yes: `MachineBuilder`, `mkBoard` |
+
+Numbering: qemu_builder's lanes numbered patches by block (0080, 0110, 0120, ...); the first
+round trip here renumbered them in series order (0110->0060, 0111->0061, 0080-0082->0062-0064,
+0090->0065, 0120-0122->0066-0068, 0130-0132->0069-0071, 0140->0072, 0141->0073). Older notes
+use the qemu_builder numbers.
 
 The "no" rows are candidates to drop later; nothing has been dropped (Luke decides).
 
 ## Provenance and the import script
 
-Until the cutover, engine work still lands in qemu_builder branches. `tools/engine-import.sh
-<qemu_builder checkout> [<ref>]` mirrors a committed qemu_builder state into engine/ (base.json,
-patches/, src/, scripts/, tests/, minus the paths above), keeps panda-ng's own `nix/source.nix`,
-`scripts/import-series.sh`, `scripts/offcost-gate.sh` and `scripts/check-delta-present.sh`, records the commit in `IMPORT`, and is
-idempotent. If qemu_builder changes one of the files panda-ng carries its own version of, the
-import says so and prints the diff to port (exit status 1; re-run with `IMPORT_ACK_OWNED=1` once
-ported).
+The cutover is done: engine/ is the source of truth and panda-ng's flake builds it directly.
+`IMPORT` records the last qemu_builder commit imported (3198bab, qemu_builder `integ`, 73
+patches, patchedTree 0647db2c).
 
-The import mirrors qemu_builder faithfully, including a series that `export-series.sh` would
-write differently (hand-named or hand-formatted patches). After an import, run the round trip
-(import-series, export-series) and commit any normalization, or CI's round-trip check fails.
-
-At the cutover (the last import, after which engine/ is the source of truth) the script is
-deleted: a mirror would overwrite engine work done here, and a later penguin change in
-qemu_builder (to the IGLOO patches, say) is better ported as a patch than imported. `IMPORT`
-stays as the record of where engine/ came from.
+`tools/engine-import.sh <qemu_builder checkout> [<ref>]` (the mirror that did the imports) is
+still in the tree, pending a decision to delete it. Don't run it on top of engine work: it
+replaces engine/'s base.json, patches/, src/, scripts/ and tests/ with qemu_builder's. A later
+penguin change in qemu_builder (to the IGLOO patches, say) is ported here as a patch through the
+dev tree, not imported.

@@ -2,7 +2,7 @@
 
 Run: panda-python tests/board.py <at91sam9260.so>
 
-The board is qemu_builder's at91sam9260 (its at91sam9260-board branch), built outside the engine with
+The board is the at91sam9260 from rehosting/qemu_builder's at91sam9260-board branch, built outside the engine with
 the engine's SDK (panda-board-cc, or the flake's lib.<system>.mkBoard). tests/programs/cfg_at91.S
 prints the DBGU chip id, waits for five PIT ticks through the AIC, and makes hypercall (MAGIC, 1,
 chip id, ticks). Checks the standard callbacks on the external board: after_machine_init,

@@ -1,6 +1,6 @@
 /* tests/board.py's program for the at91sam9260 board (an external board .so): DBGU chip id, five PIT
  * ticks through the AIC (polled, IRQs masked), then hypercall (MAGIC, 1, chip id, ticks) in r0..r3
- * (r7 = MAGIC) and a loop. qemu_builder's tests/modules/at91-guest.S, with the hypercall in place of
+ * (r7 = MAGIC) and a loop. engine/tests/modules/at91-guest.S, with the hypercall in place of
  * the semihosting exit. */
     .equ DBGU, 0xFFFFF200
     .equ AIC, 0xFFFFF000

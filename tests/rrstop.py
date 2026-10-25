@@ -5,8 +5,8 @@ Run: panda-python tests/rrstop.py <dir>/debian-13-x86_64.json [workdir]
 x-rr-begin-record and x-rr-end-record switch replay_mode while vCPU threads exist (patches 0039,
 0040). One process makes ROUNDS recordings back to back (begin, end, begin, ...); before each
 begin it stops and resumes the VM from the main loop, which kicks the vCPU thread into the
-replay-mutex window the mode switch used to race with (engine 0120/0121: an abort in
-replay_mutex_unlock at begin, or a main loop that waits for ever at the second begin; 0122: the second begin registered the
+replay-mutex window the mode switch used to race with (engine 0066/0067: an abort in
+replay_mutex_unlock at begin, or a main loop that waits for ever at the second begin; 0068: the second begin registered the
 replay vmstate again and exited on the duplicate). Each
 recording runs a command; then every recording is replayed in a fresh process and must reach
 its end and print its command's output again. After the last recording, a savevm must work

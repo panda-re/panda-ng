@@ -38,7 +38,7 @@ with open(sys.argv[1]) as f:
 with lzma.open(os.path.join(image_dir, image["isf"])) as f:
     banner_addr = json.load(f)["symbols"]["linux_banner"]["address"]
 
-# Callback types the engine doesn't invoke yet (no call site in qemu_builder's series or its
+# Callback types the engine doesn't invoke yet (no call site in engine/'s series or its
 # panda/ and contrib/plugins/ sources), and other known gaps. A gap is reported, not failed; a gap
 # that passes fails the run, so this list stays true. before_loadvm isn't registered at all: its
 # trampoline is commented out in panda/src/callbacks.c and registering it aborts.

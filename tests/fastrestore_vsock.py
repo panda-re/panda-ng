@@ -23,7 +23,7 @@ with resets on TX) -> stop -> panda_fast_restore -> panda_fast_verify. Checks:
 - the engine reports the device as unloggable and the restores compared every page (compare);
 - the guest still answers on the console after the last restore, and the backend still reaches it.
 
-Before the fix (engine without 0110 and the compare fallback) arming the snapshot's dirty logging
+Before the fix (engine without 0060 and the compare fallback) arming the snapshot's dirty logging
 asked the backend to log: it refused VHOST_F_LOG_ALL, dropped the connection, and the next restore
 aborted QEMU in vhost_dev_start.
 """

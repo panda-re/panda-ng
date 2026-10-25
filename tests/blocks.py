@@ -61,7 +61,7 @@ TOGGLE_AT = 10
 # ~1000 blocks, the tick and the scheduling it triggers take about that long, and the program can
 # starve for minutes (seen on debian-13 x86_64 and riscv64: run_serial_cmd timed out). icount may
 # split a block when its budget runs out; the checks below allow for that. On every arch: an aarch64
-# root snapshot taken without icount loads with it since engine patch 0081 (PMCEID0).
+# root snapshot taken without icount loads with it since engine patch 0063 (PMCEID0).
 panda = Panda(generic=sys.argv[1], extra_args=["-icount", "shift=6,sleep=off"])
 arch = panda.arch_name
 ffi = panda.ffi

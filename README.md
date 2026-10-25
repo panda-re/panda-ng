@@ -50,7 +50,7 @@ Build it with `nix build .#wheel` (the wheel is in `result/`). How it's made:
 4. Licenses: the wheel contains GPL-2.0-only QEMU and LGPL/BSD/MIT/... libraries, not just the
    MIT Python package. `pandare2-*.dist-info/licenses/` holds each component's license files
    (taken from its upstream source) and `SOURCES.txt`, which says where each one's source is
-   (the qemu_builder commit and patch series for the engine, the panda-ng commit, each library's
+   (the panda-ng commit and engine/'s patch series for the engine, the panda-ng commit, each library's
    upstream tarball). METADATA has the combined `License-Expression`. The list of libraries and
    their licenses is `wheelThirdParty` in flake.nix; repair.py fails if it bundles a library from
    a package not on it.
@@ -131,7 +131,9 @@ Checks: `nix flake check` applies the engine's series (`engine-src`) and runs `-
 
 [`engine/README.md`](engine/README.md): the layout (`base.json`, `patches/<version>/`, `src/`),
 working on the series (import, export, verify), the CI gates, rebasing onto a new QEMU release,
-and what came from `rehosting/qemu_builder`, where the engine lived until October 2026.
+and what came from `rehosting/qemu_builder`, where the engine lived until October 2026. Engine
+work (the series, the overlay in `engine/src/`, its tests) happens here now; nothing is taken
+from qemu_builder any more.
 
 ## qemu-system-&lt;arch&gt;
 

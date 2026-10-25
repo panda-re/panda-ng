@@ -3,7 +3,7 @@
 Run: panda-python tests/rrload.py <dir>/debian-13-x86_64.json [workdir]
 
 A recording is the log plus its start snapshot; a load during the recording is not in the log, so
-its replay could not repeat it (engine 0141). The recording process reverts before
+its replay could not repeat it (engine 0073). The recording process reverts before
 x-rr-begin-record (allowed), then, while recording, tries a loadvm (Panda.revert_sync), a
 panda_revert from the main loop and a savevm that would replace the start snapshot rr-<name>: each
 must be refused with the VM still running (a command after them runs), and the recording must

@@ -25,7 +25,7 @@ BUILD=$(cd "${1:?usage: panda-sdk.sh BUILD_DIR OUT [SRC_DIR]}" && pwd)
 OUT="${2:?}"
 SRC=$(cd "${3:-$BUILD/..}" && pwd)
 [ -f "$BUILD/compile_commands.json" ] || { echo "$BUILD: no compile_commands.json" >&2; exit 1; }
-[ -f "$BUILD/panda-abi.h" ] || { echo "$BUILD: no panda-abi.h (an engine without 0130?)" >&2; exit 1; }
+[ -f "$BUILD/panda-abi.h" ] || { echo "$BUILD: no panda-abi.h (an engine without the panda-modules patch, 0069?)" >&2; exit 1; }
 [ -e "$OUT" ] && { echo "refusing to overwrite $OUT" >&2; exit 1; }
 mkdir -p "$OUT/src/build" "$OUT/bin"
 OUT=$(cd "$OUT" && pwd)

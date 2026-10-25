@@ -1,6 +1,6 @@
 """Machines built in Python: `MachineBuilder` describes a machine (CPU, memory map, peripherals,
 interrupt wiring, entry point) and lowers it to the engine's built-in `configurable` machine,
-whose list-valued properties are QAPI types (qapi/panda-machine.json in qemu_builder):
+whose list-valued properties are QAPI types (engine/src/qapi/panda-machine.json):
 
     -M configurable,ram-base=0x40000000,entry=0x40000000,
        region.0.name=boot,region.0.base=0x0,region.0.size=0x1000,region.0.kind=rom,region.0.file=boot.bin,
