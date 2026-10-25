@@ -69,6 +69,8 @@ class Panda():
             plugin_path=None,
             load_plugin_interface=True, # load the plugin interface (for low-level callbacks)
             rr=False, # make the VM recordable (virtio kicks through the log); pass it to the replay too
+            machine=None, # a pandare2.MachineBuilder: the machine to build (the configurable machine or an external board)
+            modules=None, # panda modules (external board/device .so files) to load: -module PATH each
             ):
         '''
         Construct a new `Panda` object.  Note that multiple Panda objects cannot coexist in the same Python instance.
@@ -95,6 +97,10 @@ class Panda():
             libpanda_path: path to panda shared object to load
             biospath: directory that contains "pc-bios" files
             plugin_path: directory that contains panda plugins
+            machine: a `pandare2.MachineBuilder` (CPU, memory map, devices, entry point, or an external
+                    board). Its arguments go before extra_args, and its RAM size (if it set one) replaces mem.
+            modules: paths of panda modules (external board or device shared objects built with the
+                    engine's SDK) to load before the machine is created.
         Returns:
             Panda: the created panda object
         '''
@@ -107,6 +113,16 @@ class Panda():
         if self.dll_extension is None:
             raise Exception(f"Unsupported System {platform.system()}: expected one of {platform_dll_extensions.keys()}")
         self.arch_name = arch
+        self.machine = machine
+        if machine is not None:
+            if machine.arch is not None and machine.arch != arch:
+                raise ValueError(f"MachineBuilder({machine.arch!r}) given to Panda(arch={arch!r})")
+            # The builder's RAM, or none: an unmapped -m RAM would still be allocated and saved
+            # by every snapshot. An external board keeps the default (it maps -m itself).
+            if machine.mem is not None:
+                mem = machine.mem
+            elif not machine.is_board:
+                mem = "0"
         self.mem = mem
         self.os = os_version
         self.os_type = os
@@ -285,6 +301,11 @@ class Panda():
                 self.panda_args.extend(["-drive", f"file={self.qcow},if=virtio"])
             else:
                 self.panda_args.append(self.qcow)
+
+        for m in modules or []:
+            self.panda_args += ["-module", abspath(m)]
+        if machine is not None:
+            self.panda_args += machine.args()
 
         # "{biospath}" in an argument is the firmware directory (-L), for firmware QEMU doesn't look
         # up there itself (pflash: riscv64's EDK2).
