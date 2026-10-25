@@ -15,7 +15,9 @@ sees, panda.tb_pc must be where the block is executing:
   - after_block_translate reports before_block_translate's pc;
   - before_block_exec and start_block_exec report the CPU's pc at entry.
 """
+import os
 import sys
+import time
 from collections import Counter, defaultdict
 
 from pandare2 import Panda
@@ -40,12 +42,16 @@ st = {"checked": Counter(), "bad": defaultdict(list), "delta": Counter(), "user_
 KERNEL_SAMPLE = 20000
 checked = set()
 n = Counter()
-last = {"bbe": (None, None), "sbe": (None, None), "translating": None}
+last = {"bbe": (None, None), "sbe": (None, None), "translating": None, "exc": None, "phase": "off"}
+# Diagnostics: TBPC_GAP=<s> sleeps between the callbacks' enable/disable calls, TBPC_ORDER=forward disables
+# them in the order they were enabled (the order before this test learned to disable in reverse).
+GAP = float(os.environ.get("TBPC_GAP", "0"))
+FORWARD = os.environ.get("TBPC_ORDER") == "forward"
 tb_pc = panda.libpanda.panda_tb_pc
 
 
 def bad(kind, detail):
-    if len(st["bad"][kind]) < 5:
+    if len(st["bad"][kind]) < 8:
         st["bad"][kind].append(detail)
     st["checked"][kind + " bad"] += 1
 
@@ -95,7 +101,22 @@ def abt(cpu, tb):
     if last["translating"] is None:
         return   # translation began before the callbacks were enabled
     if pc != last["translating"]:
-        bad("after_block_translate", f"{pc:#x} translating {last['translating']}")
+        bad("after_block_translate", f"{pc:#x} translating {last['translating']:#x}")
+
+
+def describe(cpu, tb, pc, t, want, extra=""):
+    """A wrong pairing in full: this block, the one its start callback saw, the CPU, what came before."""
+    exc = last["exc"]
+    return (f"tb_pc {pc:#x} tb {key(tb):#x} tb->pc {tb.pc:#x} cflags {tb.cflags:#x} bound {tb.pc_bound}{extra}"
+            f" | started tb {key(t):#x} at {want:#x} | cpu pc {panda.arch.get_pc(cpu):#x}"
+            f" | phase {last['phase']}, enabled {[x for x in NAMES if panda.is_callback_enabled(x)]}"
+            f" | last exception {exc[0] if exc else None} {n['before_block_exec'] - exc[1] if exc else '-'} blocks ago")
+
+
+@panda.cb_before_handle_exception(enabled=False)
+def bhe(cpu, index):
+    last["exc"] = (index, n["before_block_exec"])
+    return index
 
 
 @panda.cb_before_block_exec(enabled=False)
@@ -111,7 +132,7 @@ def abe(cpu, tb, exit_code):
     if t is None:
         return   # the block was running when the callbacks were enabled
     if t != tb or want != pc:
-        bad("after_block_exec", f"{pc:#x} entered {want}")
+        bad("after_block_exec", describe(cpu, tb, pc, t, want, f" exit_code {exit_code}"))
 
 
 @panda.cb_start_block_exec(enabled=False)
@@ -127,10 +148,23 @@ def ebe(cpu, tb):
     if t is None:
         return   # the block was running when the callbacks were enabled
     if t != tb or want != pc:
-        bad("end_block_exec", f"{pc:#x} started {want}")
+        bad("end_block_exec", describe(cpu, tb, pc, t, want))
 
 
-NAMES = ["bbt", "abt", "bbe", "abe", "sbe", "ebe"]
+# In this order each "after" callback is enabled after, and disabled before, the one it pairs with:
+# panda.enable/disable_callback run from the driver thread while the guest runs, so between two of
+# these calls the guest runs blocks (seen: 14 kernel blocks on riscv64 ran with before_block_exec
+# already off and after_block_exec still on, each compared with the last block before_block_exec saw).
+NAMES = ["bhe", "bbt", "abt", "bbe", "abe", "sbe", "ebe"]
+
+
+def switch(on):
+    last["phase"] = "enabling" if on else "disabling"
+    for name in (NAMES if on or FORWARD else reversed(NAMES)):
+        (panda.enable_callback if on else panda.disable_callback)(name)
+        if GAP:
+            time.sleep(GAP)
+    last["phase"] = "on" if on else "off"
 
 
 @panda.queue_blocking
@@ -142,11 +176,9 @@ def drive():
     # driver busy-waits on the transmitter): commands crawl. The callbacks run from the blocks'
     # own code either way (lane-chain), after/end_block_exec once the block has stopped.
     panda.disable_tb_chaining()
-    for name in NAMES:
-        panda.enable_callback(name)
+    switch(True)
     panda.run_serial_cmd("sh /tmp/w.sh", timeout=3000)
-    for name in NAMES:
-        panda.disable_callback(name)
+    switch(False)
     st["out"] = panda.run_serial_cmd("cat /tmp/o1 /tmp/o2")
     panda.end_analysis()
 
