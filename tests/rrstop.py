@@ -6,9 +6,11 @@ x-rr-begin-record and x-rr-end-record switch replay_mode while vCPU threads exis
 0040). One process makes ROUNDS recordings back to back (begin, end, begin, ...); before each
 begin it stops and resumes the VM from the main loop, which kicks the vCPU thread into the
 replay-mutex window the mode switch used to race with (engine 0120/0121: an abort in
-replay_mutex_unlock at begin, or a main loop that waits for ever at the second begin). Each
+replay_mutex_unlock at begin, or a main loop that waits for ever at the second begin; 0122: the second begin registered the
+replay vmstate again and exited on the duplicate). Each
 recording runs a command; then the last recording is replayed in a fresh process and must reach
-its end and print the command's output again.
+its end and print the command's output again. A savevm after the last recording must work (before 0122, 0040
+left the replay vmstate registered, whose pre_save reads the closed log's offset).
 """
 import json
 import os
@@ -51,6 +53,10 @@ def child(mode, image, name, out):
                 panda.end_record()
                 panda.wait_rr("off")
                 seen["rounds"].append(r)
+            # a snapshot after the last recording (no log to point into), then the guest still runs
+            seen["savevm"] = panda.run_monitor_cmd("savevm rrstop-after")
+            panda.run_monitor_cmd("delvm rrstop-after")
+            seen["after"] = panda.run_serial_cmd("echo after-$((6*7))", timeout=120)
             panda.end_analysis()
         panda.run()
     else:
@@ -82,6 +88,8 @@ def main():
             and all(r["stop_cont"] for r in rounds),
         "each recording's command ran": len(rounds) == ROUNDS
             and all(MARK.format(k) in (r["output"] or "") for k, r in enumerate(rounds)),
+        "savevm after the last recording, and the guest runs on": rec is not None
+            and "after-42" in (rec.get("after") or ""),
         "each recording wrote a log": all(os.path.exists(p) and os.path.getsize(p) > 0 for p in logs),
         "the last recording replays and prints its command's output again": rep is not None
             and MARK.format(ROUNDS - 1) in (rep["replay_serial"] or ""),
