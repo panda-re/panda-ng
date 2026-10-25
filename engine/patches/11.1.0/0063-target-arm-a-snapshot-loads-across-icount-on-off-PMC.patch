@@ -15,7 +15,7 @@ keep the destination's value: the guest sees what this machine supports.
  1 file changed, 16 insertions(+), 1 deletion(-)
 
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index 85f880a50..1f11860b8 100644
+index 1c592e13769d94290852a4399b7a936f996c1993..25b850f17c1470ee05a012697e2049dfce2997a6 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -201,6 +201,20 @@ bool write_cpustate_to_list(ARMCPU *cpu, bool kvm_sync)
@@ -49,6 +49,3 @@ index 85f880a50..1f11860b8 100644
              ok = false;
          }
      }
--- 
-2.43.0
-

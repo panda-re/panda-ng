@@ -14,10 +14,10 @@ tb_lookup here (qht) follow the same rule as cpu_exec's.
  1 file changed, 3 insertions(+)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index 5482554b6..457ff29b4 100644
+index 8105739a2827aa7a0e063bc574a47ac6ae592f2c..e8b34d78c77885fea544fcc70eb1747dbcdcdced 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
-@@ -587,6 +587,9 @@ void cpu_exec_step_atomic(CPUState *cpu)
+@@ -592,6 +592,9 @@ void cpu_exec_step_atomic(CPUState *cpu)
      TranslationBlock *tb;
      int tb_exit;
  
@@ -27,6 +27,3 @@ index 5482554b6..457ff29b4 100644
      if (sigsetjmp(cpu->jmp_env, 0) == 0) {
          start_exclusive();
          g_assert(cpu == current_cpu);
--- 
-2.43.0
-

@@ -16,7 +16,7 @@ Only hardware A/D updates pay for it.
  1 file changed, 11 insertions(+)
 
 diff --git a/target/riscv/tcg/cpu_helper.c b/target/riscv/tcg/cpu_helper.c
-index 07d922265..12e7761d8 100644
+index 07d92226527d85da93b8810e526d044e64fa4e3d..12e7761d80ebc6d1abd16e47590579a56bf3d93c 100644
 --- a/target/riscv/tcg/cpu_helper.c
 +++ b/target/riscv/tcg/cpu_helper.c
 @@ -27,6 +27,7 @@
@@ -44,6 +44,3 @@ index 07d922265..12e7761d8 100644
          pte = updated_pte;
      }
  
--- 
-2.43.0
-
