@@ -573,6 +573,10 @@ class Panda():
         '''
         Create snapshot with specified name
 
+        From a queue_blocking function this returns once the snapshot is taken and the guest
+        continues, so guest input sent afterwards (e.g. run_serial_cmd) isn't in the snapshot.
+        From a callback it only queues the snapshot for the next main loop iteration.
+
         Args:
             snapshot_name (str): name of the snapshot
 
@@ -590,6 +594,10 @@ class Panda():
         self.queue_main_loop_wait_fn(self.libpanda.panda_cont)
         if debug:
             self.queue_main_loop_wait_fn(self._finish_timer, [timer_start, "Saved snapshot"])
+        if threading.current_thread() in (self.athread.athread, self.athread._athread):
+            done = threading.Event()
+            self.queue_main_loop_wait_fn(done.set)
+            done.wait()
 
     def delvm(self, snapshot_name):
         '''
