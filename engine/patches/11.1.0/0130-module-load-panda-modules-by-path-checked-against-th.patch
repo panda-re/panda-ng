@@ -1,0 +1,454 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 09:38:58 -0400
+Subject: [PATCH] module: load panda modules by path, checked against their
+ target and a panda ABI hash
+
+module_load_path(path, target, errp) dlopens an external board or device
+shared object (a "panda module"), independent of CONFIG_MODULES, and runs
+its queued type_init()s. QEMU's own module check (the per-build
+CONFIG_STAMP) admits only objects from the same build; a panda module is
+built against the engine's SDK instead, so it carries a PandaModuleInfo
+(qemu/panda-module.h, -include'd by the SDK's cflags, defines
+panda_module_info): a magic, a struct version and size (fields are only
+appended, so later ones need no flag day), the panda ABI hash of the
+headers it compiled against, the target it was compiled for, and the
+engine's QEMU version. The engine refuses a module built for another
+target ("built for target arm, this engine is aarch64": mips into mipsel
+or riscv32 into riscv64 would otherwise load silently, the hash being the
+same for every target of a build) or against another hash ("built against
+panda ABI 3f2a... (QEMU 11.1.0), this engine is 9c1e..."), before running
+any of its code. PANDA_MODULE_ABI=ignore makes an ABI mismatch (never a
+target mismatch) a warning, for bisecting. A module from the first SDK
+(a bare panda_module_abi string) is told to rebuild with this SDK. Not
+covered: dlopen() runs a module's plain ELF constructors before the
+check (type_init() under -DBUILD_DSO only queues).
+
+The hash (scripts/panda-abi.py, generated into panda-abi.h, rewritten only
+when it changes) covers every header under include/, target/, hw/,
+host/include/, tcg/ and linux-headers/, the QAPI schema, the trace-events
+files, configs/targets and configs/devices with the Kconfig files, and
+config-host.h without its absolute paths.
+
+qom: type_register_set_hook() reports every type registered while it is
+set, and turns a name that already exists into a report instead of
+QOM's abort. The loader uses it to record a module's types and to make a
+module whose type name clashes with a built-in type or another module's
+an error that names both.
+
+With --enable-panda the qemu-system-* executables link with
+--export-dynamic, so a module resolves QEMU's symbols from the executable
+as it does from the engine .so (libpanda-*, libqemu-system-*).
+
+Startup-only: nothing runs unless a module is named; the hook is NULL
+otherwise (one test per type registration, at startup).
+
+From the extboard probe (lane-scratch/observe/gate/extboard), with the ABI
+check in place of the probe's none.
+---
+ include/qemu/module.h |  13 +++
+ include/qom/object.h  |  21 +++++
+ meson.build           |  21 ++++-
+ plugins/meson.build   |   8 +-
+ qom/object.c          |  23 ++++-
+ util/module.c         | 194 ++++++++++++++++++++++++++++++++++++++++++
+ 6 files changed, 277 insertions(+), 3 deletions(-)
+
+diff --git a/include/qemu/module.h b/include/qemu/module.h
+index fccf017bf9e805adf03944433d59eecbf2f453ed..dd4450de039c82828be0667c9f4ca64a90c7cbad 100644
+--- a/include/qemu/module.h
++++ b/include/qemu/module.h
+@@ -70,6 +70,19 @@ void register_dso_module_init(void (*fn)(void), module_init_type type);
+ 
+ void module_call_init(module_init_type type);
+ 
++/*
++ * module_load_path: load a panda module (an external board, device, ...)
++ * by path, after checking it was built against this engine's ABI (see
++ * module_panda_abi()) and for @target (this engine's target_name(), or
++ * NULL not to check), and run its init functions.
++ *
++ * Return value:   true on success, false with errp set on error.
++ */
++bool module_load_path(const char *path, const char *target, Error **errp);
++
++/* module_panda_abi: the ABI hash a panda module must be built against. */
++const char *module_panda_abi(void);
++
+ /*
+  * module_load: attempt to load a module from a set of directories
+  *
+diff --git a/include/qom/object.h b/include/qom/object.h
+index 8e2bb2161b06aeb3dcbd62a44ac3253a8434aa5b..37b1d4fdb800b4462851c24a2ad73465f956141f 100644
+--- a/include/qom/object.h
++++ b/include/qom/object.h
+@@ -978,6 +978,27 @@ const char *object_get_typename(const Object *obj);
+  */
+ Type type_register_static(const TypeInfo *info);
+ 
++/**
++ * TypeRegisterHook:
++ * @name: the type name being registered
++ * @duplicate: true if a type of that name already exists
++ * @opaque: as passed to type_register_set_hook()
++ */
++typedef void TypeRegisterHook(const char *name, bool duplicate, void *opaque);
++
++/**
++ * type_register_set_hook:
++ * @fn: the hook, or NULL to remove it
++ * @opaque: passed to @fn
++ *
++ * While a hook is set, every type registered is reported to it, and
++ * registering a name that already exists is reported (@duplicate true)
++ * and skipped (type_register_static() returns NULL) instead of aborting.
++ * For loading external modules, whose type names may clash with the
++ * engine's or another module's: the loader turns a clash into an error.
++ */
++void type_register_set_hook(TypeRegisterHook *fn, void *opaque);
++
+ /**
+  * type_register_static_array:
+  * @infos: The array of the new type #TypeInfo structures.
+diff --git a/meson.build b/meson.build
+index 1578cee627b4ebd95c24b3ae1a06f96877d0b432..8ae540163c6c2c08dabf9844eef0db3b74701d8c 100644
+--- a/meson.build
++++ b/meson.build
+@@ -3541,6 +3541,19 @@ qemu_version = custom_target('qemu-version.h',
+                              build_always_stale: true)
+ genh += qemu_version
+ 
++# panda-abi.h: the hash panda modules (external boards and devices) are
++# checked against (util/module.c module_load_path); rewritten only when it
++# changes.
++panda_abi = custom_target('panda-abi.h',
++                          output: 'panda-abi.h',
++                          command: [python, files('scripts/panda-abi.py'),
++                                    meson.current_source_dir(),
++                                    meson.current_build_dir()],
++                          capture: true,
++                          build_by_default: true,
++                          build_always_stale: true)
++genh += panda_abi
++
+ hxdep = []
+ hx_headers = [
+   ['qemu-options.hx', 'qemu-options.def'],
+@@ -4449,13 +4462,19 @@ foreach target : target_dirs
+       exe_name += '-unsigned'
+     endif
+ 
++    # A panda module (-M board.so, -module) resolves QEMU's symbols from the
++    # executable as it does from the engine .so: export them.
++    exe_link_args = link_args
++    if get_option('panda') and target.endswith('-softmmu')
++      exe_link_args += cc.get_supported_link_arguments('-Wl,--export-dynamic')
++    endif
+     emulator = executable(exe_name, exe['sources'],
+                install: true,
+                c_args: c_args,
+                dependencies: arch_deps + exe['dependencies'],
+                objects: lib.extract_all_objects(recursive: true),
+                link_depends: [block_syms, qemu_syms],
+-               link_args: link_args,
++               link_args: exe_link_args,
+                win_subsystem: exe['win_subsystem'])
+ 
+     if target.endswith('-softmmu') and 'CONFIG_TCG' in config_target
+diff --git a/plugins/meson.build b/plugins/meson.build
+index bcf600e41678fa302b0f438e8a1202d80a81a525..e0f19a56cd38cb8f82c8646898c5f50a19274936 100644
+--- a/plugins/meson.build
++++ b/plugins/meson.build
+@@ -10,7 +10,13 @@ qemu_plugin_symbols = configure_file(
+ 
+ # Modules need more symbols than just those in plugins/qemu-plugins.symbols
+ if not enable_modules
+-  if host_os == 'darwin'
++  if host_os == 'darwin' and get_option('panda')
++    # So do panda modules (external boards and devices, -M PATH, -module),
++    # which ld64's exported_symbols_list would hide from: export everything.
++    # (Linux keeps the --dynamic-list: it exports nothing less from a shared
++    # library, it only keeps the library's own calls bound locally, and the
++    # executables add --export-dynamic.)
++  elif host_os == 'darwin'
+     configure_file(
+       input: qemu_plugin_symbols,
+       output: 'qemu-plugins-ld64.symbols',
+diff --git a/qom/object.c b/qom/object.c
+index 001aeaf8e2be7f37bd2b465d6d5b15a8c5dd562e..79e7d9454572942aa277dfa240fd71dfdff70a71 100644
+--- a/qom/object.c
++++ b/qom/object.c
+@@ -94,18 +94,33 @@ static TypeImpl *type_table_lookup(const char *name)
+     return g_hash_table_lookup(type_table, name);
+ }
+ 
++static TypeRegisterHook *type_register_hook;
++static void *type_register_hook_opaque;
++
++void type_register_set_hook(TypeRegisterHook *fn, void *opaque)
++{
++    type_register_hook = fn;
++    type_register_hook_opaque = opaque;
++}
++
+ static TypeImpl *type_new(const TypeInfo *info)
+ {
+-    TypeImpl *ti = g_malloc0(sizeof(*ti));
++    TypeImpl *ti;
+     int i;
+ 
+     g_assert(info->name != NULL);
+ 
+     if (type_table_lookup(info->name) != NULL) {
++        if (type_register_hook) {
++            type_register_hook(info->name, true, type_register_hook_opaque);
++            return NULL;
++        }
+         fprintf(stderr, "Registering `%s' which already exists\n", info->name);
+         abort();
+     }
+ 
++    ti = g_malloc0(sizeof(*ti));
++
+     ti->name = g_strdup(info->name);
+     ti->parent = g_strdup(info->parent);
+ 
+@@ -164,8 +179,14 @@ static TypeImpl *type_register_internal(const TypeInfo *info)
+     }
+ 
+     ti = type_new(info);
++    if (!ti) {
++        return NULL;
++    }
+ 
+     type_table_add(ti);
++    if (type_register_hook) {
++        type_register_hook(ti->name, false, type_register_hook_opaque);
++    }
+     return ti;
+ }
+ 
+diff --git a/util/module.c b/util/module.c
+index 8f8e6994f11256124c9a03a2214b6821e921f1b5..e05a2a997db2322f03c7def342f33690c7b23103 100644
+--- a/util/module.c
++++ b/util/module.c
+@@ -14,18 +14,24 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#ifndef _WIN32
++#include <dlfcn.h>
++#endif
+ #ifdef CONFIG_MODULES
+ #include <gmodule.h>
+ #endif
+ #include "qemu/queue.h"
+ #include "qemu/module.h"
+ #include "qemu/cutils.h"
++#include "qemu/error-report.h"
+ #include "qemu/config-file.h"
+ #include "qapi/error.h"
+ #ifdef CONFIG_MODULE_UPGRADES
+ #include "qemu-version.h"
+ #endif
+ #include "trace.h"
++#include "panda-abi.h"
++#include "qemu/panda-module-info.h"
+ 
+ typedef struct ModuleEntry
+ {
+@@ -112,6 +118,194 @@ void module_call_init(module_init_type type)
+     modules_init_done[type] = true;
+ }
+ 
++const char *module_panda_abi(void)
++{
++    return PANDA_ABI_HASH;
++}
++
++static void module_drop_dso_queue(void)
++{
++    ModuleEntry *e, *next;
++
++    QTAILQ_FOREACH_SAFE(e, &dso_init_list, node, next) {
++        QTAILQ_REMOVE(&dso_init_list, e, node);
++        g_free(e);
++    }
++}
++
++#ifndef _WIN32
++/*
++ * The module's PandaModuleInfo, or NULL with errp set. Reads only what the
++ * module's info version and size cover; version 1 is the oldest.
++ */
++static const PandaModuleInfo *module_panda_info(void *handle,
++                                                const char *path,
++                                                Error **errp)
++{
++    const PandaModuleInfo *info = dlsym(handle, "panda_module_info");
++
++    if (!info && dlsym(handle, "panda_module_abi")) {
++        /* The first SDK's stamp: a bare hash string, no target. */
++        error_setg(errp, "%s was built with an older panda SDK (it has "
++                   "panda_module_abi, not panda_module_info)", path);
++        error_append_hint(errp, "Rebuild it with this engine's SDK.\n");
++        return NULL;
++    }
++    if (!info || info->magic != PANDA_MODULE_INFO_MAGIC) {
++        error_setg(errp, "%s is not a panda module (no panda_module_info)",
++                   path);
++        error_append_hint(errp, "Build it with the SDK's panda-board-cc "
++                          "(cflags -DBUILD_DSO -include "
++                          "qemu/panda-module.h).\n");
++        return NULL;
++    }
++    if (info->version < 1 ||
++        info->size < offsetof(PandaModuleInfo, qemu_version) +
++                     sizeof(info->qemu_version)) {
++        error_setg(errp, "%s: unsupported panda_module_info (version %u, "
++                   "%u bytes)", path, info->version, info->size);
++        return NULL;
++    }
++    return info;
++}
++
++/*
++ * Does @info match this engine (@target, our ABI hash)? On a mismatch, an
++ * error, or with PANDA_MODULE_ABI=ignore a warning and true.
++ */
++static bool module_panda_check(const PandaModuleInfo *info, const char *path,
++                               const char *target, Error **errp)
++{
++    const char *ignore = getenv("PANDA_MODULE_ABI");
++    bool bad_target = target && strncmp(info->target, target,
++                                        sizeof(info->target)) != 0;
++    bool bad_abi = strncmp(info->abi, PANDA_ABI_HASH, sizeof(info->abi)) != 0;
++    g_autofree char *why = NULL;
++
++    if (!bad_target && !bad_abi) {
++        return true;
++    }
++    if (bad_target) {
++        why = g_strdup_printf("built for target %.*s, this engine is %s",
++                              (int)sizeof(info->target), info->target,
++                              target);
++    } else {
++        why = g_strdup_printf("built against panda ABI %.12s (QEMU %.*s), "
++                              "this engine is %.12s (QEMU %s)", info->abi,
++                              (int)sizeof(info->qemu_version),
++                              info->qemu_version, PANDA_ABI_HASH,
++                              QEMU_VERSION);
++    }
++    /*
++     * Only an ABI mismatch can be overridden (for bisecting): a module
++     * compiled for another target has another target_ulong, CPUArchState
++     * and config, and is never safe to run.
++     */
++    if (!bad_target && ignore && g_str_equal(ignore, "ignore")) {
++        warn_report("%s: %s; loading anyway (PANDA_MODULE_ABI=ignore)", path,
++                    why);
++        return true;
++    }
++    error_setg(errp, "%s: %s", path, why);
++    if (bad_target) {
++        error_append_hint(errp, "Build it for this target (panda-board-cc "
++                          "%s-softmmu ...).\n", target);
++    } else {
++        error_append_hint(errp, "Rebuild it with this engine's SDK.\n");
++    }
++    return false;
++}
++
++/*
++ * Why @path doesn't load: its undefined symbols, said with the target or
++ * ABI it was built for when that differs from ours (the usual reason).
++ */
++static void module_explain_failure(const char *path, const char *target,
++                                   const char *why, Error **errp)
++{
++    ERRP_GUARD();
++    void *h = dlopen(path, RTLD_LAZY | RTLD_LOCAL);
++    Error *local_err = NULL;
++    const PandaModuleInfo *info = h ? module_panda_info(h, path, &local_err)
++                                    : NULL;
++
++    error_free(local_err);
++    local_err = NULL;
++    if (info && !module_panda_check(info, path, target, &local_err) &&
++        local_err) {
++        error_propagate(errp, local_err);
++        error_append_hint(errp, "(%s)\n", why);
++    } else {
++        error_free(local_err);
++        error_setg(errp, "failed to open %s: %s", path, why);
++    }
++    if (h) {
++        module_drop_dso_queue();
++        dlclose(h);
++    }
++}
++#endif
++
++/*
++ * Load an external board or device shared object (a "panda module") by
++ * path, whatever CONFIG_MODULES says. It is built with the SDK's cflags:
++ * -DBUILD_DSO, so its type_init() constructors queue on dso_init_list,
++ * and -include qemu/panda-module.h, which defines panda_module_info: the
++ * ABI hash of the headers it compiled against and the target it compiled
++ * for. Both must equal ours (@target is this engine's target name, or
++ * NULL not to check it; PANDA_MODULE_ABI=ignore in the environment makes
++ * an ABI mismatch, never a target mismatch, a warning). RTLD_GLOBAL lets
++ * one module use another's symbols. Startup-only: nothing here runs
++ * unless a module is named.
++ *
++ * What the check can't stop: dlopen() itself runs the module's plain ELF
++ * constructors (__attribute__((constructor)), C++ static initialisers)
++ * before panda_module_info is read. type_init() under -DBUILD_DSO only
++ * queues, so QOM registration waits for the check, but other constructor
++ * code in a module runs even when the module is then refused.
++ */
++bool module_load_path(const char *path, const char *target, Error **errp)
++{
++#ifdef _WIN32
++    error_setg(errp, "%s: loading modules by path is not supported on this "
++               "host", path);
++    return false;
++#else
++    ERRP_GUARD();
++    const PandaModuleInfo *info;
++    ModuleEntry *e;
++    void *handle;
++
++    init_lists();
++    module_drop_dso_queue();
++    handle = dlopen(path, RTLD_NOW | RTLD_GLOBAL);
++    if (!handle) {
++        g_autofree char *why = g_strdup(dlerror());
++        module_explain_failure(path, target, why, errp);
++        return false;
++    }
++    info = module_panda_info(handle, path, errp);
++    if (!info || !module_panda_check(info, path, target, errp)) {
++        module_drop_dso_queue();
++        dlclose(handle);
++        return false;
++    }
++    /*
++     * Run the queued inits now if their phase has passed (type_init after
++     * MODULE_INIT_QOM), else leave them for module_call_init().
++     */
++    QTAILQ_FOREACH(e, &dso_init_list, node) {
++        if (modules_init_done[e->type]) {
++            e->init();
++        } else {
++            register_module_init(e->init, e->type);
++        }
++    }
++    module_drop_dso_queue();
++    return true;
++#endif
++}
++
+ #ifdef CONFIG_MODULES
+ 
+ static const QemuModinfo module_info_stub[] = { {

@@ -1,0 +1,54 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 14:41:09 -0400
+Subject: [PATCH] target/arm: a snapshot loads across -icount on/off (PMCEID0's
+ INST_RETIRED bit)
+
+PMCEID0 advertises INST_RETIRED only under precise icount. It is a constant
+register in the migration list, so write_list_to_cpustate's read-back check
+failed when a snapshot taken without -icount was loaded with it (or the
+reverse): "post load hook failed for: cpu". Every aarch64 image built without
+icount could not be run with icount. Accept a difference in that bit alone and
+keep the destination's value: the guest sees what this machine supports.
+---
+ target/arm/helper.c | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/target/arm/helper.c b/target/arm/helper.c
+index 85f880a50..1f11860b8 100644
+--- a/target/arm/helper.c
++++ b/target/arm/helper.c
+@@ -201,6 +201,20 @@ bool write_cpustate_to_list(ARMCPU *cpu, bool kvm_sync)
+     return ok;
+ }
+ 
++/*
++ * PMCEID0 advertises the INST_RETIRED event (0x008) only under precise icount
++ * (cpregs-pmu.c, instructions_supported), so a snapshot taken without -icount
++ * and loaded with it (or the reverse) differs in that bit alone. The register
++ * is constant: the destination's value stands, rather than failing the load.
++ */
++static bool cpreg_mismatch_is_icount_only(const ARMCPRegInfo *ri,
++                                          uint64_t want, uint64_t got)
++{
++    return (ri->type & ARM_CP_CONST) &&
++           (!strcmp(ri->name, "PMCEID0") || !strcmp(ri->name, "PMCEID0_EL0")) &&
++           (want ^ got) == (1ULL << 0x008);
++}
++
+ bool write_list_to_cpustate(ARMCPU *cpu)
+ {
+     int i;
+@@ -225,7 +239,8 @@ bool write_list_to_cpustate(ARMCPU *cpu)
+          * registers where the incoming migration value doesn't match)
+          */
+         write_raw_cp_reg(&cpu->env, ri, v);
+-        if (read_raw_cp_reg(&cpu->env, ri) != v) {
++        uint64_t got = read_raw_cp_reg(&cpu->env, ri);
++        if (got != v && !cpreg_mismatch_is_icount_only(ri, v, got)) {
+             ok = false;
+         }
+     }
+-- 
+2.43.0
+

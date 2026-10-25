@@ -23,16 +23,20 @@ QEMU_PLUGIN_EXPORT int (*external_plugin_install)(qemu_plugin_id_t id, const qem
 // Conditional on the gate: registered callbacks that are all disabled cost a compare per block.
 static struct qemu_plugin_scoreboard *gate_sb;
 static qemu_plugin_u64 gate;
-static uint64_t gate_on;
 
 static void block_start_cb(unsigned int cpu_index, void *udata)
 {
     panda_block_start(panda_cpu_by_index(cpu_index), (TranslationBlock *) udata);
 }
 
-static void set_gate(uint64_t on)
+// cpu_index -1: every vCPU's gate (PANDA opens them all at once and closes each lazily, from the
+// vCPU's own block start; see panda_bridge_set_block_gate)
+static void set_gate(int cpu_index, uint64_t on)
 {
-    gate_on = on;
+    if (cpu_index >= 0) {
+        qemu_plugin_u64_set(gate, cpu_index, on);
+        return;
+    }
     for (int i = 0; i < qemu_plugin_num_vcpus(); i++) {
         qemu_plugin_u64_set(gate, i, on);
     }
@@ -40,7 +44,7 @@ static void set_gate(uint64_t on)
 
 static void vcpu_init(unsigned int cpu_index, void *userdata)
 {
-    qemu_plugin_u64_set(gate, cpu_index, gate_on);
+    qemu_plugin_u64_set(gate, cpu_index, panda_block_gate());
 }
 
 static void vcpu_idle_or_exit(unsigned int cpu_index, void *userdata)

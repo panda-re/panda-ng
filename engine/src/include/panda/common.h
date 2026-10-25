@@ -69,6 +69,8 @@ target_ulong panda_current_asid(CPUState *env);
 target_ulong panda_current_asid_field(CPUState *env);
 /* Called by panda_asid_reg_write (hooks.h) for each write to a register panda_current_asid reads */
 void panda_asid_note_write(CPUState *cpu, uint64_t old_val, uint64_t new_val);
+/* After a snapshot load: x86 decides again whether the guest uses KPTI */
+void panda_asid_after_loadvm(CPUState *cpu);
 
 target_ulong panda_current_pc(CPUState *cpu);
 

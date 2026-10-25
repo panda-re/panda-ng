@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 14:46:33 -0400
+Subject: [PATCH] panda: before_loadvm hook before qemu_loadvm_state loads RAM
+
+The RAM a load writes isn't logged dirty, and a load that fails partway
+(an unknown device section after the RAM section, for instance) leaves RAM
+half written. Tell PANDA before the load starts, success or not, for
+loadvm, panda_revert, an rr start and an incoming migration alike: an
+in-memory snapshot that copies back only dirty pages must copy all RAM
+on its next restore. (after_loadvm runs only after a successful
+load_snapshot.)
+---
+ migration/savevm.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/migration/savevm.c b/migration/savevm.c
+index 5e915e5dd300b456bee6c1a975c80d40fab68058..e19f6420a610a8d63f32e2c98d9ea7c5f4fe7a50 100644
+--- a/migration/savevm.c
++++ b/migration/savevm.c
+@@ -3110,6 +3110,8 @@ int qemu_loadvm_state(QEMUFile *f, Error **errp)
+ 
+     cpu_synchronize_all_pre_loadvm();
+ 
++    /* RAM is about to change without dirty bits, whether or not the load succeeds */
++    panda_before_loadvm();
+     ret = qemu_loadvm_state_main(f, mis, errp);
+     qemu_event_set(&mis->main_thread_load_event);
+ 

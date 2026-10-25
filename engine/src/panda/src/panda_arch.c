@@ -21,7 +21,8 @@ bool panda_in_kernel_mode(const CPUState *cpu) {
     // See: https://www.keil.com/pack/doc/cmsis/Core_A/html/group__CMSIS__CPSR__M.html
     return ((env->uncached_cpsr & CPSR_M) > ARM_CPU_MODE_USR);
 #elif defined(TARGET_PPC)
-    return ((env->msr >> MSR_PR) & 1);
+    /* MSR[PR] set is problem (user) state: kernel mode is PR clear. */
+    return !((env->msr >> MSR_PR) & 1);
 #elif defined(TARGET_MIPS)
     return (env->hflags & MIPS_HFLAG_KSU) == MIPS_HFLAG_KM;
 #elif defined(TARGET_LOONGARCH)

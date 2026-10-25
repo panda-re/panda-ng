@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 14:23:14 -0400
+Subject: [PATCH] accel/tcg: cpu_exec_step_atomic runs in an RCU read-side
+ critical section
+
+cpu_exec holds rcu_read_lock() for everything a TB does; cpu_exec_step_atomic, which runs
+one instruction's TB under start_exclusive() with the BQL dropped, did not. PANDA's callback
+lists free unlinked entries after an RCU grace period (call_rcu), so a callback dispatched from
+a TB run here must be inside a read-side critical section like any other. Also makes the
+tb_lookup here (qht) follow the same rule as cpu_exec's.
+---
+ accel/tcg/cpu-exec.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 5482554b6..457ff29b4 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -587,6 +587,9 @@ void cpu_exec_step_atomic(CPUState *cpu)
+     TranslationBlock *tb;
+     int tb_exit;
+ 
++    /* As cpu_exec: what the TB runs (callbacks, lookups) may rely on RCU. */
++    RCU_READ_LOCK_GUARD();
++
+     if (sigsetjmp(cpu->jmp_env, 0) == 0) {
+         start_exclusive();
+         g_assert(cpu == current_cpu);
+-- 
+2.43.0
+

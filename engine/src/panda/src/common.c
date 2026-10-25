@@ -209,6 +209,24 @@ void panda_asid_note_write(CPUState *cpu, uint64_t old_val, uint64_t new_val)
 #endif
 }
 
+/* A snapshot was loaded: whether its guest uses KPTI is decided again. It may be another guest,
+ * and one saved in user mode is on its user table (bit 12) until its next kernel entry: probe
+ * that table against the kernel one 4 KiB below. A snapshot saved in kernel mode reads its kernel
+ * table, which is the identifier either way; KPTI is then recognized at the next switch. */
+void panda_asid_after_loadvm(CPUState *cpu)
+{
+#if defined(TARGET_I386)
+    if (cpu == NULL) {
+        return;
+    }
+    CPUX86State *env = cpu_env(cpu);
+    x86_kpti = false;
+    if ((env->hflags & HF_LMA_MASK) && (env->cr[3] & 0x1000)) {
+        x86_kpti_note(cpu, env->cr[3] & ~0x1000ULL, env->cr[3]);
+    }
+#endif
+}
+
 /**
  * panda_current_asid() - The current process's identifier.
  * @cpu: Pointer to cpu state.

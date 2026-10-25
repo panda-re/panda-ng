@@ -1,6 +1,7 @@
 #include "qemu/osdep.h"
 #include "qemu/error-report.h"
 #include "qapi/error.h"
+#include "system/replay.h"
 #include "system/penguin.h"
 #include "system/address-spaces.h"
 #include "system/memory.h"
@@ -270,6 +271,11 @@ penguin_load_snapshot(const char *name)
     RunState saved_state = runstate_get();
     Error *err = NULL;
 
+    /* refused (while recording or replaying) before the VM stops: it keeps running */
+    if (!replay_can_load_snapshot(&err)) {
+        error_reportf_err(err, "penguin_load_snapshot: ");
+        return false;
+    }
     vm_stop(RUN_STATE_RESTORE_VM);
 
     if (!load_snapshot(name, NULL, false, NULL, &err)) {

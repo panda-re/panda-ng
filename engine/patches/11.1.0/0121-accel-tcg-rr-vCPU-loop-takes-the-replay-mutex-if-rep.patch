@@ -1,0 +1,81 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Sat, 24 Oct 2026 19:46:57 -0400
+Subject: [PATCH] accel/tcg: rr vCPU loop takes the replay mutex if replay
+ started under it
+
+The round-robin vCPU loop does
+
+    bql_unlock(); replay_mutex_lock(); bql_lock();
+    ... icount accounting and timers ...
+    replay_mutex_unlock();
+
+With replay off, the lock is a no-op. If the vCPU thread is waiting in
+bql_lock() at that point while the main loop runs x-rr-begin-record
+(0039), replay_enable() switches to RECORD and hands the mutex to the
+main thread (replay_mutex_init()). The vCPU then gets the BQL, runs the
+icount part without the mutex, and calls replay_mutex_unlock() with
+replay on and the mutex not held:
+
+    replay_mutex_unlock: assertion failed: (replay_mutex_locked())
+
+A stop and cont (or a loadvm and vm_start just before the begin, as
+PANDA's begin_record with a snapshot does) kicks the vCPU out of
+rr_wait_io_event() into exactly that window, so it shows up as an
+intermittent abort at the start of a recording.
+
+replay_mode only changes under the BQL, so once the vCPU has the BQL the
+mode is stable: if replay is on and this thread does not hold the
+mutex, drop the BQL and take both again in lock order. The VM is
+stopped across the switch, so no guest event is lost or reordered.
+Costs one well-predicted branch per loop iteration when replay is off.
+Trace event rr_vcpu_replay_retake each time the loop retakes.
+---
+ accel/tcg/tcg-accel-ops-rr.c | 15 +++++++++++++++
+ accel/tcg/trace-events       |  3 +++
+ 2 files changed, 18 insertions(+)
+
+diff --git a/accel/tcg/tcg-accel-ops-rr.c b/accel/tcg/tcg-accel-ops-rr.c
+index cdaa3e118082d7f100dd7655e57e28b55418d294..0d8d16b402f651c1a6ad397c0252c3357f79e3cd 100644
+--- a/accel/tcg/tcg-accel-ops-rr.c
++++ b/accel/tcg/tcg-accel-ops-rr.c
+@@ -37,6 +37,7 @@
+ #include "tcg-accel-ops.h"
+ #include "tcg-accel-ops-rr.h"
+ #include "tcg-accel-ops-icount.h"
++#include "trace.h"
+ 
+ /* Kick all RR vCPUs */
+ void rr_kick_vcpu_thread(CPUState *unused)
+@@ -239,6 +240,20 @@ static void *rr_cpu_thread_fn(void *arg)
+         bql_unlock();
+         replay_mutex_lock();
+         bql_lock();
++        /*
++         * x-rr-begin-record and x-rr-begin-replay turn record/replay on
++         * from the main loop, under the BQL.  If that happened while we
++         * waited for the BQL, the lock above was a no-op (replay was off)
++         * and we hold the BQL without the replay mutex: take it now, in
++         * lock order.  replay_mode only changes under the BQL, so it is
++         * stable here.
++         */
++        while (replay_mode != REPLAY_MODE_NONE && !replay_mutex_locked()) {
++            trace_rr_vcpu_replay_retake(replay_mode);
++            bql_unlock();
++            replay_mutex_lock();
++            bql_lock();
++        }
+ 
+         if (icount_enabled()) {
+             int cpu_count = rr_cpu_count();
+diff --git a/accel/tcg/trace-events b/accel/tcg/trace-events
+index eba116e81208c8b0e0093f0fc297233d47e11423..bdef5390c7fd0104aa90cccf6ef754573eec3820 100644
+--- a/accel/tcg/trace-events
++++ b/accel/tcg/trace-events
+@@ -32,3 +32,6 @@ tb_flush(void) ""
+ # hooks.c
+ tcg_hooks_commit(int flush, unsigned pcs, unsigned tbs, unsigned invalidated, int64_t ns) "flush=%d new_sites=%u tbs_scanned=%u tbs_invalidated=%u ns=%" PRId64
+ tcg_hooks_regloc_reject(int regno, int write, long first, long last) "register %d: write %d changed bytes %ld..%ld of the CPU state"
++
++# tcg-accel-ops-rr.c
++rr_vcpu_replay_retake(int mode) "replay_mode=%d: the vCPU took the BQL without the replay mutex; retaking both"

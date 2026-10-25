@@ -1,4 +1,5 @@
 #include "panda/common.h"
+#include "qemu/rcu.h"
 #include "system/physmem.h"
 #include "system/ramblock.h"
 #include "exec/translation-block.h"
@@ -43,25 +44,34 @@ static void panda_physical_memory_written(MemoryRegion *mr, hwaddr addr1, hwaddr
 
 int panda_physical_memory_rw(hwaddr addr, uint8_t *buf, int len,
                                            bool is_write) {
-    // return address_space_rw(&address_space_memory, addr, MEMTXATTRS_UNSPECIFIED,
-    //                 buf, len, is_write);
-    hwaddr l = len;
-    hwaddr addr1;
-    MemoryRegion *mr = address_space_translate(&address_space_memory, addr,
-                                               &addr1, &l, is_write, 
-                                               MEMTXATTRS_UNSPECIFIED);
+    /*
+     * As address_space_rw: address_space_translate clamps l to the region it found, so a range
+     * that crosses regions goes in pieces (copying len from the first one overran its RAM block).
+     * Any piece that isn't RAM (MMIO, unassigned) fails the call; the pieces before it are done.
+     */
+    RCU_READ_LOCK_GUARD();
+    while (len > 0) {
+        hwaddr l = len;
+        hwaddr addr1;
+        MemoryRegion *mr = address_space_translate(&address_space_memory, addr,
+                                                   &addr1, &l, is_write,
+                                                   MEMTXATTRS_UNSPECIFIED);
 
-    if (!memory_access_is_direct(mr, is_write, MEMTXATTRS_UNSPECIFIED)) {
-        // fail for MMIO regions of physical address space
-        return MEMTX_ERROR;
-    }
-    void *ram_ptr = qemu_map_ram_ptr(mr->ram_block, addr1);
+        if (!memory_access_is_direct(mr, is_write, MEMTXATTRS_UNSPECIFIED)) {
+            // fail for MMIO regions of physical address space
+            return MEMTX_ERROR;
+        }
+        void *ram_ptr = qemu_map_ram_ptr(mr->ram_block, addr1);
 
-    if (is_write) {
-        memcpy(ram_ptr, buf, len);
-        panda_physical_memory_written(mr, addr1, len);
-    } else {
-        memcpy(buf, ram_ptr, len);
+        if (is_write) {
+            memcpy(ram_ptr, buf, l);
+            panda_physical_memory_written(mr, addr1, l);
+        } else {
+            memcpy(buf, ram_ptr, l);
+        }
+        buf += l;
+        addr += l;
+        len -= l;
     }
     return MEMTX_OK;
 }

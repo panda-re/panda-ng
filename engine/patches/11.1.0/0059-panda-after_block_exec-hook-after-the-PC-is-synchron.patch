@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 14:17:22 -0400
+Subject: [PATCH] panda: after_block_exec hook after the PC is synchronized
+
+cpu_tb_exec ended the vCPU's pending block (panda_callbacks_after_block_exec) before
+synchronize_from_tb. When a TB exits at its entry (an interrupt or icount expiry pending), the
+block before it ran to its end, but without CF_PCREL (mips, ppc, any page with a TCG hook) chained
+code had not stored the PC, so that block's after_block_exec saw a stale one. Run the hook
+after the PC is synchronized. No change without --enable-panda (an empty inline).
+---
+ accel/tcg/cpu-exec.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 5482554b68990c5e5c9ca17c6d7fdc0b10a120d7..8105739a2827aa7a0e063bc574a47ac6ae592f2c 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -470,7 +470,6 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
+     last_tb = tcg_splitwx_to_rw((void *)(ret & ~TB_EXIT_MASK));
+     *tb_exit = ret & TB_EXIT_MASK;
+ 
+-    panda_callbacks_after_block_exec(cpu, itb, *tb_exit);
+     trace_exec_tb_exit(last_tb, *tb_exit);
+ 
+     if (*tb_exit > TB_EXIT_IDX1) {
+@@ -498,6 +497,12 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
+         }
+     }
+ 
++    /*
++     * PANDA: after the PC is synchronized above. A TB that exited at its entry
++     * never started; without CF_PCREL, chained code left the PC stale until then.
++     */
++    panda_callbacks_after_block_exec(cpu, itb, *tb_exit);
++
+     /*
+      * If gdb single-step, and we haven't raised another exception,
+      * raise a debug exception.  Single-step with another exception

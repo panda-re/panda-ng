@@ -1,0 +1,123 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 14:46:09 -0400
+Subject: [PATCH] vhost: don't turn dirty logging on in a device that can't log
+
+A vhost device whose backend lacks VHOST_F_LOG_ALL, or a vhost-user backend
+without VHOST_USER_PROTOCOL_F_LOG_SHMFD (the log would be QEMU-private
+memory the backend can't write), gets a migration blocker in
+vhost_dev_init(). Migration is not the only user of global dirty logging,
+though: calc-dirty-rate in dirty-bitmap mode, dirty limits and in-memory
+snapshots take GLOBAL_DIRTY_DIRTY_RATE/_LIMIT with the VM running, and
+vhost_log_global_start() then asks the backend to log anyway. For a
+backend without VHOST_F_LOG_ALL the next vhost_dev_start() sends
+VHOST_USER_SET_FEATURES with the bit set; rust-vmm's vhost-device-vsock
+0.3.0 rejects it and drops the connection. Seen with an in-memory snapshot
+that holds GLOBAL_DIRTY_DIRTY_RATE across a "cont" (PANDA's
+panda_fast_snap), with a vhost-user-vsock-pci device the guest had started;
+by code reading calc-dirty-rate's dirty-bitmap mode takes the same path:
+
+    vhost_set_features failed: Input/output error (5)
+    Error starting vhost: 5
+    ...
+    vhost.c:2197: vhost_dev_start: Assertion `hdev->vhost_ops' failed.
+
+Leave logging off in such a device: migration can't use it (it is
+blocked), and the other users must not break it. Add
+vhost_has_unlogged_dev() so they can tell that the dirty bitmap misses
+what such a device writes to guest memory.
+---
+ hw/virtio/vhost-stub.c    |  5 +++++
+ hw/virtio/vhost.c         | 38 ++++++++++++++++++++++++++++++++++++++
+ include/hw/virtio/vhost.h |  6 ++++++
+ 3 files changed, 49 insertions(+)
+
+diff --git a/hw/virtio/vhost-stub.c b/hw/virtio/vhost-stub.c
+index 7321dc92106b2876e142e895ce5a4a9c02847231..353dbf2f10d4198681d1d26b24973b4c888f0216 100644
+--- a/hw/virtio/vhost-stub.c
++++ b/hw/virtio/vhost-stub.c
+@@ -12,6 +12,11 @@ unsigned int vhost_get_free_memslots(void)
+     return UINT_MAX;
+ }
+ 
++bool vhost_has_unlogged_dev(void)
++{
++    return false;
++}
++
+ bool vhost_user_init(VhostUserState *user, CharFrontend *chr, Error **errp)
+ {
+     return false;
+diff --git a/hw/virtio/vhost.c b/hw/virtio/vhost.c
+index 371dca17dd824c2b1f9a73d28add527a6c35652d..029cfa91ae82b5e8cd39fff345f9972453240c3f 100644
+--- a/hw/virtio/vhost.c
++++ b/hw/virtio/vhost.c
+@@ -434,6 +434,33 @@ static bool vhost_dev_log_is_shared(struct vhost_dev *dev)
+            dev->vhost_ops->vhost_requires_shm_log(dev);
+ }
+ 
++/*
++ * The backend can log its writes to guest memory where QEMU sees them: it offers
++ * VHOST_F_LOG_ALL, and a vhost-user backend (another process) also takes a shared
++ * log (VHOST_USER_PROTOCOL_F_LOG_SHMFD). vhost_dev_init() blocks migration for a
++ * device without both.
++ */
++static bool vhost_dev_can_log(struct vhost_dev *dev)
++{
++    if (!vhost_dev_has_feature_ex(dev, VHOST_F_LOG_ALL)) {
++        return false;
++    }
++    return dev->vhost_ops->backend_type != VHOST_BACKEND_TYPE_USER ||
++           vhost_dev_log_is_shared(dev);
++}
++
++bool vhost_has_unlogged_dev(void)
++{
++    struct vhost_dev *hdev;
++
++    QLIST_FOREACH(hdev, &vhost_devices, entry) {
++        if (!vhost_dev_can_log(hdev)) {
++            return true;
++        }
++    }
++    return false;
++}
++
+ static inline void vhost_dev_log_resize(struct vhost_dev *dev, uint64_t size)
+ {
+     struct vhost_log *log = vhost_log_get(dev->vhost_ops->backend_type,
+@@ -1233,6 +1260,17 @@ static int vhost_migration_log(MemoryListener *listener, bool enable)
+     if (enable == dev->log_enabled) {
+         return 0;
+     }
++    if (enable && !vhost_dev_can_log(dev)) {
++        /*
++         * Its writes can't be logged: asking the backend to would fail (no
++         * VHOST_F_LOG_ALL) or log into memory it can't see (no shared log). A
++         * vhost-user backend drops the connection on the first, and the device
++         * dies. Migration is blocked for this device anyway; the other users of
++         * global dirty logging (calc-dirty-rate, dirty limits, in-memory
++         * snapshots) must not break it, and can ask vhost_has_unlogged_dev().
++         */
++        return 0;
++    }
+     if (!dev->started) {
+         dev->log_enabled = enable;
+         return 0;
+diff --git a/include/hw/virtio/vhost.h b/include/hw/virtio/vhost.h
+index 684bafcaadda3aba444e31c37079cee5cf192019..1bf48833446c78b687a15d6a8bbc590705706d1e 100644
+--- a/include/hw/virtio/vhost.h
++++ b/include/hw/virtio/vhost.h
+@@ -383,6 +383,12 @@ static inline void vhost_ack_features(struct vhost_dev *hdev,
+ 
+ unsigned int vhost_get_max_memslots(void);
+ unsigned int vhost_get_free_memslots(void);
++/*
++ * vhost_has_unlogged_dev() - a vhost device exists whose writes to guest memory
++ * never reach the dirty bitmap (no VHOST_F_LOG_ALL, or a vhost-user backend
++ * without a shared log). Dirty logging does not see what such a device writes.
++ */
++bool vhost_has_unlogged_dev(void);
+ 
+ int vhost_net_set_backend(struct vhost_dev *hdev,
+                           struct vhost_vring_file *file);

@@ -1,0 +1,130 @@
+# -*- Mode: Python -*-
+# vim: filetype=python
+#
+# This work is licensed under the terms of the GNU GPL, version 2 or later.
+# See the COPYING file in the top-level directory.
+
+##
+# ***************************
+# PANDA's configurable machine
+# ***************************
+#
+# The "configurable" machine is a machine described as data: a memory
+# map, peripherals by QOM type, interrupt wiring and an entry point,
+# given as machine properties (for example by pandare2's
+# MachineBuilder).
+##
+
+##
+# @PandaMachineRegionKind:
+#
+# What backs a region of the configurable machine's memory map.
+#
+# @ram: writable RAM
+#
+# @rom: read-only memory (guest writes are ignored)
+#
+# @unimp: an unimplemented peripheral: reads return 0, writes are
+#     ignored, and every access is logged under "-d unimp"
+#
+# Since: 11.1
+##
+{ 'enum': 'PandaMachineRegionKind',
+  'data': [ 'ram', 'rom', 'unimp' ] }
+
+##
+# @PandaMachineRegion:
+#
+# One region of the configurable machine's memory map.
+#
+# @name: the region's name (unique)
+#
+# @base: guest physical address of the region
+#
+# @size: size of the region in bytes
+#
+# @kind: what backs the region (default: ram)
+#
+# @file: a file whose contents are loaded into the region (ram and
+#     rom only)
+#
+# @file-offset: offset into @file of the first byte loaded
+#     (default: 0)
+#
+# @file-size: number of bytes of @file to load (default: the rest of
+#     the file, which must fit in the region)
+#
+# @alias-of: map the contents of this other region (by name) here,
+#     instead of new memory; @kind and @file must not be given
+#
+# @alias-offset: offset into the @alias-of region (default: 0)
+#
+# @priority: memory region priority, for intentional overlaps
+#     (default: 0)
+#
+# Since: 11.1
+##
+{ 'struct': 'PandaMachineRegion',
+  'data': { 'name': 'str',
+            'base': 'uint64',
+            'size': 'size',
+            '*kind': 'PandaMachineRegionKind',
+            '*file': 'str',
+            '*file-offset': 'uint64',
+            '*file-size': 'size',
+            '*alias-of': 'str',
+            '*alias-offset': 'uint64',
+            '*priority': 'int32' } }
+
+##
+# @PandaMachineDevice:
+#
+# One peripheral of the configurable machine.
+#
+# @type: QOM type of the device; it must have no bus or sit on the
+#     system bus
+#
+# @id: name of the device, under /machine/peripheral/, and the name
+#     used to wire interrupts to it
+#
+# @mmio: guest physical base address of each of the device's MMIO
+#     regions, in order; regions not listed are not mapped
+#
+# @irq: where each of the device's interrupt outputs goes, in order:
+#     "cpu:N" for input N of the CPU, "ID:N" for input N of the
+#     device named ID, "" to leave it unconnected
+#
+# @prop: device properties, by name, as -device takes them
+#
+# Since: 11.1
+##
+{ 'struct': 'PandaMachineDevice',
+  'data': { 'type': 'str',
+            '*id': 'str',
+            '*mmio': [ 'uint64' ],
+            '*irq': [ 'str' ],
+            '*prop': 'any' } }
+
+##
+# @PandaMachineRegionListWrapper:
+#
+# Wrapper so that the list type is generated.
+#
+# @regions: the regions
+#
+# Since: 11.1
+##
+{ 'struct': 'PandaMachineRegionListWrapper',
+  'data': { 'regions': [ 'PandaMachineRegion' ] } }
+
+##
+# @PandaMachineDeviceListWrapper:
+#
+# Wrapper so that the list type is generated.
+#
+# @devices: the devices
+#
+# Since: 11.1
+##
+{ 'struct': 'PandaMachineDeviceListWrapper',
+  'data': { 'devices': [ 'PandaMachineDevice' ] } }

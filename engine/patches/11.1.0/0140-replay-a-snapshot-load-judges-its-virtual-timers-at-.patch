@@ -1,0 +1,534 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Sun, 25 Oct 2026 01:21:48 -0400
+Subject: [PATCH] replay: a snapshot load judges its virtual timers at the
+ loaded clock
+
+Under record/replay, util/qemu-timer.c turns a virtual timer that is armed
+already expired into vCPU work (timer_fire, no log event).  Loading a
+snapshot re-arms device timers while QEMU_CLOCK_VIRTUAL still runs at
+the loading process's time: on x86 the APIC (MIG_PRI_APIC) loads before
+the "timer" section that restores the clock.  x-rr-begin-record reloads its
+snapshot at the snapshot's own time, so an APIC timer that was already due
+when the VM stopped became vCPU work; the replaying process loads it from a
+clock near 0, so the same timer went into the list, expired.  The replay
+then needs a CHECKPOINT_CLOCK_VIRTUAL the log never has: the vCPU sees a
+deadline of 0 on every round (icount_handle_deadline -> qemu_clock_notify ->
+cpu_exit), breaks out before running its first instruction, and the replay
+spins at icount 0 until killed (the x86 "replay hang": whenever the guest
+was stopped with its APIC timer overdue).
+
+replay_load_snapshot() brackets every load under record/replay with
+timer_replay_load_begin/end: x-rr-begin-record and x-rr-begin-replay, the
+-icount rrsnapshot= startup load and the reverse-debugging seek.  During
+the load virtual timers are only armed and remembered, in arming order; at
+the end the decision is made against the loaded clock, the way the
+recorder saw it:
+ - x-rr-begin-record's start snapshot (the recorder reloads it and records
+   from the loaded state): each timer due at the loaded time becomes vCPU
+   work.  The recorder's clock is already the loaded one, so it does what
+   it did before (recordings made without this replay with it); the replay
+   now matches it.
+ - any other snapshot was taken by a run that went on from the saved
+   state: its timers stay armed and fire through the log's checkpoints.
+   (A seek used to load at the current replay clock, past the snapshot's,
+   and turned timers due in between into vCPU work that forward replay ran
+   through a checkpoint.)
+Only main_loop_tlg's virtual list is deferred (device timers, armed under
+the BQL, which the load holds), a failed load converts nothing, and a timer
+that already ran (expire_time -1) is not fired again.
+
+Any other disagreement between the log and the timers would still spin
+silently, so:
+ - at the end of a load, an expired virtual timer that the load did not
+   arm is reported (warn_report): record and replay may disagree on it;
+ - in replay, when the vCPU loop has run the virtual timers and one is
+   still due at the same instruction count for 1000 rounds and 5 seconds,
+   the expired timers (callback, opaque, expire time) are reported and the
+   replay stops with replay_sync_error() instead of spinning.  This costs
+   one replay_mode test when the virtual deadline is 0, nothing else when
+   record/replay is off.
+---
+ accel/tcg/tcg-accel-ops-icount.c |   3 +
+ include/qemu/timer.h             |  23 +++++
+ include/system/replay.h          |  11 ++
+ replay/replay-begin.c            |  15 ++-
+ replay/replay-debugging.c        |   2 +-
+ replay/replay-internal.h         |   8 ++
+ replay/replay-snapshot.c         |  32 +++++-
+ replay/replay.c                  |  41 ++++++++
+ util/qemu-timer.c                | 166 ++++++++++++++++++++++++++++++-
+ 9 files changed, 292 insertions(+), 9 deletions(-)
+
+diff --git a/accel/tcg/tcg-accel-ops-icount.c b/accel/tcg/tcg-accel-ops-icount.c
+index d0f7b410fab3186f0359eed2b0c50dcab7d58b3e..81ca7c0625b5eb0f60d2aa14a8e6c9ce8c2c5874 100644
+--- a/accel/tcg/tcg-accel-ops-icount.c
++++ b/accel/tcg/tcg-accel-ops-icount.c
+@@ -86,6 +86,9 @@ void icount_handle_deadline(void)
+      */
+     if (deadline == 0) {
+         icount_notify_aio_contexts();
++        if (replay_mode == REPLAY_MODE_PLAY) {
++            replay_check_timer_stall();
++        }
+     }
+ }
+ 
+diff --git a/include/qemu/timer.h b/include/qemu/timer.h
+index 9a62ac8cded11cc5c538117bda6826d33ff3cc76..fd7915087bc69305e7f723effe5ebe7b3aae2284 100644
+--- a/include/qemu/timer.h
++++ b/include/qemu/timer.h
+@@ -603,6 +603,29 @@ static inline QEMUTimer *timer_new_ms(QEMUClockType type, QEMUTimerCB *cb,
+     return timer_new(type, SCALE_MS, cb, opaque);
+ }
+ 
++/**
++ * timer_replay_load_begin:
++ * timer_replay_load_end:
++ * @loaded: the load succeeded
++ * @convert: turn the due timers into vCPU work
++ *
++ * Bracket a snapshot load under record/replay (replay_load_snapshot()):
++ * whether a virtual timer the load arms is already expired is decided at
++ * the end, against the loaded clock, not when it is armed.  Under the BQL.
++ */
++void timer_replay_load_begin(void);
++void timer_replay_load_end(bool loaded, bool convert);
++
++/**
++ * timer_replay_report_expired:
++ *
++ * error_report() each expired virtual timer that needs a
++ * CHECKPOINT_CLOCK_VIRTUAL to run under replay.
++ *
++ * Returns: the number reported
++ */
++int timer_replay_report_expired(void);
++
+ /**
+  * timer_deinit:
+  * @ts: the timer to be de-initialised
+diff --git a/include/system/replay.h b/include/system/replay.h
+index d7612217d6637a0177d2c4e42916dd227acf4fba..01d7f3f448d13254b78fa6332b97266d9e03242c 100644
+--- a/include/system/replay.h
++++ b/include/system/replay.h
+@@ -187,4 +187,15 @@ void replay_vmstate_init(void);
+     can be created */
+ bool replay_can_snapshot(void);
+ 
++/**
++ * replay_check_timer_stall:
++ *
++ * In replay, the vCPU loop ran the virtual timers and one is still expired:
++ * it waits for a CHECKPOINT_CLOCK_VIRTUAL, and the vCPU runs nothing until
++ * it fires.  If that does not change for a while at the same instruction
++ * count, the log and the timers disagree and the replay would spin forever:
++ * report the timers and stop with an error.  With the replay mutex held.
++ */
++void replay_check_timer_stall(void);
++
+ #endif
+diff --git a/replay/replay-begin.c b/replay/replay-begin.c
+index fc2aef535d64e2cd9ebceece53a781287d8c2e22..39d85484dd4f228f02c2642e8c809bb1c2551494 100644
+--- a/replay/replay-begin.c
++++ b/replay/replay-begin.c
+@@ -212,10 +212,16 @@ static void rr_register_chardevs(RrBeginRecordInfo *info)
+  * synchronous vCPU work (x86 vapic_post_load -> run_on_cpu); a vCPU thread
+  * that has run blocks on the replay mutex this (main-loop) thread holds, so
+  * run_on_cpu() hands the mutex over while it waits (0028).
++ *
++ * Record and replay must leave the load with the same virtual timers armed
++ * and the same ones turned into vCPU work, although they load from
++ * different clocks (the recorder's is already the snapshot's, a fresh
++ * replaying process's is near 0, and on x86 the APIC loads before the
++ * "timer" section): replay_load_snapshot() decides after the load.
+  */
+ static bool rr_load_start(const char *snapshot, Error **errp)
+ {
+-    return load_snapshot(snapshot, NULL, false, NULL, errp);
++    return replay_load_snapshot(snapshot, errp);
+ }
+ 
+ /*
+@@ -288,9 +294,10 @@ RrBeginRecordInfo *qmp_x_rr_begin_record(const char *snapshot,
+     /*
+      * The replay starts by loading this snapshot; start the recording from
+      * the loaded state too.  Loading is not the identity: a virtual timer
+-     * that is already due becomes vCPU work on load (util/qemu-timer.c,
+-     * timer_mod_ns_locked under replay) but fires from the main loop, with
+-     * a CHECKPOINT_CLOCK_VIRTUAL, in a VM that was merely paused.
++     * that is already due becomes vCPU work after the load (no log event;
++     * replay_load_snapshot -> timer_replay_load_end) but fires from the
++     * main loop, with a CHECKPOINT_CLOCK_VIRTUAL, in a VM that was merely
++     * paused.
+      */
+     if (!rr_load_start(snapshot, errp)) {
+         error_prepend(errp, "reloading the start snapshot: ");
+diff --git a/replay/replay-debugging.c b/replay/replay-debugging.c
+index 7b904a141654b2c5e1f0e257b94d75f4749e1d22..bb7d6f1265be25e4339081a4f04547bc17517507 100644
+--- a/replay/replay-debugging.c
++++ b/replay/replay-debugging.c
+@@ -192,7 +192,7 @@ static void replay_seek(int64_t icount, QEMUTimerCB callback, Error **errp)
+         if (icount < replay_get_current_icount()
+             || replay_get_current_icount() < snapshot_icount) {
+             vm_stop(RUN_STATE_RESTORE_VM);
+-            load_snapshot(snapshot, NULL, false, NULL, errp);
++            replay_load_snapshot(snapshot, errp);
+         }
+         g_free(snapshot);
+     }
+diff --git a/replay/replay-internal.h b/replay/replay-internal.h
+index 19273427947e3894406944cb4a464346525938b4..1ff43cd59429afe9ee925321a14693014b2953f1 100644
+--- a/replay/replay-internal.h
++++ b/replay/replay-internal.h
+@@ -213,9 +213,17 @@ G_NORETURN void replay_sync_error(const char *error);
+    to make cached timers available for post_load functions. */
+ void replay_vmstate_register(void);
+ 
++/*
++ * load_snapshot() under record/replay: decide which virtual timers the load
++ * leaves expired against the loaded clock (timer_replay_load_begin()).
++ */
++bool replay_load_snapshot(const char *name, Error **errp);
++
+ /* x-rr-begin-record, x-rr-begin-replay (replay-begin.c) */
+ bool replay_check_blockers(Error **errp);
++/* name the start snapshot; x-rr-begin-record reloads it before recording */
+ void replay_set_snapshot_name(const char *name);
++extern bool replay_snapshot_reloaded;
+ void replay_enable_record(const char *fname);
+ void replay_enable_play(const char *fname);
+ 
+diff --git a/replay/replay-snapshot.c b/replay/replay-snapshot.c
+index 35ed686bc378220440c311fa39b210a6e06ca5f0..54e32abc01f9d7cf2d9a56053092e9c7a1bec21c 100644
+--- a/replay/replay-snapshot.c
++++ b/replay/replay-snapshot.c
+@@ -18,6 +18,7 @@
+ #include "qemu/error-report.h"
+ #include "migration/vmstate.h"
+ #include "migration/snapshot.h"
++#include "qemu/timer.h"
+ 
+ static int replay_pre_save(void *opaque)
+ {
+@@ -99,7 +100,7 @@ void replay_vmstate_init(void)
+                 exit(1);
+             }
+         } else if (replay_mode == REPLAY_MODE_PLAY) {
+-            if (!load_snapshot(replay_snapshot, NULL, false, NULL, &err)) {
++            if (!replay_load_snapshot(replay_snapshot, &err)) {
+                 error_report_err(err);
+                 error_report("Could not load snapshot for icount replay");
+                 exit(1);
+@@ -108,6 +109,35 @@ void replay_vmstate_init(void)
+     }
+ }
+ 
++/*
++ * Load a snapshot in record/replay mode: the start snapshot of
++ * x-rr-begin-record/-replay, the -icount rrsnapshot= one at startup, or the
++ * nearest one for a reverse-debugging seek.
++ *
++ * The devices' virtual timers are re-armed while QEMU_CLOCK_VIRTUAL still
++ * runs at the loading process's time (see timer_replay_load_begin()), so
++ * whether one looks expired, and becomes vCPU work instead of waiting for a
++ * CHECKPOINT_CLOCK_VIRTUAL in the log, is decided after the load against
++ * the loaded clock, the way the recorder saw it:
++ *  - x-rr-begin-record reloads its start snapshot (at its own time) and
++ *    records from the loaded state: the timers due at the loaded time
++ *    became vCPU work then, so they become vCPU work on every load of it;
++ *  - any other snapshot was taken by a run that went on from the saved
++ *    state (rrsnapshot= at startup, a savevm while recording or replaying):
++ *    its timers stay armed and fire through the log's checkpoints.
++ */
++bool replay_load_snapshot(const char *name, Error **errp)
++{
++    bool convert = replay_snapshot_reloaded &&
++                   !g_strcmp0(name, replay_snapshot);
++    bool ok;
++
++    timer_replay_load_begin();
++    ok = load_snapshot(name, NULL, false, NULL, errp);
++    timer_replay_load_end(ok, convert);
++    return ok;
++}
++
+ bool replay_can_snapshot(void)
+ {
+     return replay_mode == REPLAY_MODE_NONE
+diff --git a/replay/replay.c b/replay/replay.c
+index 8d8a4e4553b9746f4980c93d1d31b6d29699570a..b7859e332574519f0d1cbc95415fd93ab37b63cf 100644
+--- a/replay/replay.c
++++ b/replay/replay.c
+@@ -36,6 +36,8 @@ static QEMUTimer *replay_flush_timer;
+ 
+ ReplayMode replay_mode = REPLAY_MODE_NONE;
+ char *replay_snapshot;
++/* replay_snapshot is x-rr-begin-record's, which the recorder reloads */
++bool replay_snapshot_reloaded;
+ 
+ /* Name of replay file  */
+ static char *replay_filename;
+@@ -337,6 +339,43 @@ bool replay_has_event(void)
+     return res;
+ }
+ 
++/* a vCPU stuck this many rounds and this long on an expired timer */
++#define REPLAY_STALL_ROUNDS     1000
++#define REPLAY_STALL_MS         5000
++
++void replay_check_timer_stall(void)
++{
++    static unsigned rounds;
++    static uint64_t icount;
++    static int64_t since;
++    uint64_t now_icount;
++    int64_t now_ms;
++
++    g_assert(replay_mutex_locked());
++    if (qemu_clock_deadline_ns_all(QEMU_CLOCK_VIRTUAL,
++                                   QEMU_TIMER_ATTR_ALL) != 0) {
++        rounds = 0;
++        return;
++    }
++    now_icount = replay_get_current_icount();
++    now_ms = g_get_monotonic_time() / 1000;
++    if (!rounds || now_icount != icount) {
++        rounds = 1;
++        icount = now_icount;
++        since = now_ms;
++        return;
++    }
++    if (++rounds < REPLAY_STALL_ROUNDS || now_ms - since < REPLAY_STALL_MS) {
++        return;
++    }
++    error_report("replay: no progress at instruction %" PRIu64 " for %u "
++                 "rounds: these virtual timers are due, but the log has no "
++                 "CHECKPOINT_CLOCK_VIRTUAL for them here (the replay's "
++                 "timers do not match the recording's)", now_icount, rounds);
++    timer_replay_report_expired();
++    replay_sync_error("replay: expired virtual timer with no checkpoint");
++}
++
+ G_NORETURN void replay_sync_error(const char *error)
+ {
+     error_report("%s (insn total %"PRId64"/%d left, event %d is %s)", error,
+@@ -520,6 +559,7 @@ void replay_finish(void)
+ 
+     g_free(replay_snapshot);
+     replay_snapshot = NULL;
++    replay_snapshot_reloaded = false;
+ 
+     replay_finish_events();
+     replay_mode = REPLAY_MODE_NONE;
+@@ -553,6 +593,7 @@ void replay_set_snapshot_name(const char *name)
+ {
+     g_free(replay_snapshot);
+     replay_snapshot = g_strdup(name);
++    replay_snapshot_reloaded = true;
+ }
+ 
+ void replay_enable_record(const char *fname)
+diff --git a/util/qemu-timer.c b/util/qemu-timer.c
+index d93a020064fe2a82602c5739f4cb39a930d64a0e..4d2ca1c5531baf7b8168c014550895a330ee5f62 100644
+--- a/util/qemu-timer.c
++++ b/util/qemu-timer.c
+@@ -31,11 +31,16 @@
+ #include "system/replay.h"
+ #include "system/cpus.h"
+ #include "hw/core/cpu.h"
++#include "qemu/error-report.h"
+ 
+ #ifdef CONFIG_POSIX
+ #include <pthread.h>
+ #endif
+ 
++#ifndef _WIN32
++#include <dlfcn.h>
++#endif
++
+ #ifdef CONFIG_PPOLL
+ #include <poll.h>
+ #endif
+@@ -395,6 +400,151 @@ static void timer_fire(CPUState *cpu, run_on_cpu_data data)
+     t->cb(t->opaque);
+ }
+ 
++/*
++ * Virtual timers armed while a snapshot loads under record/replay, in the
++ * order they were (last) armed; NULL outside timer_replay_load_begin/end.
++ * Only main_loop_tlg's virtual list is deferred: its timers belong to
++ * devices, which arm them under the BQL, and the load holds the BQL with
++ * the vCPUs stopped.  So the array is only touched under the BQL.
++ */
++static GPtrArray *replay_load_timers;
++
++static bool timer_is_replay_virtual(QEMUTimerList *timer_list, QEMUTimer *ts)
++{
++    return replay_mode != REPLAY_MODE_NONE &&
++           timer_list->clock->type == QEMU_CLOCK_VIRTUAL &&
++           !(ts->attributes & QEMU_TIMER_ATTR_EXTERNAL);
++}
++
++static bool timer_replay_load_deferred(QEMUTimerList *timer_list,
++                                       QEMUTimer *ts)
++{
++    if (timer_list != main_loop_tlg.tl[QEMU_CLOCK_VIRTUAL] ||
++        !timer_is_replay_virtual(timer_list, ts)) {
++        return false;
++    }
++    assert(bql_locked());
++    return true;
++}
++
++/*
++ * Name a timer callback for a diagnostic: the symbol if it is exported,
++ * else the object file and offset (addr2line -f -e FILE OFFSET).
++ */
++static void timer_describe_cb(QEMUTimerCB *cb, char *buf, size_t len)
++{
++#ifndef _WIN32
++    Dl_info info;
++
++    if (dladdr((void *)cb, &info) && info.dli_fname) {
++        if (info.dli_sname && info.dli_saddr == (void *)cb) {
++            snprintf(buf, len, "%s", info.dli_sname);
++        } else {
++            snprintf(buf, len, "%s+0x%" PRIxPTR, info.dli_fname,
++                     (uintptr_t)cb - (uintptr_t)info.dli_fbase);
++        }
++        return;
++    }
++#endif
++    snprintf(buf, len, "%p", cb);
++}
++
++/*
++ * Report each expired non-EXTERNAL virtual timer (these need a
++ * CHECKPOINT_CLOCK_VIRTUAL under replay) for which @skip is false.
++ * Returns how many were reported.
++ */
++static int timer_replay_report(bool warn, GPtrArray *skip)
++{
++    QEMUClock *clock = qemu_clock_ptr(QEMU_CLOCK_VIRTUAL);
++    int64_t now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
++    QEMUTimerList *timer_list;
++    QEMUTimer *ts;
++    char name[256];
++    int n = 0;
++
++    QLIST_FOREACH(timer_list, &clock->timerlists, list) {
++        qemu_mutex_lock(&timer_list->active_timers_lock);
++        for (ts = timer_list->active_timers;
++             ts && timer_expired_ns(ts, now); ts = ts->next) {
++            if ((ts->attributes & QEMU_TIMER_ATTR_EXTERNAL) ||
++                (skip && g_ptr_array_find(skip, ts, NULL))) {
++                continue;
++            }
++            timer_describe_cb(ts->cb, name, sizeof(name));
++            if (warn) {
++                warn_report("replay: virtual timer %s (opaque %p) expired at "
++                            "%" PRId64 ", clock %" PRId64 ", left armed by "
++                            "something other than the snapshot load: record "
++                            "and replay may disagree on it", name, ts->opaque,
++                            ts->expire_time, now);
++            } else {
++                error_report("replay: virtual timer %s (opaque %p) expired at "
++                             "%" PRId64 ", clock %" PRId64, name, ts->opaque,
++                             ts->expire_time, now);
++            }
++            n++;
++        }
++        qemu_mutex_unlock(&timer_list->active_timers_lock);
++    }
++    return n;
++}
++
++int timer_replay_report_expired(void)
++{
++    return timer_replay_report(false, NULL);
++}
++
++/*
++ * Loading a snapshot re-arms device timers (vmstate timer fields, post_load
++ * hooks, the reset before the load) while QEMU_CLOCK_VIRTUAL still runs at
++ * the loading process's time: the "timer" section that restores it may come
++ * after the devices (on x86 the APIC loads first).  Under record/replay a
++ * timer armed already expired becomes vCPU work (see timer_mod_ns_locked),
++ * so without this bracket that would depend on the loading process's clock,
++ * not on the snapshot.
++ *
++ * Between these two calls virtual timers are only armed and remembered.  At
++ * the end, if @convert, each one armed during the load that is due at the
++ * loaded time becomes vCPU work, in arming order, as if it had been armed
++ * at the loaded time; otherwise they stay armed (and fire through the log's
++ * CHECKPOINT_CLOCK_VIRTUAL).  An expired timer the load did not arm is
++ * reported: record and replay may disagree on it.
++ */
++void timer_replay_load_begin(void)
++{
++    assert(bql_locked());
++    assert(!replay_load_timers);
++    replay_load_timers = g_ptr_array_new();
++}
++
++void timer_replay_load_end(bool loaded, bool convert)
++{
++    GPtrArray *timers = replay_load_timers;
++    int64_t now;
++    guint i;
++
++    assert(timers);
++    replay_load_timers = NULL;
++    if (!loaded) {
++        /* a half-loaded machine: the caller abandons it */
++        g_ptr_array_free(timers, true);
++        return;
++    }
++    now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
++    for (i = 0; convert && i < timers->len; i++) {
++        QEMUTimer *ts = g_ptr_array_index(timers, i);
++
++        /* pending: a timer that already ran has expire_time -1 */
++        if (timer_pending(ts) && timer_expired_ns(ts, now) && first_cpu) {
++            timer_del(ts);
++            async_run_on_cpu(first_cpu, timer_fire, RUN_ON_CPU_HOST_PTR(ts));
++        }
++    }
++    timer_replay_report(true, timers);
++    g_ptr_array_free(timers, true);
++}
++
+ static bool timer_mod_ns_locked(QEMUTimerList *timer_list,
+                                 QEMUTimer *ts, int64_t expire_time)
+ {
+@@ -413,9 +563,12 @@ static bool timer_mod_ns_locked(QEMUTimerList *timer_list,
+      *
+      * Convert such timers to CPU work in order to avoid it.
+      */
+-    if (replay_mode != REPLAY_MODE_NONE &&
+-        timer_list->clock->type == QEMU_CLOCK_VIRTUAL &&
+-        !(ts->attributes & QEMU_TIMER_ATTR_EXTERNAL) &&
++    if (unlikely(replay_load_timers) &&
++        timer_replay_load_deferred(timer_list, ts)) {
++        /* decided at timer_replay_load_end() */
++        g_ptr_array_remove(replay_load_timers, ts);
++        g_ptr_array_add(replay_load_timers, ts);
++    } else if (timer_is_replay_virtual(timer_list, ts) &&
+         expire_time <= qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL)) {
+         async_run_on_cpu(first_cpu, timer_fire,
+                          RUN_ON_CPU_HOST_PTR(ts));
+@@ -448,6 +601,13 @@ void timer_del(QEMUTimer *ts)
+ {
+     QEMUTimerList *timer_list = ts->timer_list;
+ 
++    if (unlikely(replay_load_timers) &&
++        timer_list == main_loop_tlg.tl[QEMU_CLOCK_VIRTUAL]) {
++        /* not pending, and maybe about to be freed */
++        assert(bql_locked());
++        g_ptr_array_remove(replay_load_timers, ts);
++    }
++
+     if (timer_list) {
+         qemu_mutex_lock(&timer_list->active_timers_lock);
+         timer_del_locked(timer_list, ts);

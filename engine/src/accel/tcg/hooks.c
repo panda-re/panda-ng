@@ -356,6 +356,20 @@ static TCGHook *hook_insert(vaddr pc, TCGHookFn fn, void *opaque,
     return h;
 }
 
+void tcg_hooks_mark_pc(vaddr pc)
+{
+    qemu_mutex_lock(&hooks_lock);
+    qatomic_set(&tcg_hooks_enabled, true);
+    if (target_page.decided) {
+        mark_page(pc);
+    } else {
+        /* no vCPU yet, so nothing translated: mark it when the page size is known */
+        pages_pending = true;
+    }
+    queue_commit(pc);
+    qemu_mutex_unlock(&hooks_lock);
+}
+
 TCGHook *tcg_hook_insert(vaddr pc, TCGHookFn fn, void *opaque)
 {
     return hook_insert(pc, fn, opaque, NULL, 0);

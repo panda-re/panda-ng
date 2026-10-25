@@ -4,16 +4,29 @@ Date: Fri, 23 Oct 2026 10:40:00 -0400
 Subject: [PATCH] hw/block/pflash_cfi01: one post_load state handler at a time
 
 pflash_post_load() registers postload_update_cb() as a VM change state
-handler, and the callback deletes pfl->vmstate when it runs. Two loads before
-the VM runs (a loadvm followed by an in-memory device-state restore, as
-panda_fast_restore does) registered two handlers with pfl->vmstate naming the
-second; the first to run deleted the other while vm_state_notify was walking
-the list (QTAILQ_FOREACH_SAFE only protects the current element), and the walk
-called freed memory (SIGBUS/SIGSEGV in vm_state_notify on aarch64 virt).
+handler and keeps it in pfl->vmstate; the callback deletes pfl->vmstate when
+it runs. Nothing stops a second load from running before the VM does, and
+then two handlers are registered while pfl->vmstate names only the second.
+On the next "cont", vm_state_notify() runs the first handler, which deletes
+the second one: the list walk (QTAILQ_FOREACH_SAFE protects only the current
+entry) then calls the freed entry, which deletes pfl->vmstate again.
+
+Reproducer: a machine with a writable CFI01 flash (arm virt with
+-bios or -drive if=pflash), a snapshot "a", and in the monitor:
+
+    (qemu) stop
+    (qemu) loadvm a
+    (qemu) loadvm a
+    (qemu) cont
+
+The second loadvm leaks the first handler and the cont walks freed memory.
+On aarch64 virt (-bios edk2-aarch64-code.fd, a Debian 13 guest) QEMU dies
+with SIGBUS at the cont; with this patch the guest runs on. (Tested on
+QEMU 11.1 with PANDA's series; the code is the same upstream.) A restore of device state from memory after a
+loadvm (as an in-memory snapshot does) hits the same path.
 
 Drop an outstanding handler before registering the next. On the usual path
-pfl->vmstate is NULL here, so nothing changes. rehosting/qemu_builder's
-fastsnap set carries the same change (0015) for the leak it also causes.
+pfl->vmstate is NULL here and nothing changes.
 ---
  hw/block/pflash_cfi01.c | 9 +++++++++
  1 file changed, 9 insertions(+)

@@ -1,0 +1,418 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Sun, 25 Oct 2026 02:47:45 -0400
+Subject: [PATCH] replay: mark the begin-record start snapshot; refuse loads
+ while recording
+
+x-rr-begin-record reloads its start snapshot and records from the loaded
+state, so replay_load_snapshot() (0140) turns the timers due at the loaded
+clock into vCPU work on every load of it.  The start snapshot now carries a
+"replay/begin" subsection of the "replay" section, saved only by
+x-rr-begin-record's save_snapshot, and a load of a snapshot so marked
+converts (the name rule stays for start snapshots saved before the mark).
+The log's format is unchanged.
+
+Such a recording replayed in a fresh process with -icount
+rr=replay,rrfile=,rrsnapshot= cannot work: its log has nothing of machine
+init, nor of the snapshot load's block requests (x-rr-begin-record saved and
+reloaded with the events off, before replay_start(), as x-rr-begin-replay
+loads), and the network filters x-rr-begin-record added are not on the
+command line.  On x86 the load hung for ever in blkreplay's flush of the
+vmstate (with the events switched off for the load, it then failed an
+assertion in bdrv_drain_all_end), before the timers mattered.  The startup
+load now stops at the mark with an error that says to replay with
+x-rr-begin-replay; boards that draw random data at machine init (virt's fdt
+rng-seed) stop earlier, and "Missing random event" now says the same.
+
+load_snapshot() was not refused under record/replay (HMP/QMP loadvm,
+snapshot-load, and PANDA's panda_revert / penguin_load_snapshot): the log
+has no event for the load, so a recording with a revert in it could not be
+replayed.  replay_can_load_snapshot() refuses every load while recording or
+replaying except record/replay's own (replay_load_snapshot(): the start
+snapshot and a reverse-debugging seek) and -loadvm, which runs before the
+run and which a replay given the same command line repeats.  loadvm and
+snapshot-load check before stopping the VM, so a refused load leaves it
+running.  A savevm that would replace the start snapshot while recording or
+replaying is refused too (its replay loads that snapshot).
+
+The stall check's deadline recomputation is deliberate (the caller's was
+taken before the timers ran): say so.
+---
+ include/system/replay.h        |  18 +++++
+ migration/migration-hmp-cmds.c |   6 ++
+ migration/savevm.c             |  12 ++++
+ replay/replay-internal.h       |   6 ++
+ replay/replay-random.c         |   6 ++
+ replay/replay-snapshot.c       | 127 +++++++++++++++++++++++++++++++--
+ replay/replay.c                |   4 ++
+ replay/stubs-system.c          |  11 +++
+ system/vl.c                    |   2 +
+ 9 files changed, 186 insertions(+), 6 deletions(-)
+
+diff --git a/include/system/replay.h b/include/system/replay.h
+index 01d7f3f448d13254b78fa6332b97266d9e03242c..ce93b2d2303ad6e58240070b2117fed362fbf5c9 100644
+--- a/include/system/replay.h
++++ b/include/system/replay.h
+@@ -186,6 +186,24 @@ void replay_vmstate_init(void);
+ /*! Called to ensure that replay state is consistent and VM snapshot
+     can be created */
+ bool replay_can_snapshot(void);
++/**
++ * replay_can_load_snapshot:
++ *
++ * A snapshot load while recording or replaying is not in the log, so the
++ * replay could not repeat it: refuse it (with @errp set) unless record/replay
++ * loads it itself (its start snapshot, a reverse-debugging seek), or it is
++ * -loadvm (replay_permit_load()).
++ */
++bool replay_can_load_snapshot(Error **errp);
++/* -loadvm: before the run, and a replay given the same command line loads it too */
++void replay_permit_load(bool permit);
++/**
++ * replay_can_save_snapshot:
++ *
++ * The recording's start snapshot is what its replay loads: refuse a savevm
++ * that would replace it while recording or replaying.
++ */
++bool replay_can_save_snapshot(const char *name, Error **errp);
+ 
+ /**
+  * replay_check_timer_stall:
+diff --git a/migration/migration-hmp-cmds.c b/migration/migration-hmp-cmds.c
+index b04fc4489f45e14d80ea6b644f3e483e7ccbecb2..fe665f331aea0fd493f265611a3a276ec1e78526 100644
+--- a/migration/migration-hmp-cmds.c
++++ b/migration/migration-hmp-cmds.c
+@@ -29,6 +29,7 @@
+ #include "qemu/cutils.h"
+ #include "qemu/error-report.h"
+ #include "qemu/sockets.h"
++#include "system/replay.h"
+ #include "system/runstate.h"
+ #include "ui/qemu-spice.h"
+ #include "system/system.h"
+@@ -479,6 +480,11 @@ void hmp_loadvm(Monitor *mon, const QDict *qdict)
+     const char *name = qdict_get_str(qdict, "name");
+     Error *err = NULL;
+ 
++    /* refused before the VM stops, so it keeps running */
++    if (!replay_can_load_snapshot(&err)) {
++        hmp_handle_error(mon, err);
++        return;
++    }
+     vm_stop(RUN_STATE_RESTORE_VM);
+ 
+     if (load_snapshot(name, NULL, false, NULL, &err)) {
+diff --git a/migration/savevm.c b/migration/savevm.c
+index e19f6420a610a8d63f32e2c98d9ea7c5f4fe7a50..490aa7e5ae056780c82308566bb327cfcb232cae 100644
+--- a/migration/savevm.c
++++ b/migration/savevm.c
+@@ -3303,6 +3303,9 @@ bool save_snapshot(const char *name, bool overwrite, const char *vmstate,
+         return false;
+     }
+ 
++    if (!replay_can_save_snapshot(name, errp)) {
++        return false;
++    }
+     if (!replay_can_snapshot()) {
+         error_setg(errp, "Record/replay does not allow making snapshot "
+                    "right now. Try once more later.");
+@@ -3490,6 +3493,9 @@ bool load_snapshot(const char *name, const char *vmstate,
+     if (!migrate_can_snapshot(errp)) {
+         return false;
+     }
++    if (!replay_can_load_snapshot(errp)) {
++        return false;
++    }
+ 
+     if (!bdrv_all_can_snapshot(has_devices, devices, errp)) {
+         return false;
+@@ -3643,6 +3649,11 @@ static void snapshot_load_job_bh(void *opaque)
+ 
+     job_progress_set_remaining(&s->common, 1);
+ 
++    /* refused before the VM stops, so it keeps running */
++    if (!replay_can_load_snapshot(s->errp)) {
++        s->ret = false;
++        goto out;
++    }
+     vm_stop(RUN_STATE_RESTORE_VM);
+ 
+     s->ret = load_snapshot(s->tag, s->vmstate, true, s->devices, s->errp);
+@@ -3650,6 +3661,7 @@ static void snapshot_load_job_bh(void *opaque)
+         load_snapshot_resume(orig_state);
+     }
+ 
++out:
+     job_progress_update(&s->common, 1);
+ 
+     qmp_snapshot_job_free(s);
+diff --git a/replay/replay-internal.h b/replay/replay-internal.h
+index 1ff43cd59429afe9ee925321a14693014b2953f1..f891f1e46a72d3e1d0dbf17358f9554a17c38f06 100644
+--- a/replay/replay-internal.h
++++ b/replay/replay-internal.h
+@@ -98,6 +98,12 @@ typedef struct ReplayState {
+     uint64_t block_request_id;
+     uint64_t read_event_id;
+     size_t n_audio_samples;
++    /*
++     * x-rr-begin-record's start snapshot: true while it is saved (the
++     * "replay/begin" subsection marks it), and after a load of a snapshot
++     * so marked
++     */
++    bool begin_start;
+ } ReplayState;
+ extern ReplayState replay_state;
+ 
+diff --git a/replay/replay-random.c b/replay/replay-random.c
+index 7f4c46f74d9cd7bbb635151af23f4f21641bb1c2..33330e195acee853450a49c65d0d6897f51abde9 100644
+--- a/replay/replay-random.c
++++ b/replay/replay-random.c
+@@ -38,6 +38,12 @@ int replay_read_random(void *buf, size_t len)
+         g_assert(buf_size == len);
+     } else {
+         error_report("Missing random event in the replay log");
++        if (!replay_events_enabled()) {
++            /* -icount rr=replay at startup: machine init */
++            error_printf("The board draws random data at machine init; a "
++                         "recording begun at run time (x-rr-begin-record) "
++                         "has none: replay it with x-rr-begin-replay.\n");
++        }
+         exit(1);
+     }
+     return ret;
+diff --git a/replay/replay-snapshot.c b/replay/replay-snapshot.c
+index 54e32abc01f9d7cf2d9a56053092e9c7a1bec21c..bc968fb87affe988e1dbdb972969362bc6d82c78 100644
+--- a/replay/replay-snapshot.c
++++ b/replay/replay-snapshot.c
+@@ -52,12 +52,70 @@ static int replay_post_load(void *opaque, int version_id)
+     return 0;
+ }
+ 
++static bool replay_begin_needed(void *opaque)
++{
++    ReplayState *state = opaque;
++
++    return state->begin_start;
++}
++
++/* replay_vmstate_init() loads the -icount rrsnapshot= snapshot at startup */
++static bool replay_startup_load;
++
++static int replay_begin_post_load(void *opaque, int version_id)
++{
++    ReplayState *state = opaque;
++
++    /*
++     * A recording begun at run time cannot be replayed from startup: its
++     * log has nothing of machine init (a board's random draws), nor of this
++     * load's block requests (x-rr-begin-record saved and reloaded the
++     * snapshot with the events off, before replay_start(), as
++     * x-rr-begin-replay loads it; here the flush that closes the vmstate
++     * would wait for ever in blkreplay), and the network filters
++     * x-rr-begin-record added are not on this command line.  Stop here,
++     * before the load blocks, instead of hanging or diverging.
++     */
++    if (state->begin_start && replay_startup_load) {
++        error_report("replay: snapshot '%s' starts a recording made with "
++                     "x-rr-begin-record; -icount rr=replay,rrsnapshot= "
++                     "cannot replay it: start this VM paused (-S) without "
++                     "rr=, and replay it with x-rr-begin-replay "
++                     "(Panda.run_replay)", replay_snapshot);
++        exit(1);
++    }
++    return 0;
++}
++
++/*
++ * Marks x-rr-begin-record's start snapshot: every load of it converts its
++ * due virtual timers the way the recorder's reload did
++ * (replay_load_snapshot()), and the -icount rr=replay,rrsnapshot= startup
++ * path, which cannot replay such a recording, refuses it.  (The log's
++ * format stays as it is.)
++ */
++static const VMStateDescription vmstate_replay_begin = {
++    .name = "replay/begin",
++    .version_id = 1,
++    .minimum_version_id = 1,
++    .needed = replay_begin_needed,
++    .post_load = replay_begin_post_load,
++    .fields = (const VMStateField[]) {
++        VMSTATE_BOOL(begin_start, ReplayState),
++        VMSTATE_END_OF_LIST()
++    },
++};
++
+ static const VMStateDescription vmstate_replay = {
+     .name = "replay",
+     .version_id = 3,
+     .minimum_version_id = 3,
+     .pre_save = replay_pre_save,
+     .post_load = replay_post_load,
++    .subsections = (const VMStateDescription * const []) {
++        &vmstate_replay_begin,
++        NULL
++    },
+     .fields = (const VMStateField[]) {
+         VMSTATE_INT64_ARRAY(cached_clock, ReplayState, REPLAY_CLOCK_COUNT),
+         VMSTATE_UINT64(current_icount, ReplayState),
+@@ -73,6 +131,10 @@ static const VMStateDescription vmstate_replay = {
+ };
+ 
+ static bool replay_vmstate_registered;
++/* replay_vmstate_init() saves the start snapshot */
++static bool replay_saving_start;
++/* replay_load_snapshot() or -loadvm (replay_permit_load()) loads */
++static bool replay_loading;
+ 
+ void replay_vmstate_register(void)
+ {
+@@ -93,14 +155,26 @@ void replay_vmstate_init(void)
+ 
+     if (replay_snapshot) {
+         if (replay_mode == REPLAY_MODE_RECORD) {
+-            if (!save_snapshot(replay_snapshot,
+-                               true, NULL, false, NULL, &err)) {
++            bool ok;
++
++            /* x-rr-begin-record reloads it: mark it */
++            replay_state.begin_start = replay_snapshot_reloaded;
++            replay_saving_start = true;
++            ok = save_snapshot(replay_snapshot, true, NULL, false, NULL, &err);
++            replay_saving_start = false;
++            replay_state.begin_start = false;
++            if (!ok) {
+                 error_report_err(err);
+                 error_report("Could not create snapshot for icount record");
+                 exit(1);
+             }
+         } else if (replay_mode == REPLAY_MODE_PLAY) {
+-            if (!replay_load_snapshot(replay_snapshot, &err)) {
++            bool ok;
++
++            replay_startup_load = true;
++            ok = replay_load_snapshot(replay_snapshot, &err);
++            replay_startup_load = false;
++            if (!ok) {
+                 error_report_err(err);
+                 error_report("Could not load snapshot for icount replay");
+                 exit(1);
+@@ -112,7 +186,8 @@ void replay_vmstate_init(void)
+ /*
+  * Load a snapshot in record/replay mode: the start snapshot of
+  * x-rr-begin-record/-replay, the -icount rrsnapshot= one at startup, or the
+- * nearest one for a reverse-debugging seek.
++ * nearest one for a reverse-debugging seek.  The only loads allowed while
++ * recording or replaying (replay_can_load_snapshot()).
+  *
+  * The devices' virtual timers are re-armed while QEMU_CLOCK_VIRTUAL still
+  * runs at the loading process's time (see timer_replay_load_begin()), so
+@@ -128,16 +203,56 @@ void replay_vmstate_init(void)
+  */
+ bool replay_load_snapshot(const char *name, Error **errp)
+ {
+-    bool convert = replay_snapshot_reloaded &&
+-                   !g_strcmp0(name, replay_snapshot);
++    bool convert;
+     bool ok;
+ 
++    replay_state.begin_start = false;
++    replay_loading = true;
+     timer_replay_load_begin();
+     ok = load_snapshot(name, NULL, false, NULL, errp);
++    /*
++     * The start snapshot of x-rr-begin-record: marked ("replay/begin"), or
++     * (one saved before the mark) by its name while x-rr-begin-* runs.
++     */
++    convert = replay_state.begin_start ||
++              (replay_snapshot_reloaded && !g_strcmp0(name, replay_snapshot));
+     timer_replay_load_end(ok, convert);
++    replay_loading = false;
++    replay_state.begin_start = false;
+     return ok;
+ }
+ 
++void replay_permit_load(bool permit)
++{
++    replay_loading = permit;
++}
++
++bool replay_can_load_snapshot(Error **errp)
++{
++    if (replay_mode == REPLAY_MODE_NONE || replay_loading) {
++        return true;
++    }
++    error_setg(errp, "Record/replay does not allow loading a snapshot while "
++               "%s: the log would not contain the load, so a replay could "
++               "not repeat it (load it before the recording begins, or "
++               "after it ends)",
++               replay_mode == REPLAY_MODE_RECORD ? "recording" : "replaying");
++    return false;
++}
++
++bool replay_can_save_snapshot(const char *name, Error **errp)
++{
++    if (replay_mode == REPLAY_MODE_NONE || replay_saving_start ||
++        !replay_snapshot || g_strcmp0(name, replay_snapshot)) {
++        return true;
++    }
++    error_setg(errp, "Record/replay does not allow replacing snapshot '%s' "
++               "while %s: it is the recording's start snapshot, which its "
++               "replay loads", name,
++               replay_mode == REPLAY_MODE_RECORD ? "recording" : "replaying");
++    return false;
++}
++
+ bool replay_can_snapshot(void)
+ {
+     return replay_mode == REPLAY_MODE_NONE
+diff --git a/replay/replay.c b/replay/replay.c
+index b7859e332574519f0d1cbc95415fd93ab37b63cf..2f164a31a887d3175368142195010c2efa83f935 100644
+--- a/replay/replay.c
++++ b/replay/replay.c
+@@ -352,6 +352,10 @@ void replay_check_timer_stall(void)
+     int64_t now_ms;
+ 
+     g_assert(replay_mutex_locked());
++    /*
++     * Not the caller's deadline: that one was taken before it ran the
++     * timers, and only a timer still expired after the run is stuck.
++     */
+     if (qemu_clock_deadline_ns_all(QEMU_CLOCK_VIRTUAL,
+                                    QEMU_TIMER_ATTR_ALL) != 0) {
+         rounds = 0;
+diff --git a/replay/stubs-system.c b/replay/stubs-system.c
+index e0a389e47a0c00d09afcdcb6f6e9bac082c3c36a..62defd60fd251b3d98e3e39c334de89574fe9bd6 100644
+--- a/replay/stubs-system.c
++++ b/replay/stubs-system.c
+@@ -34,6 +34,17 @@ bool replay_can_snapshot(void)
+ {
+     return true;
+ }
++bool replay_can_load_snapshot(Error **errp)
++{
++    return true;
++}
++void replay_permit_load(bool permit)
++{
++}
++bool replay_can_save_snapshot(const char *name, Error **errp)
++{
++    return true;
++}
+ void replay_configure(struct QemuOpts *opts)
+ {
+ }
+diff --git a/system/vl.c b/system/vl.c
+index 5fa6050ba4ed9060a6d329f4ebc778b8f5d762c8..626d854e71c3a2bb8f3f4aafee365e2236f1196d 100644
+--- a/system/vl.c
++++ b/system/vl.c
+@@ -2895,7 +2895,9 @@ void qmp_x_exit_preconfig(Error **errp)
+ 
+     if (loadvm) {
+         RunState state = autostart ? RUN_STATE_RUNNING : runstate_get();
++        replay_permit_load(true);
+         load_snapshot(loadvm, NULL, false, NULL, &error_fatal);
++        replay_permit_load(false);
+         load_snapshot_resume(state);
+     }
+     if (replay_mode != REPLAY_MODE_NONE) {

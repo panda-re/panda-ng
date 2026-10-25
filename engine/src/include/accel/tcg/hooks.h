@@ -48,6 +48,16 @@ typedef void (*TCGHookFn)(CPUState *cpu, vaddr pc, void *opaque);
 TCGHook *tcg_hook_insert(vaddr pc, TCGHookFn fn, void *opaque);
 
 /*
+ * Make @pc's virtual page translate for its virtual address (no CF_PCREL),
+ * as a hook there would, without inserting one; blocks containing @pc are
+ * invalidated as for a new hook.  For instrumentation that is keyed by
+ * address and decided at translation time (the PANDA hooks plugin): a
+ * shared block translated at another mapping of the same code must not run
+ * here.  Callable from any thread.
+ */
+void tcg_hooks_mark_pc(vaddr pc);
+
+/*
  * A condition tested by the generated code before a guarded hook is
  * called: (value & mask) <cond> @value, on the low @size bytes (4 or 8)
  * of a guest register or of a host variable.  For a 4-byte compare the

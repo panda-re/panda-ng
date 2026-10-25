@@ -1,0 +1,251 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Sat, 24 Oct 2026 20:14:59 -0400
+Subject: [PATCH] replay: the replay vmstate registers once and saves with no
+ log open; a second begin works
+
+x-rr-begin-record registers the "replay" vmstate for its start snapshot
+and x-rr-end-record (0040) left it registered. Two consequences:
+
+- a second x-rr-begin-record in the same process registers it again,
+  and savevm_state_handler_insert() exits:
+      Detected duplicate SaveStateEntry: id=replay, instance_id=0x0
+- a savevm after the recording has ended runs replay_pre_save(), which
+  calls ftell() on the closed (NULL) log.
+
+Register once, and keep the section after the recording ends: snapshots
+taken while recording (the start snapshot among them) carry it, and must
+still load after x-rr-end-record (replay_post_load does nothing with
+replay off). replay_pre_save() saves offset 0 when no log is open.
+
+Loading such a snapshot after the end also needs the timers section to
+load with icount off: x-rr-end-record switched icount off at run time
+(icount_disable_runtime() freed the icount timers), and the snapshot
+carries the timer/icount subsections, whose VMSTATE_TIMER_PTR fields
+would load through the NULL timers:
+
+    vmstate_load_vmsd: Assertion `first_elem || !n_elems || !size' failed.
+
+They load into scratch timers, dropped after the load, and the virtual
+clock continues from the saver's icount time (bias + icount), the reverse
+of what 0025 does for a non-icount snapshot in an icount process; the
+clock-domain flag is set too, so the x86 TSC stays continuous (0026).
+
+Also: don't add a chardev to the replay list twice (each begin registers
+its chardevs again); register replay_finish() with atexit() once, not
+per begin; and x-rr-end-record restarts a VM it stopped even if
+switching icount off fails.
+---
+ replay/replay-begin.c    |  5 +--
+ replay/replay-char.c     |  3 +-
+ replay/replay-snapshot.c | 20 +++++++++-
+ replay/replay.c          |  7 +++-
+ system/cpu-timers.c      | 82 ++++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 110 insertions(+), 7 deletions(-)
+
+diff --git a/replay/replay-begin.c b/replay/replay-begin.c
+index a88b16186de4b23731bb17d72d38125898f673bf..fc2aef535d64e2cd9ebceece53a781287d8c2e22 100644
+--- a/replay/replay-begin.c
++++ b/replay/replay-begin.c
+@@ -391,9 +391,8 @@ void qmp_x_rr_end_record(Error **errp)
+     replay_finish();
+     if (icount_by_begin) {
+         icount_by_begin = false;
+-        if (!icount_disable_runtime(errp)) {
+-            return;
+-        }
++        /* on failure the recording has still ended: keep the VM running */
++        icount_disable_runtime(errp);
+     }
+     if (was_running) {
+         vm_start();
+diff --git a/replay/replay-char.c b/replay/replay-char.c
+index ca5268cafdf0d6ead2092908e4646c619a9a82aa..5a2392d1b61b0c4fd51f5e41b53c10bfb2a4e92b 100644
+--- a/replay/replay-char.c
++++ b/replay/replay-char.c
+@@ -43,7 +43,8 @@ static int find_char_driver(Chardev *chr)
+ 
+ void replay_register_char_driver(Chardev *chr)
+ {
+-    if (replay_mode == REPLAY_MODE_NONE) {
++    /* each x-rr-begin-record registers its chardevs again */
++    if (replay_mode == REPLAY_MODE_NONE || find_char_driver(chr) >= 0) {
+         return;
+     }
+     char_drivers = g_realloc(char_drivers,
+diff --git a/replay/replay-snapshot.c b/replay/replay-snapshot.c
+index 3c0a89442a94e2b4164e9e2cff396b57e80b16a8..35ed686bc378220440c311fa39b210a6e06ca5f0 100644
+--- a/replay/replay-snapshot.c
++++ b/replay/replay-snapshot.c
+@@ -22,7 +22,13 @@
+ static int replay_pre_save(void *opaque)
+ {
+     ReplayState *state = opaque;
+-    state->file_offset = ftell(replay_file);
++
++    /*
++     * The section stays registered after x-rr-end-record (a snapshot taken
++     * during the recording, its start snapshot included, still loads), so a
++     * savevm may run with no log open.
++     */
++    state->file_offset = replay_file ? ftell(replay_file) : 0;
+ 
+     return 0;
+ }
+@@ -65,9 +71,19 @@ static const VMStateDescription vmstate_replay = {
+     },
+ };
+ 
++static bool replay_vmstate_registered;
++
+ void replay_vmstate_register(void)
+ {
+-    vmstate_register(NULL, 0, &vmstate_replay, &replay_state);
++    /*
++     * x-rr-begin-record/-replay call this for each recording.  Register
++     * once and never unregister: snapshots taken while recording carry the
++     * section, and must still load after the recording ends.
++     */
++    if (!replay_vmstate_registered) {
++        vmstate_register(NULL, 0, &vmstate_replay, &replay_state);
++        replay_vmstate_registered = true;
++    }
+ }
+ 
+ void replay_vmstate_init(void)
+diff --git a/replay/replay.c b/replay/replay.c
+index 0eb86c8b8e1087b1edd58ae8c674d512674c7839..8d8a4e4553b9746f4980c93d1d31b6d29699570a 100644
+--- a/replay/replay.c
++++ b/replay/replay.c
+@@ -348,6 +348,7 @@ G_NORETURN void replay_sync_error(const char *error)
+ 
+ static void replay_enable(const char *fname, int mode)
+ {
++    static bool atexit_done;
+     const char *fmode = NULL;
+     assert(!replay_file);
+ 
+@@ -363,7 +364,11 @@ static void replay_enable(const char *fname, int mode)
+         exit(1);
+     }
+ 
+-    atexit(replay_finish);
++    /* x-rr-begin-record/-replay enable again for each recording */
++    if (!atexit_done) {
++        atexit(replay_finish);
++        atexit_done = true;
++    }
+ 
+     replay_file = fopen(fname, fmode);
+     if (replay_file == NULL) {
+diff --git a/system/cpu-timers.c b/system/cpu-timers.c
+index f6ae04549d2dbcf560808e9d224defb3f2678ca2..2dabb1d9d96b15f1107891118b1aaa4f0fee3c6a 100644
+--- a/system/cpu-timers.c
++++ b/system/cpu-timers.c
+@@ -167,10 +167,88 @@ static int icount_timers_post_load(void *opaque, int version_id)
+     return 0;
+ }
+ 
++/*
++ * The reverse: a snapshot taken with icount on, loaded with icount off.
++ * x-rr-end-record switches icount off at run time (icount_disable_runtime
++ * frees the icount timers), and a snapshot taken during the recording (its
++ * start snapshot among them) carries the icount subsections.  Their timer
++ * fields load into scratch timers, dropped afterwards; the virtual clock
++ * continues from the saver's icount time.
++ */
++static QEMUTimer icount_scratch_timer[3];
++
++static void icount_scratch_cb(void *opaque)
++{
++}
++
++static void icount_scratch_set(QEMUTimer **t, int i)
++{
++    if (!*t) {
++        if (!icount_scratch_timer[i].timer_list) {
++            timer_init_ns(&icount_scratch_timer[i], QEMU_CLOCK_VIRTUAL,
++                          icount_scratch_cb, NULL);
++        }
++        *t = &icount_scratch_timer[i];
++    }
++}
++
++static void icount_scratch_drop(QEMUTimer **t, int i)
++{
++    if (*t == &icount_scratch_timer[i]) {
++        timer_del(*t);
++        *t = NULL;
++    }
++}
++
++static int warp_timer_pre_load(void *opaque)
++{
++    TimersState *s = opaque;
++
++    icount_scratch_set(&s->icount_warp_timer, 0);
++    return 0;
++}
++
++static int warp_timer_post_load(void *opaque, int version_id)
++{
++    TimersState *s = opaque;
++
++    icount_scratch_drop(&s->icount_warp_timer, 0);
++    return 0;
++}
++
++static int adjust_timers_pre_load(void *opaque)
++{
++    TimersState *s = opaque;
++
++    icount_scratch_set(&s->icount_rt_timer, 1);
++    icount_scratch_set(&s->icount_vm_timer, 2);
++    return 0;
++}
++
++static int adjust_timers_post_load(void *opaque, int version_id)
++{
++    TimersState *s = opaque;
++
++    icount_scratch_drop(&s->icount_rt_timer, 1);
++    icount_scratch_drop(&s->icount_vm_timer, 2);
++    return 0;
++}
++
+ static int timers_post_load(void *opaque, int version_id)
+ {
+     TimersState *s = opaque;
+ 
++    if (!icount_enabled() && icount_state_loaded) {
++        /*
++         * The saver's virtual clock was its icount time; cpu_clock_offset
++         * (the stopped clock here) kept counting host time beside it.
++         */
++        s->cpu_clock_offset = s->qemu_icount_bias +
++                              icount_to_ns(qatomic_read(&s->qemu_icount));
++        s->vm_clock_warp_start = -1;
++        clock_domain_changed = true;
++    }
++
+     if (icount_enabled() && !icount_state_loaded) {
+         /*
+          * cpu_clock_offset holds the virtual time at which the saving VM
+@@ -222,6 +300,8 @@ static const VMStateDescription icount_vmstate_warp_timer = {
+     .version_id = 1,
+     .minimum_version_id = 1,
+     .needed = warp_timer_state_needed,
++    .pre_load = warp_timer_pre_load,
++    .post_load = warp_timer_post_load,
+     .fields = (const VMStateField[]) {
+         VMSTATE_INT64(vm_clock_warp_start, TimersState),
+         VMSTATE_TIMER_PTR(icount_warp_timer, TimersState),
+@@ -234,6 +314,8 @@ static const VMStateDescription icount_vmstate_adjust_timers = {
+     .version_id = 1,
+     .minimum_version_id = 1,
+     .needed = adjust_timers_state_needed,
++    .pre_load = adjust_timers_pre_load,
++    .post_load = adjust_timers_post_load,
+     .fields = (const VMStateField[]) {
+         VMSTATE_TIMER_PTR(icount_rt_timer, TimersState),
+         VMSTATE_TIMER_PTR(icount_vm_timer, TimersState),

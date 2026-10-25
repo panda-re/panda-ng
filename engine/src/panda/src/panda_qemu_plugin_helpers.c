@@ -10,6 +10,7 @@
 #include "exec/translator.h"
 #include "exec/translation-block.h"
 #include "accel/tcg/cpu-loop.h"
+#include "accel/tcg/cpu-ops.h"
 #include "tcg/tcg.h"
 #include "panda/panda_qemu_plugin_helpers.h"
 #include "panda/hooks.h"
@@ -163,14 +164,21 @@ void panda_end_block_flush(CPUState *cpu){
 }
 
 void panda_callbacks_block_longjmp(CPUState *cpu){
+    /* An end/after callback that itself left by longjmp never restored `ending`. */
+    if (cpu->cpu_index < PANDA_END_SLOTS) {
+        ending[cpu->cpu_index].tb = NULL;
+    }
     panda_block_end(cpu, TB_EXIT_REQUESTED);
 }
 
 void panda_end_block_drop_all(void){
     for (int i = 0; i < PANDA_END_SLOTS; i++) {
         pending[i].tb = NULL;
+        ending[i].tb = NULL;
     }
 }
+
+G_NORETURN void panda_block_leave_at_start(CPUState *cpu, TranslationBlock *tb);
 
 /* before_block_exec_invalidate_opt: a callback asked for this block to be translated again before
  * it runs. Drop its TB (the part on its first page is enough to make the lookup miss) and leave
@@ -186,13 +194,69 @@ static void panda_block_invalidate(CPUState *cpu, TranslationBlock *tb, PandaPen
     if (start != (tb_page_addr_t) -1) {
         tb_invalidate_phys_range(cpu, start, MIN(last, page_last));
     }
+    panda_block_leave_at_start(cpu, tb);
+}
+
+/* Leave a block from its start callback, before its first instruction. Under icount, the TB's
+ * prologue (gen_tb_start, before the plugin's TB-start callback) has already taken its whole
+ * instruction count from the budget, and cpu_loop_exit_noexc doesn't give it back
+ * (cpu_restore_state would): give it back here, or each such exit counts tb->icount instructions
+ * that never ran, and a replay drifts from its recording. The PC is the block's (CF_PCREL, or
+ * panda_block_sync_pc), unless a callback set another one to go there. */
+void panda_block_leave_at_start(CPUState *cpu, TranslationBlock *tb){
+    if (tb_cflags(tb) & CF_USE_ICOUNT) {
+        cpu->neg.icount_decr.u16.low += tb->icount;
+    }
     cpu_loop_exit_noexc(cpu);
+}
+
+/* Without CF_PCREL (mips, ppc, any page with a TCG hook), goto_tb chaining leaves the PC store to
+ * the unchained exit: at a chained block's start the CPU's PC is still that of some earlier block.
+ * Make it this block's, as cpu_tb_exec does for a TB that exits at its entry, before anything reads
+ * it (the callbacks, panda_current_pc, cpu_loop_exit_noexc's next lookup). Such code never reads
+ * the PC from the CPU state, so this changes nothing for the block itself. CF_PCREL code keeps the
+ * PC current. Only here, i.e. only while a block-exec callback is enabled. */
+static inline void panda_block_sync_pc(CPUState *cpu, TranslationBlock *tb){
+    if (!(tb_cflags(tb) & CF_PCREL)) {
+        const TCGCPUOps *ops = cpu->cc->tcg_ops;
+        if (ops->synchronize_from_tb) {
+            ops->synchronize_from_tb(cpu, tb);
+        } else {
+            cpu->cc->set_pc(cpu, tb->pc);
+        }
+    }
+}
+
+/* The bridge's gate (see panda_bridge_set_block_gate) */
+static void (*block_gate_set)(int cpu_index, uint64_t on);
+static uint64_t block_gate_on;
+
+/* No block-exec callback is enabled any more: the block before this one has just ended (above), at
+ * a block boundary. Close this vCPU's gate, unless it was opened again meanwhile. Had the gate been
+ * closed for every vCPU at once, a vCPU running chained code would keep its pending block until the
+ * chain returned to cpu_exec or the gate opened again, and an after/end_block_exec enabled by then
+ * would run for it late, with a much later CPU state. */
+static bool panda_block_gate_closed(CPUState *cpu){
+    if (likely(qatomic_read(&block_gate_on)) || !block_gate_set) {
+        return false;
+    }
+    block_gate_set(cpu->cpu_index, 0);
+    smp_mb();
+    if (!qatomic_read(&block_gate_on)) {
+        return true;
+    }
+    block_gate_set(cpu->cpu_index, 1);
+    return false;
 }
 
 void panda_block_start(CPUState *cpu, TranslationBlock *tb){
     PandaPendingBlock *p = cpu->cpu_index < PANDA_END_SLOTS ? &pending[cpu->cpu_index] : NULL;
 
+    panda_block_sync_pc(cpu, tb);   /* also the PC the block before ended with */
     panda_end_block_flush(cpu);     /* the block before this one ran to its end */
+    if (unlikely(panda_block_gate_closed(cpu))) {
+        return;
+    }
     if (unlikely(!p)) {
         panda_callbacks_before_block_exec_dispatch(cpu, tb);
         panda_callbacks_start_block_exec(cpu, tb);
@@ -219,10 +283,7 @@ void panda_block_start(CPUState *cpu, TranslationBlock *tb){
 
 /* The bridge's gate: its block-start callback is conditional on a per-vCPU word it owns, which
  * PANDA sets to 1 while any block-exec callback is enabled. */
-static void (*block_gate_set)(uint64_t on);
-static uint64_t block_gate_on;
-
-void panda_bridge_set_block_gate(void (*set)(uint64_t on)){
+void panda_bridge_set_block_gate(void (*set)(int cpu_index, uint64_t on)){
     block_gate_set = set;
     panda_block_cbs_changed();
 }
@@ -249,12 +310,15 @@ void panda_block_cbs_changed(void){
             break;
         }
     }
-    block_gate_on = on;
-    if (block_gate_set) {
-        block_gate_set(on);
+    qatomic_set(&block_gate_on, on);
+    /* Opening is global and immediate. Closing is lazy, per vCPU (panda_block_gate_closed): a
+     * vCPU's gate stays open until its next block start, which ends the block it was running. */
+    if (on && block_gate_set) {
+        smp_mb();
+        block_gate_set(-1, 1);
     }
 }
 
 uint64_t panda_block_gate(void){
-    return block_gate_on;
+    return qatomic_read(&block_gate_on);
 }

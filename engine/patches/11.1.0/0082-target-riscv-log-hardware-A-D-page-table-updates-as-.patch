@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 15:10:17 -0400
+Subject: [PATCH] target/riscv: log hardware A/D page-table updates as dirty
+
+With Svadu (or without Svade), get_physical_address() sets a PTE's A and D
+bits with a cmpxchg through the host pointer of the page-table page. Nothing
+logs that store: dirty-memory clients never see it, so live migration can
+lose the update and in-memory snapshots that copy back only dirty pages leave
+set A/D bits behind (the same bug target/arm/ptw.c had for FEAT_HAFDBS).
+Mark the PTE's bytes dirty for the region's logging clients after a
+successful update. DIRTY_MEMORY_CODE is excluded, so TB tracking is as before.
+Only hardware A/D updates pay for it.
+---
+ target/riscv/tcg/cpu_helper.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/target/riscv/tcg/cpu_helper.c b/target/riscv/tcg/cpu_helper.c
+index 07d922265..12e7761d8 100644
+--- a/target/riscv/tcg/cpu_helper.c
++++ b/target/riscv/tcg/cpu_helper.c
+@@ -27,6 +27,7 @@
+ #include "exec/page-protection.h"
+ #include "exec/target_page.h"
+ #include "system/memory.h"
++#include "system/physmem.h"
+ #include "instmap.h"
+ #include "tcg/tcg-op.h"
+ #include "accel/tcg/cpu-loop.h"
+@@ -1467,6 +1468,16 @@ static int get_physical_address(CPURISCVState *env, hwaddr *physical,
+         if (old_pte != pte) {
+             goto restart;
+         }
++        /*
++         * The update went through the host pointer: log it, as a store would
++         * be, so dirty-memory clients (migration, in-memory snapshots that
++         * copy back only dirty pages) see that the page-table page changed.
++         * The code bit is left alone, as before: page tables aren't code.
++         */
++        physical_memory_set_dirty_range(memory_region_get_ram_addr(mr) + addr1,
++                                        sxlen_bytes,
++                                        memory_region_get_dirty_log_mask(mr) &
++                                        ~(1 << DIRTY_MEMORY_CODE));
+         pte = updated_pte;
+     }
+ 
+-- 
+2.43.0
+

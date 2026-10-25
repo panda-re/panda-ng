@@ -1,0 +1,57 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 14:53:40 -0400
+Subject: [PATCH] plugins: keep the access direction clear of the MemOpIdx in
+ meminfo
+
+make_plugin_meminfo() put the qemu_plugin_mem_rw direction at bit 16, but a
+MemOpIdx is (MemOp << 5 | mmu_idx) since the mmu index grew to 5 bits, and
+MemOp's MO_ATOM field reaches bit 11: MO_ATOM_SUBALIGN and MO_ATOM_NONE
+set bit 16, which then reads as QEMU_PLUGIN_MEM_R. Such a store looked like
+a read and a write: a callback registered for reads ran on it, every
+callback registered for both ran twice, and qemu_plugin_mem_is_store() was
+still right. Found by panda-ng tests/mem.py: every store's PANDA memory
+callbacks fired twice on x86_64 and riscv64 (the bridge registers its read
+and its write callback per instruction).
+
+Move the direction to bit 24, with a build-time check that the MemOpIdx
+stays below it.
+---
+ include/qemu/plugin.h | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/include/qemu/plugin.h b/include/qemu/plugin.h
+index 1c214d796afc0dcb4b749e375bb2feeb2d69abdf..080eac2cd1c5b4c934c591e924b157faf0612a53 100644
+--- a/include/qemu/plugin.h
++++ b/include/qemu/plugin.h
+@@ -41,10 +41,20 @@ static inline bool plugin_mem_rw_match(enum qemu_plugin_mem_rw cb_rw,
+     return (cb_rw & ev_rw & QEMU_PLUGIN_MEM_RW) && (cb_phase & ev_phase);
+ }
+ 
++/*
++ * The direction sits above the MemOpIdx, which takes 17 bits since the mmu
++ * index grew to 5: at bit 16 the MemOp's MO_ATOM bit 11 (MO_ATOM_SUBALIGN,
++ * MO_ATOM_NONE) read as QEMU_PLUGIN_MEM_R, so such a store matched read
++ * callbacks too and every QEMU_PLUGIN_MEM_RW registration saw it twice.
++ */
++#define PLUGIN_MEMINFO_RW_SHIFT 24
++QEMU_BUILD_BUG_ON(((MO_ATOM_MASK | MO_AMASK | MO_SSIZE | MO_BSWAP) << 5 | 31)
++                  >= 1u << PLUGIN_MEMINFO_RW_SHIFT);
++
+ static inline qemu_plugin_meminfo_t
+ make_plugin_meminfo(MemOpIdx oi, enum qemu_plugin_mem_rw rw)
+ {
+-    return oi | (rw << 16);
++    return oi | (rw << PLUGIN_MEMINFO_RW_SHIFT);
+ }
+ 
+ /*
+@@ -54,7 +64,7 @@ make_plugin_meminfo(MemOpIdx oi, enum qemu_plugin_mem_rw rw)
+ static inline enum qemu_plugin_mem_rw
+ get_plugin_meminfo_rw(qemu_plugin_meminfo_t i)
+ {
+-    return i >> 16;
++    return i >> PLUGIN_MEMINFO_RW_SHIFT;
+ }
+ 
+ #ifdef CONFIG_PLUGIN

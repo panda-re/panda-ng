@@ -1,0 +1,130 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 09:38:58 -0400
+Subject: [PATCH] vl: -M PATH[:NAME] and -module PATH load panda modules
+
+-machine PATH[:NAME] (a value with a '/' or ending in the host DSO suffix)
+loads the panda module at PATH and selects the machine type NAME it
+registered, or the only one; otherwise the error lists what it registered
+("pick one with PATH:NAME; it registered: bcm4708-router bcm47094-router").
+-module PATH loads a module for its devices (then -device TYPE), CPU
+types or a board selected by name; -module help prints the ABI hash.
+
+Both load while the options are parsed (after MODULE_INIT_QOM, before the
+machine is selected), in command line order, so -M PATH,help works. The
+system side (hw/core/panda-modules.c, overlay) records which QOM types each
+module registered, refuses loads once the machine exists, and warns about
+module devices without vmstate at savevm and fast restore.
+---
+ hw/core/meson.build |  1 +
+ qemu-options.hx     | 19 +++++++++++++++++++
+ system/vl.c         | 33 +++++++++++++++++++++++++++++++++
+ 3 files changed, 53 insertions(+)
+
+diff --git a/hw/core/meson.build b/hw/core/meson.build
+index 8a96567de8f292f61c65d315a2f2f80ff5d0391b..8737666bbb1a91ff2e43a242aedfd1220430ea96 100644
+--- a/hw/core/meson.build
++++ b/hw/core/meson.build
+@@ -37,6 +37,7 @@ system_ss.add(files(
+   'machine.c',
+   'nmi.c',
+   'null-machine.c',
++  'panda-modules.c',
+   'numa.c',
+   'qdev-fw.c',
+   'qdev-hotplug.c',
+diff --git a/qemu-options.hx b/qemu-options.hx
+index 34970fffc94b4d79b6c2cbfc12efab9ad88855f2..6d6fc98da4dea3fce29ca1557a78342ba5ccf94b 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -5635,6 +5635,25 @@ SRST
+         Argument passed to the plugin. (Can be given multiple times.)
+ ERST
+ 
++DEF("module", HAS_ARG, QEMU_OPTION_module,
++    "-module path    load a panda module (external boards, devices) from a\n"
++    "                shared object built with the engine's SDK\n"
++    "-module help    print the panda ABI hash modules are checked against\n",
++    QEMU_ARCH_ALL)
++SRST
++``-module path``
++    Load a panda module: a shared object, built with this engine's SDK,
++    that registers QOM types (machines, devices). Its types are then
++    available to ``-machine`` and ``-device``. Modules load in command
++    line order, before the machine is created; one that was built against
++    different headers (a different panda ABI hash) is refused.
++    ``-machine path[:name]`` loads a module and selects the machine type
++    ``name`` it registered (or the only one).
++
++``-module help``
++    Print the panda ABI hash.
++ERST
++
+ HXCOMM Internal use
+ DEF("qtest", HAS_ARG, QEMU_OPTION_qtest, "", QEMU_ARCH_ALL)
+ DEF("qtest-log", HAS_ARG, QEMU_OPTION_qtest_log, "", QEMU_ARCH_ALL)
+diff --git a/system/vl.c b/system/vl.c
+index 67ad72c90a092697f0a593d2bb7816dbabe00c22..5fa6050ba4ed9060a6d329f4ebc778b8f5d762c8 100644
+--- a/system/vl.c
++++ b/system/vl.c
+@@ -63,6 +63,7 @@
+ #include "hw/acpi/acpi.h"
+ #include "hw/xen/xen.h"
+ #include "hw/core/loader.h"
++#include "hw/core/panda-modules.h"
+ #include "monitor/qdev.h"
+ #include "net/net.h"
+ #include "net/slirp.h"
+@@ -1721,6 +1722,30 @@ static const QEMUOption *lookup_opt(int argc, char **argv,
+     return popt;
+ }
+ 
++/*
++ * -M PATH[:NAME]: a machine type that names a panda module (an external
++ * board .so) is loaded now and replaced by the machine type it registered.
++ */
++static void machine_resolve_module(QDict *qdict)
++{
++    const char *type = qdict_get_try_str(qdict, "type");
++    Error *err = NULL;
++    char *name;
++
++    if (!type) {
++        return;
++    }
++    name = panda_module_machine_spec(type, &err);
++    if (err) {
++        error_report_err(err);
++        exit(EXIT_FAILURE);
++    }
++    if (name) {
++        qdict_put_str(qdict, "type", name);
++        g_free(name);
++    }
++}
++
+ static MachineClass *select_machine(QDict *qdict, Error **errp)
+ {
+     ERRP_GUARD();
+@@ -3464,6 +3489,7 @@ void qemu_init(int argc, char **argv)
+                     bool help;
+ 
+                     keyval_parse_into(machine_opts_dict, optarg, "type", &help, &error_fatal);
++                    machine_resolve_module(machine_opts_dict);
+                     if (help) {
+                         machine_help_func(machine_opts_dict);
+                         exit(EXIT_SUCCESS);
+@@ -3639,6 +3665,13 @@ void qemu_init(int argc, char **argv)
+             case QEMU_OPTION_plugin:
+                 qemu_plugin_opt_parse(optarg, &plugin_list);
+                 break;
++            case QEMU_OPTION_module:
++                if (is_help_option(optarg)) {
++                    printf("panda ABI %s\n", module_panda_abi());
++                    exit(EXIT_SUCCESS);
++                }
++                g_ptr_array_unref(panda_module_load(optarg, &error_fatal));
++                break;
+             case QEMU_OPTION_readconfig:
+                 qemu_read_config_file(optarg, qemu_parse_config_group, &error_fatal);
+                 break;

@@ -1,0 +1,70 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 09:38:58 -0400
+Subject: [PATCH] hw/core: build the configurable machine and its QAPI schema
+
+Wires in the overlay's hw/core/configurable-machine.c and
+qapi/panda-machine.json: a built-in machine, "configurable", whose memory
+map (RAM, ROM, unimplemented-peripheral and alias regions, file-backed
+contents), peripherals (any bus-less or system bus device type, by QOM
+type, with MMIO bases, IRQ wiring and properties), CPU (-cpu) and entry
+point are machine properties set before machine init. The list-valued
+properties use QAPI types, as the machine's smp-cache does, so
+-M configurable,region.0.base=...,device.0.type=... is parsed and
+type-checked by the generated visitors, and the same value can be set over
+QMP in preconfig. pandare2's MachineBuilder writes them.
+
+The machine is target-independent (system_ss); hw/core/configurable-cpu.c
+is compiled per target (specific_ss) and gives it what a board of that
+target sets up around the CPU: MIPS's CP0 timer and interrupt lines, PPC's
+timebase and decrementer, the x86 APIC ID, the ELF machine -kernel must
+have. Without them a guest reading MIPS Count or the PPC timebase
+dereferenced NULL in the host. Targets with no setup are refused.
+---
+ hw/core/meson.build   | 3 +++
+ qapi/meson.build      | 1 +
+ qapi/qapi-schema.json | 1 +
+ 3 files changed, 5 insertions(+)
+
+diff --git a/hw/core/meson.build b/hw/core/meson.build
+index 8737666bbb1a91ff2e43a242aedfd1220430ea96..d72574ace3ae22eb0c8c00ce2d51a5ecd26d3d47 100644
+--- a/hw/core/meson.build
++++ b/hw/core/meson.build
+@@ -37,6 +37,7 @@ system_ss.add(files(
+   'machine.c',
+   'nmi.c',
+   'null-machine.c',
++  'configurable-machine.c',
+   'panda-modules.c',
+   'numa.c',
+   'qdev-fw.c',
+@@ -47,6 +48,8 @@ system_ss.add(files(
+   'vm-change-state-handler.c',
+   'clock-vmstate.c',
+ ))
++# the configurable machine's per-target CPU setup (timers, interrupt inputs)
++specific_ss.add(when: 'CONFIG_SYSTEM_ONLY', if_true: files('configurable-cpu.c'))
+ user_ss.add(files(
+   'cpu-user.c',
+   'qdev-user.c',
+diff --git a/qapi/meson.build b/qapi/meson.build
+index a46269b5a0c926cc99051d2f9cbfe477e4c5da57..062646dea2aec296cb2fbf7d35a4b6215b43eefe 100644
+--- a/qapi/meson.build
++++ b/qapi/meson.build
+@@ -67,6 +67,7 @@ if have_system
+     'rocker',
+     'misc-arm',
+     'misc-i386',
++    'panda-machine',
+     'tpm',
+     'uefi',
+   ]
+diff --git a/qapi/qapi-schema.json b/qapi/qapi-schema.json
+index b93dd68d94c63d451fd69f96bc2065f93ce78447..a01e03679c7c856e70795229fe863a660d5bc497 100644
+--- a/qapi/qapi-schema.json
++++ b/qapi/qapi-schema.json
+@@ -76,3 +76,4 @@
+ { 'include': 'cryptodev.json' }
+ { 'include': 'cxl.json' }
+ { 'include': 'uefi.json' }
++{ 'include': 'panda-machine.json' }

@@ -9,6 +9,7 @@
 
 // for map_memory
 #include "qapi/error.h"
+#include "system/replay.h"
 #include "migration/vmstate.h"
 #include "migration/snapshot.h"
 #include "qemu/error-report.h"
@@ -23,6 +24,13 @@
 #include "system/cpus.h"
 #include "panda/callbacks/cb-support.h"
 #include "panda/wrap_ops.h"
+#include "accel/tcg/hooks.h"
+#include "hw/core/panda-modules.h"
+
+void panda_mark_hook_address(target_ulong pc)
+{
+    tcg_hooks_mark_pc(pc);
+}
 
 // call main_aux and run everything up to and including panda_callbacks_after_machine_init
 int panda_init(int argc, char **argv, char **envp) {
@@ -73,6 +81,8 @@ void panda_main_loop_kick(void) {
  */
 int panda_snap(char *snapshot_name) {
     Error *err = NULL;
+
+    panda_modules_check_vmstate("savevm");
     if (!save_snapshot(snapshot_name, true, NULL, false, NULL, &err)) {
         error_report_err(err);
         return -1;
@@ -82,6 +92,11 @@ int panda_snap(char *snapshot_name) {
 
 int panda_revert(char *snapshot_name) {
     Error *err = NULL;
+    /* refused (while recording or replaying) before the VM stops: it keeps running */
+    if (!replay_can_load_snapshot(&err)) {
+        error_report_err(err);
+        return -1;
+    }
     if (runstate_is_running()) {
         vm_stop(RUN_STATE_RESTORE_VM);
     }

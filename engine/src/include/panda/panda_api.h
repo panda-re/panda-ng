@@ -65,13 +65,25 @@ void panda_cont(void);
  */
 void panda_main_loop_kick(void);
 
+/**
+ * panda_mark_hook_address() - Instrumentation keyed by a guest virtual address will be at @pc.
+ *
+ * Code on @pc's virtual page is then translated for its virtual address (no CF_PCREL sharing),
+ * and blocks already translated there are invalidated, so a decision made at translation time
+ * (the hooks plugin: "is there a hook in this block?") is never reused at another mapping of the
+ * same code, nor kept from before the hook. Callable from any thread.
+ */
+void panda_mark_hook_address(target_ulong pc);
+
 
 /**
  * panda_fast_snap() - Snapshot RAM and device state in host memory.
  *
  * Main loop; stops the VM if it runs. No disk state. The first snapshot copies all RAM and arms
  * dirty-page tracking; a later one copies only the pages written since the last snapshot or
- * restore. Return: 0 on success.
+ * restore. TCG only, and not while recording or replaying: it refuses (error message, -1) under
+ * KVM/HVF and record/replay. If it fails, no fast snapshot is left (panda_fast_delete).
+ * Return: 0 on success.
  */
 int panda_fast_snap(void);
 
@@ -80,10 +92,14 @@ int panda_fast_snap(void);
  * panda_fast_restore() - Restore the panda_fast_snap() state; the VM stays stopped.
  *
  * Main loop. Copies back only the pages written since the last snapshot or restore (by vCPUs,
- * DMA, devices, or PANDA's physical/virtual memory writes); the whole RAM when the dirty bitmap
- * can't be trusted (a savevm or migration read it, a loadvm wrote RAM). Writes through host
- * pointers from panda_map_virt_to_host are not seen. The disk is not restored.
- * Return: 0 on success.
+ * DMA, devices, vhost devices that log, or PANDA's physical/virtual memory writes); the whole RAM
+ * when the dirty bitmap can't be trusted (a savevm or migration read it, a loadvm wrote RAM). While
+ * a vhost device that can't log exists (a vhost-user backend without a shared log, such as
+ * vhost-device-vsock), it compares every page with the snapshot instead: exact, but it reads all
+ * RAM. Writes through host pointers from panda_map_virt_to_host are not seen. The disk is not
+ * restored. Refuses like panda_fast_snap (TCG only, not under record/replay).
+ * Return: 0 on success; -1 with RAM blocks changed (nothing done), or if device state failed to
+ * load (RAM is the snapshot's, devices as a system reset left them).
  */
 int panda_fast_restore(void);
 
@@ -98,7 +114,8 @@ void panda_fast_delete(void);
  * panda_fast_verify() - Compare all RAM with the fast snapshot (a test aid; reads all RAM).
  *
  * Main loop, VM stopped. Right after panda_fast_restore() it must be 0.
- * Return: the number of target pages that differ, -1 without a snapshot.
+ * Return: the number of target pages that differ, -1 without a snapshot or if RAM blocks changed
+ * since it (a device was plugged or unplugged).
  */
 int64_t panda_fast_verify(void);
 
@@ -106,9 +123,12 @@ int64_t panda_fast_verify(void);
 /**
  * panda_fast_info() - Counters and RAM blocks of the fast snapshot, as "key=value ..." text.
  *
- * snaps, restores, full_restores, last_pages (pages the last restore copied), last_full,
- * last_us (the last restore's reset,RAM,devices in microseconds), tracking, blocks
- * (id:bytes:dirty|compare).
+ * snaps, restores, full_restores, compare_restores, last_pages (pages the last restore copied),
+ * last_full, last_mode (dirty|full|compare), last_why (why the last full restore was full:
+ * loadvm, precopy, log-stop, flag, sentinel, untracked, ...), last_us (the last restore's
+ * reset,RAM,devices in microseconds), last_snap_pages, last_snap_mode (incremental|full|compare),
+ * tracking, unlogged (a vhost device that can't log exists), blocks (id:bytes:dirty|compare, or
+ * "changed" when RAM blocks changed since the snapshot).
  */
 const char *panda_fast_info(void);
 

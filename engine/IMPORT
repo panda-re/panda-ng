@@ -1,8 +1,9 @@
 # Written by tools/engine-import.sh. Do not edit by hand.
 source rehosting/qemu_builder
-commit dc1aed473c7643aae3a882eb14530eec5de684ba
-subject Merge lane-tbpc: panda_tb_pc, block callbacks no longer bind TBs, panda_current_asid is the process identifier (patchedTree re-recorded for 58)
+commit 3198bab15b56a22ca185251f69b45e8e9957b38b
+subject patch 0141: begin-record's start snapshot is marked (replay/begin subsection): its loads convert due timers, and the -icount rr=replay,rrsnapshot= startup path refuses it with an error naming x-rr-begin-replay (was a silent hang in blkreplay's vmstate flush) (N1); snapshot loads refused while recording/replaying except rr's own and -loadvm, panda_revert/penguin/HMP/QMP refuse before stopping the VM (N2); savevm over the start snapshot refused (N3); stall-check comment (73 patches, patchedTree 0647db2c)
 owned:scripts/import-series.sh 0012a33f4daa8516ef652a41f21fd02d0214e4e6
 owned:scripts/offcost-gate.sh 35eb74e740f4df1db018d2c166bbbecdf01108c8
+owned:scripts/check-delta-present.sh 0386da86b48221851e07a7d65bdf6bd85be5bdd9
 owned:nix/source.nix aa41532957f3d5a23d5a9eae571bc03ea8d187ed
 owned:flake.nix 48cbe1a2a5b309487739ca264860e992e335c021
