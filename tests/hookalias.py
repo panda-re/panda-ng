@@ -16,9 +16,12 @@ from pandare2 import Panda
 
 panda = Panda(generic=sys.argv[1])
 fired = {}
+# Each reader reads the line before it exits: one that exited right after its open returned could
+# close the FIFO before the shell's echo wrote to it, and the echo's SIGPIPE killed the login shell
+# (the test then timed out at a login prompt, hooks or not).
 SETUP = ("rm -f /tmp/f1 /tmp/f2 /tmp/p1 /tmp/p2; mkfifo /tmp/f1 /tmp/f2; "
-         "sh -c 'echo $$ > /tmp/p1; exec 3< /tmp/f1' & "
-         "sh -c 'echo $$ > /tmp/p2; exec 3< /tmp/f2' & sleep 2")
+         "sh -c 'echo $$ > /tmp/p1; exec 3< /tmp/f1; read x <&3' & "
+         "sh -c 'echo $$ > /tmp/p2; exec 3< /tmp/f2; read x <&3' & sleep 2")
 
 
 @panda.queue_blocking
