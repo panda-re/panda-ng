@@ -1,0 +1,530 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 7 Oct 2026 13:25:39 -0400
+Subject: [PATCH] plugins: faulting writes; uaccess fault index; ppc, riscv,
+ loongarch, x86 windows
+
+- qemu_plugin_write_memory_vaddr_fault(): write through the guest MMU with
+  the permissions of the chosen mode; a page that is not writable (absent,
+  swapped, copy-on-write, clean) is handed to the guest as a store fault.
+  All pages are made accessible before any byte is copied, so the guest
+  never resumes with a partial write; translated code is invalidated and
+  the page marked dirty.  A read-only mapping is never written behind the
+  guest's back (unlike qemu_plugin_write_memory_vaddr(), which writes the
+  physical page of a debug translation: the shared zero page, page cache).
+- Reads share the same two-pass core.
+- TCGCPUOps.user_fault_mmu_index: permissions are checked as an
+  unprivileged access, but faults are raised the way the OS's own
+  copy_from_user would take them.  x86: CPL0 with SMAP lifted (EFLAGS.AC),
+  so the #PF carries no U bit (kernels < 5.x trust that bit).  If the fault
+  index can access a page the user index cannot, the access fails instead
+  of looping.
+- user_mmu_index for ppc (MSR[PR] set), riscv (U), loongarch (PLV3).
+- user_access_window for ppc64 (AMR, Linux KUAP), riscv (sstatus.SUM) and
+  x86 (EFLAGS.AC, SMAP).
+---
+ include/accel/tcg/cpu-ops.h    |   9 +++
+ include/plugins/qemu-plugin.h  |  26 +++++++
+ plugins/api-system.c           | 135 ++++++++++++++++++++++-----------
+ plugins/api-user.c             |   7 ++
+ target/i386/cpu.h              |   3 +
+ target/i386/tcg/tcg-cpu.c      |  40 ++++++++++
+ target/loongarch/tcg/tcg_cpu.c |   8 ++
+ target/ppc/cpu.h               |   4 +
+ target/ppc/cpu_init.c          |  43 +++++++++++
+ target/riscv/cpu.h             |   3 +
+ target/riscv/tcg/tcg-cpu.c     |  38 ++++++++++
+ 11 files changed, 273 insertions(+), 43 deletions(-)
+
+diff --git a/include/accel/tcg/cpu-ops.h b/include/accel/tcg/cpu-ops.h
+index 310dd8b8038cf789f8368dd2f7bff307173d9d84..06ecc0beac77b2d13528e5dd25f6a12a45a718f7 100644
+--- a/include/accel/tcg/cpu-ops.h
++++ b/include/accel/tcg/cpu-ops.h
+@@ -109,6 +109,15 @@ struct TCGCPUOps {
+      * e.g. what AArch64 LDTR or x86 CPL3 uses.  Optional.
+      */
+     int (*user_mmu_index)(CPUState *cpu);
++    /**
++     * @user_fault_mmu_index: Callback for the mmu index the OS's own
++     * user-memory accessors (copy_from_user) use from the current CPU
++     * state, e.g. x86 supervisor with SMAP lifted by EFLAGS.AC.  Faults
++     * for user-mode plugin accesses are raised with it, so the guest sees
++     * exactly the fault those accessors would take.  Optional; defaults
++     * to @user_mmu_index.
++     */
++    int (*user_fault_mmu_index)(CPUState *cpu);
+     /**
+      * @user_access_window: Open (@open true) or close the window in which
+      * privileged code may access user memory, as an OS uaccess_enable()
+diff --git a/include/plugins/qemu-plugin.h b/include/plugins/qemu-plugin.h
+index 73dd2c68756e9ef52fe7987cc6a9d5321fce8827..a7d4b19a26f1c80b66ebef69a4d6ce1fc359f6e5 100644
+--- a/include/plugins/qemu-plugin.h
++++ b/include/plugins/qemu-plugin.h
+@@ -1195,6 +1195,32 @@ int qemu_plugin_read_memory_vaddr_fault(uint64_t addr, GByteArray *data,
+                                         enum qemu_plugin_vaddr_mode mode,
+                                         bool fault);
+ 
++/**
++ * qemu_plugin_write_memory_vaddr_fault() - write guest memory, paging it in
++ *
++ * @addr: guest virtual address
++ * @data: bytes to write (all of @data->len)
++ * @mode: privilege used for translation
++ * @fault: if a page is not writable, raise a guest fault
++ *
++ * Writes through the guest MMU with the page permissions of @mode, like a
++ * guest store would: a page that is not present or not writable (absent,
++ * swapped out, copy-on-write, clean under software dirty tracking) is
++ * handed to the guest as a store fault, exactly as for
++ * qemu_plugin_read_memory_vaddr_fault().  Nothing is written until every
++ * page of the range is writable, so the guest never resumes with a partial
++ * write.  A read-only mapping is never written behind the guest's back:
++ * the guest refuses the fault (SIGSEGV, or an oops in kernel mode unless
++ * the caller handles it) and the write fails.  Translated code on the
++ * written pages is invalidated.  Pages that are not RAM are never written.
++ *
++ * Returns a qemu_plugin_vaddr_result.
++ */
++QEMU_PLUGIN_API
++int qemu_plugin_write_memory_vaddr_fault(uint64_t addr, GByteArray *data,
++                                         enum qemu_plugin_vaddr_mode mode,
++                                         bool fault);
++
+ /**
+  * qemu_plugin_set_pc() - set the program counter for the current vCPU
+  *
+diff --git a/plugins/api-system.c b/plugins/api-system.c
+index db5a3ebdd7a319710c259c5dd3ad08e3d97c0219..8480a5a5c70e00db55129ba5db53d2742ae7a825 100644
+--- a/plugins/api-system.c
++++ b/plugins/api-system.c
+@@ -136,19 +136,24 @@ void qemu_plugin_update_ns(const void *handle, int64_t new_time)
+ }
+ 
+ /*
+- * Consistent virtual memory reads
++ * Consistent virtual memory access
+  */
+ 
+-int qemu_plugin_read_memory_vaddr_fault(uint64_t addr, GByteArray *data,
+-                                        size_t len,
+-                                        enum qemu_plugin_vaddr_mode mode,
+-                                        bool fault)
++/*
++ * Make every page of [addr, addr + len) accessible for @access_type, then
++ * copy.  Checking all pages before copying anything means a fault on a
++ * later page never leaves the guest looking at a partial write, and a read
++ * is taken while no guest code runs on this vCPU.
++ */
++static int vaddr_access_fault(uint64_t addr, uint8_t *buf, size_t len,
++                              enum qemu_plugin_vaddr_mode mode, bool fault,
++                              MMUAccessType access_type)
+ {
+     CPUState *cpu = current_cpu;
+     CPUArchState *env;
+-    size_t done = 0, page_size = qemu_target_page_size();
++    size_t page_size = qemu_target_page_size();
+     void (*window)(CPUState *, bool) = NULL;
+-    int mmu_idx, ret = QEMU_PLUGIN_VADDR_OK;
++    int mmu_idx, fault_idx, ret = QEMU_PLUGIN_VADDR_OK;
+ 
+     g_assert(cpu);
+     env = cpu_env(cpu);
+@@ -165,52 +170,96 @@ int qemu_plugin_read_memory_vaddr_fault(uint64_t addr, GByteArray *data,
+             window(cpu, true);
+         }
+         mmu_idx = cpu->cc->tcg_ops->user_mmu_index(cpu);
++        fault_idx = cpu->cc->tcg_ops->user_fault_mmu_index ?
++                    cpu->cc->tcg_ops->user_fault_mmu_index(cpu) : mmu_idx;
+     } else {
+-        mmu_idx = cpu_mmu_index(cpu, false);
++        mmu_idx = fault_idx = cpu_mmu_index(cpu, false);
+     }
+ 
+-    g_byte_array_set_size(data, len);
++    for (int copy = 0; copy < 2 && ret == QEMU_PLUGIN_VADDR_OK; copy++) {
++        size_t done = 0;
++
++        while (done < len) {
++            vaddr a = addr + done;
++            size_t chunk = MIN(len - done,
++                               page_size - (a & (page_size - 1)));
++            CPUTLBEntryFull *full;
++            void *host;
++            int flags;
+ 
+-    while (done < len) {
+-        vaddr a = addr + done;
+-        size_t chunk = MIN(len - done, page_size - (a & (page_size - 1)));
+-        CPUTLBEntryFull *full;
+-        void *host;
+-        int flags;
+-
+-        /* Never faults, never triggers plugin memory instrumentation. */
+-        flags = probe_access_full_mmu(env, a, 0, MMU_DATA_LOAD, mmu_idx,
+-                                      &host, &full);
+-        if (flags & TLB_INVALID_MASK) {
+-            uintptr_t ra = cpu->neg.plugin_cb_ra;
+-
+-            if (!fault || !ra ||
+-                qemu_plugin_get_cb_flags() != QEMU_PLUGIN_CB_RW_REGS_PC) {
+-                ret = QEMU_PLUGIN_VADDR_UNMAPPED;
+-                break;
+-            }
+             /*
+-             * Raise the exception a guest load at the start of the current
+-             * instruction would take (#PF, data abort, TLBL, DSI ...).  The
+-             * guest resolves it and resumes at the same instruction, so the
+-             * callback runs again.  Returns only if the translation became
+-             * valid in the meantime.  A user access window stays open:
+-             * the guest saves it with the interrupted context and restores
+-             * it when it resumes here; we close it on the way out.
++             * Never faults, never triggers plugin memory instrumentation.
++             * For a store of the chunk it also invalidates translated code
++             * on the page and marks it dirty.
+              */
+-            probe_access(env, a, 0, MMU_DATA_LOAD, mmu_idx, ra);
+-            continue;
+-        }
+-        if (flags & TLB_MMIO) {
+-            /* Not RAM: a read could have device side effects. */
+-            ret = QEMU_PLUGIN_VADDR_IO;
+-            break;
++            flags = probe_access_full_mmu(env, a,
++                                          copy && access_type == MMU_DATA_STORE
++                                          ? chunk : 0,
++                                          access_type, mmu_idx, &host, &full);
++            if (flags & TLB_INVALID_MASK) {
++                uintptr_t ra = cpu->neg.plugin_cb_ra;
++
++                if (!fault || !ra ||
++                    qemu_plugin_get_cb_flags() != QEMU_PLUGIN_CB_RW_REGS_PC) {
++                    ret = QEMU_PLUGIN_VADDR_UNMAPPED;
++                    break;
++                }
++                /*
++                 * Raise the exception a guest load or store at the start of
++                 * the current instruction would take (#PF, data abort, TLBL,
++                 * TLBS, DSI ...).  The guest resolves it (pages the address
++                 * in, breaks copy-on-write, marks the page dirty) and resumes
++                 * at the same instruction, so the callback runs again.
++                 * Returns only if the translation became valid meanwhile.
++                 * A user access window stays open: the guest saves it with
++                 * the interrupted context and restores it when it resumes
++                 * here; we close it on the way out.
++                 */
++                probe_access(env, a, 0, access_type, fault_idx, ra);
++                flags = probe_access_full_mmu(env, a, 0, access_type, mmu_idx,
++                                              &host, &full);
++                if (flags & TLB_INVALID_MASK) {
++                    /* fault_idx may access it, mmu_idx may not */
++                    ret = QEMU_PLUGIN_VADDR_UNMAPPED;
++                    break;
++                }
++                continue;
++            }
++            if (flags & TLB_MMIO) {
++                /* Not RAM: an access could have device side effects. */
++                ret = QEMU_PLUGIN_VADDR_IO;
++                break;
++            }
++            if (copy) {
++                if (access_type == MMU_DATA_STORE) {
++                    memcpy(host, buf + done, chunk);
++                } else {
++                    memcpy(buf + done, host, chunk);
++                }
++            }
++            done += chunk;
+         }
+-        memcpy(data->data + done, host, chunk);
+-        done += chunk;
+     }
+     if (window) {
+         window(cpu, false);
+     }
+     return ret;
+ }
++
++int qemu_plugin_read_memory_vaddr_fault(uint64_t addr, GByteArray *data,
++                                        size_t len,
++                                        enum qemu_plugin_vaddr_mode mode,
++                                        bool fault)
++{
++    g_byte_array_set_size(data, len);
++    return vaddr_access_fault(addr, data->data, len, mode, fault,
++                              MMU_DATA_LOAD);
++}
++
++int qemu_plugin_write_memory_vaddr_fault(uint64_t addr, GByteArray *data,
++                                         enum qemu_plugin_vaddr_mode mode,
++                                         bool fault)
++{
++    return vaddr_access_fault(addr, data->data, data->len, mode, fault,
++                              MMU_DATA_STORE);
++}
+diff --git a/plugins/api-user.c b/plugins/api-user.c
+index 4b79f76117f4dd57d16e917bfd954a420d61dcc8..e6619196b69888ae4ddffae73315043f78a572ae 100644
+--- a/plugins/api-user.c
++++ b/plugins/api-user.c
+@@ -63,3 +63,10 @@ int qemu_plugin_read_memory_vaddr_fault(uint64_t addr, GByteArray *data,
+ {
+     return QEMU_PLUGIN_VADDR_BAD_MODE;
+ }
++
++int qemu_plugin_write_memory_vaddr_fault(uint64_t addr, GByteArray *data,
++                                         enum qemu_plugin_vaddr_mode mode,
++                                         bool fault)
++{
++    return QEMU_PLUGIN_VADDR_BAD_MODE;
++}
+diff --git a/target/i386/cpu.h b/target/i386/cpu.h
+index e6a197602d874bec5e99fa936675052f7759d44f..285344cdad83f497ca4e1ad1916502702181b5e4 100644
+--- a/target/i386/cpu.h
++++ b/target/i386/cpu.h
+@@ -2517,6 +2517,9 @@ struct ArchCPU {
+     int32_t hv_max_vps;
+ 
+     bool xen_vapic;
++
++    /* user_access_window(): the window set EFLAGS.AC */
++    bool uaccess_open;
+ };
+ 
+ typedef struct X86CPUModel X86CPUModel;
+diff --git a/target/i386/tcg/tcg-cpu.c b/target/i386/tcg/tcg-cpu.c
+index ca86e22929f136787e12068f00c86a1bcfe07940..a1d52e8678dbe7a2010268a6500de39d628c3bd5 100644
+--- a/target/i386/tcg/tcg-cpu.c
++++ b/target/i386/tcg/tcg-cpu.c
+@@ -136,6 +136,42 @@ static int x86_cpu_user_mmu_index(CPUState *cs)
+     return x86_mmu_index_pl(cpu_env(cs), 3);
+ }
+ 
++#ifndef CONFIG_USER_ONLY
++/*
++ * Kernel user-memory accessors run at CPL0 with SMAP lifted by stac
++ * (EFLAGS.AC), so their page faults carry no U bit, and Linux checks the
++ * interrupted EFLAGS.AC to tell them from SMAP violations.
++ */
++static int x86_cpu_user_fault_mmu_index(CPUState *cs)
++{
++    CPUX86State *env = cpu_env(cs);
++    unsigned pl = env->hflags & HF_CPL_MASK;
++
++    if (pl == 3) {
++        return x86_mmu_index_pl(env, 3);
++    }
++    return MMU_KNOSMAP64_IDX + ((env->hflags & HF_CS64_MASK) ? 0 : 1);
++}
++
++static void x86_cpu_user_access_window(CPUState *cs, bool open)
++{
++    X86CPU *cpu = X86_CPU(cs);
++    CPUX86State *env = &cpu->env;
++
++    if (open) {
++        if ((env->hflags & HF_CPL_MASK) == 3 ||
++            !(env->hflags & HF_SMAP_MASK) || (env->eflags & AC_MASK)) {
++            return;
++        }
++        env->eflags |= AC_MASK;     /* stac */
++        cpu->uaccess_open = true;
++    } else if (cpu->uaccess_open) {
++        env->eflags &= ~AC_MASK;    /* clac */
++        cpu->uaccess_open = false;
++    }
++}
++#endif
++
+ #ifndef CONFIG_USER_ONLY
+ static bool x86_debug_check_breakpoint(CPUState *cs)
+ {
+@@ -176,6 +212,10 @@ const TCGCPUOps x86_tcg_ops = {
+     .restore_state_to_opc = x86_restore_state_to_opc,
+     .mmu_index = x86_cpu_mmu_index,
+     .user_mmu_index = x86_cpu_user_mmu_index,
++#ifndef CONFIG_USER_ONLY
++    .user_fault_mmu_index = x86_cpu_user_fault_mmu_index,
++    .user_access_window = x86_cpu_user_access_window,
++#endif
+     .cpu_exec_enter = x86_cpu_exec_enter,
+     .cpu_exec_exit = x86_cpu_exec_exit,
+ #ifdef CONFIG_USER_ONLY
+diff --git a/target/loongarch/tcg/tcg_cpu.c b/target/loongarch/tcg/tcg_cpu.c
+index 4b1d44a16445841de8b9a7d69d8f389c357e6abf..339b84d62081b70c1ab539b1aab4a8116f0459c9 100644
+--- a/target/loongarch/tcg/tcg_cpu.c
++++ b/target/loongarch/tcg/tcg_cpu.c
+@@ -312,6 +312,13 @@ static int loongarch_cpu_mmu_index(CPUState *cs, bool ifetch)
+     return MMU_DA_IDX;
+ }
+ 
++static int loongarch_cpu_user_mmu_index(CPUState *cs)
++{
++    /* PLV3 when paging is on; direct address translation otherwise */
++    return loongarch_cpu_mmu_index(cs, false) == MMU_DA_IDX ? MMU_DA_IDX
++                                                            : MMU_USER_IDX;
++}
++
+ const TCGCPUOps loongarch_tcg_ops = {
+     .guest_default_memory_order = 0,
+     .mttcg_supported = true,
+@@ -322,6 +329,7 @@ const TCGCPUOps loongarch_tcg_ops = {
+     .synchronize_from_tb = loongarch_cpu_synchronize_from_tb,
+     .restore_state_to_opc = loongarch_restore_state_to_opc,
+     .mmu_index = loongarch_cpu_mmu_index,
++    .user_mmu_index = loongarch_cpu_user_mmu_index,
+ 
+ #ifndef CONFIG_USER_ONLY
+     .tlb_fill = loongarch_cpu_tlb_fill,
+diff --git a/target/ppc/cpu.h b/target/ppc/cpu.h
+index cbd5964b1acdae315d3766f1e065bbc3524b635f..33abe887a586de8ab7d0618d7b6990ca8199aa35 100644
+--- a/target/ppc/cpu.h
++++ b/target/ppc/cpu.h
+@@ -1534,6 +1534,10 @@ struct ArchCPU {
+     /* Those resources are used only during code translation */
+     /* opcode handlers */
+     opc_handler_t *opcodes[PPC_CPU_OPCODES_LEN];
++
++    /* user_access_window(): AMR to restore when the window closes */
++    target_ulong uaccess_saved_amr;
++    bool uaccess_open;
+ };
+ 
+ /**
+diff --git a/target/ppc/cpu_init.c b/target/ppc/cpu_init.c
+index f404c7e549d0e488930fc3313367aba5aef82bec..2ab807b7881555527b00edef80c63c6cf1ebd366 100644
+--- a/target/ppc/cpu_init.c
++++ b/target/ppc/cpu_init.c
+@@ -42,6 +42,7 @@
+ #include "fpu/softfloat.h"
+ #include "exec/page-protection.h"
+ #include "exec/watchpoint.h"
++#include "exec/cputlb.h"
+ #include "helper_regs.h"
+ #include "internal.h"
+ #include "spr_common.h"
+@@ -7221,6 +7222,44 @@ static int ppc_cpu_mmu_index(CPUState *cs, bool ifetch)
+ {
+     return ppc_env_mmu_index(cpu_env(cs), ifetch);
+ }
++
++/* The data mmu index with MSR[PR] set: a problem-state access. */
++static int ppc_cpu_user_mmu_index(CPUState *cs)
++{
++    return ppc_env_mmu_index(cpu_env(cs), false) & ~1;
++}
++
++#if defined(TARGET_PPC64) && !defined(CONFIG_USER_ONLY)
++/*
++ * Kernels that protect user memory with the AMR (Linux KUAP on Book3S-64)
++ * block it outside uaccess routines, and check the interrupted context's
++ * AMR when a kernel-mode fault hits user memory.  Opening the window
++ * unblocks every key, as allow_user_access() would.
++ */
++static void ppc_cpu_user_access_window(CPUState *cs, bool open)
++{
++    PowerPCCPU *cpu = POWERPC_CPU(cs);
++    CPUPPCState *env = &cpu->env;
++
++    if (open) {
++        if (FIELD_EX64(env->msr, MSR, PR) || env->spr[SPR_AMR] == 0) {
++            return;
++        }
++        if (!cpu->uaccess_open) {
++            cpu->uaccess_saved_amr = env->spr[SPR_AMR];
++            cpu->uaccess_open = true;
++        }
++        env->spr[SPR_AMR] = 0;
++    } else {
++        if (!cpu->uaccess_open) {
++            return;
++        }
++        env->spr[SPR_AMR] = cpu->uaccess_saved_amr;
++        cpu->uaccess_open = false;
++    }
++    tlb_flush(cs);      /* the AMR is folded into cached permissions */
++}
++#endif
+ #endif /* CONFIG_TCG */
+ 
+ #ifndef CONFIG_USER_ONLY
+@@ -7491,6 +7530,10 @@ static const TCGCPUOps ppc_tcg_ops = {
+   .get_tb_cpu_state = ppc_get_tb_cpu_state,
+   .restore_state_to_opc = ppc_restore_state_to_opc,
+   .mmu_index = ppc_cpu_mmu_index,
++  .user_mmu_index = ppc_cpu_user_mmu_index,
++#if defined(TARGET_PPC64) && !defined(CONFIG_USER_ONLY)
++  .user_access_window = ppc_cpu_user_access_window,
++#endif
+ 
+ #ifdef CONFIG_USER_ONLY
+   .record_sigsegv = ppc_cpu_record_sigsegv,
+diff --git a/target/riscv/cpu.h b/target/riscv/cpu.h
+index c9dfa7daff2d9b5e91f189f9bb6e614d80233116..00897f45bcaf47fafd023600c0bf8fd4a5d3c371 100644
+--- a/target/riscv/cpu.h
++++ b/target/riscv/cpu.h
+@@ -579,6 +579,9 @@ struct ArchCPU {
+     GHashTable *pmu_event_ctr_map;
+     GHashTable *user_options;
+     const GPtrArray *decoders;
++
++    /* user_access_window(): the window set mstatus.SUM */
++    bool uaccess_open;
+ };
+ 
+ typedef struct RISCVCSR RISCVCSR;
+diff --git a/target/riscv/tcg/tcg-cpu.c b/target/riscv/tcg/tcg-cpu.c
+index 4af5cd9c7314abe3de07a0d111fe759135e43122..e4a40a4ca7ec8b494c3a4001419565ab772949ad 100644
+--- a/target/riscv/tcg/tcg-cpu.c
++++ b/target/riscv/tcg/tcg-cpu.c
+@@ -100,6 +100,40 @@ static int riscv_cpu_mmu_index(CPUState *cs, bool ifetch)
+     return riscv_env_mmu_index(cpu_env(cs), ifetch);
+ }
+ 
++static int riscv_cpu_user_mmu_index(CPUState *cs)
++{
++    CPURISCVState *env = cpu_env(cs);
++
++    return PRV_U | (env->virt_enabled ? MMU_2STAGE_BIT : 0);
++}
++
++#ifndef CONFIG_USER_ONLY
++/*
++ * Supervisor code may touch user pages only with sstatus.SUM set, and
++ * Linux treats a kernel-mode fault on user memory with SUM clear as fatal.
++ * Opening the window sets SUM, as __enable_user_access() would.
++ */
++static void riscv_cpu_user_access_window(CPUState *cs, bool open)
++{
++    RISCVCPU *cpu = RISCV_CPU(cs);
++    CPURISCVState *env = &cpu->env;
++
++    if (env->virt_enabled) {
++        return;
++    }
++    if (open) {
++        if (env->priv != PRV_S || (env->mstatus & MSTATUS_SUM)) {
++            return;
++        }
++        env->mstatus |= MSTATUS_SUM;
++        cpu->uaccess_open = true;
++    } else if (cpu->uaccess_open) {
++        env->mstatus &= ~MSTATUS_SUM;
++        cpu->uaccess_open = false;
++    }
++}
++#endif
++
+ static TCGTBCPUState riscv_get_tb_cpu_state(CPUState *cs)
+ {
+     CPURISCVState *env = cpu_env(cs);
+@@ -282,6 +316,10 @@ const TCGCPUOps riscv_tcg_ops = {
+     .synchronize_from_tb = riscv_cpu_synchronize_from_tb,
+     .restore_state_to_opc = riscv_restore_state_to_opc,
+     .mmu_index = riscv_cpu_mmu_index,
++    .user_mmu_index = riscv_cpu_user_mmu_index,
++#ifndef CONFIG_USER_ONLY
++    .user_access_window = riscv_cpu_user_access_window,
++#endif
+ 
+ #ifndef CONFIG_USER_ONLY
+     .tlb_fill = riscv_cpu_tlb_fill,

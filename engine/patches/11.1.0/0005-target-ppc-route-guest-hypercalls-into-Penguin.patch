@@ -1,0 +1,76 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: igloo <nix@local>
+Date: Wed, 19 Aug 2026 23:02:41 -0400
+Subject: [PATCH] target/ppc: route guest hypercalls into Penguin
+
+Same helper as the other targets, reached from the fixed-point translator.
+
+Folds: 797f446cf8 (partial), d7f87bf73e (partial), 087a668076 (partial)
+---
+ target/ppc/helper.h                        |  1 +
+ target/ppc/misc_helper.c                   | 15 +++++++++++++++
+ target/ppc/translate/fixedpoint-impl.c.inc |  6 ++++++
+ 3 files changed, 22 insertions(+)
+
+diff --git a/target/ppc/helper.h b/target/ppc/helper.h
+index 6b2d19a3ad9bad68cb5be775f7b4842621013b8b..1699c3348b8f43d4956fb96b12058eca1231fbf7 100644
+--- a/target/ppc/helper.h
++++ b/target/ppc/helper.h
+@@ -4,6 +4,7 @@ DEF_HELPER_FLAGS_4(TW, TCG_CALL_NO_WG, void, env, tl, tl, i32)
+ #if defined(TARGET_PPC64)
+ DEF_HELPER_FLAGS_4(TD, TCG_CALL_NO_WG, void, env, tl, tl, i32)
+ #endif
++DEF_HELPER_7(penguin_guest_hypercall, tl, env, tl, tl, tl, tl, tl, tl)
+ DEF_HELPER_4(HASHST, void, env, tl, tl, tl)
+ DEF_HELPER_4(HASHCHK, void, env, tl, tl, tl)
+ DEF_HELPER_4(HASHSTP, void, env, tl, tl, tl)
+diff --git a/target/ppc/misc_helper.c b/target/ppc/misc_helper.c
+index 0e625cbb704d9f689abd1de6357f8646609c3298..bfa048a59f226efbded0f1585cd61e4b80cd37d1 100644
+--- a/target/ppc/misc_helper.c
++++ b/target/ppc/misc_helper.c
+@@ -26,6 +26,7 @@
+ #include "qemu/main-loop.h"
+ #include "mmu-book3s-v3.h"
+ #include "hw/ppc/ppc.h"
++#include "system/penguin.h"
+ 
+ #include "helper_regs.h"
+ 
+@@ -43,6 +44,20 @@ void helper_store_dump_spr(CPUPPCState *env, uint32_t sprn)
+              env->spr[sprn]);
+ }
+ 
++target_ulong helper_penguin_guest_hypercall(CPUPPCState *env, target_ulong nr,
++                                            target_ulong a0, target_ulong a1,
++                                            target_ulong a2, target_ulong a3,
++                                            target_ulong a4)
++{
++    CPUState *cs = env_cpu(env);
++    uint64_t ret = 0;
++
++    if (penguin_handle_guest_hypercall(cs, nr, a0, a1, a2, a3, a4, 0, &ret)) {
++        return ret;
++    }
++    return a0;
++}
++
+ void helper_spr_core_write_generic(CPUPPCState *env, uint32_t sprn,
+                                    target_ulong val)
+ {
+diff --git a/target/ppc/translate/fixedpoint-impl.c.inc b/target/ppc/translate/fixedpoint-impl.c.inc
+index fa0191e8664290b5eb5cd703adb566613430f74e..90fd9139113b6dbed4c2672f6ba50a77162e41c0 100644
+--- a/target/ppc/translate/fixedpoint-impl.c.inc
++++ b/target/ppc/translate/fixedpoint-impl.c.inc
+@@ -880,6 +880,12 @@ static bool do_ori(DisasContext *ctx, arg_D_ui *a, bool shift)
+ static bool do_xori(DisasContext *ctx, arg_D_ui *a, bool shift)
+ {
+     if (a->rt == a->ra && a->ui == 0) {
++        if (!shift && a->rt == 10) {
++            gen_helper_penguin_guest_hypercall(cpu_gpr[3], tcg_env,
++                                               cpu_gpr[0], cpu_gpr[3],
++                                               cpu_gpr[4], cpu_gpr[5],
++                                               cpu_gpr[6], cpu_gpr[7]);
++        }
+         /* NOP */
+         return true;
+     }

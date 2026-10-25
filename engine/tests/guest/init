@@ -1,0 +1,23 @@
+#!/bin/busybox sh
+/bin/busybox --install -s /bin
+mkdir -p /sys/fs/cgroup; mount -t proc proc /proc; mount -t sysfs sys /sys; mount -t devtmpfs dev /dev; mount -t cgroup2 none /sys/fs/cgroup
+losetup /dev/loop0 /data.sqsh && mount -t squashfs -o ro /dev/loop0 /mnt
+# swap on the virtio disk (penguin kernels have no zram)
+mkswap /dev/vda >/dev/null && swapon /dev/vda
+cat /proc/swaps | tail -1; uname -r
+echo 0 > /proc/sys/kernel/kptr_restrict
+for t in $(tr ' ' '\n' < /proc/cmdline | sed -n 's/^pt=//p' | tr , ' '); do
+  if [ "$t" = syms ]; then
+    for s in ksys_write SyS_write sys_write search_exception_tables fixup_exception bad_page_fault force_sig_fault force_sig_info __start___ex_table; do
+      grep " [tTdDrR] $s\$" /proc/kallsyms | head -1 | sed 's/^/SYM /'
+    done
+    continue
+  fi
+  echo 3 > /proc/sys/vm/drop_caches
+  # c32-NAME: the 32-bit build (compat syscalls), named pagetest for comm=
+  b=/pagetest; n=${t%%:*}
+  case $n in c32-*) b=/c32/pagetest; n=${n#c32-};; esac
+  $b $n $(echo $t | sed -n "s/^[^:]*://p" | tr : " "); echo "EXIT $t $?"
+done
+echo ALLDONE
+reboot -f

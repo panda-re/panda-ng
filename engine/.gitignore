@@ -1,0 +1,3 @@
+# engine/README.md: the series tooling downloads the tarball here (CI) and nix links results.
+upstream-tarball/
+result*

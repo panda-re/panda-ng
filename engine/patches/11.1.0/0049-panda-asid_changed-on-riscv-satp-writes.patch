@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 22 Oct 2026 19:30:38 -0400
+Subject: [PATCH] panda: asid_changed on riscv satp writes
+
+satp writes go through panda_asid_reg_write, as CR3 and TTBR writes do (0044): asid_changed gets
+process identifiers (the root page table's address, panda_current_asid) and may veto the write.
+---
+ target/riscv/tcg/csr.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/target/riscv/tcg/csr.c b/target/riscv/tcg/csr.c
+index 36f2004bc56067a65ba4b58077a8d22ddc63ae60..2c47285fc266e46faabee59cc42d8b7c458a4e1e 100644
+--- a/target/riscv/tcg/csr.c
++++ b/target/riscv/tcg/csr.c
+@@ -34,6 +34,7 @@
+ #include "internals.h"
+ #if !defined(CONFIG_USER_ONLY)
+ #include "target/riscv/tcg/debug.h"
++#include "panda/hooks.h"
+ #endif
+ 
+ /* CSR function table public API */
+@@ -4430,7 +4431,11 @@ static RISCVException write_satp(CPURISCVState *env, int csrno,
+         return RISCV_EXCP_NONE;
+     }
+ 
+-    env->satp = legalize_xatp(env, env->satp, val);
++    val = legalize_xatp(env, env->satp, val);
++    /* A PANDA plugin may veto a change of process (panda_current_asid). */
++    if (!panda_asid_reg_write(env_cpu(env), &env->satp, sizeof(env->satp), val)) {
++        env->satp = val;
++    }
+     return RISCV_EXCP_NONE;
+ }
+ 

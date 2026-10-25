@@ -1,0 +1,20 @@
+# rules for the sc-func guest test (plugin/syscalls.c); every rule is limited
+# to the test's processes with comm=pagetest
+openat enter return log comm=pagetest s1=/data.sqsh tag=open
+ioctl count comm=pagetest a1=0x1234 tag=ioeq
+ioctl count comm=pagetest a1=0x1230..0x123f tag=iorange
+ioctl count comm=pagetest a2&=0xf0 tag=ioall
+ioctl count comm=pagetest a2!&0xf0 tag=ionone
+ioctl count comm=pagetest a2<0 tag=ioneg
+read enter return log comm=pagetest a2=777 tag=blockread
+* child log comm=pagetest tag=fork
+fork return log comm=pagetest tag=forkret
+clone return log comm=pagetest tag=forkret
+getpgid override=777 a0=4242 comm=pagetest tag=override
+dup3 set1=101 a1=100 comm=pagetest tag=setarg
+getpgid return setret=55 a0=4343 comm=pagetest tag=setret
+getpid count comm=pagetest tag=getpid
+getsid return count ret=err comm=pagetest tag=siderr
+getsid return count ret=ok comm=pagetest tag=sidok
+exit_group enter return count comm=pagetest tag=exit
+* enter count comm=pagetest tag=all

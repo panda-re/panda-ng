@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 22 Oct 2026 20:25:19 -0400
+Subject: [PATCH] replay: x-rr-begin-record filter ids valid for -nic netdevs
+
+-nic names its netdev __org.qemu.nic<N> or similar; the filter-replay object id derived from it
+must be an identifier.
+---
+ replay/replay-begin.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/replay/replay-begin.c b/replay/replay-begin.c
+index 4e3b320c55b596cccc50cc4c84bcf8b847fa85f8..ec75bb0c8f42f955ff16aeece15f742a82d41483 100644
+--- a/replay/replay-begin.c
++++ b/replay/replay-begin.c
+@@ -160,6 +160,8 @@ static bool rr_prepare(RrBeginRecordInfo *info, const char *icount,
+         }
+         if (!has) {
+             g_autofree char *id = g_strdup_printf("rr-filter-%s", ncs[i]->name);
++            /* -nic names its netdev with characters an object id can not have */
++            g_strcanon(id, G_CSET_A_2_Z G_CSET_a_2_z G_CSET_DIGITS "-._", '-');
+             Object *o = object_new_with_props("filter-replay",
+                                               object_get_objects_root(), id,
+                                               errp, "netdev", ncs[i]->name,

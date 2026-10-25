@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 22 Oct 2026 23:08:11 -0400
+Subject: [PATCH] panda: after_loadvm callback when load_snapshot succeeds
+
+loadvm, panda_revert and an rr start all restore through load_snapshot;
+plugins re-sync there (a fuzzing harness after each restore).
+---
+ migration/savevm.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/migration/savevm.c b/migration/savevm.c
+index d3b7ecfd05b0fb6b5d3692154fe952e24816471d..5e915e5dd300b456bee6c1a975c80d40fab68058 100644
+--- a/migration/savevm.c
++++ b/migration/savevm.c
+@@ -71,6 +71,8 @@
+ #include "yank_functions.h"
+ #include "system/qtest.h"
+ #include "options.h"
++#include "hw/core/cpu.h"
++#include "panda/hooks.h"
+ 
+ const unsigned int postcopy_ram_discard_version;
+ 
+@@ -3553,6 +3555,7 @@ bool load_snapshot(const char *name, const char *vmstate,
+         return false;
+     }
+ 
++    panda_callbacks_after_loadvm(first_cpu);
+     return true;
+ 
+ err_drain:

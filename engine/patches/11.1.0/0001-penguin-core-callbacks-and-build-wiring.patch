@@ -1,0 +1,124 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: igloo <nix@local>
+Date: Wed, 19 Aug 2026 23:02:41 -0400
+Subject: [PATCH] penguin: core callbacks and build wiring
+
+Adds system/penguin.c to the system build, declares the after-guest-init
+callback registration API, and invokes it from vl.c once the machine is up.
+Every other hook in this series depends on this entry point existing.
+
+The callback is invoked outside the BQL: taking it here deadlocks against
+Penguin's own locking on the Python side.
+
+Folds: 0e5c47a539, 797f446cf8 (partial), c89b0d5bf4
+---
+ include/system/system.h |  6 ++++++
+ system/meson.build      |  1 +
+ system/vl.c             | 44 +++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 51 insertions(+)
+
+diff --git a/include/system/system.h b/include/system/system.h
+index 03a2d0e9005d666cd4a3e0b2ed68931e700a5dad..9344241fc4fa3b991857a45c14ab561ef76fcbbb 100644
+--- a/include/system/system.h
++++ b/include/system/system.h
+@@ -4,6 +4,7 @@
+ 
+ #include "qemu/timer.h"
+ #include "qemu/notify.h"
++#include "qemu/typedefs.h"
+ #include "qemu/uuid.h"
+ 
+ /* vl.c */
+@@ -22,6 +23,11 @@ void qemu_remove_exit_notifier(Notifier *notify);
+ void qemu_add_machine_init_done_notifier(Notifier *notify);
+ void qemu_remove_machine_init_done_notifier(Notifier *notify);
+ 
++typedef int (*kvm_penguin_after_guest_init_cb_t)(MachineState *machine,
++                                                 void *opaque);
++void set_kvm_penguin_after_guest_init_callback(
++    kvm_penguin_after_guest_init_cb_t cb, void *opaque);
++
+ void configure_rtc(QemuOpts *opts);
+ 
+ void qemu_init_subsystems(void);
+diff --git a/system/meson.build b/system/meson.build
+index cd3193d170b2b5759cb34e4087a6d0ebfa805287..10c41e709040ac1a37a215dcb9930951ba2c1ea9 100644
+--- a/system/meson.build
++++ b/system/meson.build
+@@ -17,6 +17,7 @@ system_ss.add(files(
+   'ram-discard-manager.c',
+   'memory_mapping.c',
+   'memory.c',
++  'penguin.c',
+   'physmem.c',
+   'qdev-monitor.c',
+   'qtest.c',
+diff --git a/system/vl.c b/system/vl.c
+index 061cbdf860bfc5f056aab26f347eeea0b82dc4e8..67ad72c90a092697f0a593d2bb7816dbabe00c22 100644
+--- a/system/vl.c
++++ b/system/vl.c
+@@ -194,6 +194,9 @@ static const char *log_file;
+ static bool list_data_dirs;
+ static const char *qtest_chrdev;
+ static const char *qtest_log;
++static kvm_penguin_after_guest_init_cb_t kvm_penguin_after_guest_init_cb;
++static void *kvm_penguin_after_guest_init_opaque;
++static bool kvm_penguin_after_guest_init_called;
+ 
+ static int has_defaults = 1;
+ static int default_audio = 1;
+@@ -206,6 +209,46 @@ static bool auto_create_sdcard = true;
+ static int default_vga = 1;
+ static int default_net = 1;
+ 
++void __attribute__((visibility("default")))
++set_kvm_penguin_after_guest_init_callback(
++    kvm_penguin_after_guest_init_cb_t cb, void *opaque)
++{
++    kvm_penguin_after_guest_init_cb = cb;
++    kvm_penguin_after_guest_init_opaque = opaque;
++}
++
++static void kvm_penguin_run_after_guest_init_callback(void)
++{
++    int ret;
++
++    if (!kvm_penguin_after_guest_init_cb ||
++        kvm_penguin_after_guest_init_called) {
++        return;
++    }
++
++    kvm_penguin_after_guest_init_called = true;
++
++    /*
++     * This hook runs after board and CLI device construction, but before
++     * qemu_machine_creation_done() closes the normal machine construction
++     * window.  Hold BQL so embedders can safely mutate QEMU global state.
++     * qemu_init() may already be running with BQL held, so avoid taking it
++     * recursively in debug builds.
++     */
++    if (bql_locked()) {
++        ret = kvm_penguin_after_guest_init_cb(
++            current_machine, kvm_penguin_after_guest_init_opaque);
++    } else {
++        BQL_LOCK_GUARD();
++        ret = kvm_penguin_after_guest_init_cb(
++            current_machine, kvm_penguin_after_guest_init_opaque);
++    }
++    if (ret) {
++        error_report("Penguin after guest init callback failed: %d", ret);
++        exit(1);
++    }
++}
++
+ static const struct {
+     const char *driver;
+     int *flag;
+@@ -2820,6 +2863,7 @@ void qmp_x_exit_preconfig(Error **errp)
+ 
+     qemu_init_board();
+     qemu_create_cli_devices();
++    kvm_penguin_run_after_guest_init_callback();
+     if (!qemu_machine_creation_done(errp)) {
+         return;
+     }

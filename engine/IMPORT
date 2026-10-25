@@ -1,0 +1,8 @@
+# Written by tools/engine-import.sh. Do not edit by hand.
+source rehosting/qemu_builder
+commit dc1aed473c7643aae3a882eb14530eec5de684ba
+subject Merge lane-tbpc: panda_tb_pc, block callbacks no longer bind TBs, panda_current_asid is the process identifier (patchedTree re-recorded for 58)
+owned:scripts/import-series.sh 0012a33f4daa8516ef652a41f21fd02d0214e4e6
+owned:scripts/offcost-gate.sh 35eb74e740f4df1db018d2c166bbbecdf01108c8
+owned:nix/source.nix aa41532957f3d5a23d5a9eae571bc03ea8d187ed
+owned:flake.nix 48cbe1a2a5b309487739ca264860e992e335c021

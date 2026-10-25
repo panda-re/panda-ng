@@ -1,12 +1,11 @@
 {
-  description = "panda-next: the PANDA engine (qemu_builder + --enable-panda), its generated headers, and plugins";
+  description = "panda-next: the PANDA engine (patched QEMU built with --enable-panda), its generated headers, and plugins";
 
   inputs = {
-    # The engine: qemu_builder's patched 11.1 source (series + vendored src/, PANDA included).
-    # Local development: --override-input qemu-builder path:/path/to/qemu_builder
-    qemu-builder.url = "git+https://github.com/rehosting/qemu_builder?ref=workspace/panda-next-integ";
-    # One nixpkgs for everything, the one qemu_builder (and penguin) pin.
-    nixpkgs.follows = "qemu-builder/nixpkgs";
+    # Pinned by revision. This is the revision qemu_builder (and penguin) pinned when the engine
+    # moved here; panda-ng no longer follows penguin's pin and bumps it on its own schedule (a bump
+    # rebuilds the engine and everything on it: rerun the guest tests).
+    nixpkgs.url = "github:NixOS/nixpkgs/b6067cc0127d4db9c26c79e4de0513e58d0c40c9";
     libpanda-ng-src = {
       url = "git+https://github.com/panda-re/libpanda-ng";
       flake = false;
@@ -17,7 +16,6 @@
     {
       self,
       nixpkgs,
-      qemu-builder,
       libpanda-ng-src,
       ...
     }:
@@ -79,6 +77,10 @@
             $CC -O2 -fPIC -c ${./nix/glibc-compat/termios-compat.c} -o $out/termios-compat.o
           '';
 
+          # The engine's source: engine/'s upstream tarball + patch series + src/ overlay
+          # (engine/nix/source.nix, engine/README.md).
+          engineSource = import ./engine/nix/source.nix { inherit pkgs; };
+
           # The engine. Keeps nothing of the build tree but what it installs, plus the headers
           # libpanda-ng generates from it (which need the tree, so they are made here).
           mkEngine =
@@ -90,7 +92,7 @@
             pkgs.stdenv.mkDerivation {
               pname = "panda-engine" + lib.optionalString portable "-portable";
               inherit version;
-              src = qemu-builder.packages.${system}.src;
+              src = engineSource.src;
               # sdk: what an external board or device (a panda module) compiles against; mkBoard.
               outputs = [
                 "out"
@@ -522,19 +524,20 @@
                 urls = lib.unique (map unmirror (src.urls or [ (src.url or "") ]));
                 prefixes = map (o: noCtx (toString e.pkg.${o})) e.pkg.outputs;
               }) wheelThirdParty;
-              engineSrc = qemu-builder.packages.${system}.src;
+              engineSrc = engineSource.src;
               manifest = {
                 engine = {
                   name = "qemu-panda-engine";
                   spdx = "GPL-2.0-only";
                   source = [
-                    "QEMU ${engineSrc.version or "11.1.0"} with the PANDA patch series, from qemu_builder"
-                    "  repository: https://github.com/rehosting/qemu_builder"
-                    "  commit: ${qemu-builder.rev or qemu-builder.dirtyRev or "unknown (not a git checkout)"}"
-                    "  patch series: patches/11.1.0/series in that commit (the PANDA overlay is its src/)"
-                    "  patched tree as built: ${noCtx (toString engineSrc)} (nix: the qemu-builder flake's packages.<system>.src)"
+                    "QEMU ${engineSource.version} with the PANDA patch series, from panda-ng's engine/"
+                    "  repository: https://github.com/panda-re/panda-ng"
+                    "  commit: ${self.rev or self.dirtyRev or "unknown (not built from a git checkout)"}"
+                    "  upstream: ${engineSource.base.url or "https://download.qemu.org/qemu-${engineSource.base.tag}.tar.xz"} (sha256 ${engineSource.base.sha256})"
+                    "  patch series: engine/patches/${engineSource.version}/series in that commit (the PANDA overlay is engine/src/)"
+                    "  patched tree as built: ${noCtx (toString engineSrc)} (nix: engine/nix/source.nix)"
                     "  firmware in pandare2/data/share/qemu comes from that tree's pc-bios/ (see its LICENSE and pc-bios/README;"
-                    "  firmware sources are in the roms/ submodules of upstream QEMU ${engineSrc.version or "11.1.0"})"
+                    "  firmware sources are in the roms/ submodules of upstream QEMU ${engineSource.version})"
                   ];
                 };
                 panda-ng = {
@@ -696,6 +699,20 @@
             pluginDirWith
             mkBoard
             ;
+          # The patched QEMU tree the engine builds from (engine/nix/source.nix).
+          engineSrc = engineSource.src;
+          engineVersion = engineSource.version;
+          # For working on the engine itself (engine/README.md): its build inputs, plus what the
+          # series scripts and the off-cost gate use.
+          engine-shell = pkgs.mkShell {
+            inputsFrom = [ engine ];
+            packages = with pkgs; [
+              git
+              jq
+              bc
+              xz
+            ];
+          };
           # For running libpanda-ng by hand against a build tree:
           #   nix develop .#libpanda-ng -c bash run_one.sh <qemu-src-with-build/> <libpanda-*.so>
           libpanda-ng-shell = pkgs.mkShell {
@@ -731,15 +748,16 @@
             wheel
             ;
           plugin-sdk = p.pluginSdk;
+          engine-src = p.engineSrc;
           python = p.pandaPython;
           default = p.plugins;
-          # mkBoard's own check: qemu_builder's tests/modules/ext-devices.c (two devices) as a module.
+          # mkBoard's own check: engine/tests/modules/ext-devices.c (two devices) as a module.
           board-example = p.mkBoard {
             name = "ext-devices";
             target = "aarch64-softmmu";
             # only ext-devices.c: tests/modules also holds ext-clash.c, which clashes with pl011 on purpose
             src = nixpkgs.legacyPackages.${system}.runCommand "ext-devices-src" { } ''
-              mkdir $out; cp ${qemu-builder}/tests/modules/ext-devices.c $out/
+              mkdir $out; cp ${./engine/tests/modules/ext-devices.c} $out/
             '';
           };
         }
@@ -797,6 +815,8 @@
             qemu
             pandare2
             mkPandare2
+            engineSrc
+            engineVersion
             ;
           python = p.pandaPython;
         }
@@ -809,6 +829,9 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
+          # The series applies to the pinned tarball (the strict gate with the patchedTree
+          # comparison is engine/scripts/verify-series.sh, run by .github/workflows/engine.yml).
+          engine-src = p.engineSrc;
           # Each qemu-system-<arch> starts and lists its machines.
           qemu-system = pkgs.runCommand "panda-qemu-system-check" { } ''
             for a in ${nixpkgs.lib.concatStringsSep " " arches}; do
@@ -842,6 +865,9 @@
       );
 
       devShells = forAllSystems (system: {
+        # The engine's toolchain: `nix develop .#engine`, then configure/ninja an
+        # engine/scripts/import-series.sh tree by hand.
+        engine = (perSystem system).engine-shell;
         libpanda-ng = (perSystem system).libpanda-ng-shell;
         # The plugins' toolchain without the engine: point local_packages/panda-ng at headers yourself.
         plugins = (perSystem system).plugins-shell;

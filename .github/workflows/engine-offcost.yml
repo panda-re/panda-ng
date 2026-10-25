@@ -1,0 +1,75 @@
+name: Engine off-cost
+
+# "Built in but off costs nothing", measured (engine/README.md, the off-cost gate): stock and this
+# series, built from the same pinned tarball with the same configure line, boot the guest
+# harness's kernels (x86_64, aarch64) and run the same workloads; the series must stay within TOL
+# of stock, and an rr-ready launch within RRTOL of a plain one. engine/scripts/offcost-gate.sh is
+# the whole gate; this only provides inputs. Ported from qemu_builder's offcost.yml.
+#
+# Manual: about 90 guest boots plus two QEMU builds, and it wants a quiet runner (noise on a
+# shared host fails it, not the code). Never run on GitHub's runners yet; it was developed in a
+# Linux VM with the same script. Nothing here publishes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stock_ref:
+        description: "Stock: a panda-ng ref whose engine/ is the baseline, or 'pristine' (x86_64 only)"
+        required: false
+        default: "origin/main"
+      reps:
+        description: "Runs per build per workload"
+        required: false
+        default: "5"
+      tol:
+        description: "Allowed series/stock slowdown (fraction)"
+        required: false
+        default: "0.05"
+
+permissions:
+  contents: read
+
+jobs:
+  offcost:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # STOCK_REF is read with git archive
+
+      - uses: cachix/install-nix-action@v31
+
+      - name: Fetch upstream tarball
+        id: base
+        run: |
+          set -eux
+          read -r tag url < <(python3 -c 'import json;(e,)=json.load(open("engine/base.json")).values();print(e["tag"],e["url"])')
+          ver=$(python3 -c 'import json;(v,)=json.load(open("engine/base.json"));print(v)')
+          mkdir -p upstream-tarball
+          curl -sSL --retry 3 -o "upstream-tarball/qemu-$tag.tar.xz" "$url"
+          echo "tarball=$PWD/upstream-tarball/qemu-$tag.tar.xz" >> "$GITHUB_OUTPUT"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
+      # kernels, busybox and the initrds; the plugins are not used by the gate
+      - name: Guest inputs
+        run: |
+          set -eux
+          nix shell nixpkgs#gcc nixpkgs#pkg-config nixpkgs#glib nixpkgs#squashfsTools nixpkgs#cpio \
+            nixpkgs#llvm nixpkgs#python3 -c env ARCHES="x86_64 aarch64" engine/tests/guest/prepare.sh
+
+      - name: Gate
+        run: |
+          set -eux
+          nix develop .#engine -c env STOCK_REF="${{ inputs.stock_ref }}" REPS=${{ inputs.reps }} \
+            TOL=${{ inputs.tol }} JOBS=4 ./engine/scripts/offcost-gate.sh \
+            "${{ steps.base.outputs.version }}" "${{ steps.base.outputs.tarball }}" \
+            "$RUNNER_TEMP/offcost" "$PWD/offcost-out"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: offcost
+          path: offcost-out
+          retention-days: 14

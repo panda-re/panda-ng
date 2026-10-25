@@ -1,0 +1,125 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 22 Oct 2026 21:37:19 -0400
+Subject: [PATCH] replay: no frontend room while a recorded chardev read is
+ pending
+
+A recorded read reaches the frontend when its event runs, at the next checkpoint. Until then
+qemu_chr_be_can_write() still reported the frontend's room, so the backend read again and the
+events overran it: input to a 16550 stopped after 16 bytes (the FIFO) during a recording.
+---
+ chardev/char.c          |  4 ++++
+ include/system/replay.h |  2 ++
+ replay/replay-char.c    | 23 +++++++++++++++++++++++
+ stubs/replay-tools.c    |  5 +++++
+ 4 files changed, 34 insertions(+)
+
+diff --git a/chardev/char.c b/chardev/char.c
+index 22e5bae388ad085568f624747cf94285877c0f34..c46455fb97c63465452016eef72e39b1cdf12cb5 100644
+--- a/chardev/char.c
++++ b/chardev/char.c
+@@ -235,6 +235,10 @@ int qemu_chr_be_can_write(Chardev *s)
+     if (!fe || !fe->chr_can_read) {
+         return 0;
+     }
++    if (qemu_chr_replay(s) && replay_mode == REPLAY_MODE_RECORD &&
++        replay_chr_read_pending(s)) {
++        return 0;
++    }
+ 
+     return fe->chr_can_read(fe->opaque);
+ }
+diff --git a/include/system/replay.h b/include/system/replay.h
+index 59314d26ae3a7bde1a69c7aa3b55f2e09801e62d..d7612217d6637a0177d2c4e42916dd227acf4fba 100644
+--- a/include/system/replay.h
++++ b/include/system/replay.h
+@@ -141,6 +141,8 @@ uint64_t blkreplay_next_id(void);
+ void replay_register_char_driver(struct Chardev *chr);
+ /*! Saves write to char device event to the log */
+ void replay_chr_be_write(struct Chardev *s, const uint8_t *buf, int len);
++/*! Whether a recorded read of this char driver is not delivered yet */
++bool replay_chr_read_pending(struct Chardev *s);
+ /*! Writes char write return value to the replay log. */
+ void replay_char_write_event_save(int res, int offset);
+ /*! Reads char write return value from the replay log. */
+diff --git a/replay/replay-char.c b/replay/replay-char.c
+index 4e58dd154af87b5ec15224c56f0ce99ee7445071..ca5268cafdf0d6ead2092908e4646c619a9a82aa 100644
+--- a/replay/replay-char.c
++++ b/replay/replay-char.c
+@@ -11,6 +11,7 @@
+ 
+ #include "qemu/osdep.h"
+ #include "qemu/error-report.h"
++#include "qemu/main-loop.h"
+ #include "system/replay.h"
+ #include "replay-internal.h"
+ #include "chardev/char.h"
+@@ -19,6 +20,8 @@
+    that should be saved into the log. */
+ static Chardev **char_drivers;
+ static int drivers_count;
++/* Recorded reads not delivered to the frontend yet, per driver. */
++static int *pending_reads;
+ 
+ /* Char event attributes. */
+ typedef struct CharEvent {
+@@ -45,9 +48,25 @@ void replay_register_char_driver(Chardev *chr)
+     }
+     char_drivers = g_realloc(char_drivers,
+                              sizeof(*char_drivers) * (drivers_count + 1));
++    pending_reads = g_realloc(pending_reads,
++                              sizeof(*pending_reads) * (drivers_count + 1));
++    pending_reads[drivers_count] = 0;
+     char_drivers[drivers_count++] = chr;
+ }
+ 
++/*
++ * A recorded read reaches the frontend only when its event runs, so until
++ * then the frontend's room (e.g. a 16-byte UART FIFO) is not used up yet:
++ * a backend that read more meanwhile would overrun it.  Report no room while
++ * a read is pending.
++ */
++bool replay_chr_read_pending(Chardev *s)
++{
++    int id = find_char_driver(s);
++
++    return id >= 0 && pending_reads[id] > 0;
++}
++
+ void replay_chr_be_write(Chardev *s, const uint8_t *buf, int len)
+ {
+     CharEvent *event = g_new0(CharEvent, 1);
+@@ -61,6 +80,7 @@ void replay_chr_be_write(Chardev *s, const uint8_t *buf, int len)
+     memcpy(event->buf, buf, len);
+     event->len = len;
+ 
++    pending_reads[event->id]++;
+     replay_add_event(REPLAY_ASYNC_EVENT_CHAR_READ, event, NULL, 0);
+ }
+ 
+@@ -70,6 +90,9 @@ void replay_event_char_read_run(void *opaque)
+ 
+     qemu_chr_be_write_impl(char_drivers[event->id], event->buf,
+                            (int)event->len);
++    if (pending_reads[event->id] > 0 && !--pending_reads[event->id]) {
++        qemu_notify_event();    /* the backend may read again */
++    }
+ 
+     g_free(event->buf);
+     g_free(event);
+diff --git a/stubs/replay-tools.c b/stubs/replay-tools.c
+index 17dc3babd9b126df5333e177e3dae4a9b8962266..6e4945b23422d7a9d527ff6ec9940e63c3532703 100644
+--- a/stubs/replay-tools.c
++++ b/stubs/replay-tools.c
+@@ -58,6 +58,11 @@ void replay_chr_be_write(struct Chardev *s, const uint8_t *buf, int len)
+     abort();
+ }
+ 
++bool replay_chr_read_pending(struct Chardev *s)
++{
++    return false;
++}
++
+ void replay_char_write_event_save(int res, int offset)
+ {
+     abort();

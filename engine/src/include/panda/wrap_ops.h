@@ -1,0 +1,1 @@
+void wrap_cpu_ops(void);

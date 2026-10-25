@@ -1,8 +1,9 @@
 # panda-ng (panda-next)
 
-PANDA on QEMU 11.1: the engine (qemu_builder's patched QEMU built with `--enable-panda`), the
-headers libpanda-ng generates from it, panda-ng's plugins, and `pandare2`, the Python interface.
-Everything is built by this repository's nix flake. There are three ways to use it:
+PANDA on QEMU 11.1: the engine (upstream QEMU with PANDA's patch series and sources, in
+[`engine/`](engine/README.md), built with `--enable-panda`), the headers libpanda-ng generates
+from it, panda-ng's plugins, and `pandare2`, the Python interface. Everything is built by this
+repository's nix flake, from this repository. There are three ways to use it:
 
 | you want | use |
 |---|---|
@@ -69,6 +70,7 @@ Packages (`nix build .#<name>`), for x86_64-linux and aarch64-linux:
 |---|---|
 | `engine` | QEMU + PANDA: `lib/libpanda-<arch>-softmmu.so`, `include/panda-ng/`, `share/qemu/`, QEMU's tools |
 | `engine-x86_64` | one target, for iterating on the build |
+| `engine-src` | the patched QEMU tree the engine builds from (tarball + `engine/patches` + `engine/src`) |
 | `plugins` (default) | `lib/panda/plugins/libpanda-<plugin>_<arch>-softmmu.so` |
 | `pandare2` | the Python package, wired to this engine and these plugins |
 | `python` | nix's Python with pandare2 (+ protobuf) |
@@ -122,9 +124,14 @@ plugin against the engine, runs a pandare2 script that loads it, and re-exports 
   - `mkEngine { targets, portable }`: an engine for other targets.
 - `lib.mkPandaNext pkgs`: the whole set for any nixpkgs (what the overlay calls).
 
-Local development against a qemu_builder checkout:
-`nix build --override-input qemu-builder git+file:///path/to/qemu_builder?ref=<branch> .#python`.
-Checks: `nix flake check` runs `-version` and `-machine help` on every `qemu-system-<arch>`.
+Checks: `nix flake check` applies the engine's series (`engine-src`) and runs `-version` and
+`-machine help` on every `qemu-system-<arch>`. `nix develop .#engine` is the engine's toolchain.
+
+## The engine
+
+[`engine/README.md`](engine/README.md): the layout (`base.json`, `patches/<version>/`, `src/`),
+working on the series (import, export, verify), the CI gates, rebasing onto a new QEMU release,
+and what came from `rehosting/qemu_builder`, where the engine lived until October 2026.
 
 ## qemu-system-&lt;arch&gt;
 

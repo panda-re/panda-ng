@@ -1,0 +1,100 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 21 Oct 2026 17:57:10 -0400
+Subject: [PATCH] accel/tcg: address hooks keep CF_PCREL on outside hooked
+ pages
+
+The first hook turned CF_PCREL off on every vCPU, so that no block was
+reused at a virtual address it was not translated for.  Every exec of a
+PIE under ASLR then retranslated all of its code and its libraries: 5-20x
+slower execs on x86_64, aarch64, arm and riscv64.
+
+Clear CF_PCREL per lookup instead, only on guest pages that hold a hook
+site (tcg_hooks_cflags: a hashed page bitmap, set when a site is created).
+Hooks are emitted only into blocks without CF_PCREL, and while hooks are
+in use a CF_PCREL block ends at its first page, so code on an unhooked
+page cannot run on into a hooked one.  Every path that looks up a block
+(the exec loop, including cflags_next_tb, lookup_tb_ptr, step_atomic) asks
+for the page's cflags, and the jump cache already compares cflags.
+
+The vCPU setup hook now only marks the pages of sites an embedder inserted
+before the page size was decided (tcg_hooks_vcpu_init); src/ carries the
+hooks.c side.
+---
+ accel/tcg/cpu-exec.c      |  6 ++++--
+ accel/tcg/tcg-accel-ops.c |  2 +-
+ accel/tcg/translator.c    | 10 ++++++++++
+ 3 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 9d7319de27d6bd4f882ede3e2c454c08acb7d2dc..758a0958e08f718dcd6550bc6536930174262768 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -46,6 +46,7 @@
+ #include "tb-context.h"
+ #include "tb-internal.h"
+ #include "internal-common.h"
++#include "hooks-internal.h"
+ #if !defined(CONFIG_USER_ONLY)
+ #include "accel/tcg/iommu.h"
+ #endif
+@@ -389,7 +390,7 @@ const void *HELPER(lookup_tb_ptr)(CPUArchState *env)
+     cpu->neg.can_do_io = true;
+ 
+     TCGTBCPUState s = cpu->cc->tcg_ops->get_tb_cpu_state(cpu);
+-    s.cflags = curr_cflags(cpu);
++    s.cflags = tcg_hooks_cflags(s.pc, curr_cflags(cpu));
+ 
+     if (check_for_breakpoints(cpu, s.pc, &s.cflags)) {
+         cpu_loop_exit(cpu);
+@@ -574,7 +575,7 @@ void cpu_exec_step_atomic(CPUState *cpu)
+         cpu->running = true;
+ 
+         TCGTBCPUState s = cpu->cc->tcg_ops->get_tb_cpu_state(cpu);
+-        s.cflags = curr_cflags(cpu);
++        s.cflags = tcg_hooks_cflags(s.pc, curr_cflags(cpu));
+ 
+         /* Execute in a serial context. */
+         s.cflags &= ~CF_PARALLEL;
+@@ -972,6 +973,7 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
+             } else {
+                 cpu->cflags_next_tb = -1;
+             }
++            s.cflags = tcg_hooks_cflags(s.pc, s.cflags);
+ 
+             if (check_for_breakpoints(cpu, s.pc, &s.cflags)) {
+                 break;
+diff --git a/accel/tcg/tcg-accel-ops.c b/accel/tcg/tcg-accel-ops.c
+index eaf546dd68a1e6e950170e05dff7fcef21c79d71..7668e55254a462fd0b4539e85119ca632314a81c 100644
+--- a/accel/tcg/tcg-accel-ops.c
++++ b/accel/tcg/tcg-accel-ops.c
+@@ -70,7 +70,7 @@ void tcg_cpu_init_cflags(CPUState *cpu, bool parallel)
+     cflags |= parallel ? CF_PARALLEL : 0;
+     cflags |= icount_enabled() ? CF_USE_ICOUNT : 0;
+     tcg_cflags_set(cpu, cflags);
+-    tcg_hooks_vcpu_cflags(cpu);
++    tcg_hooks_vcpu_init(cpu);
+ }
+ 
+ void tcg_cpu_destroy(CPUState *cpu)
+diff --git a/accel/tcg/translator.c b/accel/tcg/translator.c
+index 96314e16aafd650b93c9e54cb1ae0271d7e90d84..d00bd8f21b9dede2204e4067c0f3d180111320f1 100644
+--- a/accel/tcg/translator.c
++++ b/accel/tcg/translator.c
+@@ -206,6 +206,16 @@ void translator_loop(CPUState *cpu, TranslationBlock *tb, int *max_insns,
+             db->is_jmp = DISAS_TOO_MANY;
+             break;
+         }
++
++        /*
++         * While address hooks are in use, a CF_PCREL TB stays on its first
++         * page: that page has no hook site, but the next one may get one.
++         */
++        if (unlikely(qatomic_read(&tcg_hooks_enabled)) && (cflags & CF_PCREL)
++            && !translator_is_same_page(db, db->pc_next)) {
++            db->is_jmp = DISAS_TOO_MANY;
++            break;
++        }
+     }
+ 
+     /* Emit code to exit the TB, as indicated by db->is_jmp.  */

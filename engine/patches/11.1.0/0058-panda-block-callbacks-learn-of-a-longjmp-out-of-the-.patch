@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 09:33:38 -0400
+Subject: [PATCH] panda: block callbacks learn of a longjmp out of the block
+
+A fault, an exception raised by a block's last instruction, or cpu_loop_exit_noexc leaves
+the block by longjmp. With the block-exec callbacks run from the block's own code (TB
+chaining on), the block a vCPU was running has to end there: after_block_exec, exited
+early (TB_EXIT_REQUESTED), before the exception is delivered. Nothing pending, nothing
+done: an empty inline without --enable-panda.
+---
+ accel/tcg/cpu-exec.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 26cb333c709ab30d83d45d88131e4591c31beecf..5482554b68990c5e5c9ca17c6d7fdc0b10a120d7 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -578,6 +578,8 @@ static void cpu_exec_longjmp_cleanup(CPUState *cpu)
+         bql_unlock();
+     }
+     assert_no_pages_locked();
++    /* PANDA: the block this vCPU was running ends here (after_block_exec, exited early). */
++    panda_callbacks_block_longjmp(cpu);
+ }
+ 
+ void cpu_exec_step_atomic(CPUState *cpu)
