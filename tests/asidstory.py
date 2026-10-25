@@ -2,8 +2,9 @@
 
 Run: panda-python tests/asidstory.py <dir>/debian-13-x86_64.json
 
-Three copies of tests/programs/procs_<arch>.S run at once. Each makes M=20 hypercalls
-(MAGIC, 5, its pid from getpid, i, pc) with a 10 ms sleep between them. asidstory kept, per
+Three copies of tests/programs/procs_<arch>.S run at once. Each waits at a start barrier the shell
+releases once all three have exec'd (so they overlap however slow exec is), then makes M=20
+hypercalls (MAGIC, 5, its pid from getpid, i, pc) with a 10 ms sleep between them. asidstory kept, per
 address space, when it was seen and which process OSI said it was; here asid_changed builds the
 timeline and each hypercall says which process is running. Checks:
 - each copy's hypercalls arrive in order (i = 0..M-1), from its own pid;
@@ -88,7 +89,17 @@ def drive():
     upload(panda, "procs", arch)
     S["on"] = True
     progress(f"running {KIDS} copies of /tmp/procs")
-    S["output"] = panda.run_serial_cmd(" & ".join(["/tmp/procs"] * KIDS) + " & wait; echo rc=$?")
+    # Start barrier: each copy writes a byte to the "ready" FIFO (fd 4) and then reads one from the
+    # "go" FIFO (fd 3); the shell, holding both open read-write (so neither open blocks nor sees
+    # EOF), releases them with KIDS bytes once it has read KIDS ready bytes. All copies have exec'd
+    # and sit in that read together, so their loops overlap however long exec takes.
+    start = " ".join(f"/tmp/procs & p{k}=$!;" for k in range(KIDS))
+    waits = " ".join(f"wait $p{k}; r{k}=$?;" for k in range(KIDS))
+    rcs = " ".join(f"$r{k}" for k in range(KIDS))
+    panda.run_serial_cmd("rm -f /tmp/go /tmp/ready; mkfifo /tmp/go /tmp/ready; exec 3<>/tmp/go 4<>/tmp/ready")
+    S["output"] = panda.run_serial_cmd(f"{start} head -c {KIDS} <&4 >/dev/null; printf %{KIDS}s >&3; {waits} "
+                                       f"echo rc={rcs}")
+    panda.run_serial_cmd("exec 3>&- 4>&-; rm -f /tmp/go /tmp/ready")
     S["on"] = False
     panda.end_analysis()
 
@@ -124,6 +135,7 @@ C.check("procname filter: a callback with procname='procs' runs in the program's
         S["filtered_prog"] >= M * KIDS, S["filtered_prog"])
 C.check("procname filter: ... and never in another process's user code", not S["filtered_other_user"],
         [hex(x) for x in S["filtered_other_user"][:6]])
-C.check("the shell saw all copies exit 0", "rc=0" in S.get("output", ""), repr(S.get("output")))
+C.check("the shell saw all copies exit 0 (2: the start barrier's read failed)",
+        "rc=" + " ".join(["0"] * KIDS) in S.get("output", ""), repr(S.get("output")))
 sys.exit(C.report(f"ASIDSTORY arch={arch} pids={sorted(by_pid)} asid_changed={len(S['timeline'])} "
                   f"interleavings={switches}"))

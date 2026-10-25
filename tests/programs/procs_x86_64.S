@@ -1,5 +1,8 @@
-/* tests/asidstory.py's guest program: M times, hypercall (MAGIC, 5, getpid(), i, pc of the
- * hypercall), then sleep 10 ms; then exit(0). Several run at once. */
+/* tests/asidstory.py's guest program: start barrier (write a byte to fd 4, then read a byte from
+ * fd 3; the shell holds both FIFOs open and releases the copies once all of them have written:
+ * after the exec, so exec time can't serialize them; exit(2) if the read fails), then M times,
+ * hypercall (MAGIC, 5, getpid(), i, pc of the hypercall), sleep 10 ms; then exit(0). Several run
+ * at once. */
     .intel_syntax noprefix
     .set M, 20
     .globl _start
@@ -12,6 +15,22 @@ _start:
     mov eax, 39             /* getpid */
     syscall
     mov r12, rax
+    mov eax, 1              /* write(4, &buf, 1): ready */
+    mov edi, 4
+    lea rsi, [rip + buf]
+    mov edx, 1
+    syscall
+    xor eax, eax            /* read(3, &buf, 1): wait for the release */
+    mov edi, 3
+    lea rsi, [rip + buf]
+    mov edx, 1
+    syscall
+    cmp rax, 1
+    je 2f
+    mov eax, 60             /* exit(2) */
+    mov edi, 2
+    syscall
+2:
     xor ebx, ebx            /* i */
 1:
     mov edi, 0x50616e64
@@ -34,3 +53,4 @@ hc:
     syscall
     .data
 ts: .quad 0, 10000000       /* 10 ms */
+buf: .byte 0

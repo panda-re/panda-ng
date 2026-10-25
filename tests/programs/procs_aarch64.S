@@ -5,6 +5,22 @@ _start:
     mov x8, #172            /* getpid */
     svc #0
     mov x20, x0
+    mov x0, #4              /* write(4, &buf, 1): ready (barrier: see procs_x86_64.S) */
+    adr x1, buf
+    mov x2, #1
+    mov x8, #64
+    svc #0
+    mov x0, #3              /* read(3, &buf, 1): wait for the release */
+    adr x1, buf
+    mov x2, #1
+    mov x8, #63
+    svc #0
+    cmp x0, #1
+    b.eq 2f
+    mov x0, #2              /* exit(2) */
+    mov x8, #93
+    svc #0
+2:
     mov x19, #0             /* i */
 1:
     movz x0, #0x6e64
@@ -28,3 +44,4 @@ hc:
     svc #0
     .data
 ts: .quad 0, 10000000       /* 10 ms */
+buf: .byte 0
