@@ -3078,6 +3078,14 @@ class Panda():
                 self.asid_mapping[asid] = name
                 self._procname_changed(cpu, name)
 
+        # A process's page tables are freed when it exits or execs, and a later process can get the
+        # same address: forget the name then, so that process's name is looked up afresh.
+        def __forget_asid(cpu, *args):
+            self.asid_mapping.pop(self.libpanda.panda_current_asid(cpu), None)
+
+        for event in ("exit", "exit_group", "execve", "execveat"):
+            self.ppp("syscalls2", f"on_sys_{event}_enter", name=f"__forget_asid_{event}")(__forget_asid)
+
         @self.callback.after_block_exec
         def __get_pending_procname_change(cpu, tb, exit_code):
             if exit_code: # Didn't actually execute block
@@ -3107,6 +3115,8 @@ class Panda():
                 return 0
 
             if new_asid not in self.asid_mapping: # We don't know this ASID->procname - turn on __get_pending_procname_change
+                # Until then no procname matches: the previous process's callbacks would otherwise run in this one.
+                self._procname_changed(cpustate, None)
                 if not self.is_callback_enabled('__get_pending_procname_change'):
                     self.enable_callback('__get_pending_procname_change')
             else: # We do know this ASID->procname, just call procname_changed
