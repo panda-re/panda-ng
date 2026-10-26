@@ -200,7 +200,6 @@ class Panda():
 
         if libpanda_path:
             environ["PANDA_LIB"] = self.libpanda_path = libpanda_path
-            print("here")
         else:
             build_dir = self.get_build_dir()
             lib_paths = [
