@@ -10,6 +10,7 @@ name: CI
 #             (the series applies, each qemu-system-<arch> starts, wheel repair), and the
 #             examples/consumer flake against this tree (an out-of-tree plugin runs).
 #   rust      the checked-in bindings compile for every target feature.
+#   reuse     every file has its copyright and license (REUSE 3.3: LICENSES/, REUSE.toml, SPDX tags).
 #
 # Binary cache: the public Cachix cache pandare, through rehosting/ci's nix-setup. Pushes to main
 # push what they built (with the org secret CACHIX_AUTH_TOKEN); PRs only pull, so an engine that
@@ -88,3 +89,9 @@ jobs:
             echo "== $f"
             nix shell --inputs-from ../.. nixpkgs#cargo nixpkgs#rustc -c cargo check --locked --features "$f"
           done
+
+  reuse:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: fsfe/reuse-action@v5
