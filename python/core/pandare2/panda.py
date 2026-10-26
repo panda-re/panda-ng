@@ -21,7 +21,7 @@ import readline
 # stdio interactions later (e.g., pdb, input())  without segfaults
 
 from os.path import realpath, exists, abspath, isfile, dirname, isdir, join as pjoin
-from os import dup, getenv, environ, path
+from os import getenv, environ, path
 from random import randint
 from inspect import signature
 from tempfile import NamedTemporaryFile
@@ -962,9 +962,8 @@ class Panda():
         Disable all python plugins and request to unload all c plugins
         at the next main_loop_wait.
 
-        XXX: If called during shutdown/exit, c plugins won't be unloaded
-        because the next main_loop_wait will never happen. Instead, call
-        panda.panda_finish directly (which is done at the end of panda.run())
+        XXX: If called during shutdown/exit, c plugins won't be unloaded here
+        because the next main_loop_wait will never happen.
         '''
         if debug:
             progress ("Disabling all python plugins, unloading all C plugins")
@@ -974,18 +973,6 @@ class Panda():
 
         # Then unload C plugins. May be unsafe to do except from the top of the main loop
         self.queue_main_loop_wait_fn(self.libpanda.panda_unload_plugins)
-
-    def memsavep(self, file_out):
-        '''
-        Calls QEMU memsavep on your specified python file.
-        '''
-        # this part was largely copied from https://cffi.readthedocs.io/en/latest/ref.html#support-for-file
-
-        file_out.flush()                 # make sure the file is flushed
-        newfd = dup(file_out.fileno())   # make a copy of the file descriptor
-        fileptr = self.C.fdopen(newfd, b"w")
-        self.libpanda.panda_memsavep(fileptr)
-        self.C.fclose(fileptr)
 
     def physical_memory_read(self, addr, length, fmt='bytearray'):
         '''
@@ -1534,12 +1521,6 @@ class Panda():
         '''
         self.libpanda.panda_cleanup()
 
-    def was_aborted(self):
-        '''
-        Returns true if panda was aborted.
-        '''
-        return self.libpanda.panda_was_aborted()
-
     def get_cpu(self):
         '''
         This function returns first_cpu CPUState object from QEMU.
@@ -1561,13 +1542,6 @@ class Panda():
             int: length of the array
         '''
         return self.libpanda.garray_len(garray)
-
-    def panda_finish(self):
-        '''
-        Final stage call to underlying panda_finish with initialization.
-        '''
-        # return self.libpanda.panda_finish()
-        pass
 
     def rr_get_guest_instr_count(self):
         '''
@@ -2501,17 +2475,6 @@ class Panda():
                     break
             r = self.run_serial_cmd(cmd) # XXX: may timeout
             print(r)
-
-    @blocking
-    def do_panda_finish(self):
-        '''
-        Call panda_finish. Note this isn't really blocking - the
-        guest should have exited by now, but queue this after
-        (blocking) shutdown commands in our internal async queue
-        so it must also be labeled as blocking.
-        '''
-#        assert (not self.running.is_set()), "Can't finish while still running"
-        self.panda_finish()
 
     ################## CALLBACK FUNCTIONS ################
     # Mixin for handling callbacks and generation of decorators that allow users to register their own callbacks
