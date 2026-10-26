@@ -1039,11 +1039,11 @@ class X86_64Arch(PandaArch):
             raw_arr = env.xmm_regs[int(reg[3:].rstrip('HLQX'))]._b_ZMMReg
             _, endianness, _ = self._determine_bits()
 
-            if reg.endswith('lq'):
+            if reg.endswith('LQ'):
                 value_bytes = raw_arr[0:8] # Lower 64 bits
-            elif reg.endswith('hq'):
+            elif reg.endswith('HQ'):
                 value_bytes = raw_arr[8:16] # Higher 64 bits
-            elif reg.endswith('hx'):
+            elif reg.endswith('HX'):
                 value_bytes = raw_arr[4:8] # Higher 32 bits of the lower 64 bits
             else:
                 value_bytes = raw_arr[0:16] # Full 128 bits
@@ -1107,7 +1107,6 @@ class X86_64Arch(PandaArch):
             mask = {'D': 0xFFFFFFFF,
                     'W': 0xFFFF,
                     'B': 0xFF}[reg_suffix]
-            env.regs[reg_idx] & mask
             env.regs[reg_idx] = (env.regs[reg_idx] & ~mask) | (val & mask)
         elif reg in self.reg_names_general:
             self._set_general_purpose_register(env, reg, val, 0xFFFFFFFF)
