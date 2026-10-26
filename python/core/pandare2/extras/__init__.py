@@ -14,4 +14,4 @@ from .procTrace import ProcGraph
 
 
 __all__ = ['FakeFile', 'FileFaker', 'FileHook', 'IoctlFaker', 'ModeFilter', 'ProcWriteCapture',
-           'Snake', 'ProcGraph']
+           'ProcGraph']
