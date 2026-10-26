@@ -29,17 +29,23 @@ guest time. It is the check for any change to the files above.
 
 | input | default | from |
 |---|---|---|
-| `QBUILD` | (required) | a QEMU build of this tree: `qemu-system-*`, `libqemu-system-*.so`, `pc-bios` |
+| `QBUILD` | (required) | the build directory of an engine tree (below): `qemu-system-*`, `libqemu-system-*.so`, `pc-bios` |
 | `KERNEL_DIR` | `dl/kernels` | linux_builder `v4.0.1` `kernels-latest.tar.gz` (penguin's pin) |
 | `BUSYBOX_DIST` | `dl/busybox-dist` | `nix build github:rehosting/busybox/eeba468aa#dist` |
 | `ZCC` | `dl/zig` | `ziglang` 0.16.0 from PyPI (`zig cc -target ...`) |
-| `PENGUIN` | `../../../penguin` | a penguin checkout, for the suites that run penguin's own plugins |
-| `IGLOO_DRIVER` | `../../../igloo_driver` | an igloo_driver checkout: the portal ops penstub's `hyper.consts` reads |
+| `PENGUIN` | `../../../../penguin` (next to panda-ng) | a penguin checkout, for the suites that run penguin's own plugins |
+| `IGLOO_DRIVER` | `../../../../igloo_driver` (next to panda-ng) | an igloo_driver checkout: the portal ops penstub's `hyper.consts` reads |
 
 Host tools: `gcc`, `pkg-config` (glib), `mksquashfs`, `cpio`, `llvm-readelf`
 and `llvm-objdump` (address-hook symbols), Python 3 with `cffi` and `dwarffi`.
 
-QEMU is configured the way the harness was developed against:
+`QBUILD` is a build directory, not an installed engine: the harness wants `qemu-system-<arch>`,
+`libqemu-system-<arch>.so` and `pc-bios/` side by side, and the tree's `include/plugins` one level
+up (`QSRC`). The flake's `engine` output does have `lib/libqemu-system-<arch>.so` (links to
+`libpanda-<target>-softmmu.so`), but in the installed layout (`bin/`, `lib/`, `share/qemu/`), so
+it can't be `QBUILD`. Make an engine tree with `engine/scripts/import-series.sh`
+(`engine/README.md`, "Working on the engine") and, in it, configure QEMU the way the harness was
+developed against:
 
 ```sh
 mkdir build-rel && cd build-rel
