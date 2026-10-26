@@ -204,7 +204,6 @@ path = [
   "python/core/pandare2/arch.py",
   "python/core/pandare2/asyncthread.py",
   "python/core/pandare2/autogen/__init__.py",
-  "python/core/pandare2/cosi.py",
   "python/core/pandare2/extras/**",
   "python/core/pandare2/panda.py",
   "python/core/pandare2/panda_expect.py",

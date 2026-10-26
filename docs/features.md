@@ -106,10 +106,10 @@ plugins/rust_skeleton is a starting point.
 ## Operating system introspection
 
 Processes, threads, modules, memory mappings and files of a Linux guest, from its kernel's
-symbols (an ISF file, as the test images carry). Use the osi_linux and osi_isf plugins, or
-pandare2's `Cosi` directly from Python.
+symbols (an ISF file, as the test images carry). Use the osi_linux and osi_isf plugins; from
+Python, `panda.get_current_process`, `get_process_name` and `get_mappings` call them.
 
-**Use it:** `osi` (plugin), `osi_linux` (plugin), `osi_isf` (plugin), `Cosi`
+**Use it:** `osi` (plugin), `osi_linux` (plugin), `osi_isf` (plugin), `Panda.get_current_process`, `Panda.get_process_name`, `Panda.get_mappings`
 
 **Docs:** [docs/guides/getting-started.md#a-first-analysis](guides/getting-started.md#a-first-analysis), [docs/guides/plugins.md](guides/plugins.md)
 

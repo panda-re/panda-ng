@@ -98,10 +98,11 @@ accel = ["TCG"]
 tested_on = ["x86_64", "aarch64", "riscv64"]
 summary = """
 Processes, threads, modules, memory mappings and files of a Linux guest, from its kernel's
-symbols (an ISF file, as the test images carry). Use the osi_linux and osi_isf plugins, or
-pandare2's `Cosi` directly from Python.
+symbols (an ISF file, as the test images carry). Use the osi_linux and osi_isf plugins; from
+Python, `panda.get_current_process`, `get_process_name` and `get_mappings` call them.
 """
-api = ["plugin:osi", "plugin:osi_linux", "plugin:osi_isf", "py:Cosi"]
+api = ["plugin:osi", "plugin:osi_linux", "plugin:osi_isf", "py:Panda.get_current_process",
+       "py:Panda.get_process_name", "py:Panda.get_mappings"]
 docs = ["docs/guides/getting-started.md#a-first-analysis", "docs/guides/plugins.md"]
 tests = ["tests/osi_isf.py", "tests/asidstory.py", "tests/kpti.py"]
 
