@@ -38,12 +38,13 @@ ABORTS = {"before_loadvm", "replay_hd_transfer", "replay_net_transfer", "replay_
           "replay_serial_read", "replay_serial_send", "replay_serial_write", "replay_before_dma",
           "replay_after_dma", "replay_handle_packet"}
 COVERED_ELSEWHERE = {"before_block_exec", "after_block_exec", "start_block_exec", "end_block_exec",
-                     "before_block_exec_invalidate_opt", "insn_exec", "after_insn_exec",
+                     "before_block_exec_invalidate_opt", "insn_exec",
                      "virt_mem_before_read", "virt_mem_before_write", "phys_mem_before_read",
                      "phys_mem_before_write", "virt_mem_after_read", "virt_mem_after_write",
                      "phys_mem_after_read", "phys_mem_after_write", "guest_hypercall"}
 NO_CALL_SITE = {
     "before_tcg_codegen": "no call site", "after_insn_translate": "no call site",
+    "after_insn_exec": "after_insn_translate, which selects its instructions, has none",
     "mmio_after_read": "commented out in the TCG plugin bridge", "mmio_before_write": "no call site",
     "hd_read": "no call site", "hd_write": "no call site", "monitor": "no call site", "qmp": "no call site",
     "cpu_restore_state": "no call site", "after_cpu_exec_enter": "commented out in wrap_ops.c",
