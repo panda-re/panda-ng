@@ -406,7 +406,7 @@ typedef union panda_cb {
     /* Callback ID: PANDA_CB_PHYS_MEM_BEFORE_READ
 
        phys_mem_before_read:
-        Called after memory is read.
+        Called before memory is read.
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -538,7 +538,7 @@ typedef union panda_cb {
     /* Callback ID: PANDA_CB_MMIO_BEFORE_WRITE
 
        mmio_before_write:
-        Called after MMIO memory is written to.
+        Called before MMIO memory is written to.
 
        Arguments:
         CPUState *env:          the current CPU state
@@ -1399,7 +1399,7 @@ typedef union panda_cb_with_context {
     /* Callback ID: PANDA_CB_PHYS_MEM_BEFORE_READ
 
        phys_mem_before_read:
-        Called after memory is read.
+        Called before memory is read.
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -1531,7 +1531,7 @@ typedef union panda_cb_with_context {
     /* Callback ID: PANDA_CB_MMIO_BEFORE_WRITE
 
        mmio_before_write:
-        Called after MMIO memory is written to.
+        Called before MMIO memory is written to.
 
        Arguments:
         CPUState *env:          the current CPU state
