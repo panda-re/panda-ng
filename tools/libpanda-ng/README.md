@@ -18,13 +18,15 @@ The output of this script are header files per architecture per language that ca
 
 This is panda-re/libpanda-ng at 7b257bb with local fixes (aarch64 hosts, QEMU 11, a private
 preprocessor directory instead of `/tmp/simple.{c,out}`). The engine build (`flake.nix`, `mkEngine`)
-runs `run_all.sh` on its build tree and installs the headers under `include/panda-ng/`.
+uses this directory (everything in it but this README), runs `run_all.sh` on its build tree and
+installs the headers under `include/panda-ng/`.
 
 To run it by hand against a configured and built engine tree (one with `build/libpanda-*.so`):
 
     nix develop .#libpanda-ng -c bash tools/libpanda-ng/run_all.sh <engine-tree>
     nix develop .#libpanda-ng -c bash tools/libpanda-ng/run_one.sh <engine-tree> <engine-tree>/build/libpanda-x86_64-softmmu.so
 
-The headers (`panda_{c,cpp,...}_<target>.h`) are written next to the scripts. The `libpanda-ng`
-shell, not `engine`, because `build.py` runs inside gdb's embedded Python, which needs the
-`PYTHONPATH` that shell sets (cffi, pycparser, tree-sitter).
+The headers (`panda_{c,cpp,...}_<target>.h`) are written to the current directory (the flake runs
+the scripts from a copy of this directory, so there they land next to the scripts). The
+`libpanda-ng` shell, not `engine`, because `build.py` runs inside gdb's embedded Python, which
+needs the `PYTHONPATH` that shell sets (cffi, pycparser, tree-sitter).
