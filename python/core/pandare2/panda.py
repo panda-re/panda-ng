@@ -678,9 +678,6 @@ class Panda():
         This function starts execution of the guest. It blocks until guest finishes.
         It also initializes panda object, clears main_loop_wait fns, and sets up internal callbacks.
 
-        Args:
-            None
-
         Returns:
             None: When emulation has finished due to guest termination, replay conclusion or a call to `Panda.end_analysis`
         '''
@@ -1038,7 +1035,7 @@ class Panda():
             Union[bytearray, int, str, list[int]]: memory data
 
         Raises:
-            ValueError if memory access fails or fmt is unsupported
+            ValueError: if memory access fails or fmt is unsupported
         '''
         return self._memory_read(None, addr, length, physical=True, fmt=fmt)
 
@@ -1056,7 +1053,7 @@ class Panda():
             Union[bytearray, int, str, list[int]]: memory data
 
         Raises:
-            ValueError if memory access fails or fmt is unsupported
+            ValueError: if memory access fails or fmt is unsupported
         '''
 
         return self._memory_read(cpu, addr, length, physical=False, fmt=fmt)
@@ -1127,7 +1124,7 @@ class Panda():
             None
 
         Raises:
-            ValueError if the call to panda.physical_memory_write fails (e.g., if you pass a pointer to an invalid memory region)
+            ValueError: if the call to panda.physical_memory_write fails (e.g., if you pass a pointer to an invalid memory region)
         '''
         self._memory_write(None, addr, buf, physical=True)
 
@@ -1137,14 +1134,14 @@ class Panda():
 
         Args:
             cpu (CPUState): CPUState structure
-            address (int): Address
+            addr (int): Address
             buf (bytestr): byte string to write into memory
 
         Returns:
             None
 
         Raises:
-            ValueError if the call to panda.virtual_memory_write fails (e.g., if you pass a pointer to an unmapped page)
+            ValueError: if the call to panda.virtual_memory_write fails (e.g., if you pass a pointer to an unmapped page)
         '''
         self._memory_write(cpu, addr, buf, physical=False)
 
@@ -1204,7 +1201,7 @@ class Panda():
 
         Args:
             f: A python function with no arguments to be called at a later time. The function should
-            be decorated with `@pandare.blocking`. You generally want to use `panda.queue_blocking` over this function.
+                be decorated with `@pandare.blocking`. You generally want to use `panda.queue_blocking` over this function.
 
         Returns:
             None
@@ -1495,7 +1492,7 @@ class Panda():
         Check if the processor is running in priviliged mode.
 
         Args:
-            cpu (CPUState): CPUState structure
+            cpustate (CPUState): CPUState structure
 
         Returns:
             Bool: If the processor is in the privilege level corresponding to kernel mode
@@ -1508,7 +1505,7 @@ class Panda():
         Check if the processor is running in linux kernelspace.
 
         Args:
-            cpu (CPUState): CPUState structure
+            cpustate (CPUState): CPUState structure
 
         Returns:
             Bool: If the processor is running in Linux kernel space code.
@@ -1646,7 +1643,7 @@ class Panda():
         Convenience function to get array length of glibc array.
 
         Args:
-            g (garray): Pointer to a glibc array
+            garray (garray): Pointer to a glibc array
                 
         Returns:
             int: length of the array
@@ -1828,9 +1825,8 @@ class Panda():
         Calls object_property_set_link QEMU function.
 
         Args:
-            value: the value to be written to the property
+            val: the value to be written to the property
             name: the name of the property
-            errp: returns an error if this function fails
 
         Returns:
             None
@@ -1845,7 +1841,6 @@ class Panda():
         Args:
             obj: the object
             name: the name of the property
-            errp: returns an error if this function fails
 
         Returns:
             the value of the property, resolved from a path to an Object, or NULL if an error occurs (including when the property value is not a string or not a valid object path).
@@ -1860,7 +1855,6 @@ class Panda():
         Args:
             obj: the object
             name: the name of the property
-            errp: returns an error if this function fails
 
         Returns:
             struct ObjectProperty pointer
@@ -1897,7 +1891,7 @@ class Panda():
         Args:
             mr: the region to contain the new subregion; must be a container initialized with memory_region_init().
             offset: the offset relative to @mr where @subregion is added.
-            subregion: the subregion to be added.
+            sr: the subregion to be added.
 
         Returns:
             None
@@ -1916,7 +1910,6 @@ class Panda():
             size: size of the region.
             share: %true if memory must be mmaped with the MAP_SHARED flag
             path: the path in which to allocate the RAM.
-            errp: pointer to Error*, to store an error if it happens.
 
         Returns:
             None
@@ -2411,7 +2404,7 @@ class Panda():
             ram offset (int)
 
         Raises:
-            ValueError if memory access fails or fmt is unsupported
+            ValueError: if memory access fails or fmt is unsupported
         '''
         
         out = self.ffi.new("ram_addr_t*", self.ffi.cast("ram_addr_t", 0))
@@ -2805,7 +2798,7 @@ class Panda():
             copy_directory: Local directory to copy into guest
             iso_name: Name of iso file that will be generated. Defaults to [copy_directory].iso
             absolute_paths: is copy_directory an absolute or relative path
-            seutp_script: name of a script which, if present inside copy_directory, will be automatically run after the copy
+            setup_script: name of a script which, if present inside copy_directory, will be automatically run after the copy
             timeout: maximum time each copy command will be allowed to run for, will use the `run_serial_cmd` default value unless another is provided
 
         Returns:
@@ -3909,7 +3902,7 @@ class Panda():
         if name == "on_unknown_sys":
             return self.hypersyscall(name, True, True, False, True, arg_filter, comm_filter)
         from re import search
-        regex = "on_(?P<syscall>sys_\S*)_(?P<side>enter|return)"
+        regex = r"on_(?P<syscall>sys_\S*)_(?P<side>enter|return)"
 
         if m := search(regex, name):
             d = m.groupdict()
