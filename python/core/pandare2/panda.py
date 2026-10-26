@@ -432,19 +432,6 @@ class Panda():
         cb_list = dir(pcwc)
         cb_list.remove("cbaddr")
         PandaCB = namedtuple("PandaCB", cb_list)
-        pcb  = PandaCB(**({i: ffi.callback(ffi.typeof(getattr(pcwc, i))) for i in cb_list}))
-        pandacbtype = namedtuple("pandacbtype", "name number")
-
-        C = ffi.dlopen(None)
-
-        callback_dictionary = {
-            getattr(pcb, m): pandacbtype(m,getattr(C, f"PANDA_CB_{m.upper()}")) for m in cb_list 
-        }
-        self.callback, self.callback_dictionary = (pcb, callback_dictionary)
-
-        cb_list = dir(pcwc)
-        cb_list.remove("cbaddr")
-        PandaCB = namedtuple("PandaCB", cb_list)
         self.callback  = PandaCB(**({i: ffi.callback(ffi.typeof(getattr(pcwc, i))) for i in cb_list}))
         pandacbtype = namedtuple("pandacbtype", "name number")
 
