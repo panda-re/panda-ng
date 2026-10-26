@@ -357,7 +357,6 @@ class Panda():
         self.disabled_tb_chaining = False
         self.named_hooks = {}
         self.hook_list = []
-        self.hook_list2 = {}
         self.mem_hooks = {}
         self.sr_hooks = []
         self.hypercalls = {}
@@ -3196,107 +3195,6 @@ class Panda():
         if pc is None:
             pc = self.current_pc(cpu)
         return self.plugins['dynamic_symbols'].get_best_matching_symbol(cpu, pc, asid)
-
-
-    ################### Hooks2 Functions ############
-    # Provides the ability to interact with the hooks2 plugin and receive callbacks based on user-provided criteria.
-
-    def enable_hook2(self,hook_name):
-        '''
-        Set a hook2-plugin hook's status to active.
-
-        .. Deprecated:: Use the hooks plugin instead.
-        '''
-        if hook_name in self.hook_list2:
-            self.plugins['hooks2'].enable_hooks2(self.hook_list2[hook_name])
-        else:
-            print("ERROR: Your hook name was not in the hook list")
-
-    def disable_hook2(self,hook_name):
-        '''
-        Set a hook2-plugin hook's status to inactive.
-
-        .. Deprecated:: Use the hooks plugin instead.
-        '''
-        if hook_name in self.hook_list2:
-            self.plugins['hooks2'].disable_hooks2(self.hook_list2[hook_name])
-        else:
-            print("ERROR: Your hook name was not in the hook list")
-
-    def hook2(self,name, kernel=True, procname=None, libname=None, trace_start=0, trace_stop=0, range_begin=0, range_end=0):
-        '''
-        Decorator to create a hook with the hooks2 plugin.
-
-        .. Deprecated:: Use the hooks plugin instead.
-        '''
-
-        if procname == None:
-            procname = self.ffi.NULL
-        if libname == None:
-            libname = self.ffi.NULL
-
-
-        if procname != self.ffi.NULL:
-            procname = self.ffi.new("char[]",bytes(procname,"utf-8"))
-        if libname != self.ffi.NULL:
-            libname = self.ffi.new("char[]",bytes(libname,"utf-8"))
-        '''
-        Decorate a function to setup a hook: when a guest goes to execute a basic block beginning with addr,
-        the function will be called with args (CPUState, TranslationBlock)
-        '''
-        def decorator(fun):
-            # Ultimately, our hook resolves as a before_block_exec_invalidate_opt callback so we must match its args
-            hook_cb_type = self.ffi.callback("bool (CPUState*, TranslationBlock*, void*)")
-            # Inform the plugin that it has a new breakpoint at addr
-
-            def _run_and_catch(*args, **kwargs): # Run function but if it raises an exception, stop panda and raise it
-                if not hasattr(self, "exit_exception"):
-                    try:
-                        r = fun(*args, **kwargs)
-                        #print(pandatype, type(r)) # XXX Can we use pandatype to determine requried return and assert if incorrect
-                        #assert(isinstance(r, int)), "Invalid return type?"
-                        #print(fun, r) # Stuck with TypeError in _run_and_catch? Enable this to find where the bug is.
-                        return r
-                    except Exception as e:
-                        # exceptions wont work in our thread. Therefore we print it here and then throw it after the
-                        # machine exits.
-                        if self.catch_exceptions:
-                            self.exit_exception = e
-                            self.end_analysis()
-                        else:
-                            raise e
-                        return True
-
-
-            hook_cb_passed = hook_cb_type(_run_and_catch)
-            if not hasattr(self, "hook_gc_list"):
-                self.hook_gc_list = [hook_cb_passed]
-            else:
-                self.hook_gc_list.append(hook_cb_passed)
-
-            # I don't know what this is/does
-            cb_data =self.ffi.NULL
-            hook_number = self.plugins['hooks2'].add_hooks2(hook_cb_passed, cb_data, kernel, \
-                procname, libname, trace_start, trace_stop, range_begin,range_end)
-
-            self.hook_list2[name] = hook_number
-
-            def wrapper(*args, **kw):
-                return _run_and_catch(*args, **kw)
-            return wrapper
-        return decorator
-
-    def hook2_single_insn(self, name, pc, kernel=False, procname=None, libname=None):
-        '''
-        Helper function to hook a single instruction with the hooks2 plugin.
-
-        .. Deprecated:: Use the hooks plugin instead.
-        '''
-        if procname == None:
-            procname = self.ffi.NULL
-        if libname == None:
-            libname = self.ffi.NULL
-        return self.hook2(name, kernel=kernel, procname=procname,libname=libname,range_begin=pc, range_end=pc)
 
     # MEM HOOKS
     def _hook_mem(self, start_address, end_address, before, after, read, write, virtual, physical, enabled):

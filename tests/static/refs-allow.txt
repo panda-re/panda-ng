@@ -25,9 +25,6 @@ plugin callstack_instr.get_callers
 plugin dynamic_symbols.get_best_matching_symbol
 plugin dynamic_symbols.hook_symbol_resolution
 plugin hooks.add_symbol_hook
-plugin hooks2.add_hooks2
-plugin hooks2.disable_hooks2
-plugin hooks2.enable_hooks2
 plugin mem_hooks.add_mem_hook
 type mem_hook_func_t
 type struct hook_symbol_resolve*
