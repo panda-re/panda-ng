@@ -27,8 +27,6 @@ engine/
   tests/modules/        panda modules and the configurable machine on an aarch64 engine build
                         (run.sh BUILD SDK, configurable.sh BUILD; ext-devices.c is also the
                         flake's `board-example`)
-  IMPORT                provenance: the qemu_builder commit engine/ was imported from (the last
-                        import, 3198bab, at the cutover)
 ```
 
 The configure line, targets and install layout are in the flake (`mkEngine` in `flake.nix`), not
@@ -136,7 +134,7 @@ Known for 11.1.2 (checked 2026-10-23: all patches then applied with strict conte
 
 ## What came from qemu_builder, and what did not
 
-Imported (qemu_builder `integ` 3198bab, the last import; see `IMPORT`): `base.json`, the whole series
+Imported (qemu_builder `integ` 3198bab, the last import): `base.json`, the whole series
 (`patches/11.1.0/`, 73 patches, renumbered 0001-0073 by the export), `src/` (minus the three penguin packaging scripts below),
 `scripts/` and `tests/`. Not imported, because they build or check penguin's artifact
 (`penguin-qemu.tar.gz`: `libqemu-system-*.so` + CFFI bindings for penguin's Python), which panda-ng
@@ -189,14 +187,9 @@ use the qemu_builder numbers.
 
 The "no" rows are candidates to drop later; nothing has been dropped (Luke decides).
 
-## Provenance and the import script
+## Provenance
 
 The cutover is done: engine/ is the source of truth and panda-ng's flake builds it directly.
-`IMPORT` records the last qemu_builder commit imported (3198bab, qemu_builder `integ`, 73
-patches, patchedTree 0647db2c).
-
-`tools/engine-import.sh <qemu_builder checkout> [<ref>]` (the mirror that did the imports) is
-still in the tree, pending a decision to delete it. Don't run it on top of engine work: it
-replaces engine/'s base.json, patches/, src/, scripts/ and tests/ with qemu_builder's. A later
-penguin change in qemu_builder (to the IGLOO patches, say) is ported here as a patch through the
-dev tree, not imported.
+The last qemu_builder commit imported was 3198bab (qemu_builder `integ`, 73 patches, patchedTree
+0647db2c); the import script and its provenance record are gone. A later penguin change in
+qemu_builder (to the IGLOO patches, say) is ported here as a patch through the dev tree.
