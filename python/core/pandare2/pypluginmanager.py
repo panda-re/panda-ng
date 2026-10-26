@@ -289,7 +289,7 @@ class PyPluginManager:
         # Lookup name
         # XXX should this end with .class.__name__?
         name = pluginclass if isinstance(pluginclass, str) else pluginclass.__name__
-        if not self.is_loaded(pluginclass, name):
+        if not self.is_loaded(name):
             raise ValueError(f"Plugin {name} is not loaded")
         return self.plugins[name]
 
