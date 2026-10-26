@@ -22,6 +22,11 @@ Checks, each against the program's own ground truth:
 - flush_tb: the program runs twice. The second run finds its blocks already translated (no
   before_block_translate for the window's first block), then flushes at hypercall 2: the blocks
   after it are translated again.
+  A run that had to translate the window's first block again doesn't flush; the program runs once
+  more (at most RUNS runs in all). On x86 this happens when an interrupt is delivered right at m0:
+  QEMU returns from a hardware interrupt with EFLAGS.RF=1, RF is part of the TB key, and run 1's
+  RF=0 block doesn't match (ubuntu-24.04 x86_64, HZ=1000: ~1 run in 4-9). After that run both keys
+  are translated, so the next run finds one. The checks of the extra run are its own ("[run 3] ...").
 cpu_restore_state is registered too: it has no call site yet (a gap).
 """
 import os
@@ -40,14 +45,15 @@ EXIT_REG = {"x86_64": "R15", "aarch64": "X25", "riscv64": "S6"}
 SP_REG = {"x86_64": "RSP", "aarch64": "SP", "riscv64": "SP"}
 PAGE_FAULT = {"x86_64": 14, "aarch64": 4, "riscv64": 15}   # EXCP0E_PAGE, EXCP_DATA_ABORT, store page fault
 EXIT_CODE = 42
+RUNS = 3    # run 1 translates; runs 2.. reuse; the first run that found m0 translated flushes
 
 panda = Panda(generic=sys.argv[1])
 arch = panda.arch_name
 ffi = panda.ffi
 C = Checks(arch, {"cpu_restore_state fires on the page fault":
                   "no call site for panda_callbacks_cpu_restore_state",
-                  "[run 1] 16-byte accesses get before events": "128-bit TCG accesses have no before events (patch 0047)",
-                  "[run 2] 16-byte accesses get before events": "128-bit TCG accesses have no before events (patch 0047)"})
+                  **{f"[run {n}] 16-byte accesses get before events":
+                     "128-bit TCG accesses have no before events (patch 0047)" for n in range(1, RUNS + 1)}})
 
 
 class Run:
@@ -63,6 +69,7 @@ class Run:
         self.window = False
         self.labels = {}
         self.regs = None
+        self.retry = False      # m0 translated again: no flush, the program runs once more
 
 
 runs = []
@@ -194,9 +201,14 @@ def hypercall(cpu):
         r.sp = (panda.current_sp(cpu), panda.arch.get_reg(cpu, SP_REG[arch]))
         r.exit_reg_before = panda.arch.get_reg(cpu, EXIT_REG[arch])
         panda.arch.set_reg(cpu, EXIT_REG[arch], EXIT_CODE)
-        if r.n == 2:
-            r.bbt_at_flush = len(r.bbt)
-            panda.flush_tb()
+        if r.n >= 2:
+            if L["m0"] in r.bbt and r.n < RUNS:
+                r.retry = True
+                progress(f"run {r.n}: m0 was translated again in this run (x86: an interrupt at m0, "
+                         f"EFLAGS.RF=1 in the TB key); no flush, running the program again")
+            else:
+                r.bbt_at_flush = len(r.bbt)
+                panda.flush_tb()
     elif op == 3:
         panda.enable_callback("exc")
         panda.enable_callback("restore")
@@ -210,7 +222,9 @@ def drive():
     global cur
     panda.revert_sync("root")
     upload(panda, "mem", arch)
-    for n in (1, 2):
+    n = 0
+    while n < 2 or runs[-1].retry:
+        n += 1
         cur = Run(n)
         runs.append(cur)
         progress(f"run {n}: /tmp/mem")
@@ -327,16 +341,16 @@ if os.environ.get("MEMDEBUG"):
             print("  ", e[0], hex(e[1]), hex(e[2]), e[3], e[4], e[5])
 C.check("is_callback_enabled follows enable_callback/disable_callback", enabled_states and all(enabled_states),
         enabled_states)
-if len(runs) == 2:
-    r2 = runs[1]
-    L = r2.labels
-    cached = L["m0"] not in r2.bbt[:getattr(r2, "bbt_at_flush", 0)]
-    after = [pc for pc in r2.bbt[getattr(r2, "bbt_at_flush", 0):] if pc > L["hc2"]]
-    C.check("[run 2] the program's blocks were still translated from run 1 (precondition for flush_tb)",
-            cached, [hex(x) for x in r2.bbt])
+if len(runs) >= 2:
+    rf = runs[-1]   # the run that flushed
+    L = rf.labels
+    cached = L["m0"] not in rf.bbt[:getattr(rf, "bbt_at_flush", 0)]
+    after = [pc for pc in rf.bbt[getattr(rf, "bbt_at_flush", 0):] if pc > L["hc2"]]
+    C.check("the flushing run found the program's blocks still translated from the run before (precondition for flush_tb)",
+            cached, f"run {rf.n} of {RUNS}: {[hex(x) for x in rf.bbt]}")
     C.check("flush_tb at hypercall 2: the blocks after it are translated again", after,
-            [hex(x) for x in r2.bbt])
-    C.check("both runs see the same memory events (pcs, sizes, values)",
-            [(k, pc - runs[0].labels["m0"], s, v) for k, pc, s, v in results[0]]
-            == [(k, pc - r2.labels["m0"], s, v) for k, pc, s, v in results[1]])
+            [hex(x) for x in rf.bbt])
+    C.check("every run sees the same memory events as run 1 (pcs, sizes, values)",
+            all([(k, pc - runs[0].labels["m0"], s, v) for k, pc, s, v in results[0]]
+                == [(k, pc - r.labels["m0"], s, v) for k, pc, s, v in res] for r, res in zip(runs[1:], results[1:])))
 sys.exit(C.report(f"MEM arch={arch} events={[len(r.ev) for r in runs]} insns={[len(r.insns) for r in runs]}"))
