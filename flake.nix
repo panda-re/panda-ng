@@ -328,11 +328,8 @@
             };
           pandare2 = mkPandare2 python.pkgs;
 
-          # The Python users run PANDA from: pandare2 and its optional plog reader (protobuf).
-          pandaPython = python.withPackages (ps: [
-            pandare2
-            ps.protobuf
-          ]);
+          # The Python users run PANDA from, with pandare2.
+          pandaPython = python.withPackages (ps: [ pandare2 ]);
 
           # qemu-system-<arch> for every target, as a thin launcher over libpanda-<arch>-softmmu.so
           # (launcher/panda-qemu.c), plus the engine's qemu-img/-io/-nbd. Layout bin/, lib/,
