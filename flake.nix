@@ -731,6 +731,50 @@
         };
 
       perSystem = system: mkPandaNext nixpkgs.legacyPackages.${system};
+
+      # The documentation site (mkdocs.yml, docs/). Building it first checks that the generated
+      # pages are current and the feature list is true (tools/docs/gen.py --check), then builds
+      # with mkdocs --strict: a broken link or a missing snippet fails.
+      docsPython =
+        system:
+        nixpkgs.legacyPackages.${system}.python3.withPackages (ps: [
+          ps.mkdocs
+          ps.mkdocs-material
+          ps.mkdocstrings
+          ps.mkdocstrings-python
+        ]);
+      docsSite =
+        system:
+        let
+          lib = nixpkgs.lib;
+        in
+        nixpkgs.legacyPackages.${system}.runCommand "panda-ng-docs"
+          {
+            src = lib.fileset.toSource {
+              root = ./.;
+              fileset = lib.fileset.unions [
+                ./mkdocs.yml
+                ./docs
+                ./tools/docs
+                ./tests
+                ./README.md
+                ./python/core
+                ./include
+                ./plugins
+                ./flake.nix
+                ./engine/base.json
+                ./engine/patches
+                ./engine/src/include
+                ./engine/tests
+              ];
+            };
+            nativeBuildInputs = [ (docsPython system) ];
+          }
+          ''
+            cp -r $src src && chmod -R u+w src && cd src
+            python3 tools/docs/gen.py --check
+            mkdocs build --strict --site-dir $out
+          '';
     in
     {
       packages = forAllSystems (
@@ -762,6 +806,7 @@
               mkdir $out; cp ${./engine/tests/modules/ext-devices.c} $out/
             '';
           };
+          docs = docsSite system;
         }
         // p.qemuSystem
       );
@@ -781,6 +826,14 @@
         )
         // {
           python = app p.dist "panda-python" "Python with pandare2 (the PANDA engine and plugins)";
+          # `nix run .#regen-docs` from the repository root: rewrite the generated pages.
+          regen-docs =
+            app
+              (nixpkgs.legacyPackages.${system}.writeShellScriptBin "regen-docs" ''
+                exec ${docsPython system}/bin/python3 tools/docs/gen.py "$@"
+              '')
+              "regen-docs"
+              "Regenerate docs/features.md and docs/reference from the code";
         }
       );
 
@@ -834,6 +887,7 @@
           # The series applies to the pinned tarball (the strict gate with the patchedTree
           # comparison is engine/scripts/verify-series.sh, run by .github/workflows/engine.yml).
           engine-src = p.engineSrc;
+          docs = docsSite system;
           # Each qemu-system-<arch> starts and lists its machines.
           qemu-system = pkgs.runCommand "panda-qemu-system-check" { } ''
             for a in ${nixpkgs.lib.concatStringsSep " " arches}; do

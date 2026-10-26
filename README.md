@@ -14,6 +14,12 @@ repository's nix flake, from this repository. There are three ways to use it:
 Supported hosts: x86_64-linux and aarch64-linux. Targets: x86_64, i386, arm, aarch64, mips,
 mipsel, mips64, mips64el, ppc, ppc64, loongarch64, riscv32, riscv64.
 
+**Documentation** is in [`docs/`](docs/index.md) (`nix build .#docs` builds the site): what works
+and how well tested it is ([docs/features.md](docs/features.md)), the Python API, every callback
+and whether it fires, and the engine patches. The generated pages are checked by `nix flake check`;
+after changing `docs/features.toml`, an engine header or a test's callback lists, run
+`nix run .#regen-docs`.
+
 ## The wheel
 
 ```sh

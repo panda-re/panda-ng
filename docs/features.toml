@@ -1,0 +1,319 @@
+# What panda-ng can do. tools/docs/gen.py turns this into docs/features.md and checks it: every
+# engine patch belongs to a feature, every default test (tests/run.sh) belongs to a feature, and
+# every name below exists (py: in pandare2, c: in a header or the series, plugin: in
+# plugins/config.panda, flake: in flake.nix; qemu: is shown as written). Edit this file, then run
+# `nix run .#regen-docs`.
+#
+# status: supported (tested, meant for users) | experimental (works; interface or coverage still
+# moving) | engine (an engine API that tools such as penguin use, not reached through pandare2).
+# tested_on: where the listed tests have been run, not where the feature could work.
+
+intro = """
+panda-ng is PANDA rebuilt on QEMU 11.1.0: the PANDA runtime (callbacks, plugins, record/replay)
+in a QEMU plugin and a patch series, driven from Python through pandare2. Whole-system analysis
+runs under TCG; KVM runs guests at native speed, and a snapshot can move between the two. The
+table lists each feature, how settled it is, and where its tests run; each section below says
+how to use it and which tests and engine patches it rests on.
+
+Guest tests are the `tests/*.py` scripts, run with `tests/run.sh` on the debian-13 and
+ubuntu-24.04 images (see
+[tests/README.md](https://github.com/panda-re/panda-ng/blob/main/tests/README.md)).
+"""
+
+[[feature]]
+id = "python"
+name = "Python API (pandare2)"
+status = "supported"
+accel = ["TCG"]
+tested_on = ["x86_64", "aarch64", "riscv64"]
+summary = """
+Start a guest, run commands on its serial console, revert to snapshots, read and write its
+memory and registers, and register callbacks, all from Python. The `Panda` object owns one QEMU
+instance; work that needs the guest stopped goes in `@panda.queue_blocking` functions.
+"""
+api = ["py:Panda", "py:Panda.queue_blocking", "py:Panda.run_serial_cmd", "py:Panda.revert_sync",
+       "py:Panda.virtual_memory_read", "py:Panda.virt_to_phys", "py:PyPlugin"]
+docs = ["python/core/README.md", "tests/README.md"]
+tests = ["tests/smoke.py", "tests/api.py", "tests/reset.py", "tests/teardown.py"]
+patches = ["0041"]
+
+[[feature]]
+id = "callbacks"
+name = "Callbacks"
+status = "supported"
+accel = ["TCG"]
+tested_on = ["x86_64", "aarch64", "riscv64"]
+summary = """
+Run code when the guest translates or executes a block or instruction, reads or writes memory
+(virtual or physical, before or after), takes an exception, or changes address space. The
+[callback reference](reference/callbacks.md) lists every callback and whether it fires in this
+engine.
+"""
+limits = """
+Callbacks need TCG. Some declared callbacks have no call site yet or abort at registration; the
+reference says which. A registered memory callback instruments every load or store even while
+disabled, and an enabled physical one costs an address lookup per access.
+"""
+api = ["py:Panda.enable_memcb", "py:Panda.disable_tb_chaining", "py:Panda.flush_tb",
+       "c:panda_register_callback"]
+docs = ["docs/reference/callbacks.md"]
+tests = ["tests/callbacks.py", "tests/blocks.py", "tests/blocks_bare.py", "tests/late.py",
+         "tests/tbpc.py", "tests/mem.py", "tests/physmem.py"]
+patches = ["0031", "0035", "0042-0044", "0046-0049", "0053", "0054", "0058", "0059", "0065"]
+
+[[feature]]
+id = "plugins"
+name = "C and C++ plugins"
+status = "supported"
+accel = ["TCG"]
+tested_on = ["x86_64", "aarch64", "riscv64"]
+summary = """
+PANDA plugins are shared libraries loaded with `panda.load_plugin(name, args)`. panda-ng ships 12
+(plugins/config.panda); `buildPandaPlugin` in the flake builds your own against the engine's
+headers (examples/consumer shows it).
+"""
+api = ["py:Panda.load_plugin", "flake:buildPandaPlugin", "plugin:cskeleton", "plugin:cppskeleton"]
+docs = ["README.md"]
+tests = ["tests/guest.py"]
+
+[[feature]]
+id = "rust"
+name = "Rust plugins"
+status = "experimental"
+accel = ["TCG"]
+summary = """
+rust/panda-bindings is bindgen output for every target (crate `panda`, one feature per target);
+plugins/rust_skeleton is a starting point.
+"""
+limits = "No test loads a Rust plugin yet; CI only checks that the bindings compile."
+api = ["plugin:rust_skeleton"]
+
+[[feature]]
+id = "osi"
+name = "Operating system introspection"
+status = "supported"
+accel = ["TCG"]
+tested_on = ["x86_64", "aarch64", "riscv64"]
+summary = """
+Processes, threads, modules, memory mappings and files of a Linux guest, from its kernel's
+symbols (an ISF file, as the test images carry). Use the osi_linux and osi_isf plugins, or
+pandare2's `Cosi` directly from Python.
+"""
+api = ["plugin:osi", "plugin:osi_linux", "plugin:osi_isf", "py:Cosi"]
+tests = ["tests/osi_isf.py", "tests/asidstory.py", "tests/kpti.py"]
+
+[[feature]]
+id = "syscalls"
+name = "System calls"
+status = "supported"
+accel = ["TCG"]
+tested_on = ["x86_64", "aarch64", "riscv64"]
+summary = """
+Callbacks on every system call entry and return, with decoded arguments (syscalls2), and on new
+processes (proc_start_linux).
+"""
+api = ["plugin:syscalls2", "plugin:proc_start_linux"]
+docs = ["plugins/syscalls2/README.md"]
+tests = ["tests/guest.py"]
+
+[[feature]]
+id = "hooks"
+name = "Address hooks"
+status = "supported"
+accel = ["TCG"]
+tested_on = ["x86_64", "aarch64", "riscv64"]
+summary = "Run a callback when the guest reaches an address, optionally only in one address space (the hooks plugin)."
+api = ["plugin:hooks"]
+docs = ["plugins/hooks/README.md"]
+tests = ["tests/calls.py", "tests/hookalias.py"]
+
+[[feature]]
+id = "hypercalls"
+name = "Guest hypercalls"
+status = "supported"
+accel = ["TCG", "KVM"]
+tested_on = ["x86_64", "aarch64", "riscv64"]
+summary = """
+A guest program talks to the analysis through a hypercall instruction on every architecture.
+`@panda.hypercall(magic)` handles one in Python; the hypercaller and hypersyscalls plugins
+handle them in C.
+"""
+api = ["py:Panda.hypercall", "plugin:hypercaller", "plugin:hypersyscalls"]
+tests = ["tests/guest.py", "tests/mem.py"]
+patches = ["0001", "0003-0008", "0045"]
+
+[[feature]]
+id = "record-replay"
+name = "Record and replay"
+status = "supported"
+accel = ["TCG"]
+tested_on = ["x86_64", "aarch64", "riscv64"]
+summary = """
+Record a whole-system execution and replay it deterministically, with any callbacks and plugins
+attached during the replay. Launch with `-accel tcg,rr-ready=on` (pandare2 does this) so a
+recording can start at any point.
+"""
+limits = "TCG, single-threaded. Snapshot loads are refused while recording."
+api = ["py:Panda.record", "py:Panda.record_cmd", "py:Panda.end_record", "py:Panda.run_replay",
+       "qemu:-accel tcg,rr-ready=on"]
+tests = ["tests/rr.py", "tests/rrcb.py", "tests/rrstop.py", "tests/rrload.py", "tests/rr_blocks.py"]
+patches = ["0025-0028", "0030", "0037-0040", "0050-0052", "0066-0068", "0072", "0073"]
+
+[[feature]]
+id = "snapshots"
+name = "Snapshots"
+status = "supported"
+accel = ["TCG", "KVM"]
+tested_on = ["x86_64", "aarch64", "riscv64"]
+summary = """
+Save the whole VM into its qcow2 image and revert to it (`snap`, `revert_sync`), with callbacks
+before and after a load. Snapshots load across hosts with different page sizes.
+"""
+api = ["py:Panda.snap", "py:Panda.revert_sync", "py:Panda.delvm"]
+tests = ["tests/reset.py", "tests/api.py"]
+patches = ["0061", "0063", "0074"]
+
+[[feature]]
+id = "fast-restore"
+name = "Fast restore"
+status = "supported"
+accel = ["TCG"]
+tested_on = ["x86_64", "aarch64", "riscv64"]
+summary = """
+Snapshot RAM and device state in host memory and restore only what changed since, for fuzzing
+loops: `panda_fast_snap` and `panda_fast_restore`. tests/fuzz.py runs a fuzzing loop with it.
+"""
+limits = "TCG only, and not while recording or replaying (both refuse)."
+api = ["c:panda_fast_snap", "c:panda_fast_restore", "c:panda_fast_delete"]
+tests = ["tests/fastrestore.py", "tests/fastrestore_guards.py", "tests/fastrestore_hotplug.py",
+         "tests/fastrestore_vsock.py", "tests/fuzz.py"]
+patches = ["0055-0057", "0060", "0064"]
+
+[[feature]]
+id = "kvm"
+name = "KVM"
+status = "experimental"
+accel = ["KVM"]
+tested_on = ["x86_64 (by hand)", "aarch64 (by hand)"]
+summary = """
+Run x86_64 and arm64 guests under KVM at native speed, with guest hypercalls and port I/O
+reaching the host, hardware breakpoints, and plugin memory accesses that page in what the guest
+hasn't touched.
+"""
+limits = "PANDA callbacks, record/replay and fast restore need TCG. No CI runner has KVM yet."
+api = ["qemu:-accel kvm", "c:qemu_plugin_register_vcpu_bp_cb", "c:qemu_plugin_hw_breakpoint_insert"]
+tests = ["engine/tests/guest/kvm.sh"]
+patches = ["0009", "0016", "0023", "0034"]
+
+[[feature]]
+id = "kvm-tcg"
+name = "Moving a running guest between KVM and TCG"
+status = "experimental"
+accel = ["KVM", "TCG"]
+tested_on = ["x86_64 (by hand)", "aarch64 (by hand)"]
+summary = """
+Boot under KVM, snapshot (savevm or migrate to a file), and load the snapshot under TCG to
+analyse it, or the other way round; x86_64, and aarch64 with its GIC. The snapshot can move
+between hosts, e.g. from an arm64 board running KVM to an x86_64 workstation running TCG.
+"""
+limits = """
+The CPU model must match on both sides (`-cpu host` under KVM and the same named model under
+TCG), and so must the devices: build both engines with the same features or pass the same
+`-nic`. No test in this repository covers it yet.
+"""
+api = ["qemu:-accel kvm", "qemu:-accel tcg"]
+patches = ["0022", "0024", "0074"]
+
+[[feature]]
+id = "faulting-access"
+name = "Memory access that pages in"
+status = "engine"
+accel = ["TCG", "KVM"]
+tested_on = ["x86_64", "aarch64"]
+summary = """
+Plugin reads and writes of guest virtual memory that fault the page in through the guest kernel
+when it isn't mapped yet, singly or batched, on TCG and x86_64 KVM.
+"""
+api = ["c:qemu_plugin_read_memory_vaddr_fault", "c:qemu_plugin_access_memory_vaddr_fault"]
+tests = ["engine/tests/guest/run.sh", "engine/tests/guest/kvm.sh"]
+patches = ["0013-0017", "0032", "0034"]
+
+[[feature]]
+id = "engine-hooks"
+name = "Translation-time hooks and register pointers"
+status = "engine"
+accel = ["TCG"]
+tested_on = ["x86_64", "aarch64"]
+summary = """
+Call a function when execution reaches an address, decided at translation time (6-26 ns per
+hit), and read registers through stable pointers instead of the register API.
+"""
+api = ["c:qemu_plugin_register_ptr"]
+tests = ["engine/tests/guest/hktest.sh"]
+patches = ["0018", "0020", "0036"]
+
+[[feature]]
+id = "syscall-trap"
+name = "Syscall trap and host-side introspection"
+status = "engine"
+accel = ["TCG", "KVM"]
+tested_on = ["x86_64", "aarch64"]
+summary = """
+Trap guest system calls in the engine, serve them on the host (penguin's syscall engine), read
+process state host-side from the kernel's symbols, and redirect the guest from a syscall entry.
+"""
+api = ["c:qemu_plugin_set_pc"]
+tests = ["engine/tests/guest/sctest.sh", "engine/tests/guest/ositest.sh", "engine/tests/guest/setpctest.sh"]
+patches = ["0019", "0021", "0033"]
+
+[[feature]]
+id = "penguin"
+name = "Embedding for penguin"
+status = "engine"
+accel = ["TCG", "KVM"]
+summary = """
+What penguin (the firmware rehosting tool) needs from the engine: the engine as shared
+libraries, a snapshot ABI with a migratable vhost-user-vsock, and reset-request and QMP command
+callbacks.
+"""
+limits = "Tested by penguin's own suites, not here."
+api = ["c:penguin_handle_qmp"]
+patches = ["0002", "0010", "0011", "0029"]
+
+[[feature]]
+id = "machines"
+name = "Custom machines and modules"
+status = "supported"
+accel = ["TCG"]
+tested_on = ["arm", "aarch64"]
+summary = """
+Describe a board in Python (`MachineBuilder`) or load one as a panda module (`-module PATH`,
+`-M PATH:NAME`); `mkBoard` in the flake builds a module against the engine. Modules are checked
+against the engine's target and ABI before they load.
+"""
+api = ["py:MachineBuilder", "flake:mkBoard", "qemu:-module PATH"]
+docs = ["tests/README.md"]
+tests = ["tests/machine.py", "tests/machine_sw.py", "tests/machine_builder.py", "tests/board.py",
+         "engine/tests/modules/run.sh"]
+patches = ["0069-0071"]
+
+[[feature]]
+id = "packaging"
+name = "Packages"
+status = "supported"
+summary = """
+A Python wheel with the engine and plugins bundled, a Debian package, and the nix flake
+(packages, an overlay, and `lib` helpers for building plugins and boards).
+"""
+api = ["flake:wheel", "flake:deb", "flake:dist"]
+docs = ["README.md"]
+
+[[feature]]
+id = "qemu-fixes"
+name = "QEMU fixes"
+status = "supported"
+summary = """
+Fixes to QEMU itself that analyses depend on: a longer kernel command line on MIPS Malta, and
+cpu_exec_step_atomic under RCU.
+"""
+patches = ["0012", "0062"]

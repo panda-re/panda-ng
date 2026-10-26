@@ -155,31 +155,10 @@ does not build:
 The series itself is imported whole. Several patches exist for penguin (IGLOO) rather than PANDA,
 but later patches are built on them (0002's shared-library link is how libpanda is linked; 0045,
 PANDA's `guest_hypercall`, sits on the hypercall routing of 0001 and 0003-0008), so removing any
-means re-porting the series and re-testing. Which ones PANDA uses:
-
-| patches | for | used by PANDA / pandare2 |
-|---|---|---|
-| 0001, 0003-0008 | guest hypercalls (penguin core, per-arch routing) | yes: `guest_hypercall` (0045), the hypercaller plugin |
-| 0002 | shared libraries, `b_staticpic` | yes: libpanda-<target>.so is linked the same way. Its own `libqemu-system-<penguin name>.so` and `libqemu-kvm-*.so` are extra links of the same objects (the flake symlinks them to libpanda) |
-| 0009, 0023 | KVM hypercall and port-I/O exits (x86, arm64 SMCCC) | no (PANDA is TCG); penguin under KVM |
-| 0010 | penguin snapshot ABI, migratable vhost-user-vsock | no; IGLOO's vsock |
-| 0011, 0029 | penguin reset-request and QMP-command callbacks | no |
-| 0012 | mips malta: larger prom env for the kernel command line | any malta guest with a long cmdline |
-| 0013-0017, 0032, 0034 | plugin page-in/faulting memory access | the `pagein` lane's explicit page-in path for PANDA's virtual memory API |
-| 0018, 0020, 0036 | translation-time address hooks, register pointers | not by src/panda today (penguin's pyhost, tests/guest); 0036 is also part of the CF_PCREL work |
-| 0019, 0021, 0033 | syscall trap, penguin syscall engine + host-side OSI, set_pc from a syscall entry | no (PANDA has syscalls2/osi plugins) |
-| 0022, 0024 | resume a KVM snapshot under TCG and back (x86, aarch64 + GIC) | not by pandare2 yet; lets a KVM-booted snapshot be analysed under TCG |
-| 0025-0028, 0030, 0037-0040, 0050-0052 | record/replay (icount clock continuity, run_on_cpu under rr, rr-ready, begin/end record) | yes: pandare2 rr |
-| 0031, 0035 | plugin callback return address; CF_PCREL binding | yes |
-| 0041-0049, 0053, 0054, 0058, 0059 | the PANDA spine and callbacks (0059: after_block_exec once the PC is synchronized, panda_tb_pc) | yes |
-| 0055-0057, 0060 | dirty logging gaps found by fast restore; vhost devices that can't log | yes: `panda_fast_restore` |
-| 0061 | before_loadvm hook | yes |
-| 0062 | cpu_exec_step_atomic under RCU | yes (robustness) |
-| 0063, 0064 | aarch64 snapshot loads across icount on/off (PMCEID0); riscv64 hardware A/D updates logged as dirty | yes: rr, fast restore |
-| 0065 | plugin memory access direction kept out of the MemOp | yes: memory callbacks |
-| 0066-0068, 0072, 0073 | rr: replay mutex ownership, rr vCPU loop, replay vmstate registration, snapshot loads judge timers at the loaded clock, loads refused while recording | yes: pandare2 rr |
-| 0069-0071 | panda modules (`-module`, `-M path:name`), the configurable machine and its QAPI | yes: `MachineBuilder`, `mkBoard` |
-| 0074 | resizeable RAM blocks (the ACPI blobs) sized independently of the host page size: a snapshot from a 16K/64K page host (Pi 5 KVM) loads on a 4K page host | yes: snapshots across hosts |
+means re-porting the series and re-testing. Which feature each patch serves, and whether
+pandare2 uses it, is in [docs/features.md](../docs/features.md) and
+[docs/reference/patches.md](../docs/reference/patches.md), generated from
+`docs/features.toml` (every patch must belong to a feature there, or `nix flake check` fails).
 
 Numbering: qemu_builder's lanes numbered patches by block (0080, 0110, 0120, ...); the first
 round trip here renumbered them in series order (0110->0060, 0111->0061, 0080-0082->0062-0064,
