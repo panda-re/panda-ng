@@ -188,7 +188,7 @@ SPDX-License-Identifier = "GPL-2.0-or-later"
 # Generated from the engine's headers, which include GPL-2.0-only classic PANDA headers
 # (panda/plugin.h, callbacks/cb-defs.h).
 [[annotations]]
-path = ["rust/panda-bindings/src/autogen/**", "python/core/pandare2/autogen/panda_datatypes.py"]
+path = ["rust/panda-bindings/src/autogen/**"]
 precedence = "closest"
 SPDX-FileCopyrightText = ["The PANDA authors", "The QEMU contributors"]
 SPDX-License-Identifier = "GPL-2.0-only"

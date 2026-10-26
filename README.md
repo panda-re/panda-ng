@@ -177,8 +177,7 @@ the texts are in [`LICENSES/`](LICENSES). `reuse lint` checks them.
 - GPL-2.0-or-later: the engine (`engine/`: patches to QEMU and the overlay linked into it), and
   the pandare2 modules and headers taken from classic PANDA (panda-re/panda).
 - GPL-2.0-only: classic PANDA's plugins and other files whose header says "GNU GPL, version 2";
-  the bindings generated from the engine's headers (`rust/panda-bindings/src/autogen/`,
-  `pandare2/autogen/panda_datatypes.py`).
+  the bindings generated from the engine's headers (`rust/panda-bindings/src/autogen/`).
 <!-- REUSE-IgnoreStart -->
 - Each patch in `engine/patches/<version>/` has a `SPDX-License-Identifier:` trailer (the
   licenses of the QEMU files it changes) and an `Origin:` trailer (upstream QEMU, classic PANDA,

@@ -415,26 +415,13 @@ class Panda():
 
     def _do_types_import(self):
         '''
-        Import objects from panda_datatypes which are configured by the environment variables(?)
-        Check the DATATTYPES_VERSION to detect if panda_datatypes.py has gotten stale.
+        Load the cffi bindings for this arch (pandare2.autogen._pandare_ffi_<arch>_softmmu, generated
+        at build time from the engine's headers) and build the callback types from its panda_cb.
 
         Store these objects in self.callback and self.callback_dictionary
 
         Returns a handle to the FFI object for the libpanda object
         '''
-
-        required_datatypes_version = 1.1
-        version_err = "Your panda_datatypes.py is out of date (has version {} but PANDA " \
-                      "requires version {}). Please reinstall pypanda or re-run "\
-                      "create_panda_datatypes.py."
-        # try:
-            # from .autogen.panda_datatypes import DATATYPES_VERSION
-        # except ImportError:
-            # raise RuntimeError(version_err.format(None, required_datatypes_version))
-
-        # if required_datatypes_version != DATATYPES_VERSION:
-            # raise RuntimeError(version_err.format(DATATYPES_VERSION, required_datatypes_version))
-
 
         from importlib import import_module
         panda_arch_support = import_module(f".autogen._pandare_ffi_{self.arch_name}_{self.target}",package='pandare2')
