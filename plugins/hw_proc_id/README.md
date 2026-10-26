@@ -19,7 +19,9 @@ None
 APIs and Callbacks
 ------------------
 
-`int procid(CPUState*)`: Returns an integer that represents the current process running on the CPU.
+`target_ulong get_id(CPUState *cpu)`: Returns an integer that represents the current process running on the CPU.
+
+`bool id_is_initialized(void)`: Whether `get_id` can answer yet (always true except on MIPS, where the kernel's r28, which points at the current task, has to be seen in kernel mode first).
 
 Example
 -------

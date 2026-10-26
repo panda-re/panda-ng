@@ -51,7 +51,7 @@ This was designed primarily for Python use cases:
 MAGIC = 0x12345678
 @panda.hypercall(MAGIC)
 def hypercall(cpu):
-    print("Hello from my hypercall!"
+    print("Hello from my hypercall!")
 
 ```
 
@@ -61,8 +61,8 @@ It's much easier to handle this from Python, but here's an example of how you mi
 
 
 ```C
-#include <panda/plugin.h>
-#include <hypercaller/hypercaller.h>
+#include "panda.h"
+#include "hypercaller/hypercaller.h"
 
 hypercall_t* register_hypercall;
 
