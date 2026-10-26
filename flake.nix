@@ -804,8 +804,22 @@
         system:
         let
           p = perSystem system;
+          # tests/bench_cb.py's C baseline: a plugin that only counts callbacks.
+          cbcount = p.buildPandaPlugin {
+            pname = "cbcount";
+            src = ./tests/plugins/cbcount;
+          };
         in
         {
+          inherit cbcount;
+          # panda-ng's plugins plus the test plugins, for PANDA_PLUGIN_DIR (lib/panda/plugins).
+          test-plugins = nixpkgs.legacyPackages.${system}.symlinkJoin {
+            name = "panda-test-plugins";
+            paths = [
+              p.plugins
+              cbcount
+            ];
+          };
           inherit (p)
             engine
             engine-x86_64
