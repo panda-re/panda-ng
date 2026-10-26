@@ -3814,8 +3814,7 @@ class Panda():
                 for m in magic:
                     self.plugins['hypercaller'].unregister_hypercall(m)
         else:
-            breakpoint()
-            print("ERROR: Your hypercall was not in the hook list")
+            raise ValueError(f"{fn!r} is not a function @panda.hypercall returned")
     
     def hypersyscall(self, name, on_enter=False, on_return=False, on_all=False, on_unknown=False, arg_filter=None, proc_filter=None):
         def decorator(fun):
