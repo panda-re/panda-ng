@@ -155,12 +155,11 @@ def openat(cpu, pc, dfd, filename, flags, *mode):
 
 `python/examples/example_syscalls.py` is a complete script.
 
-A C plugin registers with `PPP_REG_CB`, as `proc_start_linux` does:
+A C plugin registers with `PPP_REG_CB`:
 
 ```C
 #include "panda.h"
 #include "syscalls2/syscalls_ext_typedefs.h"
-#include "syscalls2/syscalls2_ext.h"
 
 static void all_sys_enter(CPUState *cpu, target_ulong pc, target_ulong callno) {
     printf("system call %lu at 0x%lx\n", (unsigned long)callno, (unsigned long)pc);
@@ -168,7 +167,6 @@ static void all_sys_enter(CPUState *cpu, target_ulong pc, target_ulong callno) {
 
 bool init_plugin(void *self) {
     panda_require("syscalls2");
-    assert(init_syscalls2_api());
     PPP_REG_CB("syscalls2", on_all_sys_enter, all_sys_enter);
     return true;
 }
