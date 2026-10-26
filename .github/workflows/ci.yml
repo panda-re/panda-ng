@@ -11,11 +11,16 @@ name: CI
 #             examples/consumer flake against this tree (an out-of-tree plugin runs).
 #   rust      the checked-in bindings compile for every target feature.
 #
-# No binary cache yet: the build job compiles the engine from source on every run.
+# Binary cache: the public Cachix cache pandare, through rehosting/ci's nix-setup. Pushes to main
+# push what they built (with the org secret CACHIX_AUTH_TOKEN); PRs only pull, so an engine that
+# main hasn't built yet compiles from source (16 min on 6 cores; longer on a runner).
+# release.yaml writes VERSION first, so its builds differ from these and won't hit.
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main] # fills the cache PRs pull from
   workflow_dispatch:
 
 permissions:
@@ -42,9 +47,14 @@ jobs:
           sudo docker image prune --all --force > /dev/null || true
           df -h /
       - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v31
+      - name: Set up Nix
+        uses: rehosting/ci/actions/nix-setup@v1
         with:
-          extra_nix_config: |
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-backend: cachix
+          cachix-name: pandare
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          extra-nix-config: |
             min-free = 4294967296
             max-free = 12884901888
       - name: Build pandare2's Python (engine, plugins, pandare2)
