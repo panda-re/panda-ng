@@ -38,7 +38,6 @@ from .utils import progress, warn, make_iso, debug, blocking, GArrayIterator, pl
 from .panda_expect import Expect
 from .asyncthread import AsyncThread
 from .qcows_internal import Qcows
-from .qemu_logging import QEMU_Log_Manager
 from .arch import ArmArch, Aarch64Arch, Loongarch64, MipsArch, Mips64Arch, X86Arch, X86_64Arch, PowerPCArch, PowerPC64Arch, Riscv32Arch, Riscv64Arch
 from dataclasses import dataclass
 
@@ -128,7 +127,6 @@ class Panda():
         self.ending = False # True during end_analysis
         self.cdrom = None
         self.catch_exceptions=catch_exceptions
-        self.qlog = QEMU_Log_Manager(self)
         self.build_dir = None
         self.plugin_path = plugin_path
         self.target = "softmmu"

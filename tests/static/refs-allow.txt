@@ -20,11 +20,6 @@ lib panda_enable_llvm
 lib panda_enable_llvm_helpers
 lib panda_memsavep
 lib panda_was_aborted
-lib qemu_log
-lib qemu_log_close
-lib qemu_logfile
-lib qemu_loglevel
-lib qemu_set_log
 lib sysbus_create_varargs
 plugin callstack_instr.get_callers
 plugin dynamic_symbols.get_best_matching_symbol
