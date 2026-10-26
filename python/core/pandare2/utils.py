@@ -204,7 +204,6 @@ def _find_build_dir(arch_name, find_executable=False, mode="softmmu"):
 
     system_build = "/usr/local/bin/"
     python_package = pjoin(*[dirname(__file__), "data"])
-    local_build = realpath(pjoin(dirname(__file__), "../../../build/plugins"))
     local_build = realpath(pjoin(dirname(__file__), "../../../qemu/build"))
 
 
@@ -266,7 +265,7 @@ def find_build_dir(arch_name=None, find_executable=False, mode="softmmu"):
         e = None
         for arch in arches:
             try:
-                return _find_build_dir(arch, mode, find_executable)
+                return _find_build_dir(arch, find_executable, mode)
             except RuntimeError as _e:
                 e = _e
         if e:
@@ -274,4 +273,4 @@ def find_build_dir(arch_name=None, find_executable=False, mode="softmmu"):
 
     elif arch_name not in arches:
         raise ValueError(f"Unsupported architecture name: {arch_name}, allowed values are: {arches}")
-    return _find_build_dir(arch_name, find_executable)
+    return _find_build_dir(arch_name, find_executable, mode)
