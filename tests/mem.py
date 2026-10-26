@@ -27,7 +27,7 @@ Checks, each against the program's own ground truth:
   QEMU returns from a hardware interrupt with EFLAGS.RF=1, RF is part of the TB key, and run 1's
   RF=0 block doesn't match (ubuntu-24.04 x86_64, HZ=1000: ~1 run in 4-9). After that run both keys
   are translated, so the next run finds one. The checks of the extra run are its own ("[run 3] ...").
-cpu_restore_state is registered too: it has no call site yet (a gap).
+cpu_restore_state is registered too (as a bare cffi callback): it has no call site yet (a gap).
 """
 import os
 import sys
@@ -166,10 +166,15 @@ def exc(cpu, index):
     return index
 
 
-@panda.cb_cpu_restore_state(name="restore", enabled=False)
 def restore(cpu, tb):
     if cur is not None:
         cur.restore += 1
+
+
+# Its @panda.cb_ decorator refuses it (no call site: pandare2.callbacks.NO_CALL_SITE), so register
+# the bare cffi callback, to see that it stays silent.
+panda.register_callback(panda.callback.cpu_restore_state, panda.callback.cpu_restore_state(restore),
+                        "restore", enabled=False)
 
 
 enabled_states = []

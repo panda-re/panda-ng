@@ -2,9 +2,9 @@
 
 # Callbacks
 
-52 callback types (`engine/src/include/panda/callbacks/cb-defs.h`). 24 fire; 18 are declared but have no call site in this engine yet, and 10 abort at registration. Register them from Python with the `@panda.cb_<name>` decorators, or from C with `panda_register_callback`.
+52 callback types (`engine/src/include/panda/callbacks/cb-defs.h`). 24 fire; 18 are declared but have no call site in this engine yet, and 10 abort at registration. Register them from Python with the `@panda.cb_<name>` decorators, or from C with `panda_register_callback`. The decorator of a callback that doesn't fire raises NotImplementedError, saying why.
 
-The status comes from `tests/callbacks.py`, which registers every callback on each test image and fails if one listed as missing starts firing, so this table stays true.
+The status comes from `pandare2.callbacks` (`python/core/pandare2/callbacks.py`); `tests/callbacks.py` registers every callback on each test image and fails if one listed as missing starts firing, so this table stays true.
 
 | callback | status | when it runs |
 |---|---|---|

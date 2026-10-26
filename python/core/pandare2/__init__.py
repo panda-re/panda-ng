@@ -34,6 +34,10 @@ class Callbacks:
 
     `@panda.cb_<name>(name=..., procname=..., enabled=...)` takes options; see
     `Panda.register_cb_decorators`. The decorator registers the function and returns it unchanged.
+
+    Not every callback in cb-defs.h runs in panda-ng: `pandare2.callbacks` lists the ones that
+    have no call site (NO_CALL_SITE) or abort at registration (ABORTS), and their decorators raise
+    NotImplementedError. The repository's docs/reference/callbacks.md has the table.
     '''
 
     def __init__(self):
