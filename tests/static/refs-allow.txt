@@ -4,7 +4,6 @@
 # board helpers). Removing that feature from pandare2 removes its lines here; refs.py fails on a
 # line that no longer fails, so this list only shrinks. Do not add to it: fix or remove the code.
 # One "<kind> <name>" per line; kinds: lib, plugin, type, field.
-lib PandaPhysicalAddressToRamOffset_external
 lib arm_load_kernel
 lib create_external_gic
 lib create_internal_gic
@@ -79,25 +78,6 @@ plugin hooks2.add_hooks2
 plugin hooks2.disable_hooks2
 plugin hooks2.enable_hooks2
 plugin mem_hooks.add_mem_hook
-plugin taint2.taint2_enable_sym
-plugin taint2.taint2_enable_taint
-plugin taint2.taint2_enabled
-plugin taint2.taint2_label_ram
-plugin taint2.taint2_label_reg
-plugin taint2.taint2_query_laddr
-plugin taint2.taint2_query_laddr_full
-plugin taint2.taint2_query_ram
-plugin taint2.taint2_query_ram_full
-plugin taint2.taint2_query_reg
-plugin taint2.taint2_query_reg_full
-plugin taint2.taint2_sym_branch_meta
-plugin taint2.taint2_sym_label_ram
-plugin taint2.taint2_sym_label_reg
-plugin taint2.taint2_sym_path_constraints
-plugin taint2.taint2_sym_query_ram
-plugin taint2.taint2_sym_query_reg
-type QueryResult *
-type SymbolicBranchMeta **
 type mem_hook_func_t
 type struct hook_symbol_resolve*
 type struct memory_hooks_region*
