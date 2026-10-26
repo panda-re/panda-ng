@@ -39,6 +39,39 @@ from .arch import ArmArch, Aarch64Arch, Loongarch64, MipsArch, Mips64Arch, X86Ar
 from dataclasses import dataclass
 
 
+_WRAPPER_MAKERS = {}
+
+
+def _wrapper_maker(nargs, kind):
+    '''
+    make(fun, stopped, raised) -> a function of exactly nargs arguments that calls fun, for
+    Panda._catching. kind: "void", "bool", "int", or "passthrough" (returns its second argument
+    when fun can't give a result). Generated once per (nargs, kind): a fixed argument list is
+    cheaper per call than *args.
+    '''
+    key = (nargs, kind)
+    if key not in _WRAPPER_MAKERS:
+        a = ", ".join(f"a{i}" for i in range(nargs))
+        neutral = {"void": "None", "bool": "False", "int": "0", "passthrough": "a1"}[kind]
+        ret = {"void": "return None", "bool": "return bool(r)"}.get(
+            kind, f"return {neutral} if r is None else r")
+        src = (f"def make(fun, stopped, raised):\n"
+               f"    def call({a}):\n"
+               f"        if stopped:\n"
+               f"            return {neutral}\n"
+               f"        try:\n"
+               f"            r = fun({a})\n"
+               f"        except Exception as e:\n"
+               f"            raised(e)\n"
+               f"            return {neutral}\n"
+               f"        {ret}\n"
+               f"    return call\n")
+        ns = {}
+        exec(src, ns)
+        _WRAPPER_MAKERS[key] = ns["make"]
+    return _WRAPPER_MAKERS[key]
+
+
 class Panda():
     '''
     This is the object used to interact with PANDA. Initializing it creates a virtual machine to interact with.
@@ -124,6 +157,7 @@ class Panda():
         self.ending = False # True during end_analysis
         self.cdrom = None
         self.catch_exceptions=catch_exceptions
+        self._exit = [] # exit_exception's storage: the callback wrappers check it (see _catching)
         self.build_dir = None
         self.plugin_path = plugin_path
         self.target = "softmmu"
@@ -415,7 +449,8 @@ class Panda():
         cb_list = dir(pcwc)
         cb_list.remove("cbaddr")
         PandaCB = namedtuple("PandaCB", cb_list)
-        self.callback  = PandaCB(**({i: ffi.callback(ffi.typeof(getattr(pcwc, i))) for i in cb_list}))
+        self._cb_ftypes = {i: ffi.typeof(getattr(pcwc, i)) for i in cb_list}
+        self.callback  = PandaCB(**({i: ffi.callback(self._cb_ftypes[i]) for i in cb_list}))
         pandacbtype = namedtuple("pandacbtype", "name number")
 
         C = ffi.dlopen(None)
@@ -684,6 +719,25 @@ class Panda():
             del self.exit_exception
             raise saved_exception
 
+
+    @property
+    def exit_exception(self):
+        '''
+        The exception that stopped the analysis: one a Python callback or queued function raised
+        (with catch_exceptions), or KeyboardInterrupt from a signal. run() raises it when the
+        guest stops. Unset (AttributeError) otherwise.
+        '''
+        if not self._exit:
+            raise AttributeError("exit_exception")
+        return self._exit[0]
+
+    @exit_exception.setter
+    def exit_exception(self, e):
+        self._exit[:] = [e]
+
+    @exit_exception.deleter
+    def exit_exception(self):
+        self._exit.clear()
 
     def end_analysis(self):
         '''
@@ -2047,6 +2101,7 @@ class Panda():
         XXX Don't add any other methods with names starting with 'cb_'
         Callbacks can be called as @panda.cb_XYZ in which case they'll take default arguments and be named the same as the decorated function
         Or they can be called as @panda.cb_XYZ(name='A', procname='B', enabled=True). Defaults: name is function name, procname=None, enabled=True unless procname set
+        The decorator registers the function and returns it unchanged.
         '''
         for cb_name, pandatype in zip(self.callback._fields, self.callback):
             def closure(closed_cb_name, closed_pandatype): # Closure on cb_name and pandatype
@@ -2074,59 +2129,46 @@ class Panda():
             self._register_internal_asid_changed_cb()
 
         def decorator(fun):
-            local_name = name  # We need a new varaible otherwise we have scoping issues with _generated_callback's name
-            if name is None:
-                local_name = fun.__name__
-
-            # What a callback returns once a Python exception has stopped the analysis: 0, except where 0
-            # changes what the guest does. before_handle_exception/interrupt return the index they got,
-            # which leaves it alone (0 is a different exception, which QEMU may abort on).
-            passthrough = pandatype is self.callback.before_handle_exception or \
-                pandatype is self.callback.before_handle_interrupt
-
-            def neutral(args):
-                return self.ffi.cast(return_type, args[1] if passthrough else 0)
-
-            def _run_and_catch(*args, **kwargs): # Run function but if it raises an exception, stop panda and raise it
-                if hasattr(self, "exit_exception"):
-                    # An exception has been raised previously - do not even run the function. But we need to match the expected
-                    # return type or we'll raise more errors.
-                    if return_type:
-                        return neutral(args)
-                else:
-                    try:
-                        r = fun(*args, **kwargs)
-                        #print(pandatype, type(r)) # XXX Can we use pandatype to determine requried return and assert if incorrect
-                        #assert(isinstance(r, int)), "Invalid return type?"
-                        #print(fun, r) # Stuck with TypeError in _run_and_catch? Enable this to find where the bug is.
-                        if return_type:
-                            try:
-                                return self.ffi.cast(return_type, r)
-                            except TypeError:
-                                # consider throwing an exception
-                                return self.ffi.cast(return_type, 0)
-                    except Exception as e:
-                        # exceptions wont work in our thread. Therefore we print it here and then throw it after the
-                        # machine exits.
-                        if self.catch_exceptions:
-                            self.exit_exception = e
-                            self.end_analysis()
-                        else:
-                            raise e
-                        if return_type is not None:
-                            return neutral(args)
-
-            cast_rc = pandatype(_run_and_catch)
-            return_type = self.ffi.typeof(cast_rc).result
-            
-            if return_type.cname == "void":
-                return_type = None
-
-            self.register_callback(pandatype, cast_rc, local_name, enabled=enabled, procname=procname)
-            def wrapper(*args, **kw):
-                return _run_and_catch(*args, **kw)
-            return wrapper
+            local_name = fun.__name__ if name is None else name
+            cb_name = self.callback_dictionary[pandatype].name
+            result = self._cb_ftypes[cb_name].result
+            wrapped = self._catching(fun, len(self._cb_ftypes[cb_name].args), result, passthrough=cb_name in ("before_handle_exception", "before_handle_interrupt"))
+            self.register_callback(pandatype, pandatype(wrapped), local_name, enabled=enabled, procname=procname)
+            return fun
         return decorator
+
+    def _catching(self, fun, nargs, result=None, passthrough=False):
+        '''
+        The wrapper between C and every Python callback pandare2 registers (the cb_ decorators,
+        ppp, hook, hypercall, hypersyscall): returns the function to give ffi.callback.
+
+        nargs is the C callback's argument count, result its result type (a cffi ctype; None or
+        void for none). An exception can't cross into C: with catch_exceptions (the default) it
+        becomes exit_exception, which run() raises, and the analysis ends; from then on the
+        wrapper returns without calling fun. After an exception, or when fun returns None, a
+        callback with a result returns 0 (False), except a passthrough one
+        (before_handle_exception/interrupt), which returns the index it was given: 0 is a
+        different exception, which QEMU may abort on.
+
+        It costs a few tens of ns over a bare cffi callback (tests/bench_cb.py): it checks a list
+        it closes over rather than an attribute, takes exactly nargs arguments (no *args tuple),
+        doesn't cast the result (cffi converts it), and its try block costs nothing until it
+        catches.
+        '''
+        if result is None or result.cname == "void":
+            kind = "void"
+        elif result.cname == "_Bool":
+            kind = "bool"
+        else:
+            kind = "passthrough" if passthrough else "int"
+        return _wrapper_maker(nargs, kind)(fun, self._exit, self._callback_raised)
+
+    def _callback_raised(self, e):
+        '''A Python callback raised e (called in its except block).'''
+        if not self.catch_exceptions:
+            raise e     # cffi prints it, and the callback returns 0
+        self.exit_exception = e
+        self.end_analysis()
 
     def _register_internal_asid_changed_cb(self):
         '''
@@ -2352,35 +2394,8 @@ class Panda():
             if local_name is None:
                 local_name = fun.__name__
 
-            def _run_and_catch(*args, **kwargs): # Run function but if it raises an exception, stop panda and raise it
-                if not hasattr(self, "exit_exception"):
-                    try:
-                        r = fun(*args, **kwargs)
-                        #print(pandatype, type(r)) # XXX Can we use pandatype to determine requried return and assert if incorrect
-                        #assert(isinstance(r, int)), "Invalid return type?"
-                        if return_type is not None:
-                            try:
-                                return self.ffi.cast(return_type, r)
-                            except TypeError:
-                                # consider throwing an exception
-                                return self.ffi.cast(return_type, 0)
-                    except Exception as e:
-                        # exceptions wont work in our thread. Therefore we print it here and then throw it after the
-                        # machine exits.
-                        if self.catch_exceptions:
-                            self.exit_exception = e
-                            self.end_analysis()
-                        else:
-                            raise e
-                        # this works in all current callback cases. CFFI auto-converts to void, bool, int, and int32_t
-                        if return_type is not None:
-                            return self.ffi.cast(return_type, 0)
-
-            cast_rc = self.ffi.callback(attr+"_t")(_run_and_catch)  # Wrap the python fn in a c-callback.
-            return_type = self.ffi.typeof(cast_rc).result
-            
-            if return_type.cname == "void":
-                return_type = None
+            ctype = self.ffi.typeof(attr + "_t")
+            cast_rc = self.ffi.callback(ctype, self._catching(fun, len(ctype.args), ctype.result))
 
             if local_name == "<lambda>":
                 local_name = f"<lambda_{self.lambda_cnt}>"
@@ -2458,7 +2473,8 @@ class Panda():
         '''
 
         def decorator(fun):
-            if cb_type == "before_tcg_codegen" or cb_type == "after_block_translate" or cb_type == "before_block_exec" or cb_type == "start_block_exec" or cb_type == "end_block_exec":
+            result = None
+            if cb_type in ("before_tcg_codegen", "after_block_translate", "before_block_exec", "start_block_exec", "end_block_exec"):
                 hook_cb_type = self.ffi.callback("void(CPUState*, TranslationBlock* , struct hook *)")
             elif cb_type == "after_block_exec":
                 hook_cb_type = self.ffi.callback("void(CPUState*, TranslationBlock* , uint8_t, struct hook *)")
@@ -2466,34 +2482,16 @@ class Panda():
                 hook_cb_type = self.ffi.callback("void(CPUState* env, target_ptr_t pc, struct hook*)")
             elif cb_type == "before_block_exec_invalidate_opt":
                 hook_cb_type = self.ffi.callback("bool(CPUState* env, TranslationBlock*, struct hook*)")
+                result = self.ffi.typeof("bool")
             else:
-                print("function type not supported")
-                return
+                raise ValueError(f"hook: cb_type {cb_type!r} is not supported")
             type_num = getattr(self.libpanda, "PANDA_CB_"+cb_type.upper())
 
             if debug:
                 print("Registering breakpoint at 0x{:x} -> {} == {}".format(addr, fun, 'cdata_cb'))
-            
-            def _run_and_catch(*args, **kwargs): # Run function but if it raises an exception, stop panda and raise it
-                if not hasattr(self, "exit_exception"):
-                    try:
-                        r = fun(*args, **kwargs)
-                        #print(pandatype, type(r)) # XXX Can we use pandatype to determine requried return and assert if incorrect
-                        #assert(isinstance(r, int)), "Invalid return type?"
-                        #print(fun, r) # Stuck with TypeError in _run_and_catch? Enable this to find where the bug is.
-                        return r
-                    except Exception as e:
-                        # exceptions wont work in our thread. Therefore we print it here and then throw it after the
-                        # machine exits.
-                        if self.catch_exceptions:
-                            self.exit_exception = e
-                            self.end_analysis()
-                        else:
-                            raise e
-                        return 0
 
             # Inform the plugin that it has a new breakpoint at addr
-            hook_cb_passed = hook_cb_type(_run_and_catch)
+            hook_cb_passed = hook_cb_type(self._catching(fun, 4 if cb_type == "after_block_exec" else 3, result))
             new_hook = self.ffi.new("struct hook*")
             new_hook.type = type_num
             new_hook.addr = addr
@@ -2513,31 +2511,13 @@ class Panda():
 
             self.plugins['hooks'].add_hook(new_hook)
             self.hook_list.append((new_hook, hook_cb_passed))
-
-            def wrapper(*args, **kw):
-                return _run_and_catch(*args, **kw)
-            return wrapper
+            return fun
         return decorator
 
     # HYPERCALLS
     def hypercall(self, magic):
         def decorator(fun):
-            hypercall_cb_type = self.ffi.callback("hypercall_t")
-            
-            def _run_and_catch(*args, **kwargs): # Run function but if it raises an exception, stop panda and raise it
-                if not hasattr(self, "exit_exception"):
-                    try:
-                        fun(*args, **kwargs)
-                    except Exception as e:
-                        # exceptions wont work in our thread. Therefore we print it here and then throw it after the
-                        # machine exits.
-                        if self.catch_exceptions:
-                            self.exit_exception = e
-                            self.end_analysis()
-                        else:
-                            raise e
-
-            hook_cb_passed = hypercall_cb_type(_run_and_catch)
+            hook_cb_passed = self.ffi.callback("hypercall_t", self._catching(fun, 1))
             if type(magic) is int:
                 self.plugins['hypercaller'].register_hypercall(magic, hook_cb_passed)
             elif type(magic) is list:
@@ -2549,10 +2529,8 @@ class Panda():
             else:
                 raise TypeError("Magics must be either an int or list of ints")
 
-            def wrapper(*args, **kw):
-                return _run_and_catch(*args, **kw)
-            self.hypercalls[wrapper] = [hook_cb_passed,magic]
-            return wrapper
+            self.hypercalls[fun] = [hook_cb_passed,magic]
+            return fun
         return decorator
     
     def disable_hypercall(self, fn):
@@ -2568,26 +2546,14 @@ class Panda():
     
     def hypersyscall(self, name, on_enter=False, on_return=False, on_all=False, on_unknown=False, arg_filter=None, proc_filter=None):
         def decorator(fun):
-            hypercall_cb_type = self.ffi.callback("syscall_cb_t")
-            
-            def _run_and_catch(*args, **kwargs): # Run function but if it raises an exception, stop panda and raise it
-                if not hasattr(self, "exit_exception"):
-                    try:
-                        if not on_all:
-                            prototype = args[1]
-                            sysret = args[2]
-                            args = tuple(list(args) + [sysret.args[i] for i in range(prototype.nargs)])
-                        fun(*args, **kwargs)
-                    except Exception as e:
-                        # exceptions wont work in our thread. Therefore we print it here and then throw it after the
-                        # machine exits.
-                        if self.catch_exceptions:
-                            self.exit_exception = e
-                            self.end_analysis()
-                        else:
-                            raise e
-
-            hook_cb_passed = hypercall_cb_type(_run_and_catch)
+            if on_all:
+                target = fun
+            else:
+                # one syscall: its arguments follow (cpu, prototype, sysret, hook)
+                def target(*args):
+                    prototype, sysret = args[1], args[2]
+                    return fun(*args, *[sysret.args[i] for i in range(prototype.nargs)])
+            hook_cb_passed = self.ffi.callback("syscall_cb_t", self._catching(target, 4))
             shook = self.ffi.new("struct syscall_hook *")
             shook.on_enter = on_enter
             shook.on_return = on_return
@@ -2618,10 +2584,8 @@ class Panda():
                 shook.comm_filter_enabled = False
             self.plugins["hypersyscalls"].register_syscall_cb(shook)
 
-            def wrapper(*args, **kw):
-                return _run_and_catch(*args, **kw)
-            self.hypercalls[wrapper] = [hook_cb_passed,shook]
-            return wrapper
+            self.hypercalls[fun] = [hook_cb_passed,shook]
+            return fun
         return decorator
 
     def hsyscall(self, name, arg_filter=None, comm_filter=None):
