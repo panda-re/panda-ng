@@ -6,17 +6,12 @@
     # moved here; panda-ng no longer follows penguin's pin and bumps it on its own schedule (a bump
     # rebuilds the engine and everything on it: rerun the guest tests).
     nixpkgs.url = "github:NixOS/nixpkgs/b6067cc0127d4db9c26c79e4de0513e58d0c40c9";
-    libpanda-ng-src = {
-      url = "git+https://github.com/panda-re/libpanda-ng";
-      flake = false;
-    };
   };
 
   outputs =
     {
       self,
       nixpkgs,
-      libpanda-ng-src,
       ...
     }:
     let
@@ -53,11 +48,12 @@
           lib = pkgs.lib;
           system = pkgs.stdenv.hostPlatform.system;
 
-          # libpanda-ng with local fixes until they land upstream.
-          libpanda-ng = pkgs.applyPatches {
-            name = "libpanda-ng";
-            src = libpanda-ng-src;
-            patches = [ ./nix/libpanda-ng-fixes.patch ];
+          # libpanda-ng, the header generator (tools/libpanda-ng, from panda-re/libpanda-ng 7b257bb
+          # plus local fixes). Only what the build runs, so other tree changes (or README edits)
+          # don't rebuild the engine.
+          libpanda-ng = lib.fileset.toSource {
+            root = ./tools/libpanda-ng;
+            fileset = lib.fileset.difference ./tools/libpanda-ng ./tools/libpanda-ng/README.md;
           };
 
           gdbPythonPath = pkgs.python3.pkgs.makePythonPath (
@@ -153,10 +149,6 @@
                 # panda_{c,cpp,...}_<target>.h next to its scripts.
                 # gdb embeds its own python3 (same nixpkgs); give it build.py's modules.
                 cp -r --no-preserve=mode ${libpanda-ng} ../libpanda-ng
-                # build.py preprocesses through /tmp/simple.{c,out}: concurrent engine builds
-                # (no sandbox in the VM) overwrite each other's and one target's header comes out
-                # wrong. Keep it in this build's directory.
-                sed -i "s|/tmp/simple|$NIX_BUILD_TOP/simple|g" ../libpanda-ng/build.py
                 (cd ../libpanda-ng && PYTHONPATH=${gdbPythonPath} bash run_all.sh $PWD/../source)
                 runHook postBuild
               '';
@@ -722,8 +714,9 @@
               xz
             ];
           };
-          # For running libpanda-ng by hand against a build tree:
+          # For running libpanda-ng by hand against a build tree (tools/libpanda-ng/README.md):
           #   nix develop .#libpanda-ng -c bash run_one.sh <qemu-src-with-build/> <libpanda-*.so>
+          # Not engine-shell: build.py runs in gdb's embedded python, which needs PYTHONPATH.
           libpanda-ng-shell = pkgs.mkShell {
             packages = with pkgs; [
               gdb
