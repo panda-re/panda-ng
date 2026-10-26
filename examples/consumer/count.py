@@ -14,11 +14,13 @@ want = int(sys.argv[2]) if len(sys.argv) > 2 else 20000
 machine = {"aarch64": ["-M", "virt", "-cpu", "max"], "riscv64": ["-M", "virt"]}.get(arch, [])
 bits = 64 if "64" in arch else 32
 panda = Panda(arch=arch, mem="256M", os_version=f"linux-{bits}-generic", extra_args=machine + ["-display", "none", "-nodefaults"])
+# --8<-- [start:load]
 panda.load_plugin("blockcount")
 # The plugin's own API: a second handle on the library PANDA loaded (same counter).
 ffi = FFI()
 ffi.cdef("uint64_t blockcount_get(void);")
 blockcount = ffi.dlopen(join(panda.get_plugin_path(), f"libpanda-blockcount_{arch}-softmmu.so"))
+# --8<-- [end:load]
 
 seen = 0
 

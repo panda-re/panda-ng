@@ -12,14 +12,17 @@ import sys
 
 from pandare2 import Panda
 
+# --8<-- [start:setup]
 panda = Panda(generic=sys.argv[1])
 with open(sys.argv[1]) as f:
     isf = os.path.join(os.path.dirname(os.path.abspath(sys.argv[1])), json.load(f)["isf"])
 panda.load_plugin("osi", {"disable-autoload": "true"})
 panda.load_plugin("osi_isf", {"isf": isf})
 seen = {"task_changes": 0}
+# --8<-- [end:setup]
 
 
+# --8<-- [start:callbacks]
 def s(p):
     return panda.ffi.string(p).decode() if p != panda.ffi.NULL else None
 
@@ -55,8 +58,10 @@ def openat(cpu, pc, dfd, filename, flags, *mode):
         osi.cleanup_garray(mods)
     mapping = osi.get_mapping_by_addr(cpu, proc, panda.arch.get_pc(cpu))
     seen["pc_mapping"] = s(mapping.name) if mapping != panda.ffi.NULL else None
+# --8<-- [end:callbacks]
 
 
+# --8<-- [start:drive]
 @panda.queue_blocking
 def drive():
     panda.revert_sync("root")
@@ -67,6 +72,7 @@ def drive():
 
 
 panda.run()
+# --8<-- [end:drive]
 
 proc = seen.get("proc")
 maps = seen.get("maps", [])

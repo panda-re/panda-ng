@@ -196,9 +196,11 @@ def bbt(cpu, pc):
         cur.ev.append(("t", pc))
 
 
+# --8<-- [start:insn]
 @panda.cb_insn_translate(name="it", enabled=False)
 def it(cpu, pc):
     return in_program(pc)
+# --8<-- [end:insn]
 
 
 @panda.cb_insn_exec(name="ie", enabled=False)

@@ -24,6 +24,7 @@ SETUP = ("rm -f /tmp/f1 /tmp/f2 /tmp/p1 /tmp/p2; mkfifo /tmp/f1 /tmp/f2; "
          "sh -c 'echo $$ > /tmp/p2; exec 3< /tmp/f2; read x <&3' & sleep 2")
 
 
+# --8<-- [start:drive]
 @panda.queue_blocking
 def drive():
     panda.revert_sync("root")
@@ -45,6 +46,7 @@ def drive():
 
 
 panda.run()
+# --8<-- [end:drive]
 pcs = fired.get("pcs", [])
 print(f"HOOKALIAS arch={panda.arch_name} pcs={[hex(p) for p in pcs]} fired={ {k: hex(v) for k, v in fired.items() if k != 'pcs'} }")
 checks = {

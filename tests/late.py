@@ -60,6 +60,7 @@ def on_before_write(cpu, pc, addr, size, buf):
         st["before_w"][(st["run"], pc)] += 1
 
 
+# --8<-- [start:late]
 @panda.hypercall(MAGIC)
 def hypercall(cpu):
     op = panda.arch.get_arg(cpu, 2, convention="syscall")
@@ -84,6 +85,7 @@ def hypercall(cpu):
         elif run == 3:
             panda.delete_callback("aw")
             panda.delete_callback("bw")
+# --8<-- [end:late]
 
 
 @panda.queue_blocking

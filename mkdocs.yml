@@ -50,7 +50,7 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.highlight
   # Guides take their code from the tests (--8<-- "tests/rr.py:record"), so every example runs.
-  - pymdownx.snippets: { base_path: ["."], check_paths: true }
+  - pymdownx.snippets: { base_path: ["."], check_paths: true, dedent_subsections: true }
 
 exclude_docs: |
   features.toml

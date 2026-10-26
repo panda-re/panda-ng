@@ -36,6 +36,7 @@ def main():
     def after_loadvm(cpu):
         st["loadvm"] += 1
 
+    # --8<-- [start:loop]
     def next_input():
         st["i"] += 1
         if st["i"] >= iterations:
@@ -57,7 +58,9 @@ def main():
             panda.physical_memory_write(st["path"], data + b"\0")
         except ValueError as e:
             st["failed"] = f"write: {e}"
+    # --8<-- [end:loop]
 
+    # --8<-- [start:snap]
     @panda.ppp("syscalls2", "on_sys_openat_enter")
     def openat(cpu, pc, dfd, filename, flags, *mode):
         if st["snap"]:
@@ -81,6 +84,7 @@ def main():
         # after the snapshot is taken (cont), the first iteration reverts to it
         panda.queue_main_loop_wait_fn(lambda: st.__setitem__("t0", time()))
         panda.queue_main_loop_wait_fn(next_input)
+    # --8<-- [end:snap]
 
     def outcome(cpu, exists):
         if st["t0"] is None or st["done"] or panda.current_asid(cpu) != st["asid"]:

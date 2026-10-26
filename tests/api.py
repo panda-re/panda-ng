@@ -261,6 +261,7 @@ def hypercall_1(cpu, marker, sp, pc):
           asid % 32 == 0 and panda.physical_memory_read(asid, 8) is not None, f"{asid:#x}")
     seen["asid_field"] = panda.current_asid_field(cpu)
 
+    # --8<-- [start:memory]
     # User memory.
     data = panda.virtual_memory_read(cpu, marker, len(MARKER))
     check("virtual_memory_read (user)", bytes(data) == MARKER, repr(bytes(data)))
@@ -288,6 +289,7 @@ def hypercall_1(cpu, marker, sp, pc):
     panda.physical_memory_write(panda.virt_to_phys(cpu, marker + 8), b"PHYSWRIT")
     check("physical_memory_write reads back virtually",
           bytes(panda.virtual_memory_read(cpu, marker + 8, 8)) == b"PHYSWRIT")
+    # --8<-- [end:memory]
     seen["store_phys"] = panda.virt_to_phys(cpu, marker + 16)
 
     # Plugins: load, find, unload.
@@ -333,6 +335,7 @@ def drive():
         panda.run_serial_cmd(f"printf '{chunk}' >> /tmp/api")
     seen["output"] = panda.run_serial_cmd("chmod +x /tmp/api && /tmp/api; echo; echo rc=$?")
 
+    # --8<-- [start:snapshots]
     # Snapshots: state saved with savevm comes back with loadvm, and delvm removes it.
     panda.run_serial_cmd("echo one > /tmp/snap")
     seen["savevm"] = panda.run_monitor_cmd("savevm api-test").strip()
@@ -341,6 +344,7 @@ def drive():
     seen["after_revert"] = panda.run_serial_cmd("cat /tmp/snap").strip()
     panda.run_monitor_cmd("delvm api-test")
     seen["snapshots"] = panda.run_monitor_cmd("info snapshots")
+    # --8<-- [end:snapshots]
     # map_memory: new RAM past the guest's, read back through physical memory.
     panda.map_memory("api-test-ram", 0x10000, MAP_ADDR)
     panda.physical_memory_write(MAP_ADDR + 0x100, b"MAPPEDOK")

@@ -43,6 +43,7 @@ def child_replay(image, name, out):
 
 
 def child_notcg(image, out):
+    # --8<-- [start:kvm]
     panda = Panda(generic=image, extra_args=["-accel", "kvm"])
     res = {}
     done = threading.Event()
@@ -51,6 +52,7 @@ def child_notcg(image, out):
         res["snap"] = panda.libpanda.panda_fast_snap()
         res["restore"] = panda.libpanda.panda_fast_restore()
         done.set()
+    # --8<-- [end:kvm]
 
     @panda.queue_blocking
     def drive():

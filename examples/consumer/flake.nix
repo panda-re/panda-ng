@@ -25,14 +25,17 @@
           # The lib: panda-ng's build of the engine and the plugin helpers.
           pn = panda-ng.lib.${system};
 
+          # --8<-- [start:plugin]
           # An out-of-tree C plugin, built against the engine's generated headers.
           blockcount = pn.buildPandaPlugin {
             pname = "blockcount";
             src = ./plugin;
           };
+          # --8<-- [end:plugin]
 
           python = pkgs.python3.withPackages (ps: [ ps.pandare2 ]);
 
+          # --8<-- [start:script]
           # A pandare2 script that loads it: panda-ng's plugins plus ours in one directory.
           count-blocks = pkgs.writeShellApplication {
             name = "count-blocks";
@@ -42,6 +45,7 @@
               exec python3 ${./count.py} "$@"
             '';
           };
+          # --8<-- [end:script]
         in
         {
           inherit

@@ -71,6 +71,7 @@ def run(arch):
     serial = os.path.join(tmp, "serial.out")
 
     utype, ubase, uirq = L["uart"]
+    # --8<-- [start:builder]
     m = (MachineBuilder(arch)
          .cpu(L["cpu"])
          .ram(L["ram"], "16M")
@@ -80,6 +81,7 @@ def run(arch):
          .kernel(elf))
     print("args:", " ".join(m.args()), flush=True)
     panda = Panda(arch=arch, machine=m, extra_args=["-display", "none", "-serial", f"file:{serial}"])
+    # --8<-- [end:builder]
 
     checks, counts = {}, Counter()
     seen = {"insn_pcs": set(), "virt_writes": [], "virt_reads": [], "phys_writes": [], "bbe": [],

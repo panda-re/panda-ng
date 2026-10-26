@@ -52,6 +52,7 @@ def elf(machine, code, base=0x400000):
 
 panda = Panda(generic=sys.argv[1])
 arch = panda.arch_name
+# --8<-- [start:plugins]
 # Needs an IGLOO-instrumented kernel to report syscalls; here it only has to load and register its
 # hypercalls with hypercaller next to ours.
 panda.load_plugin("hypersyscalls")
@@ -60,6 +61,7 @@ with open(sys.argv[1]) as f:
 # osi would load osi_linux itself, without its arguments.
 panda.load_plugin("osi", {"disable-autoload": "true"})
 panda.load_plugin("osi_linux", {"kconf_file": kconf})
+# --8<-- [end:plugins]
 seen = {"asid": 0, "openat": [], "auxv": [], "hypercall": []}
 
 
@@ -69,6 +71,7 @@ def asid_changed(cpu, old, new):
     return 0
 
 
+# --8<-- [start:ppp]
 @panda.ppp("syscalls2", "on_sys_openat_enter")
 def openat(cpu, pc, dfd, filename, flags, *mode):
     try:
@@ -83,6 +86,7 @@ def auxv(cpu, tb, av):
     proc = panda.plugins["osi"].get_current_process(cpu)
     osi = (panda.ffi.string(proc.name).decode(), proc.pid) if proc != panda.ffi.NULL else None
     seen["auxv"].append((panda.ffi.string(av.execfn).decode(), argv, osi))
+# --8<-- [end:ppp]
 
 
 @panda.hypercall(MAGIC)

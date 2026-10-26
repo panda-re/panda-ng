@@ -17,7 +17,9 @@ from pandare2 import Panda
 
 
 def child(mode, image, name, out):
+    # --8<-- [start:panda]
     panda = Panda(generic=image, rr=True)
+    # --8<-- [end:panda]
     seen = {"asids": [], "openat": 0, "icount": None}
 
     @panda.cb_asid_changed
@@ -26,6 +28,7 @@ def child(mode, image, name, out):
             seen["asids"].append(new)
         return False
 
+    # --8<-- [start:openat]
     @panda.ppp("syscalls2", "on_sys_openat_enter")
     def openat(cpu, pc, dfd, filename, flags, *mode):
         if not panda.libpanda.rr_on():
@@ -35,6 +38,7 @@ def child(mode, image, name, out):
                 seen["openat"] += 1
         except ValueError:
             pass
+    # --8<-- [end:openat]
 
     # The log ends at the recording's end: count instructions as the replay reaches it.
     @panda.cb_before_handle_exception
@@ -44,6 +48,7 @@ def child(mode, image, name, out):
         return index
 
     if mode == "record":
+        # --8<-- [start:record]
         @panda.queue_blocking
         def drive():
             panda.revert_sync("root")
@@ -53,9 +58,12 @@ def child(mode, image, name, out):
             seen["output"] = "recorded"
             panda.end_analysis()
         panda.run()
+        # --8<-- [end:record]
     else:
+        # --8<-- [start:replay]
         panda.run_replay(name)
         seen["serial"] = b"PRETTY_NAME" in panda.replay_serial
+        # --8<-- [end:replay]
     with open(out, "w") as f:
         json.dump(seen, f)
 

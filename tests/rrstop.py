@@ -50,11 +50,13 @@ def child(mode, image, name, out):
             panda.revert_sync("root")
             for k in range(ROUNDS):
                 r = {"stop_cont": stop_cont()}
+                # --8<-- [start:manual]
                 panda.record(f"{name}{k}")
                 panda.wait_rr("record")
                 r["output"] = panda.run_serial_cmd(f"echo rrstop-{k}-$((6*7))", timeout=120)
                 panda.end_record()
                 panda.wait_rr("off")
+                # --8<-- [end:manual]
                 seen["rounds"].append(r)
             # a snapshot after the last recording (no log to point into), then the guest still runs
             seen["savevm"] = panda.run_monitor_cmd("savevm rrstop-after")

@@ -766,6 +766,7 @@
                 ./engine/patches
                 ./engine/src/include
                 ./engine/tests
+                ./examples
               ];
             };
             nativeBuildInputs = [ (docsPython system) ];
@@ -797,6 +798,7 @@
           engine-src = p.engineSrc;
           python = p.pandaPython;
           default = p.plugins;
+          # --8<-- [start:board-example]
           # mkBoard's own check: engine/tests/modules/ext-devices.c (two devices) as a module.
           board-example = p.mkBoard {
             name = "ext-devices";
@@ -806,6 +808,7 @@
               mkdir $out; cp ${./engine/tests/modules/ext-devices.c} $out/
             '';
           };
+          # --8<-- [end:board-example]
           docs = docsSite system;
         }
         // p.qemuSystem

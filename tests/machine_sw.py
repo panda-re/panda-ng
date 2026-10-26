@@ -23,15 +23,19 @@ def run(arch):
     from pandare2 import Panda
 
     cpu_type, words = CODE[arch]
+    # --8<-- [start:panda]
     panda = Panda(arch=arch, extra_args=["-M", "configurable", "-cpu", cpu_type, "-display", "none",
                                          "-serial", "none"])
+    # --8<-- [end:panda]
     seen = {"insns": set()}
 
+    # --8<-- [start:setup]
     @panda.cb_after_machine_init
     def setup(cpu):
         panda.map_memory("code", 0x10000, BASE)
         panda.physical_memory_write(BASE, struct.pack(f"<{len(words)}I", *words))
         panda.arch.set_pc(cpu, BASE)
+    # --8<-- [end:setup]
 
     @panda.cb_insn_translate(name="sw_insn_translate")
     def it(cpu, pc):
@@ -42,6 +46,7 @@ def run(arch):
         seen["insns"].add(pc)
         return 0
 
+    # --8<-- [start:hypercall]
     @panda.hypercall(MAGIC)
     def hc(cpu):
         seen["arg"] = panda.arch.get_arg(cpu, 2, convention="syscall")
@@ -51,6 +56,7 @@ def run(arch):
         panda.disable_callback("sw_insn_exec")
         panda.disable_callback("sw_insn_translate")
         panda.end_analysis()
+    # --8<-- [end:hypercall]
 
     timer = threading.Timer(60, lambda: (print("TIMEOUT", flush=True), os._exit(2)))
     timer.start()
