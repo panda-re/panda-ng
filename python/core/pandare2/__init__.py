@@ -30,10 +30,10 @@ class Callbacks:
 
         @panda.cb_before_block_exec
         def before_block(cpu, tb):
-            print(hex(panda.current_pc(cpu)))
+            print(hex(panda.arch.get_pc(cpu)))
 
     `@panda.cb_<name>(name=..., procname=..., enabled=...)` takes options; see
-    `Panda.register_cb_decorators`.
+    `Panda.register_cb_decorators`. The decorator registers the function and returns it unchanged.
     '''
 
     def __init__(self):

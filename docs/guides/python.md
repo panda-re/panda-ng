@@ -117,7 +117,11 @@ as a known gap).
 
 Every PANDA callback has a decorator, `@panda.cb_<name>`; the
 [callback reference](../reference/callbacks.md) lists them, with their arguments and whether
-each fires in this engine. Callbacks need TCG.
+each fires in this engine. A decorator registers the function and returns it unchanged. Callbacks need TCG.
+
+An exception in a callback can't propagate into the engine: with `catch_exceptions` (the default)
+pandare2 keeps it, ends the analysis and `run()` raises it; until then the callbacks return
+without calling your functions.
 
 A callback has a name (the function's, or `name=`) and can start disabled. `insn_exec` runs only
 for instructions whose `insn_translate` returned true, so this pair, from `tests/blocks.py`,
