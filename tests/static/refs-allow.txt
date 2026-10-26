@@ -4,14 +4,3 @@
 # board helpers). Removing that feature from pandare2 removes its lines here; refs.py fails on a
 # line that no longer fails, so this list only shrinks. Do not add to it: fix or remove the code.
 # One "<kind> <name>" per line; kinds: lib, plugin, type, field.
-lib arm_load_kernel
-lib create_external_gic
-lib create_internal_gic
-lib create_one_flash
-lib create_virtio_devices
-lib drive_get
-lib error_abort
-lib error_fatal
-lib lookup_gic
-lib memory_region_allocate_system_memory
-lib sysbus_create_varargs
