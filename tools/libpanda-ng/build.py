@@ -52,8 +52,24 @@ def gdb_resolve_issue(code):
 	cmd = code.decode(errors="ignore").replace('\n',' ')
 	print(f"cmd={cmd}")
 	cmd = cmd.replace("__fd_mask", "unsigned int")	
-	result = gdb.execute(f"p {cmd}",to_string=True).split(" = ")[1].strip()
+	try:
+		result = gdb.execute(f"p {cmd}",to_string=True).split(" = ")[1].strip()
+	except gdb.error:
+		# The expression names a host type the debug info lacks (e.g. ELF_NGREG's
+		# struct user_regs_struct on aarch64 hosts): ask the host compiler instead.
+		result = host_eval(cmd)
 	return result.encode()
+
+def host_eval(expr):
+	from subprocess import check_output
+	from tempfile import TemporaryDirectory
+	glib = check_output(['pkg-config', '--cflags', 'glib-2.0']).decode().strip()
+	with TemporaryDirectory() as d:
+		with open(join(d, "eval.c"), "w") as f:
+			f.write('#include "includes/sys_includes.h"\n#include <stdio.h>\n'
+				f'int main(void) {{ printf("%lld", (long long)({expr})); return 0; }}\n')
+		check_output(f"gcc -I{script_dir} {glib} {join(d, 'eval.c')} -o {join(d, 'eval')}", shell=True)
+		return check_output([join(d, "eval")]).decode().strip()
 	
 def simplify_brackets(code):
 	code_bytes = bytes(code, 'utf8')
@@ -126,10 +142,14 @@ def arch_to_generic(arch):
 		return "riscv"
 	return arch
 
+# QEMU names its per-host directories (tcg/<host>, host/include/<host>) after uname -m
+host_arch = __import__("platform").machine()
+
 def preprocess(arch, source, include_defines=False): #,fake_sysroot=True):
 	from subprocess import check_output
 	from os.path import realpath
 	from os import getcwd
+	from tempfile import TemporaryDirectory
 	
 	includes = [
 		"panda/include",
@@ -137,8 +157,8 @@ def preprocess(arch, source, include_defines=False): #,fake_sysroot=True):
 		"include",
 		f"target/{arch_to_generic(arch)}",
 		f"include/tcg/{arch}",
-		f"tcg/x86_64",
-		f"host/include/x86_64/",
+		f"tcg/{host_arch}",
+		f"host/include/{host_arch}/",
 		"include/tcg",
 		"contrib/plugins",
 		"include/qemu",
@@ -148,19 +168,21 @@ def preprocess(arch, source, include_defines=False): #,fake_sysroot=True):
 
 	glib_includes = check_output(['pkg-config', '--cflags-only-I', 'glib-2.0']).decode('utf-8', errors='ignore').strip()
 
-	with open("/tmp/simple.c","w") as f:
-		f.write(source)
 	includes = " ".join([f"-I{realpath(join(root, include))}" for include in includes])
 	includes += ' ' + glib_includes
 
 	defines = '-dD' if include_defines else ''
 
-	cmd = f"gcc -E {defines} -pthread -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -fPIC -UNDEBUG {includes} /tmp/simple.c -o /tmp/simple.out -m64 -Wall -Winvalid-pch -std=gnu11 -O2 -g -fstack-protector-strong -Wempty-body -Wendif-labels -Wexpansion-to-defined -Wformat-security -Wformat-y2k -Wignored-qualifiers -Wimplicit-fallthrough=2 -Winit-self -Wmissing-format-attribute -Wmissing-prototypes -Wnested-externs -Wold-style-declaration -Wold-style-definition -Wredundant-decls -Wshadow=local -Wstrict-prototypes -Wtype-limits -Wundef -Wvla -Wwrite-strings -Wno-missing-include-dirs -Wno-psabi -Wno-shift-negative-value"
-	print(cmd)
-	check_output(cmd, shell=True)
-	
-	total = open("/tmp/simple.out").read()
-	return total
+	# A private directory, not a fixed /tmp/simple.{c,out}: concurrent runs (e.g. engine builds
+	# without a nix sandbox) would overwrite each other's files.
+	with TemporaryDirectory(prefix="libpanda-ng-") as tmp:
+		simple_c, simple_out = join(tmp, "simple.c"), join(tmp, "simple.out")
+		with open(simple_c,"w") as f:
+			f.write(source)
+		cmd = f"gcc -E {defines} -pthread -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -fPIC -UNDEBUG {includes} {simple_c} -o {simple_out} {'-m64' if host_arch == 'x86_64' else ''} -Wall -Winvalid-pch -std=gnu11 -O2 -g -fstack-protector-strong -Wempty-body -Wendif-labels -Wexpansion-to-defined -Wformat-security -Wformat-y2k -Wignored-qualifiers -Wimplicit-fallthrough=2 -Winit-self -Wmissing-format-attribute -Wmissing-prototypes -Wnested-externs -Wold-style-declaration -Wold-style-definition -Wredundant-decls -Wshadow=local -Wstrict-prototypes -Wtype-limits -Wundef -Wvla -Wwrite-strings -Wno-missing-include-dirs -Wno-psabi -Wno-shift-negative-value"
+		print(cmd)
+		check_output(cmd, shell=True)
+		return open(simple_out).read()
 
 def process_line(line):
 	import re
@@ -190,7 +212,9 @@ def compile_target(arch, target):
 	#include "target/{arch_to_generic(arch)}/cpu-param.h"
 	#include "exec/target_long.h"
 	#include "system/runstate.h"
+	#if __has_include("system/arch_init.h") /* gone in QEMU 11 */
 	#include "system/arch_init.h"
+	#endif
 	#include "system/memory.h"
 	#include "system/address-spaces.h"
 	#include "system/iothread.h"

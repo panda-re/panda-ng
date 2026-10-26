@@ -19,6 +19,8 @@ typedef int __builtin_va_list;
 #define __thread
 #define asm(...)
 
+/* The typedefs below use these; cffi needs them defined first. */
+#include <stdint.h>
 typedef uint64_t hwaddr;
 typedef uint32_t MemTxResult;
 typedef uint64_t MemTxAttrs;
