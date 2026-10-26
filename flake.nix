@@ -776,6 +776,31 @@
             python3 tools/docs/gen.py --check
             mkdocs build --strict --site-dir $out
           '';
+      # rust/panda-bindings/src/autogen as generate.sh makes it, from the engine's per-arch headers
+      # with the flake's bindgen and rustfmt. x86_64-linux only: the headers (gcc -E on the build
+      # host) and bindgen's host-ABI items (__builtin_va_list etc.) follow the build host.
+      rustBindings =
+        let
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          p = perSystem "x86_64-linux";
+        in
+        pkgs.runCommand "panda-rust-bindings"
+          {
+            nativeBuildInputs = [
+              pkgs.rust-bindgen
+              pkgs.rustfmt
+              pkgs.pkg-config
+            ];
+            buildInputs = [ pkgs.glib ];
+          }
+          ''
+            mkdir -p $out
+            for a in ${nixpkgs.lib.concatStringsSep " " arches}; do
+              bindgen ${./include}/panda.h --no-prepend-enum-name --blocklist-var IPPORT_RESERVED \
+                -o $out/$a.rs -- -I${p.engine}/include -D PANDA_TGT=$a -D __STDC_FORMAT_MACROS \
+                -D_GNU_SOURCE -DRUST_BINDGEN $(pkg-config --cflags glib-2.0)
+            done
+          '';
     in
     {
       packages = forAllSystems (
@@ -837,6 +862,20 @@
               '')
               "regen-docs"
               "Regenerate docs/features.md and docs/reference from the code";
+        }
+        // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          # `nix run .#regen-rust-bindings` from the repository root.
+          regen-rust-bindings =
+            app
+              (nixpkgs.legacyPackages.${system}.writeShellScriptBin "regen-rust-bindings" ''
+                set -eu
+                d=rust/panda-bindings/src/autogen
+                [ -d "$d" ] || { echo "run from the panda-ng repository root" >&2; exit 1; }
+                install -m 644 ${rustBindings}/*.rs "$d"/
+                echo "regenerated $d"
+              '')
+              "regen-rust-bindings"
+              "Regenerate rust/panda-bindings from the engine's headers";
         }
       );
 
@@ -920,6 +959,17 @@
                 python3 test_repair.py
                 touch $out
               '';
+        }
+        // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          # The checked-in Rust bindings match the engine's headers (nix run .#regen-rust-bindings).
+          rust-bindings = pkgs.runCommand "panda-rust-bindings-check" { } ''
+            if ! diff -ru ${./rust/panda-bindings/src/autogen} ${rustBindings} > diff; then
+              head -n 80 diff
+              echo "rust/panda-bindings/src/autogen is stale: nix run .#regen-rust-bindings" >&2
+              exit 1
+            fi
+            touch $out
+          '';
         }
       );
 
