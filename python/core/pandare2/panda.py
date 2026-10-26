@@ -31,7 +31,7 @@ from time import sleep
 from cffi import FFI
 from functools import lru_cache
 
-from .utils import progress, warn, make_iso, debug, blocking, GArrayIterator, plugin_list, find_build_dir, rr2_recording, rr2_contains_member
+from .utils import progress, warn, make_iso, debug, blocking, GArrayIterator, plugin_list, find_build_dir
 from .panda_expect import Expect
 from .asyncthread import AsyncThread
 from .qcows_internal import Qcows
