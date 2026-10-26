@@ -1,0 +1,116 @@
+name: Guest suite
+
+# tests/run.sh on real guests: the 19 guest tests (rr, snapshots, OSI, callbacks, ...) on each
+# pandare2.mkimage image, under TCG. Nightly, by hand, or on a PR labelled guest-suite. Nothing
+# here publishes.
+#
+# Runs on the self-hosted panda-arc runners (Arc pods: the env and directories below are what
+# rehosting/ci's nix-setup needs there). Each job builds its image with the PANDA under test (the
+# root snapshot is taken by the PANDA that will load it), so only the downloads are cached: the
+# cloud image and the kernel's vmlinux, ~0.7-1 GB per image, keyed on mkimage.py (which pins
+# their URLs and hashes). The engine comes from the Cachix cache pandare when main has built it
+# (ci.yml), or is built here.
+
+on:
+  schedule:
+    - cron: "0 5 * * *" # nightly, 05:00 UTC
+  pull_request:
+    types: [labeled, synchronize]
+  workflow_dispatch:
+    inputs:
+      tests:
+        description: "Tests to run (space-separated; empty: run.sh's default 19)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guest-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  suite:
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'guest-suite')
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - debian-13-x86_64
+          - debian-13-aarch64
+          - debian-13-riscv64
+          - ubuntu-24.04-x86_64
+          - ubuntu-24.04-aarch64
+    runs-on: panda-arc
+    timeout-minutes: 360
+    env:
+      USER: runner
+      LOGNAME: runner
+      TMPDIR: /home/runner/_work/_temp
+      XDG_CACHE_HOME: /home/runner/_work/.cache
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare runner directories
+        run: |
+          mkdir -p "$TMPDIR" "$XDG_CACHE_HOME"
+          df -h / "$HOME"
+      - name: Set up Nix
+        uses: rehosting/ci/actions/nix-setup@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-backend: cachix
+          cachix-name: pandare
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          # The tests run under TCG; Arc pods may expose /dev/kvm without a working udevd.
+          enable-kvm: false
+      - name: Build pandare2's Python
+        run: nix build -L --out-link result-python .#python
+
+      - name: Restore the image downloads
+        id: downloads
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.XDG_CACHE_HOME }}/panda-images
+          key: panda-images-${{ matrix.image }}-${{ hashFiles('python/core/pandare2/mkimage.py') }}
+      - name: Build the image
+        run: |
+          ./result-python/bin/python3 -m pandare2.mkimage ${{ matrix.image }} -o images \
+            --cache-dir "$XDG_CACHE_HOME/panda-images"
+          # The vmlinux is extracted; mkimage doesn't need its debug package again (1-1.8 GB).
+          rm -f "$XDG_CACHE_HOME"/panda-images/*.deb "$XDG_CACHE_HOME"/panda-images/*.ddeb
+          du -sh images "$XDG_CACHE_HOME/panda-images"
+      - name: Save the image downloads
+        if: steps.downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.XDG_CACHE_HOME }}/panda-images
+          key: panda-images-${{ matrix.image }}-${{ hashFiles('python/core/pandare2/mkimage.py') }}
+
+      - name: Suite
+        env:
+          PANDA_PYTHON: ${{ github.workspace }}/result-python/bin/python3
+          OUT: ${{ github.workspace }}/out
+          TESTS: ${{ inputs.tests }}
+        run: tests/run.sh images/${{ matrix.image }}.json
+      - name: Results
+        if: always()
+        run: |
+          {
+            echo "### ${{ matrix.image }}"
+            echo '```'
+            cat out/results 2>/dev/null || echo "no results"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      # Logs of every run; image copies of failed runs are left out (GBs).
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guest-${{ matrix.image }}
+          path: |
+            out/results
+            out/**/*.log
+          retention-days: 14
