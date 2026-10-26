@@ -1169,8 +1169,6 @@ static inline std::string context_map_t_dump(context_map_t &cm) {
 }
 #endif
 
-#if defined(TARGET_PPC)
-#else
 /**
  * @brief Checks if the translation block that is about to be executed
  * matches the return address of an executing system call.
@@ -1211,7 +1209,6 @@ void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
     h->enabled = false;
     return;
 }
-#endif
 
 #ifdef DEBUG
 static std::map<target_ulong,target_ulong> syscallCounter;
