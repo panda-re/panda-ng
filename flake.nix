@@ -939,6 +939,13 @@
             done
             touch $out
           '';
+          # pandare2 names only what exists: every libpanda function, plugin function, C type and
+          # CPUArchState field it uses resolves on every arch (tests/static/refs.py; no guest).
+          # tests/static/refs-allow.txt lists the known gaps, and may only shrink.
+          pandare2-refs = pkgs.runCommand "pandare2-refs-check" { } ''
+            ${p.pandaPython}/bin/python3 ${./tests/static}/refs.py
+            touch $out
+          '';
           # repair.py on a synthetic engine: shipped siblings aren't bundled again, RUNPATHs keep
           # $ORIGIN, licenses and License-Expression are written (no engine build needed).
           wheel-repair =

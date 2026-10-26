@@ -10,6 +10,7 @@ export PANDA_PYTHON=$PWD/result-python/bin/python3
 
 | kind | tests | needs |
 |---|---|---|
+| static | `static/refs.py [arch...]` | nothing, no guest: every engine and plugin function, C type and CPUArchState field pandare2 names exists, on every arch (`nix build .#checks.x86_64-linux.pandare2-refs`) |
 | smoke | `smoke.py <arch>` | nothing: boots the firmware, loads C plugins (CI runs it on every PR) |
 | guest suite | `guest api osi_isf blocks callbacks calls mem late reset teardown asidstory tbpc hookalias rr rrcb rrstop rrload fuzz fastrestore` | an image (below); `run.sh` runs them |
 | more guest tests | `kpti physmem rr_blocks fastrestore_guards fastrestore_hotplug fastrestore_vsock` | an image; not in `run.sh`'s default list (x86_64-only, or need extra host tools: see each docstring) |
