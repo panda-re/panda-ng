@@ -12,6 +12,9 @@ anything is waiting.  TLB-only lookups for the consumer's reads.
 
 Vendored sources: src/system/syscall-trap.c,
 src/include/system/syscall-trap.h.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: penguin
 ---
  accel/tcg/cputlb.c                  |  13 ++
  include/accel/tcg/probe.h           |  14 ++

@@ -7,6 +7,9 @@ Subject: [PATCH] target/i386: keep the guest TSC continuous across a
 Under TCG env->tsc is otherwise unused: save the guest TSC into it in pre_save, and when the
 snapshot came from another clock domain (no icount, or KVM) set tsc_offset on load so the TSC
 keeps its value. From observe's rr spike (gate/rrux, P2).
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  target/i386/machine.c | 15 +++++++++++++++
  1 file changed, 15 insertions(+)

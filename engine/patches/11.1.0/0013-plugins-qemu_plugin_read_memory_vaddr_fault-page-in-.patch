@@ -14,6 +14,9 @@ the guest pages the address in and re-runs the callback at the same PC.
 - TCGCPUOps.user_mmu_index (x86, arm, mips) to translate as an
   unprivileged access (LDTR / CPL3), needed under SMAP/PAN.
 - Never reads non-RAM (MMIO) pages.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: penguin
 ---
  include/accel/tcg/cpu-ops.h   |  6 +++
  include/hw/core/cpu.h         |  1 +

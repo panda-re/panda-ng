@@ -8,6 +8,9 @@ this callback; it had no call site.  It runs after main_loop_should_exit()
 and not while a stop request waits (a vCPU callback asks for the stop,
 then queues the work), and outside main_loop_wait itself, so savevm and
 loadvm are not nested in an aio dispatch.
+
+SPDX-License-Identifier: MIT
+Origin: new
 ---
  system/runstate.c | 8 ++++++++
  1 file changed, 8 insertions(+)

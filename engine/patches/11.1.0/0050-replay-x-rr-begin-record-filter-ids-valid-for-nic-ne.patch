@@ -5,6 +5,9 @@ Subject: [PATCH] replay: x-rr-begin-record filter ids valid for -nic netdevs
 
 -nic names its netdev __org.qemu.nic<N> or similar; the filter-replay object id derived from it
 must be an identifier.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  replay/replay-begin.c | 2 ++
  1 file changed, 2 insertions(+)

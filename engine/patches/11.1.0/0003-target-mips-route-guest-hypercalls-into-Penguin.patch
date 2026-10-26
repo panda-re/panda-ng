@@ -13,6 +13,9 @@ Guarded so that a write to $zero is never handed to the TCG op.
 
 Folds: 797f446cf8 (partial), d7f87bf73e (partial), 24e2827eb4, 80037d53e0,
 268e68e0a5
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: penguin
 ---
  target/mips/helper.h        |  1 +
  target/mips/tcg/op_helper.c | 15 +++++++++++++++

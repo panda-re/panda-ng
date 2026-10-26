@@ -10,6 +10,9 @@ qemu_plugin_register_syscall_event_cb and qemu_plugin_syscall_watch as a
 thin consumer of the trap core.
 
 Vendored source: src/plugins/syscall-system.c.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: penguin
 ---
  include/plugins/qemu-plugin.h | 287 ++++++++++++++++++++++++++++++++++
  plugins/api.c                 | 152 +++++++++++++++++-

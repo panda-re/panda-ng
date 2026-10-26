@@ -12,6 +12,9 @@ macOS ("Undefined symbols: _penguin_handle_qmp").
 Give it a weak definition that handles nothing instead. system/penguin.c's
 strong definition replaces it wherever it is linked (every system binary
 and libqemu-system-*.so), on both linkers.
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
 ---
  qapi/qmp-dispatch.c | 18 ++++++++++++------
  1 file changed, 12 insertions(+), 6 deletions(-)

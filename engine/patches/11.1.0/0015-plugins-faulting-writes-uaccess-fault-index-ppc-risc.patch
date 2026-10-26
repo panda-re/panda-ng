@@ -22,6 +22,9 @@ Subject: [PATCH] plugins: faulting writes; uaccess fault index; ppc, riscv,
 - user_mmu_index for ppc (MSR[PR] set), riscv (U), loongarch (PLV3).
 - user_access_window for ppc64 (AMR, Linux KUAP), riscv (sstatus.SUM) and
   x86 (EFLAGS.AC, SMAP).
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: penguin
 ---
  include/accel/tcg/cpu-ops.h    |   9 +++
  include/plugins/qemu-plugin.h  |  26 +++++++

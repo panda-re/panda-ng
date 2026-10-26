@@ -173,9 +173,11 @@ the texts are in [`LICENSES/`](LICENSES). `reuse lint` checks them.
 - GPL-2.0-only: classic PANDA's plugins and other files whose header says "GNU GPL, version 2";
   the bindings generated from the engine's headers (`rust/panda-bindings/src/autogen/`,
   `pandare2/autogen/panda_datatypes.py`).
+<!-- REUSE-IgnoreStart -->
 - Each patch in `engine/patches/<version>/` has a `SPDX-License-Identifier:` trailer (the
   licenses of the QEMU files it changes) and an `Origin:` trailer (upstream QEMU, classic PANDA,
   penguin, ...); `ORIGINS.md` there lists them.
+<!-- REUSE-IgnoreEnd -->
 - Vendored: nlohmann/json (MIT), pycparser's fake libc headers (BSD-3-Clause), Volatility's
   syscall tables (GPL-2.0-or-later), Linux kernel excerpts (GPL-2.0-only).
 

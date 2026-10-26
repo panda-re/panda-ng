@@ -8,6 +8,9 @@ The malta prom environment slot caps the kernel command line well below what
 IGLOO needs; a long cmdline was silently truncated at 256 bytes.
 
 Folds: 09473d353f
+
+SPDX-License-Identifier: MIT
+Origin: penguin
 ---
  hw/mips/malta.c | 9 ++++++++-
  1 file changed, 8 insertions(+), 1 deletion(-)

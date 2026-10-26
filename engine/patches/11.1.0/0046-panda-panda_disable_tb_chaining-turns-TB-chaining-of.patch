@@ -6,6 +6,9 @@ Subject: [PATCH] panda: panda_disable_tb_chaining turns TB chaining off
 With chaining on, the before/after_block_exec callbacks in cpu_tb_exec run once per chain of
 TBs, with the first TB. Off, curr_cflags asks for no goto_tb/goto_ptr, as -d nochain does,
 so every TB returns to cpu_exec.
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
 ---
  accel/tcg/cpu-exec-common.c | 4 ++++
  1 file changed, 4 insertions(+)

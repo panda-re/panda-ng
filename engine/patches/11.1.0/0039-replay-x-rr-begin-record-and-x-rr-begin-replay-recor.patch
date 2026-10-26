@@ -27,6 +27,9 @@ retaking the BQL.
 
 From observe's rrux spike (replay/replay-begin.c), R3 of the panda-next
 plan.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: new
 ---
  accel/tcg/icount-common.c | 102 +++++++++++
  accel/tcg/tcg-accel-ops.c |  32 ++--

@@ -13,6 +13,9 @@ wrong instruction.  Clear them in cpu_exec_longjmp_cleanup.  (The syscall
 event entry, src/plugins/syscall-system.c, now zeroes ra itself.)
 
 Review blocker 1 (review-notes/qemu_builder-panda-next.md).
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
 ---
  accel/tcg/cpu-exec.c | 12 ++++++++++++
  1 file changed, 12 insertions(+)

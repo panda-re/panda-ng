@@ -5,6 +5,9 @@ Subject: [PATCH] panda: after_loadvm callback when load_snapshot succeeds
 
 loadvm, panda_revert and an rr start all restore through load_snapshot;
 plugins re-sync there (a fuzzing harness after each restore).
+
+SPDX-License-Identifier: MIT
+Origin: new
 ---
  migration/savevm.c | 3 +++
  1 file changed, 3 insertions(+)

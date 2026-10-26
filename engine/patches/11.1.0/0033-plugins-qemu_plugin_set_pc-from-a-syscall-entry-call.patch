@@ -18,6 +18,9 @@ Test: tests/guest/plugins/scsetpc.c (sc-bench): before, aarch64 and armel
 re-delivered 50 of 50 skipped getppid calls; after, none.
 
 Review blocker 6.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: new
 ---
  accel/tcg/cpu-exec.c          |  1 +
  include/hw/core/cpu.h         |  2 ++

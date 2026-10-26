@@ -48,6 +48,9 @@ silently, so:
    replay stops with replay_sync_error() instead of spinning.  This costs
    one replay_mode test when the virtual deadline is 0, nothing else when
    record/replay is off.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: new
 ---
  accel/tcg/tcg-accel-ops-icount.c |   3 +
  include/qemu/timer.h             |  23 +++++

@@ -10,6 +10,9 @@ failed when a snapshot taken without -icount was loaded with it (or the
 reverse): "post load hook failed for: cpu". Every aarch64 image built without
 icount could not be run with icount. Accept a difference in that bit alone and
 keep the destination's value: the guest sees what this machine supports.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  target/arm/helper.c | 17 ++++++++++++++++-
  1 file changed, 16 insertions(+), 1 deletion(-)

@@ -42,6 +42,9 @@ replaying is refused too (its replay loads that snapshot).
 
 The stall check's deadline recomputation is deliberate (the caller's was
 taken before the timers ran): say so.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: new
 ---
  include/system/replay.h        |  18 +++++
  migration/migration-hmp-cmds.c |   6 ++

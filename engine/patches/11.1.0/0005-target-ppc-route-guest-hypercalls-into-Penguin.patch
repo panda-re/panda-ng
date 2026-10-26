@@ -6,6 +6,9 @@ Subject: [PATCH] target/ppc: route guest hypercalls into Penguin
 Same helper as the other targets, reached from the fixed-point translator.
 
 Folds: 797f446cf8 (partial), d7f87bf73e (partial), 087a668076 (partial)
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: penguin
 ---
  target/ppc/helper.h                        |  1 +
  target/ppc/misc_helper.c                   | 15 +++++++++++++++

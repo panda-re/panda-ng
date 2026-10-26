@@ -19,6 +19,9 @@ the replay mutex is released too, for main-loop run_on_cpu calls under record/re
 stopped. Test: record from a -loadvm'd snapshot (observe exp.py twoproc, -trace
 run_on_cpu_replay_release) and replay twice: the release fires in the record (3x) and the
 replays (6x); consoles and rrdig digests identical. From observe's rr spike (gate/rrux).
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: new
 ---
  system/cpus.c       | 23 +++++++++++++++++++++++
  system/trace-events |  1 +

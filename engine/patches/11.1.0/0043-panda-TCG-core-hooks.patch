@@ -6,6 +6,9 @@ Subject: [PATCH] panda: TCG core hooks
 before/after_block_exec around cpu_tb_exec, before/after_block_translate around tb_gen_code,
 before_handle_exception (a plugin may rewrite the exception), and panda_lookup_tb. The hooks
 are empty inlines without --enable-panda (include/panda/hooks.h). From pandang 0004.
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: panda-re/qemu
 ---
  accel/tcg/cpu-exec.c | 28 ++++++++++++++++++++++++++++
  1 file changed, 28 insertions(+)

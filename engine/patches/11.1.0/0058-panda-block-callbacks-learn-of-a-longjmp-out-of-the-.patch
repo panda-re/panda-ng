@@ -8,6 +8,9 @@ the block by longjmp. With the block-exec callbacks run from the block's own cod
 chaining on), the block a vCPU was running has to end there: after_block_exec, exited
 early (TB_EXIT_REQUESTED), before the exception is delivered. Nothing pending, nothing
 done: an empty inline without --enable-panda.
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
 ---
  accel/tcg/cpu-exec.c | 2 ++
  1 file changed, 2 insertions(+)

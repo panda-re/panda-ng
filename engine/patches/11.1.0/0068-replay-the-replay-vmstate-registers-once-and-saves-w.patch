@@ -35,6 +35,9 @@ Also: don't add a chardev to the replay list twice (each begin registers
 its chardevs again); register replay_finish() with atexit() once, not
 per begin; and x-rr-end-record restarts a VM it stopped even if
 switching icount off fails.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: new
 ---
  replay/replay-begin.c    |  5 +--
  replay/replay-char.c     |  3 +-

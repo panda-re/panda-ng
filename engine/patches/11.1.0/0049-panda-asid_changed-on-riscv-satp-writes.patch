@@ -5,6 +5,9 @@ Subject: [PATCH] panda: asid_changed on riscv satp writes
 
 satp writes go through panda_asid_reg_write, as CR3 and TTBR writes do (0044): asid_changed gets
 process identifiers (the root page table's address, panda_current_asid) and may veto the write.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  target/riscv/tcg/csr.c | 7 ++++++-
  1 file changed, 6 insertions(+), 1 deletion(-)

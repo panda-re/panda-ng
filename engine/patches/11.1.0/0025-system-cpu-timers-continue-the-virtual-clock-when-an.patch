@@ -12,6 +12,9 @@ expired here, and a replay that loads the snapshot gets it as vCPU work with no 
 waits forever. Records whether the clock domain changed, for the TSC fix that follows.
 
 From observe's rr spike (gate/rrux, P1 + P1b).
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: new
 ---
  include/system/cpu-timers.h |  2 ++
  system/cpu-timers.c         | 60 +++++++++++++++++++++++++++++++++++++

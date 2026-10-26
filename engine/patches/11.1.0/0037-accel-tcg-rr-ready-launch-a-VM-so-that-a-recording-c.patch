@@ -12,6 +12,9 @@ x-tsc-vclock, so the x86 TSC keeps its rate when icount comes on.
 Netdev filters and the blkreplay report are left to begin.
 
 R1 of the panda-next plan.
+
+SPDX-License-Identifier: MIT
+Origin: new
 ---
  accel/tcg/tcg-all.c | 42 +++++++++++++++++++++++++++++++++++++++++-
  1 file changed, 41 insertions(+), 1 deletion(-)

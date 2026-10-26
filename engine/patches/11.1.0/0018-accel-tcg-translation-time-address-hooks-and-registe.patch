@@ -11,6 +11,9 @@ state, for direct reads.
 
 Vendored sources: src/accel/tcg/hooks.c, hooks-internal.h,
 src/include/accel/tcg/hooks.h.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
+Origin: penguin
 ---
  accel/tcg/meson.build     | 1 +
  accel/tcg/tb-maint.c      | 2 ++

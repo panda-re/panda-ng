@@ -30,6 +30,9 @@ replay mutex, then BQL). replay_enable() calls it before the mode leaves
 NONE, so the vCPU it waits for runs that stretch with replay off and
 nothing queues behind; init asserts that. Trace event
 replay_mutex_init_wait when it waits.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  replay/replay-internal.c | 77 ++++++++++++++++++++++++++++++++++++----
  replay/replay.c          |  3 +-

@@ -10,6 +10,9 @@ the name libpanda-ng and pandare load), and contrib/plugins builds panda_plugin_
 CONFIG_PANDA reaches config-host.h for the hook sites (include/panda/hooks.h).
 
 From pandang 0001 and 0003. pandang's b_staticpic default is already in this series.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: panda-re/qemu
 ---
  contrib/plugins/meson.build   |  4 ++++
  meson.build                   | 18 ++++++++++++++++++

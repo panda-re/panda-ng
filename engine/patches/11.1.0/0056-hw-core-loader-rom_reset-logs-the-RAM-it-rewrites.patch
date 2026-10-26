@@ -19,6 +19,9 @@ left x86's etc/acpi/tables with the wrong bytes after a reset.
 Mark the rewritten range dirty, as the other path does and as
 acpi_ram_update() does for the same regions. The memcpy path runs only at
 reset, so this costs one bitmap update per blob per reset.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  hw/core/loader.c | 8 ++++++++
  1 file changed, 8 insertions(+)

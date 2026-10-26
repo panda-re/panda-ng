@@ -28,6 +28,9 @@ Under KVM there is no softmmu TLB and no instruction callback, so:
 Plugin vcpu_init callbacks still do not run under KVM.
 
 Vendored source: src/include/qemu/plugin-hw.h.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: penguin
 ---
  include/plugins/qemu-plugin.h |  58 +++++++
  plugins/api-system.c          | 149 ++++++++++++++++++

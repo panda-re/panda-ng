@@ -11,6 +11,9 @@ The callback is invoked outside the BQL: taking it here deadlocks against
 Penguin's own locking on the Python side.
 
 Folds: 0e5c47a539, 797f446cf8 (partial), c89b0d5bf4
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: penguin
 ---
  include/system/system.h |  6 ++++++
  system/meson.build      |  1 +

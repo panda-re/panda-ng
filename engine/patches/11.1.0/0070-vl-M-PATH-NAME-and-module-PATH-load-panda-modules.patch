@@ -15,6 +15,9 @@ machine is selected), in command line order, so -M PATH,help works. The
 system side (hw/core/panda-modules.c, overlay) records which QOM types each
 module registered, refuses loads once the machine exists, and warns about
 module devices without vmstate at savevm and fast restore.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: ac88u
 ---
  hw/core/meson.build |  1 +
  qemu-options.hx     | 19 +++++++++++++++++++

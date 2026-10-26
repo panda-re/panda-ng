@@ -18,6 +18,9 @@ From aking's before/after memory callbacks on panda-re/qemu wrapup-rebase
 (25af52e0, 6539fa00, 303df341, 858992b9), reworked: the phase is a flag that
 defaults to after rather than a new meaning for MEM_R/W, so plugins that do
 not ask for it are not called twice.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
+Origin: panda-re/qemu
 ---
  accel/tcg/cputlb.c            |  7 +++++++
  accel/tcg/ldst_common.c.inc   | 38 ++++++++++++++++++++++-------------

@@ -13,6 +13,9 @@ Requires b_staticpic=true, since the default static-PIC-free build cannot be
 relinked into a shared object.
 
 Folds: 67bfb34d25, 797f446cf8 (partial)
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: penguin
 ---
  meson.build | 34 +++++++++++++++++++++++++++++++++-
  1 file changed, 33 insertions(+), 1 deletion(-)

@@ -13,6 +13,9 @@ Handles the 32-bit-hypercall-in-64-bit-guest case.
 
 Folds: 797f446cf8 (partial), 64cf743d12, c26a90a771 (partial), 9cdbac967b
 (partial)
+
+SPDX-License-Identifier: LGPL-2.1-or-later AND MIT
+Origin: penguin
 ---
  hw/i386/pc.c                  | 63 +++++++++++++++++++++++++++++++++++
  target/i386/tcg/misc_helper.c |  1 +

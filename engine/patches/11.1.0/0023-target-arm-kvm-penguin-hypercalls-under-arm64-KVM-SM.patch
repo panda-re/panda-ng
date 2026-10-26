@@ -18,6 +18,9 @@ nothing else changed.
 
 Ported from Jacques Becker's kvm_aarch64 QEMU patch and the kvmperf lane's
 mailbox and put-changed-GPRs commits.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: penguin
 ---
  target/arm/kvm.c | 212 +++++++++++++++++++++++++++++++++++++++++++----
  1 file changed, 196 insertions(+), 16 deletions(-)

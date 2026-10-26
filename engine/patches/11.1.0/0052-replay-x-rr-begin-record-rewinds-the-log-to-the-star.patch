@@ -9,6 +9,9 @@ events (the rtc reads the host clock in pre_save and in the reset that
 load_snapshot does) after the log offset the snapshot holds.  A replay
 resets and loads before it seeks to that offset, so it never reads them
 and its vCPU stalls on the first.  Truncate the log back to the offset.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  replay/replay-begin.c | 18 ++++++++++++++++++
  1 file changed, 18 insertions(+)

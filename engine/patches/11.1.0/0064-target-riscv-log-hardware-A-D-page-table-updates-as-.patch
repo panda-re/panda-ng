@@ -11,6 +11,9 @@ set A/D bits behind (the same bug target/arm/ptw.c had for FEAT_HAFDBS).
 Mark the PTE's bytes dirty for the region's logging clients after a
 successful update. DIRTY_MEMORY_CODE is excluded, so TB tracking is as before.
 Only hardware A/D updates pay for it.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  target/riscv/tcg/cpu_helper.c | 11 +++++++++++
  1 file changed, 11 insertions(+)

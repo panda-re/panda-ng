@@ -28,6 +28,9 @@ on Ubuntu 24.04 arm64, 7 page-table pages per restore differed by bit 10
 
 Probe for the store in that case too. Only hardware AF/DBM updates pay for
 it: one probe, normally a TLB hit, per descriptor update, not per walk.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  target/arm/ptw.c | 9 +++++++++
  1 file changed, 9 insertions(+)

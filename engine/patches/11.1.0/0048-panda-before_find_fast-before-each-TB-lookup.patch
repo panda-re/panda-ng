@@ -7,6 +7,9 @@ panda_do_flush_tb() (pandare2 flush_tb, enable_precise_pc and friends) and plugi
 flags, which panda_callbacks_before_find_fast acts on; nothing called it, so neither ever happened.
 Call it before each TB lookup in cpu_exec_loop, where pandang had it. Without --enable-panda it is
 an empty inline.
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: panda-re/qemu
 ---
  accel/tcg/cpu-exec.c | 3 +++
  1 file changed, 3 insertions(+)

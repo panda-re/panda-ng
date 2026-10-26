@@ -10,6 +10,9 @@ loadvm, panda_revert, an rr start and an incoming migration alike: an
 in-memory snapshot that copies back only dirty pages must copy all RAM
 on its next restore. (after_loadvm runs only after a successful
 load_snapshot.)
+
+SPDX-License-Identifier: MIT
+Origin: new
 ---
  migration/savevm.c | 2 ++
  1 file changed, 2 insertions(+)

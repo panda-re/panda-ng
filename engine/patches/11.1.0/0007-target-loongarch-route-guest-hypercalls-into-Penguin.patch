@@ -9,6 +9,9 @@ encoding.
 
 Folds: 797f446cf8 (partial), d7f87bf73e (partial), 9cdbac967b (partial),
 087a668076 (partial)
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: penguin
 ---
  target/loongarch/tcg/helper.h                    |  1 +
  .../loongarch/tcg/insn_trans/trans_extra.c.inc   | 11 +++++++++++

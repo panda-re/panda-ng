@@ -20,6 +20,9 @@ for the page's cflags, and the jump cache already compares cflags.
 The vCPU setup hook now only marks the pages of sites an embedder inserted
 before the page size was decided (tcg_hooks_vcpu_init); src/ carries the
 hooks.c side.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
+Origin: new
 ---
  accel/tcg/cpu-exec.c      |  6 ++++--
  accel/tcg/tcg-accel-ops.c |  2 +-

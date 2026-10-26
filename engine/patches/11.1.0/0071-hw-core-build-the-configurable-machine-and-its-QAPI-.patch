@@ -20,6 +20,9 @@ target sets up around the CPU: MIPS's CP0 timer and interrupt lines, PPC's
 timebase and decrementer, the x86 APIC ID, the ELF machine -kernel must
 have. Without them a guest reading MIPS Count or the PPC timebase
 dereferenced NULL in the host. Targets with no setup are refused.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  hw/core/meson.build   | 3 +++
  qapi/meson.build      | 1 +

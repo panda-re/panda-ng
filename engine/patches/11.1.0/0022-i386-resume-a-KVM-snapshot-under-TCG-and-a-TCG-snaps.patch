@@ -14,8 +14,9 @@ snapshot is busy, and TCG's I/O-permission check accepted only an
 available TSS, so every user-mode port I/O raised #GP (penguin's x86
 hypercall is a user-mode out to port 0x88): accept both.
 
-License: GPL-2.0-or-later
 Patch-Set: igloo-core
+SPDX-License-Identifier: GPL-2.0-only AND GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
+Origin: penguin
 ---
  hw/i386/kvm/clock.h                 |  1 +
  hw/i386/pc.c                        | 53 +++++++++++++++++++++++++++++

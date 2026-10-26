@@ -27,6 +27,9 @@ loadvm (as an in-memory snapshot does) hits the same path.
 
 Drop an outstanding handler before registering the next. On the usual path
 pfl->vmstate is NULL here and nothing changes.
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
 ---
  hw/block/pflash_cfi01.c | 9 +++++++++
  1 file changed, 9 insertions(+)

@@ -5,6 +5,9 @@ Subject: [PATCH] plugins: add qemu_plugin_tb_size and
  qemu_plugin_tb_get_insn_by_vaddr
 
 Used by PANDA's plugin interface. From pandang 0002.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: panda-re/qemu
 ---
  include/plugins/qemu-plugin.h | 24 ++++++++++++++++++++++++
  plugins/api.c                 | 24 ++++++++++++++++++++++++

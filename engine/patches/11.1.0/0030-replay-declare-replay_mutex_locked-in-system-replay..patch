@@ -9,6 +9,9 @@ treats the implicit declaration as a warning (and --disable-werror hides
 it); clang and gcc 14 reject it, so the series did not build on macOS.
 
 Move the declaration next to replay_mutex_lock()/unlock().
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  include/system/replay.h  | 1 +
  replay/replay-internal.h | 1 -

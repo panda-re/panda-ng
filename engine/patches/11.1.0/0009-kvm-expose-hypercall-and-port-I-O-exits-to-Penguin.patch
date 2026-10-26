@@ -9,6 +9,9 @@ KVM-accelerated guest reaches the same entry point as a TCG guest.
 
 Folds: 8f837df542, 644b68587a, 797f446cf8 (partial), c26a90a771 (partial),
 9cdbac967b (partial)
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: penguin
 ---
  accel/kvm/kvm-all.c   | 16 +++++---
  target/arm/kvm.c      | 20 ++++++++++

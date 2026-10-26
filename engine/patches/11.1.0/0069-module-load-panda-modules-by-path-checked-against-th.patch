@@ -45,6 +45,9 @@ otherwise (one test per type registration, at startup).
 
 From the extboard probe (lane-scratch/observe/gate/extboard), with the ABI
 check in place of the probe's none.
+
+SPDX-License-Identifier: GPL-2.0-only AND GPL-2.0-or-later
+Origin: ac88u
 ---
  include/qemu/module.h |  13 +++
  include/qom/object.h  |  21 +++++

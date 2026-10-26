@@ -30,6 +30,9 @@ mutex, drop the BQL and take both again in lock order. The VM is
 stopped across the switch, so no guest event is lost or reordered.
 Costs one well-predicted branch per loop iteration when replay is off.
 Trace event rr_vcpu_replay_retake each time the loop retakes.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: new
 ---
  accel/tcg/tcg-accel-ops-rr.c | 15 +++++++++++++++
  accel/tcg/trace-events       |  3 +++

@@ -12,6 +12,9 @@ fd, mm and namespace walks from the kernel's ISF layout.
 
 Vendored sources: src/system/penguin-syscalls.c, penguin-osi.c,
 src/include/system/penguin-syscalls.h, penguin-osi.h.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: penguin
 ---
  system/meson.build | 2 ++
  1 file changed, 2 insertions(+)

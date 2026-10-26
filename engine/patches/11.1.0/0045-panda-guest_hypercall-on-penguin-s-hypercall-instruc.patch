@@ -9,6 +9,9 @@ value of its destination register (x0/r0 on arm, v0 on mips, r3 on ppc, a0 on lo
 riscv) instead of the one it read; x86 marks the vCPU dirty. Penguin's consumers keep priority.
 Replaces pandang 0007, 0008, 0010, 0011, 0013-0015, which added PANDA's own hypercall
 instructions (cpuid on x86, an MCR on arm): with this series the guest uses penguin's.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
+Origin: new
 ---
  hw/i386/pc.c                     | 5 +++++
  target/arm/tcg/op_helper.c       | 5 +++++

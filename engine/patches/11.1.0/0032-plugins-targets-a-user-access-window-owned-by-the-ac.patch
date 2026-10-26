@@ -20,6 +20,9 @@ re-run adopts and closes it.  A pending window nobody adopts is dropped at
 the next open that finds the window shut, on reset and on loadvm.
 
 Review blocker 5.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: new
 ---
  hw/core/cpu-common.c        |  1 +
  hw/core/cpu-system.c        |  1 +

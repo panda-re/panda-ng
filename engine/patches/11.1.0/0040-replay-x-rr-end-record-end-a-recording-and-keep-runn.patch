@@ -12,6 +12,9 @@ time.  The VM keeps running; chardevs and filters left on their replay
 paths pass through in replay mode none.
 
 R4 of the panda-next plan.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  qapi/replay.json      | 17 +++++++++++++++++
  replay/replay-begin.c | 33 ++++++++++++++++++++++++++++++++-

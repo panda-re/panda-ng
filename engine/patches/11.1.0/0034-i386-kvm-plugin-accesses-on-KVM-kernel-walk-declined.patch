@@ -18,6 +18,9 @@ src/accel/tcg/hooks.c.)
 
 Review blocker 7a-d.  Compiled only (x86_64-softmmu --enable-kvm, amd64
 container); no x86 KVM host here.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  plugins/api-system.c  |  8 +++++
  plugins/api-user.c    |  4 +++

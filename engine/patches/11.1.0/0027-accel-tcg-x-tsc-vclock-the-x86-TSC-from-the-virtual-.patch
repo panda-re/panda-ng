@@ -8,6 +8,9 @@ Subject: [PATCH] accel/tcg: x-tsc-vclock, the x86 TSC from the virtual clock
 in a non-icount TCG VM instead of the host cycle counter, so they keep their value and rate across
 a later switch to icount (record from a running VM). From observe's rr spike (gate/rrux, P3); the
 spike's runtime icount switch is left for R4.
+
+SPDX-License-Identifier: MIT
+Origin: new
 ---
  accel/tcg/tcg-accel-ops.c |  9 +++++++++
  accel/tcg/tcg-all.c       | 16 ++++++++++++++++

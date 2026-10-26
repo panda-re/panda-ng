@@ -16,6 +16,9 @@ When a plugin reads the address, bind the TB to it (pc_bound, with tb->pc
 set): lookups and tb_cmp compare the address for a bound TB, and a TB that
 runs at any address does not chain straight into a bound one.  TBs whose
 instrumentation never looked at the address stay shared.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: new
 ---
  accel/tcg/cpu-exec.c             | 13 ++++++++++---
  accel/tcg/plugin-gen.c           | 11 +++++++++++

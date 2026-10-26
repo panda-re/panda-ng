@@ -8,6 +8,9 @@ synchronize_from_tb. When a TB exits at its entry (an interrupt or icount expiry
 block before it ran to its end, but without CF_PCREL (mips, ppc, any page with a TCG hook) chained
 code had not stored the PC, so that block's after_block_exec saw a stale one. Run the hook
 after the PC is synchronized. No change without --enable-panda (an empty inline).
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
 ---
  accel/tcg/cpu-exec.c | 7 ++++++-
  1 file changed, 6 insertions(+), 1 deletion(-)

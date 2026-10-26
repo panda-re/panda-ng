@@ -9,6 +9,9 @@ one instruction's TB under start_exclusive() with the BQL dropped, did not. PAND
 lists free unlinked entries after an RCU grace period (call_rcu), so a callback dispatched from
 a TB run here must be inside a read-side critical section like any other. Also makes the
 tb_lookup here (qht) follow the same rule as cpu_exec's.
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
 ---
  accel/tcg/cpu-exec.c | 3 +++
  1 file changed, 3 insertions(+)

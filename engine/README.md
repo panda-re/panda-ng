@@ -84,6 +84,11 @@ Export rules (from the qemu_builder workflow):
   export or base change needs `verify-series.sh --record`, and the new `patchedTree` is committed
   with the patches.
 - Patches that touch a hot path must cost ~nothing when unused: the off-cost gate below.
+<!-- REUSE-IgnoreStart -->
+- Each patch's message ends with `SPDX-License-Identifier:` (the licenses of the files it changes)
+  and `Origin:` (upstream qemu, panda-re/qemu, penguin, ac88u, new) trailers; give a new patch both
+  and add it to `patches/<version>/ORIGINS.md`.
+<!-- REUSE-IgnoreEnd -->
 
 ## Gates
 

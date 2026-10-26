@@ -16,6 +16,9 @@ and its write callback per instruction).
 
 Move the direction to bit 24, with a build-time check that the MemOpIdx
 stays below it.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  include/qemu/plugin.h | 14 ++++++++++++--
  1 file changed, 12 insertions(+), 2 deletions(-)

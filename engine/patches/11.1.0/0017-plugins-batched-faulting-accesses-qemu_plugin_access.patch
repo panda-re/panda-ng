@@ -8,6 +8,9 @@ Every page of every range is made accessible, one guest fault at a time,
 before any range is copied, so several writes land together or not at
 all.  The single-range read/write calls become one-range batches; TCG and
 KVM share the range loop structure.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: penguin
 ---
  include/plugins/qemu-plugin.h |  46 ++++++
  plugins/api-system.c          | 289 ++++++++++++++++++++--------------

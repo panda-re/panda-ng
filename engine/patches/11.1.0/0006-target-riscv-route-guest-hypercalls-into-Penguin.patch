@@ -10,6 +10,9 @@ to target/riscv/tcg/ after v11.0.0, so this patch is against the tcg/
 subdirectory.
 
 Folds: 797f446cf8 (partial), d7f87bf73e (partial), 087a668076 (partial)
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: penguin
 ---
  target/riscv/helper.h        |  1 +
  target/riscv/tcg/op_helper.c | 15 +++++++++++++++

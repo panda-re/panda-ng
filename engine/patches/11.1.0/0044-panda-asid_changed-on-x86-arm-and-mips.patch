@@ -8,6 +8,9 @@ write changes the process identifier (panda_current_asid), asid_changed runs wit
 identifiers, and a plugin returning true vetoes the write; a write that leaves it alone (a TTBR1 or
 ASID-only write, KPTI's CR3 toggle) fires nothing. On arm the veto comes before the TLB flush.
 From pandang 0006, 0009 and 0012.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: panda-re/qemu
 ---
  target/arm/helper.c                 | 11 +++++++++++
  target/i386/helper.c                |  5 +++++

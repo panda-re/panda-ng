@@ -17,6 +17,9 @@ replays up to about a second before the kill and then stops with "error
 reading the replay data".  The log format is unchanged.
 
 R2 of the panda-next plan.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  replay/replay.c | 43 ++++++++++++++++++++++++++++++++++++-------
  1 file changed, 36 insertions(+), 7 deletions(-)

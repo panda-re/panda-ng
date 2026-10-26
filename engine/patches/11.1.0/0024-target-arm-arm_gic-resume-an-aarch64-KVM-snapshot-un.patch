@@ -29,6 +29,9 @@ Subject: [PATCH] target/arm, arm_gic: resume an aarch64 KVM snapshot under TCG
 Needs kvm-steal-time=off on the KVM side (pvtime RAM block) and the KVM
 host's CNTFRQ on the TCG cpu (cntfrq=). ARM_HANDOFF_DEBUG=1 dumps the
 translation and the GIC CPU-interface state.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: penguin
 ---
  hw/intc/arm_gic_common.c         | 113 +++++++++++
  include/hw/intc/arm_gic_common.h |   5 +

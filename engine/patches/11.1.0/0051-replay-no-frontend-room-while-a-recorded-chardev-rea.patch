@@ -7,6 +7,9 @@ Subject: [PATCH] replay: no frontend room while a recorded chardev read is
 A recorded read reaches the frontend when its event runs, at the next checkpoint. Until then
 qemu_chr_be_can_write() still reported the frontend's room, so the backend read again and the
 events overran it: input to a 16550 stopped after 16 bytes (the FIFO) during a recording.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: new
 ---
  chardev/char.c          |  4 ++++
  include/system/replay.h |  2 ++

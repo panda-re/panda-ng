@@ -9,6 +9,9 @@ domain PAN take a domain fault, which Linux treats as fatal. Open the
 window an OS uaccess_enable() would open (no-access domains -> client)
 around the access; it survives the guest fault and is closed before the
 API returns.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: penguin
 ---
  include/accel/tcg/cpu-ops.h |  8 +++++++
  plugins/api-system.c        | 22 +++++++++++++----

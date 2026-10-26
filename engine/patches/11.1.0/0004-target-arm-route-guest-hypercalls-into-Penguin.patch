@@ -8,6 +8,9 @@ argument unchanged. Hooks both the A32/T32 and A64 translators; the A64 side
 needs a decodetree entry as well.
 
 Folds: 797f446cf8 (partial), d7f87bf73e (partial), 087a668076 (partial)
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: penguin
 ---
  target/arm/tcg/a64.decode      |  1 +
  target/arm/tcg/helper-defs.h   |  1 +

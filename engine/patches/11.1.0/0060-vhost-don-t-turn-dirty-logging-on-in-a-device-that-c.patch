@@ -26,6 +26,9 @@ Leave logging off in such a device: migration can't use it (it is
 blocked), and the other users must not break it. Add
 vhost_has_unlogged_dev() so they can tell that the dirty bitmap misses
 what such a device writes to guest memory.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
 ---
  hw/virtio/vhost-stub.c    |  5 +++++
  hw/virtio/vhost.c         | 38 ++++++++++++++++++++++++++++++++++++++
