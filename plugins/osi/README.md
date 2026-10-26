@@ -10,13 +10,13 @@ Expressed graphically, this arrangement looks like:
     +-------------------+  +-------------------+
     |        osi        |  |        osi        |
     +-------------------+  +-------------------+
-    |     osi_linux     |  |  wintrospection   |
+    |     osi_linux     |  |      osi_isf      |
     +-------------------+  +-------------------+
 
-The key is that you can swap out the bottom layer to support a new operating system without needing to modify your plugin.
+The key is that you can swap out the bottom layer to support a new operating system without needing to modify your plugin. panda-ng ships two providers, both for Linux: `osi_linux` (kernel offsets from a kernelinfo file) and `osi_isf` (a Volatility 3 ISF of the guest kernel). There is no Windows provider.
 
-## Command Line Arguments
-  * `os`: The target os. This argument is validated against a list of regular expressions in [common.c][common.c]. For linux, the specified os must also match an existing kernel profile. See [osi_linux documentation][osi_linux_usage] for details.
+## The guest OS
+`osi` needs the guest OS name: without one it fails an assertion when it loads. pandare2 sets it from `Panda(os_version=...)`, or from the `os` of an image description passed as `Panda(generic=...)` (images written by `pandare2.mkimage` have one, e.g. `linux-64-debian:6.12.113+deb13-amd64`). The name is validated against a list of regular expressions in [common.c][common.c]. For Linux, the part after the second `-` names the kernel and, with the bits, `osi_linux`'s default kernelinfo group. See the [osi_linux documentation][osi_linux_usage] for details.
 
 ```C
   const char * valid_os_re[] = {
@@ -34,7 +34,12 @@ The key is that you can swap out the bottom layer to support a new operating sys
 
 ## Plugin Arguments
 
-* `disable-autoload`: bool, defaults to false. OSI will try to automatically load an OSI provider plugin unless this set. Useful if you need to initialize an OSI provider plugin with non-default arguments.
+* `disable-autoload`: bool, defaults to false. Unless it is set, `osi` loads `osi_linux` with no arguments for a Linux guest (and `wintrospection`, which panda-ng doesn't ship, for a Windows one). Set it to load a provider with arguments, or to use `osi_isf`. From `tests/asidstory.py`:
+
+```python
+panda.load_plugin("osi", {"disable-autoload": "true"})
+panda.load_plugin("osi_isf", {"isf": isf})
+```
 
 ## Dependencies
 Depends on some OS-specific plugin to register callbacks that implement the various APIs OSI exposes. Otherwise, any call to OSI will simply fail to return any useful data, as the OSI plugin itself does not know anything about specific operating systems.
@@ -45,8 +50,14 @@ Depends on some OS-specific plugin to register callbacks that implement the vari
 The following data structures are defined in the [`osi_types.h` header][osi_types] and for use by the PANDA OSI framework:
 
 ```C
+    // start_brk (end of bss) and brk (program break) of a process (Linux only)
+    typedef struct osi_proc_mem {
+        target_ptr_t start_brk;
+        target_ptr_t brk;
+    } OsiProcMem;
+
     // Represents a process handle
-    typedef struct osi_prochandle_struct {
+    typedef struct osi_proc_handle_struct {
         target_ptr_t taskd;
         target_ptr_t asid;
     } OsiProcHandle;
@@ -70,24 +81,21 @@ The following data structures are defined in the [`osi_types.h` header][osi_type
         target_ptr_t size;
         char *file;
         char *name;
+        target_ulong offset; // only set by osi_linux for now
+        target_ulong flags;  // only set by osi_linux for now
     } OsiModule;
 
     // Represents a single process
     typedef struct osi_proc_struct {
         target_ptr_t taskd;
-        target_ptr_t asid;
+        target_ptr_t pgd;   // physical address space ID
+        target_ptr_t asid;  // virt_to_phys(pgd)
         target_pid_t pid;
         target_pid_t ppid;
         char *name;
-        OsiPage *pages;     // TODO in osi_linux
+        OsiPage *pages;
+        uint64_t create_time;
     } OsiProc;
-
-    // Represents process memory details
-    typedef struct osi_proc_mem {
-        target_ptr_t start_brk;
-        target_ptr_t brk;
-    } OsiProcMem;
-
 ```
 
 ### Data allocation
@@ -190,7 +198,7 @@ Name: **on\_get\_process**
 Signature:
 
 ```C
-typedef void (*on_get_process_t)(CPUState *, OsiProcHandle *, OsiProc **)
+typedef void (*on_get_process_t)(CPUState *, const OsiProcHandle *, OsiProc **)
 ```
 
 Description: Called to retrieve full process information about the process pointed to by `OsiProcHandle`. Implementation should allocate memory and fill in the pointer to an `OsiProc` struct. The returned `OsiProc` can be freed with `free_osiproc`.
@@ -202,7 +210,7 @@ Name: **on\_get\_proc\_mem**
 Signature:
 
 ```C
-typedef void (*on_get_proc_mem_t)(CPUState *, OsiProc *, OsiProcMem **)
+typedef void (*on_get_proc_mem_t)(CPUState *, const OsiProc *, OsiProcMem **)
 ```
 
 Description: Called to retrieve process memory details.  Currently only implemented in osi\_linux.  Returns a pointer to a static memory address, which will be overwritten on the next call to this function.
@@ -257,7 +265,7 @@ Signature:
 typedef void (*on_get_file_mappings_t)(CPUState *, OsiProc *, GArray**)
 ```
 
-Description: Similar to on\_get\_mappings, but returns only mappings that are backed by a file.  In wintrospection this returns the same results as on\_get\_mappings.  In osi\_linux, this returns a subset of the mappings that on\_get\_mappings returns.
+Description: Similar to on\_get\_mappings, but returns only mappings that are backed by a file.  In osi\_linux, this returns a subset of the mappings that on\_get\_mappings returns.
 
 Implementation behaviour: The implementation should populate a [`GArray`][garray] filled with `OsiModule` elements, following the rules described in the *data containers* section above. Results need to be freed using [`g_array_free`][gafree].
 
@@ -310,7 +318,7 @@ Name: **on\_get\_mapping\_by\_addr**
 Signature:
 
 ```C
-typedef void (*on_get_mapping_by_addr_t)(CPUState *, OsiProc *, target_ptr_t, OsiModule**)
+typedef void (*on_get_mapping_by_addr_t)(CPUState *, OsiProc *, const target_ptr_t, OsiModule**)
 ```
 
 Description: Returns the mapping that contains a specific virtual memory address.
@@ -324,22 +332,35 @@ Name: **on\_get\_mapping\_base\_address\_by\_name**
 Signature:
 
 ```C
-typedef void (*on_get_mapping_base_address_by_name_t)(CPUState *, OsiProc *, char *, target_ptr_t *)
+typedef void (*on_get_mapping_base_address_by_name_t)(CPUState *, OsiProc *, const char *, target_ptr_t *)
 ```
 
 Description: Returns the base address of the mapping with the specified name.
 
 ---
 
-Name: **has\_mapping\_prefix**
+Name: **on\_has\_mapping\_prefix**
 
 Signature:
 
 ```C
-typedef void (*on_has_mapping_prefix_t)(CPUState *, OsiProc *, char *, bool *)
+typedef void (*on_has_mapping_prefix_t)(CPUState *, OsiProc *, const char *, bool *)
 ```
 
 Description: Returns true if a mapping exists whose name begins with the specified prefix.
+
+---
+
+Name: **on\_get\_process\_pid**, **on\_get\_process\_ppid**
+
+Signature:
+
+```C
+typedef void (*on_get_process_pid_t)(CPUState *, const OsiProcHandle *, target_pid_t *)
+typedef void (*on_get_process_ppid_t)(CPUState *, const OsiProcHandle *, target_pid_t *)
+```
+
+Description: Return the pid, or the parent's pid, of the process a handle refers to, without building a full `OsiProc`.
 
 ---
 
@@ -362,15 +383,22 @@ Implementation behavior: The implementation should call this function after the 
 ---
 
 ## Example
-The `osi` plugin is not very useful on its own. If you want to see an example of how to use when writing your own plugins, have a look at [osi_test](/panda/plugins/osi_test/).
+From Python, `panda.plugins["osi"]` calls the API (`osi_int_fns.h`); pandare2 also wraps some of it (`Panda.get_current_process`, `Panda.get_processes`, `Panda.get_mappings`). From `tests/guest.py`, in a `proc_start_linux` callback:
+
+```python
+proc = panda.plugins["osi"].get_current_process(cpu)
+if proc != panda.ffi.NULL:
+    print(panda.ffi.string(proc.name).decode(), proc.pid)
+```
+
+`tests/guest.py` (with `osi_linux`), `tests/osi_isf.py` and `tests/asidstory.py` (with `osi_isf`) are complete scripts.
 
 <!-- place all urls here -->
-[common.c]: /panda/src/common.c
-[osi_types]: /panda/plugins/osi/osi_types.h
-[osi_linux_usage]: /panda/plugins/osi_linux/README.md
-[garray]: https://developer.gnome.org/glib/stable/glib-Arrays.html
-[gdtypes]: https://developer.gnome.org/glib/stable/glib-data-types.html
-[galloc]: https://developer.gnome.org/glib/stable/glib-Memory-Allocation.html
-[gstrdupp]: https://developer.gnome.org/glib/stable/glib-String-Utility-Functions.html#g-strdup-printf
-[gafree]: https://developer.gnome.org/glib/stable/glib-Arrays.html#g-array-free
-
+[common.c]: ../../engine/src/panda/src/common.c
+[osi_types]: osi_types.h
+[osi_linux_usage]: ../osi_linux/README.md
+[garray]: https://docs.gtk.org/glib/struct.Array.html
+[gdtypes]: https://docs.gtk.org/glib/data-structures.html
+[galloc]: https://docs.gtk.org/glib/memory.html
+[gstrdupp]: https://docs.gtk.org/glib/func.strdup_printf.html
+[gafree]: https://docs.gtk.org/glib/type_func.Array.free.html
