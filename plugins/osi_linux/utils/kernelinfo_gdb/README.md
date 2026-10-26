@@ -1,6 +1,8 @@
 # Kernel Information Module via gdb
 
-First. Go read the normal kernelinfo [readme](https://github.com/panda-re/panda/blob/master/panda/plugins/osi_linux/utils/kernelinfo/README.md).
+First. Go read the normal kernelinfo [readme](../kernelinfo/README.md).
+
+`pandare2.mkimage` uses this extractor to write the kernelinfo of the images it builds.
 
 ## Requirements
 

@@ -6,7 +6,7 @@ Summary
 
 `osi_linux` provides Linux introspection information and makes it available through the OSI interface. It does so by knowing about the offsets for various Linux kernel data structures and then providing algorithms that traverse these data structures in the guest virtual machine.
 
-Because the offsets of fields in Linux kernel data structures change frequently (and can even depend on the specific compilation flags used), `osi_linux` uses a configuration file to specify the offsets of critical data structures. A portion of such a configuration file, which is in the [GLib key-value format](https://developer.gnome.org/glib/stable/glib-Key-value-file-parser.html) (similar to .ini files), is given below:
+Because the offsets of fields in Linux kernel data structures change frequently (and can even depend on the specific compilation flags used), `osi_linux` uses a configuration file to specify the offsets of critical data structures. A portion of such a configuration file, which is in the [GLib key-value format](https://docs.gtk.org/glib/struct.KeyFile.html) (similar to .ini files), is given below:
 
     [ubuntu:4.4.0-98-generic:32]
     name = 4.4.0-98-generic|#121-Ubuntu SMP Tue Oct 10 14:23:20 UTC 2017|i686
@@ -42,7 +42,7 @@ Because the offsets of fields in Linux kernel data structures change frequently 
 
     [... omitted ...]
 
-Of course, generating this file by hand would be extremely painful. So instead we can generate it automatically by building and loading a kernel module in the guest OS.  If available, it is important that Address Space Layout Randomization (ASLR) be disabled in the guest before the kernel information configuration file is generated.
+Of course, generating this file by hand would be extremely painful. For the images it builds, `pandare2.mkimage` writes one (`<name>.kernelinfo.conf`, named in the image's json as `kconf_file`) from the kernel's debug symbols with the gdb extractor in `utils/kernelinfo_gdb/`; see the repository's `tests/README.md`. For other guests, `utils/README.md` describes both ways to make one. The rest of this section is the other way: building and loading a kernel module in the guest OS.  If available, it is important that Address Space Layout Randomization (ASLR) be disabled in the guest before the kernel information configuration file is generated.
 
 To generate the kernel configuration file, you will need the kernel headers and a compiler installed in the guest. On a Debian guest, you can do:
 
@@ -50,7 +50,7 @@ To generate the kernel configuration file, you will need the kernel headers and 
     apt-get install build-essential linux-headers-`uname -r`
 ```
 
-Then copy the `panda_plugins/osi_linux/utils/kernelinfo` directory into the guest (e.g., using `scp` from inside the guest or simply by cloning the PANDA repository), and run `make` to build `kernelinfo.ko`. Finally, insert the kernel module and run `dmesg` to get the values. Note that although `insmod` will return an "Operation not permitted" error, it will still print the right information to the log:
+Then copy this plugin's `utils/kernelinfo` directory into the guest (e.g., using `scp` from inside the guest or by cloning the repository), and run `make` to build `kernelinfo.ko`. Finally, insert the kernel module and run `dmesg` to get the values. Note that although `insmod` will return an "Operation not permitted" error, it will still print the right information to the log:
 
     # insmod kernelinfo.ko
     Error: could not insert module kernelinfo.ko: Operation not permitted
@@ -127,8 +127,8 @@ As an alternative to using kernel offsets for introspection, `osi_linux` also su
 To use the hypercall profile:
 
 1. Enable the hypercall option when loading the plugin:
-   ```
-   -panda osi_linux:hypercall=true
+   ```python
+   panda.load_plugin("osi_linux", {"hypercall": True})
    ```
 
 2. Ensure your guest is configured to handle the appropriate hypercalls. This typically requires installing a custom module or kernel patch in the guest that can respond to the hypercall requests from PANDA.
@@ -143,61 +143,54 @@ This is the only method which supports a multi-cpu environment
 Arguments
 ---------
 
-* `kconf_file`: string, by default searches build directory then install directory for "kernelinfo.conf". The location of the configuration file that gives the required offsets for different versions of Linux.
-* `kconf_group`: string, defaults to "debian-3.2.65-i686". The specific configuration desired from the kernelinfo file (multiple configurations can be stored in a single `kernelinfo.conf`).
+* `kconf_file`: string. The location of the configuration file that gives the required offsets for different versions of Linux. Without it, `osi_linux` looks for `<plugin dir>/osi_linux/kernelinfo.conf` and under `$PANDA_DIR`; neither the flake nor the wheel installs one, so pass it. This directory's `kernelinfo.conf` has groups for some older Ubuntu, Debian, CentOS and Buildroot kernels.
+* `kconf_group`: string, defaults to `<os variant>:<bits>` from the guest OS name, e.g. `debian:6.12.113+deb13-amd64:64` for `linux-64-debian:6.12.113+deb13-amd64` (the group `pandare2.mkimage` writes). The specific configuration desired from the kernelinfo file (multiple configurations can be stored in a single `kernelinfo.conf`). If the file has no such group, `osi_linux` tries to download it from `https://panda-re.mit.edu/kernelinfos/<group>` into the file.
 * `load_now`: bool, defaults to false. When set, we will raise a fatal error if OSI cannot be initialized immediately. Otherwise, the plugin will attempt to provide introspection immediately, but if that fails, it will wait until the first syscall. If OSI is still unavailable at the first syscall, a fatal error will always be raised.
-* `pagewalk`: bool, defaults to falts. When set, we will attempt to use pagewalk to resolve addresses. This is useful on embedded targets where TLB misses abound and your target page table configuration is supported.
+* `pagewalk`: bool, defaults to false. When set, we will attempt to use pagewalk to resolve addresses. This is useful on embedded targets where TLB misses abound and your target page table configuration is supported.
 * `hypercall`: bool, defaults to false. When set, we will use cooperative hypercalls for kernel introspection instead of relying on kernel offsets.
 
 Dependencies
 ------------
 
-`osi_linux` is an introspection provider for the `osi` plugin.  It also uses the `hw_proc_id` plugin.
+`osi_linux` is an introspection provider for the `osi` plugin. It uses `syscalls2`, `hooks` and `proc_start_linux`, `hw_proc_id` on mips, and `hypercaller` with `hypercall`.
 
 APIs and Callbacks
 ------------------
 
-In addition to providing the standard APIs used by OSI, `osi_linux` also provides two Linux-specific API calls that resolve file descriptors to filenames and tell you the current file position:
+In addition to providing the standard APIs used by OSI, `osi_linux` provides Linux-specific API calls (`osi_linux_int_fns.h` has them all). Two resolve file descriptors to filenames and tell you the current file position:
 
 ```C
     // returns fd for a filename or a NULL if failed
     char *osi_linux_fd_to_filename(CPUState *env, OsiProc *p, int fd);
 
     // returns pos in a file
-    unsigned long long  osi_linux_fd_to_pos(CPUState *env, OsiProc *p, int fd);
+    unsigned long long osi_linux_fd_to_pos(CPUState *env, OsiProc *p, int fd);
 ```
+
+From Python they are `panda.plugins["osi_linux"].osi_linux_fd_to_filename(cpu, proc, fd)`, and so on; `Panda.get_file_name(cpu, fd)` wraps the first for the current process.
 
 Example
 -------
 
-Assuming you have a `kernelinfo.conf` in the current directory with a configuration named `my_kernel_info`, you can run the OSI test plugin on a Linux replay as follows:
+On an image built by `pandare2.mkimage`, load `osi` without its autoload and give `osi_linux` the image's kernelinfo. From `tests/guest.py`:
 
-```bash
-    $PANDA_PATH/x86_64-softmmu/panda-system-x86_64 -replay foo \
-        -panda osi -panda osi_linux:kconf_file=kernelinfo.conf,kconf_group=my_kernel_info \
-        -panda osi_test
-```
-Another Example
--------
+```python
+import json, os, sys
+from pandare2 import Panda
 
-PANDA's `kernelinfo.conf` has the information for the Ubuntu kernels found on the live DVD for 18.04.3 and 18.04.4
-
-Newer kernels perform KASLR, however, and need a boot parameter to turn that off. This parameter is `nokaslr`. Thus, one can load an environment directly from one of these DVDs
-```bash
-    $PANDA_PATH/x86_64-softmmu/panda-system-x86_64 --monitor stdio \
-    -m 4096 \
-    -cdrom 'ubuntu-18.04.4-desktop-amd64.iso'
-```
-Being careful to add the `nokaslr` boot parameter.  Then just add the binaries of interest to the live environment and start recording. The osi_test can be executed in the following way:
-
-```bash
-    $PANDA_PATH/x86_64-softmmu/panda-system-x86_64 \
-    -m 4096 -replay foo -panda osi\
-    -panda osi_linux:kconf_group=ubuntu:5.3.0-28-generic:64 \
-    -os linux-64-ubuntu -panda osi_test > ositest.txt
+panda = Panda(generic=sys.argv[1])       # <dir>/debian-13-x86_64.json
+with open(sys.argv[1]) as f:
+    kconf = os.path.join(os.path.dirname(os.path.abspath(sys.argv[1])), json.load(f)["kconf_file"])
+panda.load_plugin("osi", {"disable-autoload": "true"})
+panda.load_plugin("osi_linux", {"kconf_file": kconf})
 ```
 
-Note, it is often helpful to turn off ASLR for user mode programs as well. This can be done with
+The group defaults to the image's, so `kconf_group` isn't needed. `osi`'s README shows how to call the API.
+
+KASLR and ASLR
+--------------
+
+Kernels that randomize their own layout (KASLR) need it turned off with the `nokaslr` boot parameter (`pandare2.mkimage` boots its images with it). It is often helpful to turn off ASLR for user programs as well. This can be done in the guest with
 ```
 echo 0 | sudo tee /proc/sys/kernel/randomize_va_space
 ```
