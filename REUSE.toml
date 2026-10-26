@@ -212,7 +212,6 @@ path = [
   "python/core/pandare2/qcows.json",
   "python/core/pandare2/qcows.py",
   "python/core/pandare2/qcows_internal.py",
-  "python/core/pandare2/qemu_logging.py",
   "python/core/pandare2/utils.py",
   "python/examples/asid.py",
   "python/examples/proc_start.py",
