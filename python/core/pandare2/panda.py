@@ -1131,22 +1131,6 @@ class Panda():
         if err < 0:
             raise ValueError(f"Memory write failed with err={err}") # TODO: make a PANDA Exn class
 
-    def callstack_callers(self, lim, cpu): # XXX move into new directory, 'callstack' ?
-        '''
-        Helper function for callstack_instr plugin
-        Handle conversion and return get_callers from callstack_instr.
-        '''
-        if not "callstack_instr" in self.plugins:
-            progress("enabling callstack_instr plugin")
-            self.load_plugin("callstack_instr")
-
-        callers = self.ffi.new("uint%d_t[%d]" % (self.bits, lim))
-        n = self.plugins['callstack_instr'].get_callers(callers, lim, cpu)
-        c = []
-        for pc in callers:
-            c.append(pc)
-        return c
-    
     def _set_extra_plugin_path(self, path):
         pp = self.ffi.new("char[]", bytes(path, "utf-8"))
         self.libpanda.panda_set_extra_plugin_path(pp)

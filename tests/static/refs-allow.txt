@@ -21,4 +21,3 @@ lib panda_enable_llvm_helpers
 lib panda_memsavep
 lib panda_was_aborted
 lib sysbus_create_varargs
-plugin callstack_instr.get_callers
