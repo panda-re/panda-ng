@@ -49,7 +49,7 @@ instance; work that drives the guest and waits for it (console commands, snapsho
 
 **Docs:** [docs/guides/getting-started.md](guides/getting-started.md), [docs/guides/python.md](guides/python.md), [python/core/README.md](https://github.com/panda-re/panda-ng/blob/main/python/core/README.md), [tests/README.md](https://github.com/panda-re/panda-ng/blob/main/tests/README.md)
 
-**Tests:** `tests/smoke.py`, `tests/api.py`, `tests/reset.py`, `tests/teardown.py`
+**Tests:** `tests/smoke.py`, `tests/static/refs.py`, `tests/api.py`, `tests/reset.py`, `tests/teardown.py`
 
 **Engine patches:** 0041 ([series](reference/patches.md))
 

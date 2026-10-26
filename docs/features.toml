@@ -35,7 +35,7 @@ instance; work that drives the guest and waits for it (console commands, snapsho
 api = ["py:Panda", "py:Panda.queue_blocking", "py:Panda.run_serial_cmd", "py:Panda.revert_sync",
        "py:Panda.virtual_memory_read", "py:Panda.virt_to_phys", "py:PyPlugin"]
 docs = ["docs/guides/getting-started.md", "docs/guides/python.md", "python/core/README.md", "tests/README.md"]
-tests = ["tests/smoke.py", "tests/api.py", "tests/reset.py", "tests/teardown.py"]
+tests = ["tests/smoke.py", "tests/static/refs.py", "tests/api.py", "tests/reset.py", "tests/teardown.py"]
 patches = ["0041"]
 
 [[feature]]
