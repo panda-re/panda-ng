@@ -11,7 +11,9 @@ unassigned I/O ports (x86_64, /dev/port), a monitor command, a snapshot taken, r
 deleted with pandare2's snap/revert_sync/delvm_sync (and snap/delvm), and the end of the analysis.
 
 Each type that has a call site must fire; each one that has none is a GAP (and fails the run if it
-starts firing, so the list stays true). Also checked, from inside the first asid_changed after
+starts firing, so the list stays true). The lists of callbacks that abort or have no call site are
+pandare2.callbacks' ABORTS and NO_CALL_SITE: pandare2's decorators refuse those (checked here), so
+the ones with no call site are registered as bare cffi callbacks. Also checked, from inside the first asid_changed after
 the revert (kernel mode): in_kernel / in_kernel_mode / in_kernel_code_linux, a kernel read
 (linux_banner), current_ksp is a kernel address; and pandare2 helpers: run_monitor_cmd output,
 the snapshot round trip, type_serial_cmd + finish_serial_cmd.
@@ -24,6 +26,7 @@ from collections import Counter
 
 from testlib import Checks, progress
 from pandare2 import Panda
+from pandare2.callbacks import ABORTS, NO_CALL_SITE
 
 panda = Panda(generic=sys.argv[1])
 arch = panda.arch_name
@@ -34,25 +37,11 @@ with open(sys.argv[1]) as f:
 with lzma.open(os.path.join(image_dir, image["isf"])) as f:
     banner_addr = json.load(f)["symbols"]["linux_banner"]["address"]
 
-ABORTS = {"before_loadvm", "replay_hd_transfer", "replay_net_transfer", "replay_serial_receive",
-          "replay_serial_read", "replay_serial_send", "replay_serial_write", "replay_before_dma",
-          "replay_after_dma", "replay_handle_packet"}
 COVERED_ELSEWHERE = {"before_block_exec", "after_block_exec", "start_block_exec", "end_block_exec",
                      "before_block_exec_invalidate_opt", "insn_exec",
                      "virt_mem_before_read", "virt_mem_before_write", "phys_mem_before_read",
                      "phys_mem_before_write", "virt_mem_after_read", "virt_mem_after_write",
                      "phys_mem_after_read", "phys_mem_after_write", "guest_hypercall"}
-NO_CALL_SITE = {
-    "before_tcg_codegen": "no call site", "after_insn_translate": "no call site",
-    "after_insn_exec": "after_insn_translate, which selects its instructions, has none",
-    "mmio_after_read": "commented out in the TCG plugin bridge", "mmio_before_write": "no call site",
-    "hd_read": "no call site", "hd_write": "no call site", "monitor": "no call site", "qmp": "no call site",
-    "cpu_restore_state": "no call site", "after_cpu_exec_enter": "commented out in wrap_ops.c",
-    "before_cpu_exec_exit": "commented out in wrap_ops.c", "top_loop": "no call site",
-    "during_machine_init": "no call site", "pre_shutdown": "no call site",
-    "unassigned_io_read": "no call site", "unassigned_io_write": "no call site",
-    "before_handle_interrupt": "the cpu_exec_interrupt wrapper is commented out in wrap_ops.c",
-}
 EXERCISED_ONLY_ON = {"unassigned_io_read": {"x86_64"}, "unassigned_io_write": {"x86_64"}}
 C = Checks(arch, {f"{n} fires": why for n, why in NO_CALL_SITE.items()})
 
@@ -91,11 +80,31 @@ def make(name):
     return fn
 
 
+def refused(f):
+    try:
+        f()
+    except NotImplementedError as e:
+        return str(e)
+    return None
+
+
+# pandare2 refuses the callbacks panda-ng doesn't run: the decorators of both kinds, and
+# register_callback of one that would abort the engine.
+for name in ABORTS | set(NO_CALL_SITE):
+    C.check(f"@panda.cb_{name} raises NotImplementedError", refused(lambda: getattr(panda, "cb_" + name)(lambda *a: 0)))
+C.check("register_callback refuses one that aborts (before_loadvm)", refused(
+    lambda: panda.register_callback(panda.callback.before_loadvm, panda.callback.before_loadvm(lambda: 0), "x")))
+
 registered = []
 for name in panda.callback._fields:
     if name in ABORTS or name in COVERED_ELSEWHERE:
         continue
-    getattr(panda, "cb_" + name)(name=name)(make(name))
+    if name in NO_CALL_SITE:
+        # its decorator refuses it: register the bare cffi callback, to see that it stays silent
+        t = getattr(panda.callback, name)
+        panda.register_callback(t, t(make(name)), name)
+    else:
+        getattr(panda, "cb_" + name)(name=name)(make(name))
     registered.append(name)
 progress(f"registered {len(registered)} callback types")
 

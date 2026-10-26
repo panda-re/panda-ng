@@ -9,8 +9,9 @@ Sources of truth, read here so the pages can't drift from them:
   (tests/run.sh) belongs to a feature, py:/c:/plugin:/flake: names exist in the code.
 - engine/patches/<ver>/series and each patch's Subject, Origin and SPDX-License-Identifier.
 - engine/src/include/panda/callbacks/cb-defs.h: the callbacks and their comment blocks.
-- tests/callbacks.py: which callbacks have no call site or abort at registration (the test fails
-  when one of those starts working, so these sets stay true).
+- python/core/pandare2/callbacks.py: which callbacks have no call site or abort at registration
+  (tests/callbacks.py fails when one of those starts working, so these sets stay true), and
+  tests/callbacks.py's own sets (COVERED_ELSEWHERE, EXERCISED_ONLY_ON).
 Run from anywhere; paths are relative to the repository root. Needs Python 3.11 (tomllib).
 """
 import ast
@@ -89,13 +90,16 @@ def callbacks():
 
 
 def test_sets():
-    """The literal sets/dicts at tests/callbacks.py's top level, without running it."""
-    tree = ast.parse((ROOT / "tests/callbacks.py").read_text())
-    want = {"ABORTS", "COVERED_ELSEWHERE", "NO_CALL_SITE", "EXERCISED_ONLY_ON"}
+    """The literal sets/dicts at the top level of pandare2.callbacks (ABORTS, NO_CALL_SITE) and
+    tests/callbacks.py (COVERED_ELSEWHERE, EXERCISED_ONLY_ON), without running them."""
     out = {}
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and len(node.targets) == 1 and getattr(node.targets[0], "id", None) in want:
-            out[node.targets[0].id] = ast.literal_eval(node.value)
+    for f, want in (("python/core/pandare2/callbacks.py", {"ABORTS", "NO_CALL_SITE"}),
+                    ("tests/callbacks.py", {"COVERED_ELSEWHERE", "EXERCISED_ONLY_ON"})):
+        for node in ast.parse((ROOT / f).read_text()).body:
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 and getattr(node.targets[0], "id", None) in want:
+                out[node.targets[0].id] = ast.literal_eval(node.value)
+        for name in want - set(out):
+            err(f"{f}: no {name} at the top level")
     return out
 
 
@@ -270,16 +274,18 @@ def callbacks_page(cbs, sets):
     only = sets.get("EXERCISED_ONLY_ON", {})
     for n in list(aborts) + list(none) + list(sets.get("COVERED_ELSEWHERE", set())):
         if n not in cbs:
-            err(f"tests/callbacks.py names {n}, which is not a callback in cb-defs.h")
+            err(f"pandare2.callbacks or tests/callbacks.py names {n}, which is not a callback in cb-defs.h")
     served = [n for n in cbs if n not in aborts and n not in none]
     o = [GENERATED.format(src="cb-defs.h and tests/callbacks.py"),
          "# Callbacks\n\n",
          f"{len(cbs)} callback types (`engine/src/include/panda/callbacks/cb-defs.h`). "
          f"{len(served)} fire; {len(none)} are declared but have no call site in this engine yet, and "
          f"{len(aborts)} abort at registration. Register them from Python with the "
-         "`@panda.cb_<name>` decorators, or from C with `panda_register_callback`.\n\n"
-         "The status comes from `tests/callbacks.py`, which registers every callback on each test "
-         "image and fails if one listed as missing starts firing, so this table stays true.\n\n",
+         "`@panda.cb_<name>` decorators, or from C with `panda_register_callback`. The decorator "
+         "of a callback that doesn't fire raises NotImplementedError, saying why.\n\n"
+         "The status comes from `pandare2.callbacks` (`python/core/pandare2/callbacks.py`); "
+         "`tests/callbacks.py` registers every callback on each test image and fails if one listed "
+         "as missing starts firing, so this table stays true.\n\n",
          "| callback | status | when it runs |\n|---|---|---|\n"]
     for n, (sig, desc) in cbs.items():
         if n in aborts:

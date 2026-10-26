@@ -35,6 +35,7 @@ from .utils import progress, warn, make_iso, debug, blocking, GArrayIterator, pl
 from .panda_expect import Expect
 from .asyncthread import AsyncThread
 from .qcows_internal import Qcows
+from .callbacks import unavailable, ABORTS, PASSTHROUGH
 from .arch import ArmArch, Aarch64Arch, Loongarch64, MipsArch, Mips64Arch, X86Arch, X86_64Arch, PowerPCArch, PowerPC64Arch, Riscv32Arch, Riscv64Arch
 from dataclasses import dataclass
 
@@ -2102,8 +2103,20 @@ class Panda():
         Callbacks can be called as @panda.cb_XYZ in which case they'll take default arguments and be named the same as the decorated function
         Or they can be called as @panda.cb_XYZ(name='A', procname='B', enabled=True). Defaults: name is function name, procname=None, enabled=True unless procname set
         The decorator registers the function and returns it unchanged.
+
+        A callback panda-ng doesn't call (`pandare2.callbacks`: no call site, or aborts at
+        registration) has a cb_XYZ that raises NotImplementedError, saying why.
         '''
+        def missing(closed_cb_name, why):
+            def f(*args, **kwargs):
+                raise NotImplementedError(f"@panda.cb_{closed_cb_name}: {why}")
+            return f
+
         for cb_name, pandatype in zip(self.callback._fields, self.callback):
+            why = unavailable(cb_name)
+            if why:
+                setattr(self, 'cb_'+cb_name, missing(cb_name, why))
+                continue
             def closure(closed_cb_name, closed_pandatype): # Closure on cb_name and pandatype
                 def f(*args, **kwargs):
                     if len(args): # Called as @panda.cb_XYZ without ()s- no arguments to decorator but we get the function name instead
@@ -2132,7 +2145,7 @@ class Panda():
             local_name = fun.__name__ if name is None else name
             cb_name = self.callback_dictionary[pandatype].name
             result = self._cb_ftypes[cb_name].result
-            wrapped = self._catching(fun, len(self._cb_ftypes[cb_name].args), result, passthrough=cb_name in ("before_handle_exception", "before_handle_interrupt"))
+            wrapped = self._catching(fun, len(self._cb_ftypes[cb_name].args), result, passthrough=cb_name in PASSTHROUGH)
             self.register_callback(pandatype, pandatype(wrapped), local_name, enabled=enabled, procname=procname)
             return fun
         return decorator
@@ -2251,6 +2264,8 @@ class Panda():
             self.delete_callback(name)
 
         cb = self.callback_dictionary[callback]
+        if cb.name in ABORTS:
+            raise NotImplementedError(f"callback {cb.name}: {unavailable(cb.name)}")
 
         # Generate a unique handle for each callback type using the number of previously registered CBs of that type added to a constant
         self.plugin_register_count += 1
@@ -2474,7 +2489,7 @@ class Panda():
 
         def decorator(fun):
             result = None
-            if cb_type in ("before_tcg_codegen", "after_block_translate", "before_block_exec", "start_block_exec", "end_block_exec"):
+            if cb_type in ("after_block_translate", "before_block_exec", "start_block_exec", "end_block_exec"):
                 hook_cb_type = self.ffi.callback("void(CPUState*, TranslationBlock* , struct hook *)")
             elif cb_type == "after_block_exec":
                 hook_cb_type = self.ffi.callback("void(CPUState*, TranslationBlock* , uint8_t, struct hook *)")
@@ -2483,6 +2498,8 @@ class Panda():
             elif cb_type == "before_block_exec_invalidate_opt":
                 hook_cb_type = self.ffi.callback("bool(CPUState* env, TranslationBlock*, struct hook*)")
                 result = self.ffi.typeof("bool")
+            elif unavailable(cb_type):
+                raise NotImplementedError(f"hook cb_type={cb_type}: {unavailable(cb_type)}")
             else:
                 raise ValueError(f"hook: cb_type {cb_type!r} is not supported")
             type_num = getattr(self.libpanda, "PANDA_CB_"+cb_type.upper())

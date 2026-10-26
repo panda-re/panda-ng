@@ -80,7 +80,17 @@ def exception(cpu, index):
     return index
 
 
-@panda.cb_before_handle_interrupt
+def bare(name):
+    """Register a callback panda-ng never calls (pandare2.callbacks.NO_CALL_SITE) as a bare cffi
+    callback: its @panda.cb_ decorator refuses it, and the check is that it stays silent."""
+    def register(fn):
+        t = getattr(panda.callback, name)
+        panda.register_callback(t, t(fn), name)
+        return fn
+    return register
+
+
+@bare("before_handle_interrupt")
 def interrupt(cpu, index):
     counts["before_handle_interrupt"] += 1
     return index
@@ -96,12 +106,12 @@ def main_loop_wait():
     counts["main_loop_wait"] += 1
 
 
-@panda.cb_mmio_after_read
+@bare("mmio_after_read")
 def mmio_read(cpu, physaddr, vaddr, size, val):
     counts["mmio_after_read"] += 1
 
 
-@panda.cb_mmio_before_write
+@bare("mmio_before_write")
 def mmio_write(cpu, physaddr, vaddr, size, val):
     counts["mmio_before_write"] += 1
 
