@@ -2687,7 +2687,7 @@ class Panda():
                 if '[Errno 11]' in str(e) or '[Errno 35]' in str(e):
                     # EAGAIN
                     continue
-                raise Exception("Data Read Error: {}".format(e.message))
+                raise Exception(f"Data Read Error: {e}")
             if not data:
                 raise Exception('Connection Closed by Server')
 
