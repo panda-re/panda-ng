@@ -32,10 +32,15 @@ System call definitions are provided in JSON format, containing:
 - System call number
 - Argument names and types
 
+Arguments
+---------
+
+* `debug`: bool, defaults to false. Print debug output.
+
 Dependencies
 ------------
 
-`hypersyscalls` depends on the `hypercaller` plugin, which provides the basic hypercall infrastructure.
+`hypersyscalls` depends on the `hypercaller` plugin, which provides the basic hypercall infrastructure. It loads it itself.
 
 APIs and Callbacks
 ------------------
@@ -188,13 +193,23 @@ struct syscall_hook unknown_hook = {
 register_syscall_cb(&unknown_hook);
 ```
 
-### Running with hypersyscalls
+### From Python
 
-```bash
-$PANDA_PATH/x86_64-softmmu/panda-system-x86_64 -replay foo \
-    -panda hypercaller -panda hypersyscalls \
-    -panda my_analysis_plugin
+pandare2's `panda.hsyscall` decorator registers a hook. Its name is `on_<syscall name>_enter` or `on_<syscall name>_return`, or one of `on_all_sys_enter`, `on_all_sys_return`, `on_all_sys`. (`hsyscall` also accepts `on_unknown_sys_enter`, `on_unknown_sys_return` and `on_unknown_sys`, but passes that name with the hook, and the plugin refuses an unknown-syscall hook with a name.) `arg_filter` (a list of values, `None` for any; a 0 in it also matches any value) and `comm_filter` (a process name) set the filters. The function receives `(cpu, syscall, sysret, hook)` and, for a named system call, its arguments after them:
+
+```python
+panda.load_plugin("hypersyscalls")
+
+@panda.hsyscall("on_sys_write_enter", arg_filter=[1], comm_filter="bash")
+def bash_stdout(cpu, syscall, sysret, hook, fd, buf, count, *rest):
+    print(f"bash write({fd}, 0x{buf:x}, {count})")
+
+@panda.hsyscall("on_all_sys_enter")
+def any_enter(cpu, syscall, sysret, hook):
+    print(panda.ffi.string(syscall.name).decode(), sysret.nr)
 ```
+
+Not run in panda-ng's tests: they have no guest kernel that makes these hypercalls (`tests/guest.py` only checks that the plugin loads).
 
 Guest-side Integration
 ---------------------
@@ -208,4 +223,4 @@ For the guest side, you need to:
 
 This typically involves either modifying the kernel or loading a kernel module that hooks into the system call mechanism.
 
-Note that the hypercalls plugin only works when the guest OS is specifically instrumented to use it, making it a cooperative approach rather than a purely external one.
+Note that the hypersyscalls plugin only works when the guest OS is specifically instrumented to use it, making it a cooperative approach rather than a purely external one.
