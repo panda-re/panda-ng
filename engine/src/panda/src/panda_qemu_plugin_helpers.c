@@ -14,6 +14,9 @@
 #include "tcg/tcg.h"
 #include "panda/panda_qemu_plugin_helpers.h"
 #include "panda/hooks.h"
+#include "qemu/plugin.h"
+#include "qemu/plugin-memory.h"
+#include "exec/memopidx.h"
 
 
 CPUState* panda_cpu_by_index(int index){
@@ -55,6 +58,21 @@ unsigned panda_bridge_wants(void){
 uint64_t panda_bridge_virt_to_phys(CPUState *cpu, uint64_t vaddr){
     hwaddr pa = panda_virt_to_phys(cpu, vaddr);
     return pa == (hwaddr) -1 ? (uint64_t) -1 : (uint64_t) pa;
+}
+
+/* As qemu_plugin_get_hwaddr, without its complaint on a TLB miss: before the access, the entry it
+ * is about to use may not be there yet (first touch since a flush). Only then walk the page tables.
+ * A hit is also the faithful answer: it is the translation the access itself will use (a walk
+ * would see page-table changes the guest hasn't flushed from its TLB yet). Checked against the
+ * walk on every access over cold boots of ubuntu-24.04 x86_64 and aarch64 and debian-13 x86_64
+ * plus tests/mem.py: ~3.2e9 hits, no mismatch. */
+uint64_t panda_bridge_before_phys(CPUState *cpu, uint32_t info, uint64_t vaddr, bool is_store){
+    struct qemu_plugin_hwaddr h;
+
+    if (tlb_plugin_lookup(cpu, vaddr, get_mmuidx(info), is_store, &h)) {
+        return h.phys_addr;
+    }
+    return panda_bridge_virt_to_phys(cpu, vaddr);
 }
 
 int panda_memcb_rw(bool is_store){

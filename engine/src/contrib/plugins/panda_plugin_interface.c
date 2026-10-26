@@ -80,9 +80,10 @@ static void vcpu_mem(unsigned int cpu_index, qemu_plugin_meminfo_t info,
             paddr = qemu_plugin_hwaddr_phys_addr(hwaddr_info);
         }
     } else if (panda_memcb_phys_before(is_store)) {
-        // Before the access its page may not be in the TLB, where the plugin API looks (and
-        // complains if it isn't): walk the page tables, and only for a phys callback.
-        paddr = panda_bridge_virt_to_phys(cpu, vaddr);
+        // Before the access its page may not be in the TLB yet, where the plugin API looks (and
+        // complains if it isn't): the TLB entry if there is one, else a page walk; only for an
+        // enabled phys callback.
+        paddr = panda_bridge_before_phys(cpu, info, vaddr, is_store);
     }
     // Before a load there is no value; the size is the access's.
     qemu_plugin_mem_value m = qemu_plugin_mem_get_value(info);

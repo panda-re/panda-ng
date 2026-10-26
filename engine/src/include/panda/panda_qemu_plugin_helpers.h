@@ -14,6 +14,10 @@ int panda_memcb_rw(bool is_store);
 /* The physical address of @vaddr by a page walk, or -1: for a before-access event, whose page
  * may not be in the TLB yet (the plugin API then has no hwaddr). */
 uint64_t panda_bridge_virt_to_phys(CPUState *cpu, uint64_t vaddr);
+/* The physical address of @vaddr for a before-access event (@info: its qemu_plugin_meminfo_t), or
+ * -1: the softmmu TLB entry the access is about to use (its mmu index and direction), and only on
+ * a TLB miss a page walk (panda_bridge_virt_to_phys). For RAM and I/O alike. */
+uint64_t panda_bridge_before_phys(CPUState *cpu, uint32_t info, uint64_t vaddr, bool is_store);
 /* Is a phys_mem_before_read (is_store false) or _write callback enabled? (Registered and
  * disabled: no page walk.) */
 bool panda_memcb_phys_before(bool is_store);
