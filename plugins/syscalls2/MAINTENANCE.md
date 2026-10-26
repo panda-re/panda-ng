@@ -1,6 +1,6 @@
 # syscalls2 maintenance
 
-**Note:** This document is work in progress. There is also some documentation in docs/syscalls2.md.
+**Note:** This document is work in progress. `README.md` describes the plugin's callbacks and API.
 
 In this document we highlight how support for new operating systems can be added to `syscalls2`. Overall, this is a three step process:
 
@@ -28,7 +28,7 @@ It is recommended to use the Ubuntu sources, as it includes a number of addition
 Ubuntu sources have the peculiarity that some of the headers required by the extraction script have to be generated. Following are the rough steps to prepare an Ubuntu source tree.
 
 ```sh
-git clone git://kernel.ubuntu.com/ubuntu/ubuntu-bionic.git
+git clone https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/bionic ubuntu-bionic
 cd ubuntu-bionic
 git checkout Ubuntu-4.15.0-97.98
 cat ./debian.master/config/{config.common.ubuntu,i386/config.common.i386,i386/config.flavour.generic} > .config
@@ -48,7 +48,9 @@ TBD:  How to extract system call prototypes for another Windows version
 
 ## Generating `syscalls2` support files
 
-The files used to generate the C/C++ headers and sources are in the `scripts`, `generated-in` and `generated-tbl` folders:
+`scripts/README.md` says how to set up the scripts' Python environment.
+
+The files used to generate the C/C++ headers and sources are in the `scripts`, `generated-in` and `generated-tpl` folders:
 
 - `scripts/make_all_generated.sh` - calls `syscall_parser.py` for the desired targets
 - `generated-in/context_target.json` - lists system calls that do not return for certain targets; specified by `make_all_generated.sh` as input to `syscall_parser.py`.
@@ -73,4 +75,4 @@ Modify `syscalls2.cpp` to add a new profile for your new target, and add code to
 
 Review `syscalls2_info.c` and tweak if necessary to ensure the correct syscalls information file will be loaded for the new target.
 
-And now, finally, rebuild the `syscalls2` plugin.
+And now, finally, rebuild the plugins (`nix build .#plugins`). `meson.build` compiles every `generated/syscall_switch_*.cpp` and `generated/dso_info_*.c`, so new generated files need no build change.

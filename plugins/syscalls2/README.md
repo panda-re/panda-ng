@@ -6,31 +6,42 @@ Summary
 
 The `syscalls2` plugin provides callbacks that allow notification whenever system calls occur in the guest, and can provide the parameters for each system call as long as the guest operating system (OS) is one of those supported by `syscalls2`.
 
-This is accomplished by automatically generating a bunch of code based on an initial prototypes file. For full details, have a look at `syscalls2/scripts/syscall_parser.py` and one of the prototypes files, such as `syscalls2/generated-in/linux_x86_prototypes.txt`.
+This is accomplished by automatically generating a bunch of code based on an initial prototypes file. For full details, have a look at `scripts/syscall_parser.py` and one of the prototypes files, such as `generated-in/linux_x86_prototypes.txt`.
 
 For adding support for a new OS or updating the existing ones, see `MAINTENANCE.md`.
 
-The profile for the appropriate guest OS is selected automatically from the information specified in the "-os" argument to PANDA.
+The profile is selected from the guest OS name and the target. The OS name is `Panda(os_version=...)`, or the `os` of an image description passed as `Panda(generic=...)` (images written by `pandare2.mkimage` have one); its format is in `plugins/osi/README.md`. Profiles:
+
+* Linux: x86, x86_64, arm, aarch64, mips, mipsel, mips64, mips64el, ppc, ppc64, riscv64. Not riscv32 or loongarch64: there the plugin refuses to load.
+* Windows (x86 and x86_64 only): `windows-32-xpsp2`, `windows-32-xpsp3`, `windows-32-2000`, `windows-32-7sp[01]`, `windows-64-7sp[01]`. No panda-ng test covers them.
+* FreeBSD: x86_64 only. No panda-ng test covers it.
 
 Arguments
 ---------
 
 * `load-info`: boolean, defaults to `false`. Enables loading of system call information for the selected OS profile. This allows more generic processing of system call events, without having to implement individual hooks.
+* `abi`: string. Accepted but not used: on mips64 the ABI (o32, n64 or n32) of each system call is taken from its number (4000-4999, 5000-5999, 6000-6999).
+
+From Python:
+
+```python
+panda.load_plugin("syscalls2", {"load-info": True})
+```
 
 Dependencies
 ------------
 
-None.
+`hw_proc_id` and `hooks`, which it loads itself.
 
 APIs and Callbacks
 ------------------
 
 ### Callbacks
-The `syscalls2` plugin defines one callback for each system call in each operating system (far too many to list here). To see the prototypes for each one, you can look at the file `generated/syscalls_ext_typedefs.h`.
+The `syscalls2` plugin defines one callback for each system call in each operating system (far too many to list here). The prototypes for each one are in `generated/syscalls_ext_typedefs_<arch>.h` (`x86`, `x64`, `arm`, `arm64`, `mips`, `mips64`, `mips64n32`, `ppc`, `ppc64`, `riscv64`).
 
 Each callback is named `on_${SYSCALLNAME}_enter` for calls and `on_${SYSCALLNAME}_return` for returns. The parameters are the CPU state pointer, program counter, and then the arguments to the system call.
 
-In addition to the OS-specific system calls, there are four callbacks defined that apply to all OSes:
+In addition to the OS-specific system calls, there are six callbacks defined that apply to all OSes:
 
 Name: **on_unknown_sys_enter**
 
@@ -94,7 +105,7 @@ Description: Called whenever any system call returns in the guest. The `call` pa
 
 
 ### API calls
-Finally the plugin provides two API calls:
+Finally the plugin provides three API calls:
 
 Name: **get_syscall_retval**
 
@@ -131,48 +142,38 @@ Description: Returns a pointer to a `syscall_meta_t` struct containing meta-info
 Example
 -------
 
-In general one uses `syscalls2` with another plugin that registers callbacks for specific set of system calls. For example, one could write a plugin called `filereadmon` that intercepts calls to `NtReadFile` on Windows using something like:
+From Python, `panda.ppp` registers a function on one of these callbacks (and loads `syscalls2` if it isn't loaded). The arguments after `cpu` and `pc` are the system call's. From `tests/guest.py`:
+
+```python
+@panda.ppp("syscalls2", "on_sys_openat_enter")
+def openat(cpu, pc, dfd, filename, flags, *mode):
+    try:
+        print(panda.read_str(cpu, filename))
+    except ValueError:
+        pass    # the name isn't paged in
+```
+
+`python/examples/example_syscalls.py` is a complete script.
+
+A C plugin registers with `PPP_REG_CB`, as `proc_start_linux` does:
 
 ```C
-#include "plugin/plugin.h"
-#include "panda/plugin_plugin.h"
+#include "panda.h"
 #include "syscalls2/syscalls_ext_typedefs.h"
+#include "syscalls2/syscalls2_ext.h"
 
-void my_NtReadFile_enter(
-        CPUState* env,
-        target_ulong pc,
-        uint32_t FileHandle,
-        uint32_t Event,
-        uint32_t UserApcRoutine,
-        uint32_t UserApcContext,
-        uint32_t IoStatusBlock,
-        uint32_t Buffer,
-        uint32_t BufferLength,
-        uint32_t ByteOffset,
-        uint32_t Key) {
-   printf("NtReadFile(FileHandle=%x, Event=%x, UserApcRoutine=%x, "
-                     "UserApcContext=%x, IoStatusBlock=%x, Buffer=%x, "
-                     "BufferLength=%x, ByteOffset=%x, Key=%x)\n",
-        FileHandle, Event, UserApcRoutine, UserApcContext,
-        IoStatusBlock, Buffer, BufferLength, ByteOffset, Key);
+static void all_sys_enter(CPUState *cpu, target_ulong pc, target_ulong callno) {
+    printf("system call %lu at 0x%lx\n", (unsigned long)callno, (unsigned long)pc);
 }
 
-// ...
-
 bool init_plugin(void *self) {
-    PPP_REG_CB("syscalls2", on_NtReadFile_enter, my_NtReadFile_enter);
+    panda_require("syscalls2");
+    assert(init_syscalls2_api());
+    PPP_REG_CB("syscalls2", on_all_sys_enter, all_sys_enter);
     return true;
 }
 
-// ...
-
+void uninit_plugin(void *self) { }
 ```
 
-And then invoke it as:
-
-```sh
-$PANDA_PATH/x86_64-softmmu/panda-system-x86_64 -replay foo \
-    -os windows-32-7sp1 -panda syscalls2 -panda filereadmon
-```
-
-If you'd like more examples, you can have a look at `loaded`, `filereadmon` and `file_taint`, all of which use `syscalls2`.
+`proc_start_linux` and `osi_linux` are the shipped plugins that use `syscalls2`.
