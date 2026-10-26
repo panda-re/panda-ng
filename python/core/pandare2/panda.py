@@ -40,7 +40,6 @@ from .asyncthread import AsyncThread
 from .qcows_internal import Qcows
 from .qemu_logging import QEMU_Log_Manager
 from .arch import ArmArch, Aarch64Arch, Loongarch64, MipsArch, Mips64Arch, X86Arch, X86_64Arch, PowerPCArch, PowerPC64Arch, Riscv32Arch, Riscv64Arch
-from .cosi import Cosi
 from dataclasses import dataclass
 
 # Might be worth importing and auto-initilizing a PLogReader
@@ -376,9 +375,6 @@ class Panda():
         # Shutdown stuff
         self.exception = None # When set to an exn, we'll raise and exit
         self._in_replay = False
-
-        # cosi
-        self.cosi = Cosi(self)
 
         # main_loop_wait functions and callbacks
         self.main_loop_wait_fnargs = [] # [(fn, args), ...]
