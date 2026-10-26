@@ -177,7 +177,8 @@ recording can start at any point.
 ## Snapshots
 
 Save the whole VM into its qcow2 image and revert to it (`snap`, `revert_sync`), with an
-`after_loadvm` callback after each load. Snapshots load across hosts with different page sizes.
+`after_loadvm` callback after each load. Snapshots load across hosts with different page sizes,
+and a savevm right after a loadvm takes as long as any other.
 
 **Use it:** `Panda.snap`, `Panda.revert_sync`, `Panda.delvm`
 
@@ -185,13 +186,14 @@ Save the whole VM into its qcow2 image and revert to it (`snap`, `revert_sync`),
 
 **Tests:** `tests/reset.py`, `tests/api.py`
 
-**Engine patches:** 0061, 0063, 0074 ([series](reference/patches.md))
+**Engine patches:** 0061, 0063, 0074-0075 ([series](reference/patches.md))
 
 <a id="fast-restore"></a>
 ## Fast restore
 
 Snapshot RAM and device state in host memory and restore only what changed since, for fuzzing
-loops: `panda_fast_snap` and `panda_fast_restore`. tests/fuzz.py runs a fuzzing loop with it.
+loops: `panda_fast_snap` and `panda_fast_restore`. Every clock rewinds, the x86 TSC included.
+tests/fuzz.py runs a fuzzing loop with it.
 
 **Limits.** TCG only, and not while recording or replaying (both refuse).
 
@@ -201,7 +203,7 @@ loops: `panda_fast_snap` and `panda_fast_restore`. tests/fuzz.py runs a fuzzing 
 
 **Tests:** `tests/fastrestore.py`, `tests/fastrestore_guards.py`, `tests/fastrestore_hotplug.py`, `tests/fastrestore_vsock.py`, `tests/fuzz.py`
 
-**Engine patches:** 0055-0057, 0060, 0064 ([series](reference/patches.md))
+**Engine patches:** 0055-0057, 0060, 0064, 0076 ([series](reference/patches.md))
 
 <a id="kvm"></a>
 ## KVM

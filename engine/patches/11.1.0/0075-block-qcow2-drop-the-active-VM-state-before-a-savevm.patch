@@ -1,0 +1,101 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Mon, 26 Oct 2026 16:48:24 -0400
+Subject: [PATCH] block/qcow2: drop the active VM state before a savevm writes
+ it
+
+Loading a snapshot copies its L1 table, VM state included, so the next savevm
+writes its VM state over clusters shared with that snapshot. Each request then
+allocates new clusters and frees the old ones: the refcount decrease makes the
+refcount cache depend on the L2 cache, the allocation the reverse, and every
+switch flushes the image file. On igloo (a VMware virtual disk, ~1.4 ms per
+fdatasync), a savevm right after loadvm did 7972 fdatasyncs for a 1 GiB
+debian-13 guest (340 MiB of VM state) and 12118 for a 2 GiB ubuntu-24.04 one:
+21.8 s and 29.7 s (under strace; 24-34 s without), past pandare2's 30 s
+monitor timeout. A second savevm in the same process, whose VM state the first
+one's qcow2_snapshot_create() had already discarded, did 22 and took 2.6 s.
+
+Discard the VM state the active L1 table maps when a save starts (position 0),
+in one pass, as qcow2_snapshot_create() does after the save. The range is the
+largest VM state of any snapshot; L1 entries with nothing mapped are skipped,
+so the discard allocates no L2 table. The same savevms now do 19 fdatasyncs and
+take 3.1 s and 4.5 s; the snapshot loads back and qemu-img check is clean.
+
+SPDX-License-Identifier: MIT
+Origin: new
+---
+ block/qcow2.c | 54 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 54 insertions(+)
+
+diff --git a/block/qcow2.c b/block/qcow2.c
+index 7292dd036c9d4cc9ca4d1f4ffc20924feb951115..fefe0fc11a65b69b5f39b544ce5df4ef727d5bbb 100644
+--- a/block/qcow2.c
++++ b/block/qcow2.c
+@@ -5538,6 +5538,52 @@ static int64_t qcow2_check_vmstate_request(BlockDriverState *bs,
+     return pos;
+ }
+ 
++/*
++ * Drop the VM state clusters the active L1 table still maps. Loading a
++ * snapshot copies its L1 table, VM state included, so the next savevm writes
++ * over clusters shared with that snapshot: each request then allocates new
++ * clusters and frees the old ones, which alternates the L2 and refcount cache
++ * dependencies and flushes the image file about three times per 128 KiB of VM
++ * state (7900 flushes for a 340 MiB one). Discarding them all first, as
++ * qcow2_snapshot_create() does after a save, frees them in one pass.
++ */
++static int coroutine_fn GRAPH_RDLOCK
++qcow2_co_drop_vmstate(BlockDriverState *bs)
++{
++    BDRVQcow2State *s = bs->opaque;
++    uint64_t span = (uint64_t)s->l2_size << s->cluster_bits;
++    uint64_t size = 0, offset, end;
++    int ret = 0;
++    int i;
++
++    for (i = 0; i < s->nb_snapshots; i++) {
++        size = MAX(size, s->snapshots[i].vm_state_size);
++    }
++    if (!size) {
++        return 0;
++    }
++    offset = qcow2_vm_state_offset(s);
++    end = offset + ROUND_UP(size, s->cluster_size);
++
++    qemu_co_mutex_lock(&s->lock);
++    while (offset < end) {
++        uint64_t l1_index = offset_to_l1_index(s, offset);
++        uint64_t next = MIN(end, (l1_index + 1) * span);
++
++        /* Nothing mapped under this L1 entry: discarding would allocate it */
++        if (l1_index < s->l1_size && (s->l1_table[l1_index] & L1E_OFFSET_MASK)) {
++            ret = qcow2_cluster_discard(bs, offset, next - offset,
++                                        QCOW2_DISCARD_NEVER, false);
++            if (ret < 0) {
++                break;
++            }
++        }
++        offset = next;
++    }
++    qemu_co_mutex_unlock(&s->lock);
++    return ret;
++}
++
+ static int coroutine_fn GRAPH_RDLOCK
+ qcow2_co_save_vmstate(BlockDriverState *bs, QEMUIOVector *qiov, int64_t pos)
+ {
+@@ -5546,6 +5592,14 @@ qcow2_co_save_vmstate(BlockDriverState *bs, QEMUIOVector *qiov, int64_t pos)
+         return offset;
+     }
+ 
++    /* A save starts at position 0 */
++    if (pos == 0) {
++        int ret = qcow2_co_drop_vmstate(bs);
++        if (ret < 0) {
++            return ret;
++        }
++    }
++
+     BLKDBG_CO_EVENT(bs->file, BLKDBG_VMSTATE_SAVE);
+     return bs->drv->bdrv_co_pwritev_part(bs, offset, qiov->size, qiov, 0, 0);
+ }

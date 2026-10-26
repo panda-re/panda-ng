@@ -136,6 +136,8 @@ path = [
   "engine/patches/11.1.0/0053-panda-main_loop_wait-callback-at-each-main-loop-iter.patch",
   "engine/patches/11.1.0/0054-panda-after_loadvm-callback-when-load_snapshot-succe.patch",
   "engine/patches/11.1.0/0061-panda-before_loadvm-hook-before-qemu_loadvm_state-lo.patch",
+  "engine/patches/11.1.0/0075-block-qcow2-drop-the-active-VM-state-before-a-savevm.patch",
+  "engine/patches/11.1.0/0076-system-cpu-timers-a-snapshot-load-resets-the-ticks-m.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]

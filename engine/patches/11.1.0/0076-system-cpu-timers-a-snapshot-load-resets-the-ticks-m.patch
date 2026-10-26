@@ -1,0 +1,54 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Mon, 26 Oct 2026 16:48:25 -0400
+Subject: [PATCH] system/cpu-timers: a snapshot load resets the ticks'
+ monotonic clamp
+
+cpu_get_ticks_locked() never returns less than cpu_ticks_prev, the last value
+it returned, so that a host counter going backwards (software suspend) does
+not move the guest's back. A load moves the ticks back on purpose
+(cpu_ticks_offset is the snapshot's), and the clamp undid it: the x86 TSC under
+TCG did not go back with the rest of the machine (HPET, the PM timer, the APIC
+timer: QEMU_CLOCK_VIRTUAL, which the load does rewind). A guest keeping time
+with the TSC, restored over and over by panda_fast_restore, saw its clock run
+ahead by all the time run since the snapshot and caught it up on each restore.
+debian-13-x86_64, fast snapshot right after loadvm, 40 x (run 20 ms, restore):
+the jiffies counted in a window grew 7, 12, ... 189 (all the windows so far),
+and the clocksource watchdog then marked the TSC unstable. tests/fuzz.py --fast
+fell from ~60 to 2-6 iterations/s whenever its snapshot came before the guest
+switched to HPET on its own (2 of 5 quiet-hour runs on igloo). Only x86 reads
+these ticks; the Arm and RISC-V timers run on QEMU_CLOCK_VIRTUAL.
+
+Set cpu_ticks_prev to the loaded ticks in timers_post_load. The same 40 windows
+then each count 6-7 jiffies, and the guest keeps the TSC.
+
+SPDX-License-Identifier: MIT
+Origin: new
+---
+ system/cpu-timers.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/system/cpu-timers.c b/system/cpu-timers.c
+index 2dabb1d9d96b15f1107891118b1aaa4f0fee3c6a..e217a4e4ea24ace74d39471b76dbb2def190beb2 100644
+--- a/system/cpu-timers.c
++++ b/system/cpu-timers.c
+@@ -272,6 +272,19 @@ static int timers_post_load(void *opaque, int version_id)
+                       NANOSECONDS_PER_SECOND / 10);
+         }
+     }
++
++    /*
++     * cpu_ticks_prev keeps cpu_get_ticks() from going backwards when the host
++     * counter does. A load moves the ticks back on purpose, to the snapshot's
++     * (cpu_ticks_offset, the VM being stopped): without this the next
++     * cpu_get_ticks() clamps them up to the highest value read before the load,
++     * so the guest TSC (x86 under TCG) does not go back with the rest of the
++     * machine. Restored again and again (panda_fast_restore, loadvm of an
++     * earlier snapshot), it runs ahead of every clock the load did rewind
++     * (QEMU_CLOCK_VIRTUAL: HPET, PM timer, APIC timer) by the time run since
++     * the snapshot, and the guest catches all of it up on each restore.
++     */
++    s->cpu_ticks_prev = s->cpu_ticks_enabled ? 0 : s->cpu_ticks_offset;
+     return 0;
+ }
+ 

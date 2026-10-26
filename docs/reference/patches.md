@@ -2,7 +2,7 @@
 
 # The engine patch series
 
-QEMU 11.1.0 plus 74 patches (`engine/patches/11.1.0/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
+QEMU 11.1.0 plus 76 patches (`engine/patches/11.1.0/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
@@ -80,3 +80,5 @@ QEMU 11.1.0 plus 74 patches (`engine/patches/11.1.0/`). `engine/README.md` expla
 | 0072 | replay: a snapshot load judges its virtual timers at the loaded clock | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
 | 0073 | replay: mark the begin-record start snapshot; refuse loads while recording | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
 | 0074 | physmem: size a resizeable RAM block's maximum independently of the host page size | [snapshots](../features.md#snapshots), [kvm-tcg](../features.md#kvm-tcg) | new | LGPL-2.1-or-later |
+| 0075 | block/qcow2: drop the active VM state before a savevm writes it | [snapshots](../features.md#snapshots) | new | MIT |
+| 0076 | system/cpu-timers: a snapshot load resets the ticks' monotonic clamp | [fast-restore](../features.md#fast-restore) | new | MIT |
