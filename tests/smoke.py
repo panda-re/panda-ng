@@ -11,8 +11,8 @@ machine = {"aarch64": ["-M", "virt", "-cpu", "max"], "arm": ["-M", "virt"],
            "ppc64": ["-M", "pseries"]}.get(arch, [])
 panda = Panda(arch=arch, mem="256M", os_version=f"linux-{bits}-generic",
               extra_args=machine + ["-display", "none", "-nodefaults"])
-# syscalls2 has tables for x86, arm and mips only.
-plugins = ["cskeleton"] + (["syscalls2"] if arch.startswith(("x86_64", "i386", "arm", "aarch64", "mips")) else [])
+# syscalls2 has tables for x86, arm, mips and ppc.
+plugins = ["cskeleton"] + (["syscalls2"] if arch.startswith(("x86_64", "i386", "arm", "aarch64", "mips", "ppc")) else [])
 for p in plugins:
     panda.load_plugin(p)
 blocks = 0

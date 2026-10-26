@@ -1334,15 +1334,19 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, i
     }
     return 0;
 #elif defined(TARGET_PPC)
-    // PowerPC sc instruction is 0x44000002
-    #if TARGET_BIG_ENDIAN == 1
-        if (buf[0] == 0x44 && buf[1] == 0x00 && buf[2] == 0x00 && buf[3] == 0x02)
-            return pc;
-    #else
-        if (buf[3] == 0x44 && buf[2] == 0x00 && buf[1] == 0x00 && buf[0] == 0x02)
-            return pc;
-    #endif
-
+    // sc (0x44000002) or scv 0 (0x44000001, POWER9+; glibc uses it when the kernel offers it).
+    // Both return to the next instruction. The bytes are in the guest's current byte order,
+    // which MSR[LE] gives (ppc64el guests run little-endian on the big-endian target).
+    if (size != 4) {
+        return 0;
+    }
+    CPUArchState *env_ppc = (CPUArchState *)panda_cpu_env(cpu);
+    uint32_t insn = (env_ppc->msr & 1)   // MSR[LE] is bit 0
+        ? (uint32_t)buf[0] | (uint32_t)buf[1] << 8 | (uint32_t)buf[2] << 16 | (uint32_t)buf[3] << 24
+        : (uint32_t)buf[3] | (uint32_t)buf[2] << 8 | (uint32_t)buf[1] << 16 | (uint32_t)buf[0] << 24;
+    if (insn == 0x44000002 || insn == 0x44000001) {
+        return pc;
+    }
     return 0;
 #else
     return 0; // helpful as a catchall for other architectures

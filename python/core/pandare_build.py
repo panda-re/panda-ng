@@ -88,6 +88,8 @@ def handle_python(arch, total, plugin_dir):
 		"mipsel": "syscalls_ext_typedefs_mips.h",
 		"mips64": "syscalls_ext_typedefs_mips64.h",
 		"mips64el": "syscalls_ext_typedefs_mips64.h",
+		"ppc": "syscalls_ext_typedefs_ppc.h",
+		"ppc64": "syscalls_ext_typedefs_ppc64.h",
 	}
 	ffibuilder = FFI()
 	ppp_headers = [
