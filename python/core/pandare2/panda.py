@@ -3427,7 +3427,7 @@ class Panda():
             self.hook_list.append((new_hook, hook_cb_passed))
 
             def wrapper(*args, **kw):
-                return _run_and_catch(args,kw)
+                return _run_and_catch(*args, **kw)
             return wrapper
         return decorator
 
@@ -3489,7 +3489,7 @@ class Panda():
             self.sr_hooks.append((sh, sr_hook_cb_ptr, hook_ptr))
 
             def wrapper(*args, **kw):
-                _run_and_catch(args,kw)
+                return _run_and_catch(*args, **kw)
             return wrapper
         return decorator
 
@@ -3571,7 +3571,7 @@ class Panda():
             self.hook_list.append((fun, new_hook,hook_cb_passed, hook_ptr))
 
             def wrapper(*args, **kw):
-                _run_and_catch(args,kw)
+                return _run_and_catch(*args, **kw)
             return wrapper
         return decorator
 
@@ -3731,7 +3731,7 @@ class Panda():
 
 
             def wrapper(*args, **kw):
-                _run_and_catch(args,kw)
+                return _run_and_catch(*args, **kw)
 
 
             return wrapper
@@ -3800,7 +3800,7 @@ class Panda():
                 raise TypeError("Magics must be either an int or list of ints")
 
             def wrapper(*args, **kw):
-                _run_and_catch(args,kw)
+                return _run_and_catch(*args, **kw)
             self.hypercalls[wrapper] = [hook_cb_passed,magic]
             return wrapper
         return decorator
@@ -3870,7 +3870,7 @@ class Panda():
             self.plugins["hypersyscalls"].register_syscall_cb(shook)
 
             def wrapper(*args, **kw):
-                _run_and_catch(args,kw)
+                return _run_and_catch(*args, **kw)
             self.hypercalls[wrapper] = [hook_cb_passed,shook]
             return wrapper
         return decorator
