@@ -14,7 +14,8 @@ int panda_memcb_rw(bool is_store);
 /* The physical address of @vaddr by a page walk, or -1: for a before-access event, whose page
  * may not be in the TLB yet (the plugin API then has no hwaddr). */
 uint64_t panda_bridge_virt_to_phys(CPUState *cpu, uint64_t vaddr);
-/* Is a phys_mem_before_read (is_store false) or _write callback registered? */
+/* Is a phys_mem_before_read (is_store false) or _write callback enabled? (Registered and
+ * disabled: no page walk.) */
 bool panda_memcb_phys_before(bool is_store);
 /* Block-exec callbacks, all served from the block's own code, so TB chaining can stay on.
  * panda_block_start runs at a block's first instruction (the bridge's TB-start callback): the

@@ -74,9 +74,17 @@ int panda_memcb_rw(bool is_store){
     return rw ? rw | (is_store ? QEMU_PLUGIN_MEM_W : QEMU_PLUGIN_MEM_R) : 0;
 }
 
+static bool panda_any_enabled(panda_cb_type type);
+
+/* Enabled, not merely registered: the bridge walks the page tables before every access of that
+ * direction when this is true. A registered-but-disabled phys_mem_before_* callback (api.py,
+ * mem.py: registered disabled, enabled in a window) keeps its instrumentation, so enabling it
+ * needs no retranslation, but must not cost a software page walk per access while disabled: on a
+ * HZ=1000 guest (ubuntu-24.04) that walk made the guest so slow its serial console stopped
+ * answering. */
 bool panda_memcb_phys_before(bool is_store){
-    return panda_has_callback_registered(is_store ? PANDA_CB_PHYS_MEM_BEFORE_WRITE
-                                                  : PANDA_CB_PHYS_MEM_BEFORE_READ);
+    return panda_any_enabled(is_store ? PANDA_CB_PHYS_MEM_BEFORE_WRITE
+                                      : PANDA_CB_PHYS_MEM_BEFORE_READ);
 }
 
 /* Per-vCPU block in flight: started (its before_block_exec ran), its after_block_exec (and, if its
