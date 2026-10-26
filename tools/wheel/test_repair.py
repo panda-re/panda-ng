@@ -64,9 +64,13 @@ def main():
 
     (t / "lic" / "dep" / "COPYING").write_text("dep license")
     (t / "lic" / "qemu-panda-engine" / "COPYING").write_text("GPLv2")
+    (t / "lic" / "panda-ng" / "LICENSES").mkdir(parents=True)
+    (t / "lic" / "panda-ng" / "LICENSE").write_text("MIT")
+    (t / "lic" / "panda-ng" / "LICENSES" / "GPL-2.0-only.txt").write_text("GPLv2")
     (t / "lic" / "manifest.json").write_text(json.dumps({
         "engine": {"name": "qemu-panda-engine", "spdx": "GPL-2.0-only", "source": ["engine src"]},
-        "panda-ng": {"name": "panda-ng", "spdx": "MIT", "source": ["panda-ng src"]},
+        "panda-ng": {"name": "panda-ng", "spdx": "MIT AND GPL-2.0-only AND GPL-2.0-or-later",
+                     "source": ["panda-ng src"]},
         "thirdParty": [{"name": "dep", "version": "1.0", "spdx": "BSD-3-Clause OR GPL-2.0-only",
                         "urls": ["https://example.invalid/dep.tar.gz"], "prefixes": [str(deps.parent)]}],
     }))
@@ -111,10 +115,12 @@ def main():
     md = next(n for n in names if n.endswith(".dist-info/METADATA"))
     meta = zipfile.ZipFile(res).read(md).decode()
     print(meta)
-    want = "License-Expression: MIT AND GPL-2.0-only AND (BSD-3-Clause OR GPL-2.0-only)"
+    want = ("License-Expression: MIT AND GPL-2.0-only AND GPL-2.0-or-later AND "
+            "(BSD-3-Clause OR GPL-2.0-only)")
     if want not in meta or "License: MIT" in meta or "License ::" in meta or "Metadata-Version: 2.4" not in meta:
         fails.append("METADATA license fields")
-    for f in ("licenses/dep/COPYING", "licenses/qemu-panda-engine/COPYING", "licenses/SOURCES.txt"):
+    for f in ("licenses/dep/COPYING", "licenses/qemu-panda-engine/COPYING", "licenses/SOURCES.txt",
+              "licenses/panda-ng/LICENSE", "licenses/panda-ng/LICENSES/GPL-2.0-only.txt"):
         if not any(n.endswith(".dist-info/" + f) for n in names):
             fails.append(f"missing {f}")
         if f"License-File: {f.removeprefix('licenses/')}" not in meta:

@@ -1,0 +1,286 @@
+# Licensing of panda-ng (https://reuse.software/spec-3.3/). Check with `reuse lint`.
+#
+# panda-ng's own code is MIT (LICENSE). Code that comes from QEMU, classic PANDA (panda-re/panda),
+# penguin or other projects keeps its license; the annotations below say which files that is.
+# A file's own SPDX header wins over this file unless an annotation says `precedence = "override"`.
+# When several annotations match a file, the last one wins, so the specific ones come last.
+version = 1
+
+# Everything else: panda-ng's own code.
+[[annotations]]
+path = "**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2025-2026 The PANDA authors"
+SPDX-License-Identifier = "MIT"
+
+# The engine: patches to QEMU and the overlay copied into QEMU's tree and linked into it. QEMU's
+# rule for files without a license header (its LICENSE, point 2) is GPL-2.0-or-later.
+[[annotations]]
+path = "engine/**"
+precedence = "closest"
+SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# Engine overlay files from classic PANDA whose header says "GNU GPL, version 2" (no "or later").
+# The overlay's other classic PANDA files have no header: classic PANDA's LICENSE (QEMU's) makes
+# those GPL-2.0-or-later, as above.
+[[annotations]]
+path = [
+  "engine/src/include/panda/callbacks/cb-defs.h",
+  "engine/src/include/panda/callbacks/cb-helper-defs.h",
+  "engine/src/include/panda/callbacks/cb-helper-impl.h",
+  "engine/src/include/panda/helper_runtime.h",
+  "engine/src/include/panda/network.h",
+  "engine/src/include/panda/plugin.h",
+  "engine/src/panda/src/callbacks.c",
+]
+precedence = "closest"
+SPDX-FileCopyrightText = ["The PANDA authors", "The QEMU contributors"]
+SPDX-License-Identifier = "GPL-2.0-only"
+
+# Each patch: the licenses of the QEMU files it changes (its SPDX-License-Identifier trailer;
+# engine/patches/11.1.0/ORIGINS.md). "override": the diffs quote other files' SPDX lines.
+[[annotations]]
+path = [
+  "engine/patches/11.1.0/0002-build-emit-shared-libraries-for-the-Penguin-embeddin.patch",
+  "engine/patches/11.1.0/0006-target-riscv-route-guest-hypercalls-into-Penguin.patch",
+  "engine/patches/11.1.0/0007-target-loongarch-route-guest-hypercalls-into-Penguin.patch",
+  "engine/patches/11.1.0/0009-kvm-expose-hypercall-and-port-I-O-exits-to-Penguin.patch",
+  "engine/patches/11.1.0/0016-plugins-kvm-x86-faulting-accesses-and-breakpoint-cal.patch",
+  "engine/patches/11.1.0/0017-plugins-batched-faulting-accesses-qemu_plugin_access.patch",
+  "engine/patches/11.1.0/0020-plugins-address-hooks-register-pointers-TLB-first-re.patch",
+  "engine/patches/11.1.0/0021-system-build-the-penguin-syscall-engine-and-host-sid.patch",
+  "engine/patches/11.1.0/0023-target-arm-kvm-penguin-hypercalls-under-arm64-KVM-SM.patch",
+  "engine/patches/11.1.0/0026-target-i386-keep-the-guest-TSC-continuous-across-a-c.patch",
+  "engine/patches/11.1.0/0030-replay-declare-replay_mutex_locked-in-system-replay..patch",
+  "engine/patches/11.1.0/0034-i386-kvm-plugin-accesses-on-KVM-kernel-walk-declined.patch",
+  "engine/patches/11.1.0/0038-replay-write-the-log-header-first-and-flush-the-log-.patch",
+  "engine/patches/11.1.0/0040-replay-x-rr-end-record-end-a-recording-and-keep-runn.patch",
+  "engine/patches/11.1.0/0041-panda-enable-panda-builds-the-PANDA-API-and-libpanda.patch",
+  "engine/patches/11.1.0/0042-plugins-add-qemu_plugin_tb_size-and-qemu_plugin_tb_g.patch",
+  "engine/patches/11.1.0/0049-panda-asid_changed-on-riscv-satp-writes.patch",
+  "engine/patches/11.1.0/0050-replay-x-rr-begin-record-filter-ids-valid-for-nic-ne.patch",
+  "engine/patches/11.1.0/0052-replay-x-rr-begin-record-rewinds-the-log-to-the-star.patch",
+  "engine/patches/11.1.0/0056-hw-core-loader-rom_reset-logs-the-RAM-it-rewrites.patch",
+  "engine/patches/11.1.0/0057-target-arm-ptw-log-hardware-access-flag-and-dirty-st.patch",
+  "engine/patches/11.1.0/0060-vhost-don-t-turn-dirty-logging-on-in-a-device-that-c.patch",
+  "engine/patches/11.1.0/0063-target-arm-a-snapshot-loads-across-icount-on-off-PMC.patch",
+  "engine/patches/11.1.0/0064-target-riscv-log-hardware-A-D-page-table-updates-as-.patch",
+  "engine/patches/11.1.0/0065-plugins-keep-the-access-direction-clear-of-the-MemOp.patch",
+  "engine/patches/11.1.0/0066-replay-the-replay-mutex-pairs-on-its-holder-not-on-r.patch",
+  "engine/patches/11.1.0/0071-hw-core-build-the-configurable-machine-and-its-QAPI-.patch",
+]
+precedence = "override"
+SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+[[annotations]]
+path = [
+  "engine/patches/11.1.0/0003-target-mips-route-guest-hypercalls-into-Penguin.patch",
+  "engine/patches/11.1.0/0004-target-arm-route-guest-hypercalls-into-Penguin.patch",
+  "engine/patches/11.1.0/0005-target-ppc-route-guest-hypercalls-into-Penguin.patch",
+  "engine/patches/11.1.0/0013-plugins-qemu_plugin_read_memory_vaddr_fault-page-in-.patch",
+  "engine/patches/11.1.0/0014-plugins-target-arm-a-user-access-window-DACR-for-fau.patch",
+  "engine/patches/11.1.0/0015-plugins-faulting-writes-uaccess-fault-index-ppc-risc.patch",
+  "engine/patches/11.1.0/0019-system-target-i386-target-arm-the-syscall-trap.patch",
+  "engine/patches/11.1.0/0024-target-arm-arm_gic-resume-an-aarch64-KVM-snapshot-un.patch",
+  "engine/patches/11.1.0/0032-plugins-targets-a-user-access-window-owned-by-the-ac.patch",
+  "engine/patches/11.1.0/0033-plugins-qemu_plugin_set_pc-from-a-syscall-entry-call.patch",
+  "engine/patches/11.1.0/0035-plugins-bind-a-CF_PCREL-block-to-its-virtual-address.patch",
+  "engine/patches/11.1.0/0044-panda-asid_changed-on-x86-arm-and-mips.patch",
+]
+precedence = "override"
+SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
+SPDX-License-Identifier = "GPL-2.0-or-later AND LGPL-2.1-or-later"
+
+[[annotations]]
+path = [
+  "engine/patches/11.1.0/0001-penguin-core-callbacks-and-build-wiring.patch",
+  "engine/patches/11.1.0/0010-penguin-snapshot-ABI-and-a-migratable-vhost-user-vso.patch",
+  "engine/patches/11.1.0/0025-system-cpu-timers-continue-the-virtual-clock-when-an.patch",
+  "engine/patches/11.1.0/0028-system-cpus-run_on_cpu-under-record-replay-release-t.patch",
+  "engine/patches/11.1.0/0039-replay-x-rr-begin-record-and-x-rr-begin-replay-recor.patch",
+  "engine/patches/11.1.0/0051-replay-no-frontend-room-while-a-recorded-chardev-rea.patch",
+  "engine/patches/11.1.0/0067-accel-tcg-rr-vCPU-loop-takes-the-replay-mutex-if-rep.patch",
+  "engine/patches/11.1.0/0068-replay-the-replay-vmstate-registers-once-and-saves-w.patch",
+  "engine/patches/11.1.0/0070-vl-M-PATH-NAME-and-module-PATH-load-panda-modules.patch",
+  "engine/patches/11.1.0/0072-replay-a-snapshot-load-judges-its-virtual-timers-at-.patch",
+  "engine/patches/11.1.0/0073-replay-mark-the-begin-record-start-snapshot-refuse-l.patch",
+]
+precedence = "override"
+SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
+SPDX-License-Identifier = "GPL-2.0-or-later AND MIT"
+
+[[annotations]]
+path = [
+  "engine/patches/11.1.0/0029-qapi-a-weak-default-penguin_handle_qmp-so-the-tools-.patch",
+  "engine/patches/11.1.0/0031-accel-tcg-forget-the-plugin-callback-s-return-addres.patch",
+  "engine/patches/11.1.0/0043-panda-TCG-core-hooks.patch",
+  "engine/patches/11.1.0/0046-panda-panda_disable_tb_chaining-turns-TB-chaining-of.patch",
+  "engine/patches/11.1.0/0048-panda-before_find_fast-before-each-TB-lookup.patch",
+  "engine/patches/11.1.0/0055-hw-block-pflash_cfi01-one-post_load-state-handler-at.patch",
+  "engine/patches/11.1.0/0058-panda-block-callbacks-learn-of-a-longjmp-out-of-the-.patch",
+  "engine/patches/11.1.0/0059-panda-after_block_exec-hook-after-the-PC-is-synchron.patch",
+  "engine/patches/11.1.0/0062-accel-tcg-cpu_exec_step_atomic-runs-in-an-RCU-read-s.patch",
+]
+precedence = "override"
+SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
+SPDX-License-Identifier = "LGPL-2.1-or-later"
+
+[[annotations]]
+path = [
+  "engine/patches/11.1.0/0012-hw-mips-malta-enlarge-the-prom-env-slot-so-the-cmdli.patch",
+  "engine/patches/11.1.0/0027-accel-tcg-x-tsc-vclock-the-x86-TSC-from-the-virtual-.patch",
+  "engine/patches/11.1.0/0037-accel-tcg-rr-ready-launch-a-VM-so-that-a-recording-c.patch",
+  "engine/patches/11.1.0/0053-panda-main_loop_wait-callback-at-each-main-loop-iter.patch",
+  "engine/patches/11.1.0/0054-panda-after_loadvm-callback-when-load_snapshot-succe.patch",
+  "engine/patches/11.1.0/0061-panda-before_loadvm-hook-before-qemu_loadvm_state-lo.patch",
+]
+precedence = "override"
+SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = [
+  "engine/patches/11.1.0/0018-accel-tcg-translation-time-address-hooks-and-registe.patch",
+  "engine/patches/11.1.0/0036-accel-tcg-address-hooks-keep-CF_PCREL-on-outside-hoo.patch",
+  "engine/patches/11.1.0/0045-panda-guest_hypercall-on-penguin-s-hypercall-instruc.patch",
+  "engine/patches/11.1.0/0047-plugins-memory-callbacks-before-the-access.patch",
+]
+precedence = "override"
+SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
+SPDX-License-Identifier = "GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT"
+
+[[annotations]]
+path = [
+  "engine/patches/11.1.0/0008-target-i386-hw-i386-route-guest-hypercalls-through-a.patch",
+  "engine/patches/11.1.0/0011-penguin-reset-request-and-QMP-command-callbacks.patch",
+]
+precedence = "override"
+SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
+SPDX-License-Identifier = "LGPL-2.1-or-later AND MIT"
+
+[[annotations]]
+path = [
+  "engine/patches/11.1.0/0069-module-load-panda-modules-by-path-checked-against-th.patch",
+]
+precedence = "override"
+SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
+SPDX-License-Identifier = "GPL-2.0-only AND GPL-2.0-or-later"
+
+[[annotations]]
+path = [
+  "engine/patches/11.1.0/0022-i386-resume-a-KVM-snapshot-under-TCG-and-a-TCG-snaps.patch",
+]
+precedence = "override"
+SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
+SPDX-License-Identifier = "GPL-2.0-only AND GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT"
+
+# Headers panda-ng's plugins and bindings build against: classic PANDA's (no header, so
+# GPL-2.0-or-later under classic PANDA's LICENSE) and QEMU's elf.h (no header: GPL-2.0-or-later).
+[[annotations]]
+path = ["include/debug.h", "include/plugin_plugin.h", "include/elf.h"]
+precedence = "closest"
+SPDX-FileCopyrightText = ["The PANDA authors", "The QEMU contributors"]
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# Generated from the engine's headers, which include GPL-2.0-only classic PANDA headers
+# (panda/plugin.h, callbacks/cb-defs.h).
+[[annotations]]
+path = ["rust/panda-bindings/src/autogen/**", "python/core/pandare2/autogen/panda_datatypes.py"]
+precedence = "closest"
+SPDX-FileCopyrightText = ["The PANDA authors", "The QEMU contributors"]
+SPDX-License-Identifier = "GPL-2.0-only"
+
+# pandare2 files that come from classic PANDA's pandare (no headers: GPL-2.0-or-later under classic
+# PANDA's LICENSE). machine.py, mkimage.py, qemu.py, pandare_build.py, setup.py are panda-ng's (MIT).
+[[annotations]]
+path = [
+  "python/core/README.md",
+  "python/core/pandare2/__init__.py",
+  "python/core/pandare2/arch.py",
+  "python/core/pandare2/asyncthread.py",
+  "python/core/pandare2/autogen/__init__.py",
+  "python/core/pandare2/cosi.py",
+  "python/core/pandare2/extras/**",
+  "python/core/pandare2/panda.py",
+  "python/core/pandare2/panda_expect.py",
+  "python/core/pandare2/plog_pb2.py",
+  "python/core/pandare2/plog_reader.py",
+  "python/core/pandare2/pyplugin.py",
+  "python/core/pandare2/pypluginmanager.py",
+  "python/core/pandare2/qcows.json",
+  "python/core/pandare2/qcows.py",
+  "python/core/pandare2/qcows_internal.py",
+  "python/core/pandare2/qemu_logging.py",
+  "python/core/pandare2/taint/**",
+  "python/core/pandare2/utils.py",
+  "python/core/pandare2/volatility_cli_classes.py",
+  "python/examples/asid.py",
+  "python/examples/proc_start.py",
+  "utils/scripts/apigen.py",
+  "plugins/rust_skeleton/**",
+]
+precedence = "closest"
+SPDX-FileCopyrightText = "The PANDA authors"
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# Plugins from classic PANDA. Their main files say "GNU GPL, version 2" (GPL-2.0-only); the other
+# files in these directories come from the same plugins. hypercaller is panda-re/panda's too.
+[[annotations]]
+path = [
+  "plugins/cppskeleton/**",
+  "plugins/cskeleton/**",
+  "plugins/hooks/**",
+  "plugins/hw_proc_id/**",
+  "plugins/hypercaller/**",
+  "plugins/osi/**",
+  "plugins/osi_linux/**",
+  "plugins/proc_start_linux/**",
+  "plugins/syscalls2/**",
+]
+precedence = "closest"
+SPDX-FileCopyrightText = "The PANDA authors"
+SPDX-License-Identifier = "GPL-2.0-only"
+
+# panda-ng plugins whose main file carries the PANDA "GNU GPL, version 2" header.
+[[annotations]]
+path = ["plugins/hypersyscalls/hypersyscalls.cpp", "plugins/osi_isf/osi_isf.cpp"]
+precedence = "closest"
+SPDX-FileCopyrightText = "2025-2026 The PANDA authors"
+SPDX-License-Identifier = "GPL-2.0-only"
+
+# The plugins' meson.build files are panda-ng's.
+[[annotations]]
+path = "plugins/*/meson.build"
+precedence = "closest"
+SPDX-FileCopyrightText = "2025-2026 The PANDA authors"
+SPDX-License-Identifier = "MIT"
+
+# Volatility's syscall tables (GPL-2.0-or-later, per their headers).
+[[annotations]]
+path = "plugins/syscalls2/scripts/volatility_local/**"
+precedence = "closest"
+SPDX-FileCopyrightText = ["2008-2013 Volatility Foundation", "2011 Michael Hale Ligh <michael.hale@gmail.com>"]
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# Excerpts of Linux kernel sources (its COPYING is next to them).
+[[annotations]]
+path = "plugins/osi_linux/utils/kernelinfo/ksrc/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "The Linux kernel authors"
+SPDX-License-Identifier = "GPL-2.0-only"
+
+# Vendored: nlohmann/json (MIT; the file has its own SPDX header).
+[[annotations]]
+path = "plugins/hypersyscalls/json.hpp"
+precedence = "closest"
+SPDX-FileCopyrightText = "2013-2025 Niels Lohmann <https://nlohmann.me>"
+SPDX-License-Identifier = "MIT"
+
+# Vendored: pycparser's fake libc headers.
+[[annotations]]
+path = "utils/fake_libc_include/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2008-2020 Eli Bendersky and contributors"
+SPDX-License-Identifier = "BSD-3-Clause"

@@ -290,6 +290,9 @@
             fileset = lib.fileset.unions [
               ./python/core
               ./plugins
+              # python/core/LICENSE and LICENSES are symlinks to these (setup.cfg's license_files).
+              ./LICENSE
+              ./LICENSES
             ];
           };
 
@@ -542,8 +545,10 @@
                 };
                 panda-ng = {
                   name = "panda-ng";
-                  # setup.cfg's license. panda-ng has no LICENSE file yet.
-                  spdx = "MIT";
+                  # REUSE.toml: panda-ng's own code is MIT; pandare2's modules from classic PANDA are
+                  # GPL-2.0-or-later, the plugins from classic PANDA and the generated bindings
+                  # GPL-2.0-only. Its license files are LICENSE, LICENSES/ and REUSE.toml.
+                  spdx = "MIT AND GPL-2.0-only AND GPL-2.0-or-later";
                   source = [
                     "panda-ng (pandare2, the PANDA plugins, the qemu-system launcher)"
                     "  repository: https://github.com/panda-re/panda-ng"
@@ -590,6 +595,10 @@
                   fi
                 }
                 licenses qemu-panda-engine ${engineSrc}
+                mkdir -p $out/panda-ng
+                cp ${./LICENSE} $out/panda-ng/LICENSE
+                cp ${./REUSE.toml} $out/panda-ng/REUSE.toml
+                cp -r ${./LICENSES} $out/panda-ng/LICENSES
                 cp ${engineSrc}/pc-bios/README $out/qemu-panda-engine/pc-bios-README
                 ${lib.concatMapStringsSep "\n" (t: "licenses ${t.name} ${t.src} ${toString t.files}") third}
               '';

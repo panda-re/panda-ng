@@ -160,3 +160,25 @@ linking those with `--export-dynamic`:
 
 The engine still installs its own `bin/qemu-system-*` (the `engine` and `dist` outputs keep
 them for now).
+
+## License
+
+panda-ng's own code is under the MIT license ([`LICENSE`](LICENSE)). Code that comes from
+elsewhere keeps its license. [`REUSE.toml`](REUSE.toml) gives the license of every file, and
+the texts are in [`LICENSES/`](LICENSES). `reuse lint` checks them.
+
+- MIT: panda-ng's own code (pandare2's new modules, tools, tests, build files, the launcher).
+- GPL-2.0-or-later: the engine (`engine/`: patches to QEMU and the overlay linked into it), and
+  the pandare2 modules and headers taken from classic PANDA (panda-re/panda).
+- GPL-2.0-only: classic PANDA's plugins and other files whose header says "GNU GPL, version 2";
+  the bindings generated from the engine's headers (`rust/panda-bindings/src/autogen/`,
+  `pandare2/autogen/panda_datatypes.py`).
+- Each patch in `engine/patches/<version>/` has a `SPDX-License-Identifier:` trailer (the
+  licenses of the QEMU files it changes) and an `Origin:` trailer (upstream QEMU, classic PANDA,
+  penguin, ...); `ORIGINS.md` there lists them.
+- Vendored: nlohmann/json (MIT), pycparser's fake libc headers (BSD-3-Clause), Volatility's
+  syscall tables (GPL-2.0-or-later), Linux kernel excerpts (GPL-2.0-only).
+
+The engine as built is QEMU and so GPL-2.0-only as a whole (QEMU's `LICENSE`). The wheel bundles
+the engine, the plugins and third-party libraries; its METADATA has the combined
+`License-Expression`, and `pandare2-*.dist-info/licenses/` has every component's license files.

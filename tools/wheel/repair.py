@@ -114,12 +114,15 @@ def glibc_minor(versions):
 
 
 def spdx_join(exprs):
-    """AND of the distinct expressions, compound ones parenthesized."""
+    """AND of the distinct terms, compound ones parenthesized. A plain AND list (no OR, no
+    parentheses) is split into its terms first, so a license two components share appears once."""
     out = []
-    for e in exprs:
-        e = f"({e})" if (" OR " in e or " AND " in e) else e
-        if e not in out:
-            out.append(e)
+    for x in exprs:
+        terms = x.split(" AND ") if (" OR " not in x and "(" not in x) else [x]
+        for e in terms:
+            e = f"({e})" if (" OR " in e or " AND " in e) else e
+            if e not in out:
+                out.append(e)
     expr = " AND ".join(out)
     try:
         from packaging.licenses import canonicalize_license_expression
@@ -150,13 +153,10 @@ def write_licenses(dist_info, licdir, used, bundled_by_entry):
         "",
     ]
     for c in comps:
-        if c["name"] == "panda-ng":
-            src = None  # no license file in panda-ng yet; setup.cfg says MIT
-        else:
-            src = licdir / c["name"]
-            if not src.is_dir() or not any(src.iterdir()):
-                sys.exit(f"repair: no license files for {c['name']} in {licdir}")
-            shutil.copytree(src, dst / c["name"], dirs_exist_ok=True)
+        src = licdir / c["name"]
+        if not src.is_dir() or not any(src.iterdir()):
+            sys.exit(f"repair: no license files for {c['name']} in {licdir}")
+        shutil.copytree(src, dst / c["name"], dirs_exist_ok=True)
         lines.append(f"{c['name']} {c.get('version', '')}".rstrip() + f": {c['spdx']}")
         lines += [f"  {s}" for s in c.get("source", [])]
         if c.get("urls"):
