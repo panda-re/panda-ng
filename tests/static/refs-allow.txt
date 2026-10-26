@@ -1,6 +1,5 @@
-# Names pandare2 still uses that don't exist on panda-ng: tests/static/refs.py reports them as
-# ALLOWED instead of failing. Every one belongs to a feature panda-ng doesn't have (taint2, cosi,
-# dynamic_symbols, hooks2, mem_hooks, callstack_instr, LLVM, pandalog, classic QEMU logging and
-# board helpers). Removing that feature from pandare2 removes its lines here; refs.py fails on a
-# line that no longer fails, so this list only shrinks. Do not add to it: fix or remove the code.
+# Names pandare2 uses that don't exist on panda-ng, which tests/static/refs.py then reports as
+# ALLOWED instead of failing. Empty: the features that had them (taint2, cosi, dynamic_symbols,
+# hooks2, mem_hooks, callstack_instr, LLVM, pandalog, QEMU logging, board helpers) are gone. A line
+# here is only for a gap with a plan to close it; refs.py fails on a line that no longer fails.
 # One "<kind> <name>" per line; kinds: lib, plugin, type, field.
