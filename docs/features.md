@@ -42,11 +42,12 @@ Status: **supported** is tested and meant for users; **experimental** works but 
 
 Start a guest, run commands on its serial console, revert to snapshots, read and write its
 memory and registers, and register callbacks, all from Python. The `Panda` object owns one QEMU
-instance; work that needs the guest stopped goes in `@panda.queue_blocking` functions.
+instance; work that drives the guest and waits for it (console commands, snapshot loads) goes in
+`@panda.queue_blocking` functions.
 
 **Use it:** `Panda`, `Panda.queue_blocking`, `Panda.run_serial_cmd`, `Panda.revert_sync`, `Panda.virtual_memory_read`, `Panda.virt_to_phys`, `PyPlugin`
 
-**Docs:** [python/core/README.md](https://github.com/panda-re/panda-ng/blob/main/python/core/README.md), [tests/README.md](https://github.com/panda-re/panda-ng/blob/main/tests/README.md)
+**Docs:** [docs/guides/getting-started.md](guides/getting-started.md), [docs/guides/python.md](guides/python.md), [python/core/README.md](https://github.com/panda-re/panda-ng/blob/main/python/core/README.md), [tests/README.md](https://github.com/panda-re/panda-ng/blob/main/tests/README.md)
 
 **Tests:** `tests/smoke.py`, `tests/api.py`, `tests/reset.py`, `tests/teardown.py`
 
@@ -64,9 +65,9 @@ engine.
 reference says which. A registered memory callback instruments every load or store even while
 disabled, and an enabled physical one costs an address lookup per access.
 
-**Use it:** `Panda.enable_memcb`, `Panda.disable_tb_chaining`, `Panda.flush_tb`, `panda_register_callback`
+**Use it:** `Panda.enable_callback`, `Panda.disable_callback`, `Panda.disable_tb_chaining`, `Panda.flush_tb`, `panda_register_callback`
 
-**Docs:** [docs/reference/callbacks.md](reference/callbacks.md)
+**Docs:** [docs/guides/python.md#callbacks](guides/python.md#callbacks), [docs/reference/callbacks.md](reference/callbacks.md)
 
 **Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/physmem.py`
 
@@ -81,7 +82,7 @@ headers (examples/consumer shows it).
 
 **Use it:** `Panda.load_plugin`, `buildPandaPlugin`, `cskeleton` (plugin), `cppskeleton` (plugin)
 
-**Docs:** [README.md](https://github.com/panda-re/panda-ng/blob/main/README.md)
+**Docs:** [docs/guides/plugins.md](guides/plugins.md), [README.md](https://github.com/panda-re/panda-ng/blob/main/README.md)
 
 **Tests:** `tests/guest.py`
 
@@ -96,6 +97,8 @@ plugins/rust_skeleton is a starting point.
 
 **Use it:** `rust_skeleton` (plugin)
 
+**Docs:** [docs/guides/plugins.md#rust-plugins](guides/plugins.md#rust-plugins)
+
 **Tests:** none yet.
 
 
@@ -108,6 +111,8 @@ pandare2's `Cosi` directly from Python.
 
 **Use it:** `osi` (plugin), `osi_linux` (plugin), `osi_isf` (plugin), `Cosi`
 
+**Docs:** [docs/guides/getting-started.md#a-first-analysis](guides/getting-started.md#a-first-analysis), [docs/guides/plugins.md](guides/plugins.md)
+
 **Tests:** `tests/osi_isf.py`, `tests/asidstory.py`, `tests/kpti.py`
 
 
@@ -119,7 +124,7 @@ processes (proc_start_linux).
 
 **Use it:** `syscalls2` (plugin), `proc_start_linux` (plugin)
 
-**Docs:** [plugins/syscalls2/README.md](https://github.com/panda-re/panda-ng/blob/main/plugins/syscalls2/README.md)
+**Docs:** [docs/guides/plugins.md#using-a-plugin-from-python](guides/plugins.md#using-a-plugin-from-python), [plugins/syscalls2/README.md](https://github.com/panda-re/panda-ng/blob/main/plugins/syscalls2/README.md)
 
 **Tests:** `tests/guest.py`
 
@@ -131,7 +136,7 @@ Run a callback when the guest reaches an address, optionally only in one address
 
 **Use it:** `hooks` (plugin)
 
-**Docs:** [plugins/hooks/README.md](https://github.com/panda-re/panda-ng/blob/main/plugins/hooks/README.md)
+**Docs:** [docs/guides/python.md#callbacks](guides/python.md#callbacks), [plugins/hooks/README.md](https://github.com/panda-re/panda-ng/blob/main/plugins/hooks/README.md)
 
 **Tests:** `tests/calls.py`, `tests/hookalias.py`
 
@@ -144,6 +149,8 @@ A guest program talks to the analysis through a hypercall instruction on every a
 handle them in C.
 
 **Use it:** `Panda.hypercall`, `hypercaller` (plugin), `hypersyscalls` (plugin)
+
+**Docs:** [docs/guides/python.md#callbacks](guides/python.md#callbacks)
 
 **Tests:** `tests/guest.py`, `tests/mem.py`
 
@@ -160,6 +167,8 @@ recording can start at any point.
 
 **Use it:** `Panda.record`, `Panda.record_cmd`, `Panda.end_record`, `Panda.run_replay`, `-accel tcg,rr-ready=on`
 
+**Docs:** [docs/guides/record-replay.md](guides/record-replay.md)
+
 **Tests:** `tests/rr.py`, `tests/rrcb.py`, `tests/rrstop.py`, `tests/rrload.py`, `tests/rr_blocks.py`
 
 **Engine patches:** 0025-0028, 0030, 0037-0040, 0050-0052, 0066-0068, 0072-0073 ([series](reference/patches.md))
@@ -167,10 +176,12 @@ recording can start at any point.
 <a id="snapshots"></a>
 ## Snapshots
 
-Save the whole VM into its qcow2 image and revert to it (`snap`, `revert_sync`), with callbacks
-before and after a load. Snapshots load across hosts with different page sizes.
+Save the whole VM into its qcow2 image and revert to it (`snap`, `revert_sync`), with an
+`after_loadvm` callback after each load. Snapshots load across hosts with different page sizes.
 
 **Use it:** `Panda.snap`, `Panda.revert_sync`, `Panda.delvm`
+
+**Docs:** [docs/guides/snapshots.md](guides/snapshots.md)
 
 **Tests:** `tests/reset.py`, `tests/api.py`
 
@@ -186,6 +197,8 @@ loops: `panda_fast_snap` and `panda_fast_restore`. tests/fuzz.py runs a fuzzing 
 
 **Use it:** `panda_fast_snap`, `panda_fast_restore`, `panda_fast_delete`
 
+**Docs:** [docs/guides/snapshots.md#fast-restore](guides/snapshots.md#fast-restore)
+
 **Tests:** `tests/fastrestore.py`, `tests/fastrestore_guards.py`, `tests/fastrestore_hotplug.py`, `tests/fastrestore_vsock.py`, `tests/fuzz.py`
 
 **Engine patches:** 0055-0057, 0060, 0064 ([series](reference/patches.md))
@@ -200,6 +213,8 @@ hasn't touched.
 **Limits.** PANDA callbacks, record/replay and fast restore need TCG. No CI runner has KVM yet.
 
 **Use it:** `-accel kvm`, `qemu_plugin_register_vcpu_bp_cb`, `qemu_plugin_hw_breakpoint_insert`
+
+**Docs:** [docs/guides/kvm.md](guides/kvm.md)
 
 **Tests:** `engine/tests/guest/kvm.sh`
 
@@ -217,6 +232,8 @@ TCG), and so must the devices: build both engines with the same features or pass
 `-nic`. No test in this repository covers it yet.
 
 **Use it:** `-accel kvm`, `-accel tcg`
+
+**Docs:** [docs/guides/kvm.md#moving-a-guest-between-kvm-and-tcg](guides/kvm.md#moving-a-guest-between-kvm-and-tcg)
 
 **Tests:** none yet.
 
@@ -282,7 +299,7 @@ against the engine's target and ABI before they load.
 
 **Use it:** `MachineBuilder`, `mkBoard`, `-module PATH`
 
-**Docs:** [tests/README.md](https://github.com/panda-re/panda-ng/blob/main/tests/README.md)
+**Docs:** [docs/guides/machines.md](guides/machines.md), [tests/README.md](https://github.com/panda-re/panda-ng/blob/main/tests/README.md)
 
 **Tests:** `tests/machine.py`, `tests/machine_sw.py`, `tests/machine_builder.py`, `tests/board.py`, `engine/tests/modules/run.sh`
 
@@ -296,7 +313,7 @@ A Python wheel with the engine and plugins bundled, a Debian package, and the ni
 
 **Use it:** `wheel`, `deb`, `dist`
 
-**Docs:** [README.md](https://github.com/panda-re/panda-ng/blob/main/README.md)
+**Docs:** [docs/guides/getting-started.md#get-pandare2](guides/getting-started.md#get-pandare2), [README.md](https://github.com/panda-re/panda-ng/blob/main/README.md)
 
 **Tests:** none yet.
 

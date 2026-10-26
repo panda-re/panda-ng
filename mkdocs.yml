@@ -23,6 +23,14 @@ theme:
 nav:
   - Overview: index.md
   - Features: features.md
+  - Guides:
+      - Getting started: guides/getting-started.md
+      - The Python API: guides/python.md
+      - Plugins: guides/plugins.md
+      - Record and replay: guides/record-replay.md
+      - Snapshots and fast restore: guides/snapshots.md
+      - KVM: guides/kvm.md
+      - Machines and modules: guides/machines.md
   - Reference:
       - Python API: reference/python.md
       - Callbacks: reference/callbacks.md

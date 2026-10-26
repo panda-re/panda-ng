@@ -29,11 +29,12 @@ tested_on = ["x86_64", "aarch64", "riscv64"]
 summary = """
 Start a guest, run commands on its serial console, revert to snapshots, read and write its
 memory and registers, and register callbacks, all from Python. The `Panda` object owns one QEMU
-instance; work that needs the guest stopped goes in `@panda.queue_blocking` functions.
+instance; work that drives the guest and waits for it (console commands, snapshot loads) goes in
+`@panda.queue_blocking` functions.
 """
 api = ["py:Panda", "py:Panda.queue_blocking", "py:Panda.run_serial_cmd", "py:Panda.revert_sync",
        "py:Panda.virtual_memory_read", "py:Panda.virt_to_phys", "py:PyPlugin"]
-docs = ["python/core/README.md", "tests/README.md"]
+docs = ["docs/guides/getting-started.md", "docs/guides/python.md", "python/core/README.md", "tests/README.md"]
 tests = ["tests/smoke.py", "tests/api.py", "tests/reset.py", "tests/teardown.py"]
 patches = ["0041"]
 
@@ -54,9 +55,9 @@ Callbacks need TCG. Some declared callbacks have no call site yet or abort at re
 reference says which. A registered memory callback instruments every load or store even while
 disabled, and an enabled physical one costs an address lookup per access.
 """
-api = ["py:Panda.enable_memcb", "py:Panda.disable_tb_chaining", "py:Panda.flush_tb",
-       "c:panda_register_callback"]
-docs = ["docs/reference/callbacks.md"]
+api = ["py:Panda.enable_callback", "py:Panda.disable_callback", "py:Panda.disable_tb_chaining",
+       "py:Panda.flush_tb", "c:panda_register_callback"]
+docs = ["docs/guides/python.md#callbacks", "docs/reference/callbacks.md"]
 tests = ["tests/callbacks.py", "tests/blocks.py", "tests/blocks_bare.py", "tests/late.py",
          "tests/tbpc.py", "tests/mem.py", "tests/physmem.py"]
 patches = ["0031", "0035", "0042-0044", "0046-0049", "0053", "0054", "0058", "0059", "0065"]
@@ -73,7 +74,7 @@ PANDA plugins are shared libraries loaded with `panda.load_plugin(name, args)`. 
 headers (examples/consumer shows it).
 """
 api = ["py:Panda.load_plugin", "flake:buildPandaPlugin", "plugin:cskeleton", "plugin:cppskeleton"]
-docs = ["README.md"]
+docs = ["docs/guides/plugins.md", "README.md"]
 tests = ["tests/guest.py"]
 
 [[feature]]
@@ -87,6 +88,7 @@ plugins/rust_skeleton is a starting point.
 """
 limits = "No test loads a Rust plugin yet; CI only checks that the bindings compile."
 api = ["plugin:rust_skeleton"]
+docs = ["docs/guides/plugins.md#rust-plugins"]
 
 [[feature]]
 id = "osi"
@@ -100,6 +102,7 @@ symbols (an ISF file, as the test images carry). Use the osi_linux and osi_isf p
 pandare2's `Cosi` directly from Python.
 """
 api = ["plugin:osi", "plugin:osi_linux", "plugin:osi_isf", "py:Cosi"]
+docs = ["docs/guides/getting-started.md#a-first-analysis", "docs/guides/plugins.md"]
 tests = ["tests/osi_isf.py", "tests/asidstory.py", "tests/kpti.py"]
 
 [[feature]]
@@ -113,7 +116,7 @@ Callbacks on every system call entry and return, with decoded arguments (syscall
 processes (proc_start_linux).
 """
 api = ["plugin:syscalls2", "plugin:proc_start_linux"]
-docs = ["plugins/syscalls2/README.md"]
+docs = ["docs/guides/plugins.md#using-a-plugin-from-python", "plugins/syscalls2/README.md"]
 tests = ["tests/guest.py"]
 
 [[feature]]
@@ -124,7 +127,7 @@ accel = ["TCG"]
 tested_on = ["x86_64", "aarch64", "riscv64"]
 summary = "Run a callback when the guest reaches an address, optionally only in one address space (the hooks plugin)."
 api = ["plugin:hooks"]
-docs = ["plugins/hooks/README.md"]
+docs = ["docs/guides/python.md#callbacks", "plugins/hooks/README.md"]
 tests = ["tests/calls.py", "tests/hookalias.py"]
 
 [[feature]]
@@ -139,6 +142,7 @@ A guest program talks to the analysis through a hypercall instruction on every a
 handle them in C.
 """
 api = ["py:Panda.hypercall", "plugin:hypercaller", "plugin:hypersyscalls"]
+docs = ["docs/guides/python.md#callbacks"]
 tests = ["tests/guest.py", "tests/mem.py"]
 patches = ["0001", "0003-0008", "0045"]
 
@@ -156,6 +160,7 @@ recording can start at any point.
 limits = "TCG, single-threaded. Snapshot loads are refused while recording."
 api = ["py:Panda.record", "py:Panda.record_cmd", "py:Panda.end_record", "py:Panda.run_replay",
        "qemu:-accel tcg,rr-ready=on"]
+docs = ["docs/guides/record-replay.md"]
 tests = ["tests/rr.py", "tests/rrcb.py", "tests/rrstop.py", "tests/rrload.py", "tests/rr_blocks.py"]
 patches = ["0025-0028", "0030", "0037-0040", "0050-0052", "0066-0068", "0072", "0073"]
 
@@ -166,10 +171,11 @@ status = "supported"
 accel = ["TCG", "KVM"]
 tested_on = ["x86_64", "aarch64", "riscv64"]
 summary = """
-Save the whole VM into its qcow2 image and revert to it (`snap`, `revert_sync`), with callbacks
-before and after a load. Snapshots load across hosts with different page sizes.
+Save the whole VM into its qcow2 image and revert to it (`snap`, `revert_sync`), with an
+`after_loadvm` callback after each load. Snapshots load across hosts with different page sizes.
 """
 api = ["py:Panda.snap", "py:Panda.revert_sync", "py:Panda.delvm"]
+docs = ["docs/guides/snapshots.md"]
 tests = ["tests/reset.py", "tests/api.py"]
 patches = ["0061", "0063", "0074"]
 
@@ -185,6 +191,7 @@ loops: `panda_fast_snap` and `panda_fast_restore`. tests/fuzz.py runs a fuzzing 
 """
 limits = "TCG only, and not while recording or replaying (both refuse)."
 api = ["c:panda_fast_snap", "c:panda_fast_restore", "c:panda_fast_delete"]
+docs = ["docs/guides/snapshots.md#fast-restore"]
 tests = ["tests/fastrestore.py", "tests/fastrestore_guards.py", "tests/fastrestore_hotplug.py",
          "tests/fastrestore_vsock.py", "tests/fuzz.py"]
 patches = ["0055-0057", "0060", "0064"]
@@ -202,6 +209,7 @@ hasn't touched.
 """
 limits = "PANDA callbacks, record/replay and fast restore need TCG. No CI runner has KVM yet."
 api = ["qemu:-accel kvm", "c:qemu_plugin_register_vcpu_bp_cb", "c:qemu_plugin_hw_breakpoint_insert"]
+docs = ["docs/guides/kvm.md"]
 tests = ["engine/tests/guest/kvm.sh"]
 patches = ["0009", "0016", "0023", "0034"]
 
@@ -222,6 +230,7 @@ TCG), and so must the devices: build both engines with the same features or pass
 `-nic`. No test in this repository covers it yet.
 """
 api = ["qemu:-accel kvm", "qemu:-accel tcg"]
+docs = ["docs/guides/kvm.md#moving-a-guest-between-kvm-and-tcg"]
 patches = ["0022", "0024", "0074"]
 
 [[feature]]
@@ -292,7 +301,7 @@ Describe a board in Python (`MachineBuilder`) or load one as a panda module (`-m
 against the engine's target and ABI before they load.
 """
 api = ["py:MachineBuilder", "flake:mkBoard", "qemu:-module PATH"]
-docs = ["tests/README.md"]
+docs = ["docs/guides/machines.md", "tests/README.md"]
 tests = ["tests/machine.py", "tests/machine_sw.py", "tests/machine_builder.py", "tests/board.py",
          "engine/tests/modules/run.sh"]
 patches = ["0069-0071"]
@@ -306,7 +315,7 @@ A Python wheel with the engine and plugins bundled, a Debian package, and the ni
 (packages, an overlay, and `lib` helpers for building plugins and boards).
 """
 api = ["flake:wheel", "flake:deb", "flake:dist"]
-docs = ["README.md"]
+docs = ["docs/guides/getting-started.md#get-pandare2", "README.md"]
 
 [[feature]]
 id = "qemu-fixes"
