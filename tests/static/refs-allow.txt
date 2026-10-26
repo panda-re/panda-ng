@@ -22,8 +22,3 @@ lib panda_memsavep
 lib panda_was_aborted
 lib sysbus_create_varargs
 plugin callstack_instr.get_callers
-plugin dynamic_symbols.get_best_matching_symbol
-plugin dynamic_symbols.hook_symbol_resolution
-plugin hooks.add_symbol_hook
-type struct hook_symbol_resolve*
-type void (struct hook_symbol_resolve *sh, struct symbol s, target_ulong asid)
