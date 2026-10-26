@@ -122,6 +122,7 @@ path = [
   "engine/patches/11.1.0/0058-panda-block-callbacks-learn-of-a-longjmp-out-of-the-.patch",
   "engine/patches/11.1.0/0059-panda-after_block_exec-hook-after-the-PC-is-synchron.patch",
   "engine/patches/11.1.0/0062-accel-tcg-cpu_exec_step_atomic-runs-in-an-RCU-read-s.patch",
+  "engine/patches/11.1.0/0074-physmem-size-a-resizeable-RAM-block-s-maximum-indepe.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]

@@ -21,7 +21,7 @@ The trailers are part of each commit message in an `import-series.sh` tree, so
 `export-series.sh` keeps them. Add both to a new patch, and update this table when the series
 changes (the export does not rewrite this file). "Uncertain" in a note marks a judgement call.
 
-Counts: new 41, penguin 24, panda-re/qemu 6, ac88u 2.
+Counts: new 42, penguin 24, panda-re/qemu 6, ac88u 2.
 
 | # | subject | origin | license | note |
 |---|---|---|---|---|
@@ -98,3 +98,4 @@ Counts: new 41, penguin 24, panda-re/qemu 6, ac88u 2.
 | 0071 | hw/core: build the configurable machine and its QAPI schema | new | GPL-2.0-or-later |  |
 | 0072 | replay: a snapshot load judges its virtual timers at the loaded clock | new | GPL-2.0-or-later AND MIT |  |
 | 0073 | replay: mark the begin-record start snapshot; refuse loads while recording | new | GPL-2.0-or-later AND MIT |  |
+| 0074 | physmem: size a resizeable RAM block's maximum independently of the host page size | new | LGPL-2.1-or-later |  |

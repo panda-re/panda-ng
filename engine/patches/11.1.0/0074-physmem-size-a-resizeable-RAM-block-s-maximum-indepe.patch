@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Mon, 26 Oct 2026 16:30:49 -0400
+Subject: [PATCH] physmem: size a resizeable RAM block's maximum independently
+ of the host page size
+
+A resizeable block's max_length bounds what an incoming migration may resize
+it to (qemu_ram_resize), and the source sends its used_length rounded to its
+own host page size. Both were rounded to the local host page, so a stream
+from a host with larger pages does not load: an arm64 virt guest saved on a
+16K page host (Raspberry Pi 5, KVM) fails on a 4K page x86_64 host (TCG) with
+
+  Size too large: /rom@etc/acpi/rsdp: 0x4000 > 0x1000
+
+Round max_length of resizeable blocks up to 64 KiB, the largest host page
+size, so it no longer depends on the host. used_length is unchanged, as is
+the stream (max_length is not migrated), so streams between same-page-size
+hosts and to older QEMUs are unaffected. The cost is at most 60 KiB of
+reserved address space per resizeable block (the ACPI blobs).
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
+---
+ system/physmem.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/system/physmem.c b/system/physmem.c
+index c21ea929153e5b67efa47432b1db0993e2690f9c..6b5480f0bbf912af949eaa12003df8860ec83285 100644
+--- a/system/physmem.c
++++ b/system/physmem.c
+@@ -22,6 +22,7 @@
+ #include "qapi/error.h"
+ 
+ #include "qemu/cutils.h"
++#include "qemu/units.h"
+ #include "qemu/cacheflush.h"
+ #include "qemu/hbitmap.h"
+ #include "qemu/madvise.h"
+@@ -2455,6 +2456,9 @@ static int qemu_ram_get_shared_fd(const char *name, bool *reused, Error **errp)
+ }
+ #endif
+ 
++/* The largest host page size a resizeable block's max_length is rounded to. */
++#define RAM_RESIZEABLE_MAX_ALIGN (64 * KiB)
++
+ static
+ RAMBlock *qemu_ram_alloc_internal(ram_addr_t size, ram_addr_t max_size,
+                                   qemu_ram_resize_cb resized,
+@@ -2473,6 +2477,15 @@ RAMBlock *qemu_ram_alloc_internal(ram_addr_t size, ram_addr_t max_size,
+                           RAM_NORESERVE | RAM_GUEST_MEMFD)) == 0);
+     assert(!host ^ (ram_flags & RAM_PREALLOC));
+     assert(max_size >= size);
++    if (ram_flags & RAM_RESIZEABLE) {
++        /*
++         * max_length bounds what an incoming migration may resize the block
++         * to, and the source sent its used_length rounded to its own host
++         * page size. Round the maximum to the largest host page size, so a
++         * stream from a 16K or 64K page host loads on a 4K page host.
++         */
++        max_size = ROUND_UP(max_size, RAM_RESIZEABLE_MAX_ALIGN);
++    }
+ 
+     /* ignore RAM_SHARED for Windows and emscripten*/
+ #if defined(CONFIG_POSIX) && !defined(EMSCRIPTEN)

@@ -71,3 +71,4 @@
 11.1.0/0071-hw-core-build-the-configurable-machine-and-its-QAPI-.patch
 11.1.0/0072-replay-a-snapshot-load-judges-its-virtual-timers-at-.patch
 11.1.0/0073-replay-mark-the-begin-record-start-snapshot-refuse-l.patch
+11.1.0/0074-physmem-size-a-resizeable-RAM-block-s-maximum-indepe.patch
