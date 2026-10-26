@@ -576,6 +576,10 @@ class Panda():
     def delvm(self, snapshot_name):
         '''
         Delete snapshot with specified name
+
+        From a queue_blocking function this returns once the snapshot is deleted. From a callback
+        it only queues the deletion for the next main loop iteration. The guest keeps running.
+
         Args:
             snapshot_name (str): name of the snapshot
 
@@ -586,10 +590,13 @@ class Panda():
         if debug:
             progress ("Deleting snapshot " + snapshot_name)
 
-        # Stop guest, queue up delete, then continue
-        self.vm_stop()
+        # Deleting a snapshot doesn't need the VM stopped (savevm and loadvm stop it themselves).
         charptr = self.ffi.new("char[]", bytes(snapshot_name, "utf-8"))
         self.queue_main_loop_wait_fn(self.libpanda.panda_delvm, [charptr])
+        if threading.current_thread() in (self.athread.athread, self.athread._athread):
+            done = threading.Event()
+            self.queue_main_loop_wait_fn(done.set)
+            done.wait()
 
     def _finish_timer(self, start, msg):
         ''' Print how long some (main_loop_wait) task took '''

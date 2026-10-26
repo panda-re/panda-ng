@@ -8,7 +8,7 @@ per-instruction and memory ones that tests/api.py, blocks.py and mem.py check ag
 truth (registering those here would only slow the guest). Then drives the guest through what
 each callback is about: commands on the serial console, disk reads and writes (O_DIRECT),
 unassigned I/O ports (x86_64, /dev/port), a monitor command, a snapshot taken, reverted to and
-deleted with pandare2's snap/revert_sync/delvm_sync, and the end of the analysis.
+deleted with pandare2's snap/revert_sync/delvm_sync (and snap/delvm), and the end of the analysis.
 
 Each type that has a call site must fire; each one that has none is a GAP (and fails the run if it
 starts firing, so the list stays true). Also checked, from inside the first asid_changed after
@@ -128,6 +128,9 @@ def drive():
         panda.revert_sync("cbtest")
         S["snapfile"] = panda.run_serial_cmd("cat /root/snapfile").strip()
         panda.delvm_sync("cbtest")
+        panda.snap("cbtest2")
+        panda.delvm("cbtest2")
+        S["after_delvm"] = panda.run_serial_cmd("echo alive-$((6*7))", timeout=60)
         S["snapshots"] = panda.run_monitor_cmd("info snapshots")
     except Exception as e:  # noqa: BLE001 - report it as a failed check, still end the analysis
         S["snap_error"] = repr(e)[:300]
@@ -161,4 +164,6 @@ C.check("type_serial_cmd + finish_serial_cmd", "typed-42" in (S.get("typed") or 
 C.check("snap / revert_sync restores the snapshot's state", S.get("snapfile") == "before",
         S.get("snap_error") or repr(S.get("snapfile")))
 C.check("delvm_sync deletes it", "cbtest" not in S.get("snapshots", "cbtest"), repr(S.get("snapshots")))
+C.check("delvm deletes it and the guest keeps running", "alive-42" in S.get("after_delvm", "")
+        and "cbtest2" not in S.get("snapshots", "cbtest2"), repr(S.get("after_delvm")))
 sys.exit(C.report(f"CALLBACKS arch={arch} " + " ".join(f"{n}={counts[n]}" for n in registered)))
