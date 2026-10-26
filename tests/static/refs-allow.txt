@@ -25,8 +25,5 @@ plugin callstack_instr.get_callers
 plugin dynamic_symbols.get_best_matching_symbol
 plugin dynamic_symbols.hook_symbol_resolution
 plugin hooks.add_symbol_hook
-plugin mem_hooks.add_mem_hook
-type mem_hook_func_t
 type struct hook_symbol_resolve*
-type struct memory_hooks_region*
 type void (struct hook_symbol_resolve *sh, struct symbol s, target_ulong asid)

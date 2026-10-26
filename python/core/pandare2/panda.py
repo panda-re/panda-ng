@@ -357,7 +357,6 @@ class Panda():
         self.disabled_tb_chaining = False
         self.named_hooks = {}
         self.hook_list = []
-        self.mem_hooks = {}
         self.sr_hooks = []
         self.hypercalls = {}
 
@@ -3196,84 +3195,6 @@ class Panda():
             pc = self.current_pc(cpu)
         return self.plugins['dynamic_symbols'].get_best_matching_symbol(cpu, pc, asid)
 
-    # MEM HOOKS
-    def _hook_mem(self, start_address, end_address, before, after, read, write, virtual, physical, enabled):
-        def decorator(fun):
-            mem_hook_cb_type = self.ffi.callback("mem_hook_func_t")
-            # Inform the plugin that it has a new breakpoint at addr
-            
-            def _run_and_catch(*args, **kwargs): # Run function but if it raises an exception, stop panda and raise it
-                if not hasattr(self, "exit_exception"):
-                    try:
-                        r = fun(*args, **kwargs)
-                        return r
-                    except Exception as e:
-                        # exceptions wont work in our thread. Therefore we print it here and then throw it after the
-                        # machine exits.
-                        if self.catch_exceptions:
-                            self.exit_exception = e
-                            self.end_analysis()
-                        else:
-                            raise e
-                        return None
-
-            hook_cb_passed = mem_hook_cb_type(_run_and_catch)
-            mem_reg = self.ffi.new("struct memory_hooks_region*")
-            mem_reg.start_address = start_address
-            mem_reg.stop_address = end_address
-            mem_reg.on_before = before
-            mem_reg.on_after = after
-            mem_reg.on_read = read
-            mem_reg.on_write = write
-            mem_reg.on_virtual = virtual
-            mem_reg.on_physical = physical
-            mem_reg.enabled = enabled
-            mem_reg.cb = hook_cb_passed
-
-            hook = self.plugins['mem_hooks'].add_mem_hook(mem_reg)
-
-            self.mem_hooks[hook] = [mem_reg, hook_cb_passed]
-
-
-            def wrapper(*args, **kw):
-                return _run_and_catch(*args, **kw)
-
-
-            return wrapper
-        return decorator
-
-    def hook_mem(self, start_address, end_address, on_before, on_after, on_read, on_write, on_virtual, on_physical, enabled):
-        '''
-        Decorator to hook a memory range with the mem_hooks plugin
-
-        .. todo:: Fully document mem-hook decorators
-        '''
-        return self._hook_mem(start_address,end_address,on_before,on_after,on_read, on_write, on_virtual, on_physical, enabled)
-
-    def hook_phys_mem_read(self, start_address, end_address, on_before=True, on_after=False, enabled=True):
-        '''
-        Decorator to hook physical memory reads with the mem_hooks plugin
-        '''
-        return self._hook_mem(start_address,end_address,on_before,on_after, True, False, False, True, True)
-
-    def hook_phys_mem_write(self, start_address, end_address, on_before=True, on_after=False):
-        '''
-        Decorator to hook physical memory writes with the mem_hooks plugin
-        '''
-        return self._hook_mem(start_address,end_address,on_before,on_after, False, True, False, True, True)
-
-    def hook_virt_mem_read(self, start_address, end_address, on_before=True, on_after=False):
-        '''
-        Decorator to hook virtual memory reads with the mem_hooks plugin
-        '''
-        return self._hook_mem(start_address,end_address,on_before,on_after, True, False, True, False, True)
-
-    def hook_virt_mem_write(self, start_address, end_address, on_before=True, on_after=False):
-        '''
-        Decorator to hook virtual memory writes with the mem_hooks plugin
-        '''
-        return self._hook_mem(start_address,end_address,on_before,on_after, False, True, True, False, True)
-    
     # HYPERCALLS
     def hypercall(self, magic):
         def decorator(fun):
