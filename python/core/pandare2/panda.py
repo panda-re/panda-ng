@@ -3836,7 +3836,7 @@ class Panda():
             shook.filter_args_enabled = arg_filter is not None
             filter_args = arg_filter or [None] * 6
             for i in range(6):
-                if i < len(filter_args) and filter_args[i]:
+                if i < len(filter_args) and filter_args[i] is not None:
                     shook.filter_arg[i] = True
                     shook.arg_filter[i] = filter_args[i]
                 else:
