@@ -1160,12 +1160,10 @@ class Panda():
 
 
     def _load_plugin_library(self, name):
-        if hasattr(self,"__did_load_libpanda"):
-            libpanda_path_chr = self.ffi.new("char[]",bytes(self.libpanda_path, "UTF-8"))
-            self.__did_load_libpanda = self.libpanda.panda_load_libpanda(libpanda_path_chr)
         if not name in self.plugins.keys():
             plugin = pjoin(*[self.get_plugin_path(), f"libpanda-{name}_{self.arch_name}-{self.target}.{self.dll_extension}"])
-            assert(isfile(plugin))
+            if not isfile(plugin):
+                raise FileNotFoundError(f"plugin {name}: no {plugin}")
             self.plugins[name] = self.ffi.dlopen(plugin)
 
     def queue_async(self, f, internal=False):
