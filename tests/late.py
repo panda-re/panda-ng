@@ -9,9 +9,12 @@ the same file, so its blocks stay translated from one run to the next (same phys
 2. at its hypercall 1, insn_translate (true for the program's instructions), insn_exec and
    virt_mem_after_write are registered; between hypercalls 1 and 2 the program's loop must be
    seen executing exactly N, N/2, N times and its two stores written once each. At hypercall 2
-   the instruction callbacks are deleted.
-3. at hypercall 1, virt_mem_before_write is added (a memory callback's other side): both sides
-   must see the two stores. At hypercall 2 every callback goes.
+   the instruction callbacks are deleted and virt_mem_after_write is disabled (still registered):
+   enabled, it is a Python call for every store the guest makes, and the shell starting run 3
+   under it took ~55 s on ubuntu-24.04-aarch64 (HZ=1000) on igloo, past run_serial_cmd's 30 s.
+3. at hypercall 1, virt_mem_after_write is enabled again and virt_mem_before_write is added (a
+   memory callback's other side): both sides must see the two stores. At hypercall 2 every
+   callback goes.
 Each registration happens from a callback on the vCPU, right before the already-translated code
 runs again.
 """
@@ -75,6 +78,7 @@ def hypercall(cpu):
             panda.cb_insn_exec(name="ie")(on_insn_exec)
             panda.cb_virt_mem_after_write(name="aw")(on_after_write)
         elif run == 3:
+            panda.enable_callback("aw")
             panda.cb_virt_mem_before_write(name="bw")(on_before_write)
         st["between"] = True
     elif op == 2:
@@ -82,6 +86,7 @@ def hypercall(cpu):
         if run == 2:
             panda.delete_callback("it")
             panda.delete_callback("ie")
+            panda.disable_callback("aw")
         elif run == 3:
             panda.delete_callback("aw")
             panda.delete_callback("bw")
