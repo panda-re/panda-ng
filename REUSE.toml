@@ -209,8 +209,6 @@ path = [
   "python/core/pandare2/panda_expect.py",
   "python/core/pandare2/pyplugin.py",
   "python/core/pandare2/pypluginmanager.py",
-  "python/core/pandare2/qcows.json",
-  "python/core/pandare2/qcows.py",
   "python/core/pandare2/qcows_internal.py",
   "python/core/pandare2/utils.py",
   "python/examples/asid.py",

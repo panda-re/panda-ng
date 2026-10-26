@@ -66,7 +66,7 @@ class Panda():
         Construct a new `Panda` object.  Note that multiple Panda objects cannot coexist in the same Python instance.
         Args:
             arch: architecture string (e.g. "i386", "x86_64", "arm", "mips", "mipsel")
-            generic: specify a generic qcow to use from `pandare.qcows.SUPPORTED_IMAGES` and set all subsequent arguments. Will automatically download qcow if necessary.
+            generic: path to an image json written by `pandare2.mkimage`: sets the arch, OS, memory, disk, prompt and extra arguments from it.
             mem: size of memory for machine (e.g. "128M", "1G")
             rr: make the VM recordable (-accel tcg,thread=single,rr-ready=on). Pass it to a replay too: it needs the recording's command line.
             expect_prompt: Regular expression describing the prompt exposed by the guest
@@ -136,8 +136,8 @@ class Panda():
         elif extra_args is None:
             extra_args = []
 
-        # If specified, use a generic (x86_64, i386, arm, etc) qcow from MIT and ignore
-        if generic:                                 # other args. See details in qcows.py
+        # An image json from pandare2.mkimage: it overrides arch, os_version, mem, qcow and expect_prompt
+        if generic:
             print("using generic " +str(generic))
             q = Qcows.get_qcow_info(generic)
             self.arch_name     = q.arch
