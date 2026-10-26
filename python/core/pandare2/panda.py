@@ -42,10 +42,6 @@ from .qemu_logging import QEMU_Log_Manager
 from .arch import ArmArch, Aarch64Arch, Loongarch64, MipsArch, Mips64Arch, X86Arch, X86_64Arch, PowerPCArch, PowerPC64Arch, Riscv32Arch, Riscv64Arch
 from dataclasses import dataclass
 
-# Might be worth importing and auto-initilizing a PLogReader
-# object within Panda for the current architecture?
-#from .plog import PLogReader
-
 
 class Panda():
     '''
@@ -1333,18 +1329,6 @@ class Panda():
 
     ########################## LIBPANDA FUNCTIONS ########################
     # Methods that directly pass data to/from PANDA with no extra logic beyond argument reformatting.
-    def set_pandalog(self, name):
-        '''
-        Enable recording to a pandalog (plog) named `name`
-
-        Args:
-            name (str): filename to output data to
-
-        Returns:
-            None
-        '''
-        charptr = self.ffi.new("char[]", bytes(name, "utf-8"))
-        self.libpanda.panda_start_pandalog(charptr)
 
     def enable_memcb(self):
         '''
@@ -1589,7 +1573,7 @@ class Panda():
 
     def cleanup(self):
         '''
-        Unload all plugins and close pandalog.
+        Unload all plugins.
 
         Returns:
             None

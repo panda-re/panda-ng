@@ -11,10 +11,6 @@ Multiple modes supported:
     (qemu) quit
 2) Run on a PANDA recording with python-based analysis
     user@host:~/panda/panda/plugins/proc_trace$ $(python3 -m pandare.qcows x86_64) -panda snak_hook:files=graph.py -replay /path/to/recording
-
-3) Run on a live/recorded PANDA guest with C++ data collection, then render graph with python
-    user@host:~/panda/panda/plugins/proc_trace$ $(python3 -m pandare.qcows x86_64) -panda proc_trace -plog /tmp/graph.plog [-replay ...]
-    user@host:~/panda/panda/plugins/proc_trace$ python3 graph.py /tmp/graph.plog
 '''
 
 from pandare2 import PyPlugin
@@ -177,50 +173,3 @@ class ProcGraph(PyPlugin):
         self.total_insns = 0
         self.n_insns = 0
         self.last_pid = None
-
-if __name__ == '__main__':
-    import sys
-    import os
-    from pandare.plog_reader import PLogReader
-
-    if len(sys.argv) != 2:
-        raise ValueError("Usage: graph.py [pandalog]")
-
-    pandalog_path = sys.argv[1]
-
-    if not os.path.isfile(pandalog_path):
-        raise ValueError(f"Pandalog not found: {pandalog_path}")
-
-    procinfo = {}
-    time_data = []
-    total_insns = None
-    last_pid = None
-
-    with PLogReader(pandalog_path) as plr:
-        for msg in plr:
-            if msg.HasField('proc_trace'):
-                pt = msg.proc_trace
-                proc_key = (pt.pid, pt.tid)
-                if proc_key not in procinfo:
-                    procinfo[proc_key] = {
-                        "names": set(),
-                        "first": pt.start_instr,
-                        "last": None,
-                        "count": 1 # Ensure last value shows up, even though we don't know when it ends
-                    }
-                name = pt.name.encode()
-                procinfo[proc_key]["names"].add(name)
-
-                if last_pid:
-                    procinfo[last_pid]["count"] += pt.start_instr - (procinfo[last_pid]["last"] if procinfo[last_pid]["last"] is not None else 0)
-                    procinfo[last_pid]["last"] = pt.start_instr
-                    if not total_insns or pt.start_instr > total_insns:
-                        total_insns = pt.start_instr
-
-                last_pid = proc_key
-
-                time_data.append((proc_key, pt.start_instr))
-
-    # Now procinfo and time_data populated, can call original graph render logic
-    total_insns += 1 # Ensure we count the last insn
-    render_graph(procinfo, time_data, total_insns, n_cols=120)

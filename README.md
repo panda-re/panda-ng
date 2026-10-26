@@ -79,7 +79,7 @@ Packages (`nix build .#<name>`), for x86_64-linux and aarch64-linux:
 | `engine-src` | the patched QEMU tree the engine builds from (tarball + `engine/patches` + `engine/src`) |
 | `plugins` (default) | `lib/panda/plugins/libpanda-<plugin>_<arch>-softmmu.so` |
 | `pandare2` | the Python package, wired to this engine and these plugins |
-| `python` | nix's Python with pandare2 (+ protobuf) |
+| `python` | nix's Python with pandare2 |
 | `qemu` | `bin/qemu-system-<arch>` for every target (+ qemu-img, qemu-io, qemu-nbd) |
 | `qemu-system-<arch>` | one of those |
 | `plugin-sdk` | headers for building a plugin outside this tree |

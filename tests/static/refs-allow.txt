@@ -19,7 +19,6 @@ lib panda_disable_llvm_helpers
 lib panda_enable_llvm
 lib panda_enable_llvm_helpers
 lib panda_memsavep
-lib panda_start_pandalog
 lib panda_was_aborted
 lib qemu_log
 lib qemu_log_close
