@@ -1364,33 +1364,9 @@ class Panda():
         '''
         self.libpanda.panda_disable_plugin(handle)
 
-    def enable_llvm(self):
-        '''
-        Enables the use of the LLVM JIT in replacement of the TCG (QEMU intermediate language and compiler) backend.
-        '''
-        self.libpanda.panda_enable_llvm()
-
-    def disable_llvm(self):
-        '''
-        Disables the use of the LLVM JIT in replacement of the TCG (QEMU intermediate language and compiler) backend.
-        '''
-        self.libpanda.panda_disable_llvm()
-
-    def enable_llvm_helpers(self):
-        '''
-        Enables the use of Helpers for the LLVM JIT in replacement of the TCG (QEMU intermediate language and compiler) backend.
-        '''
-        self.libpanda.panda_enable_llvm_helpers()
-
-    def disable_llvm_helpers(self):
-        '''
-        Disables the use of Helpers for the LLVM JIT in replacement of the TCG (QEMU intermediate language and compiler) backend.
-        '''
-        self.libpanda.panda_disable_llvm_helpers()
-
     def flush_tb(self):
         '''
-        This function requests that the translation block cache be flushed as soon as possible. If running with translation block chaining turned off (e.g. when in LLVM mode or replay mode), this will happen when the current translation block is done executing.
+        This function requests that the translation block cache be flushed as soon as possible. If running with translation block chaining turned off, this will happen when the current translation block is done executing.
         Flushing the translation block cache is additionally necessary if the plugin makes changes to the way code is translated. For example, by using panda_enable_precise_pc.
         '''
         return self.libpanda.panda_do_flush_tb()
