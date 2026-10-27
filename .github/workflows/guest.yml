@@ -1,6 +1,6 @@
 name: Guest suite
 
-# tests/run.sh on real guests: the 19 guest tests (rr, snapshots, OSI, callbacks, ...) on each
+# tests/run.sh on real guests: the 20 guest tests (rr, snapshots, OSI, callbacks, ...) on each
 # pandare2.mkimage image, under TCG. Nightly, by hand, or on a PR labelled guest-suite. Nothing
 # here publishes.
 #
@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       tests:
-        description: "Tests to run (space-separated; empty: run.sh's default 19)"
+        description: "Tests to run (space-separated; empty: run.sh's default 20)"
         required: false
         default: ""
 
