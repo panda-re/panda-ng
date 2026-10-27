@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 27 Oct 2026 10:20:32 -0400
+Subject: [PATCH] panda: link a plugin interface per target against its engine
+
+--enable-panda now also builds libpanda_plugin_interface-<target>.so for each libpanda-<target>.so:
+the same panda_plugin_interface.c, linked against that engine, so its DT_NEEDED names the engine
+and its RUNPATH is $ORIGIN. Its qemu_plugin_* and panda_* references then bind to its own engine
+when the engine is loaded RTLD_LOCAL. contrib/plugins' libpanda_plugin_interface.so has no
+DT_NEEDED and binds to whichever engine is in the global scope, so with two targets' engines in
+one process every plugin interface ran the first engine's code. The unlinked copy stays for
+engines loaded RTLD_GLOBAL (the qemu-system launcher).
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ meson.build | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/meson.build b/meson.build
+index 91a019901bd1753d778f4e67bda5efcd236b5a8c..9c77219b727a61279925c4cd52b85c574c348a98 100644
+--- a/meson.build
++++ b/meson.build
+@@ -4506,13 +4506,24 @@ foreach target : target_dirs
+ 
+     if get_option('panda') and target.endswith('-softmmu') and 'CONFIG_TCG' in config_target
+       # libpanda-<target>.so, e.g. libpanda-x86_64-softmmu.so: the name libpanda-ng and pandare look for
+-      shared_library('panda-' + target, exe['sources'],
++      libpanda = shared_library('panda-' + target, exe['sources'],
+                  install: true,
+                  c_args: c_args,
+                  dependencies: arch_deps + exe['dependencies'],
+                  objects: lib.extract_all_objects(recursive: true),
+                  link_depends: [block_syms, qemu_syms],
+                  link_args: link_args)
++      # libpanda_plugin_interface-<target>.so: the plugin interface with a DT_NEEDED on this
++      # engine, so its qemu_plugin_* and panda_* references bind to it even when the engine is
++      # loaded RTLD_LOCAL next to another target's engine. contrib/plugins' unlinked copy binds
++      # to whichever engine is in the global scope.
++      shared_module('panda_plugin_interface-' + target,
++                    files('contrib/plugins/panda_plugin_interface.c'),
++                    dependencies: plugins_deps,
++                    link_with: libpanda,
++                    install: true,
++                    install_dir: get_option('libdir'),
++                    install_rpath: '$ORIGIN')
+     endif
+ 
+     if target.endswith('-softmmu') and 'CONFIG_KVM' in config_target and target_name in ['x86_64', 'aarch64']

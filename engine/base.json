@@ -1,9 +1,9 @@
 {
-  "11.1.0": {
-    "tag": "11.1.0",
-    "url": "https://download.qemu.org/qemu-11.1.0.tar.xz",
-    "hash": "sha256-buHRph9oISR2snEIwm2l9EncCbYm1C+CeboNwuCPqFg=",
-    "sha256": "6ee1d1a61f68212476b27108c26da5f449dc09b626d42f8279ba0dc2e08fa858",
-    "patchedTree": "0a4cd08f9a7a79b0f57d7f6ad0c281d284f92d5e"
+  "11.1.2": {
+    "tag": "11.1.2",
+    "url": "https://download.qemu.org/qemu-11.1.2.tar.xz",
+    "hash": "sha256-cxtWgeS7GL4xMjFXm479ApbFsBX6NtxTOHS2ObqDgBY=",
+    "sha256": "731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016",
+    "patchedTree": "f94035e91b15e809c9ecf62fb94b25372eb1ecff"
   }
 }
