@@ -5,9 +5,10 @@ constructs one Panda in a child process of its own, since a process has one Pand
 
 Run: panda-python tests/construct.py [case...]      (default: every case)
 
-- legacy: every way tests/*.py constructs a Panda builds the same argv as before (the monitor's
-  arguments aside, which `monitor=` changed on purpose), except that extra_args= now go after the
-  image's rather than before (no test's arguments conflict with its image's);
+- legacy: every way tests/*.py constructs a Panda builds the same argv as before, except where it
+  changed on purpose: extra_args= now go after the image's rather than before (no test's
+  arguments conflict with its image's), and the serial console and the monitor are sockets QEMU
+  gets connected (-chardev socket,fd=N) instead of paths it listens on;
 - generic: the image is the base and keywords override it; another arch raises ValueError. It
   can be YAML (extra_args as a list here) or a dict, and its isf and kconf_file are kept;
 - accel: "tcg" by default, "kvm" checked at construction (host arch, /dev/kvm; the cases expect
@@ -68,7 +69,7 @@ kconf_file: x86.kernelinfo.conf
 """
 
 PRE = ["{lib}", "-plugin", "{iface}", "-L", "{bios}"]
-SERIAL = ["-serial", "unix:{serial},server,nowait"]
+SERIAL = ["-chardev", "socket,id=pandare2-serial,fd={fd}", "-serial", "chardev:pandare2-serial"]
 X86_IMG = ["{img}/x86.qcow2", "-display", "none", "-nic", "user,model=virtio-net-pci"]
 RR = ["-accel", "tcg,thread=single,rr-ready=on"]
 X86_RR_DISK = ["-blockdev", "driver=file,filename={img}/x86.qcow2,node-name=panda-disk-file",
@@ -238,6 +239,7 @@ CASES.update({
                        "after": ["p.cb_before_block_exec(name='c0')(lambda cpu, tb: None)",
                                  "p.cb_guest_hypercall(name='c1')(lambda cpu: False)"]},
                       [after(0, "ok"), after(1, "ok")]),
+    "serial": ({"generic": "{img}/x86.json"}, [("its fd is an open socket", lambda r: r.get("serial_fd_socket"))]),
     "monitor default": ({"generic": "{img}/x86.json"},
                         [("monitor args: QMP on a connected socket's fd", lambda r: r.get("monitor") == QMP),
                          attr("monitor", "qmp"), ("its fd is an open socket", lambda r: r.get("monitor_fd_socket"))]),
@@ -286,6 +288,7 @@ def normalize(p, img):
                 if old:
                     a = a.replace(old, new)
             a = re.sub(r"^unix:[^,]*,server,nowait$", "unix:{serial},server,nowait", a)
+            a = re.sub(r"^socket,id=pandare2-serial,fd=\d+$", "socket,id=pandare2-serial,fd={fd}", a)
             argv.append(a)
         i += 1
     return argv, monitor
@@ -333,6 +336,8 @@ def child(spec):
         res["monitor"] = [re.sub(r"fd=\d+", "fd={fd}", a) for a in res["monitor"]]
         fd = getattr(p, "_monitor_fd", None)
         res["monitor_fd_socket"] = fd is not None and stat.S_ISSOCK(os.fstat(fd).st_mode)
+        fd = getattr(p, "_serial_fd", None)
+        res["serial_fd_socket"] = fd is not None and stat.S_ISSOCK(os.fstat(fd).st_mode)
         res["attrs"] = {"arch": p.arch_name, "mem": p.mem, "os": p.os, "prompt": p.expect_prompt,
                         "qcow": p.qcow.replace(img, "{img}") if p.qcow else None,
                         "accel": p.accel, "monitor": p.monitor,

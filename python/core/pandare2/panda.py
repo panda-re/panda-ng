@@ -25,7 +25,6 @@ import readline
 from os.path import realpath, exists, abspath, isfile, dirname, isdir, join as pjoin
 from os import getenv, environ, path, access, R_OK, W_OK
 from random import randint
-from tempfile import NamedTemporaryFile
 from time import time
 from math import ceil
 from shlex import quote as shlex_quote, split as shlex_split
@@ -530,16 +529,17 @@ class Panda():
         self.panda_args.extend(['-m', self.mem])
 
         # Configure serial - if we have an expect_prompt set. Otherwise how can we know what guest cmds are outputting?
+        # The first serial port, on a socket pair like the monitor's below.
         if self.expect_prompt or (serial_kwargs is not None and serial_kwargs.get('expectation')):
-            self.serial_file = NamedTemporaryFile(prefix="pypanda_s").name
-            self.serial_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.serial_socket, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+            self._serial_fd = theirs.detach()       # QEMU's from panda_init on
             expect_kwargs = {'expectation': self.expect_prompt, 'consume_first': False, 'unansi': True}
             if serial_kwargs:
                 expect_kwargs.update(serial_kwargs)
             self.serial_console = Expect('serial', **expect_kwargs)
-            self.panda_args.extend(['-serial', 'unix:{},server,nowait'.format(self.serial_file)])
+            self.panda_args += ["-chardev", f"socket,id=pandare2-serial,fd={self._serial_fd}",
+                                "-serial", "chardev:pandare2-serial"]
         else:
-            self.serial_file = None
             self.serial_socket = None
             self.serial_console = None
 
@@ -677,8 +677,6 @@ class Panda():
         self.libpanda.panda_init(len_cargs, panda_args_ffi, cenvp)
         # Now we've run qemu init so we can connect to the sockets for the monitor and serial
         if self.serial_console and not self.serial_console.is_connected():
-            self.serial_socket.connect(self.serial_file)
-            self.serial_socket.settimeout(None)
             self.serial_console.connect(self.serial_socket)
         if self.monitor_console is not None and not self.monitor_console.is_connected():
             self.monitor_console.connect(self._monitor_socket)
