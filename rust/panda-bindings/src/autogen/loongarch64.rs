@@ -45838,10 +45838,17 @@ unsafe extern "C" {
         info: u32,
         vaddr: u64,
         is_store: bool,
+        is_io: *mut bool,
     ) -> u64;
 }
 unsafe extern "C" {
     pub fn panda_memcb_phys_before(is_store: bool) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_memcb_before_enabled(is_store: bool) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_bridge_io_rewinds(cpu: *mut CPUState) -> bool;
 }
 unsafe extern "C" {
     pub fn panda_block_start(cpu: *mut CPUState, tb: *mut TranslationBlock);
