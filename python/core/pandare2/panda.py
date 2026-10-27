@@ -544,16 +544,16 @@ class Panda():
             self.serial_console = None
 
         # The monitor: one end of a socket pair here, the other QEMU's (-chardev socket,fd=N, a
-        # client chardev on a connected socket). No path, so no limit on $TMPDIR's length.
+        # client chardev on a connected socket). No path, so no limit on $TMPDIR's length. QEMU
+        # 11.1 makes monitors with -object monitor-qmp/monitor-hmp (-mon is deprecated).
         self.monitor = monitor
         self.monitor_console = None
         self._monitor_socket = None
         if monitor is not None:
             self._monitor_socket, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
             self._monitor_fd = theirs.detach()      # QEMU's from panda_init on
-            mode = "control" if monitor == "qmp" else "readline"
             self.panda_args += ["-chardev", f"socket,id=pandare2-monitor,fd={self._monitor_fd}",
-                                "-mon", f"chardev=pandare2-monitor,mode={mode}"]
+                                "-object", f"monitor-{monitor},id=pandare2-{monitor},chardev=pandare2-monitor"]
             if monitor == "hmp":
                 # XXX don't forget to escape expectation regex parens!
                 self.monitor_console = Expect('monitor', expectation=rb"\(qemu\) ", consume_first=True)
