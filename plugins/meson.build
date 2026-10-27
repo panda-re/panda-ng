@@ -73,11 +73,22 @@ foreach plugin: plugin_list
             endif
             tgt = target.split('-')[0]
 
+            # DT_NEEDED on this target's engine (top-level meson.build), and a RUNPATH to it.
+            engine_link_args = []
+            if engine_libdir != '' and fs.exists(engine_libdir / 'libpanda-' + target + '.so')
+                engine_link_args = ['-L' + engine_libdir, '-l:libpanda-' + target + '.so',
+                                    '-Wl,-rpath,' + engine_libdir]
+            else
+                warning('no ' + engine_libdir / 'libpanda-' + target + '.so: plugins for ' + target +
+                        ' are not linked against the engine and load only next to an engine in the global scope')
+            endif
+
             # also has a meson file, but just for changes
             cargo_toml = join_paths(plugin, 'Cargo.toml')
             if fs.exists(cargo_toml)
                 # Rust plugins
-                rust_build_cmd = [bin_cargo, 'build', 
+                # cargo rustc: the link arguments reach the plugin's own link only.
+                rust_build_cmd = [bin_cargo, 'rustc', '--lib',
                             '--no-default-features',
                             '--features', tgt,
                             '--manifest-path', '@INPUT0@',
@@ -90,6 +101,12 @@ foreach plugin: plugin_list
                 else
                     rust_build_cmd += ['--release']
                     output_so = '@BUILD_ROOT@/plugins/rust/@0@/@1@/release/lib@0@.so'.format(plugin,tgt)
+                endif
+                if engine_link_args.length() > 0
+                    rust_build_cmd += ['--']
+                    foreach a : engine_link_args
+                        rust_build_cmd += ['-C', 'link-arg=' + a]
+                    endforeach
                 endif
 
                 tgt1 = custom_target('panda-@0@_@1@'.format(plugin, tgt),
@@ -146,7 +163,7 @@ foreach plugin: plugin_list
                         sources,
                         c_args: c_args + target_c_args + plugin_cflags,
                         cpp_args: c_args + target_c_args + cpp_args + plugin_cflags + ['-DPLUGIN_MAIN'],
-                        link_args: link_args + target_link_args,
+                        link_args: link_args + target_link_args + engine_link_args,
                         include_directories: includes,
                         dependencies: dependencies,
                         override_options: ['b_lundef=false', 'werror=false'])
@@ -164,7 +181,7 @@ foreach plugin: plugin_list
                         filtered_sources,
                         c_args: c_args + target_c_args + plugin_cflags,
                         cpp_args: c_args + target_c_args + cpp_args + plugin_cflags,
-                        link_args: link_args + target_link_args,
+                        link_args: link_args + target_link_args + engine_link_args,
                         include_directories: includes,
                         # Whole: nothing in the other sources need reference init_plugin.
                         link_whole: main_obj,

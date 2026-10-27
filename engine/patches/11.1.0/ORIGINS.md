@@ -21,7 +21,7 @@ The trailers are part of each commit message in an `import-series.sh` tree, so
 `export-series.sh` keeps them. Add both to a new patch, and update this table when the series
 changes (the export does not rewrite this file). "Uncertain" in a note marks a judgement call.
 
-Counts: new 44, penguin 24, panda-re/qemu 6, ac88u 2.
+Counts: new 45, penguin 24, panda-re/qemu 6, ac88u 2.
 
 | # | subject | origin | license | note |
 |---|---|---|---|---|
@@ -101,3 +101,4 @@ Counts: new 44, penguin 24, panda-re/qemu 6, ac88u 2.
 | 0074 | physmem: size a resizeable RAM block's maximum independently of the host page size | new | LGPL-2.1-or-later |  |
 | 0075 | block/qcow2: drop the active VM state before a savevm writes it | new | MIT |  |
 | 0076 | system/cpu-timers: a snapshot load resets the ticks' monotonic clamp | new | MIT |  |
+| 0077 | panda: link a plugin interface per target against its engine | new | GPL-2.0-or-later |  |

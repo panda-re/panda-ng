@@ -1,5 +1,7 @@
 option('plugin_debug_rust', type : 'boolean', value : false,
        description : 'Enable debug symbols for Rust plugins')
+option('engine_libdir', type : 'string', value : '',
+       description : 'Directory with libpanda-<target>.so to link the plugins against (default: the lib/ next to the panda-ng headers found)')
 option('targets', type : 'array',
        description : 'List of qemu targets to build plugins',
        value: [

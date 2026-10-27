@@ -240,9 +240,18 @@ class Panda():
 
         self.panda = self.libpanda_path # Necessary for realpath to work inside core-panda, may cause issues?
 
+        # The engine is loaded RTLD_LOCAL when its own plugin interface (linked against it) exists:
+        # then its plugins (linked against it too) bind to it, and another arch's engine can share
+        # the process. Otherwise (an engine built without it) RTLD_GLOBAL, alone in the process,
+        # with the unlinked interface, as before.
+        own_interface = pjoin(dirname(self.panda),
+                              f"libpanda_plugin_interface-{self.arch_name}-{self.target}.{self.dll_extension}")
+        self._engine_global = self.load_plugin_interface and not isfile(own_interface)
+
         self.ffi = self._do_types_import()
 
-        self.libpanda = self.ffi.dlopen(self.libpanda_path, self.ffi.RTLD_GLOBAL)
+        self.libpanda = self.ffi.dlopen(self.libpanda_path, self.ffi.RTLD_NOW |
+                                        (self.ffi.RTLD_GLOBAL if self._engine_global else self.ffi.RTLD_LOCAL))
         self.C = self.ffi.dlopen(None)
 
         # set OS name if we have one
@@ -277,7 +286,10 @@ class Panda():
 
         # Setup argv for panda
         self.panda_args = [self.panda]
-        if self.load_plugin_interface:
+        if self.load_plugin_interface and not self._engine_global:
+            self.plugin_interface = self.ffi.dlopen(own_interface, self.ffi.RTLD_NOW | self.ffi.RTLD_LOCAL)
+            self.panda_args.extend(["-plugin", own_interface])
+        elif self.load_plugin_interface:
             # A build tree has it under contrib/plugins; installs put it next to libpanda.
             interface_name = f"libpanda_plugin_interface.{self.dll_extension}"
             candidates = [realpath(pjoin(self.panda, f"../contrib/plugins/{interface_name}")),
@@ -955,9 +967,36 @@ class Panda():
         else:
             plugin_args = self.ffi.NULL
 
+        self._bind_plugin(name)
         charptr = self.ffi.new("char[]", bytes(name,"utf-8"))
         self.libpanda.panda_require_from_library(charptr, plugin_args, len(argstrs_ffi))
         self._load_plugin_library(name)
+
+    def _bind_plugin(self, name):
+        '''
+        Open the plugin before the engine does, to check that it binds to this engine. panda-ng's
+        plugins (and buildPandaPlugin's) are linked against their engine; one built without that
+        DT_NEEDED finds panda_* only in the global scope. For such a plugin the engine is put in
+        the global scope, as pandare2 used to load it.
+        '''
+        if self._engine_global or name in self.plugins:
+            return
+        path = pjoin(self.get_plugin_path(), f"libpanda-{name}_{self.arch_name}-{self.target}.{self.dll_extension}")
+        if not isfile(path):
+            return                          # the engine searches its own paths and reports it
+        flags = self.ffi.RTLD_NOW | self.ffi.RTLD_LOCAL
+        try:
+            self.plugins[name] = self.ffi.dlopen(path, flags)
+            return
+        except OSError as e:
+            if "undefined symbol" not in str(e):
+                return                      # left to the engine, which reports why
+            err = e
+        warn(f"plugin {name} is not linked against its engine ({err}); loading the "
+             f"{self.arch_name} engine RTLD_GLOBAL for it.")
+        self.ffi.dlopen(self.libpanda_path, self.ffi.RTLD_NOW | self.ffi.RTLD_NOLOAD | self.ffi.RTLD_GLOBAL)
+        self._engine_global = True
+        self.plugins[name] = self.ffi.dlopen(path, flags)
 
     def _procname_changed(self, cpu, name):
         for cb_name, cb in self.registered_callbacks.items():

@@ -93,6 +93,13 @@ library:
 A plugin built this way works with the engine it was built against. It also works with the
 wheel's engine while both come from the same engine source revision.
 
+`buildPandaPlugin` links the plugin against its target's engine (`-l:libpanda-<arch>-softmmu.so`),
+as panda-ng's own plugins are: pandare2 loads engines `RTLD_LOCAL`, so the plugin finds the
+engine's symbols through that dependency, and binds to its own engine when a process has
+`Panda`s of two architectures. A plugin built without it still loads, with a warning: pandare2
+then puts its engine in the global scope, and the process can't have a `Panda` of another
+architecture.
+
 To add a plugin to panda-ng itself, put it in `plugins/<name>/` with a `meson.build` (copy
 cskeleton's) and add its name to `plugins/config.panda`. A plugin that offers callbacks to
 others declares them in `<name>_int.h`; the build generates the `<name>_ext.h` that users
