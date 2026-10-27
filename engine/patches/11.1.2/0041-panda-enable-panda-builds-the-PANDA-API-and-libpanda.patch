@@ -1,0 +1,114 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 22 Oct 2026 10:11:20 -0400
+Subject: [PATCH] panda: --enable-panda builds the PANDA API and
+ libpanda-<target>
+
+Off by default and requires --enable-plugins. When on: panda/ is built into every softmmu
+target, each TCG softmmu target also links libpanda-<target>.so (e.g. libpanda-x86_64-softmmu.so,
+the name libpanda-ng and pandare load), and contrib/plugins builds panda_plugin_interface.
+CONFIG_PANDA reaches config-host.h for the hook sites (include/panda/hooks.h).
+
+From pandang 0001 and 0003. pandang's b_staticpic default is already in this series.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: panda-re/qemu
+---
+ contrib/plugins/meson.build   |  4 ++++
+ meson.build                   | 18 ++++++++++++++++++
+ meson_options.txt             |  2 ++
+ scripts/meson-buildoptions.sh |  3 +++
+ 4 files changed, 27 insertions(+)
+
+diff --git a/contrib/plugins/meson.build b/contrib/plugins/meson.build
+index e7fc4d6d8f59084c976a8317f4b222a8477e7d84..727ac7b94539b4ab8225655b1de7973a01516a63 100644
+--- a/contrib/plugins/meson.build
++++ b/contrib/plugins/meson.build
+@@ -24,6 +24,10 @@ if host_os == 'linux'
+   contrib_plugins += 'dlcall.c'
+ endif
+ 
++if get_option('panda')
++  contrib_plugins += 'panda_plugin_interface.c'
++endif
++
+ if 'cpp' in all_languages
+   contrib_plugins += 'cpp.cpp'
+ endif
+diff --git a/meson.build b/meson.build
+index f9ade4821e76c7768fa89ba0c074fbc61bd92c18..075686df3d320afa5f69a818ccb42214b323396f 100644
+--- a/meson.build
++++ b/meson.build
+@@ -2479,6 +2479,7 @@ if numa.found()
+ endif
+ config_host_data.set('CONFIG_OPENGL', opengl.found())
+ config_host_data.set('CONFIG_PLUGIN', get_option('plugins'))
++config_host_data.set('CONFIG_PANDA', get_option('panda'))
+ config_host_data.set('CONFIG_RBD', rbd.found())
+ config_host_data.set('CONFIG_RDMA', rdma.found())
+ config_host_data.set('CONFIG_RELOCATABLE', get_option('relocatable'))
+@@ -3760,6 +3761,12 @@ subdir('stats')
+ subdir('tcg')
+ subdir('fpu')
+ subdir('plugins')
++if get_option('panda')
++  if not get_option('plugins')
++    error('--enable-panda needs --enable-plugins')
++  endif
++  subdir('panda')
++endif
+ subdir('ebpf')
+ 
+ if have_system
+@@ -4478,6 +4485,17 @@ foreach target : target_dirs
+       endforeach
+     endif
+ 
++    if get_option('panda') and target.endswith('-softmmu') and 'CONFIG_TCG' in config_target
++      # libpanda-<target>.so, e.g. libpanda-x86_64-softmmu.so: the name libpanda-ng and pandare look for
++      shared_library('panda-' + target, exe['sources'],
++                 install: true,
++                 c_args: c_args,
++                 dependencies: arch_deps + exe['dependencies'],
++                 objects: lib.extract_all_objects(recursive: true),
++                 link_depends: [block_syms, qemu_syms],
++                 link_args: link_args)
++    endif
++
+     if target.endswith('-softmmu') and 'CONFIG_KVM' in config_target and target_name in ['x86_64', 'aarch64']
+       shared_library('qemu-kvm-' + target_name, exe['sources'],
+                  install: true,
+diff --git a/meson_options.txt b/meson_options.txt
+index a07cb47d35e9b83636182c1b38f2f8ad84facabb..428a68101df2162f6b953d635aa0f06d3b56718a 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -91,6 +91,8 @@ option('tcg', type: 'feature', value: 'enabled',
+        description: 'TCG support')
+ option('plugins', type: 'boolean', value: false,
+        description: 'TCG plugins via shared library loading')
++option('panda', type: 'boolean', value: false,
++       description: 'PANDA callback API and libpanda-<target> libraries (needs plugins)')
+ option('debug_tcg', type: 'boolean', value: false,
+        description: 'TCG debugging')
+ option('debug_remap', type: 'boolean', value: false,
+diff --git a/scripts/meson-buildoptions.sh b/scripts/meson-buildoptions.sh
+index c003985047c0386bc664fa288aac0aa38acef003..0700a0930aad2f3a8320330f8e91e2f64357be29 100644
+--- a/scripts/meson-buildoptions.sh
++++ b/scripts/meson-buildoptions.sh
+@@ -164,6 +164,7 @@ meson_options_help() {
+   printf "%s\n" '  pa              PulseAudio sound support'
+   printf "%s\n" '  parallels       parallels image format support'
+   printf "%s\n" '  passt           passt network backend support'
++  printf "%s\n" '  panda           PANDA callback API and libpanda-<target> libraries (needs plugins)'
+   printf "%s\n" '  pipewire        PipeWire sound support'
+   printf "%s\n" '  pixman          pixman support'
+   printf "%s\n" '  plugins         TCG plugins via shared library loading'
+@@ -430,6 +431,8 @@ _meson_option_parse() {
+     --disable-parallels) printf "%s" -Dparallels=disabled ;;
+     --enable-passt) printf "%s" -Dpasst=enabled ;;
+     --disable-passt) printf "%s" -Dpasst=disabled ;;
++    --enable-panda) printf "%s" -Dpanda=true ;;
++    --disable-panda) printf "%s" -Dpanda=false ;;
+     --enable-pipewire) printf "%s" -Dpipewire=enabled ;;
+     --disable-pipewire) printf "%s" -Dpipewire=disabled ;;
+     --enable-pixman) printf "%s" -Dpixman=enabled ;;

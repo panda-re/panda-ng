@@ -1,0 +1,213 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: igloo <nix@local>
+Date: Wed, 19 Aug 2026 23:02:41 -0400
+Subject: [PATCH] kvm: expose hypercall and port-I/O exits to Penguin
+
+Enables KVM_CAP_EXIT_HYPERCALL where the host supports it and routes
+KVM_EXIT_HYPERCALL and port-I/O exits to penguin_handle_guest_hypercall, so a
+KVM-accelerated guest reaches the same entry point as a TCG guest.
+
+Folds: 8f837df542, 644b68587a, 797f446cf8 (partial), c26a90a771 (partial),
+9cdbac967b (partial)
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: penguin
+---
+ accel/kvm/kvm-all.c   | 16 +++++---
+ target/arm/kvm.c      | 20 ++++++++++
+ target/i386/kvm/kvm.c | 88 ++++++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 117 insertions(+), 7 deletions(-)
+
+diff --git a/accel/kvm/kvm-all.c b/accel/kvm/kvm-all.c
+index 83cbd120a84784e3128812c22be952e7af2b5480..35bb0ba8d1acf7fb9cce8c193697a79b761bacc3 100644
+--- a/accel/kvm/kvm-all.c
++++ b/accel/kvm/kvm-all.c
+@@ -3509,12 +3509,16 @@ int kvm_cpu_exec(CPUState *cpu)
+         switch (run->exit_reason) {
+         case KVM_EXIT_IO:
+             /* Called outside BQL */
+-            kvm_handle_io(run->io.port, attrs,
+-                          (uint8_t *)run + run->io.data_offset,
+-                          run->io.direction,
+-                          run->io.size,
+-                          run->io.count);
+-            ret = 0;
++            if (run->io.port == 0x88 && run->io.direction == KVM_EXIT_IO_OUT) {
++                ret = kvm_arch_handle_exit(cpu, run);
++            } else {
++                kvm_handle_io(run->io.port, attrs,
++                              (uint8_t *)run + run->io.data_offset,
++                              run->io.direction,
++                              run->io.size,
++                              run->io.count);
++                ret = 0;
++            }
+             break;
+         case KVM_EXIT_MMIO:
+             /* Called outside BQL */
+diff --git a/target/arm/kvm.c b/target/arm/kvm.c
+index d40a6a9859142ef74937a3b8c1804387fec7e9e4..e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d 100644
+--- a/target/arm/kvm.c
++++ b/target/arm/kvm.c
+@@ -42,6 +42,7 @@
+ #include "hw/acpi/ghes.h"
+ #include "target/arm/gtimer.h"
+ #include "migration/blocker.h"
++#include "system/penguin.h"
+ 
+ const KVMCapabilityInfo kvm_arch_required_capabilities[] = {
+     KVM_CAP_INFO(DEVICE_CTRL),
+@@ -631,6 +632,15 @@ int kvm_arch_init(MachineState *ms, KVMState *s)
+         }
+     }
+ 
++    if (kvm_check_extension(s, KVM_CAP_EXIT_HYPERCALL)) {
++        ret = kvm_vm_enable_cap(s, KVM_CAP_EXIT_HYPERCALL, 0, 1);
++        if (ret < 0) {
++            warn_report("kvm: failed to enable KVM_CAP_EXIT_HYPERCALL: %s",
++                        strerror(-ret));
++            ret = 0;
++        }
++    }
++
+     if (s->kvm_eager_split_size) {
+         uint32_t sizes;
+ 
+@@ -1550,6 +1560,16 @@ int kvm_arch_handle_exit(CPUState *cs, struct kvm_run *run)
+     int ret = 0;
+ 
+     switch (run->exit_reason) {
++    case KVM_EXIT_HYPERCALL:
++        penguin_handle_guest_hypercall(cs, run->hypercall.nr,
++                                       run->hypercall.args[0],
++                                       run->hypercall.args[1],
++                                       run->hypercall.args[2],
++                                       run->hypercall.args[3],
++                                       run->hypercall.args[4],
++                                       run->hypercall.args[5],
++                                       &run->hypercall.ret);
++        break;
+     case KVM_EXIT_DEBUG:
+         if (kvm_arm_handle_debug(cpu, &run->debug.arch)) {
+             ret = EXCP_DEBUG;
+diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+index 644c45fb0a02a9991b90bcaefe637250417c9fb7..46025f3d504b3231a63a9b1cf0fdaee3106a3a1c 100644
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -31,6 +31,7 @@
+ #include "host-cpu.h"
+ #include "vmsr_energy.h"
+ #include "system/system.h"
++#include "system/penguin.h"
+ #include "system/hw_accel.h"
+ #include "system/accel-irq.h"
+ #include "system/kvm_int.h"
+@@ -3500,6 +3501,19 @@ int kvm_arch_init(MachineState *ms, KVMState *s)
+         return ret;
+     }
+ 
++    if (kvm_check_extension(s, KVM_CAP_EXIT_HYPERCALL)) {
++        ret = kvm_vm_enable_cap(s, KVM_CAP_EXIT_HYPERCALL, 0, 1);
++        if (ret < 0) {
++            warn_report("kvm: failed to enable KVM_CAP_EXIT_HYPERCALL "
++                        "(mask 1): %s", strerror(-ret));
++            ret = kvm_vm_enable_cap(s, KVM_CAP_EXIT_HYPERCALL, 0, 0);
++            if (ret < 0) {
++                warn_report("kvm: failed to enable KVM_CAP_EXIT_HYPERCALL "
++                            "(mask 0): %s", strerror(-ret));
++            }
++        }
++    }
++
+     uname(&utsname);
+     lm_capable_kernel = strcmp(utsname.machine, "x86_64") == 0;
+ 
+@@ -6521,8 +6535,22 @@ static int kvm_handle_hc_map_gpa_range(X86CPU *cpu, struct kvm_run *run)
+ 
+ static int kvm_handle_hypercall(X86CPU *cpu, struct kvm_run *run)
+ {
+-    if (run->hypercall.nr == KVM_HC_MAP_GPA_RANGE)
++    if (run->hypercall.nr == KVM_HC_MAP_GPA_RANGE) {
+         return kvm_handle_hc_map_gpa_range(cpu, run);
++    }
++
++    uint64_t ret_val = 0;
++    if (penguin_handle_guest_hypercall(CPU(cpu), run->hypercall.nr,
++                                       run->hypercall.args[0],
++                                       run->hypercall.args[1],
++                                       run->hypercall.args[2],
++                                       run->hypercall.args[3],
++                                       run->hypercall.args[4],
++                                       run->hypercall.args[5],
++                                       &ret_val)) {
++        run->hypercall.ret = ret_val;
++        return 0;
++    }
+ 
+     return -EINVAL;
+ }
+@@ -6538,6 +6566,64 @@ int kvm_arch_handle_exit(CPUState *cs, struct kvm_run *run)
+     KVMState *state;
+ 
+     switch (run->exit_reason) {
++    case KVM_EXIT_IO:
++        if (run->io.port == 0x88 &&
++            run->io.direction == KVM_EXIT_IO_OUT &&
++            run->io.size == 4) {
++            uint64_t nr = 0;
++
++            nr = *(uint32_t *)((uint8_t *)run + run->io.data_offset);
++
++            CPUX86State *env;
++            uint64_t ret_val = 0;
++
++            kvm_cpu_synchronize_state(cs);
++            env = &X86_CPU(cs)->env;
++#ifdef TARGET_X86_64
++            if (env->hflags & HF_CS64_MASK) {
++                if (penguin_handle_guest_hypercall(cs, nr,
++                                                   env->regs[R_EDI],
++                                                   env->regs[R_ESI],
++                                                   env->regs[R_EDX],
++                                                   env->regs[R_R10],
++                                                   env->regs[R_R8],
++                                                   env->regs[R_R9],
++                                                   &ret_val)) {
++                    env->regs[R_EAX] = ret_val;
++                    cs->vcpu_dirty = true;
++                }
++            } else {
++                if (penguin_handle_guest_hypercall(cs, nr,
++                                                   env->regs[R_EBX],
++                                                   env->regs[R_ECX],
++                                                   env->regs[R_EDX],
++                                                   env->regs[R_ESI],
++                                                   env->regs[R_EDI],
++                                                   env->regs[R_EBP],
++                                                   &ret_val)) {
++                    env->regs[R_EAX] = (uint32_t)ret_val;
++                    cs->vcpu_dirty = true;
++                }
++            }
++#else
++            if (penguin_handle_guest_hypercall(cs, nr,
++                                               env->regs[R_EBX],
++                                               env->regs[R_ECX],
++                                               env->regs[R_EDX],
++                                               env->regs[R_ESI],
++                                               env->regs[R_EDI],
++                                               env->regs[R_EBP],
++                                               &ret_val)) {
++                env->regs[R_EAX] = (uint32_t)ret_val;
++                cs->vcpu_dirty = true;
++            }
++#endif
++
++            ret = 0;
++        } else {
++            ret = -1;
++        }
++        break;
+     case KVM_EXIT_HLT:
+         DPRINTF("handle_hlt\n");
+         bql_lock();

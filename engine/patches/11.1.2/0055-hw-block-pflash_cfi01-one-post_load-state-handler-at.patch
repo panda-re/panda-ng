@@ -1,0 +1,56 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 23 Oct 2026 10:40:00 -0400
+Subject: [PATCH] hw/block/pflash_cfi01: one post_load state handler at a time
+
+pflash_post_load() registers postload_update_cb() as a VM change state
+handler and keeps it in pfl->vmstate; the callback deletes pfl->vmstate when
+it runs. Nothing stops a second load from running before the VM does, and
+then two handlers are registered while pfl->vmstate names only the second.
+On the next "cont", vm_state_notify() runs the first handler, which deletes
+the second one: the list walk (QTAILQ_FOREACH_SAFE protects only the current
+entry) then calls the freed entry, which deletes pfl->vmstate again.
+
+Reproducer: a machine with a writable CFI01 flash (arm virt with
+-bios or -drive if=pflash), a snapshot "a", and in the monitor:
+
+    (qemu) stop
+    (qemu) loadvm a
+    (qemu) loadvm a
+    (qemu) cont
+
+The second loadvm leaks the first handler and the cont walks freed memory.
+On aarch64 virt (-bios edk2-aarch64-code.fd, a Debian 13 guest) QEMU dies
+with SIGBUS at the cont; with this patch the guest runs on. (Tested on
+QEMU 11.1 with PANDA's series; the code is the same upstream.) A restore of device state from memory after a
+loadvm (as an in-memory snapshot does) hits the same path.
+
+Drop an outstanding handler before registering the next. On the usual path
+pfl->vmstate is NULL here and nothing changes.
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
+---
+ hw/block/pflash_cfi01.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/hw/block/pflash_cfi01.c b/hw/block/pflash_cfi01.c
+index a13b91967ed8f8f39e0f7a2405525577e2e7ecac..dc9d712bbc7af1608b1576139efcf27ed4af903d 100644
+--- a/hw/block/pflash_cfi01.c
++++ b/hw/block/pflash_cfi01.c
+@@ -1041,6 +1041,15 @@ static int pflash_post_load(void *opaque, int version_id)
+     }
+ 
+     if (!pfl->ro) {
++        /*
++         * One handler at a time. A second load before the VM runs (a loadvm then an
++         * in-memory device-state restore) used to register a second handler: the first
++         * one to run deletes pfl->vmstate, the other one, while vm_state_notify walks
++         * the list, and the walk then calls freed memory.
++         */
++        if (pfl->vmstate) {
++            qemu_del_vm_change_state_handler(pfl->vmstate);
++        }
+         pfl->vmstate = qemu_add_vm_change_state_handler(postload_update_cb,
+                                                         pfl);
+     }
