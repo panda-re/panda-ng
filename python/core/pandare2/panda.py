@@ -73,6 +73,76 @@ def _wrapper_maker(nargs, kind):
     return _WRAPPER_MAKERS[key]
 
 
+class EngineInUseError(RuntimeError):
+    '''
+    Raised when a `Panda` would need an engine this process can't give it: a second `Panda` of an
+    arch that already has one (even one whose run() has ended), a second arch next to an engine
+    that is in the global symbol scope, or a run() while another `Panda` in the process is running.
+    Run each such instance in a process of its own.
+    '''
+
+
+# The engines this process has loaded: arch -> {"panda": the Panda that owns it, "global": loaded
+# RTLD_GLOBAL}. An engine (libpanda-<arch>-softmmu.so) initializes QEMU once per process and is
+# never unloaded, so it backs one Panda for the life of the process. Engines of different arches
+# are separate libraries; they can live side by side when each is loaded RTLD_LOCAL with a plugin
+# interface linked against it (libpanda_plugin_interface-<arch>-softmmu.so), so nothing of one
+# binds to the other.
+_engines = {}
+_engines_lock = threading.Lock()
+_running_panda = None   # the Panda whose run() is in progress
+_ONE_PER_PROCESS = ("Run each instance in its own process (subprocess, or multiprocessing with the "
+                    "'spawn' start method).")
+
+
+def _engine_check(arch, isolated):
+    '''Raise EngineInUseError unless a new Panda of this arch can have an engine of its own.'''
+    with _engines_lock:
+        if arch in _engines:
+            raise EngineInUseError(
+                f"this process already has a Panda for {arch}. Its engine "
+                f"(libpanda-{arch}-softmmu.so) initializes QEMU once per process and can't be "
+                f"reset, so a second Panda of the same arch, even after the first one's run() has "
+                f"ended, would crash or hang. " + _ONE_PER_PROCESS)
+        others = sorted(_engines)
+        if others and (not isolated or any(e["global"] for e in _engines.values())):
+            why = (f"the {arch} engine has no libpanda_plugin_interface-{arch}-softmmu.so to load it "
+                   f"RTLD_LOCAL" if not isolated else
+                   f"the {', '.join(a for a in others if _engines[a]['global'])} engine is in the "
+                   f"global symbol scope")
+            raise EngineInUseError(
+                f"this process already has a Panda for {', '.join(others)}, and {why}: the plugins "
+                f"of one engine would bind to the other's code. " + _ONE_PER_PROCESS)
+
+
+def _run_claim(panda):
+    '''Engines in one process share GLib's default main context: two main loops at once dispatch
+    each other's sources and abort. One Panda runs at a time.'''
+    global _running_panda
+    with _engines_lock:
+        if _running_panda is not None and _running_panda is not panda:
+            raise EngineInUseError(
+                f"the {_running_panda.arch_name} Panda in this process is running. Engines in one "
+                f"process share GLib's main context, so they can run one after the other but not "
+                f"at the same time. " + _ONE_PER_PROCESS)
+        _running_panda = panda
+
+
+def _run_release(panda):
+    global _running_panda
+    with _engines_lock:
+        if _running_panda is panda:
+            _running_panda = None
+
+
+def _engine_register(panda, is_global):
+    with _engines_lock:
+        if panda.arch_name in _engines:
+            raise EngineInUseError(f"another Panda for {panda.arch_name} was created at the same time. "
+                                   + _ONE_PER_PROCESS)
+        _engines[panda.arch_name] = {"panda": panda, "global": is_global}
+
+
 class Panda():
     '''
     This is the object used to interact with PANDA. Initializing it creates a virtual machine to interact with.
@@ -97,7 +167,10 @@ class Panda():
             modules=None, # panda modules (external board/device .so files) to load: -module PATH each
             ):
         '''
-        Construct a new `Panda` object.  Note that multiple Panda objects cannot coexist in the same Python instance.
+        Construct a new `Panda` object. A process has at most one `Panda` per arch, for its whole
+        life: a second one of the same arch, even after the first one's run() has ended, raises
+        `EngineInUseError` (run each instance in its own process). `Panda`s of different arches
+        can share a process and run one after the other, not at the same time.
         Args:
             arch: architecture string (e.g. "i386", "x86_64", "arm", "mips", "mipsel")
             generic: path to an image json written by `pandare2.mkimage`: sets the arch, OS, memory, disk, prompt and extra arguments from it.
@@ -247,6 +320,7 @@ class Panda():
         own_interface = pjoin(dirname(self.panda),
                               f"libpanda_plugin_interface-{self.arch_name}-{self.target}.{self.dll_extension}")
         self._engine_global = self.load_plugin_interface and not isfile(own_interface)
+        _engine_check(self.arch_name, not self._engine_global)
 
         self.ffi = self._do_types_import()
 
@@ -413,6 +487,7 @@ class Panda():
         # main_loop_wait functions and callbacks
         self.main_loop_wait_fnargs = [] # [(fn, args), ...]
         self._osi_linux_loaded = False
+        _engine_register(self, self._engine_global)
         progress ("Panda args: [" + (" ".join(self.panda_args)) + "]")
     # /__init__
 
@@ -691,8 +766,19 @@ class Panda():
 
         Returns:
             None: When emulation has finished due to guest termination, replay conclusion or a call to `Panda.end_analysis`
-        '''
 
+        Raises:
+            EngineInUseError: another `Panda` in this process is running. Engines in one process
+                share GLib's main context, so only one runs at a time (one after the other works,
+                from any thread).
+        '''
+        _run_claim(self)
+        try:
+            self._run()
+        finally:
+            _run_release(self)
+
+    def _run(self):
         if len(self.main_loop_wait_fnargs):
             if debug:
                 print("Clearing prior main_loop_wait fns:", self.main_loop_wait_fnargs)
@@ -858,14 +944,19 @@ class Panda():
         if debug:
             progress ("Replaying %s" % replaypfx)
 
-        if not self._initialized_panda:  # the request needs the main loop's context
-            self.initializing.set()
-            self._initialize_panda()
-            self.initializing.clear()
-        charptr = self.ffi.new("char[]",bytes(replaypfx,"utf-8"))
-        result = self.libpanda.panda_replay_begin(charptr)
-        if result != 0:
-            raise Exception(f"replay of {replaypfx} failed with RRCTRL_ret {result}")
+        _run_claim(self)    # run() releases it
+        try:
+            if not self._initialized_panda:  # the request needs the main loop's context
+                self.initializing.set()
+                self._initialize_panda()
+                self.initializing.clear()
+            charptr = self.ffi.new("char[]",bytes(replaypfx,"utf-8"))
+            result = self.libpanda.panda_replay_begin(charptr)
+            if result != 0:
+                raise Exception(f"replay of {replaypfx} failed with RRCTRL_ret {result}")
+        except BaseException:
+            _run_release(self)
+            raise
         self._in_replay = True
         # The replay writes the guest's serial output to the socket again; nothing reads it, and a
         # full socket would block the replaying vCPU. Keep it drained (bytes in replay_serial).
@@ -977,7 +1068,7 @@ class Panda():
         Open the plugin before the engine does, to check that it binds to this engine. panda-ng's
         plugins (and buildPandaPlugin's) are linked against their engine; one built without that
         DT_NEEDED finds panda_* only in the global scope. For such a plugin the engine is put in
-        the global scope, as pandare2 used to load it.
+        the global scope, as pandare2 used to load it, if it is the only engine in this process.
         '''
         if self._engine_global or name in self.plugins:
             return
@@ -992,10 +1083,22 @@ class Panda():
             if "undefined symbol" not in str(e):
                 return                      # left to the engine, which reports why
             err = e
-        warn(f"plugin {name} is not linked against its engine ({err}); loading the "
-             f"{self.arch_name} engine RTLD_GLOBAL for it.")
-        self.ffi.dlopen(self.libpanda_path, self.ffi.RTLD_NOW | self.ffi.RTLD_NOLOAD | self.ffi.RTLD_GLOBAL)
-        self._engine_global = True
+        with _engines_lock:
+            others = sorted(a for a in _engines if a != self.arch_name)
+            if others:
+                raise EngineInUseError(
+                    f"plugin {name} ({path}) is not linked against its engine "
+                    f"(libpanda-{self.arch_name}-{self.target}.{self.dll_extension}), so it can only "
+                    f"use an engine in the global symbol scope, and this process also has a Panda "
+                    f"for {', '.join(others)}: {err}. Relink the plugin with "
+                    f"-l:libpanda-{self.arch_name}-{self.target}.{self.dll_extension} (the flake's "
+                    f"buildPandaPlugin does), or " + _ONE_PER_PROCESS[0].lower() + _ONE_PER_PROCESS[1:])
+            warn(f"plugin {name} is not linked against its engine; loading the {self.arch_name} "
+                 f"engine RTLD_GLOBAL for it. This process can then have no Panda of another arch.")
+            self.ffi.dlopen(self.libpanda_path, self.ffi.RTLD_NOW | self.ffi.RTLD_NOLOAD | self.ffi.RTLD_GLOBAL)
+            self._engine_global = True
+            if self.arch_name in _engines:
+                _engines[self.arch_name]["global"] = True
         self.plugins[name] = self.ffi.dlopen(path, flags)
 
     def _procname_changed(self, cpu, name):

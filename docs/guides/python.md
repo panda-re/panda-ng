@@ -6,9 +6,16 @@ and registers, and callbacks. The [Python API reference](../reference/python.md)
 
 ## The Panda object
 
-A `Panda` object owns one engine instance, and a process can have only one. Programs that need
-several runs, such as a recording and its replays, start a child process for each
-(`tests/rr.py` does).
+A `Panda` object owns one engine instance. An engine initializes QEMU once per process and can't
+be reset, so a process has at most one `Panda` per architecture, for its whole life: a second
+one of the same architecture, even after the first one's `run()` has ended, raises
+`pandare2.EngineInUseError`. Programs that need several runs, such as a recording and its
+replays, start a child process for each (`tests/rr.py` does).
+
+`Panda`s of different architectures can share a process, and run one after the other from any
+thread, but not at the same time: the engines share GLib's main context, so a `run()` while
+another `Panda` in the process runs raises `EngineInUseError` too. `tests/multi.py` shows each
+case. Run instances in parallel in separate processes.
 
 Most programs start from an image built by `pandare2.mkimage` ([Getting started](getting-started.md)):
 

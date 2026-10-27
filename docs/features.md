@@ -91,16 +91,20 @@ headers (examples/consumer shows it).
 <a id="multi-engine"></a>
 ## Several Pandas in one process
 
-`Panda`s of different architectures can share a process and run one after the other, from any
-thread: each engine is loaded RTLD_LOCAL with a plugin interface and plugins linked against it,
-so nothing of one binds to the other.
+A process has one `Panda` per architecture: a second one of an architecture it already has, even
+after the first one's run() has ended, raises `EngineInUseError` instead of crashing. `Panda`s of
+different architectures share a process and run one after the other, from any thread: each
+engine is loaded RTLD_LOCAL with a plugin interface and plugins linked against it, so nothing of
+one binds to the other.
 
-**Limits.** One `Panda` per architecture per process, and not at the same time: the engines share GLib's main
-context. A plugin built without a DT_NEEDED on its engine puts that engine in the global scope.
+**Limits.** Not at the same time: the engines share GLib's main context, so a run() while another `Panda`
+runs raises `EngineInUseError`. Several instances of one architecture, or instances in parallel,
+need a process each. A plugin built without a DT_NEEDED on its engine puts that engine in the
+global scope, and the process then can't have a `Panda` of another architecture.
 
-**Use it:** `Panda.load_plugin`, `buildPandaPlugin`
+**Use it:** `EngineInUseError`, `Panda.run`, `buildPandaPlugin`
 
-**Docs:** [docs/guides/plugins.md#writing-a-c-plugin](guides/plugins.md#writing-a-c-plugin)
+**Docs:** [docs/guides/python.md#the-panda-object](guides/python.md#the-panda-object), [docs/guides/plugins.md#writing-a-c-plugin](guides/plugins.md#writing-a-c-plugin)
 
 **Tests:** `tests/multi.py`
 
