@@ -417,21 +417,6 @@ class Panda():
 
         self.panda = self.libpanda_path # Necessary for realpath to work inside core-panda, may cause issues?
 
-        # The engine is loaded RTLD_LOCAL when its own plugin interface (linked against it) exists:
-        # then its plugins (linked against it too) bind to it, and another arch's engine can share
-        # the process. Otherwise (an engine built without it) RTLD_GLOBAL, alone in the process,
-        # with the unlinked interface, as before.
-        own_interface = pjoin(dirname(self.panda),
-                              f"libpanda_plugin_interface-{self.arch_name}-{self.target}.{self.dll_extension}")
-        self._engine_global = not isfile(own_interface)
-        _engine_check(self.arch_name, not self._engine_global)
-
-        self.ffi = self._do_types_import()
-
-        self.libpanda = self.ffi.dlopen(self.libpanda_path, self.ffi.RTLD_NOW |
-                                        (self.ffi.RTLD_GLOBAL if self._engine_global else self.ffi.RTLD_LOCAL))
-        self.C = self.ffi.dlopen(None)
-
         # plugin_path=, then $PANDA_PLUGIN_DIR, then the wheel's plugins, then the flake's.
         if plugin_path is not None:
             if not isdir(plugin_path):
@@ -453,17 +438,6 @@ class Panda():
             logger.warning(f"PANDA_PLUGIN_DIR={self.plugin_path} overrides the plugins bundled with this "
                  f"engine ({pjoin(_WHEEL_DATA, 'plugins')}); they must be built for the same engine")
 
-        # Setup argv for panda
-        self.panda_args = [self.panda]
-        if not self._engine_global:
-            self.plugin_interface = self.ffi.dlopen(own_interface, self.ffi.RTLD_NOW | self.ffi.RTLD_LOCAL)
-            self.panda_args.extend(["-plugin", own_interface])
-        else:
-            # Next to libpanda (lib/ in the wheel and the flake).
-            plugin_interface = pjoin(dirname(self.panda), f"libpanda_plugin_interface.{self.dll_extension}")
-            self.plugin_interface = self.ffi.dlopen(plugin_interface, self.ffi.RTLD_GLOBAL)
-            self.panda_args.extend(["-plugin", plugin_interface])
-
         # The firmware (QEMU's -L): biospath=, else the wheel's, else <prefix>/share/qemu next to
         # the engine's <prefix>/lib (the flake's engine).
         if biospath is not None:
@@ -477,6 +451,33 @@ class Panda():
                 raise FileNotFoundError(f"no firmware directory (QEMU's -L) for {self.panda}: looked in "
                                         f"{', '.join(candidates)}; pass biospath=")
         self.biospath = biospath
+
+        # The engine is loaded RTLD_LOCAL when its own plugin interface (linked against it) exists:
+        # then its plugins (linked against it too) bind to it, and another arch's engine can share
+        # the process. Otherwise (an engine built without it) RTLD_GLOBAL, alone in the process,
+        # with the unlinked interface, as before.
+        own_interface = pjoin(dirname(self.panda),
+                              f"libpanda_plugin_interface-{self.arch_name}-{self.target}.{self.dll_extension}")
+        self._engine_global = not isfile(own_interface)
+        _engine_check(self.arch_name, not self._engine_global)
+
+        self.ffi = self._do_types_import()
+
+        self.libpanda = self.ffi.dlopen(self.libpanda_path, self.ffi.RTLD_NOW |
+                                        (self.ffi.RTLD_GLOBAL if self._engine_global else self.ffi.RTLD_LOCAL))
+        self.C = self.ffi.dlopen(None)
+
+        # Setup argv for panda
+        self.panda_args = [self.panda]
+        if not self._engine_global:
+            self.plugin_interface = self.ffi.dlopen(own_interface, self.ffi.RTLD_NOW | self.ffi.RTLD_LOCAL)
+            self.panda_args.extend(["-plugin", own_interface])
+        else:
+            # Next to libpanda (lib/ in the wheel and the flake).
+            plugin_interface = pjoin(dirname(self.panda), f"libpanda_plugin_interface.{self.dll_extension}")
+            self.plugin_interface = self.ffi.dlopen(plugin_interface, self.ffi.RTLD_GLOBAL)
+            self.panda_args.extend(["-plugin", plugin_interface])
+
         self.panda_args.append("-L")
         self.panda_args.append(biospath)
 
