@@ -39,7 +39,10 @@ from .qcows_internal import Qcows
 from .callbacks import unavailable, tcg_only, ABORTS, PASSTHROUGH
 from .arch import ArmArch, Aarch64Arch, Loongarch64, MipsArch, Mips64Arch, X86Arch, X86_64Arch, PowerPCArch, PowerPC64Arch, Riscv32Arch, Riscv64Arch
 from dataclasses import dataclass
+import logging
 import warnings
+
+logger = logging.getLogger("pandare2")
 
 
 _WRAPPER_MAKERS = {}
@@ -372,9 +375,8 @@ class Panda():
 
         self.serial_unconsumed_data = b''
 
-        if self.qcow: # Otherwise we shuld be able to do a replay with no qcow but this is probably broken
-            if not (exists(self.qcow)):
-                print("Missing qcow '{}' Please go create that qcow and give it to the PANDA maintainers".format(self.qcow))
+        if self.qcow and not exists(self.qcow):
+            logger.warning(f"the disk {self.qcow} doesn't exist: QEMU will fail to start")
 
         # panda.arch is a subclass with architecture-specific functions
 
@@ -429,10 +431,6 @@ class Panda():
                                         (self.ffi.RTLD_GLOBAL if self._engine_global else self.ffi.RTLD_LOCAL))
         self.C = self.ffi.dlopen(None)
 
-        # set OS name if we have one
-        if self.os:
-            self.set_os_name(self.os)
-        
         # plugin_path=, then $PANDA_PLUGIN_DIR, then the wheel's plugins, then the flake's.
         if plugin_path is not None:
             if not isdir(plugin_path):
@@ -440,20 +438,18 @@ class Panda():
         else:
             env_dir = environ.get("PANDA_PLUGIN_DIR")
             if env_dir and not isdir(env_dir):
-                warn(f"PANDA_PLUGIN_DIR={env_dir} is not a directory; ignoring it")
+                logger.warning(f"PANDA_PLUGIN_DIR={env_dir} is not a directory; ignoring it")
                 env_dir = None
             plugin_path = next((d for d in (env_dir, pjoin(_WHEEL_DATA, "plugins"), _PLUGIN_DIR)
                                 if d and isdir(d)), None)
         self.plugin_path = plugin_path
-        if plugin_path is not None:
-            self._set_extra_plugin_path(plugin_path)
 
         # The wheel's engine with plugins from elsewhere (a stale $PANDA_PLUGIN_DIR from a .deb or
         # an old panda): they were built against other headers and may not fail cleanly.
         if (environ.get("PANDA_PLUGIN_DIR") and self.plugin_path == environ["PANDA_PLUGIN_DIR"]
                 and realpath(self.libpanda_path).startswith(realpath(_WHEEL_DATA) + "/")
                 and realpath(self.plugin_path) != realpath(pjoin(_WHEEL_DATA, "plugins"))):
-            warn(f"PANDA_PLUGIN_DIR={self.plugin_path} overrides the plugins bundled with this "
+            logger.warning(f"PANDA_PLUGIN_DIR={self.plugin_path} overrides the plugins bundled with this "
                  f"engine ({pjoin(_WHEEL_DATA, 'plugins')}); they must be built for the same engine")
 
         # Setup argv for panda
@@ -496,7 +492,7 @@ class Panda():
                                 "-blockdev", "driver=blkreplay,image=panda-disk-qcow2,node-name=panda-disk"]
         elif self.qcow:
             if rr:
-                warn(f"rr: no blkreplay disk for {self.arch_name}; a replay may diverge on disk I/O")
+                logger.warning(f"rr: no blkreplay disk for {self.arch_name}; a replay may diverge on disk I/O")
             if self.arch_name in ['mips64', 'mips64el', 'riscv64']:
                 # XXX: mips64 (and riscv64's virt, which has no IDE) need virtio for the qcow
                 self.panda_args.extend(["-drive", f"file={self.qcow},if=virtio"])
@@ -565,7 +561,7 @@ class Panda():
         self.running = threading.Event()
         self.started = threading.Event()
         self.initializing = threading.Event()
-        self.athread = AsyncThread(self.started) # athread manages actions that need to occur outside qemu's CPU loop
+        self.athread = AsyncThread(self.started) # athread manages actions that need to occur outside qemu's CPU loop (its threads start in run())
 
         # Callbacks
         self.register_cb_decorators()
@@ -593,7 +589,8 @@ class Panda():
         self.main_loop_wait_fnargs = [] # [(fn, args), ...]
         self._osi_linux_loaded = False
         _engine_register(self, self._engine_global)
-        progress ("Panda args: [" + (" ".join(self.panda_args)) + "]")
+        self._engine_prepared = False   # _prepare_engine
+        logger.info("Panda args: %s", " ".join(map(shlex_quote, self.panda_args)))
     # /__init__
 
     def _needs_tcg(self, what):
@@ -601,6 +598,20 @@ class Panda():
         if self.accel != "tcg":
             raise NotImplementedError(f"{what} needs TCG, and this Panda runs under "
                                       f"{self.accel.upper()} (accel={self.accel!r})")
+
+    def _prepare_engine(self):
+        '''
+        Tell the engine the guest's OS (os_version) and the plugin directory, once, before the
+        first plugin loads or the engine starts: not in the constructor, which has no side effects
+        (the engine prints both).
+        '''
+        if self._engine_prepared:
+            return
+        self._engine_prepared = True
+        if self.os:
+            self.set_os_name(self.os)
+        if self.plugin_path is not None:
+            self._set_extra_plugin_path(self.plugin_path)
 
     def _find_engine(self, libpanda_path):
         '''
@@ -669,7 +680,7 @@ class Panda():
         After initializing the class, the user has a chance to do something
         (TODO: what? register callbacks? It's something important...) before we finish initializing
         '''
-        # self.libpanda._panda_set_library_mode(True)
+        self._prepare_engine()
 
         cenvp = self.ffi.new("char**", self.ffi.new("char[]", b""))
         len_cargs = self.ffi.cast("int", len(self.panda_args))
@@ -909,6 +920,7 @@ class Panda():
 
 
 
+        self.athread.start()
         if not self.started.is_set():
             self.started.set()
 
@@ -1185,6 +1197,7 @@ class Panda():
         else:
             plugin_args = self.ffi.NULL
 
+        self._prepare_engine()
         self._bind_plugin(name)
         charptr = self.ffi.new("char[]", bytes(name,"utf-8"))
         self.libpanda.panda_require_from_library(charptr, plugin_args, len(argstrs_ffi))
@@ -1902,7 +1915,7 @@ class Panda():
             Returns:
                 None
         """
-        print ("os_name=[%s]" % os_name)
+        logger.debug("os_name=[%s]", os_name)
         os_name_new = self.ffi.new("char[]", bytes(os_name, "utf-8"))
         self.libpanda.panda_set_os_name(os_name_new)
 

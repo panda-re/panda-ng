@@ -19,9 +19,13 @@ Run: panda-python tests/construct.py [case...]      (default: every case)
 - monitor: QMP by default, HMP or none, as -chardev socket,fd=N on a socket QEMU gets connected
   (no path); raw_monitor=True is monitor=None, with a DeprecationWarning;
 - paths: libpanda_path=, plugin_path=, biospath= and $PANDA_LIB that don't exist raise, $PANDA_LIB
-  may name the engine's directory, and constructing a Panda doesn't change os.environ.
+  may name the engine's directory, and constructing a Panda doesn't change os.environ;
+- quiet: constructing a Panda prints nothing (Python or C, stdout or stderr) and starts no
+  thread; what it has to say goes to the pandare2 logger.
 """
+import ctypes
 import json
+import logging
 import os
 import platform
 import re
@@ -30,6 +34,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import warnings
 
 # Images like the ones pandare2.mkimage writes (tests/README.md), for three arches whose disks
@@ -259,6 +264,17 @@ CASES.update({
     "PANDA_LIB missing": ({"arch": "x86_64", "env": {"PANDA_LIB": "{img}/none.so"}},
                           [error("FileNotFoundError", "PANDA_LIB")]),
     "environ": ({"generic": "{img}/x86.json"}, [("os.environ unchanged", lambda r: r.get("environ") == [])]),
+    "quiet": ({"generic": "{img}/x86.json", "extra_args": ["-icount", "shift=6"]},
+              [("prints nothing", lambda r: "error" not in r and r.get("printed") == ""),
+               ("starts no thread", lambda r: r.get("threads") == 0),
+               ("logs the argv (info)", lambda r: any(l[0] == "INFO" and "-icount shift=6" in l[1] for l in r.get("logs", []))),
+               ("logs no warning", lambda r: not any(l[0] == "WARNING" for l in r.get("logs", [])))]),
+    "quiet aarch64": ({"arch": "aarch64", "os_version": "linux-64-generic", "rr": True},
+                      [("prints nothing", lambda r: "error" not in r and r.get("printed") == ""),
+                       ("starts no thread", lambda r: r.get("threads") == 0)]),
+    "missing disk": ({"generic": "{img}/x86.json", "qcow": "{img}/none.qcow2"},
+                     [("logs a warning", lambda r: any(l[0] == "WARNING" and "none.qcow2" in l[1] for l in r.get("logs", []))),
+                      ("prints nothing", lambda r: r.get("printed") == "")]),
     "rr kvm": ({"generic": "{img}/x86.json", "rr": True, "accel": "kvm"}, [error("ValueError", "rr=True", "TCG")]),
     "rr legacy kvm": ({"generic": "{img}/x86.json", "rr": True, "extra_args": ["-accel", "kvm"]},
                       [error("ValueError", "rr=True")]),
@@ -315,16 +331,39 @@ def child(spec):
         kwargs[k] = v
     res = {}
     environ = dict(os.environ)
+    # What the constructor logs, prints (from Python or C, to fd 1 or 2) and starts.
+    logs = []
+    handler = logging.Handler()
+    handler.emit = lambda rec: logs.append([rec.levelname, rec.getMessage()])
+    logging.getLogger("pandare2").addHandler(handler)
+    logging.getLogger("pandare2").setLevel(logging.DEBUG)
+    threads = threading.active_count()
+    out = tempfile.TemporaryFile()
+    saved = [os.dup(1), os.dup(2)]
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os.dup2(out.fileno(), 1)
+    os.dup2(out.fileno(), 2)
     try:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             p = Panda(**kwargs)
+        res["threads"] = threading.active_count() - threads
         res["environ"] = sorted(k for k in set(environ) | set(os.environ) if environ.get(k) != os.environ.get(k))
         res["libpanda_path"] = p.libpanda_path
         res["warnings"] = [[x.category.__name__, str(x.message)] for x in w]
     except Exception as e:  # noqa: BLE001 - the case says which it wants
         res["error"] = [type(e).__name__, str(e)]
-    else:
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        ctypes.CDLL(None).fflush(None)      # C's stdio buffers
+        os.dup2(saved[0], 1)
+        os.dup2(saved[1], 2)
+        out.seek(0)
+        res["printed"] = out.read().decode(errors="replace")
+        res["logs"] = logs
+    if "error" not in res:
         res["after"] = []
         for call in spec["kwargs"].get("after", []):
             try:
@@ -371,7 +410,8 @@ def main():
     for ext in ("yaml", "yml"):
         with open(os.path.join(img, f"x86.{ext}"), "w") as f:
             f.write(X86_YAML)
-    open(os.path.join(img, "x86.txt"), "w").close()
+    for f in ["x86.txt"] + [i["qcow"] for i in IMAGES.values()]:
+        open(os.path.join(img, f), "w").close()
     only = sys.argv[1:]
     failed = False
 
