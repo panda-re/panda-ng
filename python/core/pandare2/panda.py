@@ -35,7 +35,7 @@ from .utils import progress, warn, make_iso, debug, blocking, GArrayIterator, pl
 from .panda_expect import Expect
 from .asyncthread import AsyncThread
 from .qcows_internal import Qcows
-from .callbacks import unavailable, ABORTS, PASSTHROUGH
+from .callbacks import unavailable, tcg_only, ABORTS, PASSTHROUGH
 from .arch import ArmArch, Aarch64Arch, Loongarch64, MipsArch, Mips64Arch, X86Arch, X86_64Arch, PowerPCArch, PowerPC64Arch, Riscv32Arch, Riscv64Arch
 from dataclasses import dataclass
 import warnings
@@ -578,6 +578,12 @@ class Panda():
         progress ("Panda args: [" + (" ".join(self.panda_args)) + "]")
     # /__init__
 
+    def _needs_tcg(self, what):
+        '''Raise NotImplementedError if this Panda runs under KVM: `what` needs TCG.'''
+        if self.accel != "tcg":
+            raise NotImplementedError(f"{what} needs TCG, and this Panda runs under "
+                                      f"{self.accel.upper()} (accel={self.accel!r})")
+
     def get_plugin_path(self):
         if self.plugin_path is None:
             env_dir = environ.get('PANDA_PLUGIN_DIR', None)
@@ -958,7 +964,9 @@ class Panda():
 
         Raises:
             Exception: raises exception if there was an error starting recording.
+            NotImplementedError: under accel="kvm" (record and replay need TCG).
         """
+        self._needs_tcg("record")
         if snapshot_name == None:
             snapshot_name_ffi = self.ffi.NULL
         else:
@@ -1023,6 +1031,7 @@ class Panda():
         Returns:
             None
         '''
+        self._needs_tcg("run_replay")
         if not isfile(replaypfx+"-rr-nondet.log"):
             raise ValueError("Replay files not present to run replay of {}".format(replaypfx))
 
@@ -2345,7 +2354,9 @@ class Panda():
         The decorator registers the function and returns it unchanged.
 
         A callback panda-ng doesn't call (`pandare2.callbacks`: no call site, or aborts at
-        registration) has a cb_XYZ that raises NotImplementedError, saying why.
+        registration) has a cb_XYZ that raises NotImplementedError, saying why. So does one that
+        only TCG calls (all but main_loop_wait, after_machine_init and after_loadvm,
+        `pandare2.callbacks.KVM`) on a Panda with accel="kvm".
         '''
         def missing(closed_cb_name, why):
             def f(*args, **kwargs):
@@ -2377,6 +2388,9 @@ class Panda():
         if procname is specified, callback will only be enabled when that asid is running (requires OSI support)
         '''
 
+        cb_name = self.callback_dictionary[pandatype].name
+        if tcg_only(cb_name):
+            self._needs_tcg(f"callback {cb_name}")
         if procname:
             enabled = False # Process won't be running at time 0 (probably)
             self._register_internal_asid_changed_cb()
@@ -2506,6 +2520,8 @@ class Panda():
         cb = self.callback_dictionary[callback]
         if cb.name in ABORTS:
             raise NotImplementedError(f"callback {cb.name}: {unavailable(cb.name)}")
+        if tcg_only(cb.name):
+            self._needs_tcg(f"callback {cb.name}")
 
         # Generate a unique handle for each callback type using the number of previously registered CBs of that type added to a constant
         self.plugin_register_count += 1
@@ -2727,6 +2743,8 @@ class Panda():
         the function will be called with args (CPUState, TranslationBlock)
         '''
 
+        self._needs_tcg(f"hook (a {cb_type} callback)")
+
         def decorator(fun):
             result = None
             if cb_type in ("after_block_translate", "before_block_exec", "start_block_exec", "end_block_exec"):
@@ -2773,6 +2791,13 @@ class Panda():
 
     # HYPERCALLS
     def hypercall(self, magic):
+        '''
+        Decorate a function to run when the guest makes the PANDA hypercall `magic` (an int or a
+        list of them): fun(cpu). Through the hypercaller plugin's guest_hypercall callback, so
+        TCG only: under accel="kvm" it raises NotImplementedError.
+        '''
+        self._needs_tcg("hypercall (hypercaller's guest_hypercall callback)")
+
         def decorator(fun):
             hook_cb_passed = self.ffi.callback("hypercall_t", self._catching(fun, 1))
             if type(magic) is int:
@@ -2802,6 +2827,8 @@ class Panda():
             raise ValueError(f"{fn!r} is not a function @panda.hypercall returned")
     
     def hypersyscall(self, name, on_enter=False, on_return=False, on_all=False, on_unknown=False, arg_filter=None, proc_filter=None):
+        self._needs_tcg("hypersyscall (hypersyscalls' hypercalls go through guest_hypercall)")
+
         def decorator(fun):
             if on_all:
                 target = fun

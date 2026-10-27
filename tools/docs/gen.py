@@ -90,10 +90,10 @@ def callbacks():
 
 
 def test_sets():
-    """The literal sets/dicts at the top level of pandare2.callbacks (ABORTS, NO_CALL_SITE) and
+    """The literal sets/dicts at the top level of pandare2.callbacks (ABORTS, NO_CALL_SITE, KVM) and
     tests/callbacks.py (COVERED_ELSEWHERE, EXERCISED_ONLY_ON), without running them."""
     out = {}
-    for f, want in (("python/core/pandare2/callbacks.py", {"ABORTS", "NO_CALL_SITE"}),
+    for f, want in (("python/core/pandare2/callbacks.py", {"ABORTS", "NO_CALL_SITE", "KVM"}),
                     ("tests/callbacks.py", {"COVERED_ELSEWHERE", "EXERCISED_ONLY_ON"})):
         for node in ast.parse((ROOT / f).read_text()).body:
             if isinstance(node, ast.Assign) and len(node.targets) == 1 and getattr(node.targets[0], "id", None) in want:
@@ -272,7 +272,8 @@ def patches_page(ps, claimed):
 def callbacks_page(cbs, sets):
     aborts, none = sets.get("ABORTS", set()), sets.get("NO_CALL_SITE", {})
     only = sets.get("EXERCISED_ONLY_ON", {})
-    for n in list(aborts) + list(none) + list(sets.get("COVERED_ELSEWHERE", set())):
+    kvm = sets.get("KVM", set())
+    for n in list(aborts) + list(none) + list(kvm) + list(sets.get("COVERED_ELSEWHERE", set())):
         if n not in cbs:
             err(f"pandare2.callbacks or tests/callbacks.py names {n}, which is not a callback in cb-defs.h")
     served = [n for n in cbs if n not in aborts and n not in none]
@@ -285,8 +286,11 @@ def callbacks_page(cbs, sets):
          "of a callback that doesn't fire raises NotImplementedError, saying why.\n\n"
          "The status comes from `pandare2.callbacks` (`python/core/pandare2/callbacks.py`); "
          "`tests/callbacks.py` registers every callback on each test image and fails if one listed "
-         "as missing starts firing, so this table stays true.\n\n",
-         "| callback | status | when it runs |\n|---|---|---|\n"]
+         "as missing starts firing, so this table stays true.\n\n"
+         f"Under KVM (`Panda(accel=\"kvm\")`) only {', '.join(f'`{n}`' for n in sorted(kvm))} fire: the "
+         "others are called from TCG as it translates or runs guest code, and their decorators "
+         "raise NotImplementedError on a KVM Panda (`pandare2.callbacks.KVM`).\n\n",
+         "| callback | status | under KVM | when it runs |\n|---|---|---|---|\n"]
     for n, (sig, desc) in cbs.items():
         if n in aborts:
             st = "aborts at registration"
@@ -296,7 +300,8 @@ def callbacks_page(cbs, sets):
             st = "fires" + (f" ({', '.join(sorted(only[n]))} only)" if n in only else "")
         first = re.split(r"(?<=\.)\s", desc, maxsplit=1)[0] if desc else ""
         first = first.replace("|", "\\|")
-        o.append(f"| `{n}` | {st} | {first} |\n")
+        under = "fires" if n in kvm else ("raises" if n in served else "")
+        o.append(f"| `{n}` | {st} | {under} | {first} |\n")
     o.append("\n## Signatures\n\n")
     for n, (sig, desc) in cbs.items():
         if sig:

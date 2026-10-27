@@ -6,60 +6,62 @@
 
 The status comes from `pandare2.callbacks` (`python/core/pandare2/callbacks.py`); `tests/callbacks.py` registers every callback on each test image and fails if one listed as missing starts firing, so this table stays true.
 
-| callback | status | when it runs |
-|---|---|---|
-| `before_block_translate` | fires | Called before translation of each basic block. |
-| `after_block_translate` | fires | Called after the translation of each basic block. |
-| `block_translate` | fires | Called while the translation block is being translated |
-| `before_block_exec_invalidate_opt` | fires | Called before execution of every basic block, with the option to invalidate the TB. |
-| `before_tcg_codegen` | no call site | Called before host code generation for every basic block. |
-| `before_block_exec` | fires | Called before execution of every basic block: once per block that starts, from the block's own code at its first instruction, so TB chaining need not be off. |
-| `after_block_exec` | fires | Called after execution of every basic block: exactly once for each before_block_exec, once the block has stopped, before anything else happens on that vCPU (the next block's start, the return to the CPU loop, an exception's delivery). |
-| `insn_translate` | fires | Called before the translation of each instruction. |
-| `insn_exec` | fires | Called before execution of any instruction identified by the PANDA_CB_INSN_TRANSLATE callback. |
-| `after_insn_translate` | no call site | Called after the translation of each instruction. |
-| `after_insn_exec` | no call site (after_insn_translate, which selects its instructions, has none) | Called after execution of an instruction identified by the PANDA_CB_AFTER_INSN_TRANSLATE callback |
-| `virt_mem_before_read` | fires | Called before memory is read. |
-| `virt_mem_before_write` | fires | Called before memory is written. |
-| `phys_mem_before_read` | fires | Called before memory is read. |
-| `phys_mem_before_write` | fires | Called before memory is written. |
-| `virt_mem_after_read` | fires | Called after memory is read. |
-| `virt_mem_after_write` | fires | Called after memory is written. |
-| `phys_mem_after_read` | fires | Called after memory is read. |
-| `phys_mem_after_write` | fires | Called after memory is written. |
-| `mmio_after_read` | no call site (commented out in the TCG plugin bridge) | Called after MMIO memory is read. |
-| `mmio_before_write` | no call site | Called before MMIO memory is written to. |
-| `hd_read` | no call site | called when there is a hard drive read |
-| `hd_write` | no call site | called when there is a hard drive write |
-| `guest_hypercall` | fires | Called when a program inside the guest makes a hypercall to pass information from inside the guest to a plugin |
-| `monitor` | no call site | Called when someone uses the plugin_cmd monitor command. |
-| `qmp` | no call site | Called when someone sends an unhandled QMP command |
-| `cpu_restore_state` | no call site | Called inside of cpu_restore_state(), when there is a CPU fault/exception. |
-| `before_loadvm` | aborts at registration | Called at start of replay, before loadvm is called. |
-| `asid_changed` | fires | Called when the process identifier (panda_current_asid) is about to change: a guest write to the register it comes from (x86 CR3, arm TTBRs, riscv satp, mips EntryHi) changes it. |
-| `replay_hd_transfer` | aborts at registration | In replay only. |
-| `replay_net_transfer` | aborts at registration | In replay only, some kind of data transfer within the network card (currently, only the E1000 is supported). |
-| `replay_serial_receive` | aborts at registration | In replay only, called when a byte is received on the serial port. |
-| `replay_serial_read` | aborts at registration | In replay only, called when a byte read from the serial RX FIFO |
-| `replay_serial_send` | aborts at registration | In replay only, called when a byte is sent on the serial port. |
-| `replay_serial_write` | aborts at registration | In replay only, called when a byte written to the serial TX FIFO |
-| `replay_before_dma` | aborts at registration | In replay only. |
-| `replay_after_dma` | aborts at registration | In replay only, we are about to dma between qemu buffer and guest memory |
-| `replay_handle_packet` | aborts at registration | In replay only, we have a packet (incoming / outgoing) in hand. |
-| `after_cpu_exec_enter` | no call site (commented out in wrap_ops.c) | Called after cpu_exec calls cpu_exec_enter function. |
-| `before_cpu_exec_exit` | no call site (commented out in wrap_ops.c) | Called before cpu_exec calls cpu_exec_exit function. |
-| `after_machine_init` | fires | Called right after the machine has been initialized, but before any guest code runs. |
-| `after_loadvm` | fires | Called right after a snapshot has been loaded (either with loadvm or replay initialization), but before any guest code runs. |
-| `top_loop` | no call site | Called at the top of the loop that manages emulation. |
-| `during_machine_init` | no call site | Called in the middle of machine initialization |
-| `main_loop_wait` | fires | Called in IO thread in place where monitor cmds are processed |
-| `pre_shutdown` | no call site | Called just before qemu shuts down |
-| `unassigned_io_read` | no call site | Called when the guest attempts to read from an unmapped peripheral via MMIO |
-| `unassigned_io_write` | no call site | Called when the guest attempts to write to an unmapped peripheral via MMIO |
-| `before_handle_exception` | fires | Called just before we are about to handle an exception. |
-| `before_handle_interrupt` | no call site (the cpu_exec_interrupt wrapper is commented out in wrap_ops.c) | Called just before we are about to handle an interrupt. |
-| `start_block_exec` | fires | This is like before_block_exec except its part of the TCG stream. |
-| `end_block_exec` | fires | This is like after_block_exec except its part of the TCG stream. |
+Under KVM (`Panda(accel="kvm")`) only `after_loadvm`, `after_machine_init`, `main_loop_wait` fire: the others are called from TCG as it translates or runs guest code, and their decorators raise NotImplementedError on a KVM Panda (`pandare2.callbacks.KVM`).
+
+| callback | status | under KVM | when it runs |
+|---|---|---|---|
+| `before_block_translate` | fires | raises | Called before translation of each basic block. |
+| `after_block_translate` | fires | raises | Called after the translation of each basic block. |
+| `block_translate` | fires | raises | Called while the translation block is being translated |
+| `before_block_exec_invalidate_opt` | fires | raises | Called before execution of every basic block, with the option to invalidate the TB. |
+| `before_tcg_codegen` | no call site |  | Called before host code generation for every basic block. |
+| `before_block_exec` | fires | raises | Called before execution of every basic block: once per block that starts, from the block's own code at its first instruction, so TB chaining need not be off. |
+| `after_block_exec` | fires | raises | Called after execution of every basic block: exactly once for each before_block_exec, once the block has stopped, before anything else happens on that vCPU (the next block's start, the return to the CPU loop, an exception's delivery). |
+| `insn_translate` | fires | raises | Called before the translation of each instruction. |
+| `insn_exec` | fires | raises | Called before execution of any instruction identified by the PANDA_CB_INSN_TRANSLATE callback. |
+| `after_insn_translate` | no call site |  | Called after the translation of each instruction. |
+| `after_insn_exec` | no call site (after_insn_translate, which selects its instructions, has none) |  | Called after execution of an instruction identified by the PANDA_CB_AFTER_INSN_TRANSLATE callback |
+| `virt_mem_before_read` | fires | raises | Called before memory is read. |
+| `virt_mem_before_write` | fires | raises | Called before memory is written. |
+| `phys_mem_before_read` | fires | raises | Called before memory is read. |
+| `phys_mem_before_write` | fires | raises | Called before memory is written. |
+| `virt_mem_after_read` | fires | raises | Called after memory is read. |
+| `virt_mem_after_write` | fires | raises | Called after memory is written. |
+| `phys_mem_after_read` | fires | raises | Called after memory is read. |
+| `phys_mem_after_write` | fires | raises | Called after memory is written. |
+| `mmio_after_read` | no call site (commented out in the TCG plugin bridge) |  | Called after MMIO memory is read. |
+| `mmio_before_write` | no call site |  | Called before MMIO memory is written to. |
+| `hd_read` | no call site |  | called when there is a hard drive read |
+| `hd_write` | no call site |  | called when there is a hard drive write |
+| `guest_hypercall` | fires | raises | Called when a program inside the guest makes a hypercall to pass information from inside the guest to a plugin |
+| `monitor` | no call site |  | Called when someone uses the plugin_cmd monitor command. |
+| `qmp` | no call site |  | Called when someone sends an unhandled QMP command |
+| `cpu_restore_state` | no call site |  | Called inside of cpu_restore_state(), when there is a CPU fault/exception. |
+| `before_loadvm` | aborts at registration |  | Called at start of replay, before loadvm is called. |
+| `asid_changed` | fires | raises | Called when the process identifier (panda_current_asid) is about to change: a guest write to the register it comes from (x86 CR3, arm TTBRs, riscv satp, mips EntryHi) changes it. |
+| `replay_hd_transfer` | aborts at registration |  | In replay only. |
+| `replay_net_transfer` | aborts at registration |  | In replay only, some kind of data transfer within the network card (currently, only the E1000 is supported). |
+| `replay_serial_receive` | aborts at registration |  | In replay only, called when a byte is received on the serial port. |
+| `replay_serial_read` | aborts at registration |  | In replay only, called when a byte read from the serial RX FIFO |
+| `replay_serial_send` | aborts at registration |  | In replay only, called when a byte is sent on the serial port. |
+| `replay_serial_write` | aborts at registration |  | In replay only, called when a byte written to the serial TX FIFO |
+| `replay_before_dma` | aborts at registration |  | In replay only. |
+| `replay_after_dma` | aborts at registration |  | In replay only, we are about to dma between qemu buffer and guest memory |
+| `replay_handle_packet` | aborts at registration |  | In replay only, we have a packet (incoming / outgoing) in hand. |
+| `after_cpu_exec_enter` | no call site (commented out in wrap_ops.c) |  | Called after cpu_exec calls cpu_exec_enter function. |
+| `before_cpu_exec_exit` | no call site (commented out in wrap_ops.c) |  | Called before cpu_exec calls cpu_exec_exit function. |
+| `after_machine_init` | fires | fires | Called right after the machine has been initialized, but before any guest code runs. |
+| `after_loadvm` | fires | fires | Called right after a snapshot has been loaded (either with loadvm or replay initialization), but before any guest code runs. |
+| `top_loop` | no call site |  | Called at the top of the loop that manages emulation. |
+| `during_machine_init` | no call site |  | Called in the middle of machine initialization |
+| `main_loop_wait` | fires | fires | Called in IO thread in place where monitor cmds are processed |
+| `pre_shutdown` | no call site |  | Called just before qemu shuts down |
+| `unassigned_io_read` | no call site |  | Called when the guest attempts to read from an unmapped peripheral via MMIO |
+| `unassigned_io_write` | no call site |  | Called when the guest attempts to write to an unmapped peripheral via MMIO |
+| `before_handle_exception` | fires | raises | Called just before we are about to handle an exception. |
+| `before_handle_interrupt` | no call site (the cpu_exec_interrupt wrapper is commented out in wrap_ops.c) |  | Called just before we are about to handle an interrupt. |
+| `start_block_exec` | fires | raises | This is like before_block_exec except its part of the TCG stream. |
+| `end_block_exec` | fires | raises | This is like after_block_exec except its part of the TCG stream. |
 
 ## Signatures
 

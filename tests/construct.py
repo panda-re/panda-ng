@@ -12,7 +12,9 @@ Run: panda-python tests/construct.py [case...]      (default: every case)
   can be YAML (extra_args as a list here) or a dict, and its isf and kconf_file are kept;
 - accel: "tcg" by default, "kvm" checked at construction (host arch, /dev/kvm; the cases expect
   what this host can do), conflicts with -accel in extra_args and with rr=True raise, and the old
-  extra_args=["-accel", "kvm"] maps to accel="kvm" with a DeprecationWarning.
+  extra_args=["-accel", "kvm"] maps to accel="kvm" with a DeprecationWarning; under KVM the
+  TCG-only callbacks, hook and record raise NotImplementedError at the call, and the callbacks
+  KVM calls register.
 """
 import json
 import os
@@ -175,6 +177,14 @@ def no_warning():
     return ("no warning", lambda r: "error" not in r and not r.get("warnings"))
 
 
+def after(i, kind, *words):
+    """A check on the i-th of the case's "after" calls: "ok", or the exception it raised."""
+    def ok(r):
+        a = r.get("after", [])
+        return i < len(a) and a[i][0] == kind and all(w in a[i][1] for w in words)
+    return (f"after[{i}] " + ("returns" if kind == "ok" else f"raises {kind} ({', '.join(words)})"), ok)
+
+
 def kvm_or_error(*checks):
     """The checks if this host can run KVM for an x86_64 image, else the ValueError."""
     if HOST == "x86_64" and KVM_OK:
@@ -202,6 +212,25 @@ CASES.update({
                          [error("ValueError", "accel='tcg'", "-accel")]),
     "accel and -enable-kvm": ({"generic": "{img}/x86.json", "accel": "kvm", "extra_args": ["-enable-kvm"]},
                               [error("ValueError", "-enable-kvm")]),
+    "kvm callbacks": ({"generic": "{img}/x86.json", "accel": "kvm",
+                       "after": ["p.cb_before_block_exec(name='c0')(lambda cpu, tb: None)",
+                                 "p.cb_asid_changed(name='c1')(lambda cpu, old, new: 0)",
+                                 "p.cb_guest_hypercall(name='c2')(lambda cpu: False)",
+                                 "p.hook(0x1000)(lambda cpu, tb, h: None)",
+                                 "p.record('rec')",
+                                 "p.cb_main_loop_wait(name='c5')(lambda: None)",
+                                 "p.cb_after_loadvm(name='c6')(lambda cpu: None)",
+                                 "p.cb_after_machine_init(name='c7')(lambda cpu: None)",
+                                 "p.hypercall(0x1234)"]},
+                      kvm_or_error(*[after(i, "NotImplementedError", what, "KVM")
+                                     for i, what in enumerate(["before_block_exec", "asid_changed",
+                                                               "guest_hypercall", "hook", "record"])],
+                                   after(5, "ok"), after(6, "ok"), after(7, "ok"),
+                                   after(8, "NotImplementedError", "hypercall", "KVM"))),
+    "tcg callbacks": ({"generic": "{img}/x86.json",
+                       "after": ["p.cb_before_block_exec(name='c0')(lambda cpu, tb: None)",
+                                 "p.cb_guest_hypercall(name='c1')(lambda cpu: False)"]},
+                      [after(0, "ok"), after(1, "ok")]),
     "rr kvm": ({"generic": "{img}/x86.json", "rr": True, "accel": "kvm"}, [error("ValueError", "rr=True", "TCG")]),
     "rr legacy kvm": ({"generic": "{img}/x86.json", "rr": True, "extra_args": ["-accel", "kvm"]},
                       [error("ValueError", "rr=True")]),
@@ -241,6 +270,8 @@ def child(spec):
     img = spec["img"]
     kwargs = {}
     for k, v in spec["kwargs"].items():
+        if k == "after":
+            continue
         if k == "machine":
             m = MachineBuilder(v["arch"])
             for name, args in v["calls"]:
@@ -260,6 +291,13 @@ def child(spec):
     except Exception as e:  # noqa: BLE001 - the case says which it wants
         res["error"] = [type(e).__name__, str(e)]
     else:
+        res["after"] = []
+        for call in spec["kwargs"].get("after", []):
+            try:
+                eval(call, {"p": p})    # noqa: S307 - the cases' own calls
+                res["after"].append(["ok", ""])
+            except Exception as e:  # noqa: BLE001
+                res["after"].append([type(e).__name__, str(e)])
         res["argv"], res["monitor"] = normalize(p, img)
         res["attrs"] = {"arch": p.arch_name, "mem": p.mem, "os": p.os, "prompt": p.expect_prompt,
                         "qcow": p.qcow.replace(img, "{img}") if p.qcow else None,

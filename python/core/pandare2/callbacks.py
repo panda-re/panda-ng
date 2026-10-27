@@ -30,6 +30,15 @@ NO_CALL_SITE = {
     "before_handle_interrupt": "the cpu_exec_interrupt wrapper is commented out in wrap_ops.c",
 }
 
+# The callbacks that fire under KVM (Panda(accel="kvm")): the ones the main loop and snapshots
+# call. Every other callback that fires is called from TCG, while it translates or runs guest
+# code: the block, instruction and memory callbacks, asid_changed (from the TCG helpers that write
+# CR3/TTBR/satp/EntryHi), before_handle_exception (TCG's cpu loop) and guest_hypercall (the TCG
+# hypercall helpers and the PC's port 0x88, which KVM's exit handler serves itself: patches 0009,
+# 0023 and 0045 hand a KVM hypercall to penguin's consumers only). Under KVM, registering one of
+# those raises NotImplementedError.
+KVM = {"main_loop_wait", "after_machine_init", "after_loadvm"}
+
 # Callbacks that return the index they were given to leave it alone: after a Python exception
 # their wrapper returns that, not 0 (0 is a different exception, which QEMU may abort on).
 PASSTHROUGH = {"before_handle_exception", "before_handle_interrupt"}
@@ -43,3 +52,8 @@ def unavailable(name):
         why = NO_CALL_SITE[name]
         return "panda-ng never calls it" + ("" if why == "no call site" else f" ({why})")
     return None
+
+
+def tcg_only(name):
+    """Whether callback `name` fires only under TCG (see KVM)."""
+    return name not in KVM
