@@ -12,11 +12,11 @@ The scripts in the repository's tests/ directory are working examples: each docs
 the script checks and how to run it.
 """
 
-from .panda import Panda, blocking
+from .panda import Panda, EngineInUseError, blocking
 from .machine import MachineBuilder
 from .pyplugin import PyPlugin
 
-__all__ = ['Panda', 'Callbacks', 'PyPlugin', 'MachineBuilder']
+__all__ = ['Panda', 'EngineInUseError', 'Callbacks', 'PyPlugin', 'MachineBuilder']
 
 class Callbacks:
     '''

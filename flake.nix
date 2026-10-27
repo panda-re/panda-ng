@@ -965,8 +965,8 @@
             touch $out
           '';
           # More than one Panda in a process (tests/multi.py, firmware only): run() from a thread
-          # lets the process exit; two arches run one after the other with their plugins bound to
-          # their own engines.
+          # lets the process exit; a second Panda of an arch raises EngineInUseError; two arches run
+          # one after the other with their plugins bound to their own engines.
           pandare2-multi = pkgs.runCommand "pandare2-multi-check" { } ''
             ${p.pandaPython}/bin/python3 ${./tests/multi.py} > log 2>&1 || { cat log; exit 1; }
             cat log
