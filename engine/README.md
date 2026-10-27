@@ -47,22 +47,22 @@ paths that differ only in case, and git's `core.ignorecase` changes the tree has
 
 ```sh
 cd engine
-url=$(jq -r '.[].url' base.json); curl -LO "$url"       # qemu-11.1.0.tar.xz
-./scripts/import-series.sh 11.1.0 qemu-11.1.0.tar.xz /tmp/qemu-dev
+url=$(jq -r '.[].url' base.json); curl -LO "$url"       # qemu-11.1.2.tar.xz
+./scripts/import-series.sh 11.1.2 qemu-11.1.2.tar.xz /tmp/qemu-dev
 ```
 
-`/tmp/qemu-dev` is a git tree: the pristine tarball (tagged `base-11.1.0`), one commit per patch,
+`/tmp/qemu-dev` is a git tree: the pristine tarball (tagged `base-11.1.2`), one commit per patch,
 and a last commit `VENDORED: src/` with the overlay. Build it like the flake does
 (`nix develop .#engine`, then `../configure --enable-plugins --enable-panda --target-list=... &&
 ninja`), or point a test at it.
 
-**Changing the series.** Commit on top of the dev tree (or `git rebase -i base-11.1.0` to amend a
+**Changing the series.** Commit on top of the dev tree (or `git rebase -i base-11.1.2` to amend a
 patch in place; keep each patch topical, not chronological). Then:
 
 ```sh
 git commit ...                                         # in panda-ng first: export rewrites patches/
-./scripts/export-series.sh 11.1.0 /tmp/qemu-dev        # every commit above base-11.1.0 except VENDORED
-./scripts/verify-series.sh 11.1.0 qemu-11.1.0.tar.xz --record   # re-records base.json patchedTree
+./scripts/export-series.sh 11.1.2 /tmp/qemu-dev        # every commit above base-11.1.2 except VENDORED
+./scripts/verify-series.sh 11.1.2 qemu-11.1.2.tar.xz --record   # re-records base.json patchedTree
 ```
 
 Export rules (from the qemu_builder workflow):
@@ -100,37 +100,49 @@ Export rules (from the qemu_builder workflow):
 | panda-ng's `tests/*.py` on real guests | guest, api, blocks, rr, fastrestore, ... on debian-13 x86_64, aarch64, riscv64 and ubuntu-24.04 x86_64, aarch64 | by hand in the VM |
 | `tests/modules/run.sh`, `configurable.sh`; `nix build .#board-example` | panda modules, the SDK, the configurable machine | by hand in the VM |
 
-## Rebasing onto a new QEMU release (next: 11.1.2)
+## Rebasing onto a new QEMU release
 
-One live version at a time: `base.json` has one entry and `patches/` one directory.
+One live version at a time: `base.json` has one entry and `patches/` one directory. The steps
+below take the series from `<old>` to `<new>` (the last rebase was 11.1.0 to 11.1.2).
 
-1. Preview: `./scripts/probe-versions.sh 11.1.0 <full qemu.git clone> v11.1.2` (a full clone has
+1. Preview: `./scripts/probe-versions.sh <old> <full qemu.git clone> v<new>` (a full clone has
    the pre-image blobs, so drift and conflict are told apart).
 2. Dev tree on the old base, then move it:
    ```sh
-   ./scripts/import-series.sh 11.1.0 qemu-11.1.0.tar.xz /tmp/rebase
+   ./scripts/import-series.sh <old> qemu-<old>.tar.xz /tmp/rebase
    cd /tmp/rebase && git branch series
-   git checkout -q --orphan up && git rm -rqf . && tar xf qemu-11.1.2.tar.xz --strip-components=1
-   git add -A && git commit -qm "pristine qemu-11.1.2" && git tag base-11.1.2
-   git checkout -q series && git rebase --onto base-11.1.2 base-11.1.0   # resolve conflicts per patch
+   git checkout -q --orphan up && git rm -rqf . && tar xf qemu-<new>.tar.xz --strip-components=1
+   git add -A && git commit -qm "pristine qemu-<new>" && git tag base-<new>
+   git checkout -q series && git rebase --onto base-<new> base-<old>   # resolve conflicts per patch
    ```
-   Set `core.ignorecase=false` in that repo if you are not on Linux.
-3. Build and test the dev tree (configure as in `mkEngine`), fix the overlay in `engine/src/` for
-   upstream API changes.
-4. In panda-ng: replace base.json's entry with `"11.1.2": {tag, url, hash (SRI, `nix hash
-   convert`/`nix-prefetch-url`), sha256}` (no patchedTree yet), `git mv patches/11.1.0
-   patches/11.1.2`, commit, then `./scripts/export-series.sh 11.1.2 /tmp/rebase` and
-   `./scripts/verify-series.sh 11.1.2 qemu-11.1.2.tar.xz --record`. Commit.
-5. `nix build .#python`, the guest tests on the three debian-13 images, the off-cost gate.
+   Set `core.ignorecase=false` in that repo if you are not on Linux. To learn which patches
+   no longer apply with strict context (what `verify-series.sh` and CI require), `git am` each
+   patch onto `base-<new>` first and fall back to `git am -3` only where that fails.
+3. Read the upstream changes (`git log v<old>..v<new>` in a qemu.git clone; a stable release is
+   a few hundred cherry-picks) for semantic changes to code the series or the overlay relies on;
+   a patch that applies cleanly can still be wrong. Fix the overlay in `engine/src/` for upstream
+   API changes.
+4. In panda-ng: replace base.json's entry with `"<new>": {tag, url, hash (SRI, `nix hash
+   convert`/`nix-prefetch-url`), sha256}` (no patchedTree yet), `git mv patches/<old>
+   patches/<new>`, commit, then `./scripts/export-series.sh <new> /tmp/rebase` and
+   `./scripts/verify-series.sh <new> qemu-<new>.tar.xz --record`. Move the version in
+   `REUSE.toml`'s patch paths, `ORIGINS.md` and the docs (`git grep -F <old>`), run
+   `nix run .#regen-docs`, and commit.
+5. `nix flake check`, `nix build .#python`, the guest tests on all five images, the off-cost gate.
 
-Known for 11.1.2 (checked 2026-10-23: all patches then applied with strict context):
+11.1.0 to 11.1.2 (October 2026): only 0055 (pflash_cfi01) failed strict apply, on context
+from upstream 5ea267f ("Restore ROMD mode after migration"); its change is unchanged. Two
+upstream fixes changed what the series and the overlay see, though every other patch applied
+cleanly:
 
-- upstream 827802a ("Use TLB_FORCE_SLOW not TLB_MMIO for system plugins"): `probe_access_internal`
-  returns the raw flags with `phost` NULL, so the page-in paths (0013/0014/0015/0017) that test
-  only `flags & TLB_MMIO` and then memcpy through `host` must treat `!host` as I/O.
-- upstream 14375dd ("Fix TLB_MMIO check in tlb_plugin_lookup()"): `qemu_plugin_hwaddr_is_io`
-  starts returning true, so the PANDA bridge's after-access memory callbacks stop firing for MMIO.
-  Decide whether `virt_mem_after_*` should still fire there (classic PANDA did) and test it.
+- 827802a ("Use TLB_FORCE_SLOW not TLB_MMIO for system plugins"): `probe_access_internal` now
+  returns the raw TLB flags, with `phost` NULL for anything but plain RAM, instead of folding
+  every slow-path flag into `TLB_MMIO`. The page-in paths (0013, 0014, 0015, 0017) tested only
+  `flags & TLB_MMIO` before copying through `host`; they now treat `!host` as I/O.
+- 14375dd ("Fix TLB_MMIO check in tlb_plugin_lookup()"): `qemu_plugin_hwaddr_is_io` used to be
+  always false and now reports MMIO. The PANDA bridge
+  (`src/contrib/plugins/panda_plugin_interface.c`) no longer returns early on it, so the
+  after-access memory callbacks keep firing for MMIO, as they did on 11.1.0 and in classic PANDA.
 
 ## What came from qemu_builder, and what did not
 

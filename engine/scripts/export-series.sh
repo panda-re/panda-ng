@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Write a development tree back out as the committed patch series.
 #
-#   ./scripts/export-series.sh 11.1.0 /tmp/qemu-dev
+#   ./scripts/export-series.sh 11.1.2 /tmp/qemu-dev
 #
 # Regenerates patches/<version>/*.patch and the series file from every commit
 # above base-<tag>, SKIPPING the vendored-overlay commit that import-series.sh

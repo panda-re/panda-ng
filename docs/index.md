@@ -1,6 +1,6 @@
 # panda-ng
 
-panda-ng is [PANDA](https://github.com/panda-re/panda) rebuilt on QEMU 11.1.0. You run a whole
+panda-ng is [PANDA](https://github.com/panda-re/panda) rebuilt on QEMU 11.1.2. You run a whole
 guest system, Linux on any of 13 architectures, and analyse it from Python as it runs: register
 callbacks on blocks, instructions, memory and system calls, load analysis plugins, record an
 execution and replay it deterministically, and snapshot and restore the guest fast enough to
