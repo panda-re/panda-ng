@@ -72,10 +72,10 @@ static void vcpu_mem(unsigned int cpu_index, qemu_plugin_meminfo_t info,
     uint64_t paddr = (uint64_t) -1;
     if (!is_before) {
         struct qemu_plugin_hwaddr *hwaddr_info = qemu_plugin_get_hwaddr(info, vaddr);
-        // MMIO accesses have no RAM behind them; mmio_after_read is not served from here yet.
-        if (hwaddr_info && qemu_plugin_hwaddr_is_io(hwaddr_info)) {
-            return;
-        }
+        // MMIO accesses get the after-access callbacks too, with the device's physical address,
+        // as classic PANDA's did (mmio_after_read is not served from here yet). Up to QEMU
+        // 11.1.0 qemu_plugin_hwaddr_is_io() never reported MMIO, so a check on it here was dead;
+        // from 11.1.2 (upstream 14375dd) it does, and returning on it would drop these callbacks.
         if (hwaddr_info) {
             paddr = qemu_plugin_hwaddr_phys_addr(hwaddr_info);
         }
