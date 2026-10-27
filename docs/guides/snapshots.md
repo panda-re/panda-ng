@@ -72,7 +72,7 @@ counters as `key=value` text, such as `restores`, `full_restores`, `last_pages` 
 ### Limits
 
 - TCG only, and not while recording or replaying: both calls return -1 there (under
-  `-accel kvm` too).
+  `accel="kvm"` too).
 - The disk is not restored. A guest that writes to disk between restores sees those writes.
 - After anything that rewrites RAM without dirty tracking (a `loadvm`) or reads the dirty bitmap
   (a `savevm` or a migration), the next restore copies all RAM, still correctly.

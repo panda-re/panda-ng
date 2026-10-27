@@ -11,8 +11,12 @@ checked by hand.
 ## Running under KVM
 
 KVM runs guests of the host's architecture, x86_64 or aarch64, and needs access to `/dev/kvm`.
-Pass `-accel kvm`. From pandare2 it goes in `extra_args`; this is `tests/fastrestore_guards.py`
-checking that fast restore refuses under KVM:
+From pandare2, pass `accel="kvm"`. The constructor checks that KVM can run the guest (an x86_64 or
+aarch64 guest on a host of the same arch, with `/dev/kvm` readable and writable) and raises
+`ValueError` saying what is missing; `rr=True` or an `-accel` in `extra_args` next to it raises
+too. (`extra_args=["-accel", "kvm"]`, the way to ask before `accel=`, still works, with a
+`DeprecationWarning`.) This is `tests/fastrestore_guards.py` checking that fast restore refuses
+under KVM:
 
 ```python
 --8<-- "tests/fastrestore_guards.py:kvm"
@@ -21,15 +25,21 @@ checking that fast restore refuses under KVM:
 What works under KVM:
 
 - the guest, at native speed;
-- guest hypercalls and port I/O reaching the host, and QEMU snapshots (`savevm`, `loadvm`);
+- guest hypercalls and port I/O reaching the engine's own hypercall handlers (penguin's, for tools
+  built on the engine; not PANDA's `guest_hypercall`), QEMU snapshots (`savevm`, `loadvm`) and
+  the monitor (`run_monitor_cmd`);
 - for tools built on the engine: hardware breakpoints (`qemu_plugin_hw_breakpoint_insert`,
   `qemu_plugin_register_vcpu_bp_cb`) and plugin memory accesses that page in what the guest
   hasn't touched (x86_64), see the [features page](../features.md#kvm).
 
 What needs TCG:
 
-- PANDA callbacks (block, instruction, memory and the rest);
-- [record and replay](record-replay.md);
+- PANDA callbacks (block, instruction, memory and the rest): all but `main_loop_wait`,
+  `after_machine_init` and `after_loadvm`. On a `Panda(accel="kvm")` their decorators,
+  `hook`, `hypercall` and `hypersyscall` raise `NotImplementedError`. PANDA's
+  `guest_hypercall` (which `@panda.hypercall` goes through) is among them: under KVM the
+  engine hands a hypercall only to penguin's consumers;
+- [record and replay](record-replay.md): `record` and `run_replay` raise `NotImplementedError`;
 - [fast restore](snapshots.md#fast-restore): `panda_fast_snap` and `panda_fast_restore` return -1
   under KVM.
 
@@ -48,7 +58,7 @@ The two sides must describe the same machine:
 
 | | KVM side | TCG side |
 |---|---|---|
-| accelerator | `-accel kvm` | `-accel tcg` |
+| accelerator | `accel="kvm"` (`-accel kvm`) | `accel="tcg"`, the default |
 | CPU, x86_64 | `-cpu host` | the default `-cpu` |
 | CPU, aarch64 | `-cpu host` | the host's CPU as a named model, e.g. on a Pi 5 `-cpu cortex-a76,cntfrq=54000000` |
 | machine, aarch64 | `-M virt,gic-version=2` | `-M virt,gic-version=2` |

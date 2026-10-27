@@ -10,7 +10,7 @@ reload would run on 0028's replay-mutex release path). After the recording ends,
 works again and verifies (x-rr-begin-record saved and reloaded a snapshot, so it copies all RAM:
 last_why=precopy or loadvm). Then the recording is replayed in a fresh process, where both must return -1.
 
-notcg (review M4): the same image under -accel kvm (host-arch images only; needs /dev/kvm): both
+notcg (review M4): the same image under KVM (host-arch images only; needs /dev/kvm): both
 must return -1. Skipped when /dev/kvm can't be opened or the image is not the host's arch.
 """
 import os
@@ -44,7 +44,7 @@ def child_replay(image, name, out):
 
 def child_notcg(image, out):
     # --8<-- [start:kvm]
-    panda = Panda(generic=image, extra_args=["-accel", "kvm"])
+    panda = Panda(generic=image, accel="kvm")
     res = {}
     done = threading.Event()
 
@@ -170,7 +170,7 @@ def test_notcg(image, check):
         return
     rc, res = run_child(["notcg", image])
     print(f"GUARD notcg rc={rc} {res}")
-    check("without TCG (-accel kvm) panda_fast_snap and panda_fast_restore refuse",
+    check("without TCG (accel=\"kvm\") panda_fast_snap and panda_fast_restore refuse",
           res and res.get("snap") == -1 and res.get("restore") == -1)
 
 
