@@ -72,7 +72,7 @@ void syscall_enter_switch_linux_ppc(CPUState *cpu, int profile, target_ptr_t pc,
 	}; break;
 	// 1 long sys_exit ['int error_code']
 	case 1: {
-		panda_noreturn = false;
+		panda_noreturn = true;
 		ctx.double_return = false;
 		int32_t arg0 = get_s32(cpu, &ctx, 0);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||
@@ -85,7 +85,7 @@ void syscall_enter_switch_linux_ppc(CPUState *cpu, int profile, target_ptr_t pc,
 	// 2 long sys_fork ['void']
 	case 2: {
 		panda_noreturn = false;
-		ctx.double_return = false;
+		ctx.double_return = true;
 		PPP_RUN_CB(on_sys_fork_enter, cpu, pc);
 	}; break;
 	// 3 long sys_read ['unsigned int fd', 'char __user *buf', 'size_t count']
@@ -3010,7 +3010,7 @@ void syscall_enter_switch_linux_ppc(CPUState *cpu, int profile, target_ptr_t pc,
 	}; break;
 	// 234 long sys_exit_group ['int error_code']
 	case 234: {
-		panda_noreturn = false;
+		panda_noreturn = true;
 		ctx.double_return = false;
 		int32_t arg0 = get_s32(cpu, &ctx, 0);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||
@@ -6097,7 +6097,7 @@ void syscall_enter_switch_linux_ppc(CPUState *cpu, int profile, target_ptr_t pc,
 	// 435 long sys_clone3 ['struct clone_args __user *uargs', 'size_t size']
 	case 435: {
 		panda_noreturn = false;
-		ctx.double_return = false;
+		ctx.double_return = true;
 		uint32_t arg0 = get_32(cpu, &ctx, 0);
 		uint32_t arg1 = get_32(cpu, &ctx, 1);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||

@@ -1,19 +1,43 @@
 {
 	"linux:x86": {
 		"panda_noreturn": ["sys_execve", "sys_execveat", "sys_exit", "sys_exit_group", "sys_sigreturn", "sys_setcontext"],
-		"panda_doublereturn": ["sys_fork"]
+		"panda_doublereturn": ["sys_fork", "sys_clone3"]
 	},
 	"linux:arm": {
 		"panda_noreturn": ["sys_execve", "sys_execveat", "sys_exit", "sys_exit_group", "sys_sigreturn", "sys_setcontext"],
-		"panda_doublereturn": ["sys_fork"]
+		"panda_doublereturn": ["sys_fork", "sys_clone3"]
 	},
 	"linux:x64": {
 		"panda_noreturn": ["sys_exit_group", "sys_execveat", "sys_exit", "sys_exit_group", "sys_sigreturn","sys_setcontext"],
-		"panda_doublereturn": ["sys_fork"]
+		"panda_doublereturn": ["sys_fork", "sys_clone3"]
 	},
 	"linux:mips": {
 		"panda_noreturn": ["sys_exit_group", "sys_execveat", "sys_exit", "sys_exit_group", "sys_sigreturn","sys_setcontext"],
-		"panda_doublereturn": ["sys_fork"]
+		"panda_doublereturn": ["sys_fork", "sys_clone3"]
+	},
+	"linux:arm64": {
+		"panda_noreturn": ["sys_exit", "sys_exit_group"],
+		"panda_doublereturn": ["sys_fork", "sys_clone3"]
+	},
+	"linux:riscv64": {
+		"panda_noreturn": ["sys_exit", "sys_exit_group"],
+		"panda_doublereturn": ["sys_fork", "sys_clone3"]
+	},
+	"linux:mips64": {
+		"panda_noreturn": ["sys_exit", "sys_exit_group"],
+		"panda_doublereturn": ["sys_fork", "sys_clone3"]
+	},
+	"linux:mips64n32": {
+		"panda_noreturn": ["sys_exit", "sys_exit_group"],
+		"panda_doublereturn": ["sys_fork", "sys_clone3"]
+	},
+	"linux:ppc": {
+		"panda_noreturn": ["sys_exit", "sys_exit_group"],
+		"panda_doublereturn": ["sys_fork", "sys_clone3"]
+	},
+	"linux:ppc64": {
+		"panda_noreturn": ["sys_exit", "sys_exit_group"],
+		"panda_doublereturn": ["sys_fork", "sys_clone3"]
 	},
 	"freebsd:x64": {
 		"panda_noreturn": ["execve", "fexecve", "__mac_execve", "sys_exit", "thr_exit"],

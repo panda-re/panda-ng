@@ -5857,7 +5857,7 @@ void syscall_enter_switch_linux_mips(CPUState *cpu, int profile, target_ptr_t pc
 	// 4435 long sys_clone3 ['struct clone_args __user *uargs', 'size_t size']
 	case 4435: {
 		panda_noreturn = false;
-		ctx.double_return = false;
+		ctx.double_return = true;
 		uint32_t arg0 = get_32(cpu, &ctx, 0);
 		uint32_t arg1 = get_32(cpu, &ctx, 1);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||

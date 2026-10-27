@@ -57,7 +57,7 @@ TBD:  How to extract system call prototypes for another Windows version
 The files used to generate the C/C++ headers and sources are in the `scripts`, `generated-in` and `generated-tpl` folders:
 
 - `scripts/make_all_generated.sh` - calls `syscall_parser.py` for the desired targets
-- `generated-in/context_target.json` - lists system calls that do not return for certain targets; specified by `make_all_generated.sh` as input to `syscall_parser.py`.
+- `generated-in/context_target.json` - per target, the system calls that do not return (`panda_noreturn`) and those that return twice (`panda_doublereturn`: fork, and clone3, whose CLONE_VM callers, pthread_create and posix_spawn, return in the child and the parent with the same address space); specified by `make_all_generated.sh` as input to `syscall_parser.py`.
 - `generated-tpl/` - contains template files used by `syscall_parser.py`
 - `generated-in/` - contains the prototypes.txt files (Linux: `linux_prototypes.py`; Windows: `make_all_prototypes.sh`) used as input to `make_all_generated.sh`
 
