@@ -805,6 +805,24 @@
                 -D_GNU_SOURCE -DRUST_BINDGEN $(pkg-config --cflags glib-2.0)
             done
           '';
+      # plugins/syscalls2's Linux tables (generated-in/linux_*_prototypes.txt) and the code generated
+      # from them (generated/), as plugins/syscalls2/scripts/regen.sh makes them from the pinned
+      # kernel: nixpkgs' linux_latest source (a nixpkgs bump that moves it means regenerating).
+      syscalls2Generated =
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        pkgs.runCommand "syscalls2-generated-linux-${pkgs.linux_latest.version}"
+          {
+            nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.jinja2 ])) ];
+          }
+          ''
+            cp -r --no-preserve=mode ${./plugins/syscalls2} syscalls2
+            PYTHON=python3 bash syscalls2/scripts/regen.sh ${pkgs.linux_latest.src}
+            mkdir $out
+            cp -r syscalls2/generated-in syscalls2/generated $out/
+          '';
     in
     {
       packages = forAllSystems (
@@ -873,6 +891,22 @@
         // {
           python = app p.dist "panda-python" "Python with pandare2 (the PANDA engine and plugins)";
           # `nix run .#regen-docs` from the repository root: rewrite the generated pages.
+          # `nix run .#regen-syscalls` from the repository root: syscalls2's Linux tables and
+          # generated code from the pinned kernel (plugins/syscalls2/MAINTENANCE.md).
+          regen-syscalls =
+            app
+              (nixpkgs.legacyPackages.${system}.writeShellScriptBin "regen-syscalls" ''
+                set -eu
+                d=plugins/syscalls2
+                [ -d "$d/generated-in" ] || { echo "run from the panda-ng repository root" >&2; exit 1; }
+                g=${syscalls2Generated system}
+                install -m 644 $g/generated-in/linux_*_prototypes.txt "$d"/generated-in/
+                rm -f "$d"/generated/*
+                install -m 644 $g/generated/* "$d"/generated/
+                echo "regenerated $d/generated-in/linux_*_prototypes.txt and $d/generated from $g"
+              '')
+              "regen-syscalls"
+              "Regenerate syscalls2's Linux tables and generated code from the pinned kernel";
           regen-docs =
             app
               (nixpkgs.legacyPackages.${system}.writeShellScriptBin "regen-docs" ''
@@ -995,6 +1029,19 @@
                 cat log
                 mv log $out
               '';
+          # plugins/syscalls2's Linux tables and generated code are what the pinned kernel gives
+          # (nix run .#regen-syscalls).
+          syscalls2-tables = pkgs.runCommand "syscalls2-tables-check" { } ''
+            g=${syscalls2Generated system}
+            for d in generated-in generated; do
+              if ! diff -ru ${./plugins/syscalls2}/$d $g/$d > diff; then
+                head -n 80 diff
+                echo "plugins/syscalls2/$d is stale: nix run .#regen-syscalls" >&2
+                exit 1
+              fi
+            done
+            touch $out
+          '';
           # repair.py on a synthetic engine: shipped siblings aren't bundled again, RUNPATHs keep
           # $ORIGIN, licenses and License-Expression are written (no engine build needed).
           wheel-repair =

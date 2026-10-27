@@ -49,9 +49,6 @@ namespace syscalls2 {
 			const int sys_chdir = 12;
 			
 			
-			const int sys_time = 13;
-			
-			
 			const int sys_mknod = 14;
 			
 			
@@ -76,19 +73,10 @@ namespace syscalls2 {
 			const int sys_getuid16 = 24;
 			
 			
-			const int sys_stime = 25;
-			
-			
 			const int sys_ptrace = 26;
 			
 			
-			const int sys_alarm = 27;
-			
-			
 			const int sys_pause = 29;
-			
-			
-			const int sys_utime = 30;
 			
 			
 			const int sys_access = 33;
@@ -250,9 +238,6 @@ namespace syscalls2 {
 			const int sys_fstatfs = 100;
 			
 			
-			const int sys_socketcall = 102;
-			
-			
 			const int sys_syslog = 103;
 			
 			
@@ -283,9 +268,6 @@ namespace syscalls2 {
 			const int sys_sysinfo = 116;
 			
 			
-			const int sys_ipc = 117;
-			
-			
 			const int sys_fsync = 118;
 			
 			
@@ -301,7 +283,7 @@ namespace syscalls2 {
 			const int sys_newuname = 122;
 			
 			
-			const int sys_adjtimex = 124;
+			const int sys_adjtimex_time32 = 124;
 			
 			
 			const int sys_mprotect = 125;
@@ -323,9 +305,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_fchdir = 133;
-			
-			
-			const int sys_bdflush = 134;
 			
 			
 			const int sys_sysfs = 135;
@@ -367,9 +346,6 @@ namespace syscalls2 {
 			const int sys_fdatasync = 148;
 			
 			
-			const int sys_sysctl = 149;
-			
-			
 			const int sys_mlock = 150;
 			
 			
@@ -403,10 +379,10 @@ namespace syscalls2 {
 			const int sys_sched_get_priority_min = 160;
 			
 			
-			const int sys_sched_rr_get_interval = 161;
+			const int sys_sched_rr_get_interval_time32 = 161;
 			
 			
-			const int sys_nanosleep = 162;
+			const int sys_nanosleep_time32 = 162;
 			
 			
 			const int sys_mremap = 163;
@@ -442,7 +418,7 @@ namespace syscalls2 {
 			const int sys_rt_sigpending = 176;
 			
 			
-			const int sys_rt_sigtimedwait = 177;
+			const int sys_rt_sigtimedwait_time32 = 177;
 			
 			
 			const int sys_rt_sigqueueinfo = 178;
@@ -481,7 +457,7 @@ namespace syscalls2 {
 			const int sys_getrlimit = 191;
 			
 			
-			const int do_mmap2 = 192;
+			const int sys_mmap2 = 192;
 			
 			
 			const int sys_truncate64 = 193;
@@ -619,7 +595,7 @@ namespace syscalls2 {
 			const int sys_sendfile64 = 239;
 			
 			
-			const int sys_futex = 240;
+			const int sys_futex_time32 = 240;
 			
 			
 			const int sys_sched_setaffinity = 241;
@@ -634,7 +610,7 @@ namespace syscalls2 {
 			const int sys_io_destroy = 244;
 			
 			
-			const int sys_io_getevents = 245;
+			const int sys_io_getevents_time32 = 245;
 			
 			
 			const int sys_io_submit = 246;
@@ -644,9 +620,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_exit_group = 248;
-			
-			
-			const int sys_lookup_dcookie = 249;
 			
 			
 			const int sys_epoll_create = 250;
@@ -667,10 +640,10 @@ namespace syscalls2 {
 			const int sys_timer_create = 257;
 			
 			
-			const int sys_timer_settime = 258;
+			const int sys_timer_settime32 = 258;
 			
 			
-			const int sys_timer_gettime = 259;
+			const int sys_timer_gettime32 = 259;
 			
 			
 			const int sys_timer_getoverrun = 260;
@@ -679,16 +652,16 @@ namespace syscalls2 {
 			const int sys_timer_delete = 261;
 			
 			
-			const int sys_clock_settime = 262;
+			const int sys_clock_settime32 = 262;
 			
 			
-			const int sys_clock_gettime = 263;
+			const int sys_clock_gettime32 = 263;
 			
 			
-			const int sys_clock_getres = 264;
+			const int sys_clock_getres_time32 = 264;
 			
 			
-			const int sys_clock_nanosleep = 265;
+			const int sys_clock_nanosleep_time32 = 265;
 			
 			
 			const int sys_statfs64 = 266;
@@ -700,7 +673,7 @@ namespace syscalls2 {
 			const int sys_tgkill = 268;
 			
 			
-			const int sys_utimes = 269;
+			const int sys_utimes_time32 = 269;
 			
 			
 			const int sys_arm_fadvise64_64 = 270;
@@ -721,10 +694,10 @@ namespace syscalls2 {
 			const int sys_mq_unlink = 275;
 			
 			
-			const int sys_mq_timedsend = 276;
+			const int sys_mq_timedsend_time32 = 276;
 			
 			
-			const int sys_mq_timedreceive = 277;
+			const int sys_mq_timedreceive_time32 = 277;
 			
 			
 			const int sys_mq_notify = 278;
@@ -793,7 +766,7 @@ namespace syscalls2 {
 			const int sys_semget = 299;
 			
 			
-			const int sys_semctl = 300;
+			const int sys_old_semctl = 300;
 			
 			
 			const int sys_msgsnd = 301;
@@ -805,7 +778,7 @@ namespace syscalls2 {
 			const int sys_msgget = 303;
 			
 			
-			const int sys_msgctl = 304;
+			const int sys_old_msgctl = 304;
 			
 			
 			const int sys_shmat = 305;
@@ -817,7 +790,7 @@ namespace syscalls2 {
 			const int sys_shmget = 307;
 			
 			
-			const int sys_shmctl = 308;
+			const int sys_old_shmctl = 308;
 			
 			
 			const int sys_add_key = 309;
@@ -829,7 +802,7 @@ namespace syscalls2 {
 			const int sys_keyctl = 311;
 			
 			
-			const int sys_semtimedop = 312;
+			const int sys_semtimedop_time32 = 312;
 			
 			
 			const int sys_ioprio_set = 314;
@@ -868,7 +841,7 @@ namespace syscalls2 {
 			const int sys_fchownat = 325;
 			
 			
-			const int sys_futimesat = 326;
+			const int sys_futimesat_time32 = 326;
 			
 			
 			const int sys_fstatat64 = 327;
@@ -895,10 +868,10 @@ namespace syscalls2 {
 			const int sys_faccessat = 334;
 			
 			
-			const int sys_pselect6 = 335;
+			const int sys_pselect6_time32 = 335;
 			
 			
-			const int sys_ppoll = 336;
+			const int sys_ppoll_time32 = 336;
 			
 			
 			const int sys_unshare = 337;
@@ -934,7 +907,7 @@ namespace syscalls2 {
 			const int sys_kexec_load = 347;
 			
 			
-			const int sys_utimensat = 348;
+			const int sys_utimensat_time32 = 348;
 			
 			
 			const int sys_signalfd = 349;
@@ -949,10 +922,10 @@ namespace syscalls2 {
 			const int sys_fallocate = 352;
 			
 			
-			const int sys_timerfd_settime = 353;
+			const int sys_timerfd_settime32 = 353;
 			
 			
-			const int sys_timerfd_gettime = 354;
+			const int sys_timerfd_gettime32 = 354;
 			
 			
 			const int sys_signalfd4 = 355;
@@ -985,7 +958,7 @@ namespace syscalls2 {
 			const int sys_perf_event_open = 364;
 			
 			
-			const int sys_recvmmsg = 365;
+			const int sys_recvmmsg_time32 = 365;
 			
 			
 			const int sys_accept4 = 366;
@@ -1006,7 +979,7 @@ namespace syscalls2 {
 			const int sys_open_by_handle_at = 371;
 			
 			
-			const int sys_clock_adjtime = 372;
+			const int sys_clock_adjtime32 = 372;
 			
 			
 			const int sys_syncfs = 373;
@@ -1063,7 +1036,235 @@ namespace syscalls2 {
 			const int sys_mlock2 = 390;
 			
 			
+			const int sys_copy_file_range = 391;
+			
+			
+			const int sys_preadv2 = 392;
+			
+			
+			const int sys_pwritev2 = 393;
+			
+			
+			const int sys_pkey_mprotect = 394;
+			
+			
+			const int sys_pkey_alloc = 395;
+			
+			
+			const int sys_pkey_free = 396;
+			
+			
 			const int sys_statx = 397;
+			
+			
+			const int sys_rseq = 398;
+			
+			
+			const int sys_io_pgetevents_time32 = 399;
+			
+			
+			const int sys_migrate_pages = 400;
+			
+			
+			const int sys_kexec_file_load = 401;
+			
+			
+			const int sys_clock_gettime = 403;
+			
+			
+			const int sys_clock_settime = 404;
+			
+			
+			const int sys_clock_adjtime = 405;
+			
+			
+			const int sys_clock_getres = 406;
+			
+			
+			const int sys_clock_nanosleep = 407;
+			
+			
+			const int sys_timer_gettime = 408;
+			
+			
+			const int sys_timer_settime = 409;
+			
+			
+			const int sys_timerfd_gettime = 410;
+			
+			
+			const int sys_timerfd_settime = 411;
+			
+			
+			const int sys_utimensat = 412;
+			
+			
+			const int sys_pselect6 = 413;
+			
+			
+			const int sys_ppoll = 414;
+			
+			
+			const int sys_io_pgetevents = 416;
+			
+			
+			const int sys_recvmmsg = 417;
+			
+			
+			const int sys_mq_timedsend = 418;
+			
+			
+			const int sys_mq_timedreceive = 419;
+			
+			
+			const int sys_semtimedop = 420;
+			
+			
+			const int sys_rt_sigtimedwait = 421;
+			
+			
+			const int sys_futex = 422;
+			
+			
+			const int sys_sched_rr_get_interval = 423;
+			
+			
+			const int sys_pidfd_send_signal = 424;
+			
+			
+			const int sys_io_uring_setup = 425;
+			
+			
+			const int sys_io_uring_enter = 426;
+			
+			
+			const int sys_io_uring_register = 427;
+			
+			
+			const int sys_open_tree = 428;
+			
+			
+			const int sys_move_mount = 429;
+			
+			
+			const int sys_fsopen = 430;
+			
+			
+			const int sys_fsconfig = 431;
+			
+			
+			const int sys_fsmount = 432;
+			
+			
+			const int sys_fspick = 433;
+			
+			
+			const int sys_pidfd_open = 434;
+			
+			
+			const int sys_clone3 = 435;
+			
+			
+			const int sys_close_range = 436;
+			
+			
+			const int sys_openat2 = 437;
+			
+			
+			const int sys_pidfd_getfd = 438;
+			
+			
+			const int sys_faccessat2 = 439;
+			
+			
+			const int sys_process_madvise = 440;
+			
+			
+			const int sys_epoll_pwait2 = 441;
+			
+			
+			const int sys_mount_setattr = 442;
+			
+			
+			const int sys_quotactl_fd = 443;
+			
+			
+			const int sys_landlock_create_ruleset = 444;
+			
+			
+			const int sys_landlock_add_rule = 445;
+			
+			
+			const int sys_landlock_restrict_self = 446;
+			
+			
+			const int sys_process_mrelease = 448;
+			
+			
+			const int sys_futex_waitv = 449;
+			
+			
+			const int sys_set_mempolicy_home_node = 450;
+			
+			
+			const int sys_cachestat = 451;
+			
+			
+			const int sys_fchmodat2 = 452;
+			
+			
+			const int sys_map_shadow_stack = 453;
+			
+			
+			const int sys_futex_wake = 454;
+			
+			
+			const int sys_futex_wait = 455;
+			
+			
+			const int sys_futex_requeue = 456;
+			
+			
+			const int sys_statmount = 457;
+			
+			
+			const int sys_listmount = 458;
+			
+			
+			const int sys_lsm_get_self_attr = 459;
+			
+			
+			const int sys_lsm_set_self_attr = 460;
+			
+			
+			const int sys_lsm_list_modules = 461;
+			
+			
+			const int sys_mseal = 462;
+			
+			
+			const int sys_setxattrat = 463;
+			
+			
+			const int sys_getxattrat = 464;
+			
+			
+			const int sys_listxattrat = 465;
+			
+			
+			const int sys_removexattrat = 466;
+			
+			
+			const int sys_open_tree_attr = 467;
+			
+			
+			const int sys_file_getattr = 468;
+			
+			
+			const int sys_file_setattr = 469;
+			
+			
+			const int sys_listns = 470;
 			
 			
 			const int ARM_breakpoint = 983041;
@@ -1079,6 +1280,9 @@ namespace syscalls2 {
 			
 			
 			const int ARM_set_tls = 983045;
+			
+			
+			const int ARM_get_tls = 983046;
 			
 		}
 	}
@@ -1138,9 +1342,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_getcwd = 17;
-			
-			
-			const int sys_lookup_dcookie = 18;
 			
 			
 			const int sys_eventfd2 = 19;
@@ -1203,16 +1404,13 @@ namespace syscalls2 {
 			const int sys_renameat = 38;
 			
 			
-			const int sys_umount2 = 39;
+			const int sys_umount = 39;
 			
 			
 			const int sys_mount = 40;
 			
 			
 			const int sys_pivot_root = 41;
-			
-			
-			const int sys_nfsservctl = 42;
 			
 			
 			const int sys_statfs = 43;
@@ -1299,7 +1497,7 @@ namespace syscalls2 {
 			const int sys_pwritev = 70;
 			
 			
-			const int sys_sendfile = 71;
+			const int sys_sendfile64 = 71;
 			
 			
 			const int sys_pselect6 = 72;
@@ -1326,7 +1524,7 @@ namespace syscalls2 {
 			const int sys_newfstatat = 79;
 			
 			
-			const int sys_fstat = 80;
+			const int sys_newfstat = 80;
 			
 			
 			const int sys_sync = 81;
@@ -1566,7 +1764,7 @@ namespace syscalls2 {
 			const int sys_setgroups = 159;
 			
 			
-			const int sys_uname = 160;
+			const int sys_newuname = 160;
 			
 			
 			const int sys_sethostname = 161;
@@ -1755,7 +1953,7 @@ namespace syscalls2 {
 			const int sys_mmap = 222;
 			
 			
-			const int sys_fadvise64 = 223;
+			const int sys_fadvise64_64 = 223;
 			
 			
 			const int sys_swapon = 224;
@@ -1914,16 +2112,52 @@ namespace syscalls2 {
 			const int sys_statx = 291;
 			
 			
+			const int sys_io_pgetevents = 292;
+			
+			
+			const int sys_rseq = 293;
+			
+			
 			const int sys_kexec_file_load = 294;
 			
 			
 			const int sys_pidfd_send_signal = 424;
 			
 			
+			const int sys_io_uring_setup = 425;
+			
+			
+			const int sys_io_uring_enter = 426;
+			
+			
+			const int sys_io_uring_register = 427;
+			
+			
+			const int sys_open_tree = 428;
+			
+			
+			const int sys_move_mount = 429;
+			
+			
+			const int sys_fsopen = 430;
+			
+			
+			const int sys_fsconfig = 431;
+			
+			
+			const int sys_fsmount = 432;
+			
+			
+			const int sys_fspick = 433;
+			
+			
 			const int sys_pidfd_open = 434;
 			
 			
 			const int sys_clone3 = 435;
+			
+			
+			const int sys_close_range = 436;
 			
 			
 			const int sys_openat2 = 437;
@@ -1933,6 +2167,99 @@ namespace syscalls2 {
 			
 			
 			const int sys_faccessat2 = 439;
+			
+			
+			const int sys_process_madvise = 440;
+			
+			
+			const int sys_epoll_pwait2 = 441;
+			
+			
+			const int sys_mount_setattr = 442;
+			
+			
+			const int sys_quotactl_fd = 443;
+			
+			
+			const int sys_landlock_create_ruleset = 444;
+			
+			
+			const int sys_landlock_add_rule = 445;
+			
+			
+			const int sys_landlock_restrict_self = 446;
+			
+			
+			const int sys_memfd_secret = 447;
+			
+			
+			const int sys_process_mrelease = 448;
+			
+			
+			const int sys_futex_waitv = 449;
+			
+			
+			const int sys_set_mempolicy_home_node = 450;
+			
+			
+			const int sys_cachestat = 451;
+			
+			
+			const int sys_fchmodat2 = 452;
+			
+			
+			const int sys_map_shadow_stack = 453;
+			
+			
+			const int sys_futex_wake = 454;
+			
+			
+			const int sys_futex_wait = 455;
+			
+			
+			const int sys_futex_requeue = 456;
+			
+			
+			const int sys_statmount = 457;
+			
+			
+			const int sys_listmount = 458;
+			
+			
+			const int sys_lsm_get_self_attr = 459;
+			
+			
+			const int sys_lsm_set_self_attr = 460;
+			
+			
+			const int sys_lsm_list_modules = 461;
+			
+			
+			const int sys_mseal = 462;
+			
+			
+			const int sys_setxattrat = 463;
+			
+			
+			const int sys_getxattrat = 464;
+			
+			
+			const int sys_listxattrat = 465;
+			
+			
+			const int sys_removexattrat = 466;
+			
+			
+			const int sys_open_tree_attr = 467;
+			
+			
+			const int sys_file_getattr = 468;
+			
+			
+			const int sys_file_setattr = 469;
+			
+			
+			const int sys_listns = 470;
 			
 		}
 	}
@@ -1994,9 +2321,6 @@ namespace syscalls2 {
 			const int sys_getcwd = 17;
 			
 			
-			const int sys_lookup_dcookie = 18;
-			
-			
 			const int sys_eventfd2 = 19;
 			
 			
@@ -2054,19 +2378,13 @@ namespace syscalls2 {
 			const int sys_linkat = 37;
 			
 			
-			const int sys_renameat = 38;
-			
-			
-			const int sys_umount2 = 39;
+			const int sys_umount = 39;
 			
 			
 			const int sys_mount = 40;
 			
 			
 			const int sys_pivot_root = 41;
-			
-			
-			const int sys_nfsservctl = 42;
 			
 			
 			const int sys_statfs = 43;
@@ -2153,7 +2471,7 @@ namespace syscalls2 {
 			const int sys_pwritev = 70;
 			
 			
-			const int sys_sendfile = 71;
+			const int sys_sendfile64 = 71;
 			
 			
 			const int sys_pselect6 = 72;
@@ -2180,7 +2498,7 @@ namespace syscalls2 {
 			const int sys_newfstatat = 79;
 			
 			
-			const int sys_fstat = 80;
+			const int sys_newfstat = 80;
 			
 			
 			const int sys_sync = 81;
@@ -2420,7 +2738,7 @@ namespace syscalls2 {
 			const int sys_setgroups = 159;
 			
 			
-			const int sys_uname = 160;
+			const int sys_newuname = 160;
 			
 			
 			const int sys_sethostname = 161;
@@ -2609,7 +2927,7 @@ namespace syscalls2 {
 			const int sys_mmap = 222;
 			
 			
-			const int sys_fadvise64 = 223;
+			const int sys_fadvise64_64 = 223;
 			
 			
 			const int sys_swapon = 224;
@@ -2774,16 +3092,52 @@ namespace syscalls2 {
 			const int sys_statx = 291;
 			
 			
+			const int sys_io_pgetevents = 292;
+			
+			
+			const int sys_rseq = 293;
+			
+			
 			const int sys_kexec_file_load = 294;
 			
 			
 			const int sys_pidfd_send_signal = 424;
 			
 			
+			const int sys_io_uring_setup = 425;
+			
+			
+			const int sys_io_uring_enter = 426;
+			
+			
+			const int sys_io_uring_register = 427;
+			
+			
+			const int sys_open_tree = 428;
+			
+			
+			const int sys_move_mount = 429;
+			
+			
+			const int sys_fsopen = 430;
+			
+			
+			const int sys_fsconfig = 431;
+			
+			
+			const int sys_fsmount = 432;
+			
+			
+			const int sys_fspick = 433;
+			
+			
 			const int sys_pidfd_open = 434;
 			
 			
 			const int sys_clone3 = 435;
+			
+			
+			const int sys_close_range = 436;
 			
 			
 			const int sys_openat2 = 437;
@@ -2793,6 +3147,99 @@ namespace syscalls2 {
 			
 			
 			const int sys_faccessat2 = 439;
+			
+			
+			const int sys_process_madvise = 440;
+			
+			
+			const int sys_epoll_pwait2 = 441;
+			
+			
+			const int sys_mount_setattr = 442;
+			
+			
+			const int sys_quotactl_fd = 443;
+			
+			
+			const int sys_landlock_create_ruleset = 444;
+			
+			
+			const int sys_landlock_add_rule = 445;
+			
+			
+			const int sys_landlock_restrict_self = 446;
+			
+			
+			const int sys_memfd_secret = 447;
+			
+			
+			const int sys_process_mrelease = 448;
+			
+			
+			const int sys_futex_waitv = 449;
+			
+			
+			const int sys_set_mempolicy_home_node = 450;
+			
+			
+			const int sys_cachestat = 451;
+			
+			
+			const int sys_fchmodat2 = 452;
+			
+			
+			const int sys_map_shadow_stack = 453;
+			
+			
+			const int sys_futex_wake = 454;
+			
+			
+			const int sys_futex_wait = 455;
+			
+			
+			const int sys_futex_requeue = 456;
+			
+			
+			const int sys_statmount = 457;
+			
+			
+			const int sys_listmount = 458;
+			
+			
+			const int sys_lsm_get_self_attr = 459;
+			
+			
+			const int sys_lsm_set_self_attr = 460;
+			
+			
+			const int sys_lsm_list_modules = 461;
+			
+			
+			const int sys_mseal = 462;
+			
+			
+			const int sys_setxattrat = 463;
+			
+			
+			const int sys_getxattrat = 464;
+			
+			
+			const int sys_listxattrat = 465;
+			
+			
+			const int sys_removexattrat = 466;
+			
+			
+			const int sys_open_tree_attr = 467;
+			
+			
+			const int sys_file_getattr = 468;
+			
+			
+			const int sys_file_setattr = 469;
+			
+			
+			const int sys_listns = 470;
 			
 		}
 	}
@@ -2839,7 +3286,7 @@ namespace syscalls2 {
 			const int sys_chdir = 12;
 			
 			
-			const int sys_time = 13;
+			const int sys_time32 = 13;
 			
 			
 			const int sys_mknod = 14;
@@ -2872,7 +3319,7 @@ namespace syscalls2 {
 			const int sys_getuid16 = 24;
 			
 			
-			const int sys_stime = 25;
+			const int sys_stime32 = 25;
 			
 			
 			const int sys_ptrace = 26;
@@ -2887,7 +3334,7 @@ namespace syscalls2 {
 			const int sys_pause = 29;
 			
 			
-			const int sys_utime = 30;
+			const int sys_utime32 = 30;
 			
 			
 			const int sys_access = 33;
@@ -3142,7 +3589,7 @@ namespace syscalls2 {
 			const int sys_modify_ldt = 123;
 			
 			
-			const int sys_adjtimex = 124;
+			const int sys_adjtimex_time32 = 124;
 			
 			
 			const int sys_mprotect = 125;
@@ -3164,9 +3611,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_fchdir = 133;
-			
-			
-			const int sys_bdflush = 134;
 			
 			
 			const int sys_sysfs = 135;
@@ -3208,9 +3652,6 @@ namespace syscalls2 {
 			const int sys_fdatasync = 148;
 			
 			
-			const int sys_sysctl = 149;
-			
-			
 			const int sys_mlock = 150;
 			
 			
@@ -3244,10 +3685,10 @@ namespace syscalls2 {
 			const int sys_sched_get_priority_min = 160;
 			
 			
-			const int sys_sched_rr_get_interval = 161;
+			const int sys_sched_rr_get_interval_time32 = 161;
 			
 			
-			const int sys_nanosleep = 162;
+			const int sys_nanosleep_time32 = 162;
 			
 			
 			const int sys_mremap = 163;
@@ -3286,7 +3727,7 @@ namespace syscalls2 {
 			const int sys_rt_sigpending = 176;
 			
 			
-			const int sys_rt_sigtimedwait = 177;
+			const int sys_rt_sigtimedwait_time32 = 177;
 			
 			
 			const int sys_rt_sigqueueinfo = 178;
@@ -3295,10 +3736,10 @@ namespace syscalls2 {
 			const int sys_rt_sigsuspend = 179;
 			
 			
-			const int sys_pread64 = 180;
+			const int sys_ia32_pread64 = 180;
 			
 			
-			const int sys_pwrite64 = 181;
+			const int sys_ia32_pwrite64 = 181;
 			
 			
 			const int sys_chown16 = 182;
@@ -3328,10 +3769,10 @@ namespace syscalls2 {
 			const int sys_mmap_pgoff = 192;
 			
 			
-			const int sys_truncate64 = 193;
+			const int sys_ia32_truncate64 = 193;
 			
 			
-			const int sys_ftruncate64 = 194;
+			const int sys_ia32_ftruncate64 = 194;
 			
 			
 			const int sys_stat64 = 195;
@@ -3418,7 +3859,7 @@ namespace syscalls2 {
 			const int sys_gettid = 224;
 			
 			
-			const int sys_readahead = 225;
+			const int sys_ia32_readahead = 225;
 			
 			
 			const int sys_setxattr = 226;
@@ -3463,7 +3904,7 @@ namespace syscalls2 {
 			const int sys_sendfile64 = 239;
 			
 			
-			const int sys_futex = 240;
+			const int sys_futex_time32 = 240;
 			
 			
 			const int sys_sched_setaffinity = 241;
@@ -3484,7 +3925,7 @@ namespace syscalls2 {
 			const int sys_io_destroy = 246;
 			
 			
-			const int sys_io_getevents = 247;
+			const int sys_io_getevents_time32 = 247;
 			
 			
 			const int sys_io_submit = 248;
@@ -3493,13 +3934,10 @@ namespace syscalls2 {
 			const int sys_io_cancel = 249;
 			
 			
-			const int sys_fadvise64 = 250;
+			const int sys_ia32_fadvise64 = 250;
 			
 			
 			const int sys_exit_group = 252;
-			
-			
-			const int sys_lookup_dcookie = 253;
 			
 			
 			const int sys_epoll_create = 254;
@@ -3520,10 +3958,10 @@ namespace syscalls2 {
 			const int sys_timer_create = 259;
 			
 			
-			const int sys_timer_settime = 260;
+			const int sys_timer_settime32 = 260;
 			
 			
-			const int sys_timer_gettime = 261;
+			const int sys_timer_gettime32 = 261;
 			
 			
 			const int sys_timer_getoverrun = 262;
@@ -3532,16 +3970,16 @@ namespace syscalls2 {
 			const int sys_timer_delete = 263;
 			
 			
-			const int sys_clock_settime = 264;
+			const int sys_clock_settime32 = 264;
 			
 			
-			const int sys_clock_gettime = 265;
+			const int sys_clock_gettime32 = 265;
 			
 			
-			const int sys_clock_getres = 266;
+			const int sys_clock_getres_time32 = 266;
 			
 			
-			const int sys_clock_nanosleep = 267;
+			const int sys_clock_nanosleep_time32 = 267;
 			
 			
 			const int sys_statfs64 = 268;
@@ -3553,10 +3991,10 @@ namespace syscalls2 {
 			const int sys_tgkill = 270;
 			
 			
-			const int sys_utimes = 271;
+			const int sys_utimes_time32 = 271;
 			
 			
-			const int sys_fadvise64_64 = 272;
+			const int sys_ia32_fadvise64_64 = 272;
 			
 			
 			const int sys_mbind = 274;
@@ -3574,10 +4012,10 @@ namespace syscalls2 {
 			const int sys_mq_unlink = 278;
 			
 			
-			const int sys_mq_timedsend = 279;
+			const int sys_mq_timedsend_time32 = 279;
 			
 			
-			const int sys_mq_timedreceive = 280;
+			const int sys_mq_timedreceive_time32 = 280;
 			
 			
 			const int sys_mq_notify = 281;
@@ -3631,7 +4069,7 @@ namespace syscalls2 {
 			const int sys_fchownat = 298;
 			
 			
-			const int sys_futimesat = 299;
+			const int sys_futimesat_time32 = 299;
 			
 			
 			const int sys_fstatat64 = 300;
@@ -3658,10 +4096,10 @@ namespace syscalls2 {
 			const int sys_faccessat = 307;
 			
 			
-			const int sys_pselect6 = 308;
+			const int sys_pselect6_time32 = 308;
 			
 			
-			const int sys_ppoll = 309;
+			const int sys_ppoll_time32 = 309;
 			
 			
 			const int sys_unshare = 310;
@@ -3676,7 +4114,7 @@ namespace syscalls2 {
 			const int sys_splice = 313;
 			
 			
-			const int sys_sync_file_range = 314;
+			const int sys_ia32_sync_file_range = 314;
 			
 			
 			const int sys_tee = 315;
@@ -3694,7 +4132,7 @@ namespace syscalls2 {
 			const int sys_epoll_pwait = 319;
 			
 			
-			const int sys_utimensat = 320;
+			const int sys_utimensat_time32 = 320;
 			
 			
 			const int sys_signalfd = 321;
@@ -3706,13 +4144,13 @@ namespace syscalls2 {
 			const int sys_eventfd = 323;
 			
 			
-			const int sys_fallocate = 324;
+			const int sys_ia32_fallocate = 324;
 			
 			
-			const int sys_timerfd_settime = 325;
+			const int sys_timerfd_settime32 = 325;
 			
 			
-			const int sys_timerfd_gettime = 326;
+			const int sys_timerfd_gettime32 = 326;
 			
 			
 			const int sys_signalfd4 = 327;
@@ -3745,7 +4183,7 @@ namespace syscalls2 {
 			const int sys_perf_event_open = 336;
 			
 			
-			const int sys_recvmmsg = 337;
+			const int sys_recvmmsg_time32 = 337;
 			
 			
 			const int sys_fanotify_init = 338;
@@ -3763,7 +4201,7 @@ namespace syscalls2 {
 			const int sys_open_by_handle_at = 342;
 			
 			
-			const int sys_clock_adjtime = 343;
+			const int sys_clock_adjtime32 = 343;
 			
 			
 			const int sys_syncfs = 344;
@@ -3887,6 +4325,243 @@ namespace syscalls2 {
 			
 			
 			const int sys_arch_prctl = 384;
+			
+			
+			const int sys_io_pgetevents_time32 = 385;
+			
+			
+			const int sys_rseq = 386;
+			
+			
+			const int sys_semget = 393;
+			
+			
+			const int sys_semctl = 394;
+			
+			
+			const int sys_shmget = 395;
+			
+			
+			const int sys_shmctl = 396;
+			
+			
+			const int sys_shmat = 397;
+			
+			
+			const int sys_shmdt = 398;
+			
+			
+			const int sys_msgget = 399;
+			
+			
+			const int sys_msgsnd = 400;
+			
+			
+			const int sys_msgrcv = 401;
+			
+			
+			const int sys_msgctl = 402;
+			
+			
+			const int sys_clock_gettime = 403;
+			
+			
+			const int sys_clock_settime = 404;
+			
+			
+			const int sys_clock_adjtime = 405;
+			
+			
+			const int sys_clock_getres = 406;
+			
+			
+			const int sys_clock_nanosleep = 407;
+			
+			
+			const int sys_timer_gettime = 408;
+			
+			
+			const int sys_timer_settime = 409;
+			
+			
+			const int sys_timerfd_gettime = 410;
+			
+			
+			const int sys_timerfd_settime = 411;
+			
+			
+			const int sys_utimensat = 412;
+			
+			
+			const int sys_pselect6 = 413;
+			
+			
+			const int sys_ppoll = 414;
+			
+			
+			const int sys_io_pgetevents = 416;
+			
+			
+			const int sys_recvmmsg = 417;
+			
+			
+			const int sys_mq_timedsend = 418;
+			
+			
+			const int sys_mq_timedreceive = 419;
+			
+			
+			const int sys_semtimedop = 420;
+			
+			
+			const int sys_rt_sigtimedwait = 421;
+			
+			
+			const int sys_futex = 422;
+			
+			
+			const int sys_sched_rr_get_interval = 423;
+			
+			
+			const int sys_pidfd_send_signal = 424;
+			
+			
+			const int sys_io_uring_setup = 425;
+			
+			
+			const int sys_io_uring_enter = 426;
+			
+			
+			const int sys_io_uring_register = 427;
+			
+			
+			const int sys_open_tree = 428;
+			
+			
+			const int sys_move_mount = 429;
+			
+			
+			const int sys_fsopen = 430;
+			
+			
+			const int sys_fsconfig = 431;
+			
+			
+			const int sys_fsmount = 432;
+			
+			
+			const int sys_fspick = 433;
+			
+			
+			const int sys_pidfd_open = 434;
+			
+			
+			const int sys_clone3 = 435;
+			
+			
+			const int sys_close_range = 436;
+			
+			
+			const int sys_openat2 = 437;
+			
+			
+			const int sys_pidfd_getfd = 438;
+			
+			
+			const int sys_faccessat2 = 439;
+			
+			
+			const int sys_process_madvise = 440;
+			
+			
+			const int sys_epoll_pwait2 = 441;
+			
+			
+			const int sys_mount_setattr = 442;
+			
+			
+			const int sys_quotactl_fd = 443;
+			
+			
+			const int sys_landlock_create_ruleset = 444;
+			
+			
+			const int sys_landlock_add_rule = 445;
+			
+			
+			const int sys_landlock_restrict_self = 446;
+			
+			
+			const int sys_memfd_secret = 447;
+			
+			
+			const int sys_process_mrelease = 448;
+			
+			
+			const int sys_futex_waitv = 449;
+			
+			
+			const int sys_set_mempolicy_home_node = 450;
+			
+			
+			const int sys_cachestat = 451;
+			
+			
+			const int sys_fchmodat2 = 452;
+			
+			
+			const int sys_map_shadow_stack = 453;
+			
+			
+			const int sys_futex_wake = 454;
+			
+			
+			const int sys_futex_wait = 455;
+			
+			
+			const int sys_futex_requeue = 456;
+			
+			
+			const int sys_statmount = 457;
+			
+			
+			const int sys_listmount = 458;
+			
+			
+			const int sys_lsm_get_self_attr = 459;
+			
+			
+			const int sys_lsm_set_self_attr = 460;
+			
+			
+			const int sys_lsm_list_modules = 461;
+			
+			
+			const int sys_mseal = 462;
+			
+			
+			const int sys_setxattrat = 463;
+			
+			
+			const int sys_getxattrat = 464;
+			
+			
+			const int sys_listxattrat = 465;
+			
+			
+			const int sys_removexattrat = 466;
+			
+			
+			const int sys_open_tree_attr = 467;
+			
+			
+			const int sys_file_getattr = 468;
+			
+			
+			const int sys_file_setattr = 469;
+			
+			
+			const int sys_listns = 470;
 			
 		}
 	}
@@ -4359,9 +5034,6 @@ namespace syscalls2 {
 			const int sys_pivot_root = 155;
 			
 			
-			const int sys_sysctl = 156;
-			
-			
 			const int sys_prctl = 157;
 			
 			
@@ -4492,9 +5164,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_io_cancel = 210;
-			
-			
-			const int sys_lookup_dcookie = 212;
 			
 			
 			const int sys_epoll_create = 213;
@@ -4847,11 +5516,167 @@ namespace syscalls2 {
 			
 			const int sys_statx = 332;
 			
+			
+			const int sys_io_pgetevents = 333;
+			
+			
+			const int sys_rseq = 334;
+			
+			
+			const int sys_uretprobe = 335;
+			
+			
+			const int sys_uprobe = 336;
+			
+			
+			const int sys_pidfd_send_signal = 424;
+			
+			
+			const int sys_io_uring_setup = 425;
+			
+			
+			const int sys_io_uring_enter = 426;
+			
+			
+			const int sys_io_uring_register = 427;
+			
+			
+			const int sys_open_tree = 428;
+			
+			
+			const int sys_move_mount = 429;
+			
+			
+			const int sys_fsopen = 430;
+			
+			
+			const int sys_fsconfig = 431;
+			
+			
+			const int sys_fsmount = 432;
+			
+			
+			const int sys_fspick = 433;
+			
+			
+			const int sys_pidfd_open = 434;
+			
+			
+			const int sys_clone3 = 435;
+			
+			
+			const int sys_close_range = 436;
+			
+			
+			const int sys_openat2 = 437;
+			
+			
+			const int sys_pidfd_getfd = 438;
+			
+			
+			const int sys_faccessat2 = 439;
+			
+			
+			const int sys_process_madvise = 440;
+			
+			
+			const int sys_epoll_pwait2 = 441;
+			
+			
+			const int sys_mount_setattr = 442;
+			
+			
+			const int sys_quotactl_fd = 443;
+			
+			
+			const int sys_landlock_create_ruleset = 444;
+			
+			
+			const int sys_landlock_add_rule = 445;
+			
+			
+			const int sys_landlock_restrict_self = 446;
+			
+			
+			const int sys_memfd_secret = 447;
+			
+			
+			const int sys_process_mrelease = 448;
+			
+			
+			const int sys_futex_waitv = 449;
+			
+			
+			const int sys_set_mempolicy_home_node = 450;
+			
+			
+			const int sys_cachestat = 451;
+			
+			
+			const int sys_fchmodat2 = 452;
+			
+			
+			const int sys_map_shadow_stack = 453;
+			
+			
+			const int sys_futex_wake = 454;
+			
+			
+			const int sys_futex_wait = 455;
+			
+			
+			const int sys_futex_requeue = 456;
+			
+			
+			const int sys_statmount = 457;
+			
+			
+			const int sys_listmount = 458;
+			
+			
+			const int sys_lsm_get_self_attr = 459;
+			
+			
+			const int sys_lsm_set_self_attr = 460;
+			
+			
+			const int sys_lsm_list_modules = 461;
+			
+			
+			const int sys_mseal = 462;
+			
+			
+			const int sys_setxattrat = 463;
+			
+			
+			const int sys_getxattrat = 464;
+			
+			
+			const int sys_listxattrat = 465;
+			
+			
+			const int sys_removexattrat = 466;
+			
+			
+			const int sys_open_tree_attr = 467;
+			
+			
+			const int sys_file_getattr = 468;
+			
+			
+			const int sys_file_setattr = 469;
+			
+			
+			const int sys_listns = 470;
+			
 		}
 	}
 	// linux:mips
 	namespace linux {
 		namespace mips {
+			
+			const int sys_syscall = 4000;
+			
 			
 			const int sys_exit = 4001;
 			
@@ -4901,9 +5726,6 @@ namespace syscalls2 {
 			const int sys_lchown = 4016;
 			
 			
-			const int sys_stat = 4018;
-			
-			
 			const int sys_lseek = 4019;
 			
 			
@@ -4929,9 +5751,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_alarm = 4027;
-			
-			
-			const int sys_fstat = 4028;
 			
 			
 			const int sys_pause = 4029;
@@ -4977,9 +5796,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_getgid = 4047;
-			
-			
-			const int sys_signal = 4048;
 			
 			
 			const int sys_geteuid = 4049;
@@ -5075,9 +5891,6 @@ namespace syscalls2 {
 			const int sys_symlink = 4083;
 			
 			
-			const int sys_lstat = 4084;
-			
-			
 			const int sys_readlink = 4085;
 			
 			
@@ -5093,7 +5906,7 @@ namespace syscalls2 {
 			const int sys_old_readdir = 4089;
 			
 			
-			const int sys_mmap = 4090;
+			const int sys_mips_mmap = 4090;
 			
 			
 			const int sys_munmap = 4091;
@@ -5123,9 +5936,6 @@ namespace syscalls2 {
 			const int sys_fstatfs = 4100;
 			
 			
-			const int sys_ioperm = 4101;
-			
-			
 			const int sys_socketcall = 4102;
 			
 			
@@ -5150,13 +5960,7 @@ namespace syscalls2 {
 			const int sys_uname = 4109;
 			
 			
-			const int sys_iopl = 4110;
-			
-			
 			const int sys_vhangup = 4111;
-			
-			
-			const int sys_idle = 4112;
 			
 			
 			const int sys_wait4 = 4114;
@@ -5186,9 +5990,6 @@ namespace syscalls2 {
 			const int sys_newuname = 4122;
 			
 			
-			const int modify_ldt = 4123;
-			
-			
 			const int sys_adjtimex_time32 = 4124;
 			
 			
@@ -5198,16 +5999,10 @@ namespace syscalls2 {
 			const int sys_sigprocmask = 4126;
 			
 			
-			const int create_module = 4127;
-			
-			
 			const int sys_init_module = 4128;
 			
 			
 			const int sys_delete_module = 4129;
-			
-			
-			const int get_kernel_syms = 4130;
 			
 			
 			const int sys_quotactl = 4131;
@@ -5217,9 +6012,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_fchdir = 4133;
-			
-			
-			const int sys_bdflush = 4134;
 			
 			
 			const int sys_sysfs = 4135;
@@ -5258,16 +6050,16 @@ namespace syscalls2 {
 			const int sys_cacheflush = 4147;
 			
 			
-			const int sys_setup = 4150;
+			const int sys_cachectl = 4148;
+			
+			
+			const int sys_sysmips = 4149;
 			
 			
 			const int sys_getsid = 4151;
 			
 			
 			const int sys_fdatasync = 4152;
-			
-			
-			const int sys_sysctl = 4153;
 			
 			
 			const int sys_mlock = 4154;
@@ -5369,13 +6161,7 @@ namespace syscalls2 {
 			const int sys_getresuid = 4186;
 			
 			
-			const int sys_query_module = 4187;
-			
-			
 			const int sys_poll = 4188;
-			
-			
-			const int sys_nfsservctl = 4189;
 			
 			
 			const int sys_setresgid = 4190;
@@ -5432,7 +6218,7 @@ namespace syscalls2 {
 			const int sys_sendfile = 4207;
 			
 			
-			const int mmap2 = 4210;
+			const int sys_mips_mmap2 = 4210;
 			
 			
 			const int sys_truncate64 = 4211;
@@ -5540,9 +6326,6 @@ namespace syscalls2 {
 			const int sys_exit_group = 4246;
 			
 			
-			const int sys_lookup_dcookie = 4247;
-			
-			
 			const int sys_epoll_create = 4248;
 			
 			
@@ -5642,7 +6425,7 @@ namespace syscalls2 {
 			const int sys_keyctl = 4282;
 			
 			
-			const int set_thread_area = 4283;
+			const int sys_set_thread_area = 4283;
 			
 			
 			const int sys_inotify_init = 4284;
@@ -5745,9 +6528,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_signalfd = 4317;
-			
-			
-			const int sys_ni_syscall = 4318;
 			
 			
 			const int sys_eventfd = 4319;
@@ -6023,6 +6803,12 @@ namespace syscalls2 {
 			const int sys_pidfd_open = 4434;
 			
 			
+			const int sys_clone3 = 4435;
+			
+			
+			const int sys_close_range = 4436;
+			
+			
 			const int sys_openat2 = 4437;
 			
 			
@@ -6030,6 +6816,96 @@ namespace syscalls2 {
 			
 			
 			const int sys_faccessat2 = 4439;
+			
+			
+			const int sys_process_madvise = 4440;
+			
+			
+			const int sys_epoll_pwait2 = 4441;
+			
+			
+			const int sys_mount_setattr = 4442;
+			
+			
+			const int sys_quotactl_fd = 4443;
+			
+			
+			const int sys_landlock_create_ruleset = 4444;
+			
+			
+			const int sys_landlock_add_rule = 4445;
+			
+			
+			const int sys_landlock_restrict_self = 4446;
+			
+			
+			const int sys_process_mrelease = 4448;
+			
+			
+			const int sys_futex_waitv = 4449;
+			
+			
+			const int sys_set_mempolicy_home_node = 4450;
+			
+			
+			const int sys_cachestat = 4451;
+			
+			
+			const int sys_fchmodat2 = 4452;
+			
+			
+			const int sys_map_shadow_stack = 4453;
+			
+			
+			const int sys_futex_wake = 4454;
+			
+			
+			const int sys_futex_wait = 4455;
+			
+			
+			const int sys_futex_requeue = 4456;
+			
+			
+			const int sys_statmount = 4457;
+			
+			
+			const int sys_listmount = 4458;
+			
+			
+			const int sys_lsm_get_self_attr = 4459;
+			
+			
+			const int sys_lsm_set_self_attr = 4460;
+			
+			
+			const int sys_lsm_list_modules = 4461;
+			
+			
+			const int sys_mseal = 4462;
+			
+			
+			const int sys_setxattrat = 4463;
+			
+			
+			const int sys_getxattrat = 4464;
+			
+			
+			const int sys_listxattrat = 4465;
+			
+			
+			const int sys_removexattrat = 4466;
+			
+			
+			const int sys_open_tree_attr = 4467;
+			
+			
+			const int sys_file_getattr = 4468;
+			
+			
+			const int sys_file_setattr = 4469;
+			
+			
+			const int sys_listns = 4470;
 			
 		}
 	}
@@ -6064,7 +6940,7 @@ namespace syscalls2 {
 			const int sys_lseek = 6008;
 			
 			
-			const int sys_old_mmap = 6009;
+			const int sys_mips_mmap = 6009;
 			
 			
 			const int sys_mprotect = 6010;
@@ -6229,7 +7105,7 @@ namespace syscalls2 {
 			const int sys_semop = 6063;
 			
 			
-			const int sys_semctl = 6064;
+			const int sys_old_semctl = 6064;
 			
 			
 			const int sys_shmdt = 6065;
@@ -6415,7 +7291,7 @@ namespace syscalls2 {
 			const int sys_rt_sigpending = 6125;
 			
 			
-			const int sys_io_getevents_time32 = 6126;
+			const int sys_rt_sigtimedwait_time32 = 6126;
 			
 			
 			const int sys_rt_sigqueueinfo = 6127;
@@ -6433,7 +7309,7 @@ namespace syscalls2 {
 			const int sys_mknod = 6131;
 			
 			
-			const int sys_personality = 6132;
+			const int sys_32_personality = 6132;
 			
 			
 			const int sys_ustat = 6133;
@@ -6493,9 +7369,6 @@ namespace syscalls2 {
 			const int sys_pivot_root = 6151;
 			
 			
-			const int sys_sysctl = 6152;
-			
-			
 			const int sys_prctl = 6153;
 			
 			
@@ -6536,9 +7409,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_setdomainname = 6166;
-			
-			
-			const int sys_ni_syscall = 6167;
 			
 			
 			const int sys_init_module = 6168;
@@ -6604,10 +7474,22 @@ namespace syscalls2 {
 			const int sys_sched_getaffinity = 6196;
 			
 			
+			const int sys_cacheflush = 6197;
+			
+			
+			const int sys_cachectl = 6198;
+			
+			
+			const int sys_sysmips = 6199;
+			
+			
 			const int sys_io_setup = 6200;
 			
 			
 			const int sys_io_destroy = 6201;
+			
+			
+			const int sys_io_getevents_time32 = 6202;
 			
 			
 			const int sys_io_submit = 6203;
@@ -6617,9 +7499,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_exit_group = 6205;
-			
-			
-			const int sys_lookup_dcookie = 6206;
 			
 			
 			const int sys_epoll_create = 6207;
@@ -6634,7 +7513,7 @@ namespace syscalls2 {
 			const int sys_remap_file_pages = 6210;
 			
 			
-			const int sys_sigreturn = 6211;
+			const int sys_rt_sigreturn = 6211;
 			
 			
 			const int sys_fcntl64 = 6212;
@@ -6661,7 +7540,7 @@ namespace syscalls2 {
 			const int sys_sendfile64 = 6219;
 			
 			
-			const int sys_timerfd_create = 6220;
+			const int sys_timer_create = 6220;
 			
 			
 			const int sys_timer_settime32 = 6221;
@@ -6733,6 +7612,9 @@ namespace syscalls2 {
 			const int sys_keyctl = 6245;
 			
 			
+			const int sys_set_thread_area = 6246;
+			
+			
 			const int sys_inotify_init = 6247;
 			
 			
@@ -6784,10 +7666,10 @@ namespace syscalls2 {
 			const int sys_faccessat = 6263;
 			
 			
-			const int sys_io_pgetevents_time32 = 6264;
+			const int sys_pselect6_time32 = 6264;
 			
 			
-			const int sys_pselect6_time32 = 6265;
+			const int sys_ppoll_time32 = 6265;
 			
 			
 			const int sys_unshare = 6266;
@@ -6808,10 +7690,10 @@ namespace syscalls2 {
 			const int sys_move_pages = 6271;
 			
 			
-			const int sys_get_robust_list = 6272;
+			const int sys_set_robust_list = 6272;
 			
 			
-			const int sys_set_robust_list = 6273;
+			const int sys_get_robust_list = 6273;
 			
 			
 			const int sys_kexec_load = 6274;
@@ -6839,6 +7721,9 @@ namespace syscalls2 {
 			
 			
 			const int sys_fallocate = 6283;
+			
+			
+			const int sys_timerfd_create = 6284;
 			
 			
 			const int sys_timerfd_gettime32 = 6285;
@@ -6880,7 +7765,7 @@ namespace syscalls2 {
 			const int sys_accept4 = 6297;
 			
 			
-			const int sys_ppoll_time32 = 6298;
+			const int sys_recvmmsg_time32 = 6298;
 			
 			
 			const int sys_getdents64 = 6299;
@@ -7015,6 +7900,15 @@ namespace syscalls2 {
 			const int sys_utimensat = 6412;
 			
 			
+			const int sys_pselect6 = 6413;
+			
+			
+			const int sys_ppoll = 6414;
+			
+			
+			const int sys_recvmmsg = 6417;
+			
+			
 			const int sys_mq_timedsend = 6418;
 			
 			
@@ -7022,6 +7916,9 @@ namespace syscalls2 {
 			
 			
 			const int sys_semtimedop = 6420;
+			
+			
+			const int sys_rt_sigtimedwait = 6421;
 			
 			
 			const int sys_futex = 6422;
@@ -7066,6 +7963,9 @@ namespace syscalls2 {
 			const int sys_clone3 = 6435;
 			
 			
+			const int sys_close_range = 6436;
+			
+			
 			const int sys_openat2 = 6437;
 			
 			
@@ -7074,11 +7974,104 @@ namespace syscalls2 {
 			
 			const int sys_faccessat2 = 6439;
 			
+			
+			const int sys_process_madvise = 6440;
+			
+			
+			const int sys_epoll_pwait2 = 6441;
+			
+			
+			const int sys_mount_setattr = 6442;
+			
+			
+			const int sys_quotactl_fd = 6443;
+			
+			
+			const int sys_landlock_create_ruleset = 6444;
+			
+			
+			const int sys_landlock_add_rule = 6445;
+			
+			
+			const int sys_landlock_restrict_self = 6446;
+			
+			
+			const int sys_process_mrelease = 6448;
+			
+			
+			const int sys_futex_waitv = 6449;
+			
+			
+			const int sys_set_mempolicy_home_node = 6450;
+			
+			
+			const int sys_cachestat = 6451;
+			
+			
+			const int sys_fchmodat2 = 6452;
+			
+			
+			const int sys_map_shadow_stack = 6453;
+			
+			
+			const int sys_futex_wake = 6454;
+			
+			
+			const int sys_futex_wait = 6455;
+			
+			
+			const int sys_futex_requeue = 6456;
+			
+			
+			const int sys_statmount = 6457;
+			
+			
+			const int sys_listmount = 6458;
+			
+			
+			const int sys_lsm_get_self_attr = 6459;
+			
+			
+			const int sys_lsm_set_self_attr = 6460;
+			
+			
+			const int sys_lsm_list_modules = 6461;
+			
+			
+			const int sys_mseal = 6462;
+			
+			
+			const int sys_setxattrat = 6463;
+			
+			
+			const int sys_getxattrat = 6464;
+			
+			
+			const int sys_listxattrat = 6465;
+			
+			
+			const int sys_removexattrat = 6466;
+			
+			
+			const int sys_open_tree_attr = 6467;
+			
+			
+			const int sys_file_getattr = 6468;
+			
+			
+			const int sys_file_setattr = 6469;
+			
+			
+			const int sys_listns = 6470;
+			
 		}
 	}
 	// linux:mips64
 	namespace linux {
 		namespace mips64 {
+			
+			const int sys_syscall = 4000;
+			
 			
 			const int sys_exit = 4001;
 			
@@ -7128,9 +8121,6 @@ namespace syscalls2 {
 			const int sys_lchown = 4016;
 			
 			
-			const int sys_stat = 4018;
-			
-			
 			const int sys_lseek = 4019;
 			
 			
@@ -7156,9 +8146,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_alarm = 4027;
-			
-			
-			const int sys_fstat = 4028;
 			
 			
 			const int sys_pause = 4029;
@@ -7204,9 +8191,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_getgid = 4047;
-			
-			
-			const int sys_signal = 4048;
 			
 			
 			const int sys_geteuid = 4049;
@@ -7302,9 +8286,6 @@ namespace syscalls2 {
 			const int sys_symlink = 4083;
 			
 			
-			const int sys_lstat = 4084;
-			
-			
 			const int sys_readlink = 4085;
 			
 			
@@ -7320,7 +8301,7 @@ namespace syscalls2 {
 			const int sys_old_readdir = 4089;
 			
 			
-			const int sys_mmap = 4090;
+			const int sys_mips_mmap = 4090;
 			
 			
 			const int sys_munmap = 4091;
@@ -7350,9 +8331,6 @@ namespace syscalls2 {
 			const int sys_fstatfs = 4100;
 			
 			
-			const int sys_ioperm = 4101;
-			
-			
 			const int sys_socketcall = 4102;
 			
 			
@@ -7377,13 +8355,7 @@ namespace syscalls2 {
 			const int sys_uname = 4109;
 			
 			
-			const int sys_iopl = 4110;
-			
-			
 			const int sys_vhangup = 4111;
-			
-			
-			const int sys_idle = 4112;
 			
 			
 			const int sys_wait4 = 4114;
@@ -7413,9 +8385,6 @@ namespace syscalls2 {
 			const int sys_newuname = 4122;
 			
 			
-			const int modify_ldt = 4123;
-			
-			
 			const int sys_adjtimex_time32 = 4124;
 			
 			
@@ -7425,16 +8394,10 @@ namespace syscalls2 {
 			const int sys_sigprocmask = 4126;
 			
 			
-			const int create_module = 4127;
-			
-			
 			const int sys_init_module = 4128;
 			
 			
 			const int sys_delete_module = 4129;
-			
-			
-			const int get_kernel_syms = 4130;
 			
 			
 			const int sys_quotactl = 4131;
@@ -7444,9 +8407,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_fchdir = 4133;
-			
-			
-			const int sys_bdflush = 4134;
 			
 			
 			const int sys_sysfs = 4135;
@@ -7485,16 +8445,16 @@ namespace syscalls2 {
 			const int sys_cacheflush = 4147;
 			
 			
-			const int sys_setup = 4150;
+			const int sys_cachectl = 4148;
+			
+			
+			const int sys_sysmips = 4149;
 			
 			
 			const int sys_getsid = 4151;
 			
 			
 			const int sys_fdatasync = 4152;
-			
-			
-			const int sys_sysctl = 4153;
 			
 			
 			const int sys_mlock = 4154;
@@ -7596,13 +8556,7 @@ namespace syscalls2 {
 			const int sys_getresuid = 4186;
 			
 			
-			const int sys_query_module = 4187;
-			
-			
 			const int sys_poll = 4188;
-			
-			
-			const int sys_nfsservctl = 4189;
 			
 			
 			const int sys_setresgid = 4190;
@@ -7659,7 +8613,7 @@ namespace syscalls2 {
 			const int sys_sendfile = 4207;
 			
 			
-			const int mmap2 = 4210;
+			const int sys_mips_mmap2 = 4210;
 			
 			
 			const int sys_truncate64 = 4211;
@@ -7767,9 +8721,6 @@ namespace syscalls2 {
 			const int sys_exit_group = 4246;
 			
 			
-			const int sys_lookup_dcookie = 4247;
-			
-			
 			const int sys_epoll_create = 4248;
 			
 			
@@ -7869,7 +8820,7 @@ namespace syscalls2 {
 			const int sys_keyctl = 4282;
 			
 			
-			const int set_thread_area = 4283;
+			const int sys_set_thread_area = 4283;
 			
 			
 			const int sys_inotify_init = 4284;
@@ -7972,9 +8923,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_signalfd = 4317;
-			
-			
-			const int sys_ni_syscall = 4318;
 			
 			
 			const int sys_eventfd = 4319;
@@ -8250,6 +9198,12 @@ namespace syscalls2 {
 			const int sys_pidfd_open = 4434;
 			
 			
+			const int sys_clone3 = 4435;
+			
+			
+			const int sys_close_range = 4436;
+			
+			
 			const int sys_openat2 = 4437;
 			
 			
@@ -8259,7 +9213,94 @@ namespace syscalls2 {
 			const int sys_faccessat2 = 4439;
 			
 			
-			const int sys_old_mmap = 5009;
+			const int sys_process_madvise = 4440;
+			
+			
+			const int sys_epoll_pwait2 = 4441;
+			
+			
+			const int sys_mount_setattr = 4442;
+			
+			
+			const int sys_quotactl_fd = 4443;
+			
+			
+			const int sys_landlock_create_ruleset = 4444;
+			
+			
+			const int sys_landlock_add_rule = 4445;
+			
+			
+			const int sys_landlock_restrict_self = 4446;
+			
+			
+			const int sys_process_mrelease = 4448;
+			
+			
+			const int sys_futex_waitv = 4449;
+			
+			
+			const int sys_set_mempolicy_home_node = 4450;
+			
+			
+			const int sys_cachestat = 4451;
+			
+			
+			const int sys_fchmodat2 = 4452;
+			
+			
+			const int sys_map_shadow_stack = 4453;
+			
+			
+			const int sys_futex_wake = 4454;
+			
+			
+			const int sys_futex_wait = 4455;
+			
+			
+			const int sys_futex_requeue = 4456;
+			
+			
+			const int sys_statmount = 4457;
+			
+			
+			const int sys_listmount = 4458;
+			
+			
+			const int sys_lsm_get_self_attr = 4459;
+			
+			
+			const int sys_lsm_set_self_attr = 4460;
+			
+			
+			const int sys_lsm_list_modules = 4461;
+			
+			
+			const int sys_mseal = 4462;
+			
+			
+			const int sys_setxattrat = 4463;
+			
+			
+			const int sys_getxattrat = 4464;
+			
+			
+			const int sys_listxattrat = 4465;
+			
+			
+			const int sys_removexattrat = 4466;
+			
+			
+			const int sys_open_tree_attr = 4467;
+			
+			
+			const int sys_file_getattr = 4468;
+			
+			
+			const int sys_file_setattr = 4469;
+			
+			
+			const int sys_listns = 4470;
 			
 			
 			const int sys_old_shmctl = 5030;
@@ -8295,7 +9336,7 @@ namespace syscalls2 {
 			const int sys_newfstatat = 5252;
 			
 			
-			const int sys_clone3 = 5435;
+			const int sys_32_personality = 6132;
 			
 			
 			const int sys_semtimedop_time32 = 6215;
@@ -8345,7 +9386,7 @@ namespace syscalls2 {
 			const int sys_chdir = 12;
 			
 			
-			const int sys_time = 13;
+			const int sys_time32 = 13;
 			
 			
 			const int sys_mknod = 14;
@@ -8357,7 +9398,7 @@ namespace syscalls2 {
 			const int sys_lchown = 16;
 			
 			
-			const int sys_oldstat = 18;
+			const int sys_stat = 18;
 			
 			
 			const int sys_lseek = 19;
@@ -8369,7 +9410,7 @@ namespace syscalls2 {
 			const int sys_mount = 21;
 			
 			
-			const int sys_umount = 22;
+			const int sys_oldumount = 22;
 			
 			
 			const int sys_setuid = 23;
@@ -8378,7 +9419,7 @@ namespace syscalls2 {
 			const int sys_getuid = 24;
 			
 			
-			const int sys_stime = 25;
+			const int sys_stime32 = 25;
 			
 			
 			const int sys_ptrace = 26;
@@ -8387,13 +9428,13 @@ namespace syscalls2 {
 			const int sys_alarm = 27;
 			
 			
-			const int sys_oldfstat = 28;
+			const int sys_fstat = 28;
 			
 			
 			const int sys_pause = 29;
 			
 			
-			const int sys_utime = 30;
+			const int sys_utime32 = 30;
 			
 			
 			const int sys_access = 33;
@@ -8447,7 +9488,7 @@ namespace syscalls2 {
 			const int sys_acct = 51;
 			
 			
-			const int sys_umount2 = 52;
+			const int sys_umount = 52;
 			
 			
 			const int sys_ioctl = 54;
@@ -8459,7 +9500,7 @@ namespace syscalls2 {
 			const int sys_setpgid = 57;
 			
 			
-			const int sys_oldolduname = 59;
+			const int sys_olduname = 59;
 			
 			
 			const int sys_umask = 60;
@@ -8510,7 +9551,7 @@ namespace syscalls2 {
 			const int sys_setrlimit = 75;
 			
 			
-			const int sys_getrlimit = 76;
+			const int sys_old_getrlimit = 76;
 			
 			
 			const int sys_getrusage = 77;
@@ -8528,16 +9569,19 @@ namespace syscalls2 {
 			const int sys_setgroups = 81;
 			
 			
-			const int sys_select = 82;
+			const int sys_old_select = 82;
 			
 			
 			const int sys_symlink = 83;
 			
 			
-			const int sys_oldlstat = 84;
+			const int sys_lstat = 84;
 			
 			
 			const int sys_readlink = 85;
+			
+			
+			const int sys_uselib = 86;
 			
 			
 			const int sys_swapon = 87;
@@ -8546,7 +9590,7 @@ namespace syscalls2 {
 			const int sys_reboot = 88;
 			
 			
-			const int sys_readdir = 89;
+			const int sys_old_readdir = 89;
 			
 			
 			const int sys_mmap = 90;
@@ -8579,9 +9623,6 @@ namespace syscalls2 {
 			const int sys_fstatfs = 100;
 			
 			
-			const int sys_ioperm = 101;
-			
-			
 			const int sys_socketcall = 102;
 			
 			
@@ -8594,25 +9635,19 @@ namespace syscalls2 {
 			const int sys_getitimer = 105;
 			
 			
-			const int sys_stat = 106;
+			const int sys_newstat = 106;
 			
 			
-			const int sys_lstat = 107;
+			const int sys_newlstat = 107;
 			
 			
-			const int sys_fstat = 108;
+			const int sys_newfstat = 108;
 			
 			
-			const int sys_olduname = 109;
-			
-			
-			const int sys_iopl = 110;
+			const int sys_uname = 109;
 			
 			
 			const int sys_vhangup = 111;
-			
-			
-			const int sys_vm86 = 113;
 			
 			
 			const int sys_wait4 = 114;
@@ -8639,13 +9674,10 @@ namespace syscalls2 {
 			const int sys_setdomainname = 121;
 			
 			
-			const int sys_uname = 122;
+			const int sys_newuname = 122;
 			
 			
-			const int sys_modify_ldt = 123;
-			
-			
-			const int sys_adjtimex = 124;
+			const int sys_adjtimex_time32 = 124;
 			
 			
 			const int sys_mprotect = 125;
@@ -8685,6 +9717,9 @@ namespace syscalls2 {
 			
 			
 			const int sys_getdents = 141;
+			
+			
+			const int sys_select = 142;
 			
 			
 			const int sys_flock = 143;
@@ -8738,10 +9773,10 @@ namespace syscalls2 {
 			const int sys_sched_get_priority_min = 160;
 			
 			
-			const int sys_sched_rr_get_interval = 161;
+			const int sys_sched_rr_get_interval_time32 = 161;
 			
 			
-			const int sys_nanosleep = 162;
+			const int sys_nanosleep_time32 = 162;
 			
 			
 			const int sys_mremap = 163;
@@ -8777,7 +9812,7 @@ namespace syscalls2 {
 			const int sys_rt_sigpending = 175;
 			
 			
-			const int sys_rt_sigtimedwait = 176;
+			const int sys_rt_sigtimedwait_time32 = 176;
 			
 			
 			const int sys_rt_sigqueueinfo = 177;
@@ -8786,10 +9821,10 @@ namespace syscalls2 {
 			const int sys_rt_sigsuspend = 178;
 			
 			
-			const int sys_pread64 = 179;
+			const int sys_ppc_pread64 = 179;
 			
 			
-			const int sys_pwrite64 = 180;
+			const int sys_ppc_pwrite64 = 180;
 			
 			
 			const int sys_chown = 181;
@@ -8813,19 +9848,19 @@ namespace syscalls2 {
 			const int sys_vfork = 189;
 			
 			
-			const int sys_ugetrlimit = 190;
+			const int sys_getrlimit = 190;
 			
 			
-			const int sys_readahead = 191;
+			const int sys_ppc_readahead = 191;
 			
 			
 			const int sys_mmap2 = 192;
 			
 			
-			const int sys_truncate64 = 193;
+			const int sys_ppc_truncate64 = 193;
 			
 			
-			const int sys_ftruncate64 = 194;
+			const int sys_ppc_ftruncate64 = 194;
 			
 			
 			const int sys_stat64 = 195;
@@ -8844,9 +9879,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_pciconfig_iobase = 200;
-			
-			
-			const int sys_multiplexer = 201;
 			
 			
 			const int sys_getdents64 = 202;
@@ -8906,7 +9938,7 @@ namespace syscalls2 {
 			const int sys_fremovexattr = 220;
 			
 			
-			const int sys_futex = 221;
+			const int sys_futex_time32 = 221;
 			
 			
 			const int sys_sched_setaffinity = 222;
@@ -8924,7 +9956,7 @@ namespace syscalls2 {
 			const int sys_io_destroy = 228;
 			
 			
-			const int sys_io_getevents = 229;
+			const int sys_io_getevents_time32 = 229;
 			
 			
 			const int sys_io_submit = 230;
@@ -8936,13 +9968,10 @@ namespace syscalls2 {
 			const int sys_set_tid_address = 232;
 			
 			
-			const int sys_fadvise64 = 233;
+			const int sys_ppc32_fadvise64 = 233;
 			
 			
 			const int sys_exit_group = 234;
-			
-			
-			const int sys_lookup_dcookie = 235;
 			
 			
 			const int sys_epoll_create = 236;
@@ -8960,10 +9989,10 @@ namespace syscalls2 {
 			const int sys_timer_create = 240;
 			
 			
-			const int sys_timer_settime = 241;
+			const int sys_timer_settime32 = 241;
 			
 			
-			const int sys_timer_gettime = 242;
+			const int sys_timer_gettime32 = 242;
 			
 			
 			const int sys_timer_getoverrun = 243;
@@ -8972,16 +10001,16 @@ namespace syscalls2 {
 			const int sys_timer_delete = 244;
 			
 			
-			const int sys_clock_settime = 245;
+			const int sys_clock_settime32 = 245;
 			
 			
-			const int sys_clock_gettime = 246;
+			const int sys_clock_gettime32 = 246;
 			
 			
-			const int sys_clock_getres = 247;
+			const int sys_clock_getres_time32 = 247;
 			
 			
-			const int sys_clock_nanosleep = 248;
+			const int sys_clock_nanosleep_time32 = 248;
 			
 			
 			const int sys_swapcontext = 249;
@@ -8990,7 +10019,7 @@ namespace syscalls2 {
 			const int sys_tgkill = 250;
 			
 			
-			const int sys_utimes = 251;
+			const int sys_utimes_time32 = 251;
 			
 			
 			const int sys_statfs64 = 252;
@@ -8999,13 +10028,13 @@ namespace syscalls2 {
 			const int sys_fstatfs64 = 253;
 			
 			
-			const int sys_fadvise64_64 = 254;
+			const int sys_ppc_fadvise64_64 = 254;
 			
 			
 			const int sys_rtas = 255;
 			
 			
-			const int sys_sys_debug_setcontext = 256;
+			const int sys_debug_setcontext = 256;
 			
 			
 			const int sys_migrate_pages = 258;
@@ -9026,10 +10055,10 @@ namespace syscalls2 {
 			const int sys_mq_unlink = 263;
 			
 			
-			const int sys_mq_timedsend = 264;
+			const int sys_mq_timedsend_time32 = 264;
 			
 			
-			const int sys_mq_timedreceive = 265;
+			const int sys_mq_timedreceive_time32 = 265;
 			
 			
 			const int sys_mq_notify = 266;
@@ -9074,10 +10103,10 @@ namespace syscalls2 {
 			const int sys_spu_create = 279;
 			
 			
-			const int sys_pselect6 = 280;
+			const int sys_pselect6_time32 = 280;
 			
 			
-			const int sys_ppoll = 281;
+			const int sys_ppoll_time32 = 281;
 			
 			
 			const int sys_unshare = 282;
@@ -9104,7 +10133,7 @@ namespace syscalls2 {
 			const int sys_fchownat = 289;
 			
 			
-			const int sys_futimesat = 290;
+			const int sys_futimesat_time32 = 290;
 			
 			
 			const int sys_fstatat64 = 291;
@@ -9146,7 +10175,7 @@ namespace syscalls2 {
 			const int sys_epoll_pwait = 303;
 			
 			
-			const int sys_utimensat = 304;
+			const int sys_utimensat_time32 = 304;
 			
 			
 			const int sys_signalfd = 305;
@@ -9158,19 +10187,19 @@ namespace syscalls2 {
 			const int sys_eventfd = 307;
 			
 			
-			const int sys_sync_file_range2 = 308;
+			const int sys_ppc_sync_file_range2 = 308;
 			
 			
-			const int sys_fallocate = 309;
+			const int sys_ppc_fallocate = 309;
 			
 			
 			const int sys_subpage_prot = 310;
 			
 			
-			const int sys_timerfd_settime = 311;
+			const int sys_timerfd_settime32 = 311;
 			
 			
-			const int sys_timerfd_gettime = 312;
+			const int sys_timerfd_gettime32 = 312;
 			
 			
 			const int sys_signalfd4 = 313;
@@ -9263,7 +10292,7 @@ namespace syscalls2 {
 			const int sys_recvmsg = 342;
 			
 			
-			const int sys_recvmmsg = 343;
+			const int sys_recvmmsg_time32 = 343;
 			
 			
 			const int sys_accept4 = 344;
@@ -9275,7 +10304,7 @@ namespace syscalls2 {
 			const int sys_open_by_handle_at = 346;
 			
 			
-			const int sys_clock_adjtime = 347;
+			const int sys_clock_adjtime32 = 347;
 			
 			
 			const int sys_syncfs = 348;
@@ -9323,9 +10352,6 @@ namespace syscalls2 {
 			const int sys_execveat = 362;
 			
 			
-			const int sys_switch_endian = 363;
-			
-			
 			const int sys_userfaultfd = 364;
 			
 			
@@ -9362,7 +10388,7 @@ namespace syscalls2 {
 			const int sys_rseq = 387;
 			
 			
-			const int sys_io_pgetevents = 388;
+			const int sys_io_pgetevents_time32 = 388;
 			
 			
 			const int sys_semget = 393;
@@ -9395,64 +10421,64 @@ namespace syscalls2 {
 			const int sys_msgctl = 402;
 			
 			
-			const int sys_clock_gettime64 = 403;
+			const int sys_clock_gettime = 403;
 			
 			
-			const int sys_clock_settime64 = 404;
+			const int sys_clock_settime = 404;
 			
 			
-			const int sys_clock_adjtime64 = 405;
+			const int sys_clock_adjtime = 405;
 			
 			
-			const int sys_clock_getres_time64 = 406;
+			const int sys_clock_getres = 406;
 			
 			
-			const int sys_clock_nanosleep_time64 = 407;
+			const int sys_clock_nanosleep = 407;
 			
 			
-			const int sys_timer_gettime64 = 408;
+			const int sys_timer_gettime = 408;
 			
 			
-			const int sys_timer_settime64 = 409;
+			const int sys_timer_settime = 409;
 			
 			
-			const int sys_timerfd_gettime64 = 410;
+			const int sys_timerfd_gettime = 410;
 			
 			
-			const int sys_timerfd_settime64 = 411;
+			const int sys_timerfd_settime = 411;
 			
 			
-			const int sys_utimensat_time64 = 412;
+			const int sys_utimensat = 412;
 			
 			
-			const int sys_pselect6_time64 = 413;
+			const int sys_pselect6 = 413;
 			
 			
-			const int sys_ppoll_time64 = 414;
+			const int sys_ppoll = 414;
 			
 			
-			const int sys_io_pgetevents_time64 = 416;
+			const int sys_io_pgetevents = 416;
 			
 			
-			const int sys_recvmmsg_time64 = 417;
+			const int sys_recvmmsg = 417;
 			
 			
-			const int sys_mq_timedsend_time64 = 418;
+			const int sys_mq_timedsend = 418;
 			
 			
-			const int sys_mq_timedreceive_time64 = 419;
+			const int sys_mq_timedreceive = 419;
 			
 			
-			const int sys_semtimedop_time64 = 420;
+			const int sys_semtimedop = 420;
 			
 			
-			const int sys_rt_sigtimedwait_time64 = 421;
+			const int sys_rt_sigtimedwait = 421;
 			
 			
-			const int sys_futex_time64 = 422;
+			const int sys_futex = 422;
 			
 			
-			const int sys_sched_rr_get_interval_time64 = 423;
+			const int sys_sched_rr_get_interval = 423;
 			
 			
 			const int sys_pidfd_send_signal = 424;
@@ -9537,9 +10563,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_fchmodat2 = 452;
-			
-			
-			const int sys_map_shadow_stack = 453;
 			
 			
 			const int sys_futex_wake = 454;
@@ -9649,9 +10672,6 @@ namespace syscalls2 {
 			const int sys_lchown = 16;
 			
 			
-			const int sys_oldstat = 18;
-			
-			
 			const int sys_lseek = 19;
 			
 			
@@ -9659,9 +10679,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_mount = 21;
-			
-			
-			const int sys_umount = 22;
 			
 			
 			const int sys_setuid = 23;
@@ -9677,9 +10694,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_alarm = 27;
-			
-			
-			const int sys_oldfstat = 28;
 			
 			
 			const int sys_pause = 29;
@@ -9739,7 +10753,7 @@ namespace syscalls2 {
 			const int sys_acct = 51;
 			
 			
-			const int sys_umount2 = 52;
+			const int sys_umount = 52;
 			
 			
 			const int sys_ioctl = 54;
@@ -9749,9 +10763,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_setpgid = 57;
-			
-			
-			const int sys_oldolduname = 59;
 			
 			
 			const int sys_umask = 60;
@@ -9775,9 +10786,6 @@ namespace syscalls2 {
 			const int sys_setsid = 66;
 			
 			
-			const int sys_sigaction = 67;
-			
-			
 			const int sys_sgetmask = 68;
 			
 			
@@ -9790,19 +10798,10 @@ namespace syscalls2 {
 			const int sys_setregid = 71;
 			
 			
-			const int sys_sigsuspend = 72;
-			
-			
-			const int sys_sigpending = 73;
-			
-			
 			const int sys_sethostname = 74;
 			
 			
 			const int sys_setrlimit = 75;
-			
-			
-			const int sys_getrlimit = 76;
 			
 			
 			const int sys_getrusage = 77;
@@ -9820,25 +10819,19 @@ namespace syscalls2 {
 			const int sys_setgroups = 81;
 			
 			
-			const int sys_select = 82;
-			
-			
 			const int sys_symlink = 83;
 			
 			
-			const int sys_oldlstat = 84;
-			
-			
 			const int sys_readlink = 85;
+			
+			
+			const int sys_uselib = 86;
 			
 			
 			const int sys_swapon = 87;
 			
 			
 			const int sys_reboot = 88;
-			
-			
-			const int sys_readdir = 89;
 			
 			
 			const int sys_mmap = 90;
@@ -9871,9 +10864,6 @@ namespace syscalls2 {
 			const int sys_fstatfs = 100;
 			
 			
-			const int sys_ioperm = 101;
-			
-			
 			const int sys_socketcall = 102;
 			
 			
@@ -9886,25 +10876,16 @@ namespace syscalls2 {
 			const int sys_getitimer = 105;
 			
 			
-			const int sys_stat = 106;
+			const int sys_newstat = 106;
 			
 			
-			const int sys_lstat = 107;
+			const int sys_newlstat = 107;
 			
 			
-			const int sys_fstat = 108;
-			
-			
-			const int sys_olduname = 109;
-			
-			
-			const int sys_iopl = 110;
+			const int sys_newfstat = 108;
 			
 			
 			const int sys_vhangup = 111;
-			
-			
-			const int sys_vm86 = 113;
 			
 			
 			const int sys_wait4 = 114;
@@ -9922,28 +10903,19 @@ namespace syscalls2 {
 			const int sys_fsync = 118;
 			
 			
-			const int sys_sigreturn = 119;
-			
-			
 			const int sys_clone = 120;
 			
 			
 			const int sys_setdomainname = 121;
 			
 			
-			const int sys_uname = 122;
-			
-			
-			const int sys_modify_ldt = 123;
+			const int sys_newuname = 122;
 			
 			
 			const int sys_adjtimex = 124;
 			
 			
 			const int sys_mprotect = 125;
-			
-			
-			const int sys_sigprocmask = 126;
 			
 			
 			const int sys_init_module = 128;
@@ -9964,7 +10936,7 @@ namespace syscalls2 {
 			const int sys_sysfs = 135;
 			
 			
-			const int sys_personality = 136;
+			const int sys_ppc64_personality = 136;
 			
 			
 			const int sys_setfsuid = 138;
@@ -9977,6 +10949,9 @@ namespace syscalls2 {
 			
 			
 			const int sys_getdents = 141;
+			
+			
+			const int sys_select = 142;
 			
 			
 			const int sys_flock = 143;
@@ -10099,13 +11074,13 @@ namespace syscalls2 {
 			const int sys_sigaltstack = 185;
 			
 			
-			const int sys_sendfile = 186;
+			const int sys_sendfile64 = 186;
 			
 			
 			const int sys_vfork = 189;
 			
 			
-			const int sys_ugetrlimit = 190;
+			const int sys_getrlimit = 190;
 			
 			
 			const int sys_readahead = 191;
@@ -10118,9 +11093,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_pciconfig_iobase = 200;
-			
-			
-			const int sys_multiplexer = 201;
 			
 			
 			const int sys_getdents64 = 202;
@@ -10210,9 +11182,6 @@ namespace syscalls2 {
 			const int sys_exit_group = 234;
 			
 			
-			const int sys_lookup_dcookie = 235;
-			
-			
 			const int sys_epoll_create = 236;
 			
 			
@@ -10268,9 +11237,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_rtas = 255;
-			
-			
-			const int sys_sys_debug_setcontext = 256;
 			
 			
 			const int sys_migrate_pages = 258;
@@ -10745,9 +11711,6 @@ namespace syscalls2 {
 			
 			
 			const int sys_fchmodat2 = 452;
-			
-			
-			const int sys_map_shadow_stack = 453;
 			
 			
 			const int sys_futex_wake = 454;
