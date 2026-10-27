@@ -4658,7 +4658,7 @@ syscall_info_t __syscall_info_a[] = {
 		.argsz = argsz_4001,
 		.argn = argn_4001,
 		.argtn = argtn_4001,
-		.noreturn = false
+		.noreturn = true
 	},
 	[5058] = {
 		.no = 5058,
@@ -4668,7 +4668,7 @@ syscall_info_t __syscall_info_a[] = {
 		.argsz = argsz_5058,
 		.argn = argn_5058,
 		.argtn = argtn_5058,
-		.noreturn = false
+		.noreturn = true
 	},
 	[6058] = {
 		.no = 6058,
@@ -4678,7 +4678,7 @@ syscall_info_t __syscall_info_a[] = {
 		.argsz = argsz_6058,
 		.argn = argn_6058,
 		.argtn = argtn_6058,
-		.noreturn = false
+		.noreturn = true
 	},
 	[4002] = {
 		.no = 4002,
@@ -10468,7 +10468,7 @@ syscall_info_t __syscall_info_a[] = {
 		.argsz = argsz_4246,
 		.argn = argn_4246,
 		.argtn = argtn_4246,
-		.noreturn = false
+		.noreturn = true
 	},
 	[5205] = {
 		.no = 5205,
@@ -10478,7 +10478,7 @@ syscall_info_t __syscall_info_a[] = {
 		.argsz = argsz_5205,
 		.argn = argn_5205,
 		.argtn = argtn_5205,
-		.noreturn = false
+		.noreturn = true
 	},
 	[6205] = {
 		.no = 6205,
@@ -10488,7 +10488,7 @@ syscall_info_t __syscall_info_a[] = {
 		.argsz = argsz_6205,
 		.argn = argn_6205,
 		.argtn = argtn_6205,
-		.noreturn = false
+		.noreturn = true
 	},
 	[4248] = {
 		.no = 4248,

@@ -84,7 +84,7 @@ void syscall_enter_switch_linux_mips64(CPUState *cpu, int profile, target_ptr_t 
 	}; break;
 	// 4001, 5058, 6058 long sys_exit ['int error_code']
 	case 4001: case 5058: case 6058: {
-		panda_noreturn = false;
+		panda_noreturn = true;
 		ctx.double_return = false;
 		int32_t arg0 = get_s32(cpu, &ctx, 0);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||
@@ -97,7 +97,7 @@ void syscall_enter_switch_linux_mips64(CPUState *cpu, int profile, target_ptr_t 
 	// 4002, 5056, 6056 long sys_fork ['void']
 	case 4002: case 5056: case 6056: {
 		panda_noreturn = false;
-		ctx.double_return = false;
+		ctx.double_return = true;
 		PPP_RUN_CB(on_sys_fork_enter, cpu, pc);
 	}; break;
 	// 4003, 5000, 6000 long sys_read ['unsigned int fd', 'char __user *buf', 'size_t count']
@@ -3160,7 +3160,7 @@ void syscall_enter_switch_linux_mips64(CPUState *cpu, int profile, target_ptr_t 
 	}; break;
 	// 4246, 5205, 6205 long sys_exit_group ['int error_code']
 	case 4246: case 5205: case 6205: {
-		panda_noreturn = false;
+		panda_noreturn = true;
 		ctx.double_return = false;
 		int32_t arg0 = get_s32(cpu, &ctx, 0);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||
@@ -5857,7 +5857,7 @@ void syscall_enter_switch_linux_mips64(CPUState *cpu, int profile, target_ptr_t 
 	// 4435, 5435, 6435 long sys_clone3 ['struct clone_args __user *uargs', 'size_t size']
 	case 4435: case 5435: case 6435: {
 		panda_noreturn = false;
-		ctx.double_return = false;
+		ctx.double_return = true;
 		uint64_t arg0 = get_64(cpu, &ctx, 0);
 		uint32_t arg1 = get_32(cpu, &ctx, 1);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||
