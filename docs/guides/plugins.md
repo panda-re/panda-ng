@@ -22,7 +22,9 @@ Every build ships these, for every target (`plugins/config.panda`):
 | [hw_proc_id](https://github.com/panda-re/panda-ng/blob/main/plugins/hw_proc_id/README.md) | one process identifier on every architecture |
 | cskeleton, cppskeleton, rust_skeleton | starting points for a C, C++ or Rust plugin |
 
-The mkimage images carry the files osi_linux and osi_isf need.
+The mkimage images carry the files osi_linux and osi_isf need, and a `Panda` made from one
+(`generic=`) passes them to those plugins: `load_plugin("osi_linux")` gets the image's
+`kconf_file` and `load_plugin("osi_isf")` its `isf`, unless the arguments name their own.
 
 ## Loading a plugin
 

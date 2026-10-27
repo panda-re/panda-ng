@@ -23,22 +23,38 @@ Most programs start from an image built by `pandare2.mkimage` ([Getting started]
 --8<-- "tests/osi_isf.py:setup"
 ```
 
-`generic=` takes the image's `.json` and sets the architecture, memory size, disk, serial-console
-prompt and machine arguments from it. Without an image, name the architecture and pass the
-machine yourself, as `tests/smoke.py` does on the [overview](../index.md) page:
-`Panda(arch=..., mem=..., extra_args=[...])`.
+`generic=` takes the image: the path of its `.json`, of a `.yaml` or `.yml` with the same keys,
+or a dict of them. The image is the base: the architecture, memory size, disk, serial-console
+prompt, OS and machine arguments come from it, and a keyword you pass wins over the image's value
+(`mem=`, `qcow=`, `expect_prompt=`, `os_version=`). `extra_args=` go after the image's, so a later
+`-cpu` takes effect. An `arch=` that differs from the image's raises `ValueError`: the disk can't
+boot as another architecture. A `mem=` that differs from the size the image's snapshots were
+taken with makes `revert_sync` raise, naming both sizes. The image's kernel symbols go to the OSI
+plugins: `load_plugin("osi_isf")` and `load_plugin("osi_linux")` get them without arguments
+(`panda.isf`, `panda.kconf_file`).
+
+Without an image, name the architecture and pass the machine yourself, as `tests/smoke.py` does
+on the [overview](../index.md) page: `Panda(arch=..., mem=..., extra_args=[...])`.
 
 The arguments you will use most:
 
 | argument | what it does |
 |---|---|
-| `generic` | an image `.json` from `pandare2.mkimage` |
-| `arch`, `mem` | the target and RAM size when there is no image |
-| `extra_args` | more engine arguments, a list or a string (`["-icount", "shift=6,sleep=off"]`) |
+| `generic` | an image from `pandare2.mkimage` (`.json`, `.yaml` or a dict): the base the other arguments override |
+| `arch`, `mem` | the target and RAM size (default `"i386"` and `"128M"`, or the image's) |
+| `extra_args` | more engine arguments, a list or a string (`["-icount", "shift=6,sleep=off"]`), after the image's |
+| `accel` | `"tcg"` (default) or `"kvm"` ([KVM](kvm.md)); checked when the `Panda` is made |
 | `rr` | make the VM recordable ([Record and replay](record-replay.md)); pass it to replays too |
+| `monitor` | `"qmp"` (default), `"hmp"` or `None`: the monitor `run_monitor_cmd` uses |
 | `machine`, `modules` | a `MachineBuilder` machine or panda modules ([Machines](machines.md)) |
-| `plugin_path` | where C plugins are looked for (also `$PANDA_PLUGIN_DIR`) |
+| `plugin_path`, `libpanda_path`, `biospath` | where the plugins, the engine and the firmware are (also `$PANDA_PLUGIN_DIR`, `$PANDA_LIB`); the defaults are the wheel's or the flake's |
 | `catch_exceptions` | default `True`: an exception in a callback ends the run and `run()` raises it |
+
+The arguments after `qcow` are keyword-only. Making a `Panda` loads the engine library and builds
+QEMU's command line (`panda.panda_args`); it starts no thread and prints nothing. Messages go to
+the `pandare2` logger (`logging.getLogger("pandare2")`): the command line at `INFO`, problems at
+`WARNING`. The serial console and the monitor are sockets connected to your process, so `$TMPDIR`
+holds nothing of pandare2's.
 
 `panda.arch_name` is the target, `panda.arch` has the register helpers, and `panda.libpanda` is
 the engine's C API through cffi (`panda.ffi`), for what has no Python wrapper yet.
@@ -73,6 +89,12 @@ learned from the guest, and lets the processes run into it:
 `end_analysis()` stops the run from any thread. `stop_run()` stops it without unloading plugins
 first.
 
+Before `run()`, load plugins and register callbacks. The methods that act on the running VM
+(`vm_stop`, `cont`, `snap`, `reset`, `revert_async`, `record`, the memory reads and writes,
+`run_monitor_cmd` and the blocking helpers built on it) need the engine, which starts in `run()`:
+called before it they raise `RuntimeError`, as `cont` and `run_monitor_cmd` do after `run()` has
+returned.
+
 ## Driving the guest
 
 These need a guest with a shell on its serial console and a prompt pandare2 knows, which the
@@ -81,9 +103,11 @@ mkimage images have. Call them from a blocking function.
 - `run_serial_cmd(cmd, timeout=None)` types a command, waits for the next prompt, and returns
   what the command printed. The default timeout is 30 seconds.
 - `revert_sync(name)` loads a snapshot (`loadvm`) and returns once it has loaded. It raises
-  `ValueError` if the image has no such snapshot, and returns QEMU's message on other errors.
-- `run_monitor_cmd(cmd)` runs a QEMU monitor command (`savevm`, `info snapshots`, ...) and
-  returns its output.
+  `ValueError` if the image has no such snapshot, `RuntimeError` if the snapshot's RAM size isn't
+  the machine's (`mem=`), and returns QEMU's message on other errors.
+- `run_monitor_cmd(cmd)` runs an HMP monitor command (`savevm`, `info snapshots`, ...) and
+  returns its output. With `monitor="qmp"` (the default) it goes through QMP's
+  `human-monitor-command`; with `monitor=None` it raises `RuntimeError`.
 
 ## Memory and registers
 
@@ -126,7 +150,8 @@ Every PANDA callback has a decorator, `@panda.cb_<name>`; the
 [callback reference](../reference/callbacks.md) lists them, with their arguments and whether
 each fires in this engine. The decorator of one that doesn't fire raises `NotImplementedError`
 (`pandare2.callbacks` has the lists). A decorator registers the function and returns it
-unchanged. Callbacks need TCG.
+unchanged. Callbacks need TCG: under `accel="kvm"` only `main_loop_wait`, `after_machine_init`
+and `after_loadvm` fire, and the other decorators raise `NotImplementedError`.
 
 An exception in a callback can't propagate into the engine: with `catch_exceptions` (the default)
 pandare2 keeps it, ends the analysis and `run()` raises it; until then the callbacks return
