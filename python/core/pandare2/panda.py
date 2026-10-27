@@ -527,7 +527,9 @@ class Panda():
         self.panda_args.extend(['-m', self.mem])
 
         # Configure serial - if we have an expect_prompt set. Otherwise how can we know what guest cmds are outputting?
-        # The first serial port, on a socket pair like the monitor's below.
+        # The first serial port, on a socket pair like the monitor's below. Its id starts with
+        # "serial": x-rr-begin-record journals the chardevs named serial* (engine patch 0039), so
+        # the guest's console input is in a recording and its replay.
         if self.expect_prompt or (serial_kwargs is not None and serial_kwargs.get('expectation')):
             self.serial_socket, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
             self._serial_fd = theirs.detach()       # QEMU's from panda_init on
@@ -535,8 +537,8 @@ class Panda():
             if serial_kwargs:
                 expect_kwargs.update(serial_kwargs)
             self.serial_console = Expect('serial', **expect_kwargs)
-            self.panda_args += ["-chardev", f"socket,id=pandare2-serial,fd={self._serial_fd}",
-                                "-serial", "chardev:pandare2-serial"]
+            self.panda_args += ["-chardev", f"socket,id=serial-pandare2,fd={self._serial_fd}",
+                                "-serial", "chardev:serial-pandare2"]
         else:
             self.serial_socket = None
             self.serial_console = None
