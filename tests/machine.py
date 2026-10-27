@@ -12,7 +12,9 @@ turns on the UART's interrupt and makes hypercall 3 (MAGIC, 3, 0, the CPU's pend
 register). Between hypercalls 1 and 2 the per-block, per-instruction and memory callbacks are on.
 On mips, mipsel and ppc the program first reads the CPU's timer twice and writes its compare /
 decrementer register (the configurable machine's per-target CPU setup: before it, these were NULL
-dereferences in the host), and prints "TIMER-OK" if the timer moved.
+dereferences in the host), and prints "TIMER-OK" if the timer moved. On mips and mipsel it sets HI
+and LO before hypercall 1, which pandare2's get_reg reads back; on ppc, with no guest-readable
+pending register, the pending interrupt is read from CPUPPCState through pandare2's cffi view.
 """
 import base64
 import os
@@ -32,7 +34,8 @@ ROMDATA = b"ROMDATA!"
 # Per arch: CPU, RAM base, ROM, UART (type, base, irq target), unimplemented region, the pending bit.
 # Optional: order (byte order), regs (the hypercall's five argument registers, when pandare2's
 # syscall convention doesn't name them), pending_env (read the pending bit from the CPU state, for
-# CPUs without a guest-readable pending register), timer (the program reads the CPU's timer).
+# CPUs without a guest-readable pending register), timer (the program reads the CPU's timer), hilo
+# (the program sets HI and LO before hypercall 1).
 LAYOUT = {
     "aarch64": dict(cpu="cortex-a53", ram=0x40000000, rom=0x0, uart=("pl011", 0x09000000, "cpu:0"),
                     unimp=0x0a000000, pending=1 << 7, word=8),
@@ -45,10 +48,10 @@ LAYOUT = {
     # and a0..a3; t0 carries the fifth value.
     "mips": dict(cpu="24Kf", ram=0x40000000, rom=0x1fc00000, uart=("serial-mm", 0x1f000000, "cpu:2"),
                  unimp=0x1f010000, pending=1 << 10, word=4, order="big",
-                 regs=["A0", "A1", "A2", "A3", "T0"], timer=True),
+                 regs=["A0", "A1", "A2", "A3", "T0"], timer=True, hilo=True),
     "mipsel": dict(cpu="24Kf", ram=0x40000000, rom=0x1fc00000, uart=("serial-mm", 0x1f000000, "cpu:2"),
                    unimp=0x1f010000, pending=1 << 10, word=4, regs=["A0", "A1", "A2", "A3", "T0"],
-                   timer=True),
+                   timer=True, hilo=True),
     # PPC 750: GPIO input 5 is the 6xx INT pin; with MSR[EE] off the external interrupt stays in
     # env->pending_interrupts (PPC_INTERRUPT_EXT = 0x8, target/ppc/cpu.h).
     "ppc": dict(cpu="750", ram=0x0, rom=0x1fc00000, uart=("serial-mm", 0x10000000, "cpu:5"),
@@ -167,6 +170,10 @@ def run(arch):
             check("current_sp is the program's sp", panda.current_sp(cpu) == c,
                   f"{panda.current_sp(cpu):#x} want {c:#x}")
             check("in_kernel (bare metal runs privileged)", panda.in_kernel(cpu))
+            if L.get("hilo"):
+                hi, lo = panda.arch.get_reg(cpu, "HI"), panda.arch.get_reg(cpu, "LO")
+                check("get_reg HI and LO: the values the program set", (hi, lo) == (0x48494849, 0x4c4f4c4f),
+                      f"HI={hi:#x} LO={lo:#x}")
             data = bytes(panda.virtual_memory_read(cpu, a, len(MARKER)))
             check("virtual_memory_read", data == MARKER, repr(data))
             phys = panda.virt_to_phys(cpu, a)

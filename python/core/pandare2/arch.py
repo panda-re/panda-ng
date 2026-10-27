@@ -268,9 +268,6 @@ class PandaArch():
         rv = self.get_reg(cpu, reg)
 
         if convention == 'syscall':
-            if self.panda.arch_name == "aarch64":
-                if cpu.aarch64 == 0:
-                    return self.panda.from_unsigned_guest(rv, bits=32)
             rv = self.panda.from_unsigned_guest(rv)
         return rv
 
@@ -470,6 +467,17 @@ class Aarch64Arch(PandaArch):
         Looks up where ret will go
         '''
         return self.get_reg(cpu, "LR")
+
+    def get_retval(self, cpu, convention='default'):
+        '''
+        As PandaArch.get_retval. A syscall from AArch32 state returns a 32-bit value.
+        '''
+        if convention == 'syscall':
+            # aarch64 is CPUARMState's (the env), not CPUState's
+            if self.panda.cpu_env(cpu).aarch64 == 0:
+                rv = self.get_reg(cpu, self._get_ret_val_reg(cpu, convention))
+                return self.panda.from_unsigned_guest(rv, bits=32)
+        return super().get_retval(cpu, convention)
 
 class Loongarch64(PandaArch):
     '''
@@ -674,10 +682,11 @@ class MipsArch(PandaArch):
         if isinstance(reg, str):
             env = self.cpu_env(cpu)
             reg = reg.upper()
+            # The multiply/divide result registers (accumulator 0), not CP0 EntryHi/EntryLo0
             if reg == 'HI':
-                return env.CP0_EntryHi
+                return env.active_tc.HI[0]
             elif reg == 'LO':
-                return env.CP0_EntryLo0
+                return env.active_tc.LO[0]
             elif reg.startswith('F') and reg[1:].isnumeric():
                 num = int(reg[1:])
                 _, endianness, _ = self._determine_bits()
