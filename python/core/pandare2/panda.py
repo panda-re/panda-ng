@@ -10,6 +10,8 @@ if version_info[0] < 3:
 
 import platform
 
+import json
+import re
 import socket
 import select
 import threading
@@ -145,6 +147,7 @@ def _engine_register(panda, is_global):
 
 
 ACCELS = ("tcg", "kvm")
+MONITORS = ("qmp", "hmp", None)
 _HOST_ARCH = {"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64", "arm64": "aarch64"}
 
 
@@ -160,6 +163,14 @@ def _accel_args(args):
         elif a in ("-enable-kvm", "--enable-kvm"):
             found.append((i, "kvm"))
     return found
+
+
+def _size(n):
+    '''A byte count as QEMU's -m writes it: "1G", "512M", "64K", or bytes.'''
+    for unit, shift in (("G", 30), ("M", 20), ("K", 10)):
+        if n and n % (1 << shift) == 0:
+            return f"{n >> shift}{unit}"
+    return str(n)
 
 
 def _kvm_unavailable(arch):
@@ -187,7 +198,7 @@ class Panda():
             qcow=None, # Qcow file to load
             os="linux",
             generic=None, # Helper: specify a generic qcow to use and set other arguments. Supported values: arm/ppc/x86_64/i386. Will download qcow automatically
-            raw_monitor=False, # When set, don't specify a -monitor. arg Allows for use of -nographic in args with ctrl-A+C for interactive qemu prompt.
+            raw_monitor=None, # deprecated: raw_monitor=True is monitor=None
             extra_args=None,
             catch_exceptions=True, # Should we catch and end_analysis() when python code raises an exception?
             libpanda_path=None,
@@ -198,6 +209,7 @@ class Panda():
             machine=None, # a pandare2.MachineBuilder: the machine to build (the configurable machine or an external board)
             modules=None, # panda modules (external board/device .so files) to load: -module PATH each
             accel=None, # "tcg" (the default) or "kvm"
+            monitor="qmp", # "qmp", "hmp" or None: the monitor run_monitor_cmd talks to
             ):
         '''
         Construct a new `Panda` object. A process has at most one `Panda` per arch, for its whole
@@ -236,8 +248,11 @@ class Panda():
             os: type of OS (e.g. "linux")
             qcow: path to a qcow file to load
             catch_exceptions: Should we catch exceptions raised by python code and end_analysis() and then print a backtrace (Default: True)
-            raw_monitor: When set, don't specify a -monitor. arg Allows for use of
-                    -nographic in args with ctrl-A+C for interactive qemu prompt. Experts only!
+            monitor: the monitor pandare2 gives QEMU, on a socket connected to this process:
+                    "qmp" (the default), "hmp" or None (none: e.g. to use -nographic's own
+                    monitor, ctrl-A c). `run_monitor_cmd` takes HMP commands either way; under
+                    QMP they go through human-monitor-command.
+            raw_monitor: deprecated. raw_monitor=True is monitor=None.
             extra_args: extra arguments to pass to PANDA as either a string or an
                     array. (e.g. "-nographic" or ["-nographic", "-net", "none"])
             libpanda_path: path to panda shared object to load
@@ -287,6 +302,13 @@ class Panda():
             arch = "i386"
         if mem is None:
             mem = "128M"
+
+        if raw_monitor is not None:
+            warnings.warn("Panda(raw_monitor=...): use monitor=None for no monitor", DeprecationWarning, stacklevel=2)
+            if raw_monitor:
+                monitor = None
+        if monitor not in MONITORS:
+            raise ValueError(f"monitor={monitor!r}: expected one of {', '.join(map(repr, MONITORS))}")
 
         # The accelerator: accel=, else an -accel in extra_args (the way to ask for KVM before
         # accel=), else TCG. rr=True adds its own -accel.
@@ -535,14 +557,24 @@ class Panda():
             self.serial_socket = None
             self.serial_console = None
 
-        # Configure monitor - Always enabled for now
-        self.monitor_file = NamedTemporaryFile(prefix="pypanda_m").name
-        self.monitor_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.raw_monitor = raw_monitor
-        if not self.raw_monitor:
-            # XXX don't forget to escape expectation regex parens!
-            self.monitor_console = Expect('monitor', expectation=rb"\(qemu\) ", consume_first=True)
-            self.panda_args.extend(['-monitor', 'unix:{},server,nowait'.format(self.monitor_file)])
+        # The monitor: one end of a socket pair here, the other QEMU's (-chardev socket,fd=N, a
+        # client chardev on a connected socket). No path, so no limit on $TMPDIR's length.
+        self.monitor = monitor
+        self.monitor_console = None
+        self._monitor_socket = None
+        if monitor is not None:
+            self._monitor_socket, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+            self._monitor_fd = theirs.detach()      # QEMU's from panda_init on
+            mode = "control" if monitor == "qmp" else "readline"
+            self.panda_args += ["-chardev", f"socket,id=pandare2-monitor,fd={self._monitor_fd}",
+                                "-mon", f"chardev=pandare2-monitor,mode={mode}"]
+            if monitor == "hmp":
+                # XXX don't forget to escape expectation regex parens!
+                self.monitor_console = Expect('monitor', expectation=rb"\(qemu\) ", consume_first=True)
+        self._monitor_lock = threading.Lock()
+        self._qmp_buf = b""
+        self._qmp_ready = False
+        self._qmp_id = 0
 
         self.running = threading.Event()
         self.started = threading.Event()
@@ -657,9 +689,8 @@ class Panda():
             self.serial_socket.connect(self.serial_file)
             self.serial_socket.settimeout(None)
             self.serial_console.connect(self.serial_socket)
-        if not self.raw_monitor and not self.monitor_console.is_connected():
-            self.monitor_socket.connect(self.monitor_file)
-            self.monitor_console.connect(self.monitor_socket)
+        if self.monitor_console is not None and not self.monitor_console.is_connected():
+            self.monitor_console.connect(self._monitor_socket)
         
         # [NEW] Check if osi_linux was loaded via command line args and cache result
         self._osi_linux_loaded = self._plugin_loaded("osi_linux")
@@ -2142,27 +2173,95 @@ class Panda():
         return result
 
     @blocking
-    def run_monitor_cmd(self, cmd):
-        self.monitor_console.sendline(cmd.encode("utf8"))
-        result = self.monitor_console.expect()
-        return result
+    def run_monitor_cmd(self, cmd, timeout=30):
+        '''
+        Run an HMP command (e.g. "info status", "savevm name") and return its output. Under
+        monitor="qmp" (the default) it goes through QMP's human-monitor-command; under "hmp" it
+        is typed at the monitor's prompt. During run(), from a blocking function.
+
+        Args:
+            cmd (str): the command
+            timeout (float): seconds to wait for its output
+
+        Returns:
+            str: what the command printed (lines joined by "\\n"), "" for none.
+        '''
+        if self.monitor is None:
+            raise RuntimeError("run_monitor_cmd: this Panda has no monitor (monitor=None)")
+        with self._monitor_lock:
+            if self.monitor == "hmp":
+                self.monitor_console.sendline(cmd.encode("utf8"))
+                return self.monitor_console.expect(timeout=timeout)
+            out = self._qmp("human-monitor-command", {"command-line": cmd}, timeout)
+            return out.replace("\r\n", "\n").rstrip("\n")
+
+    def _qmp(self, execute, arguments, timeout):
+        '''Send one QMP command and return its "return" value (the monitor lock held). The
+        capabilities handshake happens on the first command. Events in between are dropped.'''
+        if not self._qmp_ready:
+            self._qmp_read(lambda m: "QMP" in m, timeout)
+            self._qmp_send({"execute": "qmp_capabilities"})
+            self._qmp_read(lambda m: "return" in m or "error" in m, timeout)
+            self._qmp_ready = True
+        self._qmp_id += 1
+        msg = {"execute": execute, "id": self._qmp_id}
+        if arguments:
+            msg["arguments"] = arguments
+        self._qmp_send(msg)
+        reply = self._qmp_read(lambda m: m.get("id") == msg["id"], timeout)
+        if "error" in reply:
+            raise RuntimeError(f"QMP {execute}: {reply['error'].get('desc', reply['error'])}")
+        return reply["return"]
+
+    def _qmp_send(self, msg):
+        self._monitor_socket.sendall(json.dumps(msg).encode() + b"\n")
+
+    def _qmp_read(self, want, timeout):
+        '''The next QMP message (one JSON object per line) that want(message) accepts.'''
+        deadline = time() + timeout
+        while True:
+            while b"\n" in self._qmp_buf:
+                line, self._qmp_buf = self._qmp_buf.split(b"\n", 1)
+                if line.strip():
+                    m = json.loads(line)
+                    if want(m):
+                        return m
+            left = deadline - time()
+            if left <= 0 or not select.select([self._monitor_socket], [], [], left)[0]:
+                raise TimeoutError(f"no reply from the QMP monitor in {timeout} s")
+            data = self._monitor_socket.recv(65536)
+            if not data:
+                raise ConnectionError("the QMP monitor closed (QEMU has shut down)")
+            self._qmp_buf += data
 
     @blocking
     def revert_sync(self, snapshot_name):
         '''
+        Load a snapshot (the monitor's loadvm) and return once it is loaded. During run(), from
+        a blocking function.
+
         Args:
             snapshot_name: name of snapshot in the current qcow to load
 
         Returns:
             String: error message. Empty on success.
+
+        Raises:
+            ValueError: the image has no such snapshot
+            RuntimeError: the snapshot's RAM size isn't this machine's (mem=); the message gives both
         '''
         result = self.run_monitor_cmd("loadvm {}".format(snapshot_name))
         # On success we should get no result
 
-        if result.startswith("Length mismatch"):
-            raise RuntimeError("QEMU machine's RAM size doesn't match snapshot RAM size!")
+        # QEMU resizes a RAM block to the snapshot's, and can't for main RAM
+        # (system/physmem.c: "Size mismatch: <block>: 0x<snapshot's> != 0x<machine's>").
+        m = re.search(r"Size mismatch: (\S+): 0x([0-9a-f]+) != 0x([0-9a-f]+)", result)
+        if m:
+            raise RuntimeError(f"snapshot {snapshot_name!r} has {_size(int(m[2], 16))} of RAM ({m[1]}) and "
+                               f"this machine {_size(int(m[3], 16))} (mem={self.mem!r}): construct the "
+                               f"Panda with mem={_size(int(m[2], 16))!r} to load it")
 
-        if "does not have the requested snapshot" in result:
+        if "does not exist in one or more devices" in result:
             raise ValueError(f"Snapshot '{snapshot_name}' not present in {self.qcow}")
 
         result = result.strip()
