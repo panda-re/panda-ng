@@ -3,7 +3,8 @@
  * Assembled twice: --defsym BE=1 -EB for mips, --defsym BE=0 -EL for mipsel.
  * Reads the CP0 timer (Count twice, then writes Compare): before the configurable machine set
  * up MIPS's CP0 timer this was a NULL dereference in the host. Prints "CFG-OK <arch> TIMER-OK"
- * when Count moved. Hypercall n passes (MAGIC, n, a, b, c) in a0..a3, t0 (v0 = MAGIC). */
+ * when Count moved. Hypercall n passes (MAGIC, n, a, b, c) in a0..a3, t0 (v0 = MAGIC). Before
+ * hypercall 1 it sets HI = 0x48494849 and LO = 0x4c4f4c4f. */
     .set mips32r2
     .set noat
     .equ ROM, 0x1fc00000
@@ -32,7 +33,11 @@ _start:
     sb $t2, 0($t0)              /* THR */
     addiu $t1, $t1, 1
     b 2b
-3:  li $v0, MAGIC
+3:  li $t1, 0x48494849         /* HI and LO: tests/machine.py reads them at hypercall 1 */
+    mthi $t1
+    li $t1, 0x4c4f4c4f
+    mtlo $t1
+    li $v0, MAGIC
     move $a0, $v0
     li $a1, 1
     la $a2, marker
