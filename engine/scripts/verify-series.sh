@@ -56,6 +56,9 @@ git init -q .
 # core.ignorecase=true, so roms/edk2/.gitignore's "Build/" also drops every
 # lowercase build/ directory (273 files) and the tree hash differs from Linux.
 git config core.ignorecase false
+# No automatic gc: `git am` of the series can start a detached `git gc --auto`, which is
+# still writing into .git when the EXIT trap removes $WORK ("Directory not empty").
+git config gc.auto 0
 # QEMU tarballs ship expanded submodule contents; nothing in the series touches
 # roms/ or tests/lcitool, but they must be tracked for the tree hash to be stable.
 git add -A
