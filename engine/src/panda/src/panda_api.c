@@ -47,12 +47,24 @@ int panda_in_main_loop;
 extern char *panda_snap_name;
 // extern bool panda_aborted;
 
+/*
+ * qemu_init leaves the BQL held by the thread that called panda_init, and the main loop runs with
+ * it. panda_run returns without it: the exit notifiers (an atexit handler) and the call_rcu thread
+ * take the BQL, and if panda_run returned holding it on a thread that has since ended (pandare2's
+ * run() in a Python thread), they would wait for it forever and the process would not exit.
+ */
 int panda_run(void) {
     int status = 0;
+    if (!bql_locked()) {
+        bql_lock();             /* a run after an earlier panda_run returned */
+    }
     panda_in_main_loop = 1;
     status = qemu_main_loop();
     panda_in_main_loop = 0;
     qemu_cleanup(status);
+    if (bql_locked()) {
+        bql_unlock();
+    }
     return status;
 }
 
