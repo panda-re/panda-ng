@@ -14,13 +14,16 @@ Run: panda-python tests/construct.py [case...]      (default: every case)
   what this host can do), conflicts with -accel in extra_args and with rr=True raise, and the old
   extra_args=["-accel", "kvm"] maps to accel="kvm" with a DeprecationWarning; under KVM the
   TCG-only callbacks, hook and record raise NotImplementedError at the call, and the callbacks
-  KVM calls register.
+  KVM calls register;
+- monitor: QMP by default, HMP or none, as -chardev socket,fd=N on a socket QEMU gets connected
+  (no path); raw_monitor=True is monitor=None, with a DeprecationWarning.
 """
 import json
 import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -192,6 +195,8 @@ def kvm_or_error(*checks):
     return [error("ValueError", 'accel="kvm"')]
 
 
+QMP = ["-chardev", "socket,id=pandare2-monitor,fd={fd}", "-mon", "chardev=pandare2-monitor,mode=control"]
+HMP = QMP[:3] + ["chardev=pandare2-monitor,mode=readline"]
 GENERIC_KVM = PRE + X86_IMG + ["-accel", "kvm", "-m", "1G"] + SERIAL
 CASES.update({
     "accel default": ({"generic": "{img}/x86.json"}, [attr("accel", "tcg"), no_warning()]),
@@ -231,6 +236,18 @@ CASES.update({
                        "after": ["p.cb_before_block_exec(name='c0')(lambda cpu, tb: None)",
                                  "p.cb_guest_hypercall(name='c1')(lambda cpu: False)"]},
                       [after(0, "ok"), after(1, "ok")]),
+    "monitor default": ({"generic": "{img}/x86.json"},
+                        [("monitor args: QMP on a connected socket's fd", lambda r: r.get("monitor") == QMP),
+                         attr("monitor", "qmp"), ("its fd is an open socket", lambda r: r.get("monitor_fd_socket"))]),
+    "monitor hmp": ({"generic": "{img}/x86.json", "monitor": "hmp"},
+                    [("monitor args: HMP", lambda r: r.get("monitor") == HMP), attr("monitor", "hmp")]),
+    "monitor none": ({"generic": "{img}/x86.json", "monitor": None},
+                     [("no monitor args", lambda r: r.get("monitor") == []),
+                      ("argv otherwise unchanged", lambda r: r.get("argv") == LEGACY["generic"][1])]),
+    "raw_monitor": ({"generic": "{img}/x86.json", "raw_monitor": True},
+                    [("no monitor args", lambda r: r.get("monitor") == []), attr("monitor", None),
+                     warned("DeprecationWarning", "monitor=None")]),
+    "monitor bogus": ({"monitor": "telnet"}, [error("ValueError", "telnet", "'qmp'")]),
     "rr kvm": ({"generic": "{img}/x86.json", "rr": True, "accel": "kvm"}, [error("ValueError", "rr=True", "TCG")]),
     "rr legacy kvm": ({"generic": "{img}/x86.json", "rr": True, "extra_args": ["-accel", "kvm"]},
                       [error("ValueError", "rr=True")]),
@@ -299,9 +316,12 @@ def child(spec):
             except Exception as e:  # noqa: BLE001
                 res["after"].append([type(e).__name__, str(e)])
         res["argv"], res["monitor"] = normalize(p, img)
+        res["monitor"] = [re.sub(r"fd=\d+", "fd={fd}", a) for a in res["monitor"]]
+        fd = getattr(p, "_monitor_fd", None)
+        res["monitor_fd_socket"] = fd is not None and stat.S_ISSOCK(os.fstat(fd).st_mode)
         res["attrs"] = {"arch": p.arch_name, "mem": p.mem, "os": p.os, "prompt": p.expect_prompt,
                         "qcow": p.qcow.replace(img, "{img}") if p.qcow else None,
-                        "accel": p.accel,
+                        "accel": p.accel, "monitor": p.monitor,
                         "isf": p.isf.replace(img, "{img}") if p.isf else None,
                         "kconf_file": p.kconf_file.replace(img, "{img}") if p.kconf_file else None}
         if "machine" in kwargs:
@@ -349,6 +369,7 @@ def main():
             check(f"legacy {name}", False, res or (r.stdout + r.stderr)[-2000:])
             continue
         check(f"legacy {name}: argv unchanged", res["argv"] == want, f"\n    got  {res['argv']}\n    want {want}")
+        check(f"legacy {name}: QMP monitor", res["monitor"] == QMP, res["monitor"])
 
     for name, (kwargs, checks) in CASES.items():
         if only and name not in only:
