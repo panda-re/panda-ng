@@ -222,8 +222,9 @@ accel = ["TCG"]
 tested_on = ["x86_64", "aarch64", "riscv64"]
 summary = """
 Snapshot RAM and device state in host memory and restore only what changed since, for fuzzing
-loops: `panda_fast_snap` and `panda_fast_restore`. Every clock rewinds, the x86 TSC included.
-tests/fuzz.py runs a fuzzing loop with it.
+loops: `panda_fast_snap` and `panda_fast_restore`. Every clock rewinds, the x86 TSC included. A
+restore copies back the dirty pages (pflash storage included) and loads the device state, without
+a machine reset. tests/fuzz.py runs a fuzzing loop with it.
 """
 limits = "TCG only, and not while recording or replaying (both refuse)."
 api = ["c:panda_fast_snap", "c:panda_fast_restore", "c:panda_fast_delete"]
@@ -231,6 +232,24 @@ docs = ["docs/guides/snapshots.md#fast-restore"]
 tests = ["tests/fastrestore.py", "tests/fastrestore_guards.py", "tests/fastrestore_hotplug.py",
          "tests/fastrestore_vsock.py", "tests/fuzz.py"]
 patches = ["0055-0057", "0060", "0064", "0076", "0079-0081"]
+
+[[feature]]
+id = "fast-coverage"
+name = "Edge coverage for fuzzing"
+status = "experimental"
+accel = ["TCG"]
+tested_on = ["x86_64", "aarch64", "riscv64"]
+summary = """
+AFL-style edge coverage (`map[cur ^ prev]++`, `prev = cur >> 1`) into a byte map in host memory
+that C and pandare2 read in place, for a fast-restore fuzzing loop: a restore rewinds `prev` and
+leaves the map to the caller. Block ids come from physical addresses, so they hold across laps and
+under CF_PCREL; PANDA's callbacks can be on at the same time.
+"""
+limits = "TCG only. The map size is fixed once the map exists."
+api = ["py:Panda.enable_fast_coverage", "py:Panda.fast_coverage_map", "py:Panda.fast_coverage_clear",
+       "py:Panda.disable_fast_coverage", "c:panda_cov_enable", "c:panda_cov_map", "c:panda_cov_clear"]
+docs = ["docs/guides/snapshots.md#edge-coverage"]
+tests = ["tests/fastcov.py"]
 
 [[feature]]
 id = "kvm"

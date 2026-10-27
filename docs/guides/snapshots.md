@@ -76,6 +76,26 @@ reset the machine first, as `loadvm` does. On debian-13-aarch64 a restore took 3
 500) before these two changes and ~1.8 ms in a 30-restore check after them, most of it the device
 load. The second figure is a smoke check on a busy host, not a timing run.
 
+### Edge coverage
+
+`Panda.enable_fast_coverage()` turns on AFL-style edge coverage for a fuzzing loop: each executed
+block does `map[cur ^ prev]++` and `prev = cur >> 1`, where `cur` is a hash of the block's
+physical address, into a byte map in host memory (64 KiB by default; any power of two from 256
+bytes to 16 MiB). It returns the map as a writable `memoryview` over the engine's own bytes;
+`fast_coverage_map()` returns it again, `fast_coverage_clear()` zeroes it and
+`disable_fast_coverage()` turns coverage off. `filter_lo` and `filter_hi` limit it to blocks whose
+virtual address is in that range (user space, or one program). From C: `panda_cov_enable`,
+`panda_cov_map`, `panda_cov_map_size`, `panda_cov_clear`, `panda_cov_disable`.
+
+Across a fast restore, `prev` goes back to its value at the snapshot, so every lap starts from the
+same edge; the map is left alone, so read a lap's map before restoring and clear it after (or keep
+it, to accumulate over laps). Turn coverage on before `panda_fast_snap`, with the VM stopped: it
+flushes the translated code, since blocks are instrumented as they are translated. Block ids come
+from physical addresses, so they are the same in every lap and for every virtual address that maps
+the code (a CF_PCREL block on x86_64 and aarch64 is one block for all of them). Each block runs a
+QEMU plugin callback (no register sync) while coverage is on; PANDA's own callbacks can be on at the
+same time. `tests/fastcov.py` checks the maps are exact from lap to lap.
+
 ### Limits
 
 - TCG only, and not while recording or replaying: both calls return -1 there (under
