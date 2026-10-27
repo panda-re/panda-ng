@@ -591,8 +591,23 @@ class Panda():
         self._osi_linux_loaded = False
         _engine_register(self, self._engine_global)
         self._engine_prepared = False   # _prepare_engine
+        self._engine_started = False    # panda_init has been called (in run())
+        self._run_ended = False         # run() has returned: the VM has shut down
         logger.info("Panda args: %s", " ".join(map(shlex_quote, self.panda_args)))
     # /__init__
+
+    def _needs_engine(self, what, after_ok=True):
+        '''
+        Raise RuntimeError unless the engine has started (it starts in run()), or, with
+        after_ok=False, if run() has returned. For the methods that crash the process when called
+        at the wrong time (a QEMU assertion or a segfault).
+        '''
+        if not self._engine_started:
+            raise RuntimeError(f"{what} needs the running engine, which starts in run(): call it "
+                               f"from a callback or from a function queued with queue_blocking or "
+                               f"queue_main_loop_wait_fn")
+        if not after_ok and self._run_ended:
+            raise RuntimeError(f"{what}: run() has returned and the VM has shut down")
 
     def _needs_tcg(self, what):
         '''Raise NotImplementedError if this Panda runs under KVM: `what` needs TCG.'''
@@ -686,6 +701,7 @@ class Panda():
         cenvp = self.ffi.new("char**", self.ffi.new("char[]", b""))
         len_cargs = self.ffi.cast("int", len(self.panda_args))
         panda_args_ffi = [self.ffi.new("char[]", bytes(str(i),"utf-8")) for i in self.panda_args]
+        self._engine_started = True     # its callbacks (after_machine_init) may call in already
         self.libpanda.panda_init(len_cargs, panda_args_ffi, cenvp)
         # Now we've run qemu init so we can connect to the sockets for the monitor and serial
         if self.serial_console and not self.serial_console.is_connected():
@@ -737,8 +753,9 @@ class Panda():
         '''
         Request a snapshot revert, eventually. This is fairly dangerous
         because you don't know when it finishes. You should be using revert_sync
-        from a blocking function instead
+        from a blocking function instead. During run() only.
         '''
+        self._needs_engine("revert_async")
         if not hasattr(self, 'warned_async'):
             self.warned_async = True
             print("WARNING: panda.revert_async may be deprecated in the near future")
@@ -755,7 +772,8 @@ class Panda():
             self.queue_main_loop_wait_fn(self._finish_timer, [timer_start, "Loaded snapshot"])
 
     def reset(self):
-        """In the next main loop, reset to boot"""
+        """In the next main loop, reset to boot. During run() only."""
+        self._needs_engine("reset")
         if debug:
             progress ("Resetting machine to start state")
 
@@ -765,12 +783,14 @@ class Panda():
         self.queue_main_loop_wait_fn(self.libpanda.panda_cont)
 
     def cont(self):
-        ''' Continue execution (run after vm_stop) '''
+        ''' Continue execution (run after vm_stop). During run() only. '''
+        self._needs_engine("cont", after_ok=False)   # after: QEMU aborts (shutdown -> running)
         self.libpanda.panda_cont()
         self.running.set()
 
     def vm_stop(self, code=4):
-        ''' Stop execution, default code means RUN_STATE_PAUSED '''
+        ''' Stop execution, default code means RUN_STATE_PAUSED. During run() only. '''
+        self._needs_engine("vm_stop")
         self.libpanda.panda_stop(code)
 
     def snap(self, snapshot_name):
@@ -779,7 +799,8 @@ class Panda():
 
         From a queue_blocking function this returns once the snapshot is taken and the guest
         continues, so guest input sent afterwards (e.g. run_serial_cmd) isn't in the snapshot.
-        From a callback it only queues the snapshot for the next main loop iteration.
+        From a callback it only queues the snapshot for the next main loop iteration. During
+        run() only.
 
         Args:
             snapshot_name (str): name of the snapshot
@@ -787,6 +808,7 @@ class Panda():
         Returns:
             None
         '''
+        self._needs_engine("snap")
         if debug:
             progress ("Creating snapshot " + snapshot_name)
 
@@ -931,7 +953,9 @@ class Panda():
         self.enable_internal_callbacks()
         self._setup_internal_signal_handler()
         self.running.set()
+        self._run_ended = False
         self.libpanda.panda_run() # Give control to panda
+        self._run_ended = True
         self.running.clear() # Back from panda's execution (due to shutdown or monitor quit)
         self.unload_plugins() # Unload pyplugins and C plugins
         self.delete_callbacks() # Unload any registered callbacks
@@ -998,8 +1022,10 @@ class Panda():
         Raises:
             Exception: raises exception if there was an error starting recording.
             NotImplementedError: under accel="kvm" (record and replay need TCG).
+            RuntimeError: before run() (only a running VM can be recorded).
         """
         self._needs_tcg("record")
+        self._needs_engine("record")
         if snapshot_name == None:
             snapshot_name_ffi = self.ffi.NULL
         else:
@@ -1349,9 +1375,10 @@ class Panda():
     def _memory_read(self, env, addr, length, physical=False, fmt='bytearray'):
         '''
         Read but with an autogen'd buffer
-        Supports physical or virtual addresses
+        Supports physical or virtual addresses. During run() (or after it, from the stopped VM).
         Raises ValueError if read fails
         '''
+        self._needs_engine("reading guest memory")
         if not isinstance(addr, int):
             raise ValueError(f"Unsupported read from address {repr(addr)}")
 
@@ -1437,6 +1464,7 @@ class Panda():
         '''
         Write a bytearray into memory at the specified physical/virtual address
         '''
+        self._needs_engine("writing guest memory")
         length = len(buf)
         c_buf = self.ffi.new("char[]",buf)
         buf_a = self.ffi.cast("char*", c_buf)
@@ -2191,6 +2219,7 @@ class Panda():
         '''
         if self.monitor is None:
             raise RuntimeError("run_monitor_cmd: this Panda has no monitor (monitor=None)")
+        self._needs_engine("run_monitor_cmd", after_ok=False)
         with self._monitor_lock:
             if self.monitor == "hmp":
                 self.monitor_console.sendline(cmd.encode("utf8"))
@@ -2717,6 +2746,12 @@ class Panda():
         if name not in self.registered_callbacks.keys():
             raise ValueError("No callback has been registered with name '{}'".format(name))
 
+        if not self._engine_started:
+            # panda_unregister_callbacks aborts before the engine has started (a QEMU assertion):
+            # disable the entry instead, and forget it. The engine keeps it, disabled.
+            self.disable_callback(name)
+            self.old_cb_list = getattr(self, "old_cb_list", []) + [self.registered_callbacks.pop(name)]
+            return
         handle = self.registered_callbacks[name]['handle']
         self.libpanda.panda_unregister_callbacks(handle)
         if not hasattr(self,"old_cb_list"):

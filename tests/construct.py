@@ -21,7 +21,9 @@ Run: panda-python tests/construct.py [case...]      (default: every case)
 - paths: libpanda_path=, plugin_path=, biospath= and $PANDA_LIB that don't exist raise, $PANDA_LIB
   may name the engine's directory, and constructing a Panda doesn't change os.environ;
 - quiet: constructing a Panda prints nothing (Python or C, stdout or stderr) and starts no
-  thread; what it has to say goes to the pandare2 logger.
+  thread; what it has to say goes to the pandare2 logger;
+- before run: the methods that crashed the process before the engine started raise RuntimeError,
+  and deleting or re-registering a callback works.
 """
 import ctypes
 import json
@@ -263,6 +265,17 @@ CASES.update({
     "biospath missing": ({"arch": "x86_64", "biospath": "{img}/none"}, [error("ValueError", "biospath")]),
     "PANDA_LIB missing": ({"arch": "x86_64", "env": {"PANDA_LIB": "{img}/none.so"}},
                           [error("FileNotFoundError", "PANDA_LIB")]),
+    "before run": ({"generic": "{img}/x86.json",
+                    "after": ["p.vm_stop()", "p.cont()", "p.snap('s')", "p.reset()", "p.revert_async('s')",
+                              "p.physical_memory_read(0x1000, 4)", "p.physical_memory_write(0x1000, b'x')",
+                              "p.record('rec')",
+                              "p.cb_before_block_exec(name='c')(lambda cpu, tb: None)",
+                              "p.cb_after_block_exec(name='c')(lambda cpu, tb, code: None)",
+                              "p.delete_callback('c')", "p.cb_before_block_exec(name='c')(lambda cpu, tb: None)"]},
+                   [after(i, "RuntimeError", what, "run()") for i, what in
+                    enumerate(["vm_stop", "cont", "snap", "reset", "revert_async", "reading guest memory",
+                               "writing guest memory", "record"])]
+                   + [after(8, "ok"), after(9, "ok"), after(10, "ok"), after(11, "ok")]),
     "os= is gone": ({"os": "linux"}, [error("TypeError", "os")]),
     "load_plugin_interface= is gone": ({"load_plugin_interface": True}, [error("TypeError", "load_plugin_interface")]),
     "environ": ({"generic": "{img}/x86.json"}, [("os.environ unchanged", lambda r: r.get("environ") == [])]),
