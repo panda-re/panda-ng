@@ -204,15 +204,14 @@ class Panda():
             serial_kwargs=None,
             os_version=None,
             qcow=None, # Qcow file to load
-            os="linux",
-            generic=None, # Helper: specify a generic qcow to use and set other arguments. Supported values: arm/ppc/x86_64/i386. Will download qcow automatically
+            *,
+            generic=None, # an image from pandare2.mkimage (.json, .yaml or a dict): the base the other keywords override
             raw_monitor=None, # deprecated: raw_monitor=True is monitor=None
             extra_args=None,
             catch_exceptions=True, # Should we catch and end_analysis() when python code raises an exception?
             libpanda_path=None,
             biospath=None,
             plugin_path=None,
-            load_plugin_interface=True, # load the plugin interface (for low-level callbacks)
             rr=False, # make the VM recordable (virtio kicks through the log); pass it to the replay too
             machine=None, # a pandare2.MachineBuilder: the machine to build (the configurable machine or an external board)
             modules=None, # panda modules (external board/device .so files) to load: -module PATH each
@@ -224,6 +223,11 @@ class Panda():
         life: a second one of the same arch, even after the first one's run() has ended, raises
         `EngineInUseError` (run each instance in its own process). `Panda`s of different arches
         can share a process and run one after the other, not at the same time.
+
+        The constructor loads the engine library and builds QEMU's command line (`panda_args`);
+        it starts no thread and prints nothing (the "pandare2" logger has the command line). The
+        engine starts in `run()`. The arguments after qcow are keyword-only.
+
         Args:
             arch: architecture string (e.g. "i386", "x86_64", "arm", "mips", "mipsel"). Default:
                     the image's with generic=, else "i386". With generic=, a different arch raises
@@ -253,7 +257,6 @@ class Panda():
                     If not explicitly given, "unansi" is set to True (simulates a subset of ANSI codes and attempts to
                     remove command strings repeated by the shell from the shell output).
             os_version: analagous to PANDA's -os argument (e.g, linux-32-debian:3.2.0-4-686-pae")
-            os: type of OS (e.g. "linux")
             qcow: path to a qcow file to load
             catch_exceptions: Should we catch exceptions raised by python code and end_analysis() and then print a backtrace (Default: True)
             monitor: the monitor pandare2 gives QEMU, on a socket connected to this process:
@@ -360,7 +363,6 @@ class Panda():
                 mem = "0"
         self.mem = mem
         self.os = os_version
-        self.os_type = os
         self.qcow = qcow
         self.plugins = plugin_list(self)
         self.expect_prompt = expect_prompt
@@ -371,7 +373,6 @@ class Panda():
         self._exit = [] # exit_exception's storage: the callback wrappers check it (see _catching)
         self.plugin_path = plugin_path
         self.target = "softmmu"
-        self.load_plugin_interface = load_plugin_interface
 
         self.serial_unconsumed_data = b''
 
@@ -422,7 +423,7 @@ class Panda():
         # with the unlinked interface, as before.
         own_interface = pjoin(dirname(self.panda),
                               f"libpanda_plugin_interface-{self.arch_name}-{self.target}.{self.dll_extension}")
-        self._engine_global = self.load_plugin_interface and not isfile(own_interface)
+        self._engine_global = not isfile(own_interface)
         _engine_check(self.arch_name, not self._engine_global)
 
         self.ffi = self._do_types_import()
@@ -454,10 +455,10 @@ class Panda():
 
         # Setup argv for panda
         self.panda_args = [self.panda]
-        if self.load_plugin_interface and not self._engine_global:
+        if not self._engine_global:
             self.plugin_interface = self.ffi.dlopen(own_interface, self.ffi.RTLD_NOW | self.ffi.RTLD_LOCAL)
             self.panda_args.extend(["-plugin", own_interface])
-        elif self.load_plugin_interface:
+        else:
             # Next to libpanda (lib/ in the wheel and the flake).
             plugin_interface = pjoin(dirname(self.panda), f"libpanda_plugin_interface.{self.dll_extension}")
             self.plugin_interface = self.ffi.dlopen(plugin_interface, self.ffi.RTLD_GLOBAL)

@@ -263,6 +263,8 @@ CASES.update({
     "biospath missing": ({"arch": "x86_64", "biospath": "{img}/none"}, [error("ValueError", "biospath")]),
     "PANDA_LIB missing": ({"arch": "x86_64", "env": {"PANDA_LIB": "{img}/none.so"}},
                           [error("FileNotFoundError", "PANDA_LIB")]),
+    "os= is gone": ({"os": "linux"}, [error("TypeError", "os")]),
+    "load_plugin_interface= is gone": ({"load_plugin_interface": True}, [error("TypeError", "load_plugin_interface")]),
     "environ": ({"generic": "{img}/x86.json"}, [("os.environ unchanged", lambda r: r.get("environ") == [])]),
     "quiet": ({"generic": "{img}/x86.json", "extra_args": ["-icount", "shift=6"]},
               [("prints nothing", lambda r: "error" not in r and r.get("printed") == ""),
