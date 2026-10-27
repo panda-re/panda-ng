@@ -51,7 +51,8 @@ JOBS=${JOBS:-${#images[@]}}
 
 mkdir -p "$OUT"
 OUT=$(realpath "$OUT")
-# The tests' TMPDIRs: short, since pandare2 puts its monitor's UNIX socket there (108 bytes).
+# The tests' TMPDIRs: short, since a UNIX socket's path is limited to 108 bytes
+# (fastrestore_vsock's vhost-user sockets).
 RUNTMP=$(mktemp -d "${TMPDIR:-/tmp}/pt.XXXXXX")
 : >"$OUT/results"
 # Stopping run.sh stops every test it started. Not `kill 0`: timeout(1) puts each test in a
