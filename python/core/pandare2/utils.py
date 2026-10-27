@@ -21,12 +21,6 @@ from subprocess import check_call, STDOUT
 from sys import platform, stdout
 from threading import current_thread, main_thread
 
-#for _find_build_path
-from os import dup, getenv, environ, path
-from os.path import realpath, isfile, dirname, join as pjoin
-
-import platform
-
 # Set to enable pypanda debugging
 debug = False
 
@@ -161,89 +155,3 @@ class plugin_list(dict):
             self._panda.load_plugin(plugin_name)
         return super().__getitem__(plugin_name)
 
-def _find_build_dir(arch_name, find_executable=False, mode="softmmu"):
-    '''
-    Internal function to return the build directory for the specified architecture
-    '''
-
-    platform_dll_extensions = {
-        'Darwin': 'dylib',
-        'Linux': 'so',
-        #'Windows': 'dll',
-    }
-    dll_extension = platform_dll_extensions.get(platform.system(), None)
-    if dll_extension is None:
-        raise Exception(f"Unsupported System {platform.system()}: expected one of {platform_dll_extensions.keys()}")
-
-    system_build = "/usr/local/bin/"
-    python_package = pjoin(*[dirname(__file__), "data"])
-    local_build = realpath(pjoin(dirname(__file__), "../../../qemu/build"))
-
-
-    arch_dir = f"{arch_name}-softmmu"
-    file_name = f"panda-system-{arch_name}" if find_executable else \
-                f"libpanda-{arch_name}-{mode}.{dll_extension}"
-
-    # system path could have panda-system-X or libpanda-X.[ext]. Others would have an arch_name - softmmu directory
-    pot_paths = [pjoin(python_package, "lib"),  # wheel installs: pandare2/data/lib
-                 system_build,
-                 pjoin(python_package, arch_dir),
-                 pjoin(local_build),
-                 "/usr/local/lib/x86_64-linux-gnu/",
-                 "/usr/local/lib/panda/",
-                 "/usr/local/lib/qemu/",
-                 ]
-
-    if find_executable and 'PATH' in environ:
-        # If we're looking for the panda executable, also search the user's path
-        pot_paths.extend(environ.get('PATH').split(":"))
-
-    for potential_path in pot_paths:
-        if isfile(pjoin(potential_path, file_name)):
-            if not find_executable:
-                # potential_path may contain [arch]-softmmu/ which
-                # we shouldn't return unless we're looking for an executable's
-                # build dir
-                potential_path = potential_path.replace(arch_dir, "")
-            return potential_path
-
-    searched_paths = "\n".join(["\t"+p for p in  pot_paths])
-    raise RuntimeError((f"Couldn't find {file_name}\n"
-                        f"Did you built PANDA for this architecture?\n"
-                        f"Searched for {arch_dir}/{file_name} in:\n{searched_paths}"))
-
-
-def find_build_dir(arch_name=None, find_executable=False, mode="softmmu"):
-    '''
-    Find directory containing the binaries we care about (i.e., ~git/panda/build). If
-    find_executable is False, we're looking for [arch]-softmmu/libpanda-[arch].[ext]. If
-    find_executable is True, we're looking for [arch]-softmmu/panda-system-[arch] and we'll return
-    the parent dir of the executable (i.e., ~/git/panda/build/x86_64-softmmu/)
-
-    We do this by searching paths in the following order:
-        1) Check relative to file (in the case of installed packages)
-        2) Check in../ ../../../build/
-        2) Search path if user is looking for an executable instead of a library
-        3) Raise RuntimeError if we find nothing
-
-    If arch_name is none, we'll search for any supported architecture and return the first
-    one we find.
-    '''
-    arches = ['i386', 'x86_64', 'arm', 'aarch64', 'ppc', 'mips', 'mipsel', 'mips64', \
-                'mips64el', 'loongarch64', 'ppc64', 'riscv32', 'riscv64']
-    if "PANDA_LIB" in environ:
-        return environ["PANDA_LIB"]
-
-    if arch_name is None:
-        e = None
-        for arch in arches:
-            try:
-                return _find_build_dir(arch, find_executable, mode)
-            except RuntimeError as _e:
-                e = _e
-        if e:
-            raise e
-
-    elif arch_name not in arches:
-        raise ValueError(f"Unsupported architecture name: {arch_name}, allowed values are: {arches}")
-    return _find_build_dir(arch_name, find_executable, mode)

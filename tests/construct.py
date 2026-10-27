@@ -16,7 +16,9 @@ Run: panda-python tests/construct.py [case...]      (default: every case)
   TCG-only callbacks, hook and record raise NotImplementedError at the call, and the callbacks
   KVM calls register;
 - monitor: QMP by default, HMP or none, as -chardev socket,fd=N on a socket QEMU gets connected
-  (no path); raw_monitor=True is monitor=None, with a DeprecationWarning.
+  (no path); raw_monitor=True is monitor=None, with a DeprecationWarning;
+- paths: libpanda_path=, plugin_path=, biospath= and $PANDA_LIB that don't exist raise, $PANDA_LIB
+  may name the engine's directory, and constructing a Panda doesn't change os.environ.
 """
 import json
 import os
@@ -248,6 +250,13 @@ CASES.update({
                     [("no monitor args", lambda r: r.get("monitor") == []), attr("monitor", None),
                      warned("DeprecationWarning", "monitor=None")]),
     "monitor bogus": ({"monitor": "telnet"}, [error("ValueError", "telnet", "'qmp'")]),
+    "libpanda_path missing": ({"arch": "x86_64", "libpanda_path": "{img}/none.so"},
+                              [error("FileNotFoundError", "libpanda_path", "none.so")]),
+    "plugin_path missing": ({"arch": "x86_64", "plugin_path": "{img}/none"}, [error("ValueError", "plugin_path")]),
+    "biospath missing": ({"arch": "x86_64", "biospath": "{img}/none"}, [error("ValueError", "biospath")]),
+    "PANDA_LIB missing": ({"arch": "x86_64", "env": {"PANDA_LIB": "{img}/none.so"}},
+                          [error("FileNotFoundError", "PANDA_LIB")]),
+    "environ": ({"generic": "{img}/x86.json"}, [("os.environ unchanged", lambda r: r.get("environ") == [])]),
     "rr kvm": ({"generic": "{img}/x86.json", "rr": True, "accel": "kvm"}, [error("ValueError", "rr=True", "TCG")]),
     "rr legacy kvm": ({"generic": "{img}/x86.json", "rr": True, "extra_args": ["-accel", "kvm"]},
                       [error("ValueError", "rr=True")]),
@@ -286,8 +295,10 @@ def child(spec):
     from pandare2 import Panda, MachineBuilder
     img = spec["img"]
     kwargs = {}
+    for k, v in spec["kwargs"].get("env", {}).items():
+        os.environ[k] = v.replace("{img}", img)
     for k, v in spec["kwargs"].items():
-        if k == "after":
+        if k in ("after", "env"):
             continue
         if k == "machine":
             m = MachineBuilder(v["arch"])
@@ -300,10 +311,13 @@ def child(spec):
             v = {dk: dv.replace("{img}", img) if isinstance(dv, str) else dv for dk, dv in v.items()}
         kwargs[k] = v
     res = {}
+    environ = dict(os.environ)
     try:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             p = Panda(**kwargs)
+        res["environ"] = sorted(k for k in set(environ) | set(os.environ) if environ.get(k) != os.environ.get(k))
+        res["libpanda_path"] = p.libpanda_path
         res["warnings"] = [[x.category.__name__, str(x.message)] for x in w]
     except Exception as e:  # noqa: BLE001 - the case says which it wants
         res["error"] = [type(e).__name__, str(e)]
@@ -370,6 +384,12 @@ def main():
             continue
         check(f"legacy {name}: argv unchanged", res["argv"] == want, f"\n    got  {res['argv']}\n    want {want}")
         check(f"legacy {name}: QMP monitor", res["monitor"] == QMP, res["monitor"])
+
+    # $PANDA_LIB naming the directory of the engine a default Panda finds.
+    res, _ = run_case(img, {"arch": "x86_64"})
+    lib = (res or {}).get("libpanda_path") or "/nonexistent/libpanda-x86_64-softmmu.so"
+    CASES["PANDA_LIB dir"] = ({"arch": "x86_64", "env": {"PANDA_LIB": os.path.dirname(lib)}},
+                              [("finds the engine there", lambda r: r.get("libpanda_path") == lib)])
 
     for name, (kwargs, checks) in CASES.items():
         if only and name not in only:

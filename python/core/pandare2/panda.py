@@ -33,7 +33,7 @@ from time import sleep
 from cffi import FFI
 from functools import lru_cache
 
-from .utils import progress, warn, make_iso, debug, blocking, GArrayIterator, plugin_list, find_build_dir
+from .utils import progress, warn, make_iso, debug, blocking, GArrayIterator, plugin_list
 from .panda_expect import Expect
 from .asyncthread import AsyncThread
 from .qcows_internal import Qcows
@@ -146,6 +146,12 @@ def _engine_register(panda, is_global):
         _engines[panda.arch_name] = {"panda": panda, "global": is_global}
 
 
+# Where an installed pandare2 finds its engine: the wheel's data/ next to this file, or the
+# flake's engine lib/ and plugin directory, which mkPandare2 (flake.nix) writes in here.
+_WHEEL_DATA = pjoin(dirname(__file__), "data")
+_ENGINE_LIB_DIR = None
+_PLUGIN_DIR = None
+
 ACCELS = ("tcg", "kvm")
 MONITORS = ("qmp", "hmp", None)
 _HOST_ARCH = {"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64", "arm64": "aarch64"}
@@ -255,9 +261,13 @@ class Panda():
             raw_monitor: deprecated. raw_monitor=True is monitor=None.
             extra_args: extra arguments to pass to PANDA as either a string or an
                     array. (e.g. "-nographic" or ["-nographic", "-net", "none"])
-            libpanda_path: path to panda shared object to load
-            biospath: directory that contains "pc-bios" files
-            plugin_path: directory that contains panda plugins
+            libpanda_path: the engine, libpanda-<arch>-softmmu.so. Default: $PANDA_LIB (the
+                    library or its directory), else the wheel's (pandare2/data/lib), else the
+                    flake's.
+            biospath: the firmware directory (QEMU's -L). Default: the wheel's
+                    (pandare2/data/share/qemu), else share/qemu next to the engine's lib/.
+            plugin_path: the C plugins' directory. Default: $PANDA_PLUGIN_DIR, else the wheel's
+                    (pandare2/data/plugins), else the flake's.
             machine: a `pandare2.MachineBuilder` (CPU, memory map, devices, entry point, or an external
                     board). Its arguments go before extra_args, and its RAM size (if it set one) replaces mem.
             modules: paths of panda modules (external board or device shared objects built with the
@@ -357,7 +367,6 @@ class Panda():
         self.ending = False # True during end_analysis
         self.catch_exceptions=catch_exceptions
         self._exit = [] # exit_exception's storage: the callback wrappers check it (see _catching)
-        self.build_dir = None
         self.plugin_path = plugin_path
         self.target = "softmmu"
         self.load_plugin_interface = load_plugin_interface
@@ -402,21 +411,7 @@ class Panda():
         self.bits, self.endianness, self.register_size = self.arch._determine_bits()
         self.target = "softmmu"
 
-        if libpanda_path:
-            environ["PANDA_LIB"] = self.libpanda_path = libpanda_path
-        else:
-            build_dir = self.get_build_dir()
-            lib_paths = [
-                f"libpanda-{self.arch_name}.{self.dll_extension}",
-                f"libpanda-{self.arch_name}-{self.target}.{self.dll_extension}",
-            ]
-            # Select the first path that exists - we'll have libpanda-{arch}.{ext} for a system install versus arch-softmmu/libpanda-arch.{ext} for a build
-            for p in lib_paths:
-                if isfile(pjoin(build_dir, p)):
-                    self.libpanda_path = pjoin(build_dir, p)
-                    break
-            else:
-                raise RuntimeError("Couldn't find libpanda-{0}.{2} in {1} (in either root or {0}-libpanda directory)".format(self.arch_name, build_dir, self.dll_extension))
+        self.libpanda_path = self._find_engine(libpanda_path)
 
         self.panda = self.libpanda_path # Necessary for realpath to work inside core-panda, may cause issues?
 
@@ -439,31 +434,28 @@ class Panda():
         if self.os:
             self.set_os_name(self.os)
         
-        # An explicit plugin_path, then $PANDA_PLUGIN_DIR, then the wheel's bundled plugins,
-        # then a build tree.
-        extra_plugin_paths = [
-            environ.get("PANDA_PLUGIN_DIR", ""),
-            pjoin(dirname(__file__), "data", "plugins"),
-            realpath(pjoin(__file__, "../../../../build/plugins")),
-            "/panda-ng/build/plugins",
-        ]
+        # plugin_path=, then $PANDA_PLUGIN_DIR, then the wheel's plugins, then the flake's.
         if plugin_path is not None:
-            extra_plugin_paths = [plugin_path] + extra_plugin_paths
-        
-        for plugin_path in extra_plugin_paths:
-            if plugin_path and exists(plugin_path):
-                self.plugin_path = plugin_path
-                self._set_extra_plugin_path(plugin_path)
-                break
+            if not isdir(plugin_path):
+                raise ValueError(f"plugin_path={plugin_path!r} is not a directory")
+        else:
+            env_dir = environ.get("PANDA_PLUGIN_DIR")
+            if env_dir and not isdir(env_dir):
+                warn(f"PANDA_PLUGIN_DIR={env_dir} is not a directory; ignoring it")
+                env_dir = None
+            plugin_path = next((d for d in (env_dir, pjoin(_WHEEL_DATA, "plugins"), _PLUGIN_DIR)
+                                if d and isdir(d)), None)
+        self.plugin_path = plugin_path
+        if plugin_path is not None:
+            self._set_extra_plugin_path(plugin_path)
 
         # The wheel's engine with plugins from elsewhere (a stale $PANDA_PLUGIN_DIR from a .deb or
         # an old panda): they were built against other headers and may not fail cleanly.
-        bundled = pjoin(dirname(__file__), "data")
         if (environ.get("PANDA_PLUGIN_DIR") and self.plugin_path == environ["PANDA_PLUGIN_DIR"]
-                and realpath(self.libpanda_path).startswith(realpath(bundled) + "/")
-                and realpath(self.plugin_path) != realpath(pjoin(bundled, "plugins"))):
+                and realpath(self.libpanda_path).startswith(realpath(_WHEEL_DATA) + "/")
+                and realpath(self.plugin_path) != realpath(pjoin(_WHEEL_DATA, "plugins"))):
             warn(f"PANDA_PLUGIN_DIR={self.plugin_path} overrides the plugins bundled with this "
-                 f"engine ({pjoin(bundled, 'plugins')}); they must be built for the same engine")
+                 f"engine ({pjoin(_WHEEL_DATA, 'plugins')}); they must be built for the same engine")
 
         # Setup argv for panda
         self.panda_args = [self.panda]
@@ -471,29 +463,23 @@ class Panda():
             self.plugin_interface = self.ffi.dlopen(own_interface, self.ffi.RTLD_NOW | self.ffi.RTLD_LOCAL)
             self.panda_args.extend(["-plugin", own_interface])
         elif self.load_plugin_interface:
-            # A build tree has it under contrib/plugins; installs put it next to libpanda.
-            interface_name = f"libpanda_plugin_interface.{self.dll_extension}"
-            candidates = [realpath(pjoin(self.panda, f"../contrib/plugins/{interface_name}")),
-                          pjoin(dirname(self.panda), interface_name)]
-            plugin_interface = next((p for p in candidates if isfile(p)), candidates[0])
+            # Next to libpanda (lib/ in the wheel and the flake).
+            plugin_interface = pjoin(dirname(self.panda), f"libpanda_plugin_interface.{self.dll_extension}")
             self.plugin_interface = self.ffi.dlopen(plugin_interface, self.ffi.RTLD_GLOBAL)
             self.panda_args.extend(["-plugin", plugin_interface])
 
-        if biospath is None:
-            possible_biospaths = [
-                # hack since pc-bios is in the core not build now
-                realpath(pjoin(self.get_build_dir(), "..", "pc-bios")), # XXX: necessary for network drivers for arm/mips, so 'pc-bios' is a misleading name
-                pjoin(dirname(__file__), "data", "share", "qemu"),  # wheel installs
-                realpath(pjoin(dirname(self.panda), "..", "share", "qemu")),  # <prefix>/lib/libpanda-*
-                "/usr/local/share/panda",
-                "/usr/local/share/qemu",
-            ]
-
-            for bp in possible_biospaths:
-                if exists(bp):
-                    biospath = bp
-                    break
-        assert biospath is not None, "biospath cannot be found"
+        # The firmware (QEMU's -L): biospath=, else the wheel's, else <prefix>/share/qemu next to
+        # the engine's <prefix>/lib (the flake's engine).
+        if biospath is not None:
+            if not isdir(biospath):
+                raise ValueError(f"biospath={biospath!r} is not a directory")
+        else:
+            candidates = [pjoin(_WHEEL_DATA, "share", "qemu"),
+                          realpath(pjoin(dirname(self.panda), "..", "share", "qemu"))]
+            biospath = next((d for d in candidates if isdir(d)), None)
+            if biospath is None:
+                raise FileNotFoundError(f"no firmware directory (QEMU's -L) for {self.panda}: looked in "
+                                        f"{', '.join(candidates)}; pass biospath=")
         self.biospath = biospath
         self.panda_args.append("-L")
         self.panda_args.append(biospath)
@@ -616,31 +602,36 @@ class Panda():
             raise NotImplementedError(f"{what} needs TCG, and this Panda runs under "
                                       f"{self.accel.upper()} (accel={self.accel!r})")
 
+    def _find_engine(self, libpanda_path):
+        '''
+        The engine library, libpanda-<arch>-softmmu.so: libpanda_path=, else $PANDA_LIB (the
+        library, or a directory that has it), else the wheel's (pandare2/data/lib), else the
+        flake's.
+        '''
+        name = f"libpanda-{self.arch_name}-{self.target}.{self.dll_extension}"
+        if libpanda_path:
+            if not isfile(libpanda_path):
+                raise FileNotFoundError(f"libpanda_path={libpanda_path!r} doesn't exist")
+            return libpanda_path
+        env = environ.get("PANDA_LIB")
+        if env:
+            path = pjoin(env, name) if isdir(env) else env
+            if not isfile(path):
+                raise FileNotFoundError(f"PANDA_LIB={env}: no {path}")
+            return path
+        candidates = [pjoin(d, name) for d in (pjoin(_WHEEL_DATA, "lib"), _ENGINE_LIB_DIR) if d]
+        for path in candidates:
+            if isfile(path):
+                return path
+        raise FileNotFoundError(f"no {name} in {', '.join(map(dirname, candidates)) or 'this install'}: "
+                                f"pass libpanda_path= or set $PANDA_LIB")
+
     def get_plugin_path(self):
+        '''The directory C plugins are loaded from (plugin_path=, $PANDA_PLUGIN_DIR, the wheel's
+        or the flake's).'''
         if self.plugin_path is None:
-            env_dir = environ.get('PANDA_PLUGIN_DIR', None)
-            if env_dir is not None:
-                if not isdir(env_dir):
-                    raise ValueError(f"Supplied PANDA_PLUGIN_DIR {repr(env_dir)} is not a directory")
-                self.plugin_path = env_dir
-                return self.plugin_path
-
-            installed_plugin_dir = f"/usr/local/lib/panda/{self.arch_name}"
-            if isdir(installed_plugin_dir):
-                self.plugin_path = installed_plugin_dir
-            else:
-                raise ValueError(f"Could not find plugin path. Install dir={installed_plugin_dir}")
+            raise ValueError("no plugin directory: pass plugin_path= or set $PANDA_PLUGIN_DIR")
         return self.plugin_path
-
-    def get_build_dir(self):
-        if self.build_dir is None:
-            env_dir = environ.get("PANDA_DIR", None)
-            if env_dir is not None:
-                self.build_dir = env_dir
-            else:
-                self.build_dir = find_build_dir(self.arch_name)
-            environ["PANDA_DIR"] = self.build_dir
-        return self.build_dir
 
     def _do_types_import(self):
         '''
