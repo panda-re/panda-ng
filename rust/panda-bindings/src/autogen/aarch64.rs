@@ -48115,6 +48115,27 @@ unsafe extern "C" {
     pub fn panda_fast_info() -> *const ::std::os::raw::c_char;
 }
 unsafe extern "C" {
+    pub fn panda_cov_enable(map_size: u32, lo: u64, hi: u64) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn panda_cov_disable();
+}
+unsafe extern "C" {
+    pub fn panda_cov_map() -> *mut u8;
+}
+unsafe extern "C" {
+    pub fn panda_cov_map_size() -> u32;
+}
+unsafe extern "C" {
+    pub fn panda_cov_clear();
+}
+unsafe extern "C" {
+    pub fn panda_cov_snap();
+}
+unsafe extern "C" {
+    pub fn panda_cov_restore();
+}
+unsafe extern "C" {
     pub fn panda_fast_ram_untracked();
 }
 unsafe extern "C" {
@@ -48342,6 +48363,33 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn panda_block_gate() -> u64;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PandaCov {
+    pub map: *mut u8,
+    pub mask: u32,
+    pub on: bool,
+    pub lo: u64,
+    pub hi: u64,
+    pub prev: [u32; 256usize],
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of PandaCov"][::std::mem::size_of::<PandaCov>() - 1056usize];
+    ["Alignment of PandaCov"][::std::mem::align_of::<PandaCov>() - 8usize];
+    ["Offset of field: PandaCov::map"][::std::mem::offset_of!(PandaCov, map) - 0usize];
+    ["Offset of field: PandaCov::mask"][::std::mem::offset_of!(PandaCov, mask) - 8usize];
+    ["Offset of field: PandaCov::on"][::std::mem::offset_of!(PandaCov, on) - 12usize];
+    ["Offset of field: PandaCov::lo"][::std::mem::offset_of!(PandaCov, lo) - 16usize];
+    ["Offset of field: PandaCov::hi"][::std::mem::offset_of!(PandaCov, hi) - 24usize];
+    ["Offset of field: PandaCov::prev"][::std::mem::offset_of!(PandaCov, prev) - 32usize];
+};
+unsafe extern "C" {
+    pub static mut panda_cov: PandaCov;
+}
+unsafe extern "C" {
+    pub fn panda_cov_block(cur: *mut u32) -> bool;
 }
 pub type __builtin_va_list = [__va_list_tag; 1usize];
 #[repr(C)]
