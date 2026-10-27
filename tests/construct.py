@@ -76,7 +76,7 @@ kconf_file: x86.kernelinfo.conf
 """
 
 PRE = ["{lib}", "-plugin", "{iface}", "-L", "{bios}"]
-SERIAL = ["-chardev", "socket,id=pandare2-serial,fd={fd}", "-serial", "chardev:pandare2-serial"]
+SERIAL = ["-chardev", "socket,id=serial-pandare2,fd={fd}", "-serial", "chardev:serial-pandare2"]
 X86_IMG = ["{img}/x86.qcow2", "-display", "none", "-nic", "user,model=virtio-net-pci"]
 RR = ["-accel", "tcg,thread=single,rr-ready=on"]
 X86_RR_DISK = ["-blockdev", "driver=file,filename={img}/x86.qcow2,node-name=panda-disk-file",
@@ -319,7 +319,7 @@ def normalize(p, img):
                 if old:
                     a = a.replace(old, new)
             a = re.sub(r"^unix:[^,]*,server,nowait$", "unix:{serial},server,nowait", a)
-            a = re.sub(r"^socket,id=pandare2-serial,fd=\d+$", "socket,id=pandare2-serial,fd={fd}", a)
+            a = re.sub(r"^socket,id=serial-pandare2,fd=\d+$", "socket,id=serial-pandare2,fd={fd}", a)
             argv.append(a)
         i += 1
     return argv, monitor
