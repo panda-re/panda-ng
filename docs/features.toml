@@ -53,7 +53,9 @@ engine.
 limits = """
 Callbacks need TCG. Some declared callbacks have no call site yet or abort at registration; the
 reference says which. A registered memory callback instruments every load or store even while
-disabled, and an enabled physical one costs an address lookup per access.
+disabled. While enabled, a physical one costs an address lookup per access, and any before-access
+one a TLB lookup per access in the middle of a block (QEMU rewinds a device access there and runs
+it again; the before events of the rewound attempt are dropped).
 """
 api = ["py:Panda.enable_callback", "py:Panda.disable_callback", "py:Panda.disable_tb_chaining",
        "py:Panda.flush_tb", "c:panda_register_callback"]

@@ -16,11 +16,21 @@ int panda_memcb_rw(bool is_store);
 uint64_t panda_bridge_virt_to_phys(CPUState *cpu, uint64_t vaddr);
 /* The physical address of @vaddr for a before-access event (@info: its qemu_plugin_meminfo_t), or
  * -1: the softmmu TLB entry the access is about to use (its mmu index and direction), and only on
- * a TLB miss a page walk (panda_bridge_virt_to_phys). For RAM and I/O alike. */
-uint64_t panda_bridge_before_phys(CPUState *cpu, uint32_t info, uint64_t vaddr, bool is_store);
+ * a TLB miss a page walk (as panda_bridge_virt_to_phys). For RAM and I/O alike. With @is_io, also
+ * whether the access will go to a device rather than RAM (the TLB entry's TLB_MMIO for that
+ * direction; on a miss, the memory region at the address); false when there is no address. */
+uint64_t panda_bridge_before_phys(CPUState *cpu, uint32_t info, uint64_t vaddr, bool is_store,
+                                  bool *is_io);
 /* Is a phys_mem_before_read (is_store false) or _write callback enabled? (Registered and
  * disabled: no page walk.) */
 bool panda_memcb_phys_before(bool is_store);
+/* Is a before-access callback for loads (is_store false) or stores enabled? */
+bool panda_memcb_before_enabled(bool is_store);
+/* Would a device access by the instruction running now be rewound? An instruction that is not the
+ * last of its TB may not access a device: io_prepare rewinds the TB (cpu_io_recompile) and runs the
+ * instruction again alone. Its before-access events then came twice, the first time for an access
+ * that never happened; the bridge drops that first one. */
+bool panda_bridge_io_rewinds(CPUState *cpu);
 /* Block-exec callbacks, all served from the block's own code, so TB chaining can stay on.
  * panda_block_start runs at a block's first instruction (the bridge's TB-start callback): the
  * block before it on this vCPU has ended (end_block_exec, then after_block_exec with TB_EXIT_IDX0);

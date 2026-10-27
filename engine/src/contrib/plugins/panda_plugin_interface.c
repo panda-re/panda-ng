@@ -64,6 +64,16 @@ static void insn_exec(unsigned int cpu_index, void *udata)
 }
 
 // udata is the accessing instruction's pc.
+//
+// MMIO accesses get the memory callbacks too, with the device's physical address, as classic
+// PANDA's did (mmio_after_read is not served from here yet). Up to QEMU 11.1.0
+// qemu_plugin_hwaddr_is_io() never reported MMIO, so a check on it here was dead; from 11.1.2
+// (upstream 14375dd) it does, and returning on it would drop these callbacks.
+//
+// A device access from an instruction that isn't its TB's last doesn't happen as such: QEMU
+// rewinds the TB and runs the instruction again alone (panda_bridge_io_rewinds). Its before events
+// would come twice, the first time for an access that never happened; those are dropped, which
+// takes the bridge's TLB lookup before each such access while a before-access callback is enabled.
 static void vcpu_mem(unsigned int cpu_index, qemu_plugin_meminfo_t info,
                      uint64_t vaddr, void *udata){
     CPUState *cpu = panda_cpu_by_index(cpu_index);
@@ -72,18 +82,25 @@ static void vcpu_mem(unsigned int cpu_index, qemu_plugin_meminfo_t info,
     uint64_t paddr = (uint64_t) -1;
     if (!is_before) {
         struct qemu_plugin_hwaddr *hwaddr_info = qemu_plugin_get_hwaddr(info, vaddr);
-        // MMIO accesses get the after-access callbacks too, with the device's physical address,
-        // as classic PANDA's did (mmio_after_read is not served from here yet). Up to QEMU
-        // 11.1.0 qemu_plugin_hwaddr_is_io() never reported MMIO, so a check on it here was dead;
-        // from 11.1.2 (upstream 14375dd) it does, and returning on it would drop these callbacks.
         if (hwaddr_info) {
             paddr = qemu_plugin_hwaddr_phys_addr(hwaddr_info);
         }
-    } else if (panda_memcb_phys_before(is_store)) {
+    } else if (panda_memcb_before_enabled(is_store)) {
         // Before the access its page may not be in the TLB yet, where the plugin API looks (and
         // complains if it isn't): the TLB entry if there is one, else a page walk; only for an
-        // enabled phys callback.
-        paddr = panda_bridge_before_phys(cpu, info, vaddr, is_store);
+        // enabled phys callback, or when a device access would be rewound: from an instruction
+        // that isn't its TB's last, a device access doesn't happen; QEMU runs the instruction
+        // again alone, and the before events come again then. Report only those.
+        bool rewinds = panda_bridge_io_rewinds(cpu);
+        bool is_io = false;
+        if (rewinds || panda_memcb_phys_before(is_store)) {
+            paddr = panda_bridge_before_phys(cpu, info, vaddr, is_store, rewinds ? &is_io : NULL);
+        }
+        if (is_io) {
+            return;
+        }
+    } else {
+        return;     // no before-access callback enabled
     }
     // Before a load there is no value; the size is the access's.
     qemu_plugin_mem_value m = qemu_plugin_mem_get_value(info);

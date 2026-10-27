@@ -17,6 +17,8 @@
 #include "qemu/plugin.h"
 #include "qemu/plugin-memory.h"
 #include "exec/memopidx.h"
+#include "qemu/rcu.h"
+#include "system/memory.h"
 
 
 CPUState* panda_cpu_by_index(int index){
@@ -60,19 +62,57 @@ uint64_t panda_bridge_virt_to_phys(CPUState *cpu, uint64_t vaddr){
     return pa == (hwaddr) -1 ? (uint64_t) -1 : (uint64_t) pa;
 }
 
+/* On a TLB miss before the access: the page walk (as panda_virt_to_phys, privileged if need be)
+ * and, if @is_io, whether the access will go to a device. That is what tlb_set_page_full decides
+ * (TLB_MMIO) when the access fills the TLB: a load goes to a device unless the page is RAM or ROMD
+ * (a ROM device's reads come from its RAM), a store unless the page is RAM (a ROMD write goes to
+ * the device). The walk's transaction attributes pick the address space, as the fill does. */
+static uint64_t before_phys_walk(CPUState *cpu, uint64_t vaddr, bool is_store, bool *is_io){
+    TranslateForDebugResult res;
+    uint64_t page = vaddr & TARGET_PAGE_MASK;
+    bool ok = cpu_translate_for_debug(cpu, page, &res);
+
+    if (!ok && enter_priv(cpu)) {
+        ok = cpu_translate_for_debug(cpu, page, &res);
+        exit_priv(cpu);
+    }
+    if (!ok) {
+        return (uint64_t) -1;
+    }
+    hwaddr pa = (res.physaddr & TARGET_PAGE_MASK) | (vaddr & ~TARGET_PAGE_MASK);
+    if (is_io) {
+        AddressSpace *as = cpu_get_address_space(cpu, cpu_asidx_from_attrs(cpu, res.attrs));
+        hwaddr xlat, len = 1;
+        MemoryRegion *mr;
+
+        RCU_READ_LOCK_GUARD();
+        mr = address_space_translate(as, pa, &xlat, &len, is_store, res.attrs);
+        *is_io = !memory_region_is_ram(mr) && (is_store || !memory_region_is_romd(mr));
+    }
+    return pa;
+}
+
 /* As qemu_plugin_get_hwaddr, without its complaint on a TLB miss: before the access, the entry it
  * is about to use may not be there yet (first touch since a flush). Only then walk the page tables.
  * A hit is also the faithful answer: it is the translation the access itself will use (a walk
  * would see page-table changes the guest hasn't flushed from its TLB yet). Checked against the
  * walk on every access over cold boots of ubuntu-24.04 x86_64 and aarch64 and debian-13 x86_64
- * plus tests/mem.py: ~3.2e9 hits, no mismatch. */
-uint64_t panda_bridge_before_phys(CPUState *cpu, uint32_t info, uint64_t vaddr, bool is_store){
+ * plus tests/mem.py: ~3.2e9 hits, no mismatch. A hit's is_io is the entry's TLB_MMIO for this
+ * direction; a miss looks the region up (before_phys_walk), only when @is_io is asked for. */
+uint64_t panda_bridge_before_phys(CPUState *cpu, uint32_t info, uint64_t vaddr, bool is_store,
+                                  bool *is_io){
     struct qemu_plugin_hwaddr h;
 
+    if (is_io) {
+        *is_io = false;
+    }
     if (tlb_plugin_lookup(cpu, vaddr, get_mmuidx(info), is_store, &h)) {
+        if (is_io) {
+            *is_io = h.is_io;
+        }
         return h.phys_addr;
     }
-    return panda_bridge_virt_to_phys(cpu, vaddr);
+    return before_phys_walk(cpu, vaddr, is_store, is_io);
 }
 
 int panda_memcb_rw(bool is_store){
@@ -103,6 +143,19 @@ static bool panda_any_enabled(panda_cb_type type);
 bool panda_memcb_phys_before(bool is_store){
     return panda_any_enabled(is_store ? PANDA_CB_PHYS_MEM_BEFORE_WRITE
                                       : PANDA_CB_PHYS_MEM_BEFORE_READ);
+}
+
+bool panda_memcb_before_enabled(bool is_store){
+    return is_store ? panda_any_enabled(PANDA_CB_VIRT_MEM_BEFORE_WRITE)
+                      || panda_any_enabled(PANDA_CB_PHYS_MEM_BEFORE_WRITE)
+                    : panda_any_enabled(PANDA_CB_VIRT_MEM_BEFORE_READ)
+                      || panda_any_enabled(PANDA_CB_PHYS_MEM_BEFORE_READ);
+}
+
+/* io_prepare's test: a device access from an instruction that is not the last of its TB makes it
+ * rewind the TB (cpu_io_recompile) and run the instruction again in a TB of its own. */
+bool panda_bridge_io_rewinds(CPUState *cpu){
+    return !cpu->neg.can_do_io;
 }
 
 /* Per-vCPU block in flight: started (its before_block_exec ran), its after_block_exec (and, if its
