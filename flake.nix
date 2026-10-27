@@ -957,6 +957,13 @@
             ${p.pandaPython}/bin/python3 ${./tests/static}/refs.py
             touch $out
           '';
+          # More than one Panda in a process (tests/multi.py, firmware only): run() from a thread
+          # lets the process exit.
+          pandare2-multi = pkgs.runCommand "pandare2-multi-check" { } ''
+            ${p.pandaPython}/bin/python3 ${./tests/multi.py} > log 2>&1 || { cat log; exit 1; }
+            cat log
+            mv log $out
+          '';
           # repair.py on a synthetic engine: shipped siblings aren't bundled again, RUNPATHs keep
           # $ORIGIN, licenses and License-Expression are written (no engine build needed).
           wheel-repair =
