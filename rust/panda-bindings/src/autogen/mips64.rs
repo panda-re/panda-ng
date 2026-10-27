@@ -45108,6 +45108,9 @@ unsafe extern "C" {
     pub fn panda_memcb_phys_before(is_store: bool) -> bool;
 }
 unsafe extern "C" {
+    pub fn panda_memcb_mmio_before_write() -> bool;
+}
+unsafe extern "C" {
     pub fn panda_memcb_before_enabled(is_store: bool) -> bool;
 }
 unsafe extern "C" {

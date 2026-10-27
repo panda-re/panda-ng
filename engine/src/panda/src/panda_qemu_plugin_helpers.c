@@ -119,6 +119,7 @@ int panda_memcb_rw(bool is_store){
     int rw = 0;
     if (is_store ? panda_has_callback_registered(PANDA_CB_VIRT_MEM_BEFORE_WRITE)
                    || panda_has_callback_registered(PANDA_CB_PHYS_MEM_BEFORE_WRITE)
+                   || panda_has_callback_registered(PANDA_CB_MMIO_BEFORE_WRITE)
                  : panda_has_callback_registered(PANDA_CB_VIRT_MEM_BEFORE_READ)
                    || panda_has_callback_registered(PANDA_CB_PHYS_MEM_BEFORE_READ)) {
         rw |= QEMU_PLUGIN_MEM_BEFORE;
@@ -126,7 +127,8 @@ int panda_memcb_rw(bool is_store){
     if (is_store ? panda_has_callback_registered(PANDA_CB_VIRT_MEM_AFTER_WRITE)
                    || panda_has_callback_registered(PANDA_CB_PHYS_MEM_AFTER_WRITE)
                  : panda_has_callback_registered(PANDA_CB_VIRT_MEM_AFTER_READ)
-                   || panda_has_callback_registered(PANDA_CB_PHYS_MEM_AFTER_READ)) {
+                   || panda_has_callback_registered(PANDA_CB_PHYS_MEM_AFTER_READ)
+                   || panda_has_callback_registered(PANDA_CB_MMIO_AFTER_READ)) {
         rw |= QEMU_PLUGIN_MEM_AFTER;
     }
     return rw ? rw | (is_store ? QEMU_PLUGIN_MEM_W : QEMU_PLUGIN_MEM_R) : 0;
@@ -145,9 +147,16 @@ bool panda_memcb_phys_before(bool is_store){
                                       : PANDA_CB_PHYS_MEM_BEFORE_READ);
 }
 
+/* mmio_before_write enabled: before each store the bridge asks whether it goes to a device (a TLB
+ * lookup, a page walk and region lookup on a miss). Registered and disabled: no lookup. */
+bool panda_memcb_mmio_before_write(void){
+    return panda_any_enabled(PANDA_CB_MMIO_BEFORE_WRITE);
+}
+
 bool panda_memcb_before_enabled(bool is_store){
     return is_store ? panda_any_enabled(PANDA_CB_VIRT_MEM_BEFORE_WRITE)
                       || panda_any_enabled(PANDA_CB_PHYS_MEM_BEFORE_WRITE)
+                      || panda_any_enabled(PANDA_CB_MMIO_BEFORE_WRITE)
                     : panda_any_enabled(PANDA_CB_VIRT_MEM_BEFORE_READ)
                       || panda_any_enabled(PANDA_CB_PHYS_MEM_BEFORE_READ);
 }

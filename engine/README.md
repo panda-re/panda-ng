@@ -141,7 +141,9 @@ patch applied cleanly, but three upstream changes needed work:
 - 14375dd ("Fix TLB_MMIO check in tlb_plugin_lookup()"): `qemu_plugin_hwaddr_is_io` used to be
   always false and now reports MMIO. The PANDA bridge
   (`src/contrib/plugins/panda_plugin_interface.c`) no longer returns early on it, so the
-  after-access memory callbacks keep firing for MMIO, as they did on 11.1.0 and in classic PANDA.
+  after-access memory callbacks keep firing for MMIO, as they did on 11.1.0 and in classic PANDA;
+  it now uses the flag to fire `mmio_after_read` (and, from its own TLB lookup before a store,
+  `mmio_before_write`), which had no call site before.
 - 0d4875d ("target/riscv/kvm: Preserve MP state across migration") raised the riscv cpu
   vmstate's `minimum_version_id` from 11 to 12 without changing its fields, so no riscv snapshot
   saved by 11.1.0 loaded (the guest suite's riscv64 image failed every test). 0078 takes the

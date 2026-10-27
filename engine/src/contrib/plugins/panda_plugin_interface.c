@@ -65,10 +65,17 @@ static void insn_exec(unsigned int cpu_index, void *udata)
 
 // udata is the accessing instruction's pc.
 //
-// MMIO accesses get the memory callbacks too, with the device's physical address, as classic
-// PANDA's did (mmio_after_read is not served from here yet). Up to QEMU 11.1.0
-// qemu_plugin_hwaddr_is_io() never reported MMIO, so a check on it here was dead; from 11.1.2
-// (upstream 14375dd) it does, and returning on it would drop these callbacks.
+// Device (MMIO) accesses get the general memory callbacks too, with the device's physical address,
+// as in classic PANDA. They also get the dedicated ones: mmio_after_read after a load from a
+// device, mmio_before_write before a store to one. Up to QEMU 11.1.0 qemu_plugin_hwaddr_is_io()
+// never reported MMIO; from 11.1.2 (upstream 14375dd) it does. A store has no hwaddr before the
+// access: panda_bridge_before_phys says whether it goes to a device, asked while an
+// mmio_before_write callback is enabled. The value the mmio callbacks get is a copy: the plugin
+// API gives the loaded or stored value but has no way to change it, so a callback that writes
+// *val changes nothing the guest or the device sees (classic PANDA used the changed value).
+// Ordered as classic PANDA's: mmio_after_read runs before the after-read callbacks (it ran in
+// the device read, inside the load), mmio_before_write after the before-write ones (in the device
+// write). 16-byte accesses get no mmio callback: the value doesn't fit their uint64_t.
 //
 // A device access from an instruction that isn't its TB's last doesn't happen as such: QEMU
 // rewinds the TB and runs the instruction again alone (panda_bridge_io_rewinds). Its before events
@@ -80,23 +87,25 @@ static void vcpu_mem(unsigned int cpu_index, qemu_plugin_meminfo_t info,
     bool is_store = qemu_plugin_mem_is_store(info);
     bool is_before = qemu_plugin_mem_is_before(info);
     uint64_t paddr = (uint64_t) -1;
+    bool is_io = false;
     if (!is_before) {
         struct qemu_plugin_hwaddr *hwaddr_info = qemu_plugin_get_hwaddr(info, vaddr);
         if (hwaddr_info) {
             paddr = qemu_plugin_hwaddr_phys_addr(hwaddr_info);
+            is_io = qemu_plugin_hwaddr_is_io(hwaddr_info);
         }
     } else if (panda_memcb_before_enabled(is_store)) {
         // Before the access its page may not be in the TLB yet, where the plugin API looks (and
         // complains if it isn't): the TLB entry if there is one, else a page walk; only for an
-        // enabled phys callback, or when a device access would be rewound: from an instruction
-        // that isn't its TB's last, a device access doesn't happen; QEMU runs the instruction
-        // again alone, and the before events come again then. Report only those.
+        // enabled phys or mmio callback, or when a device access would be rewound: from an
+        // instruction that isn't its TB's last, a device access doesn't happen; QEMU runs the
+        // instruction again alone, and the before events come again then. Report only those.
         bool rewinds = panda_bridge_io_rewinds(cpu);
-        bool is_io = false;
-        if (rewinds || panda_memcb_phys_before(is_store)) {
-            paddr = panda_bridge_before_phys(cpu, info, vaddr, is_store, rewinds ? &is_io : NULL);
+        bool want_io = rewinds || (is_store && panda_memcb_mmio_before_write());
+        if (want_io || panda_memcb_phys_before(is_store)) {
+            paddr = panda_bridge_before_phys(cpu, info, vaddr, is_store, want_io ? &is_io : NULL);
         }
-        if (is_io) {
+        if (is_io && rewinds) {
             return;
         }
     } else {
@@ -106,32 +115,45 @@ static void vcpu_mem(unsigned int cpu_index, qemu_plugin_meminfo_t info,
     qemu_plugin_mem_value m = qemu_plugin_mem_get_value(info);
     size_t size;
     void *data;
+    uint64_t val;
 
     switch (m.type){
         case QEMU_PLUGIN_MEM_VALUE_U8:
             size = 1;
             data = &m.data.u8;
+            val = m.data.u8;
             break;
         case QEMU_PLUGIN_MEM_VALUE_U16:
             size = 2;
             data = &m.data.u16;
+            val = m.data.u16;
             break;
         case QEMU_PLUGIN_MEM_VALUE_U32:
             size = 4;
             data = &m.data.u32;
+            val = m.data.u32;
             break;
         case QEMU_PLUGIN_MEM_VALUE_U64:
             size = 8;
             data = &m.data.u64;
+            val = m.data.u64;
             break;
         case QEMU_PLUGIN_MEM_VALUE_U128:
             size = 16;
             data = &m.data.u128;
+            val = 0;
+            is_io = false;
             break;
         default:
             assert(false);
     }
+    if (is_io && !is_store && !is_before) {
+        panda_callbacks_mmio_after_read(cpu, paddr, vaddr, size, &val);
+    }
     panda_callbacks_mem_access(cpu, (uint64_t) udata, vaddr, paddr, size, data, is_store, is_before);
+    if (is_io && is_store && is_before) {
+        panda_callbacks_mmio_before_write(cpu, paddr, vaddr, size, &val);
+    }
 }
 
 

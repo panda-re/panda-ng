@@ -9,7 +9,8 @@ TranslationBlock *panda_get_tb(struct qemu_plugin_tb *tb);
 #define PANDA_BRIDGE_BLOCK       2  /* a block-exec callback: call panda_block_start at each block's start */
 unsigned panda_bridge_wants(void);
 /* The qemu_plugin_mem_rw (direction and phases) to register for reads (is_store false) or
- * writes; 0 for none. */
+ * writes; 0 for none. mmio_after_read needs every load's after event and mmio_before_write every
+ * store's before event: whether the access went (or goes) to a device is known per access. */
 int panda_memcb_rw(bool is_store);
 /* The physical address of @vaddr by a page walk, or -1: for a before-access event, whose page
  * may not be in the TLB yet (the plugin API then has no hwaddr). */
@@ -24,6 +25,8 @@ uint64_t panda_bridge_before_phys(CPUState *cpu, uint32_t info, uint64_t vaddr, 
 /* Is a phys_mem_before_read (is_store false) or _write callback enabled? (Registered and
  * disabled: no page walk.) */
 bool panda_memcb_phys_before(bool is_store);
+/* Is an mmio_before_write callback enabled? (Registered and disabled: no lookup before stores.) */
+bool panda_memcb_mmio_before_write(void);
 /* Is a before-access callback for loads (is_store false) or stores enabled? */
 bool panda_memcb_before_enabled(bool is_store);
 /* Would a device access by the instruction running now be rewound? An instruction that is not the

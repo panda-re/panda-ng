@@ -196,6 +196,16 @@ callback instruments every load or store even while it is disabled, so register 
 need them, as `tests/late.py` does. `enable_memcb()` and `disable_memcb()` are accepted but have
 no effect in this engine.
 
+Memory callbacks see device (MMIO) accesses too: a `phys_mem_*` callback gets the device
+register's guest physical address. `mmio_after_read` and `mmio_before_write` fire only for those,
+after a load from a device and before a store to one; `tests/mmio.py` checks them on a real
+device register. Their `val` is a copy: unlike classic PANDA, setting `val[0]` changes neither
+what the guest loads nor what the device receives. Reading a device's address back from a
+callback doesn't reach the device: PANDA's readers fail on device memory, and
+`physical_memory_read` and `virtual_memory_read` currently miss that failure and return zero bytes.
+(QEMU's own readers, such as `address_space_read`, would perform a device access, side effects
+included.)
+
 ## PyPlugin
 
 A `PyPlugin` is a class that groups an analysis's callbacks and state so it can be loaded into
