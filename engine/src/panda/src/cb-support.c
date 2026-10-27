@@ -53,8 +53,9 @@ void panda_unload_pending(void);
 MAKE_CALLBACK(void, BEFORE_TCG_CODEGEN, before_tcg_codegen, CPUState*, cpu, TranslationBlock*, tb);
 
 // before/after_block_exec run from the block's own code (panda_block_start, from the TCG plugin
-// bridge), so they fire once per block with TB chaining on. cpu_tb_exec's hooks (patch 0043) only end
-// the vCPU's pending block when a TB returns to the CPU loop: what ran last ran to its end.
+// bridge), so they fire once per block with TB chaining on. cpu_tb_exec's hook (patch 0043) only ends
+// the vCPU's pending block when a TB returns to the CPU loop: what ran last ran to its end. It is
+// called only while one is pending (panda_block_pending); before_block_exec has no call site.
 void PCB(before_block_exec)(CPUState *cpu, TranslationBlock *tb) {
 }
 

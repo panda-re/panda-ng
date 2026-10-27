@@ -32,10 +32,12 @@ static inline unsigned long tcg_hooks_page_bit(vaddr pc)
  * The cflags to look up or translate a TB at @pc with: no CF_PCREL on a
  * page that holds a hook site, so that code there is translated for its
  * virtual address and gets its hooks.  Elsewhere CF_PCREL stays on.
+ * CF_HOOKS is in every vCPU's cflags from the first commit on, which
+ * flushes (or from its creation, if hooks were inserted before).
  */
 static inline uint32_t tcg_hooks_cflags(vaddr pc, uint32_t cflags)
 {
-    if (unlikely(qatomic_read(&tcg_hooks_enabled)) && (cflags & CF_PCREL)) {
+    if (unlikely((cflags & (CF_HOOKS | CF_PCREL)) == (CF_HOOKS | CF_PCREL))) {
         unsigned long b = tcg_hooks_page_bit(pc);
 
         if (qatomic_read(&tcg_hooks_pages[BIT_WORD(b)]) & BIT_MASK(b)) {
