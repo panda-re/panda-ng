@@ -82,7 +82,7 @@ instead of raising); QEMU's own readers perform a device access.
 
 **Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/mmio.py`, `tests/physmem.py`
 
-**Engine patches:** 0031, 0035, 0042-0044, 0046-0049, 0053-0054, 0058-0059, 0065 ([series](reference/patches.md))
+**Engine patches:** 0031, 0035, 0042-0044, 0046-0049, 0053-0054, 0058-0059, 0065, 0082 ([series](reference/patches.md))
 
 <a id="plugins"></a>
 ## C and C++ plugins

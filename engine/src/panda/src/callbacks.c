@@ -41,6 +41,8 @@ PANDAENDCOMMENT */
 #include "hw/core/cpu.h"
 #include "system/cpus.h"
 #include "system/runstate.h"
+#include "exec/translation-block.h"
+#include "panda/hooks.h"
 
 #define SOFTMMU_DIR "/" TARGET_NAME "-softmmu"
 #define LIBRARY_NAME "/libpanda-" TARGET_NAME ".so"
@@ -71,6 +73,7 @@ panda_plugin panda_plugins[MAX_PANDA_PLUGINS];
 bool panda_plugin_to_unload = false;
 
 bool panda_please_flush_tb = false;
+uint32_t panda_loop_hooks;
 bool panda_please_break_exec = false;
 bool panda_update_pc = false;
 bool panda_use_memcb = false;
@@ -754,6 +757,13 @@ static void panda_cb_list_changed(panda_cb_type type, bool was_registered)
         panda_tb_shape = shape;
         panda_do_flush_tb();
     }
+    if (type == PANDA_CB_BEFORE_HANDLE_EXCEPTION) {
+        if (panda_cbs[type]) {
+            qatomic_or(&panda_loop_hooks, PANDA_LOOP_EXCEPTION);
+        } else {
+            qatomic_and(&panda_loop_hooks, ~PANDA_LOOP_EXCEPTION);
+        }
+    }
     if (panda_is_block_cb_type(type)) {
         panda_block_cbs_changed();
     }
@@ -1045,13 +1055,11 @@ bool panda_break_exec(void) {
 
 }
 
+/* The flag goes before the request: a request made meanwhile leaves it set. */
 bool panda_flush_tb(void)
 {
-    if (panda_please_flush_tb) {
-        panda_please_flush_tb = false;
-        return true;
-    } else
-        return false;
+    qatomic_and(&panda_loop_hooks, ~PANDA_LOOP_FLUSH);
+    return qatomic_xchg(&panda_please_flush_tb, false);
 }
 
 /* Acted on at a vCPU's next TB lookup (before_find_fast). Chained TBs make no lookup, so the
@@ -1061,7 +1069,8 @@ void panda_do_flush_tb(void)
 {
     CPUState *cpu;
 
-    panda_please_flush_tb = true;
+    qatomic_set(&panda_please_flush_tb, true);
+    qatomic_or(&panda_loop_hooks, PANDA_LOOP_FLUSH);
     RCU_READ_LOCK_GUARD();
     CPU_FOREACH(cpu) {
         cpu_exit(cpu);
@@ -1088,19 +1097,44 @@ void panda_disable_memcb(void)
     panda_use_memcb = false;
 }
 
+#define PANDA_NO_CHAIN (CF_NO_GOTO_TB | CF_NO_GOTO_PTR)
+
+/* Each vCPU's next TB lookup asks for TBs with or without chaining; nothing to flush. */
+static void panda_set_tb_chaining(bool on)
+{
+    CPUState *cpu;
+
+    qatomic_set(&panda_tb_chaining, on);
+    RCU_READ_LOCK_GUARD();
+    CPU_FOREACH(cpu) {
+        if (on) {
+            tcg_cflags_clear(cpu, PANDA_NO_CHAIN);
+        } else {
+            tcg_cflags_set(cpu, PANDA_NO_CHAIN);
+        }
+    }
+}
+
+void panda_vcpu_init_cflags(CPUState *cpu)
+{
+    if (!qatomic_read(&panda_tb_chaining)) {
+        tcg_cflags_set(cpu, PANDA_NO_CHAIN);
+    }
+}
+
 void panda_enable_tb_chaining(void)
 {
-    panda_tb_chaining = true;
+    panda_set_tb_chaining(true);
 }
 
 void panda_disable_tb_chaining(void)
 {
-    panda_tb_chaining = false;
+    panda_set_tb_chaining(false);
 }
 
 bool panda_tb_chaining_enabled(void)
 {
-    return panda_tb_chaining;
+    return qatomic_read(&panda_tb_chaining);
 }
 
 #ifdef CONFIG_LLVM

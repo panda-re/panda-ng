@@ -10,11 +10,32 @@
 #ifndef PANDA_HOOKS_H
 #define PANDA_HOOKS_H
 
+#include "hw/core/cpu.h"
+
+/* Bits of panda_loop_hooks: what the CPU loop calls into PANDA for. Nothing set, no call. */
+#define PANDA_LOOP_EXCEPTION 1      /* a before_handle_exception callback is registered */
+#define PANDA_LOOP_FLUSH     2      /* panda_do_flush_tb() asked for a flush not yet done */
+
 #ifdef CONFIG_PANDA
 
 struct qemu_plugin_tb;
 
-void panda_callbacks_before_block_exec(CPUState *cpu, TranslationBlock *tb);
+extern uint32_t panda_loop_hooks;
+
+static inline bool panda_loop_wants(uint32_t bits)
+{
+    return unlikely(qatomic_read(&panda_loop_hooks) & bits);
+}
+
+/* The vCPU started a block whose after_block_exec hasn't run (panda_block_start) */
+static inline bool panda_block_pending(CPUState *cpu)
+{
+    return unlikely(cpu->panda_block_pending);
+}
+
+/* A new vCPU's tcg_cflags: no chaining after panda_disable_tb_chaining() */
+void panda_vcpu_init_cflags(CPUState *cpu);
+
 void panda_callbacks_after_block_exec(CPUState *cpu, TranslationBlock *tb, uint8_t exitCode);
 void panda_callbacks_before_block_translate(CPUState *cpu, uint64_t pc);
 void panda_callbacks_after_block_translate(CPUState *cpu, TranslationBlock *tb);
@@ -28,8 +49,9 @@ bool panda_callbacks_asid_changed(CPUState *cpu, uint64_t oldval, uint64_t newva
 bool panda_asid_reg_write(CPUState *cpu, void *reg, unsigned size, uint64_t val);
 /* true: a plugin handled the hypercall and set the guest's registers itself */
 bool panda_callbacks_guest_hypercall(CPUState *cpu);
-/* false after panda_disable_tb_chaining(): every TB returns to cpu_exec. The block-exec callbacks
- * don't need it (they run from the block's own code); kept for plugins that want it. */
+/* false after panda_disable_tb_chaining(): every TB returns to cpu_exec (CF_NO_GOTO_TB and
+ * CF_NO_GOTO_PTR in each vCPU's tcg_cflags). The block-exec callbacks don't need it (they run from
+ * the block's own code); kept for plugins that want it. */
 bool panda_tb_chaining_enabled(void);
 /* A longjmp left the block a vCPU was running (a fault, an exception its last instruction raised,
  * cpu_loop_exit_noexc): its after_block_exec runs now, with TB_EXIT_REQUESTED, before the exception
@@ -48,7 +70,15 @@ void panda_before_loadvm(void);
 
 #else
 
-static inline void panda_callbacks_before_block_exec(CPUState *cpu, TranslationBlock *tb) {}
+static inline bool panda_loop_wants(uint32_t bits)
+{
+    return false;
+}
+static inline bool panda_block_pending(CPUState *cpu)
+{
+    return false;
+}
+static inline void panda_vcpu_init_cflags(CPUState *cpu) {}
 static inline void panda_callbacks_after_block_exec(CPUState *cpu, TranslationBlock *tb,
                                                     uint8_t exitCode) {}
 static inline void panda_callbacks_before_block_translate(CPUState *cpu, uint64_t pc) {}
