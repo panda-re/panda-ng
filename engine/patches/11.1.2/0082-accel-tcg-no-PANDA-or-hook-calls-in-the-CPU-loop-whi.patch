@@ -1,0 +1,209 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 27 Oct 2026 17:06:09 -0400
+Subject: [PATCH] accel/tcg: no PANDA or hook calls in the CPU loop while
+ nothing uses them
+
+With nothing registered, the series still made the vCPU loop call out of
+line on every TB lookup or return: panda_tb_chaining_enabled() in
+curr_cflags, panda_callbacks_before_find_fast() before each lookup,
+before/after_block_exec around each TB, block_longjmp after each longjmp,
+before_handle_exception on each exception, and tcg_hooks_cflags read a
+global for every lookup. That made a syscall-heavy guest 14-17% slower
+than stock QEMU.
+
+- Chaining: panda_disable_tb_chaining() puts CF_NO_GOTO_TB and
+  CF_NO_GOTO_PTR in each vCPU's tcg_cflags (and a vCPU created later gets
+  them in tcg_cpu_init_cflags), so curr_cflags is upstream's again. The
+  next lookup asks for unchained TBs, as before; nothing is flushed.
+  tcg_cflags_set and the new tcg_cflags_clear are atomic, since PANDA
+  changes the flags from any thread.
+- cpu_tb_exec's after_block_exec and the longjmp hook run only while the
+  vCPU has a block in flight (CPUState.panda_block_pending, set and cleared
+  by PANDA's block start and end). before_handle_exception runs only then
+  or while such a callback is registered, and before_find_fast only while
+  a TB flush is pending: bits of PANDA's panda_loop_hooks word. The
+  before_block_exec call goes; it did nothing.
+- CF_HOOKS: the address hooks put it in every vCPU's cflags at their first
+  commit, which flushes, so tcg_hooks_cflags tests the cflags it is given
+  instead of loading tcg_hooks_enabled.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
+Origin: new
+---
+ accel/tcg/cpu-exec-common.c      | 11 ++++++-----
+ accel/tcg/cpu-exec.c             | 26 ++++++++++++++++----------
+ accel/tcg/icount-common.c        |  2 +-
+ accel/tcg/tcg-accel-ops.c        |  2 ++
+ include/exec/translation-block.h |  2 ++
+ include/hw/core/cpu.h            |  2 ++
+ 6 files changed, 29 insertions(+), 16 deletions(-)
+
+diff --git a/accel/tcg/cpu-exec-common.c b/accel/tcg/cpu-exec-common.c
+index 2a006fb20f04cf2c7c5df8471e120ff71c802f04..0729e07cd9a8f5cc00524adfe92ab30a4aba1a01 100644
+--- a/accel/tcg/cpu-exec-common.c
++++ b/accel/tcg/cpu-exec-common.c
+@@ -22,7 +22,6 @@
+ #include "system/tcg.h"
+ #include "qemu/plugin.h"
+ #include "accel/tcg/cpu-loop.h"
+-#include "panda/hooks.h"
+ #include "internal-common.h"
+ 
+ bool tcg_allowed;
+@@ -34,7 +33,12 @@ bool tcg_cflags_has(CPUState *cpu, uint32_t flags)
+ 
+ void tcg_cflags_set(CPUState *cpu, uint32_t flags)
+ {
+-    cpu->tcg_cflags |= flags;
++    qatomic_or(&cpu->tcg_cflags, flags);
++}
++
++void tcg_cflags_clear(CPUState *cpu, uint32_t flags)
++{
++    qatomic_and(&cpu->tcg_cflags, ~flags);
+ }
+ 
+ uint32_t curr_cflags(CPUState *cpu)
+@@ -54,9 +58,6 @@ uint32_t curr_cflags(CPUState *cpu)
+         cflags |= CF_NO_GOTO_TB | 1;
+     } else if (qemu_loglevel_mask(CPU_LOG_TB_NOCHAIN)) {
+         cflags |= CF_NO_GOTO_TB;
+-    } else if (!panda_tb_chaining_enabled()) {
+-        /* PANDA: back to cpu_exec after every TB, for the per-TB block_exec callbacks. */
+-        cflags |= CF_NO_GOTO_TB | CF_NO_GOTO_PTR;
+     }
+ 
+     return cflags;
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 40633766c5e5c84fce671e414cf04201af02bd86..8b1275950782c942df875cf9a5048775691e8f8c 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -453,8 +453,6 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
+         log_cpu_exec(log_pc(cpu, itb), cpu, itb);
+     }
+ 
+-    panda_callbacks_before_block_exec(cpu, itb);
+-
+     qemu_thread_jit_execute();
+     ret = tcg_qemu_tb_exec(cpu_env(cpu), tb_ptr);
+     cpu->neg.can_do_io = true;
+@@ -501,7 +499,9 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
+      * PANDA: after the PC is synchronized above. A TB that exited at its entry
+      * never started; without CF_PCREL, chained code left the PC stale until then.
+      */
+-    panda_callbacks_after_block_exec(cpu, itb, *tb_exit);
++    if (panda_block_pending(cpu)) {
++        panda_callbacks_after_block_exec(cpu, itb, *tb_exit);
++    }
+ 
+     /*
+      * If gdb single-step, and we haven't raised another exception,
+@@ -584,7 +584,9 @@ static void cpu_exec_longjmp_cleanup(CPUState *cpu)
+     }
+     assert_no_pages_locked();
+     /* PANDA: the block this vCPU was running ends here (after_block_exec, exited early). */
+-    panda_callbacks_block_longjmp(cpu);
++    if (panda_block_pending(cpu)) {
++        panda_callbacks_block_longjmp(cpu);
++    }
+ }
+ 
+ void cpu_exec_step_atomic(CPUState *cpu)
+@@ -756,11 +758,13 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
+         return true;
+     }
+     /* A PANDA plugin may rewrite the exception; re-dispatch the new one. */
+-    int32_t exception = cpu->exception_index;
++    if (panda_loop_wants(PANDA_LOOP_EXCEPTION) || panda_block_pending(cpu)) {
++        int32_t exception = cpu->exception_index;
+ 
+-    cpu->exception_index = panda_callbacks_before_handle_exception(cpu, exception);
+-    if (exception != cpu->exception_index) {
+-        return cpu_handle_exception(cpu, ret);
++        cpu->exception_index = panda_callbacks_before_handle_exception(cpu, exception);
++        if (exception != cpu->exception_index) {
++            return cpu_handle_exception(cpu, ret);
++        }
+     }
+ 
+ #if defined(CONFIG_USER_ONLY)
+@@ -1017,8 +1021,10 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
+                 break;
+             }
+ 
+-            /* PANDA: pending plugin unloads and TB flushes (may leave the loop) */
+-            panda_callbacks_before_find_fast();
++            /* PANDA: a pending TB flush (leaves the loop) */
++            if (panda_loop_wants(PANDA_LOOP_FLUSH)) {
++                panda_callbacks_before_find_fast();
++            }
+ 
+             tb = tb_lookup(cpu, s);
+             if (tb == NULL) {
+diff --git a/accel/tcg/icount-common.c b/accel/tcg/icount-common.c
+index 3e8d226db72b6e2c684969c5fbb521407e175dd1..10d1740ce1a1ef33624071a3110a74c26faa73d4 100644
+--- a/accel/tcg/icount-common.c
++++ b/accel/tcg/icount-common.c
+@@ -515,7 +515,7 @@ static void icount_switch_vcpus(bool on)
+         if (on) {
+             tcg_cflags_set(cpu, CF_USE_ICOUNT);
+         } else {
+-            cpu->tcg_cflags &= ~CF_USE_ICOUNT;
++            tcg_cflags_clear(cpu, CF_USE_ICOUNT);
+         }
+         cpu->cflags_next_tb = -1;
+         cpu->icount_budget = 0;
+diff --git a/accel/tcg/tcg-accel-ops.c b/accel/tcg/tcg-accel-ops.c
+index 0ff08bc7046179ba89206db1ec450bc2a97624a7..8b1e898853a4821367d95c4dd493743cd3282d0b 100644
+--- a/accel/tcg/tcg-accel-ops.c
++++ b/accel/tcg/tcg-accel-ops.c
+@@ -46,6 +46,7 @@
+ 
+ #include "tcg-accel-ops.h"
+ #include "hooks-internal.h"
++#include "panda/hooks.h"
+ #include "tcg-accel-ops-mttcg.h"
+ #include "tcg-accel-ops-rr.h"
+ #include "tcg-accel-ops-icount.h"
+@@ -72,6 +73,7 @@ void tcg_cpu_init_cflags(CPUState *cpu, bool parallel)
+     cflags |= icount_enabled() ? CF_USE_ICOUNT : 0;
+     tcg_cflags_set(cpu, cflags);
+     tcg_hooks_vcpu_init(cpu);
++    panda_vcpu_init_cflags(cpu);
+ }
+ 
+ void tcg_cpu_destroy(CPUState *cpu)
+diff --git a/include/exec/translation-block.h b/include/exec/translation-block.h
+index c8533f8c2687033e3b25030171780ba40e5f3e9e..42c627f4ce64c28e7389397fab49c790cf403338 100644
+--- a/include/exec/translation-block.h
++++ b/include/exec/translation-block.h
+@@ -85,6 +85,7 @@ struct TranslationBlock {
+ #define CF_PCREL         0x00020000 /* Opcodes in TB are PC-relative */
+ #define CF_BP_PAGE       0x00040000 /* Breakpoint present in code page */
+ #define CF_STEP_ATOMIC   0x00080000 /* Running in cpu_exec_step_atomic */
++#define CF_HOOKS         0x00100000 /* TCG address hooks are in use */
+ #define CF_CLUSTER_MASK  0xff000000 /* Top 8 bits are cluster ID */
+ #define CF_CLUSTER_SHIFT 24
+ 
+@@ -173,6 +174,7 @@ static inline bool tb_pc_exact(const TranslationBlock *tb)
+ 
+ bool tcg_cflags_has(CPUState *cpu, uint32_t flags);
+ void tcg_cflags_set(CPUState *cpu, uint32_t flags);
++void tcg_cflags_clear(CPUState *cpu, uint32_t flags);
+ 
+ static inline tb_page_addr_t tb_page_addr0(const TranslationBlock *tb)
+ {
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index 8033d4470b435a9a0a195b4ed6e10975752a4d12..51cd192ebeb36f50b76247be9251c36602b4acf2 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -565,6 +565,8 @@ struct CPUState {
+     int32_t exception_index;
+     /* host return address into the block while a TCG hook runs, or 0 */
+     uintptr_t tcg_hook_ra;
++    /* PANDA: a block's after_block_exec is still owed (panda/hooks.h) */
++    bool panda_block_pending;
+     /*
+      * A user-access window a plugin memory access opened and left open
+      * across the guest fault it raised (plugins/api-system.c): the access

@@ -223,6 +223,7 @@ static unsigned collect(vaddr pc, GPtrArray *tbs)
 
 static void hooks_commit(CPUState *cpu, run_on_cpu_data unused)
 {
+    CPUState *c;
     g_autoptr(GArray) pcs = NULL;
     bool flush;
     int64_t t0 = get_clock();
@@ -245,6 +246,13 @@ static void hooks_commit(CPUState *cpu, run_on_cpu_data unused)
     flush = !flushed || pcs->len > MAX_TARGETED;
     flushed = true;
     qemu_mutex_unlock(&hooks_lock);
+
+    CPU_FOREACH(c) {
+        tcg_cflags_set(c, CF_HOOKS);
+        if (c->cflags_next_tb != -1) {
+            c->cflags_next_tb |= CF_HOOKS;
+        }
+    }
 
     if (flush) {
         tb_flush__exclusive_or_serial();
@@ -309,6 +317,9 @@ void tcg_hooks_vcpu_init(CPUState *cpu)
     if (pages_pending) {
         qht_iter(&sites, mark_site_page, NULL);
         pages_pending = false;
+    }
+    if (tcg_hooks_enabled) {
+        tcg_cflags_set(cpu, CF_HOOKS);
     }
     qemu_mutex_unlock(&hooks_lock);
 }

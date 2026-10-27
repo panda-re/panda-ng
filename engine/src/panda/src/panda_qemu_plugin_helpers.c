@@ -243,6 +243,7 @@ static void panda_block_end(CPUState *cpu, uint8_t exit_code){
             }
             panda_callbacks_after_block_exec_dispatch(cpu, tb, exit_code);
             ending[cpu->cpu_index] = prev;
+            cpu->panda_block_pending = p->tb || prev.tb;
         }
     }
 }
@@ -257,12 +258,19 @@ void panda_callbacks_block_longjmp(CPUState *cpu){
         ending[cpu->cpu_index].tb = NULL;
     }
     panda_block_end(cpu, TB_EXIT_REQUESTED);
+    cpu->panda_block_pending = cpu->cpu_index < PANDA_END_SLOTS && pending[cpu->cpu_index].tb;
 }
 
 void panda_end_block_drop_all(void){
+    CPUState *cpu;
+
     for (int i = 0; i < PANDA_END_SLOTS; i++) {
         pending[i].tb = NULL;
         ending[i].tb = NULL;
+    }
+    RCU_READ_LOCK_GUARD();
+    CPU_FOREACH(cpu) {
+        cpu->panda_block_pending = false;
     }
 }
 
@@ -363,6 +371,7 @@ void panda_block_start(CPUState *cpu, TranslationBlock *tb){
     }
     panda_callbacks_before_block_exec_dispatch(cpu, tb);
     p->tb = tb;
+    cpu->panda_block_pending = true;
     p->pc = tb_pc_exact(tb) ? tb->pc : cpu->cc->get_pc(cpu);
     p->end = false;
     panda_callbacks_start_block_exec(cpu, tb);  /* may leave the block (panda_break_exec) */
