@@ -71,6 +71,7 @@ path = [
   "engine/patches/11.1.2/0071-hw-core-build-the-configurable-machine-and-its-QAPI-.patch",
   "engine/patches/11.1.2/0077-panda-link-a-plugin-interface-per-target-against-its.patch",
   "engine/patches/11.1.2/0078-target-riscv-a-version-11-cpu-state-still-loads.patch",
+  "engine/patches/11.1.2/0080-migration-vmstate-skip-per-field-vmdesc-bookkeeping-.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
@@ -125,6 +126,7 @@ path = [
   "engine/patches/11.1.2/0059-panda-after_block_exec-hook-after-the-PC-is-synchron.patch",
   "engine/patches/11.1.2/0062-accel-tcg-cpu_exec_step_atomic-runs-in-an-RCU-read-s.patch",
   "engine/patches/11.1.2/0074-physmem-size-a-resizeable-RAM-block-s-maximum-indepe.patch",
+  "engine/patches/11.1.2/0079-hw-block-pflash-log-storage-writes-in-the-dirty-bitm.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
@@ -140,6 +142,7 @@ path = [
   "engine/patches/11.1.2/0061-panda-before_loadvm-hook-before-qemu_loadvm_state-lo.patch",
   "engine/patches/11.1.2/0075-block-qcow2-drop-the-active-VM-state-before-a-savevm.patch",
   "engine/patches/11.1.2/0076-system-cpu-timers-a-snapshot-load-resets-the-ticks-m.patch",
+  "engine/patches/11.1.2/0081-migration-qemu-file-inline-the-in-buffer-case-of-the.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]

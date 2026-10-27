@@ -76,3 +76,6 @@
 11.1.2/0076-system-cpu-timers-a-snapshot-load-resets-the-ticks-m.patch
 11.1.2/0077-panda-link-a-plugin-interface-per-target-against-its.patch
 11.1.2/0078-target-riscv-a-version-11-cpu-state-still-loads.patch
+11.1.2/0079-hw-block-pflash-log-storage-writes-in-the-dirty-bitm.patch
+11.1.2/0080-migration-vmstate-skip-per-field-vmdesc-bookkeeping-.patch
+11.1.2/0081-migration-qemu-file-inline-the-in-buffer-case-of-the.patch

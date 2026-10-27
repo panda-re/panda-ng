@@ -21,7 +21,7 @@ The trailers are part of each commit message in an `import-series.sh` tree, so
 `export-series.sh` keeps them. Add both to a new patch, and update this table when the series
 changes (the export does not rewrite this file). "Uncertain" in a note marks a judgement call.
 
-Counts: new 46, penguin 24, panda-re/qemu 6, ac88u 2.
+Counts: new 47, penguin 26, panda-re/qemu 6, ac88u 2.
 
 | # | subject | origin | license | note |
 |---|---|---|---|---|
@@ -103,3 +103,6 @@ Counts: new 46, penguin 24, panda-re/qemu 6, ac88u 2.
 | 0076 | system/cpu-timers: a snapshot load resets the ticks' monotonic clamp | new | MIT |  |
 | 0077 | panda: link a plugin interface per target against its engine | new | GPL-2.0-or-later |  |
 | 0078 | target/riscv: a version 11 cpu state still loads | new | GPL-2.0-or-later | QEMU 11.1.2 raised the riscv cpu vmstate minimum to 12 without changing its fields |
+| 0079 | hw/block/pflash: log storage writes in the dirty bitmap | new | LGPL-2.1-or-later |  |
+| 0080 | migration/vmstate: skip per-field vmdesc bookkeeping when there is no vmdesc | penguin | GPL-2.0-or-later | qemu_builder workspace/fastsnap2 (5170d14) patch 0016; no third-party code (fastsnap's adopted qemu-libafl-bridge files, device-save.c and channel-buffer-writeback.c, are not taken) |
+| 0081 | migration/qemu-file: inline the in-buffer case of the byte reader | penguin | MIT | qemu_builder workspace/fastsnap2 (5170d14) patch 0017; no third-party code |
