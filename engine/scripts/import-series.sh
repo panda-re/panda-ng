@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Turn tarball + series into a git tree you can develop in normally.
 #
-#   ./scripts/import-series.sh 11.1.0 <tarball> /tmp/qemu-dev
+#   ./scripts/import-series.sh 11.1.2 <tarball> /tmp/qemu-dev
 #
 # The committed series stays the source of truth; this tree is scratch. Each
 # patch becomes one commit, and the pristine tarball is tagged base-<tag> so

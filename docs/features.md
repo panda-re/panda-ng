@@ -2,7 +2,7 @@
 
 # Features
 
-panda-ng is PANDA rebuilt on QEMU 11.1.0: the PANDA runtime (callbacks, plugins, record/replay)
+panda-ng is PANDA rebuilt on QEMU 11.1.2: the PANDA runtime (callbacks, plugins, record/replay)
 in a QEMU plugin and a patch series, driven from Python through pandare2. Whole-system analysis
 runs under TCG; KVM runs guests at native speed, and a snapshot can move between the two. The
 table lists each feature, how settled it is, and where its tests run; each section below says

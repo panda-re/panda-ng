@@ -2,8 +2,8 @@
 # The gate. Applies patches/<version>/series to the PRISTINE upstream QEMU
 # release tarball and proves the result is exactly what we expect.
 #
-#   ./scripts/verify-series.sh 11.1.0 /path/to/qemu-11.1.0.tar.xz
-#   ./scripts/verify-series.sh 11.1.0 <tarball> --record   # (re)record patchedTree
+#   ./scripts/verify-series.sh 11.1.2 /path/to/qemu-11.1.2.tar.xz
+#   ./scripts/verify-series.sh 11.1.2 <tarball> --record   # (re)record patchedTree
 #
 # Three assertions, in increasing strength:
 #

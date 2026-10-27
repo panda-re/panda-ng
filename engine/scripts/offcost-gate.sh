@@ -2,11 +2,11 @@
 # The off-cost gate: build stock QEMU and this series from the same tarball with the same configure
 # line, then run tests/guest/offcost.sh on both.
 #
-#   STOCK_REF=origin/main ./scripts/offcost-gate.sh 11.1.0 <tarball> <workdir> [out]
+#   STOCK_REF=origin/main ./scripts/offcost-gate.sh 11.1.2 <tarball> <workdir> [out]
 #
 # Stock is the engine at STOCK_REF (default origin/main), i.e. that panda-ng ref's engine/, imported
 # with that ref's own scripts. Not the pristine tarball: the guest harness's arm kernels issue the
-# hypercall instruction the series handles, and stock 11.1.0 kills them with an
+# hypercall instruction the series handles, and stock QEMU kills them with an
 # undefined-instruction oops. STOCK_REF=pristine uses the bare tarball anyway (ARCHS=x86_64 only).
 # Before panda-ng's main has engine/ (the first release), pass a ref that has it.
 # <workdir>/stock and <workdir>/series are import-series.sh trees. Both build

@@ -5,12 +5,12 @@
 #
 #   engineSource = import ./engine/nix/source.nix { inherit pkgs; };
 #   engineSource.src            # the patched tree (a store path), what the engine builds from
-#   engineSource.version        # the upstream release, e.g. "11.1.0" (base.json's one key)
+#   engineSource.version        # the upstream release, e.g. "11.1.2" (base.json's one key)
 #
-# Two properties of QEMU release tarballs this relies on (verified against v11.1.0): QEMU's
-# .gitattributes has no export-ignore, so every file the series touches is identical in the tag
-# and the tarball; and the tarball ships the meson subprojects (keycodemapdb, berkeley-softfloat-3,
-# berkeley-testfloat-3) already populated, so nothing else is fetched.
+# Two properties of QEMU release tarballs this relies on (verified against v11.1.0 and v11.1.2):
+# QEMU's .gitattributes has no export-ignore, so every file the series touches is identical in the
+# tag and the tarball; and the tarball ships the meson subprojects (keycodemapdb,
+# berkeley-softfloat-3, berkeley-testfloat-3) already populated, so nothing else is fetched.
 { pkgs }:
 
 let

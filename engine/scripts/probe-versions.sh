@@ -3,7 +3,7 @@
 # we did NOT base on, and reports a per-version FAILURE CLASS for each patch
 # rather than a single pass/fail.
 #
-#   ./scripts/probe-versions.sh 11.1.0 /path/to/qemu.git v11.0.0 v10.2.0 upstream/master
+#   ./scripts/probe-versions.sh 11.1.2 /path/to/qemu.git v11.0.0 v10.2.0 upstream/master
 #
 # Classes:
 #   ok        applied with strict context
