@@ -79,3 +79,4 @@
 11.1.2/0079-hw-block-pflash-log-storage-writes-in-the-dirty-bitm.patch
 11.1.2/0080-migration-vmstate-skip-per-field-vmdesc-bookkeeping-.patch
 11.1.2/0081-migration-qemu-file-inline-the-in-buffer-case-of-the.patch
+11.1.2/0082-accel-tcg-no-PANDA-or-hook-calls-in-the-CPU-loop-whi.patch

@@ -69,7 +69,7 @@ api = ["py:Panda.enable_callback", "py:Panda.disable_callback", "py:Panda.disabl
 docs = ["docs/guides/python.md#callbacks", "docs/reference/callbacks.md"]
 tests = ["tests/callbacks.py", "tests/blocks.py", "tests/blocks_bare.py", "tests/late.py",
          "tests/tbpc.py", "tests/mem.py", "tests/mmio.py", "tests/physmem.py"]
-patches = ["0031", "0035", "0042-0044", "0046-0049", "0053", "0054", "0058", "0059", "0065"]
+patches = ["0031", "0035", "0042-0044", "0046-0049", "0053", "0054", "0058", "0059", "0065", "0082"]
 
 [[feature]]
 id = "plugins"
