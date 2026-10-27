@@ -972,6 +972,13 @@
             cat log
             mv log $out
           '';
+          # Panda() without a guest (tests/construct.py): the argv each call form builds, keywords
+          # over an image's values, and the errors.
+          pandare2-construct = pkgs.runCommand "pandare2-construct-check" { } ''
+            ${p.pandaPython}/bin/python3 ${./tests/construct.py} > log 2>&1 || { cat log; exit 1; }
+            cat log
+            mv log $out
+          '';
           # repair.py on a synthetic engine: shipped siblings aren't bundled again, RUNPATHs keep
           # $ORIGIN, licenses and License-Expression are written (no engine build needed).
           wheel-repair =
