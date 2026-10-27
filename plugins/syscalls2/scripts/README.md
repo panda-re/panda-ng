@@ -1,6 +1,14 @@
-Syscalls2 scripts to genreate prototypes and code
+Syscalls2 scripts to generate prototypes and code
 
-Setup instructions:
+Linux: `nix run .#regen-syscalls` from the repository root runs `regen.sh` on the flake's pinned
+kernel source, which writes ../generated-in/linux_*_prototypes.txt (`linux_prototypes.py`) and then
+../generated/ (`make_all_generated.sh`). Without nix: `PYTHON=<python3 with jinja2> ./regen.sh
+<linux source tree or .tar.xz>`. See ../MAINTENANCE.md.
+
+Windows: `./make_all_prototypes.sh` writes the Windows prototype files (`prototype_parser.py`,
+volatility data), then `./make_all_generated.sh` regenerates ../generated/.
+
+`requirements2.txt` is the Python environment for running these outside nix:
 
 ```sh
 python3 -m venv venv
@@ -8,9 +16,3 @@ python3 -m venv venv
 
 pip install -r requirements2.txt
 ```
-
-Then you can either:
-A) Populate ../generated-in/ with the various prototypes text files using locally-cloned kernel source: `./make_all_prototypes.sh`
-B) Populate ../generated/ with headers and C++ code using the prototypes text files: `./make_all_generated.sh`
-
-Those two bash scripts are quite simple, they just call prototype_parser.py or syscalls_parser.py with the right arguments.

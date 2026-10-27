@@ -122,7 +122,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_io_cancel_enter, cpu, pc, arg0, arg1, arg2);
 	}; break;
-	// 4 long sys_io_getevents ['aio_context_t ctx_id', 'long min_nr', 'long nr', 'struct io_event __user *events', 'struct timespec __user *timeout']
+	// 4 long sys_io_getevents ['aio_context_t ctx_id', 'long min_nr', 'long nr', 'struct io_event __user *events', 'struct __kernel_timespec __user *timeout']
 	case 4: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -359,22 +359,6 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
 		}
 		PPP_RUN_CB(on_sys_getcwd_enter, cpu, pc, arg0, arg1);
-	}; break;
-	// 18 long sys_lookup_dcookie ['u64 cookie64', 'char __user *buf', 'size_t len']
-	case 18: {
-		panda_noreturn = false;
-		ctx.double_return = false;
-		uint64_t arg0 = get_64(cpu, &ctx, 0);
-		uint64_t arg1 = get_64(cpu, &ctx, 1);
-		uint32_t arg2 = get_32(cpu, &ctx, 2);
-		if (PPP_CHECK_CB(on_all_sys_enter2) ||
-			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
-					PPP_CHECK_CB(on_sys_lookup_dcookie_return)))) {
-			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
-			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
-			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
-		}
-		PPP_RUN_CB(on_sys_lookup_dcookie_enter, cpu, pc, arg0, arg1, arg2);
 	}; break;
 	// 19 long sys_eventfd2 ['unsigned int count', 'int flags']
 	case 19: {
@@ -674,25 +658,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_linkat_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
 	}; break;
-	// 38 long sys_renameat ['int olddfd', 'const char __user *oldname', 'int newdfd', 'const char __user *newname']
-	case 38: {
-		panda_noreturn = false;
-		ctx.double_return = false;
-		int32_t arg0 = get_s32(cpu, &ctx, 0);
-		uint64_t arg1 = get_64(cpu, &ctx, 1);
-		int32_t arg2 = get_s32(cpu, &ctx, 2);
-		uint64_t arg3 = get_64(cpu, &ctx, 3);
-		if (PPP_CHECK_CB(on_all_sys_enter2) ||
-			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
-					PPP_CHECK_CB(on_sys_renameat_return)))) {
-			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
-			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
-			memcpy(ctx.args[2], &arg2, sizeof(int32_t));
-			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
-		}
-		PPP_RUN_CB(on_sys_renameat_enter, cpu, pc, arg0, arg1, arg2, arg3);
-	}; break;
-	// 39 long sys_umount2 ['const char* target', 'int flags']
+	// 39 long sys_umount ['char __user *name', 'int flags']
 	case 39: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -700,11 +666,11 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		int32_t arg1 = get_s32(cpu, &ctx, 1);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||
 			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
-					PPP_CHECK_CB(on_sys_umount2_return)))) {
+					PPP_CHECK_CB(on_sys_umount_return)))) {
 			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
 			memcpy(ctx.args[1], &arg1, sizeof(int32_t));
 		}
-		PPP_RUN_CB(on_sys_umount2_enter, cpu, pc, arg0, arg1);
+		PPP_RUN_CB(on_sys_umount_enter, cpu, pc, arg0, arg1);
 	}; break;
 	// 40 long sys_mount ['char __user *dev_name', 'char __user *dir_name', 'char __user *type', 'unsigned long flags', 'void __user *data']
 	case 40: {
@@ -740,23 +706,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_pivot_root_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 42 long sys_nfsservctl ['int cmd', 'struct nfsctl_arg *argp', 'union nfsctl_res *resp']
-	case 42: {
-		panda_noreturn = false;
-		ctx.double_return = false;
-		int32_t arg0 = get_s32(cpu, &ctx, 0);
-		uint64_t arg1 = get_64(cpu, &ctx, 1);
-		uint64_t arg2 = get_64(cpu, &ctx, 2);
-		if (PPP_CHECK_CB(on_all_sys_enter2) ||
-			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
-					PPP_CHECK_CB(on_sys_nfsservctl_return)))) {
-			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
-			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
-			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
-		}
-		PPP_RUN_CB(on_sys_nfsservctl_enter, cpu, pc, arg0, arg1, arg2);
-	}; break;
-	// 43 long sys_statfs ['const char * path', 'struct statfs *buf']
+	// 43 long sys_statfs ['const char __user *path', 'struct statfs __user *buf']
 	case 43: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -770,7 +720,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_statfs_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 44 long sys_fstatfs ['unsigned int fd', 'struct statfs *buf']
+	// 44 long sys_fstatfs ['unsigned int fd', 'struct statfs __user *buf']
 	case 44: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -784,7 +734,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_fstatfs_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 45 long sys_truncate ['const char *path', 'long length']
+	// 45 long sys_truncate ['const char __user *path', 'long length']
 	case 45: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -798,7 +748,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_truncate_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 46 long sys_ftruncate ['unsigned int fd', 'unsigned long length']
+	// 46 long sys_ftruncate ['unsigned int fd', 'off_t length']
 	case 46: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -984,7 +934,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		ctx.double_return = false;
 		PPP_RUN_CB(on_sys_vhangup_enter, cpu, pc);
 	}; break;
-	// 59 long sys_pipe2 ['int *fildes', 'int flags']
+	// 59 long sys_pipe2 ['int __user *fildes', 'int flags']
 	case 59: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1016,7 +966,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_quotactl_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
-	// 61 long sys_getdents64 ['unsigned int fd', 'struct linux_dirent64 *dirent', 'unsigned int count']
+	// 61 long sys_getdents64 ['unsigned int fd', 'struct linux_dirent64 __user *dirent', 'unsigned int count']
 	case 61: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1112,7 +1062,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_writev_enter, cpu, pc, arg0, arg1, arg2);
 	}; break;
-	// 67 long sys_pread64 ['unsigned int fd', 'char *buf', 'size_t count', 'loff_t pos']
+	// 67 long sys_pread64 ['unsigned int fd', 'char __user *buf', 'size_t count', 'loff_t pos']
 	case 67: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1130,7 +1080,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_pread64_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
-	// 68 long sys_pwrite64 ['unsigned int fd', 'const char *buf', 'size_t count', 'loff_t pos']
+	// 68 long sys_pwrite64 ['unsigned int fd', 'const char __user *buf', 'size_t count', 'loff_t pos']
 	case 68: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1188,7 +1138,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_pwritev_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
 	}; break;
-	// 71 long sys_sendfile ['int out_fd', 'int in_fd', 'off_t *offset', 'size_t count']
+	// 71 long sys_sendfile64 ['int out_fd', 'int in_fd', 'loff_t __user *offset', 'size_t count']
 	case 71: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1198,15 +1148,15 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		uint32_t arg3 = get_32(cpu, &ctx, 3);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||
 			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
-					PPP_CHECK_CB(on_sys_sendfile_return)))) {
+					PPP_CHECK_CB(on_sys_sendfile64_return)))) {
 			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
 			memcpy(ctx.args[1], &arg1, sizeof(int32_t));
 			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
 			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
 		}
-		PPP_RUN_CB(on_sys_sendfile_enter, cpu, pc, arg0, arg1, arg2, arg3);
+		PPP_RUN_CB(on_sys_sendfile64_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
-	// 72 long sys_pselect6 ['int', 'fd_set *', 'fd_set *', 'fd_set *', 'struct __kernel_timespec *', 'void *']
+	// 72 long sys_pselect6 ['int', 'fd_set __user *', 'fd_set __user *', 'fd_set __user *', 'struct __kernel_timespec __user *', 'void __user *']
 	case 72: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1228,7 +1178,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_pselect6_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4, arg5);
 	}; break;
-	// 73 long sys_ppoll ['struct pollfd __user *', 'unsigned int', 'struct timespec __user *', 'const sigset_t __user *', 'size_t']
+	// 73 long sys_ppoll ['struct pollfd __user *', 'unsigned int', 'struct __kernel_timespec __user *', 'const sigset_t __user *', 'size_t']
 	case 73: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1248,7 +1198,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_ppoll_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
 	}; break;
-	// 74 long sys_signalfd4 ['int ufd', 'sigset_t *user_mask', 'size_t sizemask', 'int flags']
+	// 74 long sys_signalfd4 ['int ufd', 'sigset_t __user *user_mask', 'size_t sizemask', 'int flags']
 	case 74: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1342,7 +1292,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_readlinkat_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
-	// 79 long sys_newfstatat ['int dfd', 'const char *filename', 'struct stat *statbuf', 'int flag']
+	// 79 long sys_newfstatat ['int dfd', 'const char __user *filename', 'struct stat __user *statbuf', 'int flag']
 	case 79: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1360,7 +1310,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_newfstatat_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
-	// 80 long sys_fstat ['unsigned int fd', 'struct __old_kernel_stat *statbuf']
+	// 80 long sys_newfstat ['unsigned int fd', 'struct stat __user *statbuf']
 	case 80: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1368,11 +1318,11 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		uint64_t arg1 = get_64(cpu, &ctx, 1);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||
 			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
-					PPP_CHECK_CB(on_sys_fstat_return)))) {
+					PPP_CHECK_CB(on_sys_newfstat_return)))) {
 			memcpy(ctx.args[0], &arg0, sizeof(uint32_t));
 			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
 		}
-		PPP_RUN_CB(on_sys_fstat_enter, cpu, pc, arg0, arg1);
+		PPP_RUN_CB(on_sys_newfstat_enter, cpu, pc, arg0, arg1);
 	}; break;
 	// 81 long sys_sync ['void']
 	case 81: {
@@ -1436,7 +1386,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_timerfd_create_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 86 long sys_timerfd_settime ['int ufd', 'int flags', 'const struct itimerspec __user *utmr', 'struct itimerspec __user *otmr']
+	// 86 long sys_timerfd_settime ['int ufd', 'int flags', 'const struct __kernel_itimerspec __user *utmr', 'struct __kernel_itimerspec __user *otmr']
 	case 86: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1454,7 +1404,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_timerfd_settime_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
-	// 87 long sys_timerfd_gettime ['int ufd', 'struct itimerspec __user *otmr']
+	// 87 long sys_timerfd_gettime ['int ufd', 'struct __kernel_itimerspec __user *otmr']
 	case 87: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1468,7 +1418,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_timerfd_gettime_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 88 long sys_utimensat ['int dfd', 'const char __user *filename', 'struct timespec __user *utimes', 'int flags']
+	// 88 long sys_utimensat ['int dfd', 'const char __user *filename', 'struct __kernel_timespec __user *utimes', 'int flags']
 	case 88: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1606,7 +1556,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_unshare_enter, cpu, pc, arg0);
 	}; break;
-	// 98 long sys_futex ['u32 __user *uaddr', 'int op', 'u32 val', 'struct timespec __user *utime', 'u32 __user *uaddr2', 'u32 val3']
+	// 98 long sys_futex ['u32 __user *uaddr', 'int op', 'u32 val', 'const struct __kernel_timespec __user *utime', 'u32 __user *uaddr2', 'u32 val3']
 	case 98: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1658,7 +1608,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_get_robust_list_enter, cpu, pc, arg0, arg1, arg2);
 	}; break;
-	// 101 long sys_nanosleep ['struct timespec __user *rqtp', 'struct timespec __user *rmtp']
+	// 101 long sys_nanosleep ['struct __kernel_timespec __user *rqtp', 'struct __kernel_timespec __user *rmtp']
 	case 101: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1672,7 +1622,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_nanosleep_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 102 long sys_getitimer ['int which', 'struct itimerval __user *value']
+	// 102 long sys_getitimer ['int which', 'struct __kernel_old_itimerval __user *value']
 	case 102: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1686,7 +1636,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_getitimer_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 103 long sys_setitimer ['int which', 'struct itimerval __user *value', 'struct itimerval __user *ovalue']
+	// 103 long sys_setitimer ['int which', 'struct __kernel_old_itimerval __user *value', 'struct __kernel_old_itimerval __user *ovalue']
 	case 103: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1766,7 +1716,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_timer_create_enter, cpu, pc, arg0, arg1, arg2);
 	}; break;
-	// 108 long sys_timer_gettime ['timer_t timer_id', 'struct itimerspec __user *setting']
+	// 108 long sys_timer_gettime ['timer_t timer_id', 'struct __kernel_itimerspec __user *setting']
 	case 108: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1792,7 +1742,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_timer_getoverrun_enter, cpu, pc, arg0);
 	}; break;
-	// 110 long sys_timer_settime ['timer_t timer_id', 'int flags', 'const struct itimerspec __user *new_setting', 'struct itimerspec __user *old_setting']
+	// 110 long sys_timer_settime ['timer_t timer_id', 'int flags', 'const struct __kernel_itimerspec __user *new_setting', 'struct __kernel_itimerspec __user *old_setting']
 	case 110: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1822,7 +1772,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_timer_delete_enter, cpu, pc, arg0);
 	}; break;
-	// 112 long sys_clock_settime ['clockid_t which_clock', 'const struct timespec __user *tp']
+	// 112 long sys_clock_settime ['clockid_t which_clock', 'const struct __kernel_timespec __user *tp']
 	case 112: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1836,7 +1786,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_clock_settime_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 113 long sys_clock_gettime ['clockid_t which_clock', 'struct timespec __user *tp']
+	// 113 long sys_clock_gettime ['clockid_t which_clock', 'struct __kernel_timespec __user *tp']
 	case 113: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1850,7 +1800,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_clock_gettime_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 114 long sys_clock_getres ['clockid_t which_clock', 'struct timespec __user *tp']
+	// 114 long sys_clock_getres ['clockid_t which_clock', 'struct __kernel_timespec __user *tp']
 	case 114: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -1864,7 +1814,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_clock_getres_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 115 long sys_clock_nanosleep ['clockid_t which_clock', 'int flags', 'const struct timespec __user *rqtp', 'struct timespec __user *rmtp']
+	// 115 long sys_clock_nanosleep ['clockid_t which_clock', 'int flags', 'const struct __kernel_timespec __user *rqtp', 'struct __kernel_timespec __user *rmtp']
 	case 115: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -2034,7 +1984,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_sched_get_priority_min_enter, cpu, pc, arg0);
 	}; break;
-	// 127 long sys_sched_rr_get_interval ['pid_t pid', 'struct timespec __user *interval']
+	// 127 long sys_sched_rr_get_interval ['pid_t pid', 'struct __kernel_timespec __user *interval']
 	case 127: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -2176,7 +2126,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_rt_sigpending_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 137 long sys_rt_sigtimedwait ['const sigset_t __user *uthese', 'siginfo_t __user *uinfo', 'const struct timespec __user *uts', 'size_t sigsetsize']
+	// 137 long sys_rt_sigtimedwait ['const sigset_t __user *uthese', 'siginfo_t __user *uinfo', 'const struct __kernel_timespec __user *uts', 'size_t sigsetsize']
 	case 137: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -2210,17 +2160,11 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_rt_sigqueueinfo_enter, cpu, pc, arg0, arg1, arg2);
 	}; break;
-	// 139 long sys_rt_sigreturn ['struct pt_regs *regs']
+	// 139 long sys_rt_sigreturn ['void']
 	case 139: {
 		panda_noreturn = false;
 		ctx.double_return = false;
-		uint64_t arg0 = get_64(cpu, &ctx, 0);
-		if (PPP_CHECK_CB(on_all_sys_enter2) ||
-			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
-					PPP_CHECK_CB(on_sys_rt_sigreturn_return)))) {
-			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
-		}
-		PPP_RUN_CB(on_sys_rt_sigreturn_enter, cpu, pc, arg0);
+		PPP_RUN_CB(on_sys_rt_sigreturn_enter, cpu, pc);
 	}; break;
 	// 140 long sys_setpriority ['int which', 'int who', 'int niceval']
 	case 140: {
@@ -2494,17 +2438,17 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_setgroups_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 160 long sys_uname ['struct new_utsname __user *name']
+	// 160 long sys_newuname ['struct new_utsname __user *name']
 	case 160: {
 		panda_noreturn = false;
 		ctx.double_return = false;
 		uint64_t arg0 = get_64(cpu, &ctx, 0);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||
 			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
-					PPP_CHECK_CB(on_sys_uname_return)))) {
+					PPP_CHECK_CB(on_sys_newuname_return)))) {
 			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
 		}
-		PPP_RUN_CB(on_sys_uname_enter, cpu, pc, arg0);
+		PPP_RUN_CB(on_sys_newuname_enter, cpu, pc, arg0);
 	}; break;
 	// 161 long sys_sethostname ['char __user *name', 'int len']
 	case 161: {
@@ -2624,7 +2568,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_getcpu_enter, cpu, pc, arg0, arg1, arg2);
 	}; break;
-	// 169 long sys_gettimeofday ['struct timeval __user *tv', 'struct timezone __user *tz']
+	// 169 long sys_gettimeofday ['struct __kernel_old_timeval __user *tv', 'struct timezone __user *tz']
 	case 169: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -2638,7 +2582,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_gettimeofday_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 170 long sys_settimeofday ['struct timeval __user *tv', 'struct timezone __user *tz']
+	// 170 long sys_settimeofday ['struct __kernel_old_timeval __user *tv', 'struct timezone __user *tz']
 	case 170: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -2652,7 +2596,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_settimeofday_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 171 long sys_adjtimex ['struct timex __user *txc_p']
+	// 171 long sys_adjtimex ['struct __kernel_timex __user *txc_p']
 	case 171: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -2748,7 +2692,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_mq_unlink_enter, cpu, pc, arg0);
 	}; break;
-	// 182 long sys_mq_timedsend ['mqd_t mqdes', 'const char __user *msg_ptr', 'size_t msg_len', 'unsigned int msg_prio', 'const struct timespec __user *abs_timeout']
+	// 182 long sys_mq_timedsend ['mqd_t mqdes', 'const char __user *msg_ptr', 'size_t msg_len', 'unsigned int msg_prio', 'const struct __kernel_timespec __user *abs_timeout']
 	case 182: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -2768,7 +2712,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_mq_timedsend_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
 	}; break;
-	// 183 long sys_mq_timedreceive ['mqd_t mqdes', 'char __user *msg_ptr', 'size_t msg_len', 'unsigned int __user *msg_prio', 'const struct timespec __user *abs_timeout']
+	// 183 long sys_mq_timedreceive ['mqd_t mqdes', 'char __user *msg_ptr', 'size_t msg_len', 'unsigned int __user *msg_prio', 'const struct __kernel_timespec __user *abs_timeout']
 	case 183: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -2920,7 +2864,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_semctl_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
-	// 192 long sys_semtimedop ['int semid', 'struct sembuf __user *sops', 'unsigned nsops', 'const struct timespec __user *timeout']
+	// 192 long sys_semtimedop ['int semid', 'struct sembuf __user *sops', 'unsigned nsops', 'const struct __kernel_timespec __user *timeout']
 	case 192: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -3392,7 +3336,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_keyctl_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
 	}; break;
-	// 220 long sys_clone ['unsigned long', 'unsigned long', 'int __user *', 'int __user *', 'unsigned long']
+	// 220 long sys_clone ['unsigned long', 'unsigned long', 'int __user *', 'unsigned long', 'int __user *']
 	case 220: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -3428,45 +3372,45 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_execve_enter, cpu, pc, arg0, arg1, arg2);
 	}; break;
-	// 222 long sys_mmap ['void *addr', 'size_t length', 'int prot', 'int flags', 'int fd', 'off_t offset']
+	// 222 long sys_mmap ['unsigned long addr', 'unsigned long len', 'unsigned long prot', 'unsigned long flags', 'unsigned long fd', 'unsigned long offset']
 	case 222: {
 		panda_noreturn = false;
 		ctx.double_return = false;
 		uint64_t arg0 = get_64(cpu, &ctx, 0);
-		uint32_t arg1 = get_32(cpu, &ctx, 1);
-		int32_t arg2 = get_s32(cpu, &ctx, 2);
-		int32_t arg3 = get_s32(cpu, &ctx, 3);
-		int32_t arg4 = get_s32(cpu, &ctx, 4);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint64_t arg2 = get_64(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		uint64_t arg4 = get_64(cpu, &ctx, 4);
 		uint64_t arg5 = get_64(cpu, &ctx, 5);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||
 			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
 					PPP_CHECK_CB(on_sys_mmap_return)))) {
 			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
-			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
-			memcpy(ctx.args[2], &arg2, sizeof(int32_t));
-			memcpy(ctx.args[3], &arg3, sizeof(int32_t));
-			memcpy(ctx.args[4], &arg4, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint64_t));
 			memcpy(ctx.args[5], &arg5, sizeof(uint64_t));
 		}
 		PPP_RUN_CB(on_sys_mmap_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4, arg5);
 	}; break;
-	// 223 long sys_fadvise64 ['int fd', 'loff_t offset', 'size_t len', 'int advice']
+	// 223 long sys_fadvise64_64 ['int fd', 'loff_t offset', 'loff_t len', 'int advice']
 	case 223: {
 		panda_noreturn = false;
 		ctx.double_return = false;
 		int32_t arg0 = get_s32(cpu, &ctx, 0);
 		uint64_t arg1 = get_64(cpu, &ctx, 1);
-		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint64_t arg2 = get_64(cpu, &ctx, 2);
 		int32_t arg3 = get_s32(cpu, &ctx, 3);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||
 			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
-					PPP_CHECK_CB(on_sys_fadvise64_return)))) {
+					PPP_CHECK_CB(on_sys_fadvise64_64_return)))) {
 			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
 			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
-			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
 			memcpy(ctx.args[3], &arg3, sizeof(int32_t));
 		}
-		PPP_RUN_CB(on_sys_fadvise64_enter, cpu, pc, arg0, arg1, arg2, arg3);
+		PPP_RUN_CB(on_sys_fadvise64_64_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
 	// 224 long sys_swapon ['const char __user *specialfile', 'int swap_flags']
 	case 224: {
@@ -3760,7 +3704,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_perf_event_open_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
 	}; break;
-	// 242 long sys_accept4 ['int', 'struct sockaddr *', 'int *', 'int']
+	// 242 long sys_accept4 ['int', 'struct sockaddr __user *', 'int __user *', 'int']
 	case 242: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -3778,7 +3722,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_accept4_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
-	// 243 long sys_recvmmsg ['int fd', 'struct mmsghdr __user *msg', 'unsigned int vlen', 'unsigned flags', 'struct timespec __user *timeout']
+	// 243 long sys_recvmmsg ['int fd', 'struct mmsghdr __user *msg', 'unsigned int vlen', 'unsigned flags', 'struct __kernel_timespec __user *timeout']
 	case 243: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -3818,23 +3762,23 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_riscv_hwprobe_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
 	}; break;
-	// 259 long sys_riscv_flush_icache ['unsigned long start', 'unsigned long end', 'unsigned long flags']
+	// 259 long sys_riscv_flush_icache ['uintptr_t start', 'uintptr_t end', 'uintptr_t flags']
 	case 259: {
 		panda_noreturn = false;
 		ctx.double_return = false;
-		uint64_t arg0 = get_64(cpu, &ctx, 0);
-		uint64_t arg1 = get_64(cpu, &ctx, 1);
-		uint64_t arg2 = get_64(cpu, &ctx, 2);
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		int32_t arg1 = get_s32(cpu, &ctx, 1);
+		int32_t arg2 = get_s32(cpu, &ctx, 2);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||
 			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
 					PPP_CHECK_CB(on_sys_riscv_flush_icache_return)))) {
-			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
-			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
-			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(int32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(int32_t));
 		}
 		PPP_RUN_CB(on_sys_riscv_flush_icache_enter, cpu, pc, arg0, arg1, arg2);
 	}; break;
-	// 260 long sys_wait4 ['pid_t pid', 'int *stat_addr', 'int options', 'struct rusage *ru']
+	// 260 long sys_wait4 ['pid_t pid', 'int __user *stat_addr', 'int options', 'struct rusage __user *ru']
 	case 260: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -3852,7 +3796,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_wait4_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
-	// 261 long sys_prlimit64 ['pid_t pid', 'unsigned int resource', 'const struct rlimit64 *new_rlim', 'struct rlimit64 *old_rlim']
+	// 261 long sys_prlimit64 ['pid_t pid', 'unsigned int resource', 'const struct rlimit64 __user *new_rlim', 'struct rlimit64 __user *old_rlim']
 	case 261: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -3904,7 +3848,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_fanotify_mark_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
 	}; break;
-	// 264 long sys_name_to_handle_at ['int dfd', 'const char __user *name', 'struct file_handle __user *handle', 'int __user *mnt_id', 'int flag']
+	// 264 long sys_name_to_handle_at ['int dfd', 'const char __user *name', 'struct file_handle __user *handle', 'void __user *mnt_id', 'int flag']
 	case 264: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -3940,7 +3884,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_open_by_handle_at_enter, cpu, pc, arg0, arg1, arg2);
 	}; break;
-	// 266 long sys_clock_adjtime ['clockid_t which_clock', 'struct timex __user *tx']
+	// 266 long sys_clock_adjtime ['clockid_t which_clock', 'struct __kernel_timex __user *tx']
 	case 266: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -4112,7 +4056,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_sched_getattr_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
-	// 276 long sys_renameat2 ['int olddfd', 'const char *oldname', 'int newdfd', 'const char *newname', 'unsigned int flags']
+	// 276 long sys_renameat2 ['int olddfd', 'const char __user *oldname', 'int newdfd', 'const char __user *newname', 'unsigned int flags']
 	case 276: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -4132,7 +4076,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_renameat2_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
 	}; break;
-	// 277 long sys_seccomp ['unsigned int op', 'unsigned int flags', 'const char __user *uargs']
+	// 277 long sys_seccomp ['unsigned int op', 'unsigned int flags', 'void __user *uargs']
 	case 277: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -4178,7 +4122,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_memfd_create_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 280 long sys_bpf ['int cmd', 'union bpf_attr *attr', 'unsigned int size']
+	// 280 long sys_bpf ['int cmd', 'union bpf_attr __user *attr', 'unsigned int size']
 	case 280: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -4226,19 +4170,21 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_userfaultfd_enter, cpu, pc, arg0);
 	}; break;
-	// 283 long sys_membarrier ['int cmd', 'int flags']
+	// 283 long sys_membarrier ['int cmd', 'unsigned int flags', 'int cpu_id']
 	case 283: {
 		panda_noreturn = false;
 		ctx.double_return = false;
 		int32_t arg0 = get_s32(cpu, &ctx, 0);
-		int32_t arg1 = get_s32(cpu, &ctx, 1);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		int32_t arg2 = get_s32(cpu, &ctx, 2);
 		if (PPP_CHECK_CB(on_all_sys_enter2) ||
 			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
 					PPP_CHECK_CB(on_sys_membarrier_return)))) {
 			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
-			memcpy(ctx.args[1], &arg1, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(int32_t));
 		}
-		PPP_RUN_CB(on_sys_membarrier_enter, cpu, pc, arg0, arg1);
+		PPP_RUN_CB(on_sys_membarrier_enter, cpu, pc, arg0, arg1, arg2);
 	}; break;
 	// 284 long sys_mlock2 ['unsigned long start', 'size_t len', 'int flags']
 	case 284: {
@@ -4278,7 +4224,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_copy_file_range_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4, arg5);
 	}; break;
-	// 286 long sys_preadv2 ['unsigned long fd', 'const struct iovec *vec', 'unsigned long vlen', 'unsigned long pos_l', 'unsigned long pos_h', 'rwf_t flags']
+	// 286 long sys_preadv2 ['unsigned long fd', 'const struct iovec __user *vec', 'unsigned long vlen', 'unsigned long pos_l', 'unsigned long pos_h', 'rwf_t flags']
 	case 286: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -4300,7 +4246,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_preadv2_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4, arg5);
 	}; break;
-	// 287 long sys_pwritev2 ['unsigned long fd', 'const struct iovec *vec', 'unsigned long vlen', 'unsigned long pos_l', 'unsigned long pos_h', 'rwf_t flags']
+	// 287 long sys_pwritev2 ['unsigned long fd', 'const struct iovec __user *vec', 'unsigned long vlen', 'unsigned long pos_l', 'unsigned long pos_h', 'rwf_t flags']
 	case 287: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -4366,7 +4312,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_pkey_free_enter, cpu, pc, arg0);
 	}; break;
-	// 291 long sys_statx ['int dfd', 'const char *path', 'unsigned flags', 'unsigned mask', 'struct statx *buffer']
+	// 291 long sys_statx ['int dfd', 'const char __user *path', 'unsigned flags', 'unsigned mask', 'struct statx __user *buffer']
 	case 291: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -4386,7 +4332,47 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_statx_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
 	}; break;
-	// 294 long sys_kexec_file_load ['int kernel_fd', 'int initrd_fd', 'unsigned long cmdline_len', 'const char *cmdline', 'unsigned long flags']
+	// 292 long sys_io_pgetevents ['aio_context_t ctx_id', 'long min_nr', 'long nr', 'struct io_event __user *events', 'struct __kernel_timespec __user *timeout', 'const struct __aio_sigset __user *sig']
+	case 292: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		int64_t arg1 = get_s64(cpu, &ctx, 1);
+		int64_t arg2 = get_s64(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		uint64_t arg4 = get_64(cpu, &ctx, 4);
+		uint64_t arg5 = get_64(cpu, &ctx, 5);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_io_pgetevents_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(int64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(int64_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint64_t));
+			memcpy(ctx.args[5], &arg5, sizeof(uint64_t));
+		}
+		PPP_RUN_CB(on_sys_io_pgetevents_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4, arg5);
+	}; break;
+	// 293 long sys_rseq ['struct rseq __user *rseq', 'uint32_t rseq_len', 'int flags', 'uint32_t sig']
+	case 293: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		int32_t arg1 = get_s32(cpu, &ctx, 1);
+		int32_t arg2 = get_s32(cpu, &ctx, 2);
+		int32_t arg3 = get_s32(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_rseq_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(int32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(int32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(int32_t));
+		}
+		PPP_RUN_CB(on_sys_rseq_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 294 long sys_kexec_file_load ['int kernel_fd', 'int initrd_fd', 'unsigned long cmdline_len', 'const char __user *cmdline_ptr', 'unsigned long flags']
 	case 294: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -4406,7 +4392,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_kexec_file_load_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
 	}; break;
-	// 424 long sys_pidfd_send_signal ['int pidfd', 'int sig', 'siginfo_t *info', 'unsigned int flags']
+	// 424 long sys_pidfd_send_signal ['int pidfd', 'int sig', 'siginfo_t __user *info', 'unsigned int flags']
 	case 424: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -4424,6 +4410,162 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_pidfd_send_signal_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
+	// 425 long sys_io_uring_setup ['u32 entries', 'struct io_uring_params __user *p']
+	case 425: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint32_t arg0 = get_32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_io_uring_setup_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+		}
+		PPP_RUN_CB(on_sys_io_uring_setup_enter, cpu, pc, arg0, arg1);
+	}; break;
+	// 426 long sys_io_uring_enter ['unsigned int fd', 'u32 to_submit', 'u32 min_complete', 'u32 flags', 'const void __user *argp', 'size_t argsz']
+	case 426: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint32_t arg0 = get_32(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		uint64_t arg4 = get_64(cpu, &ctx, 4);
+		uint32_t arg5 = get_32(cpu, &ctx, 5);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_io_uring_enter_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint64_t));
+			memcpy(ctx.args[5], &arg5, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_io_uring_enter_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4, arg5);
+	}; break;
+	// 427 long sys_io_uring_register ['unsigned int fd', 'unsigned int op', 'void __user *arg', 'unsigned int nr_args']
+	case 427: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint32_t arg0 = get_32(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		uint64_t arg2 = get_64(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_io_uring_register_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_io_uring_register_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 428 long sys_open_tree ['int dfd', 'const char __user *path', 'unsigned flags']
+	case 428: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_open_tree_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_open_tree_enter, cpu, pc, arg0, arg1, arg2);
+	}; break;
+	// 429 long sys_move_mount ['int from_dfd', 'const char __user *from_path', 'int to_dfd', 'const char __user *to_path', 'unsigned int ms_flags']
+	case 429: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		int32_t arg2 = get_s32(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		uint32_t arg4 = get_32(cpu, &ctx, 4);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_move_mount_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(int32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_move_mount_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
+	}; break;
+	// 430 long sys_fsopen ['const char __user *fs_name', 'unsigned int flags']
+	case 430: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_fsopen_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_fsopen_enter, cpu, pc, arg0, arg1);
+	}; break;
+	// 431 long sys_fsconfig ['int fs_fd', 'unsigned int cmd', 'const char __user *key', 'const void __user *value', 'int aux']
+	case 431: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		uint64_t arg2 = get_64(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		int32_t arg4 = get_s32(cpu, &ctx, 4);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_fsconfig_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+			memcpy(ctx.args[4], &arg4, sizeof(int32_t));
+		}
+		PPP_RUN_CB(on_sys_fsconfig_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
+	}; break;
+	// 432 long sys_fsmount ['int fs_fd', 'unsigned int flags', 'unsigned int ms_flags']
+	case 432: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_fsmount_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_fsmount_enter, cpu, pc, arg0, arg1, arg2);
+	}; break;
+	// 433 long sys_fspick ['int dfd', 'const char __user *path', 'unsigned int flags']
+	case 433: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_fspick_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_fspick_enter, cpu, pc, arg0, arg1, arg2);
+	}; break;
 	// 434 long sys_pidfd_open ['pid_t pid', 'unsigned int flags']
 	case 434: {
 		panda_noreturn = false;
@@ -4438,7 +4580,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_pidfd_open_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 435 long sys_clone3 ['struct clone_args *cl_args', 'size_t size']
+	// 435 long sys_clone3 ['struct clone_args __user *uargs', 'size_t size']
 	case 435: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -4452,7 +4594,23 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_clone3_enter, cpu, pc, arg0, arg1);
 	}; break;
-	// 437 long sys_openat2 ['int dirfd', 'const char *pathname', 'struct open_how *how', 'size_t size']
+	// 436 long sys_close_range ['unsigned int fd', 'unsigned int max_fd', 'unsigned int flags']
+	case 436: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint32_t arg0 = get_32(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_close_range_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_close_range_enter, cpu, pc, arg0, arg1, arg2);
+	}; break;
+	// 437 long sys_openat2 ['int dfd', 'const char __user *filename', 'struct open_how __user *how', 'size_t size']
 	case 437: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -4470,7 +4628,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_openat2_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
-	// 438 long sys_pidfd_getfd ['int pidfd', 'int targetfd', 'unsigned int flags']
+	// 438 long sys_pidfd_getfd ['int pidfd', 'int fd', 'unsigned int flags']
 	case 438: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -4486,7 +4644,7 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 		}
 		PPP_RUN_CB(on_sys_pidfd_getfd_enter, cpu, pc, arg0, arg1, arg2);
 	}; break;
-	// 439 long sys_faccessat2 ['int dirfd', 'const char *pathname', 'int mode', 'int flags']
+	// 439 long sys_faccessat2 ['int dfd', 'const char __user *filename', 'int mode', 'int flags']
 	case 439: {
 		panda_noreturn = false;
 		ctx.double_return = false;
@@ -4503,6 +4661,572 @@ void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t
 			memcpy(ctx.args[3], &arg3, sizeof(int32_t));
 		}
 		PPP_RUN_CB(on_sys_faccessat2_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 440 long sys_process_madvise ['int pidfd', 'const struct iovec __user *vec', 'size_t vlen', 'int behavior', 'unsigned int flags']
+	case 440: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		int32_t arg3 = get_s32(cpu, &ctx, 3);
+		uint32_t arg4 = get_32(cpu, &ctx, 4);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_process_madvise_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(int32_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_process_madvise_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
+	}; break;
+	// 441 long sys_epoll_pwait2 ['int epfd', 'struct epoll_event __user *events', 'int maxevents', 'const struct __kernel_timespec __user *timeout', 'const sigset_t __user *sigmask', 'size_t sigsetsize']
+	case 441: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		int32_t arg2 = get_s32(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		uint64_t arg4 = get_64(cpu, &ctx, 4);
+		uint32_t arg5 = get_32(cpu, &ctx, 5);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_epoll_pwait2_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(int32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint64_t));
+			memcpy(ctx.args[5], &arg5, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_epoll_pwait2_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4, arg5);
+	}; break;
+	// 442 long sys_mount_setattr ['int dfd', 'const char __user *path', 'unsigned int flags', 'struct mount_attr __user *uattr', 'size_t usize']
+	case 442: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		uint32_t arg4 = get_32(cpu, &ctx, 4);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_mount_setattr_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_mount_setattr_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
+	}; break;
+	// 443 long sys_quotactl_fd ['unsigned int fd', 'unsigned int cmd', 'qid_t id', 'void __user *addr']
+	case 443: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint32_t arg0 = get_32(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_quotactl_fd_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+		}
+		PPP_RUN_CB(on_sys_quotactl_fd_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 444 long sys_landlock_create_ruleset ['const struct landlock_ruleset_attr __user *attr', 'size_t size', '__u32 flags']
+	case 444: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_landlock_create_ruleset_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_landlock_create_ruleset_enter, cpu, pc, arg0, arg1, arg2);
+	}; break;
+	// 445 long sys_landlock_add_rule ['int ruleset_fd', 'enum landlock_rule_type rule_type', 'const void __user *rule_attr', '__u32 flags']
+	case 445: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		uint64_t arg2 = get_64(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_landlock_add_rule_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_landlock_add_rule_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 446 long sys_landlock_restrict_self ['int ruleset_fd', '__u32 flags']
+	case 446: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_landlock_restrict_self_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_landlock_restrict_self_enter, cpu, pc, arg0, arg1);
+	}; break;
+	// 447 long sys_memfd_secret ['unsigned int flags']
+	case 447: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint32_t arg0 = get_32(cpu, &ctx, 0);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_memfd_secret_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_memfd_secret_enter, cpu, pc, arg0);
+	}; break;
+	// 448 long sys_process_mrelease ['int pidfd', 'unsigned int flags']
+	case 448: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_process_mrelease_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_process_mrelease_enter, cpu, pc, arg0, arg1);
+	}; break;
+	// 449 long sys_futex_waitv ['struct futex_waitv __user *waiters', 'unsigned int nr_futexes', 'unsigned int flags', 'struct __kernel_timespec __user *timeout', 'clockid_t clockid']
+	case 449: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		uint32_t arg4 = get_32(cpu, &ctx, 4);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_futex_waitv_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_futex_waitv_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
+	}; break;
+	// 450 long sys_set_mempolicy_home_node ['unsigned long start', 'unsigned long len', 'unsigned long home_node', 'unsigned long flags']
+	case 450: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint64_t arg2 = get_64(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_set_mempolicy_home_node_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+		}
+		PPP_RUN_CB(on_sys_set_mempolicy_home_node_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 451 long sys_cachestat ['unsigned int fd', 'struct cachestat_range __user *cstat_range', 'struct cachestat __user *cstat', 'unsigned int flags']
+	case 451: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint32_t arg0 = get_32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint64_t arg2 = get_64(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_cachestat_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_cachestat_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 452 long sys_fchmodat2 ['int dfd', 'const char __user *filename', 'umode_t mode', 'unsigned int flags']
+	case 452: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_fchmodat2_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_fchmodat2_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 453 long sys_map_shadow_stack ['unsigned long addr', 'unsigned long size', 'unsigned int flags']
+	case 453: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_map_shadow_stack_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_map_shadow_stack_enter, cpu, pc, arg0, arg1, arg2);
+	}; break;
+	// 454 long sys_futex_wake ['void __user *uaddr', 'unsigned long mask', 'int nr', 'unsigned int flags']
+	case 454: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		int32_t arg2 = get_s32(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_futex_wake_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(int32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_futex_wake_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 455 long sys_futex_wait ['void __user *uaddr', 'unsigned long val', 'unsigned long mask', 'unsigned int flags', 'struct __kernel_timespec __user *timespec', 'clockid_t clockid']
+	case 455: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint64_t arg2 = get_64(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		uint64_t arg4 = get_64(cpu, &ctx, 4);
+		uint32_t arg5 = get_32(cpu, &ctx, 5);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_futex_wait_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint64_t));
+			memcpy(ctx.args[5], &arg5, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_futex_wait_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4, arg5);
+	}; break;
+	// 456 long sys_futex_requeue ['struct futex_waitv __user *waiters', 'unsigned int flags', 'int nr_wake', 'int nr_requeue']
+	case 456: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		int32_t arg2 = get_s32(cpu, &ctx, 2);
+		int32_t arg3 = get_s32(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_futex_requeue_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(int32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(int32_t));
+		}
+		PPP_RUN_CB(on_sys_futex_requeue_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 457 long sys_statmount ['const struct mnt_id_req __user *req', 'struct statmount __user *buf', 'size_t bufsize', 'unsigned int flags']
+	case 457: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_statmount_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_statmount_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 458 long sys_listmount ['const struct mnt_id_req __user *req', 'u64 __user *mnt_ids', 'size_t nr_mnt_ids', 'unsigned int flags']
+	case 458: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_listmount_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_listmount_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 459 long sys_lsm_get_self_attr ['unsigned int attr', 'struct lsm_ctx __user *ctx', 'u32 __user *size', 'u32 flags']
+	case 459: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint32_t arg0 = get_32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint64_t arg2 = get_64(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_lsm_get_self_attr_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_lsm_get_self_attr_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 460 long sys_lsm_set_self_attr ['unsigned int attr', 'struct lsm_ctx __user *ctx', 'u32 size', 'u32 flags']
+	case 460: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint32_t arg0 = get_32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_lsm_set_self_attr_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_lsm_set_self_attr_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 461 long sys_lsm_list_modules ['u64 __user *ids', 'u32 __user *size', 'u32 flags']
+	case 461: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_lsm_list_modules_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_lsm_list_modules_enter, cpu, pc, arg0, arg1, arg2);
+	}; break;
+	// 462 long sys_mseal ['unsigned long start', 'size_t len', 'unsigned long flags']
+	case 462: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint32_t arg1 = get_32(cpu, &ctx, 1);
+		uint64_t arg2 = get_64(cpu, &ctx, 2);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_mseal_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint32_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
+		}
+		PPP_RUN_CB(on_sys_mseal_enter, cpu, pc, arg0, arg1, arg2);
+	}; break;
+	// 463 long sys_setxattrat ['int dfd', 'const char __user *path', 'unsigned int at_flags', 'const char __user *name', 'const struct xattr_args __user *args', 'size_t size']
+	case 463: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		uint64_t arg4 = get_64(cpu, &ctx, 4);
+		uint32_t arg5 = get_32(cpu, &ctx, 5);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_setxattrat_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint64_t));
+			memcpy(ctx.args[5], &arg5, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_setxattrat_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4, arg5);
+	}; break;
+	// 464 long sys_getxattrat ['int dfd', 'const char __user *path', 'unsigned int at_flags', 'const char __user *name', 'struct xattr_args __user *args', 'size_t size']
+	case 464: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		uint64_t arg4 = get_64(cpu, &ctx, 4);
+		uint32_t arg5 = get_32(cpu, &ctx, 5);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_getxattrat_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint64_t));
+			memcpy(ctx.args[5], &arg5, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_getxattrat_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4, arg5);
+	}; break;
+	// 465 long sys_listxattrat ['int dfd', 'const char __user *path', 'unsigned int at_flags', 'char __user *list', 'size_t size']
+	case 465: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		uint32_t arg4 = get_32(cpu, &ctx, 4);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_listxattrat_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_listxattrat_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
+	}; break;
+	// 466 long sys_removexattrat ['int dfd', 'const char __user *path', 'unsigned int at_flags', 'const char __user *name']
+	case 466: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_removexattrat_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+		}
+		PPP_RUN_CB(on_sys_removexattrat_enter, cpu, pc, arg0, arg1, arg2, arg3);
+	}; break;
+	// 467 long sys_open_tree_attr ['int dfd', 'const char __user *path', 'unsigned flags', 'struct mount_attr __user *uattr', 'size_t usize']
+	case 467: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint64_t arg3 = get_64(cpu, &ctx, 3);
+		uint32_t arg4 = get_32(cpu, &ctx, 4);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_open_tree_attr_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint64_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_open_tree_attr_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
+	}; break;
+	// 468 long sys_file_getattr ['int dfd', 'const char __user *filename', 'struct file_attr __user *attr', 'size_t usize', 'unsigned int at_flags']
+	case 468: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint64_t arg2 = get_64(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		uint32_t arg4 = get_32(cpu, &ctx, 4);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_file_getattr_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_file_getattr_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
+	}; break;
+	// 469 long sys_file_setattr ['int dfd', 'const char __user *filename', 'struct file_attr __user *attr', 'size_t usize', 'unsigned int at_flags']
+	case 469: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint64_t arg2 = get_64(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		uint32_t arg4 = get_32(cpu, &ctx, 4);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_file_setattr_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+			memcpy(ctx.args[4], &arg4, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_file_setattr_enter, cpu, pc, arg0, arg1, arg2, arg3, arg4);
+	}; break;
+	// 470 long sys_listns ['const struct ns_id_req __user *req', 'u64 __user *ns_ids', 'size_t nr_ns_ids', 'unsigned int flags']
+	case 470: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		uint32_t arg3 = get_32(cpu, &ctx, 3);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_listns_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+			memcpy(ctx.args[3], &arg3, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_listns_enter, cpu, pc, arg0, arg1, arg2, arg3);
 	}; break;
 	default:
 		panda_noreturn = false;
