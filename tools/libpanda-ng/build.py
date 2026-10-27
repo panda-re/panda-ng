@@ -184,11 +184,212 @@ def preprocess(arch, source, include_defines=False): #,fake_sysroot=True):
 		check_output(cmd, shell=True)
 		return open(simple_out).read()
 
-def process_line(line):
-	import re
-	line = re.sub(r'__attribute__\s*\(\(.*?\)\)', '', line)
-	return line
+# pandare2 loads panda_python_<arch>.h into cffi in ABI mode: cffi computes every struct layout
+# itself, from the declarations alone, and has no __attribute__. cffi_layout rewrites the three GNU
+# attributes that change a layout into declarations cffi lays out the way gcc does, and drops all
+# other attributes. tests/static/layout.py (the flake check `layout`) compares the result with gcc.
+#   aligned(N) on a field:          a zero-length array of an N-aligned type before the field
+#   aligned(N) on a struct/union:   the same array as its first member (also for a typedef of one)
+#   packed on a top-level struct:   the declaration between "// cffi-packed-begin" and
+#                                   "// cffi-packed-end" lines; pandare_build.py gives that part to
+#                                   cffi with packed=True
+#   packed on a typedef'd enum:     its constants as an anonymous enum, and the typedef names the
+#                                   integer type gcc gives it (the enum's size from the DWARF)
+# What cffi can't express raises, so the header build fails instead of the layout drifting.
+CFFI_PACKED_BEGIN = "// cffi-packed-begin"
+CFFI_PACKED_END = "// cffi-packed-end"
+ALIGN_TYPES = {1: "uint8_t", 2: "uint16_t", 4: "uint32_t", 8: "uint64_t", 16: "long double"}
+TOKEN = re.compile(r"""(?P<str>"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(?P<id>[A-Za-z_]\w*)|(?P<num>\d[\w.]*)|(?P<ws>\s+)|(?P<p>.)""", re.S)
 
+def c_tokens(code):
+	return [(m.lastgroup, m.group(), m.start(), m.end()) for m in TOKEN.finditer(code) if m.lastgroup != "ws"]
+
+def matching(toks, i):
+	"""Index of the bracket closing the one at toks[i]."""
+	pair = {"(": ")", "{": "}", "[": "]"}[toks[i][1]]
+	depth = 0
+	for j in range(i, len(toks)):
+		if toks[j][1] == toks[i][1]:
+			depth += 1
+		elif toks[j][1] == pair:
+			depth -= 1
+			if depth == 0:
+				return j
+	raise Exception(f"unbalanced {toks[i][1]} at offset {toks[i][2]}")
+
+def layout_attributes(code, toks, i, j):
+	"""The layout part of the attribute toks[i..j] (__attribute__((...)))): {"aligned": N, "packed": True}."""
+	out = {}
+	inner = code[toks[i + 1][3]:toks[j][2]].strip()
+	assert inner.startswith("(") and inner.endswith(")"), inner
+	inner = inner[1:-1]
+	items, depth, cur = [], 0, ""
+	for ch in inner:
+		if ch == "," and depth == 0:
+			items.append(cur); cur = ""
+			continue
+		depth += ch == "("
+		depth -= ch == ")"
+		cur += ch
+	items.append(cur)
+	for item in items:
+		item = item.strip()
+		name = re.match(r"\w*", item).group().strip("_")
+		args = item[len(re.match(r"\w*", item).group()):].strip()
+		if name == "aligned":
+			if not args:
+				n = int(host_eval("__BIGGEST_ALIGNMENT__"))
+			elif re.fullmatch(r"\(\s*\d+\s*\)", args):
+				n = int(args.strip("() "))
+			else:
+				n = int(gdb_resolve_issue(args.encode()).decode(), 0)
+			out["aligned"] = max(n, out.get("aligned", 1))
+		elif name == "packed":
+			out["packed"] = True
+	return out
+
+_markers = __import__("itertools").count()
+
+def align_marker(n):
+	if n not in ALIGN_TYPES:
+		raise Exception(f"cffi has no {n}-byte aligned type for aligned({n})")
+	return f"{ALIGN_TYPES[n]} __cffi_align{n}_{next(_markers)}[0]; "
+
+def packed_enum_type(name):
+	"""The integer type gcc gives a packed enum, from the engine's DWARF."""
+	t = gdb.lookup_type(name).strip_typedefs()
+	if t.code != gdb.TYPE_CODE_ENUM:
+		raise Exception(f"{name} is not an enum in the engine's debug info")
+	signed = any(f.enumval < 0 for f in t.fields())
+	return ("int" if signed else "uint") + f"{8 * t.sizeof}_t"
+
+def cffi_layout(code):
+	toks = c_tokens(code)
+	edits = []        # (start, end, text), applied back to front
+	bodies = []       # every struct, union and enum body: a dict, see below
+	statements = []   # top-level declarations: (start, end)
+	# A frame per open brace. kind: top, struct, union, enum or other (a function body or an
+	# initializer). stmt_start: where the declaration being read at this level starts.
+	stack = [{"kind": "top", "stmt_start": 0, "stmt_tok": None, "last_closed": None}]
+	pending = None      # after struct/union/enum, until its body opens: the body-to-be
+	just_closed = None  # the body whose } was the last token
+	i = 0
+	while i < len(toks):
+		kind, text, start, end = toks[i]
+		frame = stack[-1]
+		if text in ("__attribute__", "__attribute"):
+			j = matching(toks, i + 1)
+			attrs = layout_attributes(code, toks, i, j)
+			edits.append((start, toks[j][3], ""))
+			i = j + 1
+			if not attrs or any(f["kind"] == "other" for f in stack):
+				continue
+			if pending is not None:              # struct ATTR [tag] {
+				pending["attrs"].update(attrs)
+			elif just_closed is not None:        # struct {...} ATTR
+				just_closed["attrs"].update(attrs)
+			elif frame["kind"] in ("struct", "union"):   # a field's attribute
+				if attrs.get("packed"):
+					raise Exception(f"packed on a field: {code[frame['stmt_start']:end]!r}")
+				edits.append((frame["stmt_start"], frame["stmt_start"],
+					align_marker(attrs["aligned"])))
+			elif frame["kind"] == "top" and frame["stmt_tok"] == "typedef" and frame["last_closed"]:
+				frame["last_closed"]["attrs"].update(attrs)   # typedef struct {...} Name ATTR;
+				frame["last_closed"]["typedef_attrs"] = True
+			# Anything else (a function, a variable, a typedef of a scalar) is dropped. A scalar
+			# typedef cffi would need more alignment for shows up in tests/static/layout.py.
+			continue
+		just_closed = None
+		if frame["stmt_tok"] is None:
+			frame["stmt_tok"] = text
+		if text in ("struct", "union", "enum"):
+			pending = {"kind": text, "attrs": {}, "tag": None, "tag_span": None, "depth": len(stack)}
+		elif text == "{":
+			body = pending or {"kind": "other", "attrs": {}, "tag": None, "tag_span": None, "depth": len(stack)}
+			pending = None
+			body.update(open=end, stmt_start=end, stmt_tok=None, last_closed=None,
+				nested=any(f["kind"] == "other" for f in stack))
+			stack.append(body)
+		elif text == "}":
+			body = stack.pop()
+			body["close"] = end
+			pending = None
+			if body["kind"] != "other":
+				bodies.append(body)
+				just_closed = body
+				stack[-1]["last_closed"] = body
+			elif stack[-1]["kind"] == "top" and not (i + 1 < len(toks) and toks[i + 1][1] == ";"):
+				stack[-1].update(stmt_start=end, stmt_tok=None, last_closed=None)  # a function body
+		elif text == ";":
+			if frame["kind"] == "top":
+				statements.append((frame["stmt_start"], end))
+			frame.update(stmt_start=end, stmt_tok=None, last_closed=None)
+			pending = None
+		elif pending is not None:
+			if kind == "id" and pending["tag"] is None:
+				pending["tag"] = text
+				pending["tag_span"] = (start, end)
+			else:
+				pending = None   # struct tag used, not defined
+		i += 1
+
+	def statement_of(body):
+		for s, e in statements:
+			if s <= body["open"] < e:
+				return s, e
+		raise Exception(f"no top-level declaration around offset {body['open']}")
+
+	packed_statements = set()
+	for b in bodies:
+		a = b["attrs"]
+		if not a or b["nested"]:
+			continue
+		if b["kind"] == "enum":
+			if not a.get("packed"):
+				continue
+			s, e = statement_of(b)
+			m = re.fullmatch(r"\s*typedef\s+enum\s*(\{.*\})\s*(\w+)\s*;",
+				strip_edits(code, s, e, edits), re.S)
+			if b["depth"] != 1 or not m:
+				raise Exception(f"packed enum not of the form 'typedef enum {{...}} Name;': {code[s:e]!r}")
+			edits = [x for x in edits if not s <= x[0] < e]
+			edits.append((s, e, f"\nenum {m.group(1)};\ntypedef {packed_enum_type(m.group(2))} {m.group(2)};"))
+			continue
+		if a.get("packed") and a.get("aligned"):
+			raise Exception(f"packed and aligned on one {b['kind']}: cffi can't express it")
+		if a.get("aligned"):
+			edits.append((b["open"], b["open"], align_marker(a["aligned"])))
+			# On the typedef's name the alignment is the typedef's, not struct <tag>'s: cffi can't
+			# tell them apart, so the tag goes when nothing else names it.
+			if b.get("typedef_attrs") and b["tag"] and \
+					len(re.findall(rf"\b{b['kind']}\s+{b['tag']}\b", code)) == 1:
+				edits.append((*b["tag_span"], ""))
+		if a.get("packed"):
+			s, e = statement_of(b)
+			if b["depth"] != 1 or any(o is not b and s <= o["open"] < e for o in bodies):
+				raise Exception(f"packed {b['kind']} inside or around another: cffi can't express it: {code[s:e]!r}")
+			packed_statements.add((s, e))
+	for s, e in packed_statements:
+		edits.append((s, s, f"\n{CFFI_PACKED_BEGIN}\n"))
+		edits.append((e, e, f"\n{CFFI_PACKED_END}\n"))
+	# At one offset: insertions before a removal, and an end marker before a begin marker (two
+	# packed declarations in a row).
+	order = {CFFI_PACKED_END: 0, CFFI_PACKED_BEGIN: 2}
+	out, pos = [], 0
+	for s, e, t in sorted(edits, key=lambda x: (x[0], x[1], order.get(x[2].strip(), 1))):
+		out += [code[pos:s], t]
+		pos = e
+	code = "".join(out) + code[pos:]
+	# unsigned/__signed__ __int128 (python_fixes.h makes __int128 a 16-byte union)
+	return re.sub(r"\b(?:unsigned|signed|__signed__)\s+__cffi_int128\b", "__cffi_int128", code)
+
+def strip_edits(code, s, e, edits):
+	"""code[s:e] with the attribute removals in it applied."""
+	out, pos = "", s
+	for es, ee, t in sorted(x for x in edits if s <= x[0] < e):
+		out += code[pos:es] + t
+		pos = ee
+	return out + code[pos:e]
 
 break_header = "int breakheader();"
 
@@ -355,7 +556,9 @@ def handle_python(arch, total):
 	"""
 
 	total = preprocess(arch, total)
-	total = "\n".join([process_line(x) for x in total.split("\n") if x and not x.startswith("#")])
+	total = "\n".join([x for x in total.split("\n") if x and not x.startswith("#")])
+	total = cffi_layout(total)
+	total = fixup_empty_structs(total)
 	total = remove_functions(total)
 	total = simplify_brackets(total)
 	total = total.replace("typedef __signed__ ", "typedef ")

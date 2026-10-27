@@ -118,5 +118,16 @@ def handle_python(arch, total, plugin_dir):
 		of.write(total)
 	mod = f"pandare2.autogen._pandare_ffi_{arch}_softmmu"
 	ffibuilder.set_source(mod, None)
-	ffibuilder.cdef(total, override=True)
+	cdef_with_packed(ffibuilder, total)
 	ffibuilder.compile(debug=True)
+
+def cdef_with_packed(ffibuilder, total):
+	"""cdef the header, giving the parts between "// cffi-packed-begin" and "// cffi-packed-end"
+	lines (packed structs: tools/libpanda-ng/build.py, cffi_layout) to cffi with packed=True."""
+	parts = re.split(r"^// cffi-packed-(begin|end)$", total, flags=re.M)
+	packed = False
+	for i, part in enumerate(parts):
+		if i % 2:
+			packed = part == "begin"
+		elif part.strip():
+			ffibuilder.cdef(part, override=True, packed=packed)

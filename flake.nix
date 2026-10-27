@@ -979,6 +979,22 @@
             cat log
             mv log $out
           '';
+          # pandare2's cffi lays out CPUState and CPUArchState (every field, recursively) and every
+          # struct the engine's headers share exactly as gcc does, on every arch
+          # (tests/static/layout.py; no guest).
+          layout =
+            pkgs.runCommandCC "pandare2-layout-check"
+              {
+                nativeBuildInputs = [ pkgs.pkg-config ];
+                buildInputs = [ pkgs.glib ];
+                PANDA_INCLUDE = ./include;
+              }
+              ''
+                ${p.pandaPython}/bin/python3 ${./tests/static/layout.py} ${p.engine}/include/panda-ng \
+                  > log 2>&1 || { cat log; exit 1; }
+                cat log
+                mv log $out
+              '';
           # repair.py on a synthetic engine: shipped siblings aren't bundled again, RUNPATHs keep
           # $ORIGIN, licenses and License-Expression are written (no engine build needed).
           wheel-repair =
