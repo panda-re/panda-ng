@@ -61,9 +61,10 @@ Build it with `nix build .#wheel` (the wheel is in `result/`). How it's made:
    their licenses is `wheelThirdParty` in flake.nix; repair.py fails if it bundles a library from
    a package not on it.
 
-pandare2 looks for its engine, plugins and firmware in `pandare2/data/` first, so the same
-source works from the wheel, from nix, and from a build tree. `PANDA_PLUGIN_DIR` overrides the
-plugin directory.
+pandare2 looks for its engine, plugins and firmware in `pandare2/data/`, then in the flake's
+(which builds them into pandare2), so the same source works from the wheel and from nix.
+`PANDA_LIB`, `PANDA_PLUGIN_DIR` and `Panda(libpanda_path=, plugin_path=, biospath=)` point it
+elsewhere, e.g. at a build tree.
 
 Older hosts (glibc < 2.38: Ubuntu 22.04, Debian 12) would need the engine built in a manylinux
 container instead; pip refuses the wheel there rather than failing at import.

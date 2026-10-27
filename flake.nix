@@ -292,8 +292,7 @@
             ];
           };
 
-          # pandare2 for a nixpkgs Python package set, with this engine and these plugins ahead of
-          # its /usr/local defaults.
+          # pandare2 for a nixpkgs Python package set, with this engine and these plugins.
           mkPandare2 =
             ps:
             ps.buildPythonPackage {
@@ -315,13 +314,11 @@
                 substituteInPlace pandare2/mkimage.py \
                   --replace-fail '[shutil.which("gdb-multiarch")' '["${pkgs.gdb}/bin/gdb", shutil.which("gdb-multiarch")' \
                   --replace-fail 'shutil.which("dwarf2json")' '"${pkgs.dwarf2json}/bin/dwarf2json"'
-                substituteInPlace pandare2/utils.py \
-                  --replace-fail 'pot_paths = [pjoin(python_package, "lib"),' 'pot_paths = ["${engine}/lib", pjoin(python_package, "lib"),'
-                # The plugin interface and firmware are found next to libpanda (lib/, share/qemu/).
+                # This engine and these plugins; the plugin interface and firmware are found next
+                # to libpanda (lib/, share/qemu/).
                 substituteInPlace pandare2/panda.py \
-                  --replace-fail 'realpath(pjoin(__file__, "../../../../build/plugins")),' \
-                    '"${pluginDir}", realpath(pjoin(__file__, "../../../../build/plugins")),' \
-                  --replace-fail 'f"/usr/local/lib/panda/{self.arch_name}"' '"${pluginDir}"'
+                  --replace-fail '_ENGINE_LIB_DIR = None' '_ENGINE_LIB_DIR = "${engine}/lib"' \
+                  --replace-fail '_PLUGIN_DIR = None' '_PLUGIN_DIR = "${pluginDir}"'
               '';
               build-system = [
                 ps.setuptools
