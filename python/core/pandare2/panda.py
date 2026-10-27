@@ -148,7 +148,7 @@ class Panda():
     This is the object used to interact with PANDA. Initializing it creates a virtual machine to interact with.
     '''
 
-    def __init__(self, arch="i386", mem="128M",
+    def __init__(self, arch=None, mem=None,
             expect_prompt=None, # Regular expression describing the prompt exposed by the guest on a serial console. Used so we know when a running command has finished with its output
             serial_kwargs=None,
             os_version=None,
@@ -172,9 +172,15 @@ class Panda():
         `EngineInUseError` (run each instance in its own process). `Panda`s of different arches
         can share a process and run one after the other, not at the same time.
         Args:
-            arch: architecture string (e.g. "i386", "x86_64", "arm", "mips", "mipsel")
-            generic: path to an image json written by `pandare2.mkimage`: sets the arch, OS, memory, disk, prompt and extra arguments from it.
-            mem: size of memory for machine (e.g. "128M", "1G")
+            arch: architecture string (e.g. "i386", "x86_64", "arm", "mips", "mipsel"). Default:
+                    the image's with generic=, else "i386". With generic=, a different arch raises
+                    ValueError (the disk can't boot as another arch).
+            generic: path to an image json written by `pandare2.mkimage`. It is the base: its arch,
+                    OS, memory, disk, prompt and extra arguments apply unless a keyword gives
+                    its own (mem=, os_version=, qcow=, expect_prompt=); extra_args= go after the
+                    image's.
+            mem: size of memory for machine (e.g. "128M", "1G"). Default: the image's with
+                    generic=, else "128M". It must match the RAM of a snapshot you load.
             rr: make the VM recordable (-accel tcg,thread=single,rr-ready=on). Pass it to a replay too: it needs the recording's command line.
             expect_prompt: Regular expression describing the prompt exposed by the guest
                     on a serial console. Used so we know when a running command has finished
@@ -209,6 +215,31 @@ class Panda():
         self.dll_extension = platform_dll_extensions.get(platform.system(), None)
         if self.dll_extension is None:
             raise Exception(f"Unsupported System {platform.system()}: expected one of {platform_dll_extensions.keys()}")
+        if isinstance(extra_args, str): # Extra args can be a string or array. Use shlex to preserve quoted substrings
+            extra_args = shlex_split(extra_args)
+        else:
+            extra_args = list(extra_args or [])
+
+        # An image json from pandare2.mkimage is the base; the keywords given override it.
+        self.cdrom = None
+        if generic:
+            q = Qcows.get_qcow_info(generic)
+            if arch is not None and arch != q.arch:
+                raise ValueError(f"Panda(arch={arch!r}) with an {q.arch} image ({generic}): a disk "
+                                 f"can't boot as another arch")
+            arch = q.arch
+            mem = q.default_mem if mem is None else mem
+            os_version = q.os if os_version is None else os_version
+            qcow = q.qcow if qcow is None else qcow
+            expect_prompt = q.prompt if expect_prompt is None else expect_prompt
+            self.cdrom = q.cdrom
+            if q.extra_args:
+                extra_args = shlex_split(q.extra_args) + extra_args
+        if arch is None:
+            arch = "i386"
+        if mem is None:
+            mem = "128M"
+
         self.arch_name = arch
         self.machine = machine
         if machine is not None:
@@ -229,7 +260,6 @@ class Panda():
         self.lambda_cnt = 0
         self.__sighandler = None
         self.ending = False # True during end_analysis
-        self.cdrom = None
         self.catch_exceptions=catch_exceptions
         self._exit = [] # exit_exception's storage: the callback wrappers check it (see _catching)
         self.build_dir = None
@@ -238,24 +268,6 @@ class Panda():
         self.load_plugin_interface = load_plugin_interface
 
         self.serial_unconsumed_data = b''
-
-        if isinstance(extra_args, str): # Extra args can be a string or array. Use shlex to preserve quoted substrings
-            extra_args = shlex_split(extra_args)
-        elif extra_args is None:
-            extra_args = []
-
-        # An image json from pandare2.mkimage: it overrides arch, os_version, mem, qcow and expect_prompt
-        if generic:
-            print("using generic " +str(generic))
-            q = Qcows.get_qcow_info(generic)
-            self.arch_name     = q.arch
-            self.os       = q.os
-            self.mem      = q.default_mem # Might clobber a specified argument, but required if you want snapshots
-            self.qcow     = Qcows.get_qcow(generic)
-            self.expect_prompt = q.prompt
-            self.cdrom    = q.cdrom
-            if q.extra_args:
-                extra_args.extend(shlex_split(q.extra_args))
 
         if self.qcow: # Otherwise we shuld be able to do a replay with no qcow but this is probably broken
             if not (exists(self.qcow)):

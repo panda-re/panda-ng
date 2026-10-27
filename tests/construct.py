@@ -6,7 +6,9 @@ constructs one Panda in a child process of its own, since a process has one Pand
 Run: panda-python tests/construct.py [case...]      (default: every case)
 
 - legacy: every way tests/*.py constructs a Panda builds the same argv as before (the monitor's
-  arguments aside, which `monitor=` changed on purpose).
+  arguments aside, which `monitor=` changed on purpose), except that extra_args= now go after the
+  image's rather than before (no test's arguments conflict with its image's);
+- generic: the image is the base and keywords override it; another arch raises ValueError.
 """
 import json
 import os
@@ -68,12 +70,11 @@ LEGACY = {
     "generic riscv64": ({"generic": "{img}/rv64.json"},
                         PRE + ["-drive", "file={img}/rv64.qcow2,if=virtio"] + RV64_ARGS + ["-m", "1G"] + SERIAL),
     "generic extra_args": ({"generic": "{img}/x86.json", "extra_args": ["-icount", "shift=6,sleep=off"]},
-                           PRE + X86_IMG[:1] + ["-icount", "shift=6,sleep=off"] + X86_IMG[1:] + ["-m", "1G"] + SERIAL),
+                           PRE + X86_IMG + ["-icount", "shift=6,sleep=off", "-m", "1G"] + SERIAL),
     "generic extra_args str": ({"generic": "{img}/x86.json", "extra_args": "-cpu Skylake-Client -snapshot"},
-                               PRE + X86_IMG[:1] + ["-cpu", "Skylake-Client", "-snapshot"] + X86_IMG[1:]
-                               + ["-m", "1G"] + SERIAL),
+                               PRE + X86_IMG + ["-cpu", "Skylake-Client", "-snapshot", "-m", "1G"] + SERIAL),
     "generic rr extra_args": ({"generic": "{img}/x86.json", "rr": True, "extra_args": ["-icount", "shift=0"]},
-                              PRE + X86_RR_DISK + ["-icount", "shift=0"] + X86_IMG[1:]
+                              PRE + X86_RR_DISK + X86_IMG[1:] + ["-icount", "shift=0"]
                               + ["-device", "ide-hd,bus=ide.0,unit=0,drive=panda-disk"]
                               + RR + ["-m", "1G"] + SERIAL),
     "arch os_version": ({"arch": "x86_64", "mem": "256M", "os_version": "linux-64-generic",
@@ -87,6 +88,43 @@ LEGACY = {
                             PRE + ["-M", "malta", "-display", "none", "-m", "128M"]),
     "machine": ({"arch": "aarch64", "machine": MACHINE, "extra_args": ["-display", "none", "-serial", "none"]},
                 PRE + ["{machine}", "-display", "none", "-serial", "none", "-m", "16384K"]),
+}
+
+
+
+def error(kind, *words):
+    """A check that the constructor raised `kind` with each of `words` in its message."""
+    return (f"raises {kind} ({', '.join(words)})",
+            lambda r: r.get("error", [None])[0] == kind and all(w in r["error"][1] for w in words))
+
+
+def attr(name, value):
+    return (f"{name} = {value!r}", lambda r: r.get("attrs", {}).get(name) == value)
+
+
+def argv_has(*args):
+    def ok(r):
+        a = r.get("argv", [])
+        return any(a[i:i + len(args)] == list(args) for i in range(len(a)))
+    return ("argv has " + " ".join(args), ok)
+
+
+# name -> (Panda keywords, [(check name, check(result) -> bool)]).
+CASES = {
+    "generic mem": ({"generic": "{img}/x86.json", "mem": "2G"}, [attr("mem", "2G"), argv_has("-m", "2G")]),
+    "generic os_version": ({"generic": "{img}/x86.json", "os_version": "linux-64-other:6.1"},
+                           [attr("os", "linux-64-other:6.1")]),
+    "generic qcow": ({"generic": "{img}/x86.json", "qcow": "{img}/other.qcow2"},
+                     [attr("qcow", "{img}/other.qcow2"), argv_has("{img}/other.qcow2", "-display")]),
+    "generic expect_prompt": ({"generic": "{img}/x86.json", "expect_prompt": "[$] "},
+                              [attr("prompt", "[$] ")]),
+    "generic image values": ({"generic": "{img}/x86.json"},
+                             [attr("arch", "x86_64"), attr("mem", "1G"), attr("qcow", "{img}/x86.qcow2"),
+                              attr("os", IMAGES["x86"]["os"]), attr("prompt", IMAGES["x86"]["prompt"])]),
+    "generic same arch": ({"generic": "{img}/x86.json", "arch": "x86_64"}, [attr("arch", "x86_64")]),
+    "generic other arch": ({"generic": "{img}/x86.json", "arch": "aarch64"},
+                           [error("ValueError", "aarch64", "x86_64")]),
+    "defaults": ({}, [attr("arch", "i386"), attr("mem", "128M")]),
 }
 
 
@@ -136,6 +174,8 @@ def child(spec):
         res["error"] = [type(e).__name__, str(e)]
     else:
         res["argv"], res["monitor"] = normalize(p, img)
+        res["attrs"] = {"arch": p.arch_name, "mem": p.mem, "os": p.os, "prompt": p.expect_prompt,
+                        "qcow": p.qcow.replace(img, "{img}") if p.qcow else None}
         if "machine" in kwargs:
             margs = kwargs["machine"].args()
             s = " ".join(res["argv"]).replace(" ".join(margs), "{machine}")
@@ -177,6 +217,16 @@ def main():
             check(f"legacy {name}", False, res or (r.stdout + r.stderr)[-2000:])
             continue
         check(f"legacy {name}: argv unchanged", res["argv"] == want, f"\n    got  {res['argv']}\n    want {want}")
+
+    for name, (kwargs, checks) in CASES.items():
+        if only and name not in only:
+            continue
+        res, r = run_case(img, kwargs)
+        if res is None:
+            check(name, False, (r.stdout + r.stderr)[-2000:])
+            continue
+        for what, ok in checks:
+            check(f"{name}: {what}", ok(res), res)
     shutil.rmtree(img)
     print("CONSTRUCT " + ("FAIL" if failed else "PASS"))
     return 1 if failed else 0
