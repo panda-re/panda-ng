@@ -4,8 +4,8 @@ Run: panda-python tests/callbacks.py <dir>/debian-13-x86_64.json
 
 Registers a counting callback for every type pandare2 knows (panda_cb's members), except those
 whose registration aborts (no trampoline: before_loadvm, replay_*), and except the per-block,
-per-instruction and memory ones that tests/api.py, blocks.py and mem.py check against ground
-truth (registering those here would only slow the guest). Then drives the guest through what
+per-instruction and memory ones that tests/api.py, blocks.py, mem.py and mmio.py check against
+ground truth (registering those here would only slow the guest). Then drives the guest through what
 each callback is about: commands on the serial console, disk reads and writes (O_DIRECT),
 unassigned I/O ports (x86_64, /dev/port), a monitor command, a snapshot taken, reverted to and
 deleted with pandare2's snap/revert_sync/delvm_sync (and snap/delvm), and the end of the analysis.
@@ -41,7 +41,8 @@ COVERED_ELSEWHERE = {"before_block_exec", "after_block_exec", "start_block_exec"
                      "before_block_exec_invalidate_opt", "insn_exec",
                      "virt_mem_before_read", "virt_mem_before_write", "phys_mem_before_read",
                      "phys_mem_before_write", "virt_mem_after_read", "virt_mem_after_write",
-                     "phys_mem_after_read", "phys_mem_after_write", "guest_hypercall"}
+                     "phys_mem_after_read", "phys_mem_after_write", "mmio_after_read", "mmio_before_write",
+                     "guest_hypercall"}
 EXERCISED_ONLY_ON = {"unassigned_io_read": {"x86_64"}, "unassigned_io_write": {"x86_64"}}
 C = Checks(arch, {f"{n} fires": why for n, why in NO_CALL_SITE.items()})
 

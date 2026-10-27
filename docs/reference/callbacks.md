@@ -2,7 +2,7 @@
 
 # Callbacks
 
-52 callback types (`engine/src/include/panda/callbacks/cb-defs.h`). 24 fire; 18 are declared but have no call site in this engine yet, and 10 abort at registration. Register them from Python with the `@panda.cb_<name>` decorators, or from C with `panda_register_callback`. The decorator of a callback that doesn't fire raises NotImplementedError, saying why.
+52 callback types (`engine/src/include/panda/callbacks/cb-defs.h`). 26 fire; 16 are declared but have no call site in this engine yet, and 10 abort at registration. Register them from Python with the `@panda.cb_<name>` decorators, or from C with `panda_register_callback`. The decorator of a callback that doesn't fire raises NotImplementedError, saying why.
 
 The status comes from `pandare2.callbacks` (`python/core/pandare2/callbacks.py`); `tests/callbacks.py` registers every callback on each test image and fails if one listed as missing starts firing, so this table stays true.
 
@@ -21,16 +21,16 @@ Under KVM (`Panda(accel="kvm")`) only `after_loadvm`, `after_machine_init`, `mai
 | `insn_exec` | fires | raises | Called before execution of any instruction identified by the PANDA_CB_INSN_TRANSLATE callback. |
 | `after_insn_translate` | no call site |  | Called after the translation of each instruction. |
 | `after_insn_exec` | no call site (after_insn_translate, which selects its instructions, has none) |  | Called after execution of an instruction identified by the PANDA_CB_AFTER_INSN_TRANSLATE callback |
-| `virt_mem_before_read` | fires | raises | Called before memory is read. |
-| `virt_mem_before_write` | fires | raises | Called before memory is written. |
-| `phys_mem_before_read` | fires | raises | Called before memory is read. |
-| `phys_mem_before_write` | fires | raises | Called before memory is written. |
-| `virt_mem_after_read` | fires | raises | Called after memory is read. |
-| `virt_mem_after_write` | fires | raises | Called after memory is written. |
-| `phys_mem_after_read` | fires | raises | Called after memory is read. |
-| `phys_mem_after_write` | fires | raises | Called after memory is written. |
-| `mmio_after_read` | no call site (commented out in the TCG plugin bridge) |  | Called after MMIO memory is read. |
-| `mmio_before_write` | no call site |  | Called before MMIO memory is written to. |
+| `virt_mem_before_read` | fires | raises | Called before memory is read: RAM or a device's registers (MMIO). |
+| `virt_mem_before_write` | fires | raises | Called before memory is written: RAM or a device's registers (MMIO). |
+| `phys_mem_before_read` | fires | raises | Called before memory is read: RAM or a device's registers (MMIO). |
+| `phys_mem_before_write` | fires | raises | Called before memory is written: RAM or a device's registers (MMIO). |
+| `virt_mem_after_read` | fires | raises | Called after memory is read: RAM or a device's registers (MMIO). |
+| `virt_mem_after_write` | fires | raises | Called after memory is written: RAM or a device's registers (MMIO). |
+| `phys_mem_after_read` | fires | raises | Called after memory is read: RAM or a device's registers (MMIO). |
+| `phys_mem_after_write` | fires | raises | Called after memory is written: RAM or a device's registers (MMIO). |
+| `mmio_after_read` | fires | raises | Called after a load from a device (MMIO): a load that went to a device's registers rather than to RAM or ROM. |
+| `mmio_before_write` | fires | raises | Called before a store to a device (MMIO): a store that will go to a device's registers rather than to RAM (a store to a ROM device, such as flash, goes to the device). |
 | `hd_read` | no call site |  | called when there is a hard drive read |
 | `hd_write` | no call site |  | called when there is a hard drive write |
 | `guest_hypercall` | fires | raises | Called when a program inside the guest makes a hypercall to pass information from inside the guest to a plugin |

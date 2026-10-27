@@ -58,21 +58,28 @@ instance; work that drives the guest and waits for it (console commands, snapsho
 ## Callbacks
 
 Run code when the guest translates or executes a block or instruction, reads or writes memory
-(virtual or physical, before or after), takes an exception, or changes address space. The
+(virtual or physical, before or after), takes an exception, or changes address space. The memory
+callbacks see device (MMIO) accesses too, with the device register's physical address;
+`mmio_after_read` and `mmio_before_write` see only those. The
 [callback reference](reference/callbacks.md) lists every callback and whether it fires in this
 engine.
 
 **Limits.** Callbacks need TCG. Some declared callbacks have no call site yet or abort at registration; the
-reference says which. A registered memory callback instruments every load or store even while
-disabled. While enabled, a physical one costs an address lookup per access, and any before-access
-one a TLB lookup per access in the middle of a block (QEMU rewinds a device access there and runs
-it again; the before events of the rewound attempt are dropped).
+reference says which. A registered memory callback (`mmio_after_read` and `mmio_before_write`
+included) instruments every load or store even while disabled. While enabled, a physical one or
+`mmio_before_write` costs an address lookup per access, and any before-access one a TLB lookup
+per access in the middle of a block (QEMU rewinds a device access there and runs it again; the
+before events of the rewound attempt are dropped). The value `mmio_after_read` and
+`mmio_before_write` get is read-only (a copy): unlike classic PANDA's, changing it changes neither
+what the guest loads nor what the device receives. PANDA's memory readers don't reach device
+memory (pandare2's `physical_memory_read` and `virtual_memory_read` return zero bytes for it
+instead of raising); QEMU's own readers perform a device access.
 
 **Use it:** `Panda.enable_callback`, `Panda.disable_callback`, `Panda.disable_tb_chaining`, `Panda.flush_tb`, `panda_register_callback`
 
 **Docs:** [docs/guides/python.md#callbacks](guides/python.md#callbacks), [docs/reference/callbacks.md](reference/callbacks.md)
 
-**Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/physmem.py`
+**Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/mmio.py`, `tests/physmem.py`
 
 **Engine patches:** 0031, 0035, 0042-0044, 0046-0049, 0053-0054, 0058-0059, 0065 ([series](reference/patches.md))
 

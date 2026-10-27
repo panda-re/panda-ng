@@ -21,7 +21,6 @@ ABORTS = {"before_loadvm", "replay_hd_transfer", "replay_net_transfer", "replay_
 NO_CALL_SITE = {
     "before_tcg_codegen": "no call site", "after_insn_translate": "no call site",
     "after_insn_exec": "after_insn_translate, which selects its instructions, has none",
-    "mmio_after_read": "commented out in the TCG plugin bridge", "mmio_before_write": "no call site",
     "hd_read": "no call site", "hd_write": "no call site", "monitor": "no call site", "qmp": "no call site",
     "cpu_restore_state": "no call site", "after_cpu_exec_enter": "commented out in wrap_ops.c",
     "before_cpu_exec_exit": "commented out in wrap_ops.c", "top_loop": "no call site",

@@ -43,8 +43,6 @@ with lzma.open(os.path.join(image_dir, image["isf"])) as f:
 # that passes fails the run, so this list stays true. before_loadvm isn't registered at all: its
 # trampoline is commented out in panda/src/callbacks.c and registering it aborts.
 GAPS = {
-    "mmio_before_write fires": "no call site for panda_callbacks_mmio_before_write",
-    "mmio_after_read fires": "commented out in contrib/plugins/panda_plugin_interface.c",
     "before_handle_interrupt fires": "the cpu_exec_interrupt wrapper is commented out in panda/src/wrap_ops.c",
     "current_pc is the hypercall's pc (precise pc)":
         "panda_enable_precise_pc sets panda_update_pc, which nothing reads; pc is the TB's start",
@@ -106,12 +104,12 @@ def main_loop_wait():
     counts["main_loop_wait"] += 1
 
 
-@bare("mmio_after_read")
+@panda.cb_mmio_after_read
 def mmio_read(cpu, physaddr, vaddr, size, val):
     counts["mmio_after_read"] += 1
 
 
-@bare("mmio_before_write")
+@panda.cb_mmio_before_write
 def mmio_write(cpu, physaddr, vaddr, size, val):
     counts["mmio_before_write"] += 1
 

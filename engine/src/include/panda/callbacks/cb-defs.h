@@ -369,7 +369,7 @@ typedef union panda_cb {
     /* Callback ID: PANDA_CB_VIRT_MEM_BEFORE_READ
 
        virt_mem_before_read:
-        Called before memory is read.
+        Called before memory is read: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -381,13 +381,23 @@ typedef union panda_cb {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included: addr is the virtual address the guest used, and
+        phys_mem_* gets the device register's guest physical address. Reading that address back
+        from the callback is not a RAM read: PANDA's readers (panda_virtual_memory_read,
+        panda_physical_memory_read) don't reach the device and return MEMTX_ERROR (1), which
+        pandare2's virtual_memory_read and physical_memory_read miss (they return zero bytes);
+        QEMU's own (cpu_memory_rw_debug, address_space_read, qemu_plugin_read_memory_vaddr)
+        perform a device access, with its side effects (a read of a UART's data register takes
+        a byte). mmio_after_read and mmio_before_write fire for device accesses only.
     */
     void (*virt_mem_before_read)(CPUState *env, uint64_t pc, uint64_t addr, size_t size);
 
     /* Callback ID: PANDA_CB_VIRT_MEM_BEFORE_WRITE
 
        virt_mem_before_write:
-        Called before memory is written.
+        Called before memory is written: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -400,13 +410,23 @@ typedef union panda_cb {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included: addr is the virtual address the guest used, and
+        phys_mem_* gets the device register's guest physical address. Reading that address back
+        from the callback is not a RAM read: PANDA's readers (panda_virtual_memory_read,
+        panda_physical_memory_read) don't reach the device and return MEMTX_ERROR (1), which
+        pandare2's virtual_memory_read and physical_memory_read miss (they return zero bytes);
+        QEMU's own (cpu_memory_rw_debug, address_space_read, qemu_plugin_read_memory_vaddr)
+        perform a device access, with its side effects (a read of a UART's data register takes
+        a byte). mmio_after_read and mmio_before_write fire for device accesses only.
     */
     void (*virt_mem_before_write)(CPUState *env, uint64_t pc, uint64_t addr, size_t size, uint8_t *buf);
 
     /* Callback ID: PANDA_CB_PHYS_MEM_BEFORE_READ
 
        phys_mem_before_read:
-        Called before memory is read.
+        Called before memory is read: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -418,13 +438,23 @@ typedef union panda_cb {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included, with the device register's guest physical
+        address. Reading that address back from the callback is not a RAM read: PANDA's
+        readers (panda_physical_memory_read, panda_virtual_memory_read) don't reach the device
+        and return MEMTX_ERROR (1), which pandare2's physical_memory_read and
+        virtual_memory_read miss (they return zero bytes); QEMU's own (address_space_read,
+        cpu_physical_memory_read, qemu_plugin_read_memory_hwaddr) perform a device access, with
+        its side effects (a read of a UART's data register takes a byte). mmio_after_read and
+        mmio_before_write fire for device accesses only.
     */
     void (*phys_mem_before_read)(CPUState *env, uint64_t pc, uint64_t addr, size_t size);
 
     /* Callback ID: PANDA_CB_PHYS_MEM_BEFORE_WRITE
 
        phys_mem_write:
-        Called before memory is written.
+        Called before memory is written: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -437,13 +467,23 @@ typedef union panda_cb {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included, with the device register's guest physical
+        address. Reading that address back from the callback is not a RAM read: PANDA's
+        readers (panda_physical_memory_read, panda_virtual_memory_read) don't reach the device
+        and return MEMTX_ERROR (1), which pandare2's physical_memory_read and
+        virtual_memory_read miss (they return zero bytes); QEMU's own (address_space_read,
+        cpu_physical_memory_read, qemu_plugin_read_memory_hwaddr) perform a device access, with
+        its side effects (a read of a UART's data register takes a byte). mmio_after_read and
+        mmio_before_write fire for device accesses only.
     */
     void (*phys_mem_before_write)(CPUState *env, uint64_t pc, uint64_t addr, size_t size, uint8_t *buf);
 
     /* Callback ID: PANDA_CB_VIRT_MEM_AFTER_READ
 
        virt_mem_after_read:
-        Called after memory is read.
+        Called after memory is read: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -456,13 +496,23 @@ typedef union panda_cb {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included: addr is the virtual address the guest used, and
+        phys_mem_* gets the device register's guest physical address. Reading that address back
+        from the callback is not a RAM read: PANDA's readers (panda_virtual_memory_read,
+        panda_physical_memory_read) don't reach the device and return MEMTX_ERROR (1), which
+        pandare2's virtual_memory_read and physical_memory_read miss (they return zero bytes);
+        QEMU's own (cpu_memory_rw_debug, address_space_read, qemu_plugin_read_memory_vaddr)
+        perform a device access, with its side effects (a read of a UART's data register takes
+        a byte). mmio_after_read and mmio_before_write fire for device accesses only.
     */
     void (*virt_mem_after_read)(CPUState *env, uint64_t pc, uint64_t addr, size_t size, uint8_t *buf);
 
     /* Callback ID: PANDA_CB_VIRT_MEM_AFTER_WRITE
 
        virt_mem_after_write:
-        Called after memory is written.
+        Called after memory is written: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -475,13 +525,23 @@ typedef union panda_cb {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included: addr is the virtual address the guest used, and
+        phys_mem_* gets the device register's guest physical address. Reading that address back
+        from the callback is not a RAM read: PANDA's readers (panda_virtual_memory_read,
+        panda_physical_memory_read) don't reach the device and return MEMTX_ERROR (1), which
+        pandare2's virtual_memory_read and physical_memory_read miss (they return zero bytes);
+        QEMU's own (cpu_memory_rw_debug, address_space_read, qemu_plugin_read_memory_vaddr)
+        perform a device access, with its side effects (a read of a UART's data register takes
+        a byte). mmio_after_read and mmio_before_write fire for device accesses only.
     */
     void (*virt_mem_after_write)(CPUState *env, uint64_t pc, uint64_t addr, size_t size, uint8_t *buf);
 
     /* Callback ID: PANDA_CB_PHYS_MEM_AFTER_READ
 
        phys_mem_after_read:
-        Called after memory is read.
+        Called after memory is read: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -494,13 +554,23 @@ typedef union panda_cb {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included, with the device register's guest physical
+        address. Reading that address back from the callback is not a RAM read: PANDA's
+        readers (panda_physical_memory_read, panda_virtual_memory_read) don't reach the device
+        and return MEMTX_ERROR (1), which pandare2's physical_memory_read and
+        virtual_memory_read miss (they return zero bytes); QEMU's own (address_space_read,
+        cpu_physical_memory_read, qemu_plugin_read_memory_hwaddr) perform a device access, with
+        its side effects (a read of a UART's data register takes a byte). mmio_after_read and
+        mmio_before_write fire for device accesses only.
     */
     void (*phys_mem_after_read)(CPUState *env, uint64_t pc, uint64_t addr, size_t size, uint8_t *buf);
 
     /* Callback ID: PANDA_CB_PHYS_MEM_AFTER_WRITE
 
        phys_mem_write:
-        Called after memory is written.
+        Called after memory is written: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -513,44 +583,79 @@ typedef union panda_cb {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included, with the device register's guest physical
+        address. Reading that address back from the callback is not a RAM read: PANDA's
+        readers (panda_physical_memory_read, panda_virtual_memory_read) don't reach the device
+        and return MEMTX_ERROR (1), which pandare2's physical_memory_read and
+        virtual_memory_read miss (they return zero bytes); QEMU's own (address_space_read,
+        cpu_physical_memory_read, qemu_plugin_read_memory_hwaddr) perform a device access, with
+        its side effects (a read of a UART's data register takes a byte). mmio_after_read and
+        mmio_before_write fire for device accesses only.
     */
     void (*phys_mem_after_write)(CPUState *env, uint64_t pc, uint64_t addr, size_t size, uint8_t *buf);
 
     /* Callback ID: PANDA_CB_MMIO_AFTER_READ
 
        mmio_after_read:
-        Called after MMIO memory is read.
+        Called after a load from a device (MMIO): a load that went to a device's registers
+        rather than to RAM or ROM.
 
        Arguments:
         CPUState *env:          the current CPU state
-        uint64_t physaddr:  the physical address being read from
-        uint64_t vaddr:     the virtual address being read from
-        size_t size:            the size of the read
-        uin64_t *val:           the value being read
+        uint64_t physaddr:  the guest physical address read (the device register's)
+        uint64_t vaddr:     the virtual address read
+        size_t size:            the size of the read: 1, 2, 4 or 8
+        uint64_t *val:          the value read, zero-extended; a copy (see Notes)
 
-       Helper call location: cputlb.c
+       Helper call location: the TCG plugin bridge (contrib/plugins/panda_plugin_interface.c),
+        after the load, before virt_mem_after_read and phys_mem_after_read
 
        Return value:
         none
+
+       Notes:
+        *val is read-only in effect: it points to a copy, and changing it changes nothing
+        the guest sees. Classic PANDA called this from the device read in cputlb.c, so a
+        changed *val was what the guest loaded; the QEMU plugin API this engine uses gives a
+        callback the value but no way to change it. Classic PANDA's physaddr was the offset
+        into the device's memory region; here it is the guest physical address. Registered,
+        it instruments every load (an after-access call, as virt_mem_after_read does); only
+        device loads reach the callback. 16-byte (vector) loads don't fire it. TCG only.
     */
     void (*mmio_after_read)(CPUState *env, uint64_t physaddr, uint64_t vaddr, size_t size, uint64_t *val);
 
     /* Callback ID: PANDA_CB_MMIO_BEFORE_WRITE
 
        mmio_before_write:
-        Called before MMIO memory is written to.
+        Called before a store to a device (MMIO): a store that will go to a device's
+        registers rather than to RAM (a store to a ROM device, such as flash, goes to the
+        device).
 
        Arguments:
         CPUState *env:          the current CPU state
-        uint64_t physaddr:  the physical address being written to
-        uint64_t vaddr:     the virtual address being written to
-        size_t size:            the size of the write
-        uin64_t *val:           the value being written
+        uint64_t physaddr:  the guest physical address written (the device register's)
+        uint64_t vaddr:     the virtual address written
+        size_t size:            the size of the write: 1, 2, 4 or 8
+        uint64_t *val:          the value to be written, zero-extended; a copy (see Notes)
 
-       Helper call location: cputlb.c
+       Helper call location: the TCG plugin bridge (contrib/plugins/panda_plugin_interface.c),
+        before the store, after virt_mem_before_write and phys_mem_before_write
 
        Return value:
         none
+
+       Notes:
+        *val is read-only in effect: it points to a copy, and changing it changes nothing
+        the device receives. Classic PANDA called this from the device write in cputlb.c, so
+        a changed *val was what the device got; the QEMU plugin API this engine uses gives a
+        callback the value but no way to change it. Classic PANDA's physaddr was the offset
+        into the device's memory region; here it is the guest physical address. Registered,
+        it instruments every store (a before-access call); enabled, it also costs a softmmu
+        TLB lookup per store to tell a device from RAM (a page walk and a memory region lookup
+        when the page is not in the TLB yet). Only device stores reach the callback. 16-byte
+        (vector) stores don't fire it. TCG only.
     */
     void (*mmio_before_write)(CPUState *env, uint64_t physaddr, uint64_t vaddr, size_t size, uint64_t *val);
 
@@ -1362,7 +1467,7 @@ typedef union panda_cb_with_context {
     /* Callback ID: PANDA_CB_VIRT_MEM_BEFORE_READ
 
        virt_mem_before_read:
-        Called before memory is read.
+        Called before memory is read: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -1374,13 +1479,23 @@ typedef union panda_cb_with_context {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included: addr is the virtual address the guest used, and
+        phys_mem_* gets the device register's guest physical address. Reading that address back
+        from the callback is not a RAM read: PANDA's readers (panda_virtual_memory_read,
+        panda_physical_memory_read) don't reach the device and return MEMTX_ERROR (1), which
+        pandare2's virtual_memory_read and physical_memory_read miss (they return zero bytes);
+        QEMU's own (cpu_memory_rw_debug, address_space_read, qemu_plugin_read_memory_vaddr)
+        perform a device access, with its side effects (a read of a UART's data register takes
+        a byte). mmio_after_read and mmio_before_write fire for device accesses only.
     */
     void (*virt_mem_before_read)(void* context, CPUState *env, uint64_t pc, uint64_t addr, size_t size);
 
     /* Callback ID: PANDA_CB_VIRT_MEM_BEFORE_WRITE
 
        virt_mem_before_write:
-        Called before memory is written.
+        Called before memory is written: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -1393,13 +1508,23 @@ typedef union panda_cb_with_context {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included: addr is the virtual address the guest used, and
+        phys_mem_* gets the device register's guest physical address. Reading that address back
+        from the callback is not a RAM read: PANDA's readers (panda_virtual_memory_read,
+        panda_physical_memory_read) don't reach the device and return MEMTX_ERROR (1), which
+        pandare2's virtual_memory_read and physical_memory_read miss (they return zero bytes);
+        QEMU's own (cpu_memory_rw_debug, address_space_read, qemu_plugin_read_memory_vaddr)
+        perform a device access, with its side effects (a read of a UART's data register takes
+        a byte). mmio_after_read and mmio_before_write fire for device accesses only.
     */
     void (*virt_mem_before_write)(void* context, CPUState *env, uint64_t pc, uint64_t addr, size_t size, uint8_t *buf);
 
     /* Callback ID: PANDA_CB_PHYS_MEM_BEFORE_READ
 
        phys_mem_before_read:
-        Called before memory is read.
+        Called before memory is read: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -1411,13 +1536,23 @@ typedef union panda_cb_with_context {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included, with the device register's guest physical
+        address. Reading that address back from the callback is not a RAM read: PANDA's
+        readers (panda_physical_memory_read, panda_virtual_memory_read) don't reach the device
+        and return MEMTX_ERROR (1), which pandare2's physical_memory_read and
+        virtual_memory_read miss (they return zero bytes); QEMU's own (address_space_read,
+        cpu_physical_memory_read, qemu_plugin_read_memory_hwaddr) perform a device access, with
+        its side effects (a read of a UART's data register takes a byte). mmio_after_read and
+        mmio_before_write fire for device accesses only.
     */
     void (*phys_mem_before_read)(void* context, CPUState *env, uint64_t pc, uint64_t addr, size_t size);
 
     /* Callback ID: PANDA_CB_PHYS_MEM_BEFORE_WRITE
 
        phys_mem_write:
-        Called before memory is written.
+        Called before memory is written: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -1430,13 +1565,23 @@ typedef union panda_cb_with_context {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included, with the device register's guest physical
+        address. Reading that address back from the callback is not a RAM read: PANDA's
+        readers (panda_physical_memory_read, panda_virtual_memory_read) don't reach the device
+        and return MEMTX_ERROR (1), which pandare2's physical_memory_read and
+        virtual_memory_read miss (they return zero bytes); QEMU's own (address_space_read,
+        cpu_physical_memory_read, qemu_plugin_read_memory_hwaddr) perform a device access, with
+        its side effects (a read of a UART's data register takes a byte). mmio_after_read and
+        mmio_before_write fire for device accesses only.
     */
     void (*phys_mem_before_write)(void* context, CPUState *env, uint64_t pc, uint64_t addr, size_t size, uint8_t *buf);
 
     /* Callback ID: PANDA_CB_VIRT_MEM_AFTER_READ
 
        virt_mem_after_read:
-        Called after memory is read.
+        Called after memory is read: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -1449,13 +1594,23 @@ typedef union panda_cb_with_context {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included: addr is the virtual address the guest used, and
+        phys_mem_* gets the device register's guest physical address. Reading that address back
+        from the callback is not a RAM read: PANDA's readers (panda_virtual_memory_read,
+        panda_physical_memory_read) don't reach the device and return MEMTX_ERROR (1), which
+        pandare2's virtual_memory_read and physical_memory_read miss (they return zero bytes);
+        QEMU's own (cpu_memory_rw_debug, address_space_read, qemu_plugin_read_memory_vaddr)
+        perform a device access, with its side effects (a read of a UART's data register takes
+        a byte). mmio_after_read and mmio_before_write fire for device accesses only.
     */
     void (*virt_mem_after_read)(void* context, CPUState *env, uint64_t pc, uint64_t addr, size_t size, uint8_t *buf);
 
     /* Callback ID: PANDA_CB_VIRT_MEM_AFTER_WRITE
 
        virt_mem_after_write:
-        Called after memory is written.
+        Called after memory is written: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -1468,13 +1623,23 @@ typedef union panda_cb_with_context {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included: addr is the virtual address the guest used, and
+        phys_mem_* gets the device register's guest physical address. Reading that address back
+        from the callback is not a RAM read: PANDA's readers (panda_virtual_memory_read,
+        panda_physical_memory_read) don't reach the device and return MEMTX_ERROR (1), which
+        pandare2's virtual_memory_read and physical_memory_read miss (they return zero bytes);
+        QEMU's own (cpu_memory_rw_debug, address_space_read, qemu_plugin_read_memory_vaddr)
+        perform a device access, with its side effects (a read of a UART's data register takes
+        a byte). mmio_after_read and mmio_before_write fire for device accesses only.
     */
     void (*virt_mem_after_write)(void* context, CPUState *env, uint64_t pc, uint64_t addr, size_t size, uint8_t *buf);
 
     /* Callback ID: PANDA_CB_PHYS_MEM_AFTER_READ
 
        phys_mem_after_read:
-        Called after memory is read.
+        Called after memory is read: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -1487,13 +1652,23 @@ typedef union panda_cb_with_context {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included, with the device register's guest physical
+        address. Reading that address back from the callback is not a RAM read: PANDA's
+        readers (panda_physical_memory_read, panda_virtual_memory_read) don't reach the device
+        and return MEMTX_ERROR (1), which pandare2's physical_memory_read and
+        virtual_memory_read miss (they return zero bytes); QEMU's own (address_space_read,
+        cpu_physical_memory_read, qemu_plugin_read_memory_hwaddr) perform a device access, with
+        its side effects (a read of a UART's data register takes a byte). mmio_after_read and
+        mmio_before_write fire for device accesses only.
     */
     void (*phys_mem_after_read)(void* context, CPUState *env, uint64_t pc, uint64_t addr, size_t size, uint8_t *buf);
 
     /* Callback ID: PANDA_CB_PHYS_MEM_AFTER_WRITE
 
        phys_mem_write:
-        Called after memory is written.
+        Called after memory is written: RAM or a device's registers (MMIO).
 
        Arguments:
         CPUState *env:     the current CPU state
@@ -1506,44 +1681,79 @@ typedef union panda_cb_with_context {
 
        Return value:
         none
+
+       Notes:
+        Device (MMIO) accesses are included, with the device register's guest physical
+        address. Reading that address back from the callback is not a RAM read: PANDA's
+        readers (panda_physical_memory_read, panda_virtual_memory_read) don't reach the device
+        and return MEMTX_ERROR (1), which pandare2's physical_memory_read and
+        virtual_memory_read miss (they return zero bytes); QEMU's own (address_space_read,
+        cpu_physical_memory_read, qemu_plugin_read_memory_hwaddr) perform a device access, with
+        its side effects (a read of a UART's data register takes a byte). mmio_after_read and
+        mmio_before_write fire for device accesses only.
     */
     void (*phys_mem_after_write)(void* context, CPUState *env, uint64_t pc, uint64_t addr, size_t size, uint8_t *buf);
 
     /* Callback ID: PANDA_CB_MMIO_AFTER_READ
 
        mmio_after_read:
-        Called after MMIO memory is read.
+        Called after a load from a device (MMIO): a load that went to a device's registers
+        rather than to RAM or ROM.
 
        Arguments:
         CPUState *env:          the current CPU state
-        uint64_t physaddr:  the physical address being read from
-        uint64_t vaddr:     the virtual address being read from
-        size_t size:            the size of the read
-        uin64_t *val:           the value being read
+        uint64_t physaddr:  the guest physical address read (the device register's)
+        uint64_t vaddr:     the virtual address read
+        size_t size:            the size of the read: 1, 2, 4 or 8
+        uint64_t *val:          the value read, zero-extended; a copy (see Notes)
 
-       Helper call location: cputlb.c
+       Helper call location: the TCG plugin bridge (contrib/plugins/panda_plugin_interface.c),
+        after the load, before virt_mem_after_read and phys_mem_after_read
 
        Return value:
         none
+
+       Notes:
+        *val is read-only in effect: it points to a copy, and changing it changes nothing
+        the guest sees. Classic PANDA called this from the device read in cputlb.c, so a
+        changed *val was what the guest loaded; the QEMU plugin API this engine uses gives a
+        callback the value but no way to change it. Classic PANDA's physaddr was the offset
+        into the device's memory region; here it is the guest physical address. Registered,
+        it instruments every load (an after-access call, as virt_mem_after_read does); only
+        device loads reach the callback. 16-byte (vector) loads don't fire it. TCG only.
     */
     void (*mmio_after_read)(void* context, CPUState *env, uint64_t physaddr, uint64_t vaddr, size_t size, uint64_t *val);
 
     /* Callback ID: PANDA_CB_MMIO_BEFORE_WRITE
 
        mmio_before_write:
-        Called before MMIO memory is written to.
+        Called before a store to a device (MMIO): a store that will go to a device's
+        registers rather than to RAM (a store to a ROM device, such as flash, goes to the
+        device).
 
        Arguments:
         CPUState *env:          the current CPU state
-        uint64_t physaddr:  the physical address being written to
-        uint64_t vaddr:     the virtual address being written to
-        size_t size:            the size of the write
-        uin64_t *val:           the value being written
+        uint64_t physaddr:  the guest physical address written (the device register's)
+        uint64_t vaddr:     the virtual address written
+        size_t size:            the size of the write: 1, 2, 4 or 8
+        uint64_t *val:          the value to be written, zero-extended; a copy (see Notes)
 
-       Helper call location: cputlb.c
+       Helper call location: the TCG plugin bridge (contrib/plugins/panda_plugin_interface.c),
+        before the store, after virt_mem_before_write and phys_mem_before_write
 
        Return value:
         none
+
+       Notes:
+        *val is read-only in effect: it points to a copy, and changing it changes nothing
+        the device receives. Classic PANDA called this from the device write in cputlb.c, so
+        a changed *val was what the device got; the QEMU plugin API this engine uses gives a
+        callback the value but no way to change it. Classic PANDA's physaddr was the offset
+        into the device's memory region; here it is the guest physical address. Registered,
+        it instruments every store (a before-access call); enabled, it also costs a softmmu
+        TLB lookup per store to tell a device from RAM (a page walk and a memory region lookup
+        when the page is not in the TLB yet). Only device stores reach the callback. 16-byte
+        (vector) stores don't fire it. TCG only.
     */
     void (*mmio_before_write)(void* context, CPUState *env, uint64_t physaddr, uint64_t vaddr, size_t size, uint64_t *val);
 
