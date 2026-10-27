@@ -11,7 +11,8 @@ from pandare2.utils import debug, warn
 
 class AsyncThread:
     """
-    Create a single worker thread which runs commands from a queue
+    Create a single worker thread which runs commands from a queue. Its threads start with
+    start() (Panda.run): functions queued before then wait in the queue.
     """
 
     def __init__(self, panda_started):
@@ -27,7 +28,6 @@ class AsyncThread:
         self.ending = False # Is main PANDA execution ending?
         self.empty_at = None # Last time when our task queue went from full to empty
         self.last_called = None # Name of the last function called
-        self.athread.start()
 
         # Internal thread which only pypanda should use
         # This allows us to exit even when the main athread is blocking on some slow task
@@ -36,7 +36,12 @@ class AsyncThread:
         self._task_queue = Queue()
         self._athread = threading.Thread(target=self.run, args=(self._task_queue, True))
         self._athread.daemon = True # Quit on main quit
-        self._athread.start()
+
+    def start(self):
+        """Start the threads (once; later calls do nothing)."""
+        for t in (self.athread, self._athread):
+            if t.ident is None:
+                t.start()
 
     def stop(self):
         self.running = False
@@ -103,6 +108,7 @@ def test1():
 
     started = threading.Event()
     a = AsyncThread(started)
+    a.start()
 
     def afunc():
         for x in range(3):
@@ -134,6 +140,7 @@ def test2():
     started = threading.Event()
 
     b = AsyncThread(started)
+    b.start()
     def hang_func():
         print("Main hanging")
         sleep(1000)
@@ -160,6 +167,7 @@ def test3():
     started = threading.Event()
 
     b = AsyncThread(started)
+    b.start()
     def slow_func():
         print("Main slow_func sleeping")
         sleep(10)
