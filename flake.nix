@@ -327,7 +327,10 @@
                 ps.setuptools
                 ps.cffi
               ];
-              dependencies = [ ps.cffi ];
+              dependencies = [
+                ps.cffi
+                ps.pyyaml # Panda(generic=<.yaml image>)
+              ];
               pythonImportsCheck = [ "pandare2" ];
             };
           pandare2 = mkPandare2 python.pkgs;

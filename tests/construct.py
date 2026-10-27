@@ -8,7 +8,8 @@ Run: panda-python tests/construct.py [case...]      (default: every case)
 - legacy: every way tests/*.py constructs a Panda builds the same argv as before (the monitor's
   arguments aside, which `monitor=` changed on purpose), except that extra_args= now go after the
   image's rather than before (no test's arguments conflict with its image's);
-- generic: the image is the base and keywords override it; another arch raises ValueError.
+- generic: the image is the base and keywords override it; another arch raises ValueError. It
+  can be YAML (extra_args as a list here) or a dict, and its isf and kconf_file are kept.
 """
 import json
 import os
@@ -40,6 +41,19 @@ IMAGES = {
                            "node-name=pf0,read-only=on -cpu rv64 -display none",
              "isf": "rv64.isf.json.xz", "kconf_file": "rv64.kernelinfo.conf"},
 }
+
+# x86's image in YAML, with extra_args as a list.
+X86_YAML = """\
+arch: x86_64
+os: linux-64-debian:6.12.113+deb13-amd64
+prompt: 'root@[\\w.-]+:[^#\\n]*# '
+snapshot: root
+qcow: x86.qcow2
+default_mem: 1G
+extra_args: [-display, none, -nic, "user,model=virtio-net-pci"]
+isf: x86.isf.json.xz
+kconf_file: x86.kernelinfo.conf
+"""
 
 PRE = ["{lib}", "-plugin", "{iface}", "-L", "{bios}"]
 SERIAL = ["-serial", "unix:{serial},server,nowait"]
@@ -124,7 +138,22 @@ CASES = {
     "generic same arch": ({"generic": "{img}/x86.json", "arch": "x86_64"}, [attr("arch", "x86_64")]),
     "generic other arch": ({"generic": "{img}/x86.json", "arch": "aarch64"},
                            [error("ValueError", "aarch64", "x86_64")]),
-    "defaults": ({}, [attr("arch", "i386"), attr("mem", "128M")]),
+    "defaults": ({}, [attr("arch", "i386"), attr("mem", "128M"), attr("isf", None)]),
+    "generic symbols": ({"generic": "{img}/x86.json"},
+                        [attr("isf", "{img}/x86.isf.json.xz"), attr("kconf_file", "{img}/x86.kernelinfo.conf")]),
+    "generic yaml": ({"generic": "{img}/x86.yaml"},
+                     [("argv as from the json", lambda r: r.get("argv") == LEGACY["generic"][1]),
+                      attr("prompt", IMAGES["x86"]["prompt"]), attr("os", IMAGES["x86"]["os"]),
+                      attr("isf", "{img}/x86.isf.json.xz"), attr("kconf_file", "{img}/x86.kernelinfo.conf")]),
+    "generic yml": ({"generic": "{img}/x86.yml"}, [("argv as from the json", lambda r: r.get("argv") == LEGACY["generic"][1])]),
+    "generic dict": ({"generic": dict(IMAGES["x86"], qcow="{img}/x86.qcow2", isf="{img}/x86.isf.json.xz")},
+                     [("argv as from the json", lambda r: r.get("argv") == LEGACY["generic"][1]),
+                      attr("isf", "{img}/x86.isf.json.xz")]),
+    "generic dict mem": ({"generic": dict(IMAGES["x86"], qcow="{img}/x86.qcow2"), "mem": "512M"},
+                         [attr("mem", "512M")]),
+    "generic dict no arch": ({"generic": {"qcow": "{img}/x86.qcow2"}}, [error("ValueError", "arch")]),
+    "generic other extension": ({"generic": "{img}/x86.txt"}, [error("ValueError", ".yaml")]),
+    "generic missing": ({"generic": "{img}/none.json"}, [error("FileNotFoundError", "none.json")]),
 }
 
 
@@ -166,6 +195,8 @@ def child(spec):
             v = m
         elif isinstance(v, str):
             v = v.replace("{img}", img)
+        elif isinstance(v, dict):
+            v = {dk: dv.replace("{img}", img) if isinstance(dv, str) else dv for dk, dv in v.items()}
         kwargs[k] = v
     res = {}
     try:
@@ -175,7 +206,9 @@ def child(spec):
     else:
         res["argv"], res["monitor"] = normalize(p, img)
         res["attrs"] = {"arch": p.arch_name, "mem": p.mem, "os": p.os, "prompt": p.expect_prompt,
-                        "qcow": p.qcow.replace(img, "{img}") if p.qcow else None}
+                        "qcow": p.qcow.replace(img, "{img}") if p.qcow else None,
+                        "isf": p.isf.replace(img, "{img}") if p.isf else None,
+                        "kconf_file": p.kconf_file.replace(img, "{img}") if p.kconf_file else None}
         if "machine" in kwargs:
             margs = kwargs["machine"].args()
             s = " ".join(res["argv"]).replace(" ".join(margs), "{machine}")
@@ -201,6 +234,10 @@ def main():
     for name, image in IMAGES.items():
         with open(os.path.join(img, f"{name}.json"), "w") as f:
             json.dump(image, f)
+    for ext in ("yaml", "yml"):
+        with open(os.path.join(img, f"x86.{ext}"), "w") as f:
+            f.write(X86_YAML)
+    open(os.path.join(img, "x86.txt"), "w").close()
     only = sys.argv[1:]
     failed = False
 

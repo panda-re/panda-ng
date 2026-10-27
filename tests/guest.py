@@ -5,8 +5,6 @@ Run: panda-python tests/guest.py <dir>/debian-13-x86_64.json
 Reverts to the root snapshot, runs a known command and a hypercall program on the guest, and checks
 what asid_changed, syscalls2, proc_start_linux and hypercaller report.
 """
-import json
-import os
 import struct
 import sys
 
@@ -56,11 +54,10 @@ arch = panda.arch_name
 # Needs an IGLOO-instrumented kernel to report syscalls; here it only has to load and register its
 # hypercalls with hypercaller next to ours.
 panda.load_plugin("hypersyscalls")
-with open(sys.argv[1]) as f:
-    kconf = os.path.join(os.path.dirname(os.path.abspath(sys.argv[1])), json.load(f)["kconf_file"])
-# osi would load osi_linux itself, without its arguments.
+# osi would load osi_linux itself, without its arguments. load_plugin gives osi_linux the image's
+# kernelinfo file (its kconf_file).
 panda.load_plugin("osi", {"disable-autoload": "true"})
-panda.load_plugin("osi_linux", {"kconf_file": kconf})
+panda.load_plugin("osi_linux")
 # --8<-- [end:plugins]
 seen = {"asid": 0, "openat": [], "auxv": [], "hypercall": []}
 

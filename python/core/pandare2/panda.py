@@ -175,10 +175,12 @@ class Panda():
             arch: architecture string (e.g. "i386", "x86_64", "arm", "mips", "mipsel"). Default:
                     the image's with generic=, else "i386". With generic=, a different arch raises
                     ValueError (the disk can't boot as another arch).
-            generic: path to an image json written by `pandare2.mkimage`. It is the base: its arch,
-                    OS, memory, disk, prompt and extra arguments apply unless a keyword gives
-                    its own (mem=, os_version=, qcow=, expect_prompt=); extra_args= go after the
-                    image's.
+            generic: an image written by `pandare2.mkimage`: the path of its .json, or of a .yaml
+                    or .yml with the same keys, or a dict of them. It is the base: its arch, OS,
+                    memory, disk, prompt and extra arguments apply unless a keyword gives its own
+                    (mem=, os_version=, qcow=, expect_prompt=); extra_args= go after the image's.
+                    Its kernel symbols are kept (`isf`, `kconf_file`): `load_plugin` passes them to
+                    osi_isf and osi_linux unless given other arguments for them.
             mem: size of memory for machine (e.g. "128M", "1G"). Default: the image's with
                     generic=, else "128M". It must match the RAM of a snapshot you load.
             rr: make the VM recordable (-accel tcg,thread=single,rr-ready=on). Pass it to a replay too: it needs the recording's command line.
@@ -222,6 +224,8 @@ class Panda():
 
         # An image json from pandare2.mkimage is the base; the keywords given override it.
         self.cdrom = None
+        self.isf = None         # the image's kernel symbols (generic=), for osi_isf and osi_linux
+        self.kconf_file = None
         if generic:
             q = Qcows.get_qcow_info(generic)
             if arch is not None and arch != q.arch:
@@ -233,8 +237,11 @@ class Panda():
             qcow = q.qcow if qcow is None else qcow
             expect_prompt = q.prompt if expect_prompt is None else expect_prompt
             self.cdrom = q.cdrom
+            self.isf, self.kconf_file = q.isf, q.kconf_file
             if q.extra_args:
-                extra_args = shlex_split(q.extra_args) + extra_args
+                image_args = q.extra_args
+                extra_args = (shlex_split(image_args) if isinstance(image_args, str)
+                              else [str(a) for a in image_args]) + extra_args
         if arch is None:
             arch = "i386"
         if mem is None:
@@ -1028,7 +1035,11 @@ class Panda():
 
     def load_plugin(self, name, args={}):
         '''
-        Load a C plugin, optionally with arguments
+        Load a C plugin, optionally with arguments. Before or during run().
+
+        With an image (generic=) that has kernel symbols, osi_linux gets the image's
+        `kconf_file` and osi_isf its `isf` unless args give their own. (A plugin that osi loads
+        by itself, without disable-autoload, gets no arguments.)
 
         Args:
             name (str): Name of plugin
@@ -1037,6 +1048,13 @@ class Panda():
         Returns:
             None.
         '''
+        image_arg = {"osi_linux": ("kconf_file", self.kconf_file), "osi_isf": ("isf", self.isf)}.get(name)
+        if image_arg and image_arg[1]:
+            key, value = image_arg
+            if isinstance(args, dict) and key not in args:
+                args = {**args, key: value}
+            elif isinstance(args, list) and not any(a.startswith(key + "=") for a in args):
+                args = args + [f"{key}={value}"]
         # [NEW] Update cache
         if name == "osi_linux":
             self._osi_linux_loaded = True
