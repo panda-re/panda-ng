@@ -60,3 +60,17 @@ void panda_end_block_drop_all(void);
  * (its after/end_block_exec run then, if still enabled). panda_block_gate: is one enabled? */
 void panda_bridge_set_block_gate(void (*set)(int cpu_index, uint64_t on));
 uint64_t panda_block_gate(void);
+/* Edge coverage (panda/src/panda_cov.c). While on, the bridge registers a callback per translated
+ * block that panda_cov_block accepts (id in *cur, it says which), which does AFL's
+ * map[cur ^ prev]++, prev = cur >> 1 for its vCPU. */
+#define PANDA_COV_MAX_CPUS 256
+#define PANDA_COV_MAP_DEFAULT (1u << 16)
+typedef struct PandaCov {
+    uint8_t *map;
+    uint32_t mask;
+    bool on;
+    uint64_t lo, hi;                        /* the filter: [lo, hi) on the block's address, hi 0: all */
+    uint32_t prev[PANDA_COV_MAX_CPUS];      /* per vCPU (index modulo PANDA_COV_MAX_CPUS) */
+} PandaCov;
+extern PandaCov panda_cov;
+bool panda_cov_block(uint32_t *cur);

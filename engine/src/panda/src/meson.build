@@ -5,6 +5,7 @@ specific_ss.add(
         'cb-support.c',
         'panda_api.c',
         'panda_arch.c',
+        'panda_cov.c',
         'panda_fast.c',
         'panda_mem.c',
         'panda_qemu_plugin_helpers.c',

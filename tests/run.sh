@@ -8,7 +8,7 @@
 # Images are built by pandare2.mkimage (tests/README.md). Arguments are image jsons or directories
 # of them. Environment:
 #   PANDA_PYTHON  Python with pandare2 (default: panda-python from PATH)
-#   TESTS         space-separated test names (default: the 20 in DEFAULT_TESTS)
+#   TESTS         space-separated test names (default: the 21 in DEFAULT_TESTS)
 #   OUT           results and logs (default: $TMPDIR/panda-tests-<time>)
 #   TIMEOUT       seconds per test (default 1800)
 #   JOBS          images run at once (default: all)
@@ -20,7 +20,7 @@ set -euo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 DEFAULT_TESTS="guest api osi_isf blocks callbacks calls mem mmio late reset teardown asidstory tbpc
-  hookalias rr rrcb rrstop rrload fuzz fastrestore"
+  hookalias rr rrcb rrstop rrload fuzz fastrestore fastcov"
 TESTS=${TESTS:-$DEFAULT_TESTS}
 TIMEOUT=${TIMEOUT:-1800}
 OUT=${OUT:-${TMPDIR:-/tmp}/panda-tests-$(date +%Y%m%d-%H%M%S)}

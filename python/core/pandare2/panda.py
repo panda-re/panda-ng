@@ -853,6 +853,51 @@ class Panda():
             self.queue_main_loop_wait_fn(done.set)
             done.wait()
 
+    def enable_fast_coverage(self, map_size=1 << 16, filter_lo=0, filter_hi=0):
+        '''
+        Turn on AFL-style edge coverage (C: panda_cov_enable): each executed translated block
+        does map[id ^ prev]++ and prev = id >> 1, with id a hash of the block's physical address.
+
+        Args:
+            map_size (int): bytes, a power of two from 256 to 16 MiB; fixed once the map exists
+            filter_lo (int): instrument only blocks whose virtual address is at least this
+            filter_hi (int): ... and below this; 0 instruments every block
+
+        Returns:
+            memoryview: the map (fast_coverage_map()), read and written in place
+
+        TCG only. It flushes the translated code; call it with the VM stopped (from a main-loop
+        function) or the flush happens before the vCPUs run on. A panda_fast_restore puts prev
+        back to its value at panda_fast_snap and leaves the map alone: read a lap's map before
+        restoring, then fast_coverage_clear().
+        '''
+        if self.libpanda.panda_cov_enable(map_size, filter_lo, filter_hi) != 0:
+            raise ValueError(f"enable_fast_coverage: bad map_size {map_size} (a power of two, "
+                             "256 to 16 MiB, and the same as the first call's)")
+        return self.fast_coverage_map()
+
+    def disable_fast_coverage(self):
+        '''
+        Turn edge coverage off (C: panda_cov_disable). The map is kept.
+        '''
+        self.libpanda.panda_cov_disable()
+
+    def fast_coverage_map(self):
+        '''
+        The edge coverage map as a writable memoryview over the engine's own bytes (no copy),
+        or None before enable_fast_coverage. C: panda_cov_map, panda_cov_map_size.
+        '''
+        size = self.libpanda.panda_cov_map_size()
+        if size == 0:
+            return None
+        return memoryview(self.ffi.buffer(self.libpanda.panda_cov_map(), size))
+
+    def fast_coverage_clear(self):
+        '''
+        Zero the edge coverage map (C: panda_cov_clear).
+        '''
+        self.libpanda.panda_cov_clear()
+
     def _finish_timer(self, start, msg):
         ''' Print how long some (main_loop_wait) task took '''
         t = time() - start

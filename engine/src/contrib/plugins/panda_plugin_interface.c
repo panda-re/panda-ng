@@ -157,6 +157,16 @@ static void vcpu_mem(unsigned int cpu_index, qemu_plugin_meminfo_t info,
 }
 
 
+// Edge coverage (panda_cov.c): the block's id is the callback's data. No register sync.
+static void cov_exec(unsigned int cpu_index, void *udata)
+{
+    uint32_t cur = (uint32_t) (uintptr_t) udata;
+    uint32_t *prev = &panda_cov.prev[cpu_index % PANDA_COV_MAX_CPUS];
+
+    panda_cov.map[cur ^ *prev]++;
+    *prev = cur >> 1;
+}
+
 // Instruments only for the PANDA callbacks registered (panda_bridge_wants): with none, a TB gets
 // no callbacks and its address is never read, so a CF_PCREL TB stays shared between the virtual
 // addresses that map it. Block callbacks don't read it either (they get the block's address from
@@ -185,6 +195,12 @@ static void vcpu_tb_trans(struct qemu_plugin_tb *tb, void *userdata)
                 }
             }
         }
+    }
+
+    uint32_t cov_cur;
+    if (panda_cov.on && panda_cov_block(&cov_cur)) {
+        qemu_plugin_register_vcpu_tb_exec_cb(tb, cov_exec, QEMU_PLUGIN_CB_NO_REGS,
+                                             (void *) (uintptr_t) cov_cur);
     }
 
     TranslationBlock *real_tb = panda_get_tb(tb);

@@ -450,6 +450,7 @@ int panda_fast_snap(void) {
         fast_stats.last_snap_mode = unlogged ? "compare" : "full";
     }
     fast_stats.last_snap_pages = pages;
+    panda_cov_snap();
     if (fast_save_devices() < 0) {
         /* don't keep this RAM with the previous snapshot's devices */
         panda_fast_delete();
@@ -525,6 +526,7 @@ int panda_fast_restore(void) {
         fast_stats.last_mode = "dirty";
     }
     t1 = g_get_monotonic_time();
+    panda_cov_restore();
     fast_stats.restores++;
     fast_stats.last_pages = pages;
     fast_stats.last_full = full;

@@ -134,6 +134,47 @@ int64_t panda_fast_verify(void);
 const char *panda_fast_info(void);
 
 
+/**
+ * panda_cov_enable() - Turn on AFL-style edge coverage, into a byte map in host memory.
+ * @map_size: bytes, a power of two from 256 to 16 MiB (AFL's is 65536). Fixed once the map exists:
+ *            a later call must pass the same size.
+ * @lo, @hi: instrument only blocks whose virtual address is in [lo, hi); hi 0: every block.
+ *
+ * Each translated block gets an id from its physical address; each execution does
+ * map[id ^ prev]++ and prev = id >> 1 (prev per vCPU). TCG only. Flushes the translated code
+ * (blocks are instrumented as they are translated): call it from the main loop with the VM
+ * stopped, or the flush happens before the vCPUs run on. Across panda_fast_restore, prev goes back
+ * to its value at panda_fast_snap; the map is left alone (read it, then panda_cov_clear).
+ * Return: 0, or -1 for a bad size.
+ */
+int panda_cov_enable(uint32_t map_size, uint64_t lo, uint64_t hi);
+
+/**
+ * panda_cov_disable() - Turn edge coverage off (the map is kept; flushes the translated code).
+ */
+void panda_cov_disable(void);
+
+/**
+ * panda_cov_map() - The coverage map (panda_cov_map_size() bytes), NULL before panda_cov_enable.
+ */
+uint8_t *panda_cov_map(void);
+
+/**
+ * panda_cov_map_size() - The coverage map's size in bytes, 0 before panda_cov_enable.
+ */
+uint32_t panda_cov_map_size(void);
+
+/**
+ * panda_cov_clear() - Zero the coverage map.
+ */
+void panda_cov_clear(void);
+
+
+/* Not an API function: panda_fast_snap/restore save and restore coverage's prev. */
+void panda_cov_snap(void);
+void panda_cov_restore(void);
+
+
 /* Not an API function: RAM changed without dirty bits (loadvm); the next restore copies it all. */
 void panda_fast_ram_untracked(void);
 
