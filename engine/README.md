@@ -131,9 +131,8 @@ below take the series from `<old>` to `<new>` (the last rebase was 11.1.0 to 11.
 5. `nix flake check`, `nix build .#python`, the guest tests on all five images, the off-cost gate.
 
 11.1.0 to 11.1.2 (October 2026): only 0055 (pflash_cfi01) failed strict apply, on context
-from upstream 5ea267f ("Restore ROMD mode after migration"); its change is unchanged. Two
-upstream fixes changed what the series and the overlay see, though every other patch applied
-cleanly:
+from upstream 5ea267f ("Restore ROMD mode after migration"); its change is unchanged. Every other
+patch applied cleanly, but three upstream changes needed work:
 
 - 827802a ("Use TLB_FORCE_SLOW not TLB_MMIO for system plugins"): `probe_access_internal` now
   returns the raw TLB flags, with `phost` NULL for anything but plain RAM, instead of folding
@@ -143,6 +142,10 @@ cleanly:
   always false and now reports MMIO. The PANDA bridge
   (`src/contrib/plugins/panda_plugin_interface.c`) no longer returns early on it, so the
   after-access memory callbacks keep firing for MMIO, as they did on 11.1.0 and in classic PANDA.
+- 0d4875d ("target/riscv/kvm: Preserve MP state across migration") raised the riscv cpu
+  vmstate's `minimum_version_id` from 11 to 12 without changing its fields, so no riscv snapshot
+  saved by 11.1.0 loaded (the guest suite's riscv64 image failed every test). 0078 takes the
+  minimum back to 11. Check `version_id` changes in a stable diff before trusting old snapshots.
 
 ## What came from qemu_builder, and what did not
 

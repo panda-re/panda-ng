@@ -209,7 +209,7 @@ and a savevm right after a loadvm takes as long as any other.
 
 **Tests:** `tests/reset.py`, `tests/api.py`
 
-**Engine patches:** 0061, 0063, 0074-0075 ([series](reference/patches.md))
+**Engine patches:** 0061, 0063, 0074-0075, 0078 ([series](reference/patches.md))
 
 <a id="fast-restore"></a>
 ## Fast restore

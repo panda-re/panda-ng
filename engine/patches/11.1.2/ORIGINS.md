@@ -21,7 +21,7 @@ The trailers are part of each commit message in an `import-series.sh` tree, so
 `export-series.sh` keeps them. Add both to a new patch, and update this table when the series
 changes (the export does not rewrite this file). "Uncertain" in a note marks a judgement call.
 
-Counts: new 45, penguin 24, panda-re/qemu 6, ac88u 2.
+Counts: new 46, penguin 24, panda-re/qemu 6, ac88u 2.
 
 | # | subject | origin | license | note |
 |---|---|---|---|---|
@@ -102,3 +102,4 @@ Counts: new 45, penguin 24, panda-re/qemu 6, ac88u 2.
 | 0075 | block/qcow2: drop the active VM state before a savevm writes it | new | MIT |  |
 | 0076 | system/cpu-timers: a snapshot load resets the ticks' monotonic clamp | new | MIT |  |
 | 0077 | panda: link a plugin interface per target against its engine | new | GPL-2.0-or-later |  |
+| 0078 | target/riscv: a version 11 cpu state still loads | new | GPL-2.0-or-later | QEMU 11.1.2 raised the riscv cpu vmstate minimum to 12 without changing its fields |

@@ -203,7 +203,7 @@ and a savevm right after a loadvm takes as long as any other.
 api = ["py:Panda.snap", "py:Panda.revert_sync", "py:Panda.delvm"]
 docs = ["docs/guides/snapshots.md"]
 tests = ["tests/reset.py", "tests/api.py"]
-patches = ["0061", "0063", "0074", "0075"]
+patches = ["0061", "0063", "0074", "0075", "0078"]
 
 [[feature]]
 id = "fast-restore"

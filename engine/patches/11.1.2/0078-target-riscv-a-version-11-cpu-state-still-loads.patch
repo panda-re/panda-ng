@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 27 Oct 2026 11:12:53 -0400
+Subject: [PATCH] target/riscv: a version 11 cpu state still loads
+
+QEMU 11.1.2 (stable commit 0d4875d, "target/riscv/kvm: Preserve MP state
+across migration", a cherry-pick of ddac7cf) raised vmstate_riscv_cpu's
+version_id and minimum_version_id from 11 to 12, for a new pre_load hook
+and a KVM-only MP-state subsection. The fields did not change. With the
+minimum at 12, every riscv snapshot saved by 11.1.0 fails to load:
+
+    error while loading state for instance 0x0 of device 'cpu':
+    cpu: incoming version_id 11 is too old for local minimum version_id 12
+
+That is every riscv64 qcow2 snapshot and every record/replay start
+snapshot made before the bump. Accept version 11 again. A version 11
+stream has the same fields and no MP-state subsection; pre_load clears
+kvm_mp_state_loaded as for any stream without it, so KVM keeps the reset
+MP state, which is what 11.1.0 did.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ target/riscv/machine.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/target/riscv/machine.c b/target/riscv/machine.c
+index 31c49ca3e6a15757f90672ec425fc38480254cb9..8d5df05bb46e5ae4dc611449836506ef47d66a55 100644
+--- a/target/riscv/machine.c
++++ b/target/riscv/machine.c
+@@ -499,7 +499,12 @@ static const VMStateDescription vmstate_mseccfg = {
+ const VMStateDescription vmstate_riscv_cpu = {
+     .name = "cpu",
+     .version_id = 12,
+-    .minimum_version_id = 12,
++    /*
++     * Version 12 added only the KVM MP-state subsection and a pre_load
++     * hook; the fields are those of version 11, so a version 11 stream
++     * (a snapshot saved by QEMU 11.1.0) still loads.
++     */
++    .minimum_version_id = 11,
+ #ifdef CONFIG_KVM
+     .pre_load = riscv_cpu_kvm_pre_load,
+ #endif
