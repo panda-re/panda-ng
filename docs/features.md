@@ -159,7 +159,7 @@ processes (proc_start_linux).
 
 **Docs:** [docs/guides/plugins.md#using-a-plugin-from-python](guides/plugins.md#using-a-plugin-from-python), [plugins/syscalls2/README.md](https://github.com/panda-re/panda-ng/blob/main/plugins/syscalls2/README.md)
 
-**Tests:** `tests/guest.py`
+**Tests:** `tests/guest.py`, `tests/syscalls.py`
 
 
 <a id="hooks"></a>
