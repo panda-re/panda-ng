@@ -70,6 +70,7 @@ path = [
   "engine/patches/11.1.2/0066-replay-the-replay-mutex-pairs-on-its-holder-not-on-r.patch",
   "engine/patches/11.1.2/0071-hw-core-build-the-configurable-machine-and-its-QAPI-.patch",
   "engine/patches/11.1.2/0077-panda-link-a-plugin-interface-per-target-against-its.patch",
+  "engine/patches/11.1.2/0078-target-riscv-a-version-11-cpu-state-still-loads.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
