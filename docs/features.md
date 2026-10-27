@@ -26,6 +26,7 @@ ubuntu-24.04 images (see
 | [Record and replay](#record-replay) | supported | TCG | x86_64, aarch64, riscv64 |
 | [Snapshots](#snapshots) | supported | TCG, KVM | x86_64, aarch64, riscv64 |
 | [Fast restore](#fast-restore) | supported | TCG | x86_64, aarch64, riscv64 |
+| [Edge coverage for fuzzing](#fast-coverage) | experimental | TCG | x86_64, aarch64, riscv64 |
 | [KVM](#kvm) | experimental | KVM | x86_64 (by hand), aarch64 (by hand) |
 | [Moving a running guest between KVM and TCG](#kvm-tcg) | experimental | KVM, TCG | x86_64 (by hand), aarch64 (by hand) |
 | [Memory access that pages in](#faulting-access) | engine API | TCG, KVM | x86_64, aarch64 |
@@ -224,8 +225,9 @@ and a savevm right after a loadvm takes as long as any other.
 ## Fast restore
 
 Snapshot RAM and device state in host memory and restore only what changed since, for fuzzing
-loops: `panda_fast_snap` and `panda_fast_restore`. Every clock rewinds, the x86 TSC included.
-tests/fuzz.py runs a fuzzing loop with it.
+loops: `panda_fast_snap` and `panda_fast_restore`. Every clock rewinds, the x86 TSC included. A
+restore copies back the dirty pages (pflash storage included) and loads the device state, without
+a machine reset. tests/fuzz.py runs a fuzzing loop with it.
 
 **Limits.** TCG only, and not while recording or replaying (both refuse).
 
@@ -235,7 +237,24 @@ tests/fuzz.py runs a fuzzing loop with it.
 
 **Tests:** `tests/fastrestore.py`, `tests/fastrestore_guards.py`, `tests/fastrestore_hotplug.py`, `tests/fastrestore_vsock.py`, `tests/fuzz.py`
 
-**Engine patches:** 0055-0057, 0060, 0064, 0076 ([series](reference/patches.md))
+**Engine patches:** 0055-0057, 0060, 0064, 0076, 0079-0081 ([series](reference/patches.md))
+
+<a id="fast-coverage"></a>
+## Edge coverage for fuzzing
+
+AFL-style edge coverage (`map[cur ^ prev]++`, `prev = cur >> 1`) into a byte map in host memory
+that C and pandare2 read in place, for a fast-restore fuzzing loop: a restore rewinds `prev` and
+leaves the map to the caller. Block ids come from physical addresses, so they hold across laps and
+under CF_PCREL; PANDA's callbacks can be on at the same time.
+
+**Limits.** TCG only. The map size is fixed once the map exists.
+
+**Use it:** `Panda.enable_fast_coverage`, `Panda.fast_coverage_map`, `Panda.fast_coverage_clear`, `Panda.disable_fast_coverage`, `panda_cov_enable`, `panda_cov_map`, `panda_cov_clear`
+
+**Docs:** [docs/guides/snapshots.md#edge-coverage](guides/snapshots.md#edge-coverage)
+
+**Tests:** `tests/fastcov.py`
+
 
 <a id="kvm"></a>
 ## KVM

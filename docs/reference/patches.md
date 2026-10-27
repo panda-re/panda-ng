@@ -2,7 +2,7 @@
 
 # The engine patch series
 
-QEMU 11.1.2 plus 78 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
+QEMU 11.1.2 plus 81 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
@@ -84,3 +84,6 @@ QEMU 11.1.2 plus 78 patches (`engine/patches/11.1.2/`). `engine/README.md` expla
 | 0076 | system/cpu-timers: a snapshot load resets the ticks' monotonic clamp | [fast-restore](../features.md#fast-restore) | new | MIT |
 | 0077 | panda: link a plugin interface per target against its engine | [multi-engine](../features.md#multi-engine) | new | GPL-2.0-or-later |
 | 0078 | target/riscv: a version 11 cpu state still loads | [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
+| 0079 | hw/block/pflash: log storage writes in the dirty bitmap | [fast-restore](../features.md#fast-restore) | new | LGPL-2.1-or-later |
+| 0080 | migration/vmstate: skip per-field vmdesc bookkeeping when there is no vmdesc | [fast-restore](../features.md#fast-restore) | penguin | GPL-2.0-or-later |
+| 0081 | migration/qemu-file: inline the in-buffer case of the byte reader | [fast-restore](../features.md#fast-restore) | penguin | MIT |
