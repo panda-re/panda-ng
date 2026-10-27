@@ -6,18 +6,14 @@ Reverts to the root snapshot and runs cat on the guest. When cat opens /etc/os-r
 (osi_isf, from the image's ISF) for the current process and thread, its memory mappings, the
 process list and the kernel modules, and checks them against what the shell reports.
 """
-import json
-import os
 import sys
 
 from pandare2 import Panda
 
 # --8<-- [start:setup]
 panda = Panda(generic=sys.argv[1])
-with open(sys.argv[1]) as f:
-    isf = os.path.join(os.path.dirname(os.path.abspath(sys.argv[1])), json.load(f)["isf"])
 panda.load_plugin("osi", {"disable-autoload": "true"})
-panda.load_plugin("osi_isf", {"isf": isf})
+panda.load_plugin("osi_isf")    # the image's ISF (panda.isf)
 seen = {"task_changes": 0}
 # --8<-- [end:setup]
 
