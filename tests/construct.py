@@ -198,8 +198,8 @@ def kvm_or_error(*checks):
     return [error("ValueError", 'accel="kvm"')]
 
 
-QMP = ["-chardev", "socket,id=pandare2-monitor,fd={fd}", "-mon", "chardev=pandare2-monitor,mode=control"]
-HMP = QMP[:3] + ["chardev=pandare2-monitor,mode=readline"]
+QMP = ["-chardev", "socket,id=pandare2-monitor,fd={fd}", "-object", "monitor-qmp,id=pandare2-qmp,chardev=pandare2-monitor"]
+HMP = QMP[:3] + ["monitor-hmp,id=pandare2-hmp,chardev=pandare2-monitor"]
 GENERIC_KVM = PRE + X86_IMG + ["-accel", "kvm", "-m", "1G"] + SERIAL
 CASES.update({
     "accel default": ({"generic": "{img}/x86.json"}, [attr("accel", "tcg"), no_warning()]),
@@ -277,7 +277,7 @@ def normalize(p, img):
     i = 0
     while i < len(args):
         a = args[i]
-        if a in ("-monitor", "-mon") or (a == "-chardev" and "pandare2-monitor" in args[i + 1]):
+        if a in ("-monitor", "-mon") or (a in ("-chardev", "-object") and "pandare2-monitor" in args[i + 1]):
             monitor += [a, args[i + 1]]
             i += 2
             continue
