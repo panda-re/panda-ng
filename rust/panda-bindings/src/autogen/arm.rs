@@ -33374,6 +33374,7 @@ pub struct CPUState {
     pub halted: u32,
     pub exception_index: i32,
     pub tcg_hook_ra: usize,
+    pub panda_block_pending: bool,
     pub uaccess_pend: CPUState__bindgen_ty_5,
     pub syscall_kmmu: u32,
     pub syscall_inject_abis: u32,
@@ -33385,7 +33386,6 @@ pub struct CPUState {
     pub ignore_memory_transaction_failures: bool,
     pub prctl_unalign_sigbus: bool,
     pub iommu_notifiers: *mut GArray,
-    pub __bindgen_padding_0: [u8; 8usize],
     pub neg_align: __IncompleteArrayField<::std::os::raw::c_char>,
     pub neg: CPUNegativeOffsetState,
 }
@@ -33567,27 +33567,29 @@ const _: () = {
         [::std::mem::offset_of!(CPUState, exception_index) - 704usize];
     ["Offset of field: CPUState::tcg_hook_ra"]
         [::std::mem::offset_of!(CPUState, tcg_hook_ra) - 712usize];
+    ["Offset of field: CPUState::panda_block_pending"]
+        [::std::mem::offset_of!(CPUState, panda_block_pending) - 720usize];
     ["Offset of field: CPUState::uaccess_pend"]
-        [::std::mem::offset_of!(CPUState, uaccess_pend) - 720usize];
+        [::std::mem::offset_of!(CPUState, uaccess_pend) - 728usize];
     ["Offset of field: CPUState::syscall_kmmu"]
-        [::std::mem::offset_of!(CPUState, syscall_kmmu) - 744usize];
+        [::std::mem::offset_of!(CPUState, syscall_kmmu) - 752usize];
     ["Offset of field: CPUState::syscall_inject_abis"]
-        [::std::mem::offset_of!(CPUState, syscall_inject_abis) - 748usize];
+        [::std::mem::offset_of!(CPUState, syscall_inject_abis) - 756usize];
     ["Offset of field: CPUState::syscall_current"]
-        [::std::mem::offset_of!(CPUState, syscall_current) - 752usize];
+        [::std::mem::offset_of!(CPUState, syscall_current) - 760usize];
     ["Offset of field: CPUState::vcpu_dirty"]
-        [::std::mem::offset_of!(CPUState, vcpu_dirty) - 760usize];
-    ["Offset of field: CPUState::accel"][::std::mem::offset_of!(CPUState, accel) - 768usize];
+        [::std::mem::offset_of!(CPUState, vcpu_dirty) - 768usize];
+    ["Offset of field: CPUState::accel"][::std::mem::offset_of!(CPUState, accel) - 776usize];
     ["Offset of field: CPUState::throttle_thread_scheduled"]
-        [::std::mem::offset_of!(CPUState, throttle_thread_scheduled) - 776usize];
+        [::std::mem::offset_of!(CPUState, throttle_thread_scheduled) - 784usize];
     ["Offset of field: CPUState::throttle_us_per_full"]
-        [::std::mem::offset_of!(CPUState, throttle_us_per_full) - 784usize];
+        [::std::mem::offset_of!(CPUState, throttle_us_per_full) - 792usize];
     ["Offset of field: CPUState::ignore_memory_transaction_failures"]
-        [::std::mem::offset_of!(CPUState, ignore_memory_transaction_failures) - 792usize];
+        [::std::mem::offset_of!(CPUState, ignore_memory_transaction_failures) - 800usize];
     ["Offset of field: CPUState::prctl_unalign_sigbus"]
-        [::std::mem::offset_of!(CPUState, prctl_unalign_sigbus) - 793usize];
+        [::std::mem::offset_of!(CPUState, prctl_unalign_sigbus) - 801usize];
     ["Offset of field: CPUState::iommu_notifiers"]
-        [::std::mem::offset_of!(CPUState, iommu_notifiers) - 800usize];
+        [::std::mem::offset_of!(CPUState, iommu_notifiers) - 808usize];
     ["Offset of field: CPUState::neg_align"]
         [::std::mem::offset_of!(CPUState, neg_align) - 816usize];
     ["Offset of field: CPUState::neg"][::std::mem::offset_of!(CPUState, neg) - 816usize];
@@ -34021,6 +34023,9 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn tcg_cflags_set(cpu: *mut CPUState, flags: u32);
+}
+unsafe extern "C" {
+    pub fn tcg_cflags_clear(cpu: *mut CPUState, flags: u32);
 }
 unsafe extern "C" {
     pub fn tb_invalidate_phys_range(
