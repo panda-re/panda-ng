@@ -21,7 +21,7 @@ import readline
 # stdio interactions later (e.g., pdb, input())  without segfaults
 
 from os.path import realpath, exists, abspath, isfile, dirname, isdir, join as pjoin
-from os import getenv, environ, path
+from os import getenv, environ, path, access, R_OK, W_OK
 from random import randint
 from tempfile import NamedTemporaryFile
 from time import time
@@ -38,6 +38,7 @@ from .qcows_internal import Qcows
 from .callbacks import unavailable, ABORTS, PASSTHROUGH
 from .arch import ArmArch, Aarch64Arch, Loongarch64, MipsArch, Mips64Arch, X86Arch, X86_64Arch, PowerPCArch, PowerPC64Arch, Riscv32Arch, Riscv64Arch
 from dataclasses import dataclass
+import warnings
 
 
 _WRAPPER_MAKERS = {}
@@ -143,6 +144,37 @@ def _engine_register(panda, is_global):
         _engines[panda.arch_name] = {"panda": panda, "global": is_global}
 
 
+ACCELS = ("tcg", "kvm")
+_HOST_ARCH = {"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64", "arm64": "aarch64"}
+
+
+def _accel_args(args):
+    '''The accelerators that a command line selects: [(index, name)] for each -accel NAME[,opts]
+    and -enable-kvm.'''
+    found = []
+    for i, a in enumerate(args):
+        if a in ("-accel", "--accel") and i + 1 < len(args):
+            found.append((i, args[i + 1].split(",")[0]))
+        elif a.startswith(("-accel=", "--accel=")):
+            found.append((i, a.split("=", 1)[1].split(",")[0]))
+        elif a in ("-enable-kvm", "--enable-kvm"):
+            found.append((i, "kvm"))
+    return found
+
+
+def _kvm_unavailable(arch):
+    '''Why accel="kvm" can't run an `arch` guest on this host, or None if it can.'''
+    if arch not in ("x86_64", "aarch64"):
+        return f"KVM runs x86_64 and aarch64 guests, not {arch}"
+    host = _HOST_ARCH.get(platform.machine().lower())
+    if host != arch:
+        return f"KVM runs guests of the host's arch: this host is {platform.machine()}, the guest {arch}"
+    if not access("/dev/kvm", R_OK | W_OK):
+        return ("/dev/kvm is missing, or this user can't read and write it (on most distributions, "
+                "add the user to the kvm group)")
+    return None
+
+
 class Panda():
     '''
     This is the object used to interact with PANDA. Initializing it creates a virtual machine to interact with.
@@ -165,6 +197,7 @@ class Panda():
             rr=False, # make the VM recordable (virtio kicks through the log); pass it to the replay too
             machine=None, # a pandare2.MachineBuilder: the machine to build (the configurable machine or an external board)
             modules=None, # panda modules (external board/device .so files) to load: -module PATH each
+            accel=None, # "tcg" (the default) or "kvm"
             ):
         '''
         Construct a new `Panda` object. A process has at most one `Panda` per arch, for its whole
@@ -184,6 +217,14 @@ class Panda():
             mem: size of memory for machine (e.g. "128M", "1G"). Default: the image's with
                     generic=, else "128M". It must match the RAM of a snapshot you load.
             rr: make the VM recordable (-accel tcg,thread=single,rr-ready=on). Pass it to a replay too: it needs the recording's command line.
+                    Not with accel="kvm" (ValueError): record and replay need TCG.
+            accel: the accelerator, "tcg" (the default) or "kvm". "kvm" runs the guest on the host
+                    CPU; it needs an x86_64 or aarch64 guest on a host of the same arch, with
+                    /dev/kvm readable and writable, or the constructor raises ValueError. Under KVM,
+                    the callbacks that instrument guest code and `record` raise
+                    NotImplementedError. Don't also pass -accel in extra_args (ValueError);
+                    `extra_args=["-accel", "kvm"]` without accel= still works, as accel="kvm",
+                    with a DeprecationWarning.
             expect_prompt: Regular expression describing the prompt exposed by the guest
                     on a serial console. Used so we know when a running command has finished
                     with its output.
@@ -246,6 +287,31 @@ class Panda():
             arch = "i386"
         if mem is None:
             mem = "128M"
+
+        # The accelerator: accel=, else an -accel in extra_args (the way to ask for KVM before
+        # accel=), else TCG. rr=True adds its own -accel.
+        given = _accel_args(extra_args)
+        if accel is not None:
+            if accel not in ACCELS:
+                raise ValueError(f"accel={accel!r}: expected one of {', '.join(map(repr, ACCELS))}")
+            if given:
+                raise ValueError(f"accel={accel!r} and {extra_args[given[0][0]]} in extra_args: "
+                                 f"choose the accelerator with accel= only")
+        elif given and given[0][1] == "kvm":
+            accel = "kvm"
+            warnings.warn('Panda(extra_args=["-accel", "kvm"]): use accel="kvm"', DeprecationWarning, stacklevel=2)
+        else:
+            accel = "tcg"
+        if rr and accel == "kvm":
+            raise ValueError("rr=True with KVM: record and replay need TCG")
+        if rr and given:
+            raise ValueError(f"rr=True and {extra_args[given[0][0]]} in extra_args: rr=True selects "
+                             f"the accelerator itself (-accel tcg,thread=single,rr-ready=on)")
+        if accel == "kvm":
+            why = _kvm_unavailable(arch)
+            if why:
+                raise ValueError(f'accel="kvm": {why}')
+        self.accel = accel
 
         self.arch_name = arch
         self.machine = machine
@@ -449,6 +515,8 @@ class Panda():
         # recording's command line, so pass rr=True to both.
         if rr:
             self.panda_args += ["-accel", "tcg,thread=single,rr-ready=on"]
+        elif accel == "kvm" and not given:
+            self.panda_args += ["-accel", "kvm"]
 
         # Configure memory options
         self.panda_args.extend(['-m', self.mem])

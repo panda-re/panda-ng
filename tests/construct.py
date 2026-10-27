@@ -9,15 +9,20 @@ Run: panda-python tests/construct.py [case...]      (default: every case)
   arguments aside, which `monitor=` changed on purpose), except that extra_args= now go after the
   image's rather than before (no test's arguments conflict with its image's);
 - generic: the image is the base and keywords override it; another arch raises ValueError. It
-  can be YAML (extra_args as a list here) or a dict, and its isf and kconf_file are kept.
+  can be YAML (extra_args as a list here) or a dict, and its isf and kconf_file are kept;
+- accel: "tcg" by default, "kvm" checked at construction (host arch, /dev/kvm; the cases expect
+  what this host can do), conflicts with -accel in extra_args and with rr=True raise, and the old
+  extra_args=["-accel", "kvm"] maps to accel="kvm" with a DeprecationWarning.
 """
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import warnings
 
 # Images like the ones pandare2.mkimage writes (tests/README.md), for three arches whose disks
 # are attached differently: x86_64 a bare qcow, aarch64 virtio-blk-pci under rr, riscv64 a virtio
@@ -156,6 +161,54 @@ CASES = {
     "generic missing": ({"generic": "{img}/none.json"}, [error("FileNotFoundError", "none.json")]),
 }
 
+HOST = {"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64", "arm64": "aarch64"}.get(platform.machine().lower())
+KVM_OK = HOST is not None and os.access("/dev/kvm", os.R_OK | os.W_OK)
+OTHER = "aarch64" if HOST == "x86_64" else "x86_64"     # a KVM arch that isn't this host's
+
+
+def warned(kind, *words):
+    return (f"warns {kind} ({', '.join(words)})",
+            lambda r: any(w[0] == kind and all(x in w[1] for x in words) for w in r.get("warnings", [])))
+
+
+def no_warning():
+    return ("no warning", lambda r: "error" not in r and not r.get("warnings"))
+
+
+def kvm_or_error(*checks):
+    """The checks if this host can run KVM for an x86_64 image, else the ValueError."""
+    if HOST == "x86_64" and KVM_OK:
+        return list(checks)
+    return [error("ValueError", 'accel="kvm"')]
+
+
+GENERIC_KVM = PRE + X86_IMG + ["-accel", "kvm", "-m", "1G"] + SERIAL
+CASES.update({
+    "accel default": ({"generic": "{img}/x86.json"}, [attr("accel", "tcg"), no_warning()]),
+    "accel tcg": ({"generic": "{img}/x86.json", "accel": "tcg"},
+                  [attr("accel", "tcg"), ("argv as without accel=", lambda r: r.get("argv") == LEGACY["generic"][1])]),
+    "accel kvm": ({"generic": "{img}/x86.json", "accel": "kvm"},
+                  kvm_or_error(attr("accel", "kvm"), ("argv has -accel kvm", lambda r: r.get("argv") == GENERIC_KVM),
+                               no_warning())),
+    "accel kvm legacy": ({"generic": "{img}/x86.json", "extra_args": ["-accel", "kvm"]},
+                         kvm_or_error(attr("accel", "kvm"), ("argv unchanged", lambda r: r.get("argv") == GENERIC_KVM),
+                                      warned("DeprecationWarning", 'accel="kvm"'))),
+    "accel tcg legacy": ({"generic": "{img}/x86.json", "extra_args": ["-accel", "tcg,thread=single"]},
+                         [attr("accel", "tcg"), argv_has("-accel", "tcg,thread=single"), no_warning()]),
+    "accel kvm arch": ({"arch": "mips", "accel": "kvm"}, [error("ValueError", 'accel="kvm"', "x86_64 and aarch64")]),
+    "accel kvm host": ({"arch": OTHER, "accel": "kvm"}, [error("ValueError", 'accel="kvm"', "host")]),
+    "accel bogus": ({"accel": "hvf"}, [error("ValueError", "hvf", "'tcg'")]),
+    "accel and -accel": ({"generic": "{img}/x86.json", "accel": "tcg", "extra_args": ["-accel", "kvm"]},
+                         [error("ValueError", "accel='tcg'", "-accel")]),
+    "accel and -enable-kvm": ({"generic": "{img}/x86.json", "accel": "kvm", "extra_args": ["-enable-kvm"]},
+                              [error("ValueError", "-enable-kvm")]),
+    "rr kvm": ({"generic": "{img}/x86.json", "rr": True, "accel": "kvm"}, [error("ValueError", "rr=True", "TCG")]),
+    "rr legacy kvm": ({"generic": "{img}/x86.json", "rr": True, "extra_args": ["-accel", "kvm"]},
+                      [error("ValueError", "rr=True")]),
+    "rr -accel": ({"generic": "{img}/x86.json", "rr": True, "extra_args": ["-accel", "tcg"]},
+                  [error("ValueError", "rr=True", "-accel")]),
+})
+
 
 def normalize(p, img):
     '''p.panda_args with the paths that differ between hosts as placeholders, and the monitor's
@@ -200,13 +253,17 @@ def child(spec):
         kwargs[k] = v
     res = {}
     try:
-        p = Panda(**kwargs)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            p = Panda(**kwargs)
+        res["warnings"] = [[x.category.__name__, str(x.message)] for x in w]
     except Exception as e:  # noqa: BLE001 - the case says which it wants
         res["error"] = [type(e).__name__, str(e)]
     else:
         res["argv"], res["monitor"] = normalize(p, img)
         res["attrs"] = {"arch": p.arch_name, "mem": p.mem, "os": p.os, "prompt": p.expect_prompt,
                         "qcow": p.qcow.replace(img, "{img}") if p.qcow else None,
+                        "accel": p.accel,
                         "isf": p.isf.replace(img, "{img}") if p.isf else None,
                         "kconf_file": p.kconf_file.replace(img, "{img}") if p.kconf_file else None}
         if "machine" in kwargs:
