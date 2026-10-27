@@ -44,11 +44,24 @@ bin_cp = find_program(
 # flake links them into local_packages/; without them the plugins are skipped rather than
 # failing the build.
 panda_ng_include = []
+panda_ng_dir = ''
 foreach d : ['local_packages', '/usr/local/include', '/usr/include']
     if panda_ng_include.length() == 0 and fs.exists(d / 'panda-ng')
         panda_ng_include = [include_directories(d)]
+        panda_ng_dir = d / 'panda-ng'
     endif
 endforeach
+
+# Each plugin links against its target's engine (libpanda-<target>.so), so it has a DT_NEEDED on
+# it and binds to it even when the engine is loaded RTLD_LOCAL next to another target's engine
+# (pandare2 does that). The engine is the lib/ next to the headers' include/ (the flake's
+# local_packages/panda-ng links to <engine>/include/panda-ng), unless engine_libdir says otherwise.
+engine_libdir = get_option('engine_libdir')
+if engine_libdir == '' and panda_ng_dir != ''
+    engine_libdir = run_command(python_exe, '-c',
+        'import os, sys; print(os.path.realpath(os.path.join(sys.argv[1], "..", "..", "lib")))',
+        meson.current_source_dir() / panda_ng_dir, check: true).stdout().strip()
+endif
 
 if panda_ng_include.length() > 0
     subdir('plugins')

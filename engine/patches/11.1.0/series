@@ -74,3 +74,4 @@
 11.1.0/0074-physmem-size-a-resizeable-RAM-block-s-maximum-indepe.patch
 11.1.0/0075-block-qcow2-drop-the-active-VM-state-before-a-savevm.patch
 11.1.0/0076-system-cpu-timers-a-snapshot-load-resets-the-ticks-m.patch
+11.1.0/0077-panda-link-a-plugin-interface-per-target-against-its.patch

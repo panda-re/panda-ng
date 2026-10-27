@@ -271,7 +271,15 @@ static bool _panda_load_plugin(const char *filename, const char *plugin_name, bo
 
     void *plugin = dlopen(filename, RTLD_NOW);
     if(!plugin) {
-        LOG_ERROR(PANDA_MSG_FMT "Failed to load %s: %s\n", PANDA_CORE_NAME, filename, dlerror());
+        const char *err = dlerror();
+        LOG_ERROR(PANDA_MSG_FMT "Failed to load %s: %s\n", PANDA_CORE_NAME, filename, err);
+        if (err && strstr(err, "undefined symbol")) {
+            // pandare2 loads engines RTLD_LOCAL, so a plugin finds the engine's symbols only
+            // through a DT_NEEDED on it.
+            LOG_ERROR(PANDA_MSG_FMT "A plugin must be linked against its engine "
+                      "(-l:libpanda-<target>.so, as panda-ng's plugins and the flake's "
+                      "buildPandaPlugin are) to resolve panda_* symbols\n", PANDA_CORE_NAME);
+        }
         return false;
     }
 

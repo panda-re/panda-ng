@@ -17,6 +17,7 @@ ubuntu-24.04 images (see
 | [Python API (pandare2)](#python) | supported | TCG | x86_64, aarch64, riscv64 |
 | [Callbacks](#callbacks) | supported | TCG | x86_64, aarch64, riscv64 |
 | [C and C++ plugins](#plugins) | supported | TCG | x86_64, aarch64, riscv64 |
+| [Several Pandas in one process](#multi-engine) | experimental | TCG | x86_64, aarch64 |
 | [Rust plugins](#rust) | experimental | TCG | **untested** |
 | [Operating system introspection](#osi) | supported | TCG | x86_64, aarch64, riscv64 |
 | [System calls](#syscalls) | supported | TCG | x86_64, aarch64, riscv64 |
@@ -86,6 +87,24 @@ headers (examples/consumer shows it).
 
 **Tests:** `tests/guest.py`
 
+
+<a id="multi-engine"></a>
+## Several Pandas in one process
+
+`Panda`s of different architectures can share a process and run one after the other, from any
+thread: each engine is loaded RTLD_LOCAL with a plugin interface and plugins linked against it,
+so nothing of one binds to the other.
+
+**Limits.** One `Panda` per architecture per process, and not at the same time: the engines share GLib's main
+context. A plugin built without a DT_NEEDED on its engine puts that engine in the global scope.
+
+**Use it:** `Panda.load_plugin`, `buildPandaPlugin`
+
+**Docs:** [docs/guides/plugins.md#writing-a-c-plugin](guides/plugins.md#writing-a-c-plugin)
+
+**Tests:** `tests/multi.py`
+
+**Engine patches:** 0077 ([series](reference/patches.md))
 
 <a id="rust"></a>
 ## Rust plugins

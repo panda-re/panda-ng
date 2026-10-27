@@ -2,7 +2,8 @@
 """Turn the pure-Python pandare2 wheel into a self-contained manylinux wheel.
 
 What it adds to the wheel (under pandare2/data/):
-  lib/             libpanda-<arch>-softmmu.so for each target, libpanda_plugin_interface.so
+  lib/             libpanda-<arch>-softmmu.so and libpanda_plugin_interface-<arch>-softmmu.so for
+                   each target, libpanda_plugin_interface.so
   plugins/         the PANDA plugins (the layout pandare2 and syscalls2 expect)
   share/qemu/      firmware, keymaps
   bin/panda-qemu   the qemu-system-<arch> launcher (console scripts exec it)
@@ -224,7 +225,9 @@ def repair(a, work):
     # resolves to one of these is a sibling in the wheel, never a library to bundle.
     shipped = {}
     engine = Path(a.engine)
-    for name in [f"libpanda-{arch}-softmmu.so" for arch in arches] + ["libpanda_plugin_interface.so"]:
+    for name in ([f"libpanda-{arch}-softmmu.so" for arch in arches]
+                 + [f"libpanda_plugin_interface-{arch}-softmmu.so" for arch in arches]
+                 + ["libpanda_plugin_interface.so"]):
         shutil.copy(engine / "lib" / name, data / "lib")
         shipped[(engine / "lib" / name).resolve()] = data / "lib" / name
     shutil.copytree(a.plugins, data / "plugins", symlinks=False)

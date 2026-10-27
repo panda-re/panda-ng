@@ -4,6 +4,8 @@
   - plugin a needs plugin b through RUNPATH $ORIGIN, and libpanda_plugin_interface.so through an
     absolute RUNPATH to the engine: both are shipped, so neither may be copied to pandare2.libs;
   - plugin b and the engine need libdep.so from outside: it is bundled once;
+  - plugin b and the per-arch plugin interface need the engine (through an absolute RUNPATH and
+    $ORIGIN): it is shipped, so it is not bundled, and their RUNPATHs reach it in the wheel;
   - every RUNPATH starts with $ORIGIN; the licenses and License-Expression are written;
   - loading a (which loads b) from the unpacked wheel maps b once.
 
@@ -52,9 +54,12 @@ def main():
     cc(eng / "lib" / "libpanda_plugin_interface.so", "int iface(void){return 1;}")
     cc(eng / "lib" / "libpanda-x86_64-softmmu.so", "int dep(void); int eng(void){return dep();}",
        f"-L{deps}", "-ldep", f"-Wl,-rpath,{deps}")
+    cc(eng / "lib" / "libpanda_plugin_interface-x86_64-softmmu.so", "int eng(void); int iface2(void){return eng();}",
+       f"-L{eng}/lib", "-l:libpanda-x86_64-softmmu.so", "-Wl,-rpath,$ORIGIN")
     (eng / "share" / "qemu" / "bios.bin").write_bytes(b"x")
-    cc(plug / "libpanda-b_x86_64-softmmu.so", "int dep(void); int b_value(void){return dep()+1;}",
-       f"-L{deps}", "-ldep", f"-Wl,-rpath,{deps}")
+    cc(plug / "libpanda-b_x86_64-softmmu.so", "int dep(void); int eng(void); int b_value(void){return dep()+1+eng()-eng();}",
+       f"-L{deps}", "-ldep", f"-Wl,-rpath,{deps}", f"-L{eng}/lib", "-l:libpanda-x86_64-softmmu.so",
+       f"-Wl,-rpath,{eng}/lib")
     cc(plug / "libpanda-a_x86_64-softmmu.so", "int b_value(void); int iface(void); int a_value(void){return b_value()+iface();}",
        f"-L{plug}", "-lpanda-b_x86_64-softmmu", f"-L{eng}/lib", "-lpanda_plugin_interface",
        "-Wl,-rpath,$ORIGIN", f"-Wl,-rpath,{eng}/lib")
@@ -107,6 +112,13 @@ def main():
         fails.append("plugin a must keep needing its in-wheel siblings by name")
     if "Library runpath: [$ORIGIN:$ORIGIN/../../../pandare2.libs:$ORIGIN/../lib]" not in da:
         fails.append("plugin a's RUNPATH should be $ORIGIN, the libs dir and ../lib")
+    db = dyn(x / "pandare2" / "data" / "plugins" / "libpanda-b_x86_64-softmmu.so")
+    if ("[libpanda-x86_64-softmmu.so]" not in db
+            or "Library runpath: [$ORIGIN:$ORIGIN/../../../pandare2.libs:$ORIGIN/../lib]" not in db):
+        fails.append(f"plugin b must need the shipped engine by name, through ../lib: {db}")
+    di = dyn(x / "pandare2" / "data" / "lib" / "libpanda_plugin_interface-x86_64-softmmu.so")
+    if "[libpanda-x86_64-softmmu.so]" not in di:
+        fails.append(f"the per-arch interface must need the shipped engine by name: {di}")
     for p in x.rglob("*"):
         if p.is_file() and not p.is_symlink() and p.read_bytes()[:4] == b"\x7fELF":
             for l in dyn(p).splitlines():

@@ -256,7 +256,11 @@
               };
               inherit (pluginTools) nativeBuildInputs buildInputs;
               NIX_CFLAGS_COMPILE = "-std=c++17";
-              mesonFlags = [ (lib.mesonOption "targets" (lib.concatStringsSep "," defaultTargets)) ];
+              mesonFlags = [
+                (lib.mesonOption "targets" (lib.concatStringsSep "," defaultTargets))
+                # Each plugin links against its target's engine (DT_NEEDED + RUNPATH).
+                (lib.mesonOption "engine_libdir" "${engine}/lib")
+              ];
               preConfigure = ''
                 mkdir -p local_packages
                 ln -s ${engine}/include/panda-ng local_packages/panda-ng
@@ -654,9 +658,12 @@
                 runHook preBuild
                 for t in ${lib.concatStringsSep " " targets}; do
                   T=$(echo $t | tr a-z A-Z)
+                  # Linked against its target's engine, so it binds to it when pandare2 loads
+                  # the engine RTLD_LOCAL.
                   $CC -shared -fPIC -O2 -o libpanda-${pname}_$t-softmmu.so *.c \
                     -I${pluginSdk}/include -I${pluginSdk}/include/plugins \
                     -DPANDA_TGT=$t -DTARGET_$T=1 -DPLUGIN_NAME='"${pname}"' -D_GNU_SOURCE \
+                    -L${engine}/lib -l:libpanda-$t-softmmu.so -Wl,-rpath,${engine}/lib \
                     $(pkg-config --cflags --libs glib-2.0) ${extraCFlags}
                 done
                 runHook postBuild
@@ -958,7 +965,8 @@
             touch $out
           '';
           # More than one Panda in a process (tests/multi.py, firmware only): run() from a thread
-          # lets the process exit.
+          # lets the process exit; two arches run one after the other with their plugins bound to
+          # their own engines.
           pandare2-multi = pkgs.runCommand "pandare2-multi-check" { } ''
             ${p.pandaPython}/bin/python3 ${./tests/multi.py} > log 2>&1 || { cat log; exit 1; }
             cat log
