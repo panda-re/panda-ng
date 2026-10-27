@@ -193,14 +193,14 @@ def run(arch):
         elif op == 3:
             pending = L["pending"]
             if L.get("pending_env"):
-                # GAP, not FAIL: pandare2's cffi view of CPUPPCState reads pending_interrupts
-                # and irq_input_state as 0 here, while the engine has the line raised
-                # (-trace ppc_irq_set: "irq 0x00008 level 1 => pending 0x00000008" right after
-                # the IER write). The cffi struct layout for ppc is suspect; see the report.
+                # The CPU has no guest-readable pending register: read the engine's own state
+                # (pandare2's cffi view of CPUPPCState, which tests/static/layout.py checks
+                # against gcc's layout).
                 env = panda.arch.cpu_env(cpu)
-                print(f"  GAP UART interrupt pending at the CPU: cffi env.pending_interrupts="
-                      f"{env.pending_interrupts:#x} irq_input_state={env.irq_input_state:#x} "
-                      "(engine trace shows it pending)", flush=True)
+                check("UART interrupt wired to the CPU: pending at the CPU (env.pending_interrupts)",
+                      env.pending_interrupts & pending,
+                      f"pending_interrupts={env.pending_interrupts:#x} want bit {pending:#x}, "
+                      f"irq_input_state={env.irq_input_state:#x}")
             else:
                 check("UART interrupt wired to the CPU: pending at the CPU", b & pending,
                       f"{b:#x} want bit {pending:#x}")
