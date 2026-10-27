@@ -3,7 +3,10 @@
  * fuzzing loops. No disk state.
  *
  * Device state: the devices' vmstate (every non-iterable savevm section, no RAM) in a buffer,
- * loaded after a system reset, as COLO checkpoints do.
+ * loaded over the devices as they are, after RAM. No system reset first (COLO and loadvm reset):
+ * the load sets every field a section carries, and a reset cost more than the rest of the restore
+ * (14 ms of 37 on debian-13-aarch64) while changing nothing a re-save of the devices can see.
+ * Device loads may read guest RAM (virtio_load reads the rings), so RAM goes back first.
  *
  * RAM: the snapshot keeps a copy of every RAM block. A restore copies back only the target pages
  * written since the last snapshot or restore. Those come from QEMU's DIRTY_MEMORY_MIGRATION bitmap,
@@ -34,9 +37,9 @@
  * TCG only (KVM/HVF keep their own dirty state; clearing the bitmap here doesn't re-protect their
  * pages), and not under record/replay (a restore rewrites RAM and devices outside the log).
  *
- * Blocks the bitmap can't vouch for are compared page by page instead: ROM devices (pflash in I/O
- * mode writes its storage directly, unlogged) and blocks that aren't migratable (the DMA path
- * doesn't log them).
+ * Blocks the bitmap can't vouch for are compared page by page instead: ROM devices other than
+ * pflash (pflash logs its storage writes; other models may write theirs directly, unlogged), and
+ * blocks that aren't migratable (the DMA path doesn't log them).
  *
  * Cost when no fast snapshot exists: none. Nothing is armed, every page's migration bit stays set
  * from RAM creation (and TCG's store path keeps setting it), so no TLB entry gets TLB_NOTDIRTY for
@@ -69,6 +72,7 @@
 #include "exec/translation-block.h"
 #include "hw/core/cpu.h"
 #include "hw/core/panda-modules.h"
+#include "hw/block/flash.h"
 #ifdef TARGET_ARM
 #include "target/arm/internals.h"
 #endif
@@ -100,13 +104,17 @@ static struct {
     const char *last_why;       /* why the last full restore was full */
     uint64_t last_snap_pages;   /* pages copied by the last snapshot */
     const char *last_snap_mode; /* incremental, full, or compare */
-    int64_t last_reset_us, last_ram_us, last_dev_us;  /* the last restore's parts */
+    int64_t last_ram_us, last_dev_us;  /* the last restore's parts */
 } fast_stats;
 
 static size_t page_size(void) { return qemu_target_page_size(); }
 
+/* A pflash logs its storage writes (they go through the model, which marks them dirty). */
 static bool block_trackable(RAMBlock *rb) {
-    return qemu_ram_is_migratable(rb) && !rb->mr->rom_device;
+    return qemu_ram_is_migratable(rb) &&
+           (!rb->mr->rom_device ||
+            object_dynamic_cast(rb->mr->owner, TYPE_PFLASH_CFI01) ||
+            object_dynamic_cast(rb->mr->owner, TYPE_PFLASH_CFI02));
 }
 
 /* A page's RAM changed under its TBs: invalidate them if it has any (as invalidate_and_set_dirty). */
@@ -453,7 +461,7 @@ int panda_fast_snap(void) {
 
 int panda_fast_restore(void) {
     bool full, unlogged;
-    int64_t t0, t1, t2;
+    int64_t t0, t1;
     uint64_t pages = 0;
 
     if (!fast_supported("panda_fast_restore")) {
@@ -481,13 +489,10 @@ int panda_fast_restore(void) {
     }
 
     /*
-     * Reset first, then RAM: reset re-copies ROM blobs that live in RAM (rom_reset), e.g. the
-     * arm virt DTB at the base of RAM, which the guest has reused by now. loadvm does the same
-     * (reset, then the RAM section). Those writes are logged, so the walk below undoes them.
+     * RAM, then devices, and no system reset (see the top of this file): a device's load may read
+     * guest RAM (virtio_load checks the rings' indices), so RAM must be the snapshot's first.
      */
     t0 = g_get_monotonic_time();
-    qemu_system_reset(SHUTDOWN_CAUSE_SNAPSHOT_LOAD);
-    t1 = g_get_monotonic_time();
 
     if (full) {
         for (guint i = 0; i < fast_blocks->len; i++) {
@@ -519,25 +524,25 @@ int panda_fast_restore(void) {
         fast_tlb_rearm();
         fast_stats.last_mode = "dirty";
     }
-    t2 = g_get_monotonic_time();
+    t1 = g_get_monotonic_time();
     fast_stats.restores++;
     fast_stats.last_pages = pages;
     fast_stats.last_full = full;
 
     if (fast_load_devices() < 0) {
-        /* RAM is the snapshot's; devices are as the reset left them. */
+        /* Devices are half loaded: put them in a defined state. RAM stays the snapshot's. */
         error_report("panda_fast_restore: device state failed to load; the VM is reset");
+        qemu_system_reset(SHUTDOWN_CAUSE_SNAPSHOT_LOAD);
         return -1;
     }
-    fast_stats.last_reset_us = t1 - t0;
-    fast_stats.last_ram_us = t2 - t1;
-    fast_stats.last_dev_us = g_get_monotonic_time() - t2;
+    fast_stats.last_ram_us = t1 - t0;
+    fast_stats.last_dev_us = g_get_monotonic_time() - t1;
 #ifdef TARGET_ARM
     CPUState *cs;
     /*
      * Recompute the generic timers once every device (the GIC) is loaded, as the KVM->TCG
-     * handoff in target/arm/machine.c does. Not what fixed the aarch64 hang (that was the DTB
-     * the reset wrote over RAM), but cheap insurance that a timer that had fired drives its line.
+     * handoff in target/arm/machine.c does: cheap insurance that a timer that had fired drives
+     * its line.
      */
     CPU_FOREACH(cs) {
         arm_gt_recalc_el1_timers(ARM_CPU(cs));
@@ -605,17 +610,18 @@ const char *panda_fast_info(void) {
                  "snaps=%" PRIu64 " restores=%" PRIu64 " full_restores=%" PRIu64
                  " compare_restores=%" PRIu64
                  " last_pages=%" PRIu64 " last_full=%d last_mode=%s last_why=%s"
-                 " last_us=%" PRId64 ",%" PRId64 ",%" PRId64
+                 " last_us=%" PRId64 ",%" PRId64
                  " last_snap_pages=%" PRIu64 " last_snap_mode=%s"
-                 " tracking=%d unlogged=%d blocks=%s",
+                 " dev_bytes=%zu tracking=%d unlogged=%d blocks=%s",
                  fast_stats.snaps, fast_stats.restores, fast_stats.full_restores,
                  fast_stats.compare_restores,
                  fast_stats.last_pages, fast_stats.last_full,
                  fast_stats.last_mode ? fast_stats.last_mode : "-",
                  fast_stats.last_why ? fast_stats.last_why : "-",
-                 fast_stats.last_reset_us, fast_stats.last_ram_us, fast_stats.last_dev_us,
+                 fast_stats.last_ram_us, fast_stats.last_dev_us,
                  fast_stats.last_snap_pages,
                  fast_stats.last_snap_mode ? fast_stats.last_snap_mode : "-",
+                 fast_dev_len,
                  same && fast_valid && (global_dirty_tracking & GLOBAL_DIRTY_DIRTY_RATE) &&
                  fast_sentinels_ok(),
                  vhost_has_unlogged_dev(), fast_blocks && !same ? "changed" : "");
