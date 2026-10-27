@@ -1,0 +1,119 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 27 Oct 2026 12:23:20 -0400
+Subject: [PATCH] hw/block/pflash: log storage writes in the dirty bitmap
+
+A pflash is a ROM device: in read mode the guest reads its storage as RAM,
+and every write goes through the model (pflash_write), which programs or
+erases the storage with memcpy/memset and never marks it dirty. Anything
+that copies back only dirty pages therefore cannot vouch for a pflash block.
+panda_fast_restore compared both of them page by page on every restore
+instead: on -M virt with -bios (two 64 MiB pflash) that is 128 MiB of memcmp
+per restore, ~21 ms of a 37 ms restore on debian-13-aarch64 whatever the
+guest wrote (median of 500 restores).
+
+Mark the storage dirty where the models change it (cfi01: a direct program,
+a block-buffer commit, a block erase; cfi02: a program, a sector erase, a
+chip erase), as a store to RAM would be. Writes are rare (firmware variable
+updates), so the cost is nothing in practice; migration and the dirty-rate
+tracker see them too.
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
+---
+ hw/block/pflash_cfi01.c | 15 +++++++++++++++
+ hw/block/pflash_cfi02.c | 13 +++++++++++++
+ 2 files changed, 28 insertions(+)
+
+diff --git a/hw/block/pflash_cfi01.c b/hw/block/pflash_cfi01.c
+index dc9d712bbc7af1608b1576139efcf27ed4af903d..34e689f4920298d6b4f81fe692e42da3a4a4f5fb 100644
+--- a/hw/block/pflash_cfi01.c
++++ b/hw/block/pflash_cfi01.c
+@@ -401,6 +401,16 @@ static void pflash_update(PFlashCFI01 *pfl, int offset,
+     }
+ }
+ 
++/*
++ * The storage changed under the ROM device's RAM: log it in the dirty bitmap as a store to RAM
++ * would be. The guest's writes reach the storage through this model, never directly, so without
++ * this nothing that copies back only dirty pages (migration, in-memory snapshots) sees them.
++ */
++static void pflash_storage_changed(PFlashCFI01 *pfl, hwaddr offset, hwaddr size)
++{
++    memory_region_set_dirty(&pfl->mem, offset, size);
++}
++
+ /* copy current flash content to block update buffer */
+ static void pflash_blk_write_start(PFlashCFI01 *pfl, hwaddr offset)
+ {
+@@ -419,6 +429,7 @@ static void pflash_blk_write_flush(PFlashCFI01 *pfl)
+     trace_pflash_write_block_flush(pfl->name);
+     memcpy(pfl->storage + pfl->blk_offset, pfl->blk_bytes,
+            pfl->writeblock_size);
++    pflash_storage_changed(pfl, pfl->blk_offset, pfl->writeblock_size);
+     pflash_update(pfl, pfl->blk_offset, pfl->writeblock_size);
+     pfl->blk_offset = -1;
+ }
+@@ -456,6 +467,9 @@ static inline void pflash_data_write(PFlashCFI01 *pfl, hwaddr offset,
+     } else {
+         stn_le_p(p, width, value);
+     }
++    if (pfl->blk_offset == -1) {
++        pflash_storage_changed(pfl, offset, width);
++    }
+ }
+ 
+ static void pflash_write(PFlashCFI01 *pfl, hwaddr offset,
+@@ -490,6 +504,7 @@ static void pflash_write(PFlashCFI01 *pfl, hwaddr offset,
+ 
+             if (!pfl->ro) {
+                 memset(p + offset, 0xff, pfl->sector_len);
++                pflash_storage_changed(pfl, offset, pfl->sector_len);
+                 pflash_update(pfl, offset, pfl->sector_len);
+             } else {
+                 pfl->status |= 0x20; /* Block erase error */
+diff --git a/hw/block/pflash_cfi02.c b/hw/block/pflash_cfi02.c
+index 6f952fe7de09cd77e48464c9a462acac509cba9c..dc4f5db97b871f0c1dad9d69886fd7119f75caa0 100644
+--- a/hw/block/pflash_cfi02.c
++++ b/hw/block/pflash_cfi02.c
+@@ -391,6 +391,16 @@ static uint64_t pflash_read(void *opaque, hwaddr offset, unsigned int width)
+ }
+ 
+ /* update flash content on disk */
++/*
++ * The storage changed under the ROM device's RAM: log it in the dirty bitmap as a store to RAM
++ * would be. The guest's writes reach the storage through this model, never directly, so without
++ * this nothing that copies back only dirty pages (migration, in-memory snapshots) sees them.
++ */
++static void pflash_storage_changed(PFlashCFI02 *pfl, hwaddr offset, hwaddr size)
++{
++    memory_region_set_dirty(&pfl->orig_mem, offset, size);
++}
++
+ static void pflash_update(PFlashCFI02 *pfl, int offset, int size)
+ {
+     int offset_end;
+@@ -419,6 +429,7 @@ static void pflash_sector_erase(PFlashCFI02 *pfl, hwaddr offset)
+     if (!pfl->ro) {
+         uint8_t *p = pfl->storage;
+         memset(p + offset, 0xff, sector_len);
++        pflash_storage_changed(pfl, offset, sector_len);
+         pflash_update(pfl, offset, sector_len);
+     }
+     set_dq7(pfl, 0x00);
+@@ -556,6 +567,7 @@ static void pflash_write(void *opaque, hwaddr offset, uint64_t value,
+                     uint64_t current = ldn_le_p(p, width);
+                     stn_le_p(p, width, current & value);
+                 }
++                pflash_storage_changed(pfl, offset, width);
+                 pflash_update(pfl, offset, width);
+             }
+             /*
+@@ -616,6 +628,7 @@ static void pflash_write(void *opaque, hwaddr offset, uint64_t value,
+             trace_pflash_chip_erase_start(pfl->name);
+             if (!pfl->ro) {
+                 memset(pfl->storage, 0xff, pfl->chip_len);
++                pflash_storage_changed(pfl, 0, pfl->chip_len);
+                 pflash_update(pfl, 0, pfl->chip_len);
+             }
+             set_dq7(pfl, 0x00);

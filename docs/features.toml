@@ -230,7 +230,7 @@ api = ["c:panda_fast_snap", "c:panda_fast_restore", "c:panda_fast_delete"]
 docs = ["docs/guides/snapshots.md#fast-restore"]
 tests = ["tests/fastrestore.py", "tests/fastrestore_guards.py", "tests/fastrestore_hotplug.py",
          "tests/fastrestore_vsock.py", "tests/fuzz.py"]
-patches = ["0055-0057", "0060", "0064", "0076"]
+patches = ["0055-0057", "0060", "0064", "0076", "0079-0081"]
 
 [[feature]]
 id = "kvm"

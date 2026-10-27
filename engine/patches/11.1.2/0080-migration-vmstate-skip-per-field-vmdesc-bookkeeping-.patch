@@ -1,0 +1,72 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 27 Oct 2026 12:25:49 -0400
+Subject: [PATCH] migration/vmstate: skip per-field vmdesc bookkeeping when
+ there is no vmdesc
+
+Saving a VMSD without a JSON writer still paid for one on every field of
+every array element: vmsd_desc_field_start() computed vmsd_can_compress()
+(recursing over a struct's fields) before testing vmdesc for NULL, and
+vmstate_save_field_with_vmdesc() bracketed each field with two
+qemu_file_transferred() calls for a byte count only vmsd_desc_field_end()
+reads, which also returns at once without a vmdesc.
+
+qemu_save_device_state() (panda_fast_snap, COLO) passes no vmdesc. Test
+vmdesc first, and read the transferred bytes only when something consumes
+them. No change in behaviour on either path.
+
+From rehosting/qemu_builder workspace/fastsnap2 (5170d14), patch 0016,
+where a callgrind profile put this bookkeeping at ~19% of a device save's
+instructions.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: penguin
+---
+ migration/vmstate.c | 17 +++++++++++++----
+ 1 file changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/migration/vmstate.c b/migration/vmstate.c
+index 50ebe37845285d7cc1d427d35a261dff58b914b7..4a5ed6e0452dd8b6bd9b9c8e37fba0f167443915 100644
+--- a/migration/vmstate.c
++++ b/migration/vmstate.c
+@@ -493,12 +493,14 @@ static void vmsd_desc_field_start(const VMStateDescription *vmsd,
+ {
+     char *name, *old_name;
+     bool is_array = max > 1;
+-    bool can_compress = vmsd_can_compress(field);
++    bool can_compress;
+ 
+     if (!vmdesc) {
+         return;
+     }
+ 
++    can_compress = vmsd_can_compress(field);
++
+     name = g_strdup(field->name);
+ 
+     /* Field name is not unique, need to make it unique */
+@@ -605,14 +607,21 @@ vmstate_save_field_with_vmdesc(QEMUFile *f, void *pv, size_t size,
+                                const VMStateField *field, JSONWriter *vmdesc,
+                                int i, int max, Error **errp)
+ {
+-    uint64_t old_offset, written_bytes;
++    uint64_t old_offset = 0, written_bytes = 0;
+     bool ok;
+ 
+     vmsd_desc_field_start(vmsd, vmdesc, field, i, max);
+ 
+-    old_offset = qemu_file_transferred(f);
++    /* written_bytes is consumed only by vmsd_desc_field_end(), which returns
++     * immediately without a vmdesc. Without this guard both queries run for
++     * every element of every array on a path that cannot use the answer. */
++    if (vmdesc) {
++        old_offset = qemu_file_transferred(f);
++    }
+     ok = vmstate_save_field(f, pv, size, field, vmdesc, errp);
+-    written_bytes = qemu_file_transferred(f) - old_offset;
++    if (vmdesc) {
++        written_bytes = qemu_file_transferred(f) - old_offset;
++    }
+ 
+     vmsd_desc_field_end(vmsd, vmdesc, field, written_bytes);
+ 
