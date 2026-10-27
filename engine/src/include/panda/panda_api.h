@@ -126,9 +126,10 @@ int64_t panda_fast_verify(void);
  * snaps, restores, full_restores, compare_restores, last_pages (pages the last restore copied),
  * last_full, last_mode (dirty|full|compare), last_why (why the last full restore was full:
  * loadvm, precopy, log-stop, flag, sentinel, untracked, ...), last_us (the last restore's
- * reset,RAM,devices in microseconds), last_snap_pages, last_snap_mode (incremental|full|compare),
- * tracking, unlogged (a vhost device that can't log exists), blocks (id:bytes:dirty|compare, or
- * "changed" when RAM blocks changed since the snapshot).
+ * RAM,devices parts in microseconds), last_snap_pages, last_snap_mode (incremental|full|compare),
+ * dev_bytes (the snapshot's device state), tracking, unlogged (a vhost device that can't log
+ * exists), blocks (id:bytes:dirty|compare, or "changed" when RAM blocks changed since the
+ * snapshot).
  */
 const char *panda_fast_info(void);
 

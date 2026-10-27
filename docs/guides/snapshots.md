@@ -66,8 +66,15 @@ fast restore itself.
 The other calls: `panda_fast_delete()` frees the snapshot and stops dirty tracking;
 `panda_fast_verify()` compares all RAM with the snapshot and returns the number of pages that
 differ (0 right after a restore; a test aid, it reads all RAM); `panda_fast_info()` returns
-counters as `key=value` text, such as `restores`, `full_restores`, `last_pages` and `last_mode`.
+counters as `key=value` text, such as `restores`, `full_restores`, `last_pages`, `last_mode` and
+`last_us` (the last restore's RAM and device parts, in microseconds).
 `engine/src/include/panda/panda_api.h` documents each.
+
+A restore copies back the RAM pages written since (a pflash's storage counts: its writes are
+logged like stores to RAM), then loads the device state over the devices as they are; it does not
+reset the machine first, as `loadvm` does. On debian-13-aarch64 a restore took 37 ms (median of
+500) before these two changes and ~1.8 ms in a 30-restore check after them, most of it the device
+load. The second figure is a smoke check on a busy host, not a timing run.
 
 ### Limits
 
