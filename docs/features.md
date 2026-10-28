@@ -66,7 +66,12 @@ callbacks see device (MMIO) accesses too, with the device register's physical ad
 engine.
 
 **Limits.** Callbacks need TCG. Some declared callbacks have no call site yet or abort at registration; the
-reference says which. A registered memory callback (`mmio_after_read` and `mmio_before_write`
+reference says which. Block execution uses `start_block_exec` at entry and
+`end_block_exec` at normal completion, before outgoing transfers; chaining stays enabled.
+Faults and early exits have no end event. `before_block_exec` and `after_block_exec` are
+compatibility spellings at those boundaries. First enable and last disable flush translations;
+fully disabled block callbacks leave no helper or gate. Entry-only callbacks preserve PC-relative
+sharing; end callbacks bind source addresses so they remain identifiable after the PC advances. A registered memory callback (`mmio_after_read` and `mmio_before_write`
 included) instruments every load or store even while disabled. While enabled, a physical one or
 `mmio_before_write` costs an address lookup per access, and any before-access one a TLB lookup
 per access in the middle of a block (QEMU rewinds a device access there and runs it again; the
@@ -80,9 +85,9 @@ instead of raising); QEMU's own readers perform a device access.
 
 **Docs:** [docs/guides/python.md#callbacks](guides/python.md#callbacks), [docs/reference/callbacks.md](reference/callbacks.md)
 
-**Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/mmio.py`, `tests/physmem.py`
+**Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/block_activation.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/mmio.py`, `tests/physmem.py`
 
-**Engine patches:** 0031, 0035, 0042-0044, 0046-0049, 0053-0054, 0058-0059, 0065, 0082 ([series](reference/patches.md))
+**Engine patches:** 0031, 0035, 0042-0044, 0046-0049, 0053-0054, 0058-0059, 0065, 0082-0083 ([series](reference/patches.md))
 
 <a id="plugins"></a>
 ## C and C++ plugins

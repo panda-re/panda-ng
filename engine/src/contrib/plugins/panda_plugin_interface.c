@@ -19,42 +19,14 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
 QEMU_PLUGIN_EXPORT int (*external_plugin_install)(qemu_plugin_id_t id, const qemu_info_t *info,int argc, char **argv);
 
 
-// A block starts: panda_block_start ends the one before it and runs the block-exec callbacks.
-// Conditional on the gate: registered callbacks that are all disabled cost a compare per block.
-static struct qemu_plugin_scoreboard *gate_sb;
-static qemu_plugin_u64 gate;
-
 static void block_start_cb(unsigned int cpu_index, void *udata)
 {
-    panda_block_start(panda_cpu_by_index(cpu_index), (TranslationBlock *) udata);
+    panda_block_start(panda_cpu_by_index(cpu_index), (TranslationBlock *)udata);
 }
 
-// cpu_index -1: every vCPU's gate (PANDA opens them all at once and closes each lazily, from the
-// vCPU's own block start; see panda_bridge_set_block_gate)
-static void set_gate(int cpu_index, uint64_t on)
+static void block_end_cb(unsigned int cpu_index, void *udata)
 {
-    if (cpu_index >= 0) {
-        qemu_plugin_u64_set(gate, cpu_index, on);
-        return;
-    }
-    for (int i = 0; i < qemu_plugin_num_vcpus(); i++) {
-        qemu_plugin_u64_set(gate, i, on);
-    }
-}
-
-static void vcpu_init(unsigned int cpu_index, void *userdata)
-{
-    qemu_plugin_u64_set(gate, cpu_index, panda_block_gate());
-}
-
-static void vcpu_idle_or_exit(unsigned int cpu_index, void *userdata)
-{
-    panda_end_block_flush(panda_cpu_by_index(cpu_index));
-}
-
-static void code_flushed(void *userdata)
-{
-    panda_end_block_drop_all();
+    panda_block_end(panda_cpu_by_index(cpu_index), (TranslationBlock *)udata);
 }
 
 static void insn_exec(unsigned int cpu_index, void *udata)
@@ -167,12 +139,10 @@ static void cov_exec(unsigned int cpu_index, void *udata)
     *prev = cur >> 1;
 }
 
-// Instruments only for the PANDA callbacks registered (panda_bridge_wants): with none, a TB gets
-// no callbacks and its address is never read, so a CF_PCREL TB stays shared between the virtual
-// addresses that map it. Block callbacks don't read it either (they get the block's address from
-// panda_tb_pc); reading an instruction's address (insn_translate, memory callbacks) binds the TB
-// to it (patch 0035): those callbacks are keyed by address. Callbacks get synced registers
-// (RW_REGS): PANDA plugins read and write the CPU state directly.
+// Instrument only the requested event set. Entry/end requests follow enable
+// state: with neither enabled there is no block helper or gate. Entry-only
+// callbacks retain PCREL sharing; end observers bind their source address.
+// Register access uses RW_REGS because PANDA callbacks expose CPUState.
 static void vcpu_tb_trans(struct qemu_plugin_tb *tb, void *userdata)
 {
     CPUState *cpu = panda_cpu_in_translate();
@@ -204,9 +174,18 @@ static void vcpu_tb_trans(struct qemu_plugin_tb *tb, void *userdata)
     }
 
     TranslationBlock *real_tb = panda_get_tb(tb);
+    if (wants & PANDA_BRIDGE_END) {
+        /* End observers need the source address after the live PC advances.
+         * Entry-only observers retain upstream PCREL sharing. */
+        (void)qemu_plugin_tb_vaddr(tb);
+    }
     if (wants & PANDA_BRIDGE_BLOCK) {
-        qemu_plugin_register_vcpu_tb_exec_cond_cb(tb, block_start_cb, QEMU_PLUGIN_CB_RW_REGS,
-                                                  QEMU_PLUGIN_COND_NE, gate, 0, real_tb);
+        qemu_plugin_register_vcpu_tb_exec_cb(tb, block_start_cb, QEMU_PLUGIN_CB_RW_REGS,
+                                             real_tb);
+    }
+    if (wants & PANDA_BRIDGE_END) {
+        qemu_plugin_register_vcpu_tb_end_cb(tb, block_end_cb, QEMU_PLUGIN_CB_RW_REGS,
+                                            real_tb);
     }
 
     panda_callbacks_block_translate(cpu, tb);
@@ -225,13 +204,6 @@ static void vcpu_tb_trans(struct qemu_plugin_tb *tb, void *userdata)
 QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id, const qemu_info_t *info,
                         int argc, char **argv)
 {
-    gate_sb = qemu_plugin_scoreboard_new(sizeof(uint64_t));
-    gate = qemu_plugin_scoreboard_u64(gate_sb);
-    qemu_plugin_register_vcpu_init_cb(id, vcpu_init, NULL);
-    panda_bridge_set_block_gate(set_gate);
     qemu_plugin_register_vcpu_tb_trans_cb(id, vcpu_tb_trans, NULL);
-    qemu_plugin_register_vcpu_idle_cb(id, vcpu_idle_or_exit, NULL);
-    qemu_plugin_register_vcpu_exit_cb(id, vcpu_idle_or_exit, NULL);
-    qemu_plugin_register_flush_cb(id, code_flushed, NULL);
     return 0;
 }

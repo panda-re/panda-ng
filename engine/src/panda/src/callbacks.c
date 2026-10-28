@@ -729,23 +729,15 @@ static void panda_cb_retire(panda_cb_list *node)
     call_rcu(r, panda_cb_retired_free, rcu);
 }
 
-/*
- * A callback list changed. Code the TCG bridge instruments is decided at translation, by what is
- * registered then (panda_bridge_wants, panda_memcb_rw): block-exec callbacks get a block-start
- * call, insn_translate asks per instruction for insn_exec, memory callbacks get before/after access
- * calls. So when that shape changes (the first such callback registered, the last one gone, a
- * memory callback's before/after side added), every TB translated before is flushed: it would
- * otherwise go on running without the instrumentation (callbacks registered late missed code
- * already translated) or with instrumentation nobody wants. Enabling and disabling don't change
- * the shape (the bridge's gate and the lists' enabled flags handle them). Only list changes pay.
- */
+/* Block-entry/end code is selected from enabled callbacks. First enable and
+ * last disable change the translation shape and request a flush, including
+ * callbacks enabled after old uninstrumented blocks have been cached. */
 static unsigned panda_tb_shape;
 
 static unsigned panda_translation_shape(void)
 {
-    /* No TB_PC term: block callbacks no longer bind TBs (panda_tb_pc), so a late after_block_translate,
-     * before_tcg_codegen or cpu_restore_state needs no flush. */
-    return (panda_bridge_wants() & (PANDA_BRIDGE_INSN | PANDA_BRIDGE_BLOCK))
+    /* Block shape also controls virtual-address binding for its observers. */
+    return (panda_bridge_wants() & (PANDA_BRIDGE_INSN | PANDA_BRIDGE_BLOCK | PANDA_BRIDGE_END))
            | (unsigned) panda_memcb_rw(false) << 8
            | (unsigned) panda_memcb_rw(true) << 16;
 }
@@ -764,9 +756,11 @@ static void panda_cb_list_changed(panda_cb_type type, bool was_registered)
             qatomic_and(&panda_loop_hooks, ~PANDA_LOOP_EXCEPTION);
         }
     }
-    if (panda_is_block_cb_type(type)) {
-        panda_block_cbs_changed();
-    }
+}
+
+void panda_block_cbs_changed(void)
+{
+    panda_cb_list_changed(PANDA_CB_START_BLOCK_EXEC, true);
 }
 
 void panda_register_callback(void *plugin, panda_cb_type type, panda_cb cb)

@@ -5,11 +5,11 @@ Run: panda-python tests/blocks.py <dir>/debian-13-x86_64.json
 tests/programs/blocks_<arch>.S makes hypercall 1 (passing a table of its blocks' addresses), runs a
 loop of N iterations (blocks "loop" N times, "odd" and "even" N/2 times each), a block that faults
 on its third instruction (the first write to a .bss page), a block that ends in a system call, then
-hypercall 2, and exits. The block-exec callbacks are registered from the start, disabled, and
-enabled only between the hypercalls (no TB flush: enabling opens the bridge's gate). The program
+hypercall 2, and exits. End callbacks run on normal completion only. The block-exec callbacks are registered from the start, disabled, and
+enabled only between the hypercalls (first enable flushes old uninstrumented TBs). The program
 runs twice: with TB chaining on (the default) and with it off. Each time:
 - before_block_exec / after_block_exec alternate on every block (the kernel's too), each pair on
-  the same TB; start_block_exec / end_block_exec alike, and on the same blocks;
+  the same TB on normal completion; faulting blocks have an exception event instead;
 - per-instruction ground truth (insn_exec on every program instruction): a block that ran to its
   end (exit code TB_EXIT_IDX0) executed exactly tb->icount instructions, starting at its own pc;
   one that left early (exit code > TB_EXIT_IDX1) fewer or as many;
@@ -120,8 +120,8 @@ def bbe(cpu, tb):
     # (A CF_PCREL TB keeps the pc current; its tb->pc is a binding detail, so only non-PCREL ones.)
     if not tb.cflags & CF_PCREL and pc != tb.pc and len(r.pc_wrong) < 1000:
         r.pc_wrong.append((pc, tb.pc))
-    if r.be_cur is not None:
-        r.viol["before_block_exec while a block was open"] += 1
+    if r.be_cur is not None and r.be_cur[2]:
+        r.viol["before_block_exec while a program block was open"] += 1
     prog = in_program(pc, cpu)
     r.be_cur = (tbptr(tb), pc, prog)
     if prog:
@@ -157,8 +157,8 @@ def abe(cpu, tb, exit_code):
 def sbe(cpu, tb):
     r = cur
     pc = panda.arch.get_pc(cpu)
-    if r.se_cur is not None:
-        r.viol["start_block_exec while a block was open"] += 1
+    if r.se_cur is not None and r.se_cur[2]:
+        r.viol["start_block_exec while a program block was open"] += 1
     prog = in_program(pc, cpu)
     r.se_cur = (tbptr(tb), pc, prog)
     if prog:
@@ -216,7 +216,20 @@ def ie(cpu, pc):
     return 0
 
 
-WINDOW = ["bbe", "abe", "sbe", "ebe", "inv", "bbt", "it", "ie"]
+@panda.cb_before_handle_exception(name="bex", enabled=False)
+def block_exception(cpu, index):
+    # Exceptions are independent events; end callbacks do not pretend the
+    # aborted block completed. Keep that distinction in the test's trace.
+    r = cur
+    if r.be_cur is not None:
+        _, pc, prog = r.be_cur
+        if prog:
+            r.ev.append(("f", pc, 3, panda.arch.get_pc(cpu)))
+    r.be_cur = r.se_cur = None
+    return index
+
+
+WINDOW = ["bbe", "abe", "sbe", "ebe", "inv", "bbt", "it", "ie", "bex"]
 
 
 @panda.hypercall(MAGIC)
@@ -229,7 +242,7 @@ def hypercall(cpu):
         cur.asid = address_space(cpu)
         raw = bytes(panda.virtual_memory_read(cpu, table, 8 * len(LABELS)))
         cur.labels = {k: int.from_bytes(raw[8 * i:8 * i + 8], "little") for i, k in enumerate(LABELS)}
-        for name in (["bbe", "abe", "it", "ie"] if cur.name == "toggle" else WINDOW):
+        for name in (["bbe", "abe", "it", "ie", "bex"] if cur.name == "toggle" else WINDOW):
             panda.enable_callback(name)
     elif op == 2:
         for name in WINDOW:
@@ -282,8 +295,9 @@ def analyse(r):
             if open_b is None:
                 bad_seq.append(("insn outside a block", hex(e[1])))
             insns.append(e[1])
-        elif k == "a":
-            a_pcs.append(e[1])
+        elif k in ("a", "f"):
+            if k == "a":
+                a_pcs.append(e[1])
             if open_b is None or open_b[0] != e[1]:
                 bad_seq.append(("a without b", hex(e[1])))
                 open_b = None
@@ -294,9 +308,9 @@ def analyse(r):
             s_pcs.append(e[1])
         elif k == "e":
             e_pcs.append(e[1])
-    check(p + "every block's before/after_block_exec pair up, on the same TB (kernel's too)",
+    check(p + "normal-completion callbacks and exception events close each program block",
           not r.viol and r.blocks_all > 0, f"{dict(r.viol)} of {r.blocks_all} blocks")
-    check(p + "program events are b, its instructions, a", not bad_seq, bad_seq[:5])
+    check(p + "program events are entry, its instructions, completion or exception", not bad_seq, bad_seq[:5])
     check(p + "CPU pc == tb->pc at before_block_exec (every non-PCREL block)", not r.pc_wrong,
           f"{len(r.pc_wrong)}: " + str([(hex(a), hex(b)) for a, b in r.pc_wrong[:4]]))
     # A program block that ran to its end: after_block_exec sees the pc where the program goes on
@@ -310,7 +324,7 @@ def analyse(r):
                 bad_next.append(f"{e[1]:#x}: CPU pc {e[3]:#x}, next block {nxt:#x}")
     check(p + "after_block_exec of a block that ran to its end sees the next block's pc", not bad_next,
           f"{len(bad_next)}: {bad_next[:4]}")
-    check(p + "start/end_block_exec see the same blocks as before/after_block_exec",
+    check(p + "canonical and compatibility callbacks agree at entry and normal completion",
           s_pcs == b_pcs and e_pcs == a_pcs,
           f"b={len(b_pcs)} s={len(s_pcs)} a={len(a_pcs)} e={len(e_pcs)}")
 
@@ -390,7 +404,7 @@ def analyse_toggle(r):
     iy = next(i for i, e in enumerate(ev) if e[0] == "y")
     ib = next((i for i in range(iy, len(ev)) if ev[i][0] == "b"), len(ev))
     late = [e for e in ev[ix:ib] if e[0] == "a"]
-    check(p + "no after_block_exec for the block running when they were disabled (none late)",
+    check(p + "no completion callback delivered late after disabling",
           not late, [(hex(e[1]), e[2], hex(e[3])) for e in late])
     check(p + "before/after_block_exec pair up on the same TB, before and after the toggle",
           not r.viol, dict(r.viol))

@@ -37484,6 +37484,14 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    pub fn qemu_plugin_register_vcpu_tb_end_cb(
+        tb: *mut qemu_plugin_tb,
+        cb: qemu_plugin_vcpu_udata_cb_t,
+        flags: qemu_plugin_cb_flags,
+        userdata: *mut ::std::os::raw::c_void,
+    );
+}
+unsafe extern "C" {
     pub fn qemu_plugin_register_vcpu_tb_exec_cond_cb(
         tb: *mut qemu_plugin_tb,
         cb: qemu_plugin_vcpu_udata_cb_t,
@@ -38795,10 +38803,11 @@ pub struct qemu_plugin_tb {
     pub mem_helper: bool,
     pub vaddr_read: bool,
     pub cbs: *mut GArray,
+    pub end_cbs: *mut GArray,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of qemu_plugin_tb"][::std::mem::size_of::<qemu_plugin_tb>() - 32usize];
+    ["Size of qemu_plugin_tb"][::std::mem::size_of::<qemu_plugin_tb>() - 40usize];
     ["Alignment of qemu_plugin_tb"][::std::mem::align_of::<qemu_plugin_tb>() - 8usize];
     ["Offset of field: qemu_plugin_tb::insns"]
         [::std::mem::offset_of!(qemu_plugin_tb, insns) - 0usize];
@@ -38808,6 +38817,8 @@ const _: () = {
     ["Offset of field: qemu_plugin_tb::vaddr_read"]
         [::std::mem::offset_of!(qemu_plugin_tb, vaddr_read) - 17usize];
     ["Offset of field: qemu_plugin_tb::cbs"][::std::mem::offset_of!(qemu_plugin_tb, cbs) - 24usize];
+    ["Offset of field: qemu_plugin_tb::end_cbs"]
+        [::std::mem::offset_of!(qemu_plugin_tb, end_cbs) - 32usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -46648,21 +46659,10 @@ unsafe extern "C" {
     pub fn panda_block_start(cpu: *mut CPUState, tb: *mut TranslationBlock);
 }
 unsafe extern "C" {
+    pub fn panda_block_end(cpu: *mut CPUState, tb: *mut TranslationBlock);
+}
+unsafe extern "C" {
     pub fn panda_block_leave_at_start(cpu: *mut CPUState, tb: *mut TranslationBlock);
-}
-unsafe extern "C" {
-    pub fn panda_end_block_flush(cpu: *mut CPUState);
-}
-unsafe extern "C" {
-    pub fn panda_end_block_drop_all();
-}
-unsafe extern "C" {
-    pub fn panda_bridge_set_block_gate(
-        set: ::std::option::Option<unsafe extern "C" fn(cpu_index: ::std::os::raw::c_int, on: u64)>,
-    );
-}
-unsafe extern "C" {
-    pub fn panda_block_gate() -> u64;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

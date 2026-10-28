@@ -28,7 +28,7 @@ class Callbacks:
 
         panda = Panda(arch="x86_64")
 
-        @panda.cb_before_block_exec
+        @panda.cb_start_block_exec
         def before_block(cpu, tb):
             print(hex(panda.arch.get_pc(cpu)))
 

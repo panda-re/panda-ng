@@ -2,7 +2,7 @@
 
 # The engine patch series
 
-QEMU 11.1.2 plus 82 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
+QEMU 11.1.2 plus 83 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
@@ -88,3 +88,4 @@ QEMU 11.1.2 plus 82 patches (`engine/patches/11.1.2/`). `engine/README.md` expla
 | 0080 | migration/vmstate: skip per-field vmdesc bookkeeping when there is no vmdesc | [fast-restore](../features.md#fast-restore) | penguin | GPL-2.0-or-later |
 | 0081 | migration/qemu-file: inline the in-buffer case of the byte reader | [fast-restore](../features.md#fast-restore) | penguin | MIT |
 | 0082 | accel/tcg: no PANDA or hook calls in the CPU loop while nothing uses them | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
+| 0083 | plugins: emit block completion at outgoing edges | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |

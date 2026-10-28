@@ -74,12 +74,10 @@ void panda_asid_after_loadvm(CPUState *cpu);
 
 target_ulong panda_current_pc(CPUState *cpu);
 
-/* The guest virtual address of the block @tb that a block callback (before/after_block_exec,
- * start/end_block_exec, after_block_translate) was called for. Use it, not tb->pc: a CF_PCREL
- * block is shared by every virtual address that maps its code and has tb->pc 0 unless
- * address-keyed instrumentation bound it (patch 0035). after/end_block_exec run once the block has
- * stopped; its start pc is kept for them. Outside those callbacks it is tb->pc for a bound or
- * non-PCREL block, the pending block's start pc for the vCPU's pending block, else the CPU's pc. */
+/* The source block's guest address. Block-end instrumentation binds
+ * CF_PCREL translations to their virtual address, so entry and end observers
+ * can identify the source even after the live PC has advanced. Without such
+ * binding the fallback is the current CPU PC; there is no pending-block state. */
 target_ulong panda_tb_pc(CPUState *cpu, TranslationBlock *tb);
 
 Int128 panda_find_max_ram_address(void);

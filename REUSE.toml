@@ -285,3 +285,9 @@ path = "utils/fake_libc_include/**"
 precedence = "closest"
 SPDX-FileCopyrightText = "2008-2020 Eli Bendersky and contributors"
 SPDX-License-Identifier = "BSD-3-Clause"
+
+[[annotations]]
+path = "engine/patches/11.1.2/0083-plugins-emit-block-completion-at-outgoing-edges.patch"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 The QEMU contributors and PANDA authors"
+SPDX-License-Identifier = "GPL-2.0-or-later AND LGPL-2.1-or-later"

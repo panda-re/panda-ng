@@ -3,17 +3,10 @@ pandare2.mkimage.
 
 Run: panda-python tests/tbpc.py <dir>/debian-13-x86_64.json
 
-Only block callbacks are registered (no insn_translate, memory callbacks or hooks, which bind a TB
-to one address), so blocks stay unbound: tb.pc is 0 and the same TB runs wherever its code is
-mapped. The guest runs a few short processes; each maps libc and ld.so at its own (ASLR) address,
-so their code runs from shared TBs at several virtual addresses. For every block each callback
-sees, panda.tb_pc must be where the block is executing:
-  - its physical address (a page walk of the guest's tables, panda.virt_to_phys) is the TB's own
-    (tb.page_addr[0], a RAM offset: a constant distance from the physical address);
-  - after_block_exec and end_block_exec, which run after the block, report the address that
-    before_block_exec / start_block_exec saw for it;
-  - after_block_translate reports before_block_translate's pc;
-  - before_block_exec and start_block_exec report the CPU's pc at entry.
+Entry-only callbacks preserve PCREL sharing between virtual addresses. Enabling
+normal-end callbacks binds source addresses so end observers can identify the
+source after the live PC advances. Both phases check CPU-PC synchronization
+and physical page identity across processes using different ASLR mappings.
 """
 import os
 import sys
@@ -98,10 +91,12 @@ def bbt(cpu, pc):
 def abt(cpu, tb):
     n["after_block_translate"] += 1
     pc = tb_pc(cpu, tb)
-    if last["translating"] is None:
+    translating = last["translating"]
+    last["translating"] = None
+    if translating is None:
         return   # translation began before the callbacks were enabled
-    if pc != last["translating"]:
-        bad("after_block_translate", f"{pc:#x} translating {last['translating']:#x}")
+    if pc != translating:
+        bad("after_block_translate", f"{pc:#x} translating {translating:#x}")
 
 
 def describe(cpu, tb, pc, t, want, extra=""):
@@ -159,6 +154,7 @@ NAMES = ["bhe", "bbt", "abt", "bbe", "abe", "sbe", "ebe"]
 
 
 def switch(on):
+    last["translating"] = None   # do not reuse a translation from the prior enable window
     last["phase"] = "enabling" if on else "disabling"
     for name in (NAMES if on or FORWARD else reversed(NAMES)):
         (panda.enable_callback if on else panda.disable_callback)(name)
@@ -176,6 +172,14 @@ def drive():
     # driver busy-waits on the transmitter): commands crawl. The callbacks run from the blocks'
     # own code either way (lane-chain), after/end_block_exec once the block has stopped.
     panda.disable_tb_chaining()
+    for name in ("bhe", "bbt", "abt", "bbe", "sbe"):
+        panda.enable_callback(name)
+    panda.run_serial_cmd("sh /tmp/w.sh", timeout=3000)
+    st["entry_shared"] = sum(len({pc for pc, _ in v}) > 1 for v in st["where"].values())
+    st["entry_unbound"] = sum(pcrel and not bound for pcrel, bound in st["tbs"].values())
+    switch(False)
+    st["where"].clear()
+    st["tbs"].clear()
     switch(True)
     panda.run_serial_cmd("sh /tmp/w.sh", timeout=3000)
     switch(False)
@@ -199,16 +203,13 @@ checks["user blocks: tb_pc maps to the TB's physical address"] = (
 kernel_wrong = sum(n for d, n in st["delta"].items() if d != ram_delta) - user_wrong
 checks["kernel blocks: tb_pc maps to the TB's physical address"] = (
     kernel_wrong == 0, f"{kernel_wrong} elsewhere: {dict(st['delta'].most_common(4))}")
-shared = {k: v for k, v in st["where"].items() if len({pc for pc, _ in v}) > 1}
-addrs = sorted({pc for v in shared.values() for pc, _ in v})
-checks["shared TBs: one TB at several virtual addresses, each right"] = (
-    len(shared) >= 10 and all(d == ram_delta for v in shared.values() for _, d in v),
-    f"{len(shared)} TBs at {len(addrs)} addresses, e.g. "
-    + ", ".join(sorted(f"{pc:#x}" for pc, _ in next(iter(shared.values()), set())))[:200])
+checks["entry-only callbacks preserve virtual-address sharing"] = (
+    st.get("entry_shared", 0) >= 10 and st.get("entry_unbound", 0) > 0,
+    f"{st.get('entry_shared', 0)} shared, {st.get('entry_unbound', 0)} unbound")
 tbs = st["tbs"].values()
-unbound = sum(1 for pcrel, bound in tbs if pcrel and not bound)
-checks["block callbacks leave TBs unbound (CF_PCREL, tb.pc unused)"] = (
-    unbound > 0 and not any(bound for _, bound in tbs), f"{unbound} of {len(tbs)} TBs unbound")
+checks["end observers bind their source address"] = (
+    len(tbs) > 0 and all(bound for pcrel, bound in tbs if pcrel),
+    f"{len(tbs)} observed source blocks")
 out = st.get("out", "").strip().splitlines()
 checks["guest ran the workload (head twice)"] = (len(out) == 2 and out[0] == out[1], repr(out))
 

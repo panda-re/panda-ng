@@ -148,10 +148,9 @@ typedef union panda_cb {
     /* Callback ID: PANDA_CB_BEFORE_BLOCK_EXEC
 
        before_block_exec:
-        Called before execution of every basic block: once per block that
-        starts, from the block's own code at its first instruction, so TB
-        chaining need not be off. A block that exits at its entry (an
-        interrupt pending) never starts and gets no call.
+        Compatibility spelling of start_block_exec. Runs from the block's
+        entry instrumentation with chaining enabled. Prefer start_block_exec;
+        the two names share the same execution boundary.
 
        Arguments:
         CPUState *env:        the current CPU state
@@ -159,7 +158,7 @@ typedef union panda_cb {
                               panda_tb_pc(env, tb), not tb->pc (0 for a CF_PCREL block shared
                               between virtual addresses), in this and every block callback.
 
-       Helper call location: cpu-exec.c
+       Helper call location: TCG block entry
 
        Return value:
         none
@@ -169,23 +168,17 @@ typedef union panda_cb {
     /* Callback ID: PANDA_CB_AFTER_BLOCK_EXEC
 
        after_block_exec:
-        Called after execution of every basic block: exactly once for each
-        before_block_exec, once the block has stopped, before anything else
-        happens on that vCPU (the next block's start, the return to the CPU
-        loop, an exception's delivery). exitCode is TB_EXIT_IDX0 when the
-        block ran to its end and TB_EXIT_REQUESTED (> TB_EXIT_IDX1: exited
-        early) when it left by longjmp: a fault part way through, an
-        exception its last instruction raised (svc, ecall), or a
-        start_block_exec that called panda_break_exec. Works with TB
-        chaining on. (In PANDA 1/2 it ran in cpu_tb_exec and needed chaining
-        off; exitCode was the goto_tb slot, and an exception skipped it.)
+        Compatibility spelling of end_block_exec. Runs at normal block
+        completion, before its outgoing transfer, with exitCode TB_EXIT_IDX0.
+        Faults, exceptions, entry rejection and other early exits have no
+        completion callback. Prefer end_block_exec.
 
        Arguments:
         CPUState *env:        the current CPU state
         TranslationBlock *tb: the TB we just executed
         uint8_t exitCode:     why the block execution exited
 
-       Helper call location: cpu-exec.c
+       Helper call location: TCG outgoing edge
 
        Return value:
         none
@@ -1174,13 +1167,17 @@ typedef union panda_cb {
     /* Callback ID: PANDA_CB_START_BLOCK_EXEC
 
        start_block_exec:
-        This is like before_block_exec except its part of the TCG stream.
+        Runs at the block's entry, after the entry interrupt/icount check
+        and before its first guest instruction. Chaining stays enabled.
+        First enable flushes cached uninstrumented blocks. Last disable
+        flushes away entry instrumentation; disabled callbacks have no gate.
+        An entry may be followed by an early exit with no end event.
 
        Arguments:
         CPUState *env:        the current CPU state
         TranslationBlock *tb: the TB we are executing
 
-       Helper call location: cpu-exec.c
+       Helper call location: TCG block entry
 
        Return value:
         none
@@ -1191,13 +1188,19 @@ typedef union panda_cb {
     /* Callback ID: PANDA_CB_END_BLOCK_EXEC
 
        end_block_exec:
-        This is like after_block_exec except its part of the TCG stream.
+        Runs after normal completion of the block's guest operations and
+        outgoing PC update, before a direct link, indirect link or dispatcher
+        return. It is emitted at the outgoing edge, with no next-block delay.
+        Faults, exceptions, entry rejection and other early exits have no end
+        event. It can be enabled alone without entry instrumentation. First
+        enable and last disable flush translations; disabled callbacks leave
+        no end helper or gate.
 
        Arguments:
         CPUState *env:        the current CPU state
         TranslationBlock *tb: the TB we are executing
 
-       Helper call location: cpu-exec.c
+       Helper call location: TCG outgoing edge
 
        Return value:
         none
@@ -1257,7 +1260,9 @@ typedef union panda_cb_with_context {
     /* Callback ID: PANDA_CB_BEFORE_BLOCK_EXEC
 
        before_block_exec:
-        Called before execution of every basic block.
+        Compatibility spelling of start_block_exec. Runs from the block's
+        entry instrumentation with chaining enabled. Prefer start_block_exec;
+        the two names share the same execution boundary.
 
        Arguments:
         CPUState *env:        the current CPU state
@@ -1265,7 +1270,7 @@ typedef union panda_cb_with_context {
                               panda_tb_pc(env, tb), not tb->pc (0 for a CF_PCREL block shared
                               between virtual addresses), in this and every block callback.
 
-       Helper call location: cpu-exec.c
+       Helper call location: TCG block entry
 
        Return value:
         none
@@ -1275,15 +1280,17 @@ typedef union panda_cb_with_context {
     /* Callback ID: PANDA_CB_AFTER_BLOCK_EXEC
 
        after_block_exec:
-        Called after execution of every basic block.
-        If exitCode > TB_EXIT_IDX1, then the block exited early.
+        Compatibility spelling of end_block_exec. Runs at normal block
+        completion, before its outgoing transfer, with exitCode TB_EXIT_IDX0.
+        Faults, exceptions, entry rejection and other early exits have no
+        completion callback. Prefer end_block_exec.
 
        Arguments:
         CPUState *env:        the current CPU state
         TranslationBlock *tb: the TB we just executed
         uint8_t exitCode:     why the block execution exited
 
-       Helper call location: cpu-exec.c
+       Helper call location: TCG outgoing edge
 
        Return value:
         none
@@ -2272,13 +2279,17 @@ typedef union panda_cb_with_context {
     /* Callback ID: PANDA_CB_START_BLOCK_EXEC
 
        start_block_exec:
-        This is like before_block_exec except its part of the TCG stream.
+        Runs at the block's entry, after the entry interrupt/icount check
+        and before its first guest instruction. Chaining stays enabled.
+        First enable flushes cached uninstrumented blocks. Last disable
+        flushes away entry instrumentation; disabled callbacks have no gate.
+        An entry may be followed by an early exit with no end event.
 
        Arguments:
         CPUState *env:        the current CPU state
         TranslationBlock *tb: the TB we are executing
 
-       Helper call location: cpu-exec.c
+       Helper call location: TCG block entry
 
        Return value:
         none
@@ -2289,13 +2300,19 @@ typedef union panda_cb_with_context {
     /* Callback ID: PANDA_CB_END_BLOCK_EXEC
 
        end_block_exec:
-        This is like after_block_exec except its part of the TCG stream.
+        Runs after normal completion of the block's guest operations and
+        outgoing PC update, before a direct link, indirect link or dispatcher
+        return. It is emitted at the outgoing edge, with no next-block delay.
+        Faults, exceptions, entry rejection and other early exits have no end
+        event. It can be enabled alone without entry instrumentation. First
+        enable and last disable flush translations; disabled callbacks leave
+        no end helper or gate.
 
        Arguments:
         CPUState *env:        the current CPU state
         TranslationBlock *tb: the TB we are executing
 
-       Helper call location: cpu-exec.c
+       Helper call location: TCG outgoing edge
 
        Return value:
         none
