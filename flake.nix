@@ -1024,6 +1024,18 @@
               python3 tools/docs/gen.py --check
               touch $out
             '';
+          # Installed-package supervisor regressions only; no engine, guest or container build.
+          installed-tools = pkgs.runCommand "panda-installed-tools-check"
+            { nativeBuildInputs = [ pkgs.python3 pkgs.bash ]; }
+            ''
+              mkdir -p tools/wheel tools/deb
+              cp ${./tools/wheel/installed.py} tools/wheel/installed.py
+              cp ${./tools/wheel/test_installed.py} tools/wheel/test_installed.py
+              cp ${./tools/wheel/smoke.sh} tools/wheel/smoke.sh
+              cp ${./tools/deb/smoke.sh} tools/deb/smoke.sh
+              python3 tools/wheel/test_installed.py
+              touch $out
+            '';
           # The series applies to the pinned tarball (the strict gate with the patchedTree
           # comparison is engine/scripts/verify-series.sh, run by .github/workflows/engine.yml).
           engine-src = p.engineSrc;

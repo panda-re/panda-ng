@@ -58,12 +58,22 @@ jobs:
       # Install the wheel in a stock container and run it before it can be attached to a release.
       - name: Test the wheel on Ubuntu 24.04
         run: |
-          docker run --rm -v "$PWD:/w:ro" ubuntu:24.04 \
+          mkdir -p wheel-evidence
+          docker run --rm -v "$PWD:/w:ro" -v "$PWD/wheel-evidence:/evidence" \
+            -e PANDA_INSTALLED_OUT=/evidence/ubuntu ubuntu:24.04 \
             bash -c 'bash /w/tools/wheel/smoke.sh /w/pandare2-*.whl /w/tests'
       - name: Test the wheel on Debian 13
         run: |
-          docker run --rm -v "$PWD:/w:ro" debian:13 \
+          mkdir -p wheel-evidence
+          docker run --rm -v "$PWD:/w:ro" -v "$PWD/wheel-evidence:/evidence" \
+            -e PANDA_INSTALLED_OUT=/evidence/debian debian:13 \
             bash -c 'bash /w/tools/wheel/smoke.sh /w/pandare2-*.whl /w/tests'
+      - name: Retain installed-package evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-evidence-${{ matrix.arch }}
+          path: wheel-evidence/
       - uses: actions/upload-artifact@v4
         with:
           name: wheel-${{ matrix.arch }}
