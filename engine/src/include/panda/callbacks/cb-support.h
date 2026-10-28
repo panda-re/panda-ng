@@ -78,9 +78,8 @@ void panda_callbacks_mem_access(CPUState *env, uint64_t pc, uint64_t addr, uint6
 void panda_callbacks_before_find_fast(void);
 bool panda_callbacks_after_find_fast(CPUState *cpu, TranslationBlock *tb, bool bb_invalidate_done, bool *invalidate);
 
-/* before/after_block_exec's callback lists, run from the block's own code (panda_block_start in
- * panda_qemu_plugin_helpers.c). cpu_tb_exec's panda_callbacks_before/after_block_exec hooks only
- * end the vCPU's pending block. */
+/* Compatibility dispatchers called at the canonical TCG entry/end points.
+ * The CPU loop no longer delivers block execution events. */
 void panda_callbacks_before_block_exec_dispatch(CPUState *env, TranslationBlock *tb);
 void panda_callbacks_after_block_exec_dispatch(CPUState *env, TranslationBlock *tb, uint8_t exitCode);
 /* callbacks.c tells the bridge when a block-exec callback is registered, enabled, disabled or

@@ -153,6 +153,20 @@ each fires in this engine. The decorator of one that doesn't fire raises `NotImp
 unchanged. Callbacks need TCG: under `accel="kvm"` only `main_loop_wait`, `after_machine_init`
 and `after_loadvm` fire, and the other decorators raise `NotImplementedError`.
 
+Use `start_block_exec(cpu, tb)` for block entry and `end_block_exec(cpu, tb)` for
+normal completion. The end callback runs after guest operations and the outgoing PC update,
+before transferring to another block or returning to the dispatcher. Faults, exceptions and
+other early exits do not produce an end event. The older `before_block_exec` and
+`after_block_exec` names remain compatibility spellings; the latter receives exit code zero.
+
+Entry and end instrumentation are independent. First enable and last disable request a TB
+flush and make vCPUs leave chained execution at a safe boundary. Existing translations are
+rebuilt for the new enabled set; activation does not report past block entries or completions.
+When disabled, neither event leaves a per-block helper or gate. Entry-only callbacks preserve
+PC-relative sharing; end callbacks bind the source address so `panda.tb_pc(cpu, tb)` remains
+valid after the live PC advances. Changing control flow requires the engine's explicit PC-set
+and exit API (`qemu_plugin_set_pc`); assigning the raw PC alone does not redirect a chained edge.
+
 An exception in a callback can't propagate into the engine: with `catch_exceptions` (the default)
 pandare2 keeps it, ends the analysis and `run()` raises it; until then the callbacks return
 without calling your functions.

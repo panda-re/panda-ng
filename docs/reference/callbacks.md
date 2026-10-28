@@ -15,8 +15,8 @@ Under KVM (`Panda(accel="kvm")`) only `after_loadvm`, `after_machine_init`, `mai
 | `block_translate` | fires | raises | Called while the translation block is being translated |
 | `before_block_exec_invalidate_opt` | fires | raises | Called before execution of every basic block, with the option to invalidate the TB. |
 | `before_tcg_codegen` | no call site |  | Called before host code generation for every basic block. |
-| `before_block_exec` | fires | raises | Called before execution of every basic block: once per block that starts, from the block's own code at its first instruction, so TB chaining need not be off. |
-| `after_block_exec` | fires | raises | Called after execution of every basic block: exactly once for each before_block_exec, once the block has stopped, before anything else happens on that vCPU (the next block's start, the return to the CPU loop, an exception's delivery). |
+| `before_block_exec` | fires | raises | Compatibility spelling of start_block_exec. |
+| `after_block_exec` | fires | raises | Compatibility spelling of end_block_exec. |
 | `insn_translate` | fires | raises | Called before the translation of each instruction. |
 | `insn_exec` | fires | raises | Called before execution of any instruction identified by the PANDA_CB_INSN_TRANSLATE callback. |
 | `after_insn_translate` | no call site |  | Called after the translation of each instruction. |
@@ -60,8 +60,8 @@ Under KVM (`Panda(accel="kvm")`) only `after_loadvm`, `after_machine_init`, `mai
 | `unassigned_io_write` | no call site |  | Called when the guest attempts to write to an unmapped peripheral via MMIO |
 | `before_handle_exception` | fires | raises | Called just before we are about to handle an exception. |
 | `before_handle_interrupt` | no call site (the cpu_exec_interrupt wrapper is commented out in wrap_ops.c) |  | Called just before we are about to handle an interrupt. |
-| `start_block_exec` | fires | raises | This is like before_block_exec except its part of the TCG stream. |
-| `end_block_exec` | fires | raises | This is like after_block_exec except its part of the TCG stream. |
+| `start_block_exec` | fires | raises | Runs at the block's entry, after the entry interrupt/icount check and before its first guest instruction. |
+| `end_block_exec` | fires | raises | Runs after normal completion of the block's guest operations and outgoing PC update, before a direct link, indirect link or dispatcher return. |
 
 ## Signatures
 

@@ -33,7 +33,9 @@ N = 1000
 PROGRAM_BASE, PROGRAM_END = 0x400000, 0x420000
 LABELS = ["setup", "loop", "odd", "even", "fault", "fault_store", "sys"]
 
-panda = Panda(generic=sys.argv[1])
+# Instruction-based guest time prevents the enabled memory callbacks from
+# spending most wall-clock time servicing timer ticks instead of this program.
+panda = Panda(generic=sys.argv[1], extra_args=["-icount", "shift=6,sleep=off"])
 arch = panda.arch_name
 st = {"run": 0, "labels": {}, "insn": Counter(), "after_w": Counter(), "before_w": Counter(),
       "between": False, "hc": []}

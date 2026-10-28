@@ -19,7 +19,7 @@
 set -euo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-DEFAULT_TESTS="guest api osi_isf blocks callbacks calls mem mmio late reset teardown asidstory tbpc
+DEFAULT_TESTS="guest api osi_isf blocks block_activation callbacks calls mem mmio late reset teardown asidstory tbpc
   hookalias rr rrcb rrstop rrload fuzz fastrestore fastcov syscalls"
 TESTS=${TESTS:-$DEFAULT_TESTS}
 TIMEOUT=${TIMEOUT:-1800}

@@ -39,21 +39,22 @@ static bool panda_has_callback_registered(panda_cb_type type){
     return panda_cbs[type] != NULL;
 }
 
+static bool panda_any_enabled(panda_cb_type type);
+
 unsigned panda_bridge_wants(void){
     unsigned wants = 0;
     if (panda_has_callback_registered(PANDA_CB_INSN_TRANSLATE)) {
         wants |= PANDA_BRIDGE_INSN;
     }
-    /* Every block-exec callback runs from the block's start (panda_block_start); before/after_block_exec
-     * no longer need TB chaining off. */
-    if (panda_has_callback_registered(PANDA_CB_START_BLOCK_EXEC)
-        || panda_has_callback_registered(PANDA_CB_END_BLOCK_EXEC)
-        || panda_has_callback_registered(PANDA_CB_BEFORE_BLOCK_EXEC)
-        || panda_has_callback_registered(PANDA_CB_AFTER_BLOCK_EXEC)
-        || panda_has_callback_registered(PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT)) {
+    if (panda_any_enabled(PANDA_CB_START_BLOCK_EXEC)
+        || panda_any_enabled(PANDA_CB_BEFORE_BLOCK_EXEC)
+        || panda_any_enabled(PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT)) {
         wants |= PANDA_BRIDGE_BLOCK;
     }
-    // No block callback binds its TB (patch 0035): they get its address from panda_tb_pc.
+    if (panda_any_enabled(PANDA_CB_END_BLOCK_EXEC)
+        || panda_any_enabled(PANDA_CB_AFTER_BLOCK_EXEC)) {
+        wants |= PANDA_BRIDGE_END;
+    }
     return wants;
 }
 
@@ -167,110 +168,42 @@ bool panda_bridge_io_rewinds(CPUState *cpu){
     return !cpu->neg.can_do_io;
 }
 
-/* Per-vCPU block in flight: started (its before_block_exec ran), its after_block_exec (and, if its
- * start_block_exec didn't leave it, its end_block_exec) not yet run. */
-typedef struct PandaPendingBlock {
-    TranslationBlock *tb;
-    uint64_t pc;              /* its address: the CPU's pc at its start (panda_tb_pc) */
-    bool end;                 /* start_block_exec returned: end_block_exec is owed too */
-    bool skip_invalidate;     /* the next block start at skip_pc is the retranslation */
-    uint64_t skip_pc;
-} PandaPendingBlock;
-
-#define PANDA_END_SLOTS 1024
-static PandaPendingBlock pending[PANDA_END_SLOTS];
-
-/*
- * Block addresses (panda_tb_pc). A CF_PCREL TB runs at every virtual address that maps its code;
- * its tb->pc is 0 unless address-keyed instrumentation bound it (patch 0035: insn_translate, the
- * memory callbacks, the hooks plugin, anything calling qemu_plugin_tb_vaddr/insn_vaddr). At a
- * block's start the CPU's pc is the block's address (what makes CF_PCREL work), so
- * before_block_exec, start_block_exec and after_block_translate read it from the CPU. end_block_exec
- * and after_block_exec run once the block has stopped, when the CPU is at the next block (or the
- * fault): the pending block keeps its start pc, published in `ending` while they run.
- */
-typedef struct {
-    TranslationBlock *tb;
+/* Only invalidate_opt retains state, to avoid invalidating its fresh translation.
+ * No block-entry/end pairing, deferred callbacks or per-block stores. */
+#define PANDA_BLOCK_SLOTS 1024
+static struct {
+    bool skip;
     uint64_t pc;
-} PandaBlockPc;
-static PandaBlockPc ending[PANDA_END_SLOTS];
+} invalidated[PANDA_BLOCK_SLOTS];
 
 target_ulong panda_tb_pc(CPUState *cpu, TranslationBlock *tb)
 {
-    if (tb == NULL) {
+    if (!tb) {
         return 0;
     }
     if (tb_pc_exact(tb)) {
         return tb->pc;
     }
-    if (cpu == NULL) {
-        cpu = current_cpu;
-    }
-    if (cpu == NULL) {
-        return 0;
-    }
-    if (cpu->cpu_index < PANDA_END_SLOTS) {
-        if (ending[cpu->cpu_index].tb == tb) {
-            return ending[cpu->cpu_index].pc;
-        }
-        if (pending[cpu->cpu_index].tb == tb) {
-            return pending[cpu->cpu_index].pc;
-        }
-    }
-    return cpu->cc->get_pc(cpu);
+    cpu = cpu ? cpu : current_cpu;
+    return cpu ? cpu->cc->get_pc(cpu) : 0;
 }
 
 static bool panda_any_enabled(panda_cb_type type){
     for (panda_cb_list *plist = panda_cbs[type]; plist != NULL; plist = plist->next) {
-        if (plist->enabled) {
+        if (qatomic_read(&plist->enabled)) {
             return true;
         }
     }
     return false;
 }
 
-static void panda_block_end(CPUState *cpu, uint8_t exit_code){
-    if (cpu->cpu_index < PANDA_END_SLOTS) {
-        PandaPendingBlock *p = &pending[cpu->cpu_index];
-        TranslationBlock *tb = p->tb;
-        if (unlikely(tb)) {
-            bool end = p->end;
-            PandaBlockPc prev = ending[cpu->cpu_index];
-            ending[cpu->cpu_index] = (PandaBlockPc){ tb, p->pc };
-            p->tb = NULL;
-            if (end) {
-                panda_callbacks_end_block_exec(cpu, tb);
-            }
-            panda_callbacks_after_block_exec_dispatch(cpu, tb, exit_code);
-            ending[cpu->cpu_index] = prev;
-            cpu->panda_block_pending = p->tb || prev.tb;
-        }
-    }
-}
-
-void panda_end_block_flush(CPUState *cpu){
-    panda_block_end(cpu, TB_EXIT_IDX0);
-}
-
-void panda_callbacks_block_longjmp(CPUState *cpu){
-    /* An end/after callback that itself left by longjmp never restored `ending`. */
-    if (cpu->cpu_index < PANDA_END_SLOTS) {
-        ending[cpu->cpu_index].tb = NULL;
-    }
-    panda_block_end(cpu, TB_EXIT_REQUESTED);
-    cpu->panda_block_pending = cpu->cpu_index < PANDA_END_SLOTS && pending[cpu->cpu_index].tb;
-}
-
-void panda_end_block_drop_all(void){
-    CPUState *cpu;
-
-    for (int i = 0; i < PANDA_END_SLOTS; i++) {
-        pending[i].tb = NULL;
-        ending[i].tb = NULL;
-    }
-    RCU_READ_LOCK_GUARD();
-    CPU_FOREACH(cpu) {
-        cpu->panda_block_pending = false;
+/* Called by TCG at the outgoing edge, after guest operations and PC updates. */
+void panda_block_end(CPUState *cpu, TranslationBlock *tb)
+{
+    panda_callbacks_end_block_exec(cpu, tb);
+    /* Compatibility spelling: normal completion only, like end_block_exec. */
+    if (unlikely(panda_cbs[PANDA_CB_AFTER_BLOCK_EXEC])) {
+        panda_callbacks_after_block_exec_dispatch(cpu, tb, TB_EXIT_IDX0);
     }
 }
 
@@ -280,13 +213,15 @@ G_NORETURN void panda_block_leave_at_start(CPUState *cpu, TranslationBlock *tb);
  * it runs. Drop its TB (the part on its first page is enough to make the lookup miss) and leave
  * it; the next start at this pc is the new TB's and isn't asked again, as in PANDA's
  * after_find_fast. */
-static void panda_block_invalidate(CPUState *cpu, TranslationBlock *tb, PandaPendingBlock *p){
+static void panda_block_invalidate(CPUState *cpu, TranslationBlock *tb){
     tb_page_addr_t start = tb_page_addr0(tb);
     tb_page_addr_t page_last = start | ~(tb_page_addr_t) TARGET_PAGE_MASK;
     tb_page_addr_t last = start + tb->size - 1;
 
-    p->skip_invalidate = true;
-    p->skip_pc = panda_current_pc(cpu);
+    if (cpu->cpu_index < PANDA_BLOCK_SLOTS) {
+        invalidated[cpu->cpu_index].skip = true;
+        invalidated[cpu->cpu_index].pc = panda_current_pc(cpu);
+    }
     if (start != (tb_page_addr_t) -1) {
         tb_invalidate_phys_range(cpu, start, MIN(last, page_last));
     }
@@ -323,66 +258,27 @@ static inline void panda_block_sync_pc(CPUState *cpu, TranslationBlock *tb){
     }
 }
 
-/* The bridge's gate (see panda_bridge_set_block_gate) */
-static void (*block_gate_set)(int cpu_index, uint64_t on);
-static uint64_t block_gate_on;
-
-/* No block-exec callback is enabled any more: the block before this one has just ended (above), at
- * a block boundary. Close this vCPU's gate, unless it was opened again meanwhile. Had the gate been
- * closed for every vCPU at once, a vCPU running chained code would keep its pending block until the
- * chain returned to cpu_exec or the gate opened again, and an after/end_block_exec enabled by then
- * would run for it late, with a much later CPU state. */
-static bool panda_block_gate_closed(CPUState *cpu){
-    if (likely(qatomic_read(&block_gate_on)) || !block_gate_set) {
-        return false;
-    }
-    block_gate_set(cpu->cpu_index, 0);
-    smp_mb();
-    if (!qatomic_read(&block_gate_on)) {
-        return true;
-    }
-    block_gate_set(cpu->cpu_index, 1);
-    return false;
-}
-
-void panda_block_start(CPUState *cpu, TranslationBlock *tb){
-    PandaPendingBlock *p = cpu->cpu_index < PANDA_END_SLOTS ? &pending[cpu->cpu_index] : NULL;
-
-    panda_block_sync_pc(cpu, tb);   /* also the PC the block before ended with */
-    panda_end_block_flush(cpu);     /* the block before this one ran to its end */
-    if (unlikely(panda_block_gate_closed(cpu))) {
-        return;
-    }
-    if (unlikely(!p)) {
-        panda_callbacks_before_block_exec_dispatch(cpu, tb);
-        panda_callbacks_start_block_exec(cpu, tb);
-        panda_callbacks_after_block_exec_dispatch(cpu, tb, TB_EXIT_IDX0);   /* no slot: early */
-        return;
-    }
+void panda_block_start(CPUState *cpu, TranslationBlock *tb)
+{
+    panda_block_sync_pc(cpu, tb);
     if (unlikely(panda_cbs[PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT])) {
-        if (p->skip_invalidate && p->skip_pc == panda_current_pc(cpu)) {
-            p->skip_invalidate = false;
+        unsigned index = cpu->cpu_index;
+        if (index < PANDA_BLOCK_SLOTS && invalidated[index].skip
+            && invalidated[index].pc == panda_current_pc(cpu)) {
+            invalidated[index].skip = false;
         } else {
-            p->skip_invalidate = false;
+            if (index < PANDA_BLOCK_SLOTS) {
+                invalidated[index].skip = false;
+            }
             if (panda_callbacks_before_block_exec_invalidate_opt(cpu, tb)) {
-                panda_block_invalidate(cpu, tb, p);
+                panda_block_invalidate(cpu, tb);
             }
         }
     }
-    panda_callbacks_before_block_exec_dispatch(cpu, tb);
-    p->tb = tb;
-    cpu->panda_block_pending = true;
-    p->pc = tb_pc_exact(tb) ? tb->pc : cpu->cc->get_pc(cpu);
-    p->end = false;
-    panda_callbacks_start_block_exec(cpu, tb);  /* may leave the block (panda_break_exec) */
-    p->end = true;
-}
-
-/* The bridge's gate: its block-start callback is conditional on a per-vCPU word it owns, which
- * PANDA sets to 1 while any block-exec callback is enabled. */
-void panda_bridge_set_block_gate(void (*set)(int cpu_index, uint64_t on)){
-    block_gate_set = set;
-    panda_block_cbs_changed();
+    if (unlikely(panda_cbs[PANDA_CB_BEFORE_BLOCK_EXEC])) {
+        panda_callbacks_before_block_exec_dispatch(cpu, tb);
+    }
+    panda_callbacks_start_block_exec(cpu, tb);
 }
 
 static const panda_cb_type block_cb_types[] = {
@@ -397,25 +293,4 @@ bool panda_is_block_cb_type(int type){
         }
     }
     return false;
-}
-
-void panda_block_cbs_changed(void){
-    uint64_t on = 0;
-    for (size_t i = 0; i < ARRAY_SIZE(block_cb_types); i++) {
-        if (panda_any_enabled(block_cb_types[i])) {
-            on = 1;
-            break;
-        }
-    }
-    qatomic_set(&block_gate_on, on);
-    /* Opening is global and immediate. Closing is lazy, per vCPU (panda_block_gate_closed): a
-     * vCPU's gate stays open until its next block start, which ends the block it was running. */
-    if (on && block_gate_set) {
-        smp_mb();
-        block_gate_set(-1, 1);
-    }
-}
-
-uint64_t panda_block_gate(void){
-    return qatomic_read(&block_gate_on);
 }

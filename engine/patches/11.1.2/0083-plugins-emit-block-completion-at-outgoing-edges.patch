@@ -1,0 +1,209 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 28 Oct 2026 14:58:36 -0400
+Subject: [PATCH] plugins: emit block completion at outgoing edges
+
+Add a translation-time TB-end callback for normal completion. Emit it after outgoing CPU-state updates and before direct/indirect links or dispatcher returns. Move direct-link opcodes past their fallback PC updates only for instrumented translations. Faults, nonlocal exits and entry rejection do not report completion.
+
+Remove deferred PANDA completion delivery and pending-block reads from the CPU loop. Keep the unused CPUState byte for the existing native layout.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: new
+---
+ accel/tcg/cpu-exec.c          | 14 +----------
+ accel/tcg/plugin-gen.c        | 46 +++++++++++++++++++++++++++++++++++
+ include/hw/core/cpu.h         |  2 +-
+ include/plugins/qemu-plugin.h | 20 +++++++++++++++
+ include/qemu/plugin.h         |  1 +
+ plugins/api.c                 | 10 ++++++++
+ 6 files changed, 79 insertions(+), 14 deletions(-)
+
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 8b1275950782c942df875cf9a5048775691e8f8c..543d5fb7961932ae9ede3ef2932a208bee31f2c8 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -495,14 +495,6 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
+         }
+     }
+ 
+-    /*
+-     * PANDA: after the PC is synchronized above. A TB that exited at its entry
+-     * never started; without CF_PCREL, chained code left the PC stale until then.
+-     */
+-    if (panda_block_pending(cpu)) {
+-        panda_callbacks_after_block_exec(cpu, itb, *tb_exit);
+-    }
+-
+     /*
+      * If gdb single-step, and we haven't raised another exception,
+      * raise a debug exception.  Single-step with another exception
+@@ -583,10 +575,6 @@ static void cpu_exec_longjmp_cleanup(CPUState *cpu)
+         bql_unlock();
+     }
+     assert_no_pages_locked();
+-    /* PANDA: the block this vCPU was running ends here (after_block_exec, exited early). */
+-    if (panda_block_pending(cpu)) {
+-        panda_callbacks_block_longjmp(cpu);
+-    }
+ }
+ 
+ void cpu_exec_step_atomic(CPUState *cpu)
+@@ -758,7 +746,7 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
+         return true;
+     }
+     /* A PANDA plugin may rewrite the exception; re-dispatch the new one. */
+-    if (panda_loop_wants(PANDA_LOOP_EXCEPTION) || panda_block_pending(cpu)) {
++    if (panda_loop_wants(PANDA_LOOP_EXCEPTION)) {
+         int32_t exception = cpu->exception_index;
+ 
+         cpu->exception_index = panda_callbacks_before_handle_exception(cpu, exception);
+diff --git a/accel/tcg/plugin-gen.c b/accel/tcg/plugin-gen.c
+index 9e6430bd6af81efb49b18e54f47fab916050c344..d90f822e0b408d464c4163e9ebad408ea3255305 100644
+--- a/accel/tcg/plugin-gen.c
++++ b/accel/tcg/plugin-gen.c
+@@ -290,6 +290,30 @@ static void inject_mem_cb(struct qemu_plugin_dyn_cb *cb,
+     }
+ }
+ 
++/*
++ * A direct link normally skips the outgoing PC store on its fallback path.
++ * End observers need that store before the link. Move the goto, only for
++ * instrumented blocks, after the fallback's state updates. Every supported
++ * target pairs goto_tb with exit_tb(tb, slot) on this same path.
++ */
++static void plugin_move_direct_exits(void)
++{
++    TCGOp *op, *next, *jump = NULL;
++
++    QTAILQ_FOREACH_SAFE(op, &tcg_ctx->ops, link, next) {
++        if (op->opc == INDEX_op_goto_tb) {
++            g_assert(jump == NULL);
++            jump = op;
++        } else if (jump && op->opc == INDEX_op_exit_tb) {
++            g_assert((op->args[0] & TB_EXIT_MASK) == jump->args[0]);
++            QTAILQ_REMOVE(&tcg_ctx->ops, jump, link);
++            QTAILQ_INSERT_BEFORE(op, jump, link);
++            jump = NULL;
++        }
++    }
++    g_assert(jump == NULL);
++}
++
+ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb)
+ {
+     TCGOp *op, *next;
+@@ -313,8 +337,27 @@ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb)
+      */
+     tcg_temp_ebb_reset_freed(tcg_ctx);
+ 
++    if (plugin_tb->end_cbs && plugin_tb->end_cbs->len) {
++        plugin_move_direct_exits();
++    }
++
+     QTAILQ_FOREACH_SAFE(op, &tcg_ctx->ops, link, next) {
+         switch (op->opc) {
++        case INDEX_op_goto_tb:
++        case INDEX_op_goto_ptr:
++        case INDEX_op_exit_tb:
++            /* A linked exit has already dispatched before its goto_tb.
++             * The prologue's TB_EXIT_REQUESTED did not execute the block. */
++            if (op->opc != INDEX_op_exit_tb || op->args[0] == 0) {
++                const GArray *cbs = plugin_tb->end_cbs;
++                tcg_ctx->emit_before_op = op;
++                for (int i = 0, n = cbs ? cbs->len : 0; i < n; i++) {
++                    inject_cb(&g_array_index(cbs, struct qemu_plugin_dyn_cb, i));
++                }
++                tcg_ctx->emit_before_op = NULL;
++            }
++            break;
++
+         case INDEX_op_insn_start:
+             insn_idx++;
+             break;
+@@ -427,6 +470,9 @@ bool plugin_gen_tb_start(CPUState *cpu, const DisasContextBase *db)
+         if (ptb->cbs) {
+             g_array_set_size(ptb->cbs, 0);
+         }
++        if (ptb->end_cbs) {
++            g_array_set_size(ptb->end_cbs, 0);
++        }
+         ptb->n = 0;
+         ptb->mem_helper = false;
+         ptb->vaddr_read = false;
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index 51cd192ebeb36f50b76247be9251c36602b4acf2..f96b4b4d9f3a712dd153817aaa957d3d739aa6ee 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -565,7 +565,7 @@ struct CPUState {
+     int32_t exception_index;
+     /* host return address into the block while a TCG hook runs, or 0 */
+     uintptr_t tcg_hook_ra;
+-    /* PANDA: a block's after_block_exec is still owed (panda/hooks.h) */
++    /* Reserved for the 0082 CPUState ABI; no longer read or written. */
+     bool panda_block_pending;
+     /*
+      * A user-access window a plugin memory access opened and left open
+diff --git a/include/plugins/qemu-plugin.h b/include/plugins/qemu-plugin.h
+index 9c509144d41cadd41e5a75164ae75196f081b400..81d026087ac85e6071b42c85d613694fef30058e 100644
+--- a/include/plugins/qemu-plugin.h
++++ b/include/plugins/qemu-plugin.h
+@@ -463,6 +463,26 @@ void qemu_plugin_register_vcpu_tb_exec_cb(struct qemu_plugin_tb *tb,
+                                           enum qemu_plugin_cb_flags flags,
+                                           void *userdata);
+ 
++/**
++ * qemu_plugin_register_vcpu_tb_end_cb() - register a normal block-exit callback
++ * @tb: the opaque translation handle
++ * @cb: callback function
++ * @flags: whether the callback reads or writes registers
++ * @userdata: user data for callback
++ *
++ * Runs after the block's guest operations and outgoing PC update, before
++ * transferring to another block or returning to the dispatcher. Direct and
++ * indirect chaining stay enabled. No callback is made for a block that exits
++ * at its entry, or leaves through a fault, exception or other nonlocal exit.
++ * An end event therefore need not accompany every block-entry event.
++ * Changing control flow requires qemu_plugin_set_pc(), not a raw PC write.
++ */
++QEMU_PLUGIN_API
++void qemu_plugin_register_vcpu_tb_end_cb(struct qemu_plugin_tb *tb,
++                                        qemu_plugin_vcpu_udata_cb_t cb,
++                                        enum qemu_plugin_cb_flags flags,
++                                        void *userdata);
++
+ /**
+  * qemu_plugin_register_vcpu_tb_exec_cond_cb() - register conditional callback
+  * @tb: the opaque qemu_plugin_tb handle for the translation
+diff --git a/include/qemu/plugin.h b/include/qemu/plugin.h
+index 080eac2cd1c5b4c934c591e924b157faf0612a53..d91b6fa8b5d8d389b18897a070cc39379dafa83d 100644
+--- a/include/qemu/plugin.h
++++ b/include/qemu/plugin.h
+@@ -164,6 +164,7 @@ struct qemu_plugin_tb {
+     bool vaddr_read;
+ 
+     GArray *cbs;
++    GArray *end_cbs;
+ };
+ 
+ /**
+diff --git a/plugins/api.c b/plugins/api.c
+index 6e77ca84524f1233d23f3973ca2fc8b7e4067a98..fdb70054eb27ad3d81c08a16cb66cb47340e8149 100644
+--- a/plugins/api.c
++++ b/plugins/api.c
+@@ -106,6 +106,16 @@ void qemu_plugin_register_vcpu_tb_exec_cb(struct qemu_plugin_tb *tb,
+     }
+ }
+ 
++void qemu_plugin_register_vcpu_tb_end_cb(struct qemu_plugin_tb *tb,
++                                        qemu_plugin_vcpu_udata_cb_t cb,
++                                        enum qemu_plugin_cb_flags flags,
++                                        void *udata)
++{
++    if (!tb_is_mem_only()) {
++        plugin_register_dyn_cb__udata(&tb->end_cbs, cb, flags, udata);
++    }
++}
++
+ void qemu_plugin_register_vcpu_tb_exec_cond_cb(struct qemu_plugin_tb *tb,
+                                                qemu_plugin_vcpu_udata_cb_t cb,
+                                                enum qemu_plugin_cb_flags flags,

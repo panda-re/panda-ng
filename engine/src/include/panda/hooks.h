@@ -27,16 +27,9 @@ static inline bool panda_loop_wants(uint32_t bits)
     return unlikely(qatomic_read(&panda_loop_hooks) & bits);
 }
 
-/* The vCPU started a block whose after_block_exec hasn't run (panda_block_start) */
-static inline bool panda_block_pending(CPUState *cpu)
-{
-    return unlikely(cpu->panda_block_pending);
-}
-
 /* A new vCPU's tcg_cflags: no chaining after panda_disable_tb_chaining() */
 void panda_vcpu_init_cflags(CPUState *cpu);
 
-void panda_callbacks_after_block_exec(CPUState *cpu, TranslationBlock *tb, uint8_t exitCode);
 void panda_callbacks_before_block_translate(CPUState *cpu, uint64_t pc);
 void panda_callbacks_after_block_translate(CPUState *cpu, TranslationBlock *tb);
 int32_t panda_callbacks_before_handle_exception(CPUState *cpu, int32_t exception_index);
@@ -53,10 +46,6 @@ bool panda_callbacks_guest_hypercall(CPUState *cpu);
  * CF_NO_GOTO_PTR in each vCPU's tcg_cflags). The block-exec callbacks don't need it (they run from
  * the block's own code); kept for plugins that want it. */
 bool panda_tb_chaining_enabled(void);
-/* A longjmp left the block a vCPU was running (a fault, an exception its last instruction raised,
- * cpu_loop_exit_noexc): its after_block_exec runs now, with TB_EXIT_REQUESTED, before the exception
- * is delivered. Nothing pending (the usual case: no block-exec callback), nothing done. */
-void panda_callbacks_block_longjmp(CPUState *cpu);
 /* Before each TB lookup: unload plugins that asked to be, and flush the TBs if panda_do_flush_tb()
  * asked (it leaves the CPU loop, which then looks the TB up again) */
 void panda_callbacks_before_find_fast(void);
@@ -74,13 +63,7 @@ static inline bool panda_loop_wants(uint32_t bits)
 {
     return false;
 }
-static inline bool panda_block_pending(CPUState *cpu)
-{
-    return false;
-}
 static inline void panda_vcpu_init_cflags(CPUState *cpu) {}
-static inline void panda_callbacks_after_block_exec(CPUState *cpu, TranslationBlock *tb,
-                                                    uint8_t exitCode) {}
 static inline void panda_callbacks_before_block_translate(CPUState *cpu, uint64_t pc) {}
 static inline void panda_callbacks_after_block_translate(CPUState *cpu, TranslationBlock *tb) {}
 static inline int32_t panda_callbacks_before_handle_exception(CPUState *cpu,
@@ -92,7 +75,6 @@ static inline bool panda_tb_chaining_enabled(void)
 {
     return true;
 }
-static inline void panda_callbacks_block_longjmp(CPUState *cpu) {}
 static inline void panda_callbacks_before_find_fast(void) {}
 static inline void panda_callbacks_main_loop_wait(void) {}
 static inline void panda_callbacks_after_loadvm(CPUState *env) {}
