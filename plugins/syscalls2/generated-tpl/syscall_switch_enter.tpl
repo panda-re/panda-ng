@@ -44,6 +44,9 @@ void syscall_enter_switch_{{os}}_{{arch}}(CPUState *cpu, int profile, target_ptr
 	ctx.retaddr = calc_retaddr(cpu, &ctx, pc);
 	ctx.double_return = false;
 	bool panda_noreturn;	// true if PANDA should not track the return of this system call
+	// Read these counts after enter callbacks: a callback can subscribe to this return.
+	const int *return_count;
+	const int *return_context_count;
 	const syscall_info_t *call = NULL;
 	syscall_info_t zero = {0};
 
@@ -69,27 +72,37 @@ void syscall_enter_switch_{{os}}_{{arch}}(CPUState *cpu, int profile, target_ptr
 	{% for no in syscall.nos -%} case {{no}}: {% endfor -%} {
 		panda_noreturn = {{ 'true' if syscall.panda_noreturn else 'false' }};
 		ctx.double_return = {{ 'true' if syscall.panda_double_return else 'false' }};
+		return_count = &ppp_on_{{syscall.name}}_return_num_cb;
+		return_context_count = &ppp_on_{{syscall.name}}_return_num_cb_with_context;
 		{%- if syscall.args|length > 0 %}
-		{{syscall.temp_assignments()}}
-		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+		const bool save_args = PPP_CHECK_CB(on_all_sys_enter2) ||
 			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
-					PPP_CHECK_CB(on_{{syscall.name}}_return)))) {
+					PPP_CHECK_CB(on_{{syscall.name}}_return)));
+		if (save_args || PPP_CHECK_CB(on_{{syscall.name}}_enter)) {
+			{{syscall.temp_assignments()}}
+			if (save_args) {
 			{%- for arg in syscall.args %}
-			{{arg.emit_memcpy_temp_to_ref()}}
+				{{arg.emit_memcpy_temp_to_ref()}}
 			{%- endfor %}
+			}
+			PPP_RUN_CB(on_{{syscall.name}}_enter, {{syscall.cargs}});
 		}
-		{%- endif %}
+		{%- else %}
 		PPP_RUN_CB(on_{{syscall.name}}_enter, {{syscall.cargs}});
+		{%- endif %}
 	}; break;
 	{%- endfor %}
 	default:
 		panda_noreturn = false;
+		return_count = &ppp_on_unknown_sys_return_num_cb;
+		return_context_count = &ppp_on_unknown_sys_return_num_cb_with_context;
 		PPP_RUN_CB(on_unknown_sys_enter, cpu, pc, ctx.no);
 	} // switch (ctx.no)
 
 	PPP_RUN_CB(on_all_sys_enter, cpu, pc, ctx.no);
 	PPP_RUN_CB(on_all_sys_enter2, cpu, pc, call, &ctx);
-	if (!panda_noreturn) {
+	if (!panda_noreturn && (*return_count > 0 || *return_context_count > 0 ||
+			PPP_CHECK_CB(on_all_sys_return) || PPP_CHECK_CB(on_all_sys_return2))) {
 		struct hook h;
 		h.addr = ctx.retaddr;
 		h.asid = ctx.asid;
@@ -99,7 +112,11 @@ void syscall_enter_switch_{{os}}_{{arch}}(CPUState *cpu, int profile, target_ptr
 		h.km = MODE_ANY; //you'd expect this to be user only
 		hooks_add_hook(&h);
 
-		running_syscalls[std::make_pair(ctx.retaddr, ctx.asid)] = ctx;
+		// Construct a new context directly; operator[] would zero it before copying ctx.
+		auto stored = running_syscalls.emplace(std::make_pair(ctx.retaddr, ctx.asid), ctx);
+		if (!stored.second) {
+			stored.first->second = ctx;
+		}
 	}
 #endif
 }
