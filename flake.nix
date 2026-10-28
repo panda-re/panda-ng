@@ -978,6 +978,14 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
+          series-preflight = pkgs.runCommand "panda-series-preflight-check"
+            { nativeBuildInputs = [ pkgs.python3 ]; }
+            ''
+              cp -r ${./engine} engine
+              python3 engine/scripts/test_check_series.py
+              python3 engine/scripts/check-series.py engine/patches 11.1.2
+              touch $out
+            '';
           # The series applies to the pinned tarball (the strict gate with the patchedTree
           # comparison is engine/scripts/verify-series.sh, run by .github/workflows/engine.yml).
           engine-src = p.engineSrc;

@@ -14,6 +14,7 @@ WORKDIR="${3:?}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PATCHES="$REPO_ROOT/patches"
+python3 "$REPO_ROOT/scripts/check-series.py" "$PATCHES" "$VERSION"
 # shellcheck source=scripts/lib-extract.sh
 . "$REPO_ROOT/scripts/lib-extract.sh"
 TAG=$(python3 -c "import json;print(json.load(open('$REPO_ROOT/base.json'))['$VERSION']['tag'])")
