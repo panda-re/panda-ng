@@ -298,6 +298,14 @@ PPP_CB_TYPEDEF(void, on_sys_creat_enter, CPUState* cpu, target_ulong pc, uint32_
 #define TYPEDEFS_PPP_SYSCALL_ON_SYS_CREAT_RETURN 1
 PPP_CB_TYPEDEF(void, on_sys_creat_return, CPUState* cpu, target_ulong pc, uint32_t pathname, uint32_t mode);
 #endif
+#ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_CREATE_MODULE_ENTER
+#define TYPEDEFS_PPP_SYSCALL_ON_SYS_CREATE_MODULE_ENTER 1
+PPP_CB_TYPEDEF(void, on_sys_create_module_enter, CPUState* cpu, target_ulong pc, uint32_t name, uint32_t size);
+#endif
+#ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_CREATE_MODULE_RETURN
+#define TYPEDEFS_PPP_SYSCALL_ON_SYS_CREATE_MODULE_RETURN 1
+PPP_CB_TYPEDEF(void, on_sys_create_module_return, CPUState* cpu, target_ulong pc, uint32_t name, uint32_t size);
+#endif
 #ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_DELETE_MODULE_ENTER
 #define TYPEDEFS_PPP_SYSCALL_ON_SYS_DELETE_MODULE_ENTER 1
 PPP_CB_TYPEDEF(void, on_sys_delete_module_enter, CPUState* cpu, target_ulong pc, uint32_t name_user, uint32_t flags);
@@ -737,6 +745,14 @@ PPP_CB_TYPEDEF(void, on_sys_futimesat_time32_enter, CPUState* cpu, target_ulong 
 #ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_FUTIMESAT_TIME32_RETURN
 #define TYPEDEFS_PPP_SYSCALL_ON_SYS_FUTIMESAT_TIME32_RETURN 1
 PPP_CB_TYPEDEF(void, on_sys_futimesat_time32_return, CPUState* cpu, target_ulong pc, uint32_t dfd, uint32_t filename, uint32_t t);
+#endif
+#ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_GET_KERNEL_SYMS_ENTER
+#define TYPEDEFS_PPP_SYSCALL_ON_SYS_GET_KERNEL_SYMS_ENTER 1
+PPP_CB_TYPEDEF(void, on_sys_get_kernel_syms_enter, CPUState* cpu, target_ulong pc, uint32_t table);
+#endif
+#ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_GET_KERNEL_SYMS_RETURN
+#define TYPEDEFS_PPP_SYSCALL_ON_SYS_GET_KERNEL_SYMS_RETURN 1
+PPP_CB_TYPEDEF(void, on_sys_get_kernel_syms_return, CPUState* cpu, target_ulong pc, uint32_t table);
 #endif
 #ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_GET_MEMPOLICY_ENTER
 #define TYPEDEFS_PPP_SYSCALL_ON_SYS_GET_MEMPOLICY_ENTER 1
@@ -1250,6 +1266,14 @@ PPP_CB_TYPEDEF(void, on_sys_llistxattr_enter, CPUState* cpu, target_ulong pc, ui
 #define TYPEDEFS_PPP_SYSCALL_ON_SYS_LLISTXATTR_RETURN 1
 PPP_CB_TYPEDEF(void, on_sys_llistxattr_return, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t list, uint32_t size);
 #endif
+#ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_LOOKUP_DCOOKIE_ENTER
+#define TYPEDEFS_PPP_SYSCALL_ON_SYS_LOOKUP_DCOOKIE_ENTER 1
+PPP_CB_TYPEDEF(void, on_sys_lookup_dcookie_enter, CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len);
+#endif
+#ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_LOOKUP_DCOOKIE_RETURN
+#define TYPEDEFS_PPP_SYSCALL_ON_SYS_LOOKUP_DCOOKIE_RETURN 1
+PPP_CB_TYPEDEF(void, on_sys_lookup_dcookie_return, CPUState* cpu, target_ulong pc, uint64_t cookie64, uint32_t buf, uint32_t len);
+#endif
 #ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_LREMOVEXATTR_ENTER
 #define TYPEDEFS_PPP_SYSCALL_ON_SYS_LREMOVEXATTR_ENTER 1
 PPP_CB_TYPEDEF(void, on_sys_lremovexattr_enter, CPUState* cpu, target_ulong pc, uint32_t path, uint32_t name);
@@ -1650,6 +1674,14 @@ PPP_CB_TYPEDEF(void, on_sys_newuname_enter, CPUState* cpu, target_ulong pc, uint
 #define TYPEDEFS_PPP_SYSCALL_ON_SYS_NEWUNAME_RETURN 1
 PPP_CB_TYPEDEF(void, on_sys_newuname_return, CPUState* cpu, target_ulong pc, uint32_t name);
 #endif
+#ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_NFSSERVCTL_ENTER
+#define TYPEDEFS_PPP_SYSCALL_ON_SYS_NFSSERVCTL_ENTER 1
+PPP_CB_TYPEDEF(void, on_sys_nfsservctl_enter, CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg, uint32_t res);
+#endif
+#ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_NFSSERVCTL_RETURN
+#define TYPEDEFS_PPP_SYSCALL_ON_SYS_NFSSERVCTL_RETURN 1
+PPP_CB_TYPEDEF(void, on_sys_nfsservctl_return, CPUState* cpu, target_ulong pc, int32_t cmd, uint32_t arg, uint32_t res);
+#endif
 #ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_OLD_MSGCTL_ENTER
 #define TYPEDEFS_PPP_SYSCALL_ON_SYS_OLD_MSGCTL_ENTER 1
 PPP_CB_TYPEDEF(void, on_sys_old_msgctl_enter, CPUState* cpu, target_ulong pc, int32_t msqid, int32_t cmd, uint32_t buf);
@@ -1953,6 +1985,14 @@ PPP_CB_TYPEDEF(void, on_sys_pwritev2_enter, CPUState* cpu, target_ulong pc, uint
 #ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_PWRITEV2_RETURN
 #define TYPEDEFS_PPP_SYSCALL_ON_SYS_PWRITEV2_RETURN 1
 PPP_CB_TYPEDEF(void, on_sys_pwritev2_return, CPUState* cpu, target_ulong pc, uint32_t fd, uint32_t vec, uint32_t vlen, uint32_t pos_l, uint32_t pos_h, uint32_t flags);
+#endif
+#ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_QUERY_MODULE_ENTER
+#define TYPEDEFS_PPP_SYSCALL_ON_SYS_QUERY_MODULE_ENTER 1
+PPP_CB_TYPEDEF(void, on_sys_query_module_enter, CPUState* cpu, target_ulong pc, uint32_t name, int32_t which, uint32_t buf, uint32_t bufsize, uint32_t ret);
+#endif
+#ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_QUERY_MODULE_RETURN
+#define TYPEDEFS_PPP_SYSCALL_ON_SYS_QUERY_MODULE_RETURN 1
+PPP_CB_TYPEDEF(void, on_sys_query_module_return, CPUState* cpu, target_ulong pc, uint32_t name, int32_t which, uint32_t buf, uint32_t bufsize, uint32_t ret);
 #endif
 #ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_QUOTACTL_ENTER
 #define TYPEDEFS_PPP_SYSCALL_ON_SYS_QUOTACTL_ENTER 1
@@ -2769,6 +2809,14 @@ PPP_CB_TYPEDEF(void, on_sys_syncfs_enter, CPUState* cpu, target_ulong pc, int32_
 #ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_SYNCFS_RETURN
 #define TYPEDEFS_PPP_SYSCALL_ON_SYS_SYNCFS_RETURN 1
 PPP_CB_TYPEDEF(void, on_sys_syncfs_return, CPUState* cpu, target_ulong pc, int32_t fd);
+#endif
+#ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_SYSCTL_ENTER
+#define TYPEDEFS_PPP_SYSCALL_ON_SYS_SYSCTL_ENTER 1
+PPP_CB_TYPEDEF(void, on_sys_sysctl_enter, CPUState* cpu, target_ulong pc, uint32_t args);
+#endif
+#ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_SYSCTL_RETURN
+#define TYPEDEFS_PPP_SYSCALL_ON_SYS_SYSCTL_RETURN 1
+PPP_CB_TYPEDEF(void, on_sys_sysctl_return, CPUState* cpu, target_ulong pc, uint32_t args);
 #endif
 #ifndef TYPEDEFS_PPP_SYSCALL_ON_SYS_SYSFS_ENTER
 #define TYPEDEFS_PPP_SYSCALL_ON_SYS_SYSFS_ENTER 1

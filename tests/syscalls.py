@@ -1,5 +1,6 @@
 """syscalls2 on the system calls Debian 13's glibc makes that its Linux tables lacked before they
-were generated from Linux 6.19: clone3, rseq, close_range, faccessat2, fchmodat2.
+were generated from Linux 6.19: clone3, rseq, close_range, faccessat2, fchmodat2. Also verifies
+retired lookup_dcookie/nfsservctl (and x64 _sysctl) still have typed callbacks with ENOSYS returns.
 
 Run: panda-python tests/syscalls.py <dir>/debian-13-x86_64.json   (x86_64, aarch64, riscv64)
 
@@ -66,6 +67,8 @@ def described(name, cpu, args):
     if name in ("faccessat2", "fchmodat2"):
         dfd, filename, mode, flags = args
         return (signed(dfd), path(cpu, filename), mode, flags)
+    if name in ("lookup_dcookie", "nfsservctl", "sysctl"):
+        return tuple(args)
     raise KeyError(name)
 
 
@@ -75,7 +78,11 @@ EXPECT = {
     "close_range": (100, 200, 0),
     "faccessat2": (AT_FDCWD, "/", R_OK, AT_EACCESS),
     "fchmodat2": (AT_FDCWD, MISSING, 0o644, AT_SYMLINK_NOFOLLOW),
+    "lookup_dcookie": (0x1122334455667788, 0x5678, 128),
+    "nfsservctl": (9, 0x5678, 0x9abc),
 }
+if arch == "x86_64":
+    EXPECT["sysctl"] = (0x1234,)
 
 
 def hook(name):
@@ -133,7 +140,8 @@ for n, want in EXPECT.items():
                 "program's arguments", sorted(rv > 0 for _, rv in rets) == [False, True] and
                 any(rv == 0 for _, rv in rets) and all(a == want for a, _ in rets), rets)
     else:
-        rv_want = -ENOENT if n == "fchmodat2" else 0
+        rv_want = (-38 if n in ("lookup_dcookie", "nfsservctl", "sysctl") else
+                   -ENOENT if n == "fchmodat2" else 0)
         C.check(f"on_sys_{n}_return fires once, with the program's arguments and return value {rv_want}",
                 rets == [(want, rv_want)], rets)
 C.check("on_unknown_sys_enter/return never fire in the program", not S["unknown"], S["unknown"])

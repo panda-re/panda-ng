@@ -15,10 +15,7 @@ namespace syscalls2 {
 	namespace {{os}} {
 		namespace {{arch}} {
 			{%- for s in syscalls[p] %}
-			{% for no in s.nos %}
-			const int {{s.name}} = {{no}};
-			{% break %}
-			{% endfor %}
+			const int {{s.name}} = {{s.nos[0]}};
 			{%- endfor %}
 		}
 	}

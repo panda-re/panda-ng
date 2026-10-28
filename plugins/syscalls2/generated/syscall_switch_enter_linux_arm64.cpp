@@ -360,6 +360,22 @@ void syscall_enter_switch_linux_arm64(CPUState *cpu, int profile, target_ptr_t p
 		}
 		PPP_RUN_CB(on_sys_getcwd_enter, cpu, pc, arg0, arg1);
 	}; break;
+	// 18 long sys_lookup_dcookie ['u64 cookie64', 'char __user *buf', 'size_t len']
+	case 18: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		uint64_t arg0 = get_64(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint32_t arg2 = get_32(cpu, &ctx, 2);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_lookup_dcookie_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(uint64_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint32_t));
+		}
+		PPP_RUN_CB(on_sys_lookup_dcookie_enter, cpu, pc, arg0, arg1, arg2);
+	}; break;
 	// 19 long sys_eventfd2 ['unsigned int count', 'int flags']
 	case 19: {
 		panda_noreturn = false;
@@ -723,6 +739,22 @@ void syscall_enter_switch_linux_arm64(CPUState *cpu, int profile, target_ptr_t p
 			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
 		}
 		PPP_RUN_CB(on_sys_pivot_root_enter, cpu, pc, arg0, arg1);
+	}; break;
+	// 42 long sys_nfsservctl ['int cmd', 'struct nfsctl_arg __user *arg', 'void __user *res']
+	case 42: {
+		panda_noreturn = false;
+		ctx.double_return = false;
+		int32_t arg0 = get_s32(cpu, &ctx, 0);
+		uint64_t arg1 = get_64(cpu, &ctx, 1);
+		uint64_t arg2 = get_64(cpu, &ctx, 2);
+		if (PPP_CHECK_CB(on_all_sys_enter2) ||
+			(!panda_noreturn && (PPP_CHECK_CB(on_all_sys_return2) ||
+					PPP_CHECK_CB(on_sys_nfsservctl_return)))) {
+			memcpy(ctx.args[0], &arg0, sizeof(int32_t));
+			memcpy(ctx.args[1], &arg1, sizeof(uint64_t));
+			memcpy(ctx.args[2], &arg2, sizeof(uint64_t));
+		}
+		PPP_RUN_CB(on_sys_nfsservctl_enter, cpu, pc, arg0, arg1, arg2);
 	}; break;
 	// 43 long sys_statfs ['const char __user *path', 'struct statfs __user *buf']
 	case 43: {

@@ -25,13 +25,19 @@ version is in the first line of each table), which
    calls), arm64, riscv64, mips (o32), mips64 (o32, n64 and n32 by number), mips64n32 and ppc/ppc64
    with `scripts/linux_prototypes.py`: numbers from the kernel's `*.tbl` for each ABI, prototypes
    from `include/linux/syscalls.h` (its `#if`s evaluated for the ABI) and the arch's own
-   declarations (its docstring has the rules); a system call with no prototype fails the run;
+   declarations (its docstring has the rules); known retired calls keep the historical
+   signatures in `RETIRED`, with numbers and ABI membership still taken from the kernel table.
+   An implemented system call with no prototype fails the run;
 2. runs `scripts/make_all_generated.sh`, which rewrites `generated/` from every table and
    `generated-in/context_target.json`.
 
 The flake check `syscalls2-tables` (part of `nix flake check`) regenerates both and fails when
-the committed files differ, so a table can't go stale or be edited by hand. Syscall numbers only
-grow, so the newest kernel's tables describe older guests as well. A nixpkgs bump that moves
+the committed files differ, so a table can't go stale or be edited by hand. Removing an
+implementation from Linux does not remove the need to trace it in older guests. Maintain
+`RETIRED` when a kernel update drops a declaration or replaces an entry with `sys_ni_syscall`;
+`scripts/test_linux_prototypes.py` checks representative historical ABIs and exclusions during
+regeneration. `ABI-COMPATIBILITY.md` records the comparison with `hrw/syscalls-table`, which also
+lists some reserved, unimplemented numbers and omits some retired calls. A nixpkgs bump that moves
 `linux_latest` makes the check fail until `nix run .#regen-syscalls` is committed with it.
 
 Without nix: `PYTHON=<python3 with jinja2> plugins/syscalls2/scripts/regen.sh <linux source

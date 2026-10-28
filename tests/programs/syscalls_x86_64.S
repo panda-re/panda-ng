@@ -68,6 +68,29 @@ _start:
     mov edi, 6
     cmp rax, -2
     jne out
+    /* Retired calls still need typed callbacks when the guest kernel returns ENOSYS. */
+    mov eax, 212            /* lookup_dcookie */
+    mov rdi, 0x1122334455667788
+    mov esi, 0x5678
+    mov edx, 128
+    syscall
+    mov edi, 7
+    cmp rax, -38
+    jne out
+    mov eax, 180            /* nfsservctl */
+    mov edi, 9
+    mov esi, 0x5678
+    mov edx, 0x9abc
+    syscall
+    mov edi, 8
+    cmp rax, -38
+    jne out
+    mov eax, 156            /* _sysctl */
+    mov edi, 0x1234
+    syscall
+    mov edi, 9
+    cmp rax, -38
+    jne out
     xor edi, edi
 out:
     mov eax, 60             /* exit(edi) */
