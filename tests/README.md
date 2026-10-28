@@ -57,6 +57,46 @@ comparing the guest's icount reads, which are not exact there yet.
 
 The full default run (19 tests on 5 images, all at once) took 19 minutes on that server.
 
+## Performance tools
+
+These tools are independent of the guest suite runner. Offline protocol selftests need only
+stdlib Python and Linux `taskset` (util-linux); no engine or guest fixture is needed:
+
+```sh
+python3 -I tests/perf/test_perf.py
+nix build .#checks.x86_64-linux.perf-tools
+```
+
+The independent `perf-tools` flake check uses pinned Python, Bash, coreutils, util-linux and a
+C compiler. It runs the protocol selftests, shell syntax checks and the real `idlework.c` CPU
+workload once on the host for correctness, including invalid repetition-count rejection.
+This does not boot an engine or establish guest correctness or performance.
+
+`tests/perf/run.py` documents its schema-1 configuration and artifact requirements. `--check`
+validates configuration offline; `--execute CONFIG.json NEW_OUT` is only for an explicitly
+reserved quiet window, with already prepared inputs and no concurrent builds. It compares the
+installed shared-engine launcher with matching vanilla QEMU and identical shared A/A aliases,
+rotates sample order, preserves every repeat and requires correctness/exit markers before
+samples. No icount or writable guest drives are allowed. Artifacts/configuration/logs are
+hashed, and shared-engine mappings must actually be observed in `/proc`. Reanalyze retained
+evidence with `python3 -I tests/perf/analyze.py NEW_OUT`; contamination invalidates a campaign.
+There is no automatic performance verdict or mandatory shared-host timing threshold.
+
+`perf/idlework.c` checks sort ordering/permutation, its VM against a scalar reference and a CRC
+known vector. `perf/mkinitrd.sh STATIC_BUSYBOX STATIC_IDLEWORK NEW_OUT.gz` packages separately
+prepared, static target-compatible inputs using cpio and gzip; it refuses existing output.
+Keep exact compiler/configuration records. The minimal read-only initrd accepts `pt=iw-cpu:N`.
+Host correctness alone is not integrated boot evidence.
+
+`bench_cb.py` is callback attribution, not an end-to-end acceptance gate. It needs pandare2,
+`qemu-img`, a standalone snapshot-bearing qcow2 JSON fixture and the C baseline plugin above.
+It privately copies the fixture, retains all positive-count repeats and summarizes medians
+rather than the fastest repeat. Bound the whole process externally; serial commands are
+bounded individually. Missing C phases are explicitly skipped, not a pass. Restore/activation
+is outside dispatch samples. `engine/scripts/offcost-gate.sh` is retained only as a historical
+series-vs-series diagnostic: it does not measure the shipped shared engine or establish
+vanilla parity.
+
 ## Boards
 
 - `machine.py`, `machine_sw.py`: the engine's built-in `configurable` machine from

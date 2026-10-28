@@ -1,0 +1,23 @@
+#!/bin/busybox sh
+# Read-only minimal CPU benchmark initrd. No shared disk or implicit downloads.
+/bin/busybox --install -s /bin
+mount -t proc proc /proc || exit 1
+mount -t sysfs sys /sys || exit 1
+mount -t devtmpfs dev /dev || exit 1
+seen=0
+for word in $(cat /proc/cmdline); do
+    case "$word" in
+        pt=iw-cpu:*)
+            [ "$seen" = 0 ] || exit 1
+            seen=1
+            reps=${word#pt=iw-cpu:}
+            /idlework cpu "$reps"
+            rc=$?
+            echo "EXIT iw-cpu:$reps $rc"
+            [ "$rc" = 0 ] || { poweroff -f; exit 1; }
+            ;;
+    esac
+done
+[ "$seen" = 1 ] || { poweroff -f; exit 1; }
+echo ALLDONE
+poweroff -f
