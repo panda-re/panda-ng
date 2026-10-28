@@ -58,6 +58,17 @@ jobs:
           echo "${{ needs.version.outputs.version }}" > VERSION
           nix build -L --out-link result-deb .#deb
           cp -L result-deb panda-next_${{ needs.version.outputs.version }}_${{ matrix.arch }}.deb
+      - name: Install, run and remove on Ubuntu 24.04
+        run: |
+          mkdir -p deb-evidence
+          docker run --rm -v "$PWD:/w:ro" -v "$PWD/deb-evidence:/evidence" ubuntu:24.04 \
+            bash -c 'bash /w/tools/deb/smoke.sh /w/panda-next_*.deb /w/tests /evidence/ubuntu'
+      - name: Retain installed-package evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-evidence-${{ matrix.arch }}
+          path: deb-evidence/
       - uses: actions/upload-artifact@v4
         with:
           name: deb-${{ matrix.arch }}
