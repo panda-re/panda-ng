@@ -43,6 +43,29 @@ lists some reserved, unimplemented numbers and omits some retired calls. A nixpk
 Without nix: `PYTHON=<python3 with jinja2> plugins/syscalls2/scripts/regen.sh <linux source
 tree or .tar.xz>`.
 
+## Dispatch cost and subscriptions
+
+The generated enter dispatcher reads arguments only for a specific entry callback,
+`on_all_sys_enter2`, or a return callback that needs saved arguments. An entry callback that only
+uses `on_all_sys_enter` needs no argument reads. Return hooks and `running_syscalls` entries are
+created only when a specific, unknown, or all-syscall return callback is subscribed. Registering
+an unrelated call's return callback does not force every syscall through return tracking.
+New saved contexts are constructed directly in the map; an existing return-PC/ASID key is
+replaced, preserving the previous overwrite behavior without zero-initializing every new entry.
+
+The return subscription is checked after all entry callbacks run, including context callbacks,
+so an entry callback may subscribe to its own return. As before, argument saving is decided
+before entry callbacks run: register before entry to receive the original arguments. A return
+listener registered after the entry dispatch finishes does not retroactively track in-flight
+calls. No-return calls still omit return hooks, and clone3/fork keep their double-return state.
+
+`nix build .#checks.x86_64-linux.syscalls2-dispatch` compiles the real generated x64 dispatcher
+and real PPP registry against a counted engine boundary. It checks argument reads, hook/context
+creation, specific/global/unknown and context callbacks, subscription changes during entry,
+no-return calls and double-return metadata. The resulting standalone binary also accepts
+`--bench idle|enter|return|all-return` for dispatch-only measurements; this excludes guest/kernel
+execution and actual hook installation costs. `tests/syscalls.py` tests the callbacks on guests.
+
 ## Extracting system call prototypes (Windows)
 
 The files used to generate the Windows prototype files are in the `scripts` folder:

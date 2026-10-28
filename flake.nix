@@ -1042,6 +1042,12 @@
             done
             touch $out
           '';
+          # Compile the real generated dispatcher and PPP registry against a counted engine
+          # boundary: entry-only observers must not read unused arguments or track returns.
+          syscalls2-dispatch = pkgs.runCommandCC "syscalls2-dispatch-check" { } ''
+            PANDA_SOURCE=${./.} bash ${./tests/static/syscalls_dispatch.sh} dispatch
+            touch $out
+          '';
           # repair.py on a synthetic engine: shipped siblings aren't bundled again, RUNPATHs keep
           # $ORIGIN, licenses and License-Expression are written (no engine build needed).
           wheel-repair =
