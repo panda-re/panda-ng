@@ -45,7 +45,7 @@ def end(cpu, tb):
     pc = panda.tb_pc(cpu, tb)
     current["ends"][pc] += 1
     if pc == current["labels"].get("loop"):
-        current["loop_destinations"].add(panda.arch.get_pc(cpu))
+        current["loop_destinations"].add((tb.size, panda.arch.get_pc(cpu)))
 
 
 @panda.hypercall(0x50616e64)
@@ -106,8 +106,16 @@ for i, run in enumerate(runs):
     if end_on:
         check(prefix + " all 1000 normal loop exits observed",
               run["ends"][labels["loop"]] == 1000, run["ends"][labels["loop"]])
+        # An icount budget can end a TB before the loop's conditional branch.
+        # Such a TB completes normally at its next sequential instruction.
+        loop_size = labels["odd"] - labels["loop"]
+        destinations = {pc for size, pc in run["loop_destinations"]
+                        if size == loop_size}
+        split_pcs_valid = all(0 < size < loop_size and pc == labels["loop"] + size
+                              for size, pc in run["loop_destinations"]
+                              if size != loop_size)
         check(prefix + " outgoing PC committed before end callback",
-              run["loop_destinations"] == {labels["odd"], labels["even"]},
+              destinations == {labels["odd"], labels["even"]} and split_pcs_valid,
               sorted(run["loop_destinations"]))
         check(prefix + " faulted block has no completion event",
               run["ends"][labels["fault"]] == 0)
