@@ -1010,6 +1010,20 @@
               done
               touch $out
             '';
+          # Stdlib/synthetic runner and docs checks only: no engine or guest dependency.
+          # Keep sibling imports, docs sources and the patch metadata they validate together.
+          offline-tools = pkgs.runCommand "panda-offline-tools-check"
+            {
+              nativeBuildInputs = [ pkgs.python3 pkgs.git pkgs.bash pkgs.coreutils ];
+            }
+            ''
+              cp -r ${./.} source
+              chmod -R u+w source
+              cd source
+              python3 tests/run_selftests.py
+              python3 tools/docs/gen.py --check
+              touch $out
+            '';
           # The series applies to the pinned tarball (the strict gate with the patchedTree
           # comparison is engine/scripts/verify-series.sh, run by .github/workflows/engine.yml).
           engine-src = p.engineSrc;

@@ -104,8 +104,10 @@ def test_sets():
 
 
 def default_tests():
-    m = re.search(r'^DEFAULT_TESTS="([^"]*)"', (ROOT / "tests/run.sh").read_text(), re.M)
-    return m.group(1).split()
+    for node in ast.parse((ROOT / "tests/inventory.py").read_text()).body:
+        if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == "LEGACY_DEFAULT" for t in node.targets):
+            return ast.literal_eval(node.value).split()
+    err("tests/inventory.py: no LEGACY_DEFAULT at the top level")
 
 
 _py_names = None
