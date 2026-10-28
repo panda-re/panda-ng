@@ -3,8 +3,8 @@
 
 Usage: python installed.py wheel|deb /path/to/tests /path/to/evidence
 Optional PANDA_INSTALLED_IMAGES is an os.pathsep-separated list of guest JSONs.
-Selected guest coverage requires PR2's tests/run_results.py and inventory.py to land
-first; without that runner, the planned guest check fails rather than being skipped.
+tests/run_results.py and inventory.py must be present for selected guest coverage;
+without that runner, the planned guest check fails rather than being skipped.
 """
 import hashlib
 import json
