@@ -12,4 +12,5 @@ set -euo pipefail
 src=$(realpath "$1")
 cd "$(dirname "$0")"
 "${PYTHON:-python3}" linux_prototypes.py "$src" ../generated-in
+"${PYTHON:-python3}" test_linux_prototypes.py "$src"
 PYTHON=${PYTHON:-python3} bash make_all_generated.sh

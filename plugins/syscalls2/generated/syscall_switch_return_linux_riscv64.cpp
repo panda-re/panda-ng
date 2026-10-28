@@ -258,6 +258,18 @@ void syscall_return_switch_linux_riscv64(CPUState *cpu, target_ptr_t pc, const s
 			}
 			PPP_RUN_CB(on_sys_getcwd_return, cpu, pc, arg0, arg1) ;
 		}; break;
+		// 18 long sys_lookup_dcookie ['u64 cookie64', 'char __user *buf', 'size_t len']
+		case 18: {
+			uint64_t arg0 = 0;
+			uint64_t arg1 = 0;
+			uint32_t arg2 = 0;
+			if (PPP_CHECK_CB(on_sys_lookup_dcookie_return) || PPP_CHECK_CB(on_all_sys_return2)) {
+				memcpy(&arg0, ctx->args[0], sizeof(uint64_t));
+				memcpy(&arg1, ctx->args[1], sizeof(uint64_t));
+				memcpy(&arg2, ctx->args[2], sizeof(uint32_t));
+			}
+			PPP_RUN_CB(on_sys_lookup_dcookie_return, cpu, pc, arg0, arg1, arg2) ;
+		}; break;
 		// 19 long sys_eventfd2 ['unsigned int count', 'int flags']
 		case 19: {
 			uint32_t arg0 = 0;
@@ -515,6 +527,18 @@ void syscall_return_switch_linux_riscv64(CPUState *cpu, target_ptr_t pc, const s
 				memcpy(&arg1, ctx->args[1], sizeof(uint64_t));
 			}
 			PPP_RUN_CB(on_sys_pivot_root_return, cpu, pc, arg0, arg1) ;
+		}; break;
+		// 42 long sys_nfsservctl ['int cmd', 'struct nfsctl_arg __user *arg', 'void __user *res']
+		case 42: {
+			int32_t arg0 = 0;
+			uint64_t arg1 = 0;
+			uint64_t arg2 = 0;
+			if (PPP_CHECK_CB(on_sys_nfsservctl_return) || PPP_CHECK_CB(on_all_sys_return2)) {
+				memcpy(&arg0, ctx->args[0], sizeof(int32_t));
+				memcpy(&arg1, ctx->args[1], sizeof(uint64_t));
+				memcpy(&arg2, ctx->args[2], sizeof(uint64_t));
+			}
+			PPP_RUN_CB(on_sys_nfsservctl_return, cpu, pc, arg0, arg1, arg2) ;
 		}; break;
 		// 43 long sys_statfs ['const char __user *path', 'struct statfs __user *buf']
 		case 43: {

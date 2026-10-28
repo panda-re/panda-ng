@@ -1223,6 +1223,19 @@
 	const uint32_t &UNUSED(pref##fd) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
 #endif
 
+// long sys_bdflush [['int func', 'long data']]
+#define locals_LINUX__ARM_sys_bdflush(ctx, pref) \
+	int32_t UNUSED(pref##func) = *(int32_t *)((ctx)->args[0]); \
+	int32_t UNUSED(pref##_data) = *(int32_t *)((ctx)->args[1]);
+#if defined(__cplusplus)
+#define references_LINUX__ARM_sys_bdflush(ctx, pref) \
+	int32_t &UNUSED(pref##func) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	int32_t &UNUSED(pref##_data) = *reinterpret_cast<int32_t *>((ctx)->args[1]);
+#define creferences_LINUX__ARM_sys_bdflush(ctx, pref) \
+	const int32_t &UNUSED(pref##func) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const int32_t &UNUSED(pref##_data) = *reinterpret_cast<const int32_t *>((ctx)->args[1]);
+#endif
+
 // long sys_sysfs [['int option', 'unsigned long arg1', 'unsigned long arg2']]
 #define locals_LINUX__ARM_sys_sysfs(ctx, pref) \
 	int32_t UNUSED(pref##option) = *(int32_t *)((ctx)->args[0]); \
@@ -1408,6 +1421,16 @@
 	uint32_t &UNUSED(pref##fd) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
 #define creferences_LINUX__ARM_sys_fdatasync(ctx, pref) \
 	const uint32_t &UNUSED(pref##fd) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_sysctl [['struct __sysctl_args __user *args']]
+#define locals_LINUX__ARM_sys_sysctl(ctx, pref) \
+	uint32_t UNUSED(pref##args) = *(uint32_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__ARM_sys_sysctl(ctx, pref) \
+	uint32_t &UNUSED(pref##args) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
+#define creferences_LINUX__ARM_sys_sysctl(ctx, pref) \
+	const uint32_t &UNUSED(pref##args) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
 #endif
 
 // long sys_mlock [['unsigned long start', 'size_t len']]
@@ -1624,6 +1647,22 @@
 	const uint32_t &UNUSED(pref##ufds) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
 	const uint32_t &UNUSED(pref##nfds) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
 	const int32_t &UNUSED(pref##timeout) = *reinterpret_cast<const int32_t *>((ctx)->args[2]);
+#endif
+
+// long sys_nfsservctl [['int cmd', 'struct nfsctl_arg __user *arg', 'void __user *res']]
+#define locals_LINUX__ARM_sys_nfsservctl(ctx, pref) \
+	int32_t UNUSED(pref##cmd) = *(int32_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##arg) = *(uint32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##res) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__ARM_sys_nfsservctl(ctx, pref) \
+	int32_t &UNUSED(pref##cmd) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##arg) = *reinterpret_cast<uint32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##res) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__ARM_sys_nfsservctl(ctx, pref) \
+	const int32_t &UNUSED(pref##cmd) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##arg) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##res) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
 // long sys_setresgid16 [['old_gid_t rgid', 'old_gid_t egid', 'old_gid_t sgid']]
@@ -2730,6 +2769,22 @@
 	int32_t &UNUSED(pref##error_code) = *reinterpret_cast<int32_t *>((ctx)->args[0]);
 #define creferences_LINUX__ARM_sys_exit_group(ctx, pref) \
 	const int32_t &UNUSED(pref##error_code) = *reinterpret_cast<const int32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_lookup_dcookie [['u64 cookie64', 'char __user *buf', 'size_t len']]
+#define locals_LINUX__ARM_sys_lookup_dcookie(ctx, pref) \
+	uint64_t UNUSED(pref##cookie64) = *(uint64_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##buf) = *(uint32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##len) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__ARM_sys_lookup_dcookie(ctx, pref) \
+	uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##buf) = *reinterpret_cast<uint32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##len) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__ARM_sys_lookup_dcookie(ctx, pref) \
+	const uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##buf) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##len) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
 // long sys_epoll_create [['int size']]
@@ -6928,6 +6983,22 @@
 	const uint64_t &UNUSED(pref##size) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]);
 #endif
 
+// long sys_lookup_dcookie [['u64 cookie64', 'char __user *buf', 'size_t len']]
+#define locals_LINUX__ARM64_sys_lookup_dcookie(ctx, pref) \
+	uint64_t UNUSED(pref##cookie64) = *(uint64_t *)((ctx)->args[0]); \
+	uint64_t UNUSED(pref##buf) = *(uint64_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##len) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__ARM64_sys_lookup_dcookie(ctx, pref) \
+	uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	uint64_t &UNUSED(pref##buf) = *reinterpret_cast<uint64_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##len) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__ARM64_sys_lookup_dcookie(ctx, pref) \
+	const uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const uint64_t &UNUSED(pref##buf) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##len) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
+#endif
+
 // long sys_eventfd2 [['unsigned int count', 'int flags']]
 #define locals_LINUX__ARM64_sys_eventfd2(ctx, pref) \
 	uint32_t UNUSED(pref##count) = *(uint32_t *)((ctx)->args[0]); \
@@ -7288,6 +7359,22 @@
 #define creferences_LINUX__ARM64_sys_pivot_root(ctx, pref) \
 	const uint64_t &UNUSED(pref##new_root) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
 	const uint64_t &UNUSED(pref##put_old) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]);
+#endif
+
+// long sys_nfsservctl [['int cmd', 'struct nfsctl_arg __user *arg', 'void __user *res']]
+#define locals_LINUX__ARM64_sys_nfsservctl(ctx, pref) \
+	int32_t UNUSED(pref##cmd) = *(int32_t *)((ctx)->args[0]); \
+	uint64_t UNUSED(pref##arg) = *(uint64_t *)((ctx)->args[1]); \
+	uint64_t UNUSED(pref##res) = *(uint64_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__ARM64_sys_nfsservctl(ctx, pref) \
+	int32_t &UNUSED(pref##cmd) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	uint64_t &UNUSED(pref##arg) = *reinterpret_cast<uint64_t *>((ctx)->args[1]); \
+	uint64_t &UNUSED(pref##res) = *reinterpret_cast<uint64_t *>((ctx)->args[2]);
+#define creferences_LINUX__ARM64_sys_nfsservctl(ctx, pref) \
+	const int32_t &UNUSED(pref##cmd) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const uint64_t &UNUSED(pref##arg) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]); \
+	const uint64_t &UNUSED(pref##res) = *reinterpret_cast<const uint64_t *>((ctx)->args[2]);
 #endif
 
 // long sys_statfs [['const char __user *path', 'struct statfs __user *buf']]
@@ -12127,6 +12214,22 @@
 	const uint64_t &UNUSED(pref##size) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]);
 #endif
 
+// long sys_lookup_dcookie [['u64 cookie64', 'char __user *buf', 'size_t len']]
+#define locals_LINUX__RISCV64_sys_lookup_dcookie(ctx, pref) \
+	uint64_t UNUSED(pref##cookie64) = *(uint64_t *)((ctx)->args[0]); \
+	uint64_t UNUSED(pref##buf) = *(uint64_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##len) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__RISCV64_sys_lookup_dcookie(ctx, pref) \
+	uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	uint64_t &UNUSED(pref##buf) = *reinterpret_cast<uint64_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##len) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__RISCV64_sys_lookup_dcookie(ctx, pref) \
+	const uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const uint64_t &UNUSED(pref##buf) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##len) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
+#endif
+
 // long sys_eventfd2 [['unsigned int count', 'int flags']]
 #define locals_LINUX__RISCV64_sys_eventfd2(ctx, pref) \
 	uint32_t UNUSED(pref##count) = *(uint32_t *)((ctx)->args[0]); \
@@ -12468,6 +12571,22 @@
 #define creferences_LINUX__RISCV64_sys_pivot_root(ctx, pref) \
 	const uint64_t &UNUSED(pref##new_root) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
 	const uint64_t &UNUSED(pref##put_old) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]);
+#endif
+
+// long sys_nfsservctl [['int cmd', 'struct nfsctl_arg __user *arg', 'void __user *res']]
+#define locals_LINUX__RISCV64_sys_nfsservctl(ctx, pref) \
+	int32_t UNUSED(pref##cmd) = *(int32_t *)((ctx)->args[0]); \
+	uint64_t UNUSED(pref##arg) = *(uint64_t *)((ctx)->args[1]); \
+	uint64_t UNUSED(pref##res) = *(uint64_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__RISCV64_sys_nfsservctl(ctx, pref) \
+	int32_t &UNUSED(pref##cmd) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	uint64_t &UNUSED(pref##arg) = *reinterpret_cast<uint64_t *>((ctx)->args[1]); \
+	uint64_t &UNUSED(pref##res) = *reinterpret_cast<uint64_t *>((ctx)->args[2]);
+#define creferences_LINUX__RISCV64_sys_nfsservctl(ctx, pref) \
+	const int32_t &UNUSED(pref##cmd) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const uint64_t &UNUSED(pref##arg) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]); \
+	const uint64_t &UNUSED(pref##res) = *reinterpret_cast<const uint64_t *>((ctx)->args[2]);
 #endif
 
 // long sys_statfs [['const char __user *path', 'struct statfs __user *buf']]
@@ -18476,6 +18595,19 @@
 	const uint32_t &UNUSED(pref##oset) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
+// long sys_create_module [['const char __user *name', 'size_t size']]
+#define locals_LINUX__X86_sys_create_module(ctx, pref) \
+	uint32_t UNUSED(pref##name) = *(uint32_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##size) = *(uint32_t *)((ctx)->args[1]);
+#if defined(__cplusplus)
+#define references_LINUX__X86_sys_create_module(ctx, pref) \
+	uint32_t &UNUSED(pref##name) = *reinterpret_cast<uint32_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##size) = *reinterpret_cast<uint32_t *>((ctx)->args[1]);
+#define creferences_LINUX__X86_sys_create_module(ctx, pref) \
+	const uint32_t &UNUSED(pref##name) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##size) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
+#endif
+
 // long sys_init_module [['void __user *umod', 'unsigned long len', 'const char __user *uargs']]
 #define locals_LINUX__X86_sys_init_module(ctx, pref) \
 	uint32_t UNUSED(pref##umod) = *(uint32_t *)((ctx)->args[0]); \
@@ -18503,6 +18635,16 @@
 #define creferences_LINUX__X86_sys_delete_module(ctx, pref) \
 	const uint32_t &UNUSED(pref##name_user) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
 	const uint32_t &UNUSED(pref##flags) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
+#endif
+
+// long sys_get_kernel_syms [['struct kernel_sym __user *table']]
+#define locals_LINUX__X86_sys_get_kernel_syms(ctx, pref) \
+	uint32_t UNUSED(pref##table) = *(uint32_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__X86_sys_get_kernel_syms(ctx, pref) \
+	uint32_t &UNUSED(pref##table) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
+#define creferences_LINUX__X86_sys_get_kernel_syms(ctx, pref) \
+	const uint32_t &UNUSED(pref##table) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
 #endif
 
 // long sys_quotactl [['unsigned int cmd', 'const char __user *special', 'qid_t id', 'void __user *addr']]
@@ -18542,6 +18684,19 @@
 	uint32_t &UNUSED(pref##fd) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
 #define creferences_LINUX__X86_sys_fchdir(ctx, pref) \
 	const uint32_t &UNUSED(pref##fd) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_bdflush [['int func', 'long data']]
+#define locals_LINUX__X86_sys_bdflush(ctx, pref) \
+	int32_t UNUSED(pref##func) = *(int32_t *)((ctx)->args[0]); \
+	int32_t UNUSED(pref##_data) = *(int32_t *)((ctx)->args[1]);
+#if defined(__cplusplus)
+#define references_LINUX__X86_sys_bdflush(ctx, pref) \
+	int32_t &UNUSED(pref##func) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	int32_t &UNUSED(pref##_data) = *reinterpret_cast<int32_t *>((ctx)->args[1]);
+#define creferences_LINUX__X86_sys_bdflush(ctx, pref) \
+	const int32_t &UNUSED(pref##func) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const int32_t &UNUSED(pref##_data) = *reinterpret_cast<const int32_t *>((ctx)->args[1]);
 #endif
 
 // long sys_sysfs [['int option', 'unsigned long arg1', 'unsigned long arg2']]
@@ -18729,6 +18884,16 @@
 	uint32_t &UNUSED(pref##fd) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
 #define creferences_LINUX__X86_sys_fdatasync(ctx, pref) \
 	const uint32_t &UNUSED(pref##fd) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_sysctl [['struct __sysctl_args __user *args']]
+#define locals_LINUX__X86_sys_sysctl(ctx, pref) \
+	uint32_t UNUSED(pref##args) = *(uint32_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__X86_sys_sysctl(ctx, pref) \
+	uint32_t &UNUSED(pref##args) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
+#define creferences_LINUX__X86_sys_sysctl(ctx, pref) \
+	const uint32_t &UNUSED(pref##args) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
 #endif
 
 // long sys_mlock [['unsigned long start', 'size_t len']]
@@ -18944,6 +19109,28 @@
 	const uint32_t &UNUSED(pref##arg) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
 #endif
 
+// long sys_query_module [['const char __user *name', 'int which', 'void __user *buf', 'size_t bufsize', 'size_t __user *ret']]
+#define locals_LINUX__X86_sys_query_module(ctx, pref) \
+	uint32_t UNUSED(pref##name) = *(uint32_t *)((ctx)->args[0]); \
+	int32_t UNUSED(pref##which) = *(int32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##buf) = *(uint32_t *)((ctx)->args[2]); \
+	uint32_t UNUSED(pref##bufsize) = *(uint32_t *)((ctx)->args[3]); \
+	uint32_t UNUSED(pref##ret) = *(uint32_t *)((ctx)->args[4]);
+#if defined(__cplusplus)
+#define references_LINUX__X86_sys_query_module(ctx, pref) \
+	uint32_t &UNUSED(pref##name) = *reinterpret_cast<uint32_t *>((ctx)->args[0]); \
+	int32_t &UNUSED(pref##which) = *reinterpret_cast<int32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##buf) = *reinterpret_cast<uint32_t *>((ctx)->args[2]); \
+	uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<uint32_t *>((ctx)->args[3]); \
+	uint32_t &UNUSED(pref##ret) = *reinterpret_cast<uint32_t *>((ctx)->args[4]);
+#define creferences_LINUX__X86_sys_query_module(ctx, pref) \
+	const uint32_t &UNUSED(pref##name) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
+	const int32_t &UNUSED(pref##which) = *reinterpret_cast<const int32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##buf) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]); \
+	const uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<const uint32_t *>((ctx)->args[3]); \
+	const uint32_t &UNUSED(pref##ret) = *reinterpret_cast<const uint32_t *>((ctx)->args[4]);
+#endif
+
 // long sys_poll [['struct pollfd __user *ufds', 'unsigned int nfds', 'int timeout']]
 #define locals_LINUX__X86_sys_poll(ctx, pref) \
 	uint32_t UNUSED(pref##ufds) = *(uint32_t *)((ctx)->args[0]); \
@@ -18958,6 +19145,22 @@
 	const uint32_t &UNUSED(pref##ufds) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
 	const uint32_t &UNUSED(pref##nfds) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
 	const int32_t &UNUSED(pref##timeout) = *reinterpret_cast<const int32_t *>((ctx)->args[2]);
+#endif
+
+// long sys_nfsservctl [['int cmd', 'struct nfsctl_arg __user *arg', 'void __user *res']]
+#define locals_LINUX__X86_sys_nfsservctl(ctx, pref) \
+	int32_t UNUSED(pref##cmd) = *(int32_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##arg) = *(uint32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##res) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__X86_sys_nfsservctl(ctx, pref) \
+	int32_t &UNUSED(pref##cmd) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##arg) = *reinterpret_cast<uint32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##res) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__X86_sys_nfsservctl(ctx, pref) \
+	const int32_t &UNUSED(pref##cmd) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##arg) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##res) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
 // long sys_setresgid16 [['old_gid_t rgid', 'old_gid_t egid', 'old_gid_t sgid']]
@@ -20121,6 +20324,22 @@
 	int32_t &UNUSED(pref##error_code) = *reinterpret_cast<int32_t *>((ctx)->args[0]);
 #define creferences_LINUX__X86_sys_exit_group(ctx, pref) \
 	const int32_t &UNUSED(pref##error_code) = *reinterpret_cast<const int32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_lookup_dcookie [['u64 cookie64', 'char __user *buf', 'size_t len']]
+#define locals_LINUX__X86_sys_lookup_dcookie(ctx, pref) \
+	uint64_t UNUSED(pref##cookie64) = *(uint64_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##buf) = *(uint32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##len) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__X86_sys_lookup_dcookie(ctx, pref) \
+	uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##buf) = *reinterpret_cast<uint32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##len) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__X86_sys_lookup_dcookie(ctx, pref) \
+	const uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##buf) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##len) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
 // long sys_epoll_create [['int size']]
@@ -25956,6 +26175,16 @@
 	const uint64_t &UNUSED(pref##put_old) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]);
 #endif
 
+// long sys_sysctl [['struct __sysctl_args __user *args']]
+#define locals_LINUX__X64_sys_sysctl(ctx, pref) \
+	uint64_t UNUSED(pref##args) = *(uint64_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__X64_sys_sysctl(ctx, pref) \
+	uint64_t &UNUSED(pref##args) = *reinterpret_cast<uint64_t *>((ctx)->args[0]);
+#define creferences_LINUX__X64_sys_sysctl(ctx, pref) \
+	const uint64_t &UNUSED(pref##args) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]);
+#endif
+
 // long sys_prctl [['int option', 'unsigned long arg2', 'unsigned long arg3', 'unsigned long arg4', 'unsigned long arg5']]
 #define locals_LINUX__X64_sys_prctl(ctx, pref) \
 	int32_t UNUSED(pref##option) = *(int32_t *)((ctx)->args[0]); \
@@ -26182,6 +26411,19 @@
 	const int32_t &UNUSED(pref##on) = *reinterpret_cast<const int32_t *>((ctx)->args[2]);
 #endif
 
+// long sys_create_module [['const char __user *name', 'size_t size']]
+#define locals_LINUX__X64_sys_create_module(ctx, pref) \
+	uint64_t UNUSED(pref##name) = *(uint64_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##size) = *(uint32_t *)((ctx)->args[1]);
+#if defined(__cplusplus)
+#define references_LINUX__X64_sys_create_module(ctx, pref) \
+	uint64_t &UNUSED(pref##name) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##size) = *reinterpret_cast<uint32_t *>((ctx)->args[1]);
+#define creferences_LINUX__X64_sys_create_module(ctx, pref) \
+	const uint64_t &UNUSED(pref##name) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##size) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
+#endif
+
 // long sys_init_module [['void __user *umod', 'unsigned long len', 'const char __user *uargs']]
 #define locals_LINUX__X64_sys_init_module(ctx, pref) \
 	uint64_t UNUSED(pref##umod) = *(uint64_t *)((ctx)->args[0]); \
@@ -26211,6 +26453,38 @@
 	const uint32_t &UNUSED(pref##flags) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
 #endif
 
+// long sys_get_kernel_syms [['struct kernel_sym __user *table']]
+#define locals_LINUX__X64_sys_get_kernel_syms(ctx, pref) \
+	uint64_t UNUSED(pref##table) = *(uint64_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__X64_sys_get_kernel_syms(ctx, pref) \
+	uint64_t &UNUSED(pref##table) = *reinterpret_cast<uint64_t *>((ctx)->args[0]);
+#define creferences_LINUX__X64_sys_get_kernel_syms(ctx, pref) \
+	const uint64_t &UNUSED(pref##table) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]);
+#endif
+
+// long sys_query_module [['const char __user *name', 'int which', 'void __user *buf', 'size_t bufsize', 'size_t __user *ret']]
+#define locals_LINUX__X64_sys_query_module(ctx, pref) \
+	uint64_t UNUSED(pref##name) = *(uint64_t *)((ctx)->args[0]); \
+	int32_t UNUSED(pref##which) = *(int32_t *)((ctx)->args[1]); \
+	uint64_t UNUSED(pref##buf) = *(uint64_t *)((ctx)->args[2]); \
+	uint32_t UNUSED(pref##bufsize) = *(uint32_t *)((ctx)->args[3]); \
+	uint64_t UNUSED(pref##ret) = *(uint64_t *)((ctx)->args[4]);
+#if defined(__cplusplus)
+#define references_LINUX__X64_sys_query_module(ctx, pref) \
+	uint64_t &UNUSED(pref##name) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	int32_t &UNUSED(pref##which) = *reinterpret_cast<int32_t *>((ctx)->args[1]); \
+	uint64_t &UNUSED(pref##buf) = *reinterpret_cast<uint64_t *>((ctx)->args[2]); \
+	uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<uint32_t *>((ctx)->args[3]); \
+	uint64_t &UNUSED(pref##ret) = *reinterpret_cast<uint64_t *>((ctx)->args[4]);
+#define creferences_LINUX__X64_sys_query_module(ctx, pref) \
+	const uint64_t &UNUSED(pref##name) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const int32_t &UNUSED(pref##which) = *reinterpret_cast<const int32_t *>((ctx)->args[1]); \
+	const uint64_t &UNUSED(pref##buf) = *reinterpret_cast<const uint64_t *>((ctx)->args[2]); \
+	const uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<const uint32_t *>((ctx)->args[3]); \
+	const uint64_t &UNUSED(pref##ret) = *reinterpret_cast<const uint64_t *>((ctx)->args[4]);
+#endif
+
 // long sys_quotactl [['unsigned int cmd', 'const char __user *special', 'qid_t id', 'void __user *addr']]
 #define locals_LINUX__X64_sys_quotactl(ctx, pref) \
 	uint32_t UNUSED(pref##cmd) = *(uint32_t *)((ctx)->args[0]); \
@@ -26228,6 +26502,22 @@
 	const uint64_t &UNUSED(pref##special) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]); \
 	const uint32_t &UNUSED(pref##id) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]); \
 	const uint64_t &UNUSED(pref##addr) = *reinterpret_cast<const uint64_t *>((ctx)->args[3]);
+#endif
+
+// long sys_nfsservctl [['int cmd', 'struct nfsctl_arg __user *arg', 'void __user *res']]
+#define locals_LINUX__X64_sys_nfsservctl(ctx, pref) \
+	int32_t UNUSED(pref##cmd) = *(int32_t *)((ctx)->args[0]); \
+	uint64_t UNUSED(pref##arg) = *(uint64_t *)((ctx)->args[1]); \
+	uint64_t UNUSED(pref##res) = *(uint64_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__X64_sys_nfsservctl(ctx, pref) \
+	int32_t &UNUSED(pref##cmd) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	uint64_t &UNUSED(pref##arg) = *reinterpret_cast<uint64_t *>((ctx)->args[1]); \
+	uint64_t &UNUSED(pref##res) = *reinterpret_cast<uint64_t *>((ctx)->args[2]);
+#define creferences_LINUX__X64_sys_nfsservctl(ctx, pref) \
+	const int32_t &UNUSED(pref##cmd) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const uint64_t &UNUSED(pref##arg) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]); \
+	const uint64_t &UNUSED(pref##res) = *reinterpret_cast<const uint64_t *>((ctx)->args[2]);
 #endif
 
 // long sys_gettid [['void']]
@@ -26617,6 +26907,22 @@
 	const uint64_t &UNUSED(pref##ctx_id) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
 	const uint64_t &UNUSED(pref##iocb) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]); \
 	const uint64_t &UNUSED(pref##result) = *reinterpret_cast<const uint64_t *>((ctx)->args[2]);
+#endif
+
+// long sys_lookup_dcookie [['u64 cookie64', 'char __user *buf', 'size_t len']]
+#define locals_LINUX__X64_sys_lookup_dcookie(ctx, pref) \
+	uint64_t UNUSED(pref##cookie64) = *(uint64_t *)((ctx)->args[0]); \
+	uint64_t UNUSED(pref##buf) = *(uint64_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##len) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__X64_sys_lookup_dcookie(ctx, pref) \
+	uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	uint64_t &UNUSED(pref##buf) = *reinterpret_cast<uint64_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##len) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__X64_sys_lookup_dcookie(ctx, pref) \
+	const uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const uint64_t &UNUSED(pref##buf) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##len) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
 // long sys_epoll_create [['int size']]
@@ -30910,6 +31216,19 @@
 	const uint32_t &UNUSED(pref##oset) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
+// long sys_create_module [['const char __user *name', 'size_t size']]
+#define locals_LINUX__MIPS_sys_create_module(ctx, pref) \
+	uint32_t UNUSED(pref##name) = *(uint32_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##size) = *(uint32_t *)((ctx)->args[1]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS_sys_create_module(ctx, pref) \
+	uint32_t &UNUSED(pref##name) = *reinterpret_cast<uint32_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##size) = *reinterpret_cast<uint32_t *>((ctx)->args[1]);
+#define creferences_LINUX__MIPS_sys_create_module(ctx, pref) \
+	const uint32_t &UNUSED(pref##name) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##size) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
+#endif
+
 // long sys_init_module [['void __user *umod', 'unsigned long len', 'const char __user *uargs']]
 #define locals_LINUX__MIPS_sys_init_module(ctx, pref) \
 	uint32_t UNUSED(pref##umod) = *(uint32_t *)((ctx)->args[0]); \
@@ -30937,6 +31256,16 @@
 #define creferences_LINUX__MIPS_sys_delete_module(ctx, pref) \
 	const uint32_t &UNUSED(pref##name_user) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
 	const uint32_t &UNUSED(pref##flags) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
+#endif
+
+// long sys_get_kernel_syms [['struct kernel_sym __user *table']]
+#define locals_LINUX__MIPS_sys_get_kernel_syms(ctx, pref) \
+	uint32_t UNUSED(pref##table) = *(uint32_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS_sys_get_kernel_syms(ctx, pref) \
+	uint32_t &UNUSED(pref##table) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
+#define creferences_LINUX__MIPS_sys_get_kernel_syms(ctx, pref) \
+	const uint32_t &UNUSED(pref##table) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
 #endif
 
 // long sys_quotactl [['unsigned int cmd', 'const char __user *special', 'qid_t id', 'void __user *addr']]
@@ -30976,6 +31305,19 @@
 	uint32_t &UNUSED(pref##fd) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
 #define creferences_LINUX__MIPS_sys_fchdir(ctx, pref) \
 	const uint32_t &UNUSED(pref##fd) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_bdflush [['int func', 'long data']]
+#define locals_LINUX__MIPS_sys_bdflush(ctx, pref) \
+	int32_t UNUSED(pref##func) = *(int32_t *)((ctx)->args[0]); \
+	int32_t UNUSED(pref##_data) = *(int32_t *)((ctx)->args[1]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS_sys_bdflush(ctx, pref) \
+	int32_t &UNUSED(pref##func) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	int32_t &UNUSED(pref##_data) = *reinterpret_cast<int32_t *>((ctx)->args[1]);
+#define creferences_LINUX__MIPS_sys_bdflush(ctx, pref) \
+	const int32_t &UNUSED(pref##func) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const int32_t &UNUSED(pref##_data) = *reinterpret_cast<const int32_t *>((ctx)->args[1]);
 #endif
 
 // long sys_sysfs [['int option', 'unsigned long arg1', 'unsigned long arg2']]
@@ -31211,6 +31553,16 @@
 	uint32_t &UNUSED(pref##fd) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
 #define creferences_LINUX__MIPS_sys_fdatasync(ctx, pref) \
 	const uint32_t &UNUSED(pref##fd) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_sysctl [['struct __sysctl_args __user *args']]
+#define locals_LINUX__MIPS_sys_sysctl(ctx, pref) \
+	uint32_t UNUSED(pref##args) = *(uint32_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS_sys_sysctl(ctx, pref) \
+	uint32_t &UNUSED(pref##args) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
+#define creferences_LINUX__MIPS_sys_sysctl(ctx, pref) \
+	const uint32_t &UNUSED(pref##args) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
 #endif
 
 // long sys_mlock [['unsigned long start', 'size_t len']]
@@ -31718,6 +32070,28 @@
 	const uint32_t &UNUSED(pref##suid) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
+// long sys_query_module [['const char __user *name', 'int which', 'void __user *buf', 'size_t bufsize', 'size_t __user *ret']]
+#define locals_LINUX__MIPS_sys_query_module(ctx, pref) \
+	uint32_t UNUSED(pref##name) = *(uint32_t *)((ctx)->args[0]); \
+	int32_t UNUSED(pref##which) = *(int32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##buf) = *(uint32_t *)((ctx)->args[2]); \
+	uint32_t UNUSED(pref##bufsize) = *(uint32_t *)((ctx)->args[3]); \
+	uint32_t UNUSED(pref##ret) = *(uint32_t *)((ctx)->args[4]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS_sys_query_module(ctx, pref) \
+	uint32_t &UNUSED(pref##name) = *reinterpret_cast<uint32_t *>((ctx)->args[0]); \
+	int32_t &UNUSED(pref##which) = *reinterpret_cast<int32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##buf) = *reinterpret_cast<uint32_t *>((ctx)->args[2]); \
+	uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<uint32_t *>((ctx)->args[3]); \
+	uint32_t &UNUSED(pref##ret) = *reinterpret_cast<uint32_t *>((ctx)->args[4]);
+#define creferences_LINUX__MIPS_sys_query_module(ctx, pref) \
+	const uint32_t &UNUSED(pref##name) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
+	const int32_t &UNUSED(pref##which) = *reinterpret_cast<const int32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##buf) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]); \
+	const uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<const uint32_t *>((ctx)->args[3]); \
+	const uint32_t &UNUSED(pref##ret) = *reinterpret_cast<const uint32_t *>((ctx)->args[4]);
+#endif
+
 // long sys_poll [['struct pollfd __user *ufds', 'unsigned int nfds', 'int timeout']]
 #define locals_LINUX__MIPS_sys_poll(ctx, pref) \
 	uint32_t UNUSED(pref##ufds) = *(uint32_t *)((ctx)->args[0]); \
@@ -31732,6 +32106,22 @@
 	const uint32_t &UNUSED(pref##ufds) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
 	const uint32_t &UNUSED(pref##nfds) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
 	const int32_t &UNUSED(pref##timeout) = *reinterpret_cast<const int32_t *>((ctx)->args[2]);
+#endif
+
+// long sys_nfsservctl [['int cmd', 'struct nfsctl_arg __user *arg', 'void __user *res']]
+#define locals_LINUX__MIPS_sys_nfsservctl(ctx, pref) \
+	int32_t UNUSED(pref##cmd) = *(int32_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##arg) = *(uint32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##res) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS_sys_nfsservctl(ctx, pref) \
+	int32_t &UNUSED(pref##cmd) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##arg) = *reinterpret_cast<uint32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##res) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__MIPS_sys_nfsservctl(ctx, pref) \
+	const int32_t &UNUSED(pref##cmd) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##arg) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##res) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
 // long sys_setresgid [['gid_t rgid', 'gid_t egid', 'gid_t sgid']]
@@ -32591,6 +32981,22 @@
 	int32_t &UNUSED(pref##error_code) = *reinterpret_cast<int32_t *>((ctx)->args[0]);
 #define creferences_LINUX__MIPS_sys_exit_group(ctx, pref) \
 	const int32_t &UNUSED(pref##error_code) = *reinterpret_cast<const int32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_lookup_dcookie [['u64 cookie64', 'char __user *buf', 'size_t len']]
+#define locals_LINUX__MIPS_sys_lookup_dcookie(ctx, pref) \
+	uint64_t UNUSED(pref##cookie64) = *(uint64_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##buf) = *(uint32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##len) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS_sys_lookup_dcookie(ctx, pref) \
+	uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##buf) = *reinterpret_cast<uint32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##len) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__MIPS_sys_lookup_dcookie(ctx, pref) \
+	const uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##buf) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##len) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
 // long sys_epoll_create [['int size']]
@@ -38118,6 +38524,16 @@
 	const uint32_t &UNUSED(pref##put_old) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
 #endif
 
+// long sys_sysctl [['struct __sysctl_args __user *args']]
+#define locals_LINUX__MIPS64N32_sys_sysctl(ctx, pref) \
+	uint32_t UNUSED(pref##args) = *(uint32_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS64N32_sys_sysctl(ctx, pref) \
+	uint32_t &UNUSED(pref##args) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
+#define creferences_LINUX__MIPS64N32_sys_sysctl(ctx, pref) \
+	const uint32_t &UNUSED(pref##args) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
+#endif
+
 // long sys_prctl [['int option', 'unsigned long arg2', 'unsigned long arg3', 'unsigned long arg4', 'unsigned long arg5']]
 #define locals_LINUX__MIPS64N32_sys_prctl(ctx, pref) \
 	int32_t UNUSED(pref##option) = *(int32_t *)((ctx)->args[0]); \
@@ -38305,6 +38721,19 @@
 	const int32_t &UNUSED(pref##len) = *reinterpret_cast<const int32_t *>((ctx)->args[1]);
 #endif
 
+// long sys_create_module [['const char __user *name', 'size_t size']]
+#define locals_LINUX__MIPS64N32_sys_create_module(ctx, pref) \
+	uint32_t UNUSED(pref##name) = *(uint32_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##size) = *(uint32_t *)((ctx)->args[1]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS64N32_sys_create_module(ctx, pref) \
+	uint32_t &UNUSED(pref##name) = *reinterpret_cast<uint32_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##size) = *reinterpret_cast<uint32_t *>((ctx)->args[1]);
+#define creferences_LINUX__MIPS64N32_sys_create_module(ctx, pref) \
+	const uint32_t &UNUSED(pref##name) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##size) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
+#endif
+
 // long sys_init_module [['void __user *umod', 'unsigned long len', 'const char __user *uargs']]
 #define locals_LINUX__MIPS64N32_sys_init_module(ctx, pref) \
 	uint32_t UNUSED(pref##umod) = *(uint32_t *)((ctx)->args[0]); \
@@ -38334,6 +38763,38 @@
 	const uint32_t &UNUSED(pref##flags) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
 #endif
 
+// long sys_get_kernel_syms [['struct kernel_sym __user *table']]
+#define locals_LINUX__MIPS64N32_sys_get_kernel_syms(ctx, pref) \
+	uint32_t UNUSED(pref##table) = *(uint32_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS64N32_sys_get_kernel_syms(ctx, pref) \
+	uint32_t &UNUSED(pref##table) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
+#define creferences_LINUX__MIPS64N32_sys_get_kernel_syms(ctx, pref) \
+	const uint32_t &UNUSED(pref##table) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_query_module [['const char __user *name', 'int which', 'void __user *buf', 'size_t bufsize', 'size_t __user *ret']]
+#define locals_LINUX__MIPS64N32_sys_query_module(ctx, pref) \
+	uint32_t UNUSED(pref##name) = *(uint32_t *)((ctx)->args[0]); \
+	int32_t UNUSED(pref##which) = *(int32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##buf) = *(uint32_t *)((ctx)->args[2]); \
+	uint32_t UNUSED(pref##bufsize) = *(uint32_t *)((ctx)->args[3]); \
+	uint32_t UNUSED(pref##ret) = *(uint32_t *)((ctx)->args[4]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS64N32_sys_query_module(ctx, pref) \
+	uint32_t &UNUSED(pref##name) = *reinterpret_cast<uint32_t *>((ctx)->args[0]); \
+	int32_t &UNUSED(pref##which) = *reinterpret_cast<int32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##buf) = *reinterpret_cast<uint32_t *>((ctx)->args[2]); \
+	uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<uint32_t *>((ctx)->args[3]); \
+	uint32_t &UNUSED(pref##ret) = *reinterpret_cast<uint32_t *>((ctx)->args[4]);
+#define creferences_LINUX__MIPS64N32_sys_query_module(ctx, pref) \
+	const uint32_t &UNUSED(pref##name) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
+	const int32_t &UNUSED(pref##which) = *reinterpret_cast<const int32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##buf) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]); \
+	const uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<const uint32_t *>((ctx)->args[3]); \
+	const uint32_t &UNUSED(pref##ret) = *reinterpret_cast<const uint32_t *>((ctx)->args[4]);
+#endif
+
 // long sys_quotactl [['unsigned int cmd', 'const char __user *special', 'qid_t id', 'void __user *addr']]
 #define locals_LINUX__MIPS64N32_sys_quotactl(ctx, pref) \
 	uint32_t UNUSED(pref##cmd) = *(uint32_t *)((ctx)->args[0]); \
@@ -38351,6 +38812,22 @@
 	const uint32_t &UNUSED(pref##special) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
 	const uint32_t &UNUSED(pref##id) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]); \
 	const uint32_t &UNUSED(pref##addr) = *reinterpret_cast<const uint32_t *>((ctx)->args[3]);
+#endif
+
+// long sys_nfsservctl [['int cmd', 'struct nfsctl_arg __user *arg', 'void __user *res']]
+#define locals_LINUX__MIPS64N32_sys_nfsservctl(ctx, pref) \
+	int32_t UNUSED(pref##cmd) = *(int32_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##arg) = *(uint32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##res) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS64N32_sys_nfsservctl(ctx, pref) \
+	int32_t &UNUSED(pref##cmd) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##arg) = *reinterpret_cast<uint32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##res) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__MIPS64N32_sys_nfsservctl(ctx, pref) \
+	const int32_t &UNUSED(pref##cmd) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##arg) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##res) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
 // long sys_gettid [['void']]
@@ -38788,6 +39265,22 @@
 	int32_t &UNUSED(pref##error_code) = *reinterpret_cast<int32_t *>((ctx)->args[0]);
 #define creferences_LINUX__MIPS64N32_sys_exit_group(ctx, pref) \
 	const int32_t &UNUSED(pref##error_code) = *reinterpret_cast<const int32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_lookup_dcookie [['u64 cookie64', 'char __user *buf', 'size_t len']]
+#define locals_LINUX__MIPS64N32_sys_lookup_dcookie(ctx, pref) \
+	uint64_t UNUSED(pref##cookie64) = *(uint64_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##buf) = *(uint32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##len) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS64N32_sys_lookup_dcookie(ctx, pref) \
+	uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##buf) = *reinterpret_cast<uint32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##len) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__MIPS64N32_sys_lookup_dcookie(ctx, pref) \
+	const uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##buf) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##len) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
 // long sys_epoll_create [['int size']]
@@ -43453,6 +43946,19 @@
 	const uint64_t &UNUSED(pref##oset) = *reinterpret_cast<const uint64_t *>((ctx)->args[2]);
 #endif
 
+// long sys_create_module [['const char __user *name', 'size_t size']]
+#define locals_LINUX__MIPS64_sys_create_module(ctx, pref) \
+	uint64_t UNUSED(pref##name) = *(uint64_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##size) = *(uint32_t *)((ctx)->args[1]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS64_sys_create_module(ctx, pref) \
+	uint64_t &UNUSED(pref##name) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##size) = *reinterpret_cast<uint32_t *>((ctx)->args[1]);
+#define creferences_LINUX__MIPS64_sys_create_module(ctx, pref) \
+	const uint64_t &UNUSED(pref##name) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##size) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
+#endif
+
 // long sys_init_module [['void __user *umod', 'unsigned long len', 'const char __user *uargs']]
 #define locals_LINUX__MIPS64_sys_init_module(ctx, pref) \
 	uint64_t UNUSED(pref##umod) = *(uint64_t *)((ctx)->args[0]); \
@@ -43480,6 +43986,16 @@
 #define creferences_LINUX__MIPS64_sys_delete_module(ctx, pref) \
 	const uint64_t &UNUSED(pref##name_user) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
 	const uint32_t &UNUSED(pref##flags) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
+#endif
+
+// long sys_get_kernel_syms [['struct kernel_sym __user *table']]
+#define locals_LINUX__MIPS64_sys_get_kernel_syms(ctx, pref) \
+	uint64_t UNUSED(pref##table) = *(uint64_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS64_sys_get_kernel_syms(ctx, pref) \
+	uint64_t &UNUSED(pref##table) = *reinterpret_cast<uint64_t *>((ctx)->args[0]);
+#define creferences_LINUX__MIPS64_sys_get_kernel_syms(ctx, pref) \
+	const uint64_t &UNUSED(pref##table) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]);
 #endif
 
 // long sys_quotactl [['unsigned int cmd', 'const char __user *special', 'qid_t id', 'void __user *addr']]
@@ -43519,6 +44035,19 @@
 	uint32_t &UNUSED(pref##fd) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
 #define creferences_LINUX__MIPS64_sys_fchdir(ctx, pref) \
 	const uint32_t &UNUSED(pref##fd) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_bdflush [['int func', 'long data']]
+#define locals_LINUX__MIPS64_sys_bdflush(ctx, pref) \
+	int32_t UNUSED(pref##func) = *(int32_t *)((ctx)->args[0]); \
+	int64_t UNUSED(pref##_data) = *(int64_t *)((ctx)->args[1]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS64_sys_bdflush(ctx, pref) \
+	int32_t &UNUSED(pref##func) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	int64_t &UNUSED(pref##_data) = *reinterpret_cast<int64_t *>((ctx)->args[1]);
+#define creferences_LINUX__MIPS64_sys_bdflush(ctx, pref) \
+	const int32_t &UNUSED(pref##func) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const int64_t &UNUSED(pref##_data) = *reinterpret_cast<const int64_t *>((ctx)->args[1]);
 #endif
 
 // long sys_sysfs [['int option', 'unsigned long arg1', 'unsigned long arg2']]
@@ -43754,6 +44283,16 @@
 	uint32_t &UNUSED(pref##fd) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
 #define creferences_LINUX__MIPS64_sys_fdatasync(ctx, pref) \
 	const uint32_t &UNUSED(pref##fd) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_sysctl [['struct __sysctl_args __user *args']]
+#define locals_LINUX__MIPS64_sys_sysctl(ctx, pref) \
+	uint64_t UNUSED(pref##args) = *(uint64_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS64_sys_sysctl(ctx, pref) \
+	uint64_t &UNUSED(pref##args) = *reinterpret_cast<uint64_t *>((ctx)->args[0]);
+#define creferences_LINUX__MIPS64_sys_sysctl(ctx, pref) \
+	const uint64_t &UNUSED(pref##args) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]);
 #endif
 
 // long sys_mlock [['unsigned long start', 'size_t len']]
@@ -44261,6 +44800,28 @@
 	const uint64_t &UNUSED(pref##suid) = *reinterpret_cast<const uint64_t *>((ctx)->args[2]);
 #endif
 
+// long sys_query_module [['const char __user *name', 'int which', 'void __user *buf', 'size_t bufsize', 'size_t __user *ret']]
+#define locals_LINUX__MIPS64_sys_query_module(ctx, pref) \
+	uint64_t UNUSED(pref##name) = *(uint64_t *)((ctx)->args[0]); \
+	int32_t UNUSED(pref##which) = *(int32_t *)((ctx)->args[1]); \
+	uint64_t UNUSED(pref##buf) = *(uint64_t *)((ctx)->args[2]); \
+	uint32_t UNUSED(pref##bufsize) = *(uint32_t *)((ctx)->args[3]); \
+	uint64_t UNUSED(pref##ret) = *(uint64_t *)((ctx)->args[4]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS64_sys_query_module(ctx, pref) \
+	uint64_t &UNUSED(pref##name) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	int32_t &UNUSED(pref##which) = *reinterpret_cast<int32_t *>((ctx)->args[1]); \
+	uint64_t &UNUSED(pref##buf) = *reinterpret_cast<uint64_t *>((ctx)->args[2]); \
+	uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<uint32_t *>((ctx)->args[3]); \
+	uint64_t &UNUSED(pref##ret) = *reinterpret_cast<uint64_t *>((ctx)->args[4]);
+#define creferences_LINUX__MIPS64_sys_query_module(ctx, pref) \
+	const uint64_t &UNUSED(pref##name) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const int32_t &UNUSED(pref##which) = *reinterpret_cast<const int32_t *>((ctx)->args[1]); \
+	const uint64_t &UNUSED(pref##buf) = *reinterpret_cast<const uint64_t *>((ctx)->args[2]); \
+	const uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<const uint32_t *>((ctx)->args[3]); \
+	const uint64_t &UNUSED(pref##ret) = *reinterpret_cast<const uint64_t *>((ctx)->args[4]);
+#endif
+
 // long sys_poll [['struct pollfd __user *ufds', 'unsigned int nfds', 'int timeout']]
 #define locals_LINUX__MIPS64_sys_poll(ctx, pref) \
 	uint64_t UNUSED(pref##ufds) = *(uint64_t *)((ctx)->args[0]); \
@@ -44275,6 +44836,22 @@
 	const uint64_t &UNUSED(pref##ufds) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
 	const uint32_t &UNUSED(pref##nfds) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
 	const int32_t &UNUSED(pref##timeout) = *reinterpret_cast<const int32_t *>((ctx)->args[2]);
+#endif
+
+// long sys_nfsservctl [['int cmd', 'struct nfsctl_arg __user *arg', 'void __user *res']]
+#define locals_LINUX__MIPS64_sys_nfsservctl(ctx, pref) \
+	int32_t UNUSED(pref##cmd) = *(int32_t *)((ctx)->args[0]); \
+	uint64_t UNUSED(pref##arg) = *(uint64_t *)((ctx)->args[1]); \
+	uint64_t UNUSED(pref##res) = *(uint64_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS64_sys_nfsservctl(ctx, pref) \
+	int32_t &UNUSED(pref##cmd) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	uint64_t &UNUSED(pref##arg) = *reinterpret_cast<uint64_t *>((ctx)->args[1]); \
+	uint64_t &UNUSED(pref##res) = *reinterpret_cast<uint64_t *>((ctx)->args[2]);
+#define creferences_LINUX__MIPS64_sys_nfsservctl(ctx, pref) \
+	const int32_t &UNUSED(pref##cmd) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const uint64_t &UNUSED(pref##arg) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]); \
+	const uint64_t &UNUSED(pref##res) = *reinterpret_cast<const uint64_t *>((ctx)->args[2]);
 #endif
 
 // long sys_setresgid [['gid_t rgid', 'gid_t egid', 'gid_t sgid']]
@@ -45134,6 +45711,22 @@
 	int32_t &UNUSED(pref##error_code) = *reinterpret_cast<int32_t *>((ctx)->args[0]);
 #define creferences_LINUX__MIPS64_sys_exit_group(ctx, pref) \
 	const int32_t &UNUSED(pref##error_code) = *reinterpret_cast<const int32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_lookup_dcookie [['u64 cookie64', 'char __user *buf', 'size_t len']]
+#define locals_LINUX__MIPS64_sys_lookup_dcookie(ctx, pref) \
+	uint64_t UNUSED(pref##cookie64) = *(uint64_t *)((ctx)->args[0]); \
+	uint64_t UNUSED(pref##buf) = *(uint64_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##len) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__MIPS64_sys_lookup_dcookie(ctx, pref) \
+	uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	uint64_t &UNUSED(pref##buf) = *reinterpret_cast<uint64_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##len) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__MIPS64_sys_lookup_dcookie(ctx, pref) \
+	const uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const uint64_t &UNUSED(pref##buf) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##len) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
 // long sys_epoll_create [['int size']]
@@ -50166,6 +50759,19 @@
 	const uint32_t &UNUSED(pref##oset) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
+// long sys_create_module [['const char __user *name', 'size_t size']]
+#define locals_LINUX__PPC_sys_create_module(ctx, pref) \
+	uint32_t UNUSED(pref##name) = *(uint32_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##size) = *(uint32_t *)((ctx)->args[1]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC_sys_create_module(ctx, pref) \
+	uint32_t &UNUSED(pref##name) = *reinterpret_cast<uint32_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##size) = *reinterpret_cast<uint32_t *>((ctx)->args[1]);
+#define creferences_LINUX__PPC_sys_create_module(ctx, pref) \
+	const uint32_t &UNUSED(pref##name) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##size) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
+#endif
+
 // long sys_init_module [['void __user *umod', 'unsigned long len', 'const char __user *uargs']]
 #define locals_LINUX__PPC_sys_init_module(ctx, pref) \
 	uint32_t UNUSED(pref##umod) = *(uint32_t *)((ctx)->args[0]); \
@@ -50193,6 +50799,16 @@
 #define creferences_LINUX__PPC_sys_delete_module(ctx, pref) \
 	const uint32_t &UNUSED(pref##name_user) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
 	const uint32_t &UNUSED(pref##flags) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
+#endif
+
+// long sys_get_kernel_syms [['struct kernel_sym __user *table']]
+#define locals_LINUX__PPC_sys_get_kernel_syms(ctx, pref) \
+	uint32_t UNUSED(pref##table) = *(uint32_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC_sys_get_kernel_syms(ctx, pref) \
+	uint32_t &UNUSED(pref##table) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
+#define creferences_LINUX__PPC_sys_get_kernel_syms(ctx, pref) \
+	const uint32_t &UNUSED(pref##table) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
 #endif
 
 // long sys_quotactl [['unsigned int cmd', 'const char __user *special', 'qid_t id', 'void __user *addr']]
@@ -50232,6 +50848,19 @@
 	uint32_t &UNUSED(pref##fd) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
 #define creferences_LINUX__PPC_sys_fchdir(ctx, pref) \
 	const uint32_t &UNUSED(pref##fd) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_bdflush [['int func', 'long data']]
+#define locals_LINUX__PPC_sys_bdflush(ctx, pref) \
+	int32_t UNUSED(pref##func) = *(int32_t *)((ctx)->args[0]); \
+	int32_t UNUSED(pref##_data) = *(int32_t *)((ctx)->args[1]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC_sys_bdflush(ctx, pref) \
+	int32_t &UNUSED(pref##func) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	int32_t &UNUSED(pref##_data) = *reinterpret_cast<int32_t *>((ctx)->args[1]);
+#define creferences_LINUX__PPC_sys_bdflush(ctx, pref) \
+	const int32_t &UNUSED(pref##func) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const int32_t &UNUSED(pref##_data) = *reinterpret_cast<const int32_t *>((ctx)->args[1]);
 #endif
 
 // long sys_sysfs [['int option', 'unsigned long arg1', 'unsigned long arg2']]
@@ -50419,6 +51048,16 @@
 	uint32_t &UNUSED(pref##fd) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
 #define creferences_LINUX__PPC_sys_fdatasync(ctx, pref) \
 	const uint32_t &UNUSED(pref##fd) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_sysctl [['struct __sysctl_args __user *args']]
+#define locals_LINUX__PPC_sys_sysctl(ctx, pref) \
+	uint32_t UNUSED(pref##args) = *(uint32_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC_sys_sysctl(ctx, pref) \
+	uint32_t &UNUSED(pref##args) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
+#define creferences_LINUX__PPC_sys_sysctl(ctx, pref) \
+	const uint32_t &UNUSED(pref##args) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
 #endif
 
 // long sys_mlock [['unsigned long start', 'size_t len']]
@@ -50621,6 +51260,28 @@
 	const uint32_t &UNUSED(pref##suid) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
+// long sys_query_module [['const char __user *name', 'int which', 'void __user *buf', 'size_t bufsize', 'size_t __user *ret']]
+#define locals_LINUX__PPC_sys_query_module(ctx, pref) \
+	uint32_t UNUSED(pref##name) = *(uint32_t *)((ctx)->args[0]); \
+	int32_t UNUSED(pref##which) = *(int32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##buf) = *(uint32_t *)((ctx)->args[2]); \
+	uint32_t UNUSED(pref##bufsize) = *(uint32_t *)((ctx)->args[3]); \
+	uint32_t UNUSED(pref##ret) = *(uint32_t *)((ctx)->args[4]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC_sys_query_module(ctx, pref) \
+	uint32_t &UNUSED(pref##name) = *reinterpret_cast<uint32_t *>((ctx)->args[0]); \
+	int32_t &UNUSED(pref##which) = *reinterpret_cast<int32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##buf) = *reinterpret_cast<uint32_t *>((ctx)->args[2]); \
+	uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<uint32_t *>((ctx)->args[3]); \
+	uint32_t &UNUSED(pref##ret) = *reinterpret_cast<uint32_t *>((ctx)->args[4]);
+#define creferences_LINUX__PPC_sys_query_module(ctx, pref) \
+	const uint32_t &UNUSED(pref##name) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
+	const int32_t &UNUSED(pref##which) = *reinterpret_cast<const int32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##buf) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]); \
+	const uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<const uint32_t *>((ctx)->args[3]); \
+	const uint32_t &UNUSED(pref##ret) = *reinterpret_cast<const uint32_t *>((ctx)->args[4]);
+#endif
+
 // long sys_poll [['struct pollfd __user *ufds', 'unsigned int nfds', 'int timeout']]
 #define locals_LINUX__PPC_sys_poll(ctx, pref) \
 	uint32_t UNUSED(pref##ufds) = *(uint32_t *)((ctx)->args[0]); \
@@ -50635,6 +51296,22 @@
 	const uint32_t &UNUSED(pref##ufds) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]); \
 	const uint32_t &UNUSED(pref##nfds) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
 	const int32_t &UNUSED(pref##timeout) = *reinterpret_cast<const int32_t *>((ctx)->args[2]);
+#endif
+
+// long sys_nfsservctl [['int cmd', 'struct nfsctl_arg __user *arg', 'void __user *res']]
+#define locals_LINUX__PPC_sys_nfsservctl(ctx, pref) \
+	int32_t UNUSED(pref##cmd) = *(int32_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##arg) = *(uint32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##res) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC_sys_nfsservctl(ctx, pref) \
+	int32_t &UNUSED(pref##cmd) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##arg) = *reinterpret_cast<uint32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##res) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__PPC_sys_nfsservctl(ctx, pref) \
+	const int32_t &UNUSED(pref##cmd) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##arg) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##res) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
 // long sys_setresgid [['gid_t rgid', 'gid_t egid', 'gid_t sgid']]
@@ -51638,6 +52315,22 @@
 	int32_t &UNUSED(pref##error_code) = *reinterpret_cast<int32_t *>((ctx)->args[0]);
 #define creferences_LINUX__PPC_sys_exit_group(ctx, pref) \
 	const int32_t &UNUSED(pref##error_code) = *reinterpret_cast<const int32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_lookup_dcookie [['u64 cookie64', 'char __user *buf', 'size_t len']]
+#define locals_LINUX__PPC_sys_lookup_dcookie(ctx, pref) \
+	uint64_t UNUSED(pref##cookie64) = *(uint64_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##buf) = *(uint32_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##len) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC_sys_lookup_dcookie(ctx, pref) \
+	uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##buf) = *reinterpret_cast<uint32_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##len) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__PPC_sys_lookup_dcookie(ctx, pref) \
+	const uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##buf) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##len) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
 // long sys_epoll_create [['int size']]
@@ -56698,6 +57391,19 @@
 	const uint64_t &UNUSED(pref##prot) = *reinterpret_cast<const uint64_t *>((ctx)->args[2]);
 #endif
 
+// long sys_create_module [['const char __user *name', 'size_t size']]
+#define locals_LINUX__PPC64_sys_create_module(ctx, pref) \
+	uint64_t UNUSED(pref##name) = *(uint64_t *)((ctx)->args[0]); \
+	uint32_t UNUSED(pref##size) = *(uint32_t *)((ctx)->args[1]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC64_sys_create_module(ctx, pref) \
+	uint64_t &UNUSED(pref##name) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	uint32_t &UNUSED(pref##size) = *reinterpret_cast<uint32_t *>((ctx)->args[1]);
+#define creferences_LINUX__PPC64_sys_create_module(ctx, pref) \
+	const uint64_t &UNUSED(pref##name) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const uint32_t &UNUSED(pref##size) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
+#endif
+
 // long sys_init_module [['void __user *umod', 'unsigned long len', 'const char __user *uargs']]
 #define locals_LINUX__PPC64_sys_init_module(ctx, pref) \
 	uint64_t UNUSED(pref##umod) = *(uint64_t *)((ctx)->args[0]); \
@@ -56725,6 +57431,16 @@
 #define creferences_LINUX__PPC64_sys_delete_module(ctx, pref) \
 	const uint64_t &UNUSED(pref##name_user) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
 	const uint32_t &UNUSED(pref##flags) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]);
+#endif
+
+// long sys_get_kernel_syms [['struct kernel_sym __user *table']]
+#define locals_LINUX__PPC64_sys_get_kernel_syms(ctx, pref) \
+	uint64_t UNUSED(pref##table) = *(uint64_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC64_sys_get_kernel_syms(ctx, pref) \
+	uint64_t &UNUSED(pref##table) = *reinterpret_cast<uint64_t *>((ctx)->args[0]);
+#define creferences_LINUX__PPC64_sys_get_kernel_syms(ctx, pref) \
+	const uint64_t &UNUSED(pref##table) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]);
 #endif
 
 // long sys_quotactl [['unsigned int cmd', 'const char __user *special', 'qid_t id', 'void __user *addr']]
@@ -56764,6 +57480,19 @@
 	uint32_t &UNUSED(pref##fd) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
 #define creferences_LINUX__PPC64_sys_fchdir(ctx, pref) \
 	const uint32_t &UNUSED(pref##fd) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_bdflush [['int func', 'long data']]
+#define locals_LINUX__PPC64_sys_bdflush(ctx, pref) \
+	int32_t UNUSED(pref##func) = *(int32_t *)((ctx)->args[0]); \
+	int64_t UNUSED(pref##_data) = *(int64_t *)((ctx)->args[1]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC64_sys_bdflush(ctx, pref) \
+	int32_t &UNUSED(pref##func) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	int64_t &UNUSED(pref##_data) = *reinterpret_cast<int64_t *>((ctx)->args[1]);
+#define creferences_LINUX__PPC64_sys_bdflush(ctx, pref) \
+	const int32_t &UNUSED(pref##func) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const int64_t &UNUSED(pref##_data) = *reinterpret_cast<const int64_t *>((ctx)->args[1]);
 #endif
 
 // long sys_sysfs [['int option', 'unsigned long arg1', 'unsigned long arg2']]
@@ -56951,6 +57680,16 @@
 	uint32_t &UNUSED(pref##fd) = *reinterpret_cast<uint32_t *>((ctx)->args[0]);
 #define creferences_LINUX__PPC64_sys_fdatasync(ctx, pref) \
 	const uint32_t &UNUSED(pref##fd) = *reinterpret_cast<const uint32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_sysctl [['struct __sysctl_args __user *args']]
+#define locals_LINUX__PPC64_sys_sysctl(ctx, pref) \
+	uint64_t UNUSED(pref##args) = *(uint64_t *)((ctx)->args[0]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC64_sys_sysctl(ctx, pref) \
+	uint64_t &UNUSED(pref##args) = *reinterpret_cast<uint64_t *>((ctx)->args[0]);
+#define creferences_LINUX__PPC64_sys_sysctl(ctx, pref) \
+	const uint64_t &UNUSED(pref##args) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]);
 #endif
 
 // long sys_mlock [['unsigned long start', 'size_t len']]
@@ -57153,6 +57892,28 @@
 	const uint64_t &UNUSED(pref##suid) = *reinterpret_cast<const uint64_t *>((ctx)->args[2]);
 #endif
 
+// long sys_query_module [['const char __user *name', 'int which', 'void __user *buf', 'size_t bufsize', 'size_t __user *ret']]
+#define locals_LINUX__PPC64_sys_query_module(ctx, pref) \
+	uint64_t UNUSED(pref##name) = *(uint64_t *)((ctx)->args[0]); \
+	int32_t UNUSED(pref##which) = *(int32_t *)((ctx)->args[1]); \
+	uint64_t UNUSED(pref##buf) = *(uint64_t *)((ctx)->args[2]); \
+	uint32_t UNUSED(pref##bufsize) = *(uint32_t *)((ctx)->args[3]); \
+	uint64_t UNUSED(pref##ret) = *(uint64_t *)((ctx)->args[4]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC64_sys_query_module(ctx, pref) \
+	uint64_t &UNUSED(pref##name) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	int32_t &UNUSED(pref##which) = *reinterpret_cast<int32_t *>((ctx)->args[1]); \
+	uint64_t &UNUSED(pref##buf) = *reinterpret_cast<uint64_t *>((ctx)->args[2]); \
+	uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<uint32_t *>((ctx)->args[3]); \
+	uint64_t &UNUSED(pref##ret) = *reinterpret_cast<uint64_t *>((ctx)->args[4]);
+#define creferences_LINUX__PPC64_sys_query_module(ctx, pref) \
+	const uint64_t &UNUSED(pref##name) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const int32_t &UNUSED(pref##which) = *reinterpret_cast<const int32_t *>((ctx)->args[1]); \
+	const uint64_t &UNUSED(pref##buf) = *reinterpret_cast<const uint64_t *>((ctx)->args[2]); \
+	const uint32_t &UNUSED(pref##bufsize) = *reinterpret_cast<const uint32_t *>((ctx)->args[3]); \
+	const uint64_t &UNUSED(pref##ret) = *reinterpret_cast<const uint64_t *>((ctx)->args[4]);
+#endif
+
 // long sys_poll [['struct pollfd __user *ufds', 'unsigned int nfds', 'int timeout']]
 #define locals_LINUX__PPC64_sys_poll(ctx, pref) \
 	uint64_t UNUSED(pref##ufds) = *(uint64_t *)((ctx)->args[0]); \
@@ -57167,6 +57928,22 @@
 	const uint64_t &UNUSED(pref##ufds) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
 	const uint32_t &UNUSED(pref##nfds) = *reinterpret_cast<const uint32_t *>((ctx)->args[1]); \
 	const int32_t &UNUSED(pref##timeout) = *reinterpret_cast<const int32_t *>((ctx)->args[2]);
+#endif
+
+// long sys_nfsservctl [['int cmd', 'struct nfsctl_arg __user *arg', 'void __user *res']]
+#define locals_LINUX__PPC64_sys_nfsservctl(ctx, pref) \
+	int32_t UNUSED(pref##cmd) = *(int32_t *)((ctx)->args[0]); \
+	uint64_t UNUSED(pref##arg) = *(uint64_t *)((ctx)->args[1]); \
+	uint64_t UNUSED(pref##res) = *(uint64_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC64_sys_nfsservctl(ctx, pref) \
+	int32_t &UNUSED(pref##cmd) = *reinterpret_cast<int32_t *>((ctx)->args[0]); \
+	uint64_t &UNUSED(pref##arg) = *reinterpret_cast<uint64_t *>((ctx)->args[1]); \
+	uint64_t &UNUSED(pref##res) = *reinterpret_cast<uint64_t *>((ctx)->args[2]);
+#define creferences_LINUX__PPC64_sys_nfsservctl(ctx, pref) \
+	const int32_t &UNUSED(pref##cmd) = *reinterpret_cast<const int32_t *>((ctx)->args[0]); \
+	const uint64_t &UNUSED(pref##arg) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]); \
+	const uint64_t &UNUSED(pref##res) = *reinterpret_cast<const uint64_t *>((ctx)->args[2]);
 #endif
 
 // long sys_setresgid [['gid_t rgid', 'gid_t egid', 'gid_t sgid']]
@@ -58009,6 +58786,22 @@
 	int32_t &UNUSED(pref##error_code) = *reinterpret_cast<int32_t *>((ctx)->args[0]);
 #define creferences_LINUX__PPC64_sys_exit_group(ctx, pref) \
 	const int32_t &UNUSED(pref##error_code) = *reinterpret_cast<const int32_t *>((ctx)->args[0]);
+#endif
+
+// long sys_lookup_dcookie [['u64 cookie64', 'char __user *buf', 'size_t len']]
+#define locals_LINUX__PPC64_sys_lookup_dcookie(ctx, pref) \
+	uint64_t UNUSED(pref##cookie64) = *(uint64_t *)((ctx)->args[0]); \
+	uint64_t UNUSED(pref##buf) = *(uint64_t *)((ctx)->args[1]); \
+	uint32_t UNUSED(pref##len) = *(uint32_t *)((ctx)->args[2]);
+#if defined(__cplusplus)
+#define references_LINUX__PPC64_sys_lookup_dcookie(ctx, pref) \
+	uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<uint64_t *>((ctx)->args[0]); \
+	uint64_t &UNUSED(pref##buf) = *reinterpret_cast<uint64_t *>((ctx)->args[1]); \
+	uint32_t &UNUSED(pref##len) = *reinterpret_cast<uint32_t *>((ctx)->args[2]);
+#define creferences_LINUX__PPC64_sys_lookup_dcookie(ctx, pref) \
+	const uint64_t &UNUSED(pref##cookie64) = *reinterpret_cast<const uint64_t *>((ctx)->args[0]); \
+	const uint64_t &UNUSED(pref##buf) = *reinterpret_cast<const uint64_t *>((ctx)->args[1]); \
+	const uint32_t &UNUSED(pref##len) = *reinterpret_cast<const uint32_t *>((ctx)->args[2]);
 #endif
 
 // long sys_epoll_create [['int size']]

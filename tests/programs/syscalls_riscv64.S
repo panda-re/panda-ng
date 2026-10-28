@@ -51,6 +51,22 @@ _start:
     li s2, 6
     li t0, -2
     bne a0, t0, out
+    li a0, 0x1122334455667788  /* lookup_dcookie */
+    li a1, 0x5678
+    li a2, 128
+    li a7, 18
+    ecall
+    li s2, 7
+    li t0, -38
+    bne a0, t0, out
+    li a0, 9                  /* nfsservctl */
+    li a1, 0x5678
+    li a2, 0x9abc
+    li a7, 42
+    ecall
+    li s2, 8
+    li t0, -38
+    bne a0, t0, out
     li s2, 0
 out:
     mv a0, s2               /* exit(s2) */

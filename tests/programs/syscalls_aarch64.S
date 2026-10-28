@@ -50,6 +50,25 @@ _start:
     mov x9, #6
     cmn x0, #2
     b.ne out
+    mov x0, #0x7788         /* lookup_dcookie: cookie 0x1122334455667788 */
+    movk x0, #0x5566, lsl #16
+    movk x0, #0x3344, lsl #32
+    movk x0, #0x1122, lsl #48
+    mov x1, #0x5678
+    mov x2, #128
+    mov x8, #18
+    svc #0
+    mov x9, #7
+    cmn x0, #38
+    b.ne out
+    mov x0, #9             /* nfsservctl */
+    mov x1, #0x5678
+    mov x2, #0x9abc
+    mov x8, #42
+    svc #0
+    mov x9, #8
+    cmn x0, #38
+    b.ne out
     mov x9, #0
 out:
     mov x0, x9              /* exit(x9) */

@@ -173,6 +173,7 @@ static const char* const argtn_6000[] = {"n/a", "n/a", "n/a", 0};
 /* skipping non generic system call sys_munlockall: [6149] */
 /* skipping non generic system call sys_vhangup: [6150] */
 /* skipping non generic system call sys_pivot_root: [6151] */
+/* skipping non generic system call sys_sysctl: [6152] */
 /* skipping non generic system call sys_prctl: [6153] */
 /* skipping non generic system call sys_adjtimex_time32: [6154] */
 /* skipping non generic system call sys_setrlimit: [6155] */
@@ -187,9 +188,13 @@ static const char* const argtn_6000[] = {"n/a", "n/a", "n/a", 0};
 /* skipping non generic system call sys_reboot: [6164] */
 /* skipping non generic system call sys_sethostname: [6165] */
 /* skipping non generic system call sys_setdomainname: [6166] */
+/* skipping non generic system call sys_create_module: [6167] */
 /* skipping non generic system call sys_init_module: [6168] */
 /* skipping non generic system call sys_delete_module: [6169] */
+/* skipping non generic system call sys_get_kernel_syms: [6170] */
+/* skipping non generic system call sys_query_module: [6171] */
 /* skipping non generic system call sys_quotactl: [6172] */
+/* skipping non generic system call sys_nfsservctl: [6173] */
 /* skipping non generic system call sys_gettid: [6178] */
 /* skipping non generic system call sys_readahead: [6179] */
 /* skipping non generic system call sys_setxattr: [6180] */
@@ -217,6 +222,7 @@ static const char* const argtn_6000[] = {"n/a", "n/a", "n/a", 0};
 /* skipping non generic system call sys_io_submit: [6203] */
 /* skipping non generic system call sys_io_cancel: [6204] */
 /* skipping non generic system call sys_exit_group: [6205] */
+/* skipping non generic system call sys_lookup_dcookie: [6206] */
 /* skipping non generic system call sys_epoll_create: [6207] */
 /* skipping non generic system call sys_epoll_ctl: [6208] */
 /* skipping non generic system call sys_epoll_wait: [6209] */
@@ -570,6 +576,7 @@ syscall_info_t __syscall_info_a[] = {
 	/* skipping non generic system call sys_munlockall: [6149] */
 	/* skipping non generic system call sys_vhangup: [6150] */
 	/* skipping non generic system call sys_pivot_root: [6151] */
+	/* skipping non generic system call sys_sysctl: [6152] */
 	/* skipping non generic system call sys_prctl: [6153] */
 	/* skipping non generic system call sys_adjtimex_time32: [6154] */
 	/* skipping non generic system call sys_setrlimit: [6155] */
@@ -584,9 +591,13 @@ syscall_info_t __syscall_info_a[] = {
 	/* skipping non generic system call sys_reboot: [6164] */
 	/* skipping non generic system call sys_sethostname: [6165] */
 	/* skipping non generic system call sys_setdomainname: [6166] */
+	/* skipping non generic system call sys_create_module: [6167] */
 	/* skipping non generic system call sys_init_module: [6168] */
 	/* skipping non generic system call sys_delete_module: [6169] */
+	/* skipping non generic system call sys_get_kernel_syms: [6170] */
+	/* skipping non generic system call sys_query_module: [6171] */
 	/* skipping non generic system call sys_quotactl: [6172] */
+	/* skipping non generic system call sys_nfsservctl: [6173] */
 	/* skipping non generic system call sys_gettid: [6178] */
 	/* skipping non generic system call sys_readahead: [6179] */
 	/* skipping non generic system call sys_setxattr: [6180] */
@@ -614,6 +625,7 @@ syscall_info_t __syscall_info_a[] = {
 	/* skipping non generic system call sys_io_submit: [6203] */
 	/* skipping non generic system call sys_io_cancel: [6204] */
 	/* skipping non generic system call sys_exit_group: [6205] */
+	/* skipping non generic system call sys_lookup_dcookie: [6206] */
 	/* skipping non generic system call sys_epoll_create: [6207] */
 	/* skipping non generic system call sys_epoll_ctl: [6208] */
 	/* skipping non generic system call sys_epoll_wait: [6209] */

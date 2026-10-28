@@ -976,6 +976,16 @@ void syscall_return_switch_linux_arm(CPUState *cpu, target_ptr_t pc, const sysca
 			}
 			PPP_RUN_CB(on_sys_fchdir_return, cpu, pc, arg0) ;
 		}; break;
+		// 134 long sys_bdflush ['int func', 'long data']
+		case 134: {
+			int32_t arg0 = 0;
+			int32_t arg1 = 0;
+			if (PPP_CHECK_CB(on_sys_bdflush_return) || PPP_CHECK_CB(on_all_sys_return2)) {
+				memcpy(&arg0, ctx->args[0], sizeof(int32_t));
+				memcpy(&arg1, ctx->args[1], sizeof(int32_t));
+			}
+			PPP_RUN_CB(on_sys_bdflush_return, cpu, pc, arg0, arg1) ;
+		}; break;
 		// 135 long sys_sysfs ['int option', 'unsigned long arg1', 'unsigned long arg2']
 		case 135: {
 			int32_t arg0 = 0;
@@ -1117,6 +1127,14 @@ void syscall_return_switch_linux_arm(CPUState *cpu, target_ptr_t pc, const sysca
 				memcpy(&arg0, ctx->args[0], sizeof(uint32_t));
 			}
 			PPP_RUN_CB(on_sys_fdatasync_return, cpu, pc, arg0) ;
+		}; break;
+		// 149 long sys_sysctl ['struct __sysctl_args __user *args']
+		case 149: {
+			uint32_t arg0 = 0;
+			if (PPP_CHECK_CB(on_sys_sysctl_return) || PPP_CHECK_CB(on_all_sys_return2)) {
+				memcpy(&arg0, ctx->args[0], sizeof(uint32_t));
+			}
+			PPP_RUN_CB(on_sys_sysctl_return, cpu, pc, arg0) ;
 		}; break;
 		// 150 long sys_mlock ['unsigned long start', 'size_t len']
 		case 150: {
@@ -1285,6 +1303,18 @@ void syscall_return_switch_linux_arm(CPUState *cpu, target_ptr_t pc, const sysca
 				memcpy(&arg2, ctx->args[2], sizeof(int32_t));
 			}
 			PPP_RUN_CB(on_sys_poll_return, cpu, pc, arg0, arg1, arg2) ;
+		}; break;
+		// 169 long sys_nfsservctl ['int cmd', 'struct nfsctl_arg __user *arg', 'void __user *res']
+		case 169: {
+			int32_t arg0 = 0;
+			uint32_t arg1 = 0;
+			uint32_t arg2 = 0;
+			if (PPP_CHECK_CB(on_sys_nfsservctl_return) || PPP_CHECK_CB(on_all_sys_return2)) {
+				memcpy(&arg0, ctx->args[0], sizeof(int32_t));
+				memcpy(&arg1, ctx->args[1], sizeof(uint32_t));
+				memcpy(&arg2, ctx->args[2], sizeof(uint32_t));
+			}
+			PPP_RUN_CB(on_sys_nfsservctl_return, cpu, pc, arg0, arg1, arg2) ;
 		}; break;
 		// 170 long sys_setresgid16 ['old_gid_t rgid', 'old_gid_t egid', 'old_gid_t sgid']
 		case 170: {
@@ -2127,6 +2157,18 @@ void syscall_return_switch_linux_arm(CPUState *cpu, target_ptr_t pc, const sysca
 				memcpy(&arg0, ctx->args[0], sizeof(int32_t));
 			}
 			PPP_RUN_CB(on_sys_exit_group_return, cpu, pc, arg0) ;
+		}; break;
+		// 249 long sys_lookup_dcookie ['u64 cookie64', 'char __user *buf', 'size_t len']
+		case 249: {
+			uint64_t arg0 = 0;
+			uint32_t arg1 = 0;
+			uint32_t arg2 = 0;
+			if (PPP_CHECK_CB(on_sys_lookup_dcookie_return) || PPP_CHECK_CB(on_all_sys_return2)) {
+				memcpy(&arg0, ctx->args[0], sizeof(uint64_t));
+				memcpy(&arg1, ctx->args[1], sizeof(uint32_t));
+				memcpy(&arg2, ctx->args[2], sizeof(uint32_t));
+			}
+			PPP_RUN_CB(on_sys_lookup_dcookie_return, cpu, pc, arg0, arg1, arg2) ;
 		}; break;
 		// 250 long sys_epoll_create ['int size']
 		case 250: {
