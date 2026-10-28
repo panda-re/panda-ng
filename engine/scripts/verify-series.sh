@@ -30,6 +30,7 @@ PATCHES="$REPO_ROOT/patches"
 # shellcheck source=scripts/lib-extract.sh
 . "$REPO_ROOT/scripts/lib-extract.sh"
 BASE_JSON="$REPO_ROOT/base.json"
+python3 "$REPO_ROOT/scripts/check-series.py" "$PATCHES" "$VERSION"
 
 read -r WANT_SHA WANT_TREE < <(python3 - "$BASE_JSON" "$VERSION" <<'PY'
 import json, sys
