@@ -1,6 +1,6 @@
 name: Guest suite
 
-# tests/run.sh on real guests: the 20 guest tests (rr, snapshots, OSI, callbacks, ...) on each
+# tests/run.sh on real guests: inventory-selected guest tests on each
 # pandare2.mkimage image, under TCG. Nightly, by hand, or on a PR labelled guest-suite. Nothing
 # here publishes.
 #
@@ -19,9 +19,14 @@ on:
   workflow_dispatch:
     inputs:
       tests:
-        description: "Tests to run (space-separated; empty: run.sh's default 20)"
+        description: "Explicit test/variant names (space-separated; empty uses tier)"
         required: false
         default: ""
+      tier:
+        description: "Inventory tier (requirements become explicit SKIP if unavailable)"
+        type: choice
+        options: [quick, focused-guest, broad]
+        default: focused-guest
 
 permissions:
   contents: read
@@ -94,6 +99,7 @@ jobs:
           PANDA_PYTHON: ${{ github.workspace }}/result-python/bin/python3
           OUT: ${{ github.workspace }}/out
           TESTS: ${{ inputs.tests }}
+          TIER: ${{ inputs.tier || (github.event_name == 'schedule' && 'broad' || 'focused-guest') }}
         run: tests/run.sh images/${{ matrix.image }}.json
       - name: Results
         if: always()
@@ -112,5 +118,10 @@ jobs:
           name: guest-${{ matrix.image }}
           path: |
             out/results
-            out/**/*.log
+            out/*.json
+            out/python-probe.log
+            out/*/worker.log
+            out/*/*/result.json
+            out/*/*/attempt-*/result.json
+            out/*/*/attempt-*/test.log
           retention-days: 14

@@ -14,8 +14,8 @@ export PANDA_PYTHON=$PWD/result-python/bin/python3
 | static | `static/layout.py <engine>/include/panda-ng [arch...]` | nothing, no guest: pandare2's cffi lays out CPUState, CPUArchState and the engine's structs as gcc does, on every arch (`nix build .#checks.x86_64-linux.layout`) |
 | static | `bash static/syscalls_dispatch.sh <output binary>` | a C++ compiler, no engine or guest: generated syscalls2 dispatch and PPP subscriptions (`nix build .#checks.x86_64-linux.syscalls2-dispatch`) |
 | smoke | `smoke.py <arch>` | nothing: boots the firmware, loads C plugins (CI runs it on every PR) |
-| guest suite | `guest api osi_isf blocks callbacks calls mem mmio late reset teardown asidstory tbpc hookalias rr rrcb rrstop rrload fuzz fastrestore fastcov syscalls` | an image (below); `run.sh` runs them |
-| more guest tests | `kpti physmem rr_blocks fastrestore_guards fastrestore_hotplug fastrestore_vsock` | an image; not in `run.sh`'s default list (x86_64-only, or need extra host tools: see each docstring) |
+| guest suite | `inventory.py` quick / focused-guest / broad selections | an image (below); `run.sh` materializes every selected test/variant and records requirements or explicit SKIP |
+| specialized guest tests | `rr_blocks fastrestore_guards fastrestore_hotplug fastrestore_vsock kpti physmem` | focused or broad inventory tiers; target/host/backend prerequisites are explicit (see below) |
 | benchmark | `bench_cb.py <image>` | an image, and `PANDA_PLUGIN_DIR` from `nix build .#test-plugins` (the `tests/plugins/cbcount` C baseline): ns per callback in C, bare cffi and `@panda.cb_*` |
 | constructor | `construct.py [case...]` | nothing, no guest: the argv each `Panda(...)` form builds, which keyword wins over an image, and the errors (`nix build .#checks.x86_64-linux.pandare2-construct`) |
 | several Pandas | `multi.py [case...]`, `multi.py guests <x86_64 json> <aarch64 json>` | nothing (the guests case: two images): Pandas in one process, each case in a child process (`nix build .#checks.x86_64-linux.pandare2-multi`) |
@@ -44,18 +44,138 @@ each for debian-13, 11 min for ubuntu x86_64 and 21 min for ubuntu aarch64, down
 ## Running the suite
 
 ```sh
-tests/run.sh ~/panda-images                      # every image in the directory, the default tests
+tests/run.sh ~/panda-images                      # unchanged legacy default selection
+TIER=quick tests/run.sh ~/panda-images/debian-13-x86_64.json
+TIER=broad tests/run.sh ~/panda-images
 TESTS="rr rrcb" tests/run.sh ~/panda-images/debian-13-x86_64.json
+python3 tests/inventory.py focused-guest          # JSON inventory + generated count, no execution
 ```
 
-`run.sh` runs the images in parallel (`JOBS`) and the tests on each image one after another, each
-on its own copy of the image, so the shared images are never written. Results go to
-`$OUT/results`, one line per run, with each run's log in `$OUT/<image>/<test>.log`; a failing run
-keeps its image copy and work dir (`KEEP=1` keeps all of them). `TIMEOUT` (default 1800 s) bounds
-each test. On non-x86_64 images it sets `RRCB_NO_ICOUNT=1`: rrcb then checks the callbacks without
-comparing the guest's icount reads, which are not exact there yet.
+`inventory.py` is a small schema-1 requirements inventory, not an engine mode-implementation
+matrix. Tiers are cumulative: `quick` selects guest/API sanity; `focused-guest` adds block,
+callback, MMIO, syscall, restore and record/replay checks including `rr_blocks` and the
+replay-rejection half of restore guards; `broad` adds all other inventoried guest tests.
+Counts come from selection. With no explicit `TIER`, unset or empty `TESTS` preserves the exact
+original default selection and order. An explicit `TIER` opts into that tier when `TESTS` is unset
+or empty; a nonempty `TESTS` selects exactly those names, including aliases or existing unlisted scripts. Unlisted scripts have **unknown**
+target/mode requirements, explicitly recorded rather than inferred as supported.
 
-The full default run (19 tests on 5 images, all at once) took 19 minutes on that server.
+Each cell records intended targets, host, required resources, mode coverage labels, script and
+arguments. Known incompatible targets or missing host requirements become `SKIP` with reasons;
+missing scripts/fixtures remain `ERROR`, even when a resource would otherwise cause a skip. No
+selected cell disappears. The initially declared guest targets are x86_64/aarch64/riscv64;
+hotplug and KPTI are x86_64-only. These are test applicability
+claims only, not new engine support claims.
+
+Restore variants make conditional coverage separate instead of quietly passing fewer assertions:
+
+| selection | tier | arguments / requirements |
+|---|---|---|
+| `fastrestore_guards_rr` | focused-guest | `fastrestore_guards.py ... rr`; record/replay rejection, no KVM requirement |
+| `fastrestore_guards_kvm` | broad | `... notcg`; matching host/guest architecture, usable `/dev/kvm` |
+| `fastrestore_hotplug` | broad | x86_64 ACPI PCI hotplug |
+| `fastrestore_vsock` | broad | executable `VHOST_DEVICE_VSOCK` or `vhost-device-vsock` on PATH |
+| `fastrestore_vsock_kernel` | broad | `... --kernel`; matching host target, usable `/dev/vhost-vsock` |
+
+Direct `TESTS=fastrestore_guards` still runs that script's original combined default; legacy
+partial skips are conservatively `SKIP`. Opening a device is only a prerequisite check, not proof
+of working virtualization: errors during the actual test stay failures. Additional kernel/backend
+constraints must be evidenced by execution, not hidden behind a blanket pass.
+
+The guest workflow uses focused-guest for PR/manual runs and broad on its nightly schedule, with
+manual tier/explicit selections available. It uploads only bounded result/provenance JSON and
+logs, excluding private disks, recording data and symbol JSON files.
+
+`run.sh` uses the stdlib-only `run_results.py` supervisor; it needs host `python3`, `git`, and
+GNU `cp`, plus the selected `PANDA_PYTHON` (default `panda-python`). It runs images in parallel
+(`JOBS`, default all selected images), tests within an image serially. The matrix is persisted
+**before** inspecting fixtures or probing pandare2. Image and test ordinal IDs prevent duplicate
+basenames or repeated selections from colliding. `$OUT` must not exist, even if empty; the default
+is a new temporary directory. Nothing in an existing output directory is removed.
+
+Each attempt copies JSON and qcow2 privately (reflink/sparse when available), rewrites the copied
+JSON's file references, and links symbol files. Missing JSON, disks, symbols, scripts, copy failures
+and failed interpreter preflight are `ERROR`, not missing cells. Short `/tmp/pt.*` directories
+keep UNIX socket paths below their limit. `TIMEOUT` (default 1800 seconds) starts at process launch;
+a watchdog sends TERM then KILL after `KILL_GRACE` (default 30 seconds). Only an actual watchdog
+expiry is `TIMEOUT`: spontaneous signals are `CRASH`, including SIGKILL, and exits 124/137 without
+a watchdog are `FAIL`. Core dumps are disabled. TERM/INT cancellation reconciles running and
+not-yet-started cells as `CANCELLED`. Unexpected worker death reconciles unfinished cells as
+`ERROR` and kills its recorded test process group. SIGKILL/power loss of the coordinator cannot
+run cleanup; the durable plan and unfinished records remain evidence, not a passing run.
+
+`PASS` means exit zero without a skip indication, not proof of full mode coverage. `SKIP` means
+exit 77 or a legacy line beginning `SKIP` / containing `: SKIP`, even with exit zero. A partial
+subtest skip conservatively marks the whole cell `SKIP`; its log identifies what was excluded.
+A nonzero exit or signal still takes precedence over printed skips. New whole-test skips should
+exit 77 and print their reason. The runner exits nonzero for FAIL/CRASH/TIMEOUT/ERROR/CANCELLED,
+source-fixture changes or failed workers; SKIP is non-failing but never counted as PASS. Strict
+`Checks.check/report` XPASS behavior is unchanged.
+
+On non-x86_64 images the runner records `RRCB_NO_ICOUNT=1`: rrcb checks callbacks without comparing
+the guest's icount reads, which are not exact there yet. The inventory records this exclusion through the attempt environment; a pass is not evidence
+of non-x86 icount equivalence. Mode labels describe test intent, never implementation status.
+The matrix size and summary counts are generated from actual selection, not a fixed test count.
+
+### Result schema and retained evidence
+
+All JSON documents carry `schema_version: 1`:
+
+- `plan.json`: ordered cells, selected interpreter, controls, fixture paths/architecture and
+  SHA-256 identities of JSON/disks/symbols, including missing-input errors.
+- `provenance.json`: source revision, dirty status, tracked diff hash, patch-tree content identity,
+  runner/helper identities, host and package-selection overrides. Dirty/untracked status is not a
+  complete source archive: preserve that checkout alongside its evidence.
+- `results`: readable `STATUS <seconds>s <image-id> <test>` lines, exactly one per planned cell.
+  `results.json` contains the same denominator with authoritative first outcomes.
+- `<image-id>/<test-id>/result.json`: authoritative **first** outcome; `attempt-001/result.json`
+  and subsequent numbered attempts retain argv, cwd, environment overrides, test-source identity,
+  timestamps, exit code/signal, watchdog flag, bounded process/stack evidence where `/proc`
+  permits, and best-effort observed engine/plugin/Python mappings with resolved paths and hashes.
+  Selection overrides and the interpreter's pandare2 import probe are **not** evidence that a
+  selected engine/plugin was actually loaded. Mapping sampling can miss short-lived libraries;
+  absent observations mean unknown, not a verified selection. `python-probe.log/json` records
+  package import provenance separately.
+- Each attempt's `test.log` is bounded to a 1 MiB head/tail, with truncation explicit. A JSON
+  reproduction command reruns the single selected cell in fresh output using the recorded source,
+  interpreter and original fixtures; its preconditions are recorded, not silently reconstructed.
+- `completion.json`: worker exits, cancellation/fatal errors, and shared-fixture before/after
+  hash differences. Hashing all selected fixtures is deliberate and may add I/O for large disks.
+
+Failure image copies and recordings stay in their attempt directory; successful copies/recordings
+are removed unless `KEEP=1`. Short temporary directories are removed after supervised attempts.
+Large disks, recordings and core dumps are **not** copied into the bounded diagnostic JSON/log
+bundle: CI should upload manifests/JSON/logs, not recursively upload retained `img/` or `rr/`.
+No debugger is required; stack evidence is best effort and usually unavailable on restricted hosts.
+
+Retries are opt-in (`RETRIES=1`, default 0) and use independent fresh fixture copies and TMPDIRs.
+The first failure remains the cell's verdict and determines the runner exit status even if the
+retry passes; passing retries do not erase flakiness. First-failure directories are never replaced.
+
+### Offline runner selftests
+
+```sh
+python3 tests/run_selftests.py
+# Retain intentional failures and their evidence in a NEW directory:
+python3 tests/run_selftests.py --out /tmp/panda-runner-evidence
+```
+
+No guest build, pandare2 install or new framework is needed (`unittest` and fake processes only).
+The cases cover pass/assertion/strict XPASS, whole and partial skips, signals including spontaneous
+SIGKILL, timeout TERM/KILL escalation, numeric exits 124/137, invalid/missing fixtures and scripts,
+preflight/setup failure, worker death, pending/running cancellation, duplicate basenames and tests,
+output reuse refusal, bounded noisy logs, first-failure retention and fresh-copy retries. Shared
+JSON and disk hashes are checked before/after runs. Failed selftests retain their temporary tree;
+`--out` retains all evidence, including expected synthetic failures. Selection tests additionally
+cover missing backend SKIP without launching, alias arguments, generated tier counts and empty
+explicit selection fallback.
+
+CI has an independent lightweight `offline-tools` flake check/job, using only pinned stdlib Python,
+Git, Bash and coreutils on Linux (the loaded-library selftest reads `/proc`). It runs all 18 runner
+selftests and `tools/docs/gen.py --check`. It deliberately uses the complete source snapshot so
+sibling imports, AST source reads, documentation inputs and patch metadata are available. This
+check has no engine/guest build dependency and does not replace series application/import-export
+verification or runtime guest tests.
 
 ## Performance tools
 

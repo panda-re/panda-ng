@@ -32,6 +32,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  offline:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - name: Offline runner selftests and documentation checks (no engine)
+        run: >-
+          nix build -L .#checks.x86_64-linux.offline-tools
+          --no-link
+
   build:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
