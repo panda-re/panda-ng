@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# The off-cost gate: build stock QEMU and this series from the same tarball with the same configure
+# SUPERSEDED for vanilla parity: this compares series executables without --enable-panda,
+# and forces PIC on both sides. It does not measure the shipped shared engine.
+# Keep only as a historical series-vs-series diagnostic; use tests/perf/ for the
+# explicit shared-launcher/vanilla/A-A protocol (not an automatic acceptance gate).
+# The historical off-cost gate: build stock QEMU and this series from the same tarball with the same configure
 # line, then run tests/guest/offcost.sh on both.
 #
 #   STOCK_REF=origin/main ./scripts/offcost-gate.sh 11.1.2 <tarball> <workdir> [out]

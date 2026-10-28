@@ -986,6 +986,30 @@
               python3 engine/scripts/check-series.py engine/patches 11.1.2
               touch $out
             '';
+          # Perf protocol and host workload correctness only: no engine, guest or timing campaign.
+          perf-tools = pkgs.runCommandCC "panda-perf-tools-check"
+            {
+              nativeBuildInputs = [ pkgs.python3 pkgs.bash pkgs.coreutils pkgs.util-linux ];
+            }
+            ''
+              cp -r ${./tests/perf} perf
+              cp ${./tests/bench_cb.py} bench_cb.py
+              chmod -R u+w perf
+              python3 -I perf/test_perf.py
+              bash -n ${./engine/scripts/offcost-gate.sh}
+              sh -n perf/init
+              sh -n perf/mkinitrd.sh
+              $CC -std=gnu11 -O2 -Wall -Wextra -Werror perf/idlework.c -o idlework
+              ./idlework cpu 1 > workload.log
+              grep -Fx 'CHECK idlework cpu PASS' workload.log
+              for reps in 0 -1 101 invalid; do
+                if ./idlework cpu "$reps"; then
+                  echo "invalid workload count accepted: $reps" >&2
+                  exit 1
+                fi
+              done
+              touch $out
+            '';
           # The series applies to the pinned tarball (the strict gate with the patchedTree
           # comparison is engine/scripts/verify-series.sh, run by .github/workflows/engine.yml).
           engine-src = p.engineSrc;
