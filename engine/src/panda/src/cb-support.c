@@ -60,7 +60,7 @@ void PCB(after_block_exec)(CPUState *cpu, TranslationBlock *tb, uint8_t exitCode
 void PCB(before_block_exec_dispatch)(CPUState *cpu, TranslationBlock *tb) {
     panda_cb_list *plist;
     for (plist = panda_cbs[PANDA_CB_BEFORE_BLOCK_EXEC]; plist != NULL; plist = panda_cb_list_next(plist)) {
-        if (plist->enabled)
+        if (PANDA_CB_RUNS(plist))
             plist->entry.before_block_exec(plist->context, cpu, tb);
     }
 }
@@ -71,7 +71,7 @@ void panda_cb_trampoline_before_block_exec(void* context, CPUState *cpu, Transla
 void PCB(after_block_exec_dispatch)(CPUState *cpu, TranslationBlock *tb, uint8_t exitCode) {
     panda_cb_list *plist;
     for (plist = panda_cbs[PANDA_CB_AFTER_BLOCK_EXEC]; plist != NULL; plist = panda_cb_list_next(plist)) {
-        if (plist->enabled)
+        if (PANDA_CB_RUNS(plist))
             plist->entry.after_block_exec(plist->context, cpu, tb, exitCode);
     }
 }
@@ -85,7 +85,7 @@ bool PCB(before_block_exec_invalidate_opt)(CPUState *cpu, TranslationBlock *tb) 
     bool invalidate = false;
     for (plist = panda_cbs[PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT]; plist != NULL;
          plist = panda_cb_list_next(plist)) {
-        if (plist->enabled)
+        if (PANDA_CB_RUNS(plist))
             invalidate |= plist->entry.before_block_exec_invalidate_opt(plist->context, cpu, tb);
     }
     return invalidate;
@@ -114,7 +114,7 @@ void PCB(after_loadvm)(CPUState *env) {
     panda_asid_after_loadvm(env ? env : first_cpu);
     panda_main_walk_depth++;
     for (plist = panda_cbs[PANDA_CB_AFTER_LOADVM]; plist != NULL; plist = panda_cb_list_next(plist)) {
-        if (plist->enabled)
+        if (PANDA_CB_RUNS(plist))
             plist->entry.after_loadvm(plist->context, env);
     }
     if (--panda_main_walk_depth == 0) {
@@ -142,7 +142,7 @@ MAKE_CALLBACK(void, END_BLOCK_EXEC, end_block_exec,
 void PCB(start_block_exec)(CPUState *cpu, TranslationBlock *tb) {
     panda_cb_list *plist;
     for (plist = panda_cbs[PANDA_CB_START_BLOCK_EXEC]; plist != NULL; plist = panda_cb_list_next(plist)) {
-        if (plist->enabled)
+        if (PANDA_CB_RUNS(plist))
             plist->entry.start_block_exec(plist->context, cpu, tb);
     }
 
@@ -188,7 +188,7 @@ static inline hwaddr get_paddr(CPUState *cpu, uint64_t addr, void *ram_ptr) {
 int PCB(insn_exec)(CPUState *env, uint64_t pc) {
     panda_cb_list *plist;
     for (plist = panda_cbs[PANDA_CB_INSN_EXEC]; plist != NULL; plist = panda_cb_list_next(plist)) {
-        if (plist->enabled) plist->entry.insn_exec(plist->context, env, pc);
+        if (PANDA_CB_RUNS(plist)) plist->entry.insn_exec(plist->context, env, pc);
     }
     return 0;
 }
@@ -200,35 +200,35 @@ void PCB(mem_access)(CPUState *env, uint64_t pc, uint64_t addr, uint64_t paddr,
     panda_cb_list *plist;
     if (is_before && is_store) {
         for (plist = panda_cbs[PANDA_CB_VIRT_MEM_BEFORE_WRITE]; plist != NULL; plist = panda_cb_list_next(plist)) {
-            if (plist->enabled) plist->entry.virt_mem_before_write(plist->context, env, pc, addr, size, buf);
+            if (PANDA_CB_RUNS(plist)) plist->entry.virt_mem_before_write(plist->context, env, pc, addr, size, buf);
         }
         if (paddr == -1) return;
         for (plist = panda_cbs[PANDA_CB_PHYS_MEM_BEFORE_WRITE]; plist != NULL; plist = panda_cb_list_next(plist)) {
-            if (plist->enabled) plist->entry.phys_mem_before_write(plist->context, env, pc, paddr, size, buf);
+            if (PANDA_CB_RUNS(plist)) plist->entry.phys_mem_before_write(plist->context, env, pc, paddr, size, buf);
         }
     } else if (is_before) {
         for (plist = panda_cbs[PANDA_CB_VIRT_MEM_BEFORE_READ]; plist != NULL; plist = panda_cb_list_next(plist)) {
-            if (plist->enabled) plist->entry.virt_mem_before_read(plist->context, env, pc, addr, size);
+            if (PANDA_CB_RUNS(plist)) plist->entry.virt_mem_before_read(plist->context, env, pc, addr, size);
         }
         if (paddr == -1) return;
         for (plist = panda_cbs[PANDA_CB_PHYS_MEM_BEFORE_READ]; plist != NULL; plist = panda_cb_list_next(plist)) {
-            if (plist->enabled) plist->entry.phys_mem_before_read(plist->context, env, pc, paddr, size);
+            if (PANDA_CB_RUNS(plist)) plist->entry.phys_mem_before_read(plist->context, env, pc, paddr, size);
         }
     } else if (is_store) {
         for (plist = panda_cbs[PANDA_CB_VIRT_MEM_AFTER_WRITE]; plist != NULL; plist = panda_cb_list_next(plist)) {
-            if (plist->enabled) plist->entry.virt_mem_after_write(plist->context, env, pc, addr, size, buf);
+            if (PANDA_CB_RUNS(plist)) plist->entry.virt_mem_after_write(plist->context, env, pc, addr, size, buf);
         }
         if (paddr == -1) return;
         for (plist = panda_cbs[PANDA_CB_PHYS_MEM_AFTER_WRITE]; plist != NULL; plist = panda_cb_list_next(plist)) {
-            if (plist->enabled) plist->entry.phys_mem_after_write(plist->context, env, pc, paddr, size, buf);
+            if (PANDA_CB_RUNS(plist)) plist->entry.phys_mem_after_write(plist->context, env, pc, paddr, size, buf);
         }
     } else {
         for (plist = panda_cbs[PANDA_CB_VIRT_MEM_AFTER_READ]; plist != NULL; plist = panda_cb_list_next(plist)) {
-            if (plist->enabled) plist->entry.virt_mem_after_read(plist->context, env, pc, addr, size, buf);
+            if (PANDA_CB_RUNS(plist)) plist->entry.virt_mem_after_read(plist->context, env, pc, addr, size, buf);
         }
         if (paddr == -1) return;
         for (plist = panda_cbs[PANDA_CB_PHYS_MEM_AFTER_READ]; plist != NULL; plist = panda_cb_list_next(plist)) {
-            if (plist->enabled) plist->entry.phys_mem_after_read(plist->context, env, pc, paddr, size, buf);
+            if (PANDA_CB_RUNS(plist)) plist->entry.phys_mem_after_read(plist->context, env, pc, paddr, size, buf);
         }
     }
 }
@@ -340,7 +340,7 @@ void PCB(main_loop_wait)(void) {
     panda_cb_list *plist;
     panda_main_walk_depth++;
     for (plist = panda_cbs[PANDA_CB_MAIN_LOOP_WAIT]; plist != NULL; plist = panda_cb_list_next(plist)) {
-        if (plist->enabled)
+        if (PANDA_CB_RUNS(plist))
             plist->entry.main_loop_wait(plist->context);
     }
     if (--panda_main_walk_depth == 0) {
@@ -355,7 +355,7 @@ void PCB(pre_shutdown)(void) {
     panda_cb_list *plist;
     panda_main_walk_depth++;
     for (plist = panda_cbs[PANDA_CB_PRE_SHUTDOWN]; plist != NULL; plist = panda_cb_list_next(plist)) {
-        if (plist->enabled)
+        if (PANDA_CB_RUNS(plist))
             plist->entry.pre_shutdown(plist->context);
     }
     if (--panda_main_walk_depth == 0) {
@@ -392,7 +392,7 @@ bool PCB(after_find_fast)(CPUState *cpu, TranslationBlock *tb,
     if (!bb_invalidate_done) {
         for (plist = panda_cbs[PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT];
              plist != NULL; plist = panda_cb_list_next(plist)) {
-            if (plist->enabled)
+            if (PANDA_CB_RUNS(plist))
               *invalidate |=
                   plist->entry.before_block_exec_invalidate_opt(plist->context, cpu, tb);
         }
@@ -429,7 +429,7 @@ int32_t PCB(before_handle_exception)(CPUState *cpu, int32_t exception_index) {
 
     for (plist = panda_cbs[PANDA_CB_BEFORE_HANDLE_EXCEPTION]; plist != NULL;
          plist = panda_cb_list_next(plist)) {
-        if (plist->enabled) {
+        if (PANDA_CB_RUNS(plist)) {
             bool observer = panda_callback_observe_only(plist);
             int32_t new_e = plist->entry.before_handle_exception(plist->context, cpu, exception_index);
             if (!observer &&
@@ -457,7 +457,7 @@ int32_t PCB(before_handle_interrupt)(CPUState *cpu, int32_t interrupt_request) {
 
     for (plist = panda_cbs[PANDA_CB_BEFORE_HANDLE_INTERRUPT]; plist != NULL;
          plist = panda_cb_list_next(plist)) {
-        if (plist->enabled) {
+        if (PANDA_CB_RUNS(plist)) {
             bool observer = panda_callback_observe_only(plist);
             int32_t new_i = plist->entry.before_handle_interrupt(plist->context, cpu, interrupt_request);
             if (!observer &&
@@ -499,7 +499,7 @@ void PCB(mem_before_read)(CPUState *env, uint64_t pc, uint64_t addr,
     panda_cb_list *plist;
     for(plist = panda_cbs[PANDA_CB_VIRT_MEM_BEFORE_READ]; plist != NULL;
         plist = panda_cb_list_next(plist)) {
-        if (plist->enabled) plist->entry.virt_mem_before_read(plist->context, env, panda_current_pc(env), addr,
+        if (PANDA_CB_RUNS(plist)) plist->entry.virt_mem_before_read(plist->context, env, panda_current_pc(env), addr,
                                                               data_size);
     }
     if (panda_cbs[PANDA_CB_PHYS_MEM_BEFORE_READ]) {
@@ -507,7 +507,7 @@ void PCB(mem_before_read)(CPUState *env, uint64_t pc, uint64_t addr,
         if (paddr == -1) return;
         for(plist = panda_cbs[PANDA_CB_PHYS_MEM_BEFORE_READ]; plist != NULL;
             plist = panda_cb_list_next(plist)) {
-            if (plist->enabled) plist->entry.phys_mem_before_read(plist->context, env, panda_current_pc(env),
+            if (PANDA_CB_RUNS(plist)) plist->entry.phys_mem_before_read(plist->context, env, panda_current_pc(env),
                                                                   paddr, data_size);
         }
     }
@@ -520,7 +520,7 @@ void PCB(mem_after_read)(CPUState *env, uint64_t pc, uint64_t addr,
     for(plist = panda_cbs[PANDA_CB_VIRT_MEM_AFTER_READ]; plist != NULL;
         plist = panda_cb_list_next(plist)) {
         /* mstamat: Passing &result as the last cb arg doesn't make much sense. */
-        if (plist->enabled) plist->entry.virt_mem_after_read(plist->context, env, panda_current_pc(env), addr,
+        if (PANDA_CB_RUNS(plist)) plist->entry.virt_mem_after_read(plist->context, env, panda_current_pc(env), addr,
                                          data_size, (uint8_t *)&result);
     }
     if (panda_cbs[PANDA_CB_PHYS_MEM_AFTER_READ]) {
@@ -529,7 +529,7 @@ void PCB(mem_after_read)(CPUState *env, uint64_t pc, uint64_t addr,
         for(plist = panda_cbs[PANDA_CB_PHYS_MEM_AFTER_READ]; plist != NULL;
             plist = panda_cb_list_next(plist)) {
             /* mstamat: Passing &result as the last cb arg doesn't make much sense. */
-            if (plist->enabled) plist->entry.phys_mem_after_read(plist->context, env, panda_current_pc(env), paddr,
+            if (PANDA_CB_RUNS(plist)) plist->entry.phys_mem_after_read(plist->context, env, panda_current_pc(env), paddr,
                                              data_size, (uint8_t *)&result);
         }
     }
@@ -542,7 +542,7 @@ void PCB(mem_before_write)(CPUState *env, uint64_t pc, uint64_t addr,
     for(plist = panda_cbs[PANDA_CB_VIRT_MEM_BEFORE_WRITE]; plist != NULL;
         plist = panda_cb_list_next(plist)) {
         /* mstamat: Passing &val as the last arg doesn't make much sense. */
-        if (plist->enabled) plist->entry.virt_mem_before_write(plist->context, env, panda_current_pc(env), addr,
+        if (PANDA_CB_RUNS(plist)) plist->entry.virt_mem_before_write(plist->context, env, panda_current_pc(env), addr,
                                            data_size, (uint8_t *)&val);
     }
     if (panda_cbs[PANDA_CB_PHYS_MEM_BEFORE_WRITE]) {
@@ -551,7 +551,7 @@ void PCB(mem_before_write)(CPUState *env, uint64_t pc, uint64_t addr,
         for(plist = panda_cbs[PANDA_CB_PHYS_MEM_BEFORE_WRITE]; plist != NULL;
             plist = panda_cb_list_next(plist)) {
             /* mstamat: Passing &val as the last cb arg doesn't make much sense. */
-            if (plist->enabled) plist->entry.phys_mem_before_write(plist->context, env, panda_current_pc(env), paddr,
+            if (PANDA_CB_RUNS(plist)) plist->entry.phys_mem_before_write(plist->context, env, panda_current_pc(env), paddr,
                                                data_size, (uint8_t *)&val);
         }
     }
@@ -564,7 +564,7 @@ void PCB(mem_after_write)(CPUState *env, uint64_t pc, uint64_t addr,
     for (plist = panda_cbs[PANDA_CB_VIRT_MEM_AFTER_WRITE]; plist != NULL;
          plist = panda_cb_list_next(plist)) {
         /* mstamat: Passing &val as the last cb arg doesn't make much sense. */
-        if (plist->enabled) plist->entry.virt_mem_after_write(plist->context, env, panda_current_pc(env), addr,
+        if (PANDA_CB_RUNS(plist)) plist->entry.virt_mem_after_write(plist->context, env, panda_current_pc(env), addr,
                                           data_size, (uint8_t *)&val);
     }
     if (panda_cbs[PANDA_CB_PHYS_MEM_AFTER_WRITE]) {
@@ -573,7 +573,7 @@ void PCB(mem_after_write)(CPUState *env, uint64_t pc, uint64_t addr,
         for (plist = panda_cbs[PANDA_CB_PHYS_MEM_AFTER_WRITE]; plist != NULL;
              plist = panda_cb_list_next(plist)) {
             /* mstamat: Passing &val as the last cb arg doesn't make much sense. */
-            if (plist->enabled) plist->entry.phys_mem_after_write(plist->context, env, panda_current_pc(env), paddr,
+            if (PANDA_CB_RUNS(plist)) plist->entry.phys_mem_after_write(plist->context, env, panda_current_pc(env), paddr,
                                               data_size, (uint8_t *)&val);
         }
     }

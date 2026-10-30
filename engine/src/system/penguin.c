@@ -79,8 +79,8 @@ set_penguin_guest_hypercall_callback(penguin_guest_hypercall_cb_t cb,
                                      void *opaque)
 {
     if (cb && replay_mode != REPLAY_MODE_NONE) {
-        error_report("penguin hypercall consumer refused during record/replay");
-        return;
+        warn_report("penguin hypercall consumer will not run until the recording "
+                    "or replay ends");
     }
     penguin_guest_hypercall_cb = cb;
     penguin_guest_hypercall_opaque = opaque;
@@ -89,24 +89,28 @@ set_penguin_guest_hypercall_callback(penguin_guest_hypercall_cb_t cb,
 void __attribute__((visibility("default")))
 set_kvm_penguin_hypercall_callback(kvm_penguin_hypercall_cb_t cb)
 {
-    if (cb && replay_mode != REPLAY_MODE_NONE) {
-        error_report("penguin hypercall consumer refused during record/replay");
-        return;
-    }
     kvm_penguin_hypercall_cb = cb;
 }
 
+/* Like PANDA callbacks: never refuses. After the mode switch it warns that the
+ * consumer, which answers the guest, is skipped until the recording or replay
+ * ends; the guest then sees its hypercalls unanswered. */
 bool penguin_hypercall_replay_safe(Error **errp)
 {
-    if (penguin_guest_hypercall_cb || kvm_penguin_hypercall_cb) {
-        error_setg(errp, "penguin hypercall consumers can mutate guest state; use an observe-only PANDA callback during record/replay");
-        return false;
+    if (replay_mode != REPLAY_MODE_NONE && penguin_guest_hypercall_cb) {
+        warn_report("penguin hypercall consumer is skipped during %s: the guest's "
+                    "hypercalls go unanswered, so the guest may behave differently "
+                    "than in an unrecorded run",
+                    replay_mode == REPLAY_MODE_PLAY ? "replay" : "recording");
     }
     return true;
 }
 
 bool penguin_guest_hypercall_wanted(uint64_t nr)
 {
+    if (replay_mode != REPLAY_MODE_NONE) {
+        return false;
+    }
     return (penguin_guest_hypercall_cb &&
             penguin_guest_hypercall_registered(nr)) ||
            kvm_penguin_hypercall_cb;
@@ -118,6 +122,9 @@ bool penguin_handle_guest_hypercall(CPUState *cs, uint64_t nr,
                                     uint64_t a4, uint64_t a5,
                                     uint64_t *ret)
 {
+    if (replay_mode != REPLAY_MODE_NONE) {
+        return false;
+    }
     if (penguin_guest_hypercall_cb &&
         penguin_guest_hypercall_registered(nr)) {
         return penguin_guest_hypercall_cb(cs, nr, a0, a1, a2, a3, a4, a5,

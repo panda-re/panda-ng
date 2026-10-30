@@ -69,9 +69,16 @@ before it, checks `panda.libpanda.rr_on()`:
 ## Analysis access policy
 
 Declare Python callbacks, PPP subscriptions, address hooks and hypercalls with
-`observe_only=True` for recording and replay. Core callbacks also need `rr` in their
-compatible `modes` (the default includes it where supported). Entry, registration and
-re-enabling reject incompatible callbacks; disabled core callbacks may remain registered.
+`observe_only=True` to have them run during recording and replay. Core callbacks also need
+`rr` in their compatible `modes` (the default includes it where supported).
+
+Recording and replay never refuse to start over callbacks. Any other callback, a mutator or
+one without `rr`, stays registered and enabled but is skipped while a recording or replay is
+active, and runs again once it ends. A run can therefore switch between live analysis, where
+mutators work, and any number of recordings. Starting a recording or replay warns once for
+each callback it will skip, and registering or enabling a mutator during one warns that it
+will not run until the end. Penguin's hypercall consumer is skipped the same way; the guest's
+hypercalls then go unanswered, so a recording made with it may differ from an unrecorded run.
 
 Ordinary mutation APIs do not log effects. Guest memory, register and PC writes,
 faulting accesses and device reads through the guarded analysis APIs are refused during

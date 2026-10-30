@@ -2624,7 +2624,8 @@ class Panda():
         name must uniquely describe a callback
         if procname is specified, callback will only be enabled when that asid is running (requires OSI support)
         modes names compatible contexts (analysis, fuzz, rr, kvm); defaults to
-        the type's supported contexts. Record/replay requires observe_only=True.
+        the type's supported contexts. During record/replay only observe_only=True
+        callbacks that support rr run; others are skipped until it ends.
         '''
 
         cb_name = self.callback_dictionary[pandatype].name
@@ -2646,18 +2647,28 @@ class Panda():
         return decorator
 
     def _check_rr_observers(self):
+        """Warn about, and return, what record/replay will skip until it ends.
+
+        Record and replay never refuse to start: mutators and callbacks without rr
+        support stay registered and run again once the recording or replay ends.
+        """
+        skipped = []
         for name, cb in self.registered_callbacks.items():
             if cb['enabled'] and (not cb['observe_only'] or not cb['modes'] & self.libpanda.PANDA_MODE_RR):
-                raise ValueError(f"callback {name!r}: record/replay requires observe_only=True and RR compatibility")
+                skipped.append(f"callback {name!r}")
         for name, observer in self._ppp_observers.items():
             if not observer:
-                raise ValueError(f"PPP callback {name!r}: record/replay requires observe_only=True")
+                skipped.append(f"PPP callback {name!r}")
         for hook, _ in self.hook_list:
             if hook.enabled and not self._hook_observers.get(hook, False):
-                raise ValueError("address hook: record/replay requires observe_only=True")
+                skipped.append("address hook")
         for fun, info in self.hypercalls.items():
             if len(info) < 3 or not info[2]:
-                raise ValueError(f"hypercall {fun.__name__!r}: record/replay requires observe_only=True")
+                skipped.append(f"hypercall {fun.__name__!r}")
+        for what in skipped:
+            warn(f"{what} is not an observe_only record/replay callback: it is skipped "
+                 "until the recording or replay ends")
+        return skipped
 
     def _check_guest_mutation(self, operation):
         if (not self.libpanda.panda_guest_mutation_allowed() or
@@ -2677,9 +2688,9 @@ class Panda():
         (before_handle_exception/interrupt), which returns the index it was given: 0 is a
         different exception, which QEMU may abort on.
 
-        The policy wrapper rejects unlogged mutators during record/replay and tracks
-        observe-only Python callbacks so guest-writing helpers reject their
-        writes during live execution too. Native callers remain trusted: raw
+        The policy wrapper skips mutators during record/replay (they run again once it
+        ends) and tracks observe-only Python callbacks so guest-writing helpers reject
+        their writes during live execution too. Native callers remain trusted: raw
         CPUState pointers are not a sandbox.
         '''
         if result is None or result.cname == "void":
@@ -2689,11 +2700,12 @@ class Panda():
         else:
             kind = "passthrough" if passthrough else "int"
         if not observe_only and not self.libpanda.panda_guest_mutation_allowed():
-            raise ValueError(f"callback {fun.__name__!r}: record/replay requires observe_only=True")
+            warn(f"callback {fun.__name__!r} is not observe_only: it is skipped until "
+                 "the recording or replay ends")
         original = fun
         def checked(*args):
             if not observe_only and not self.libpanda.panda_guest_mutation_allowed():
-                raise PermissionError(f"callback {original.__name__!r}: record/replay requires observe_only=True")
+                return None     # a mutator: skipped during record/replay, like native callbacks
             observers = getattr(self._callback_access, 'observers', 0)
             self._callback_access.observers = observers + bool(observe_only)
             try:
@@ -3110,7 +3122,7 @@ class Panda():
             try:
                 for m in magics:
                     if not self.plugins['hypercaller'].register_hypercall_observer(m, hook_cb_passed, observe_only):
-                        raise ValueError("hypercall registration refused: duplicate magic or mutator during record/replay")
+                        raise ValueError("hypercall registration refused: duplicate magic")
                     registered.append(m)
             except Exception:
                 for m in registered:

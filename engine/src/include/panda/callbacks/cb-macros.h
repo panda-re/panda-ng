@@ -1,5 +1,14 @@
 // Macros to help with cb-support.c
 
+#include "system/replay.h"
+
+/* While recording or replaying, only RR-compatible observers run. Other
+ * callbacks stay registered and enabled, and run again once the recording or
+ * replay ends; begin warns about them. Outside record/replay this is one load. */
+bool panda_callback_rr_runs(const panda_cb_list *cb);
+#define PANDA_CB_RUNS(plist) ((plist)->enabled && \
+    (likely(replay_mode == REPLAY_MODE_NONE) || panda_callback_rr_runs(plist)))
+
 // The COMBINE_TYPES series of macros will combine a list of
 // (type1, var1, type2, var2, ...) into (type1 var1, type2 var2...)
 // Supports up to 10 elements (5 pairs)
@@ -54,7 +63,7 @@
         for (plist = panda_cbs[PANDA_CB_ ## name_upper]; \
              plist != NULL; \
              plist = panda_cb_list_next(plist)) { \
-              if (plist->enabled) \
+              if (PANDA_CB_RUNS(plist)) \
                 plist->entry. ENTRY_NAME(name, plist->context, EVERY_SECOND(__VA_ARGS__)); \
         } \
     } \
@@ -68,7 +77,7 @@
         for (plist = panda_cbs[PANDA_CB_ ## name_upper]; \
              plist != NULL; \
              plist = panda_cb_list_next(plist)) { \
-              if (plist->enabled) \
+              if (PANDA_CB_RUNS(plist)) \
                 plist->entry. ENTRY_NAME(name, plist->context, EVERY_SECOND(__VA_ARGS__)); \
         } \
         return 0; \
@@ -87,7 +96,7 @@
         for (plist = panda_cbs[PANDA_CB_ ## name_upper]; \
              plist != NULL; \
              plist = panda_cb_list_next(plist)) { \
-              if (plist->enabled) { \
+              if (PANDA_CB_RUNS(plist)) { \
                 bool panda_cb_observer = panda_callback_observe_only(plist); \
                 bool panda_cb_result = plist->entry. ENTRY_NAME(name, plist->context, EVERY_SECOND(__VA_ARGS__)); \
                 if (!panda_cb_observer || \
@@ -120,7 +129,7 @@
           for (plist = panda_cbs[PANDA_CB_ ## name_upper]; \
                plist != NULL; \
                plist = panda_cb_list_next(plist)) { \
-                if (plist->enabled) \
+                if (PANDA_CB_RUNS(plist)) \
                   plist->entry. ENTRY_NAME(name, plist->context, EVERY_SECOND(__VA_ARGS__)); \
           } \
         } \
@@ -136,7 +145,7 @@
         for (plist = panda_cbs[PANDA_CB_ ## name_upper]; \
              plist != NULL; \
              plist = panda_cb_list_next(plist)) { \
-              if (plist->enabled) \
+              if (PANDA_CB_RUNS(plist)) \
                 plist->entry. ENTRY_NAME(name, plist->context); \
         } \
     } \
@@ -151,7 +160,7 @@
         for (plist = panda_cbs[PANDA_CB_ ## name_upper]; \
              plist != NULL; \
              plist = panda_cb_list_next(plist)) { \
-              if (plist->enabled) \
+              if (PANDA_CB_RUNS(plist)) \
                 any_true |= plist->entry. ENTRY_NAME(name, plist->context); \
         } \
         return any_true; \
