@@ -1443,10 +1443,6 @@ void taint_gen_tb(CPUState *cpu, TranslationBlock *tb)
     }
     s->emit_before_op = NULL;
     tcg_swap_vecop_list(old_list);
-    if (getenv("TAINT_DEBUG") && s->nb_temps > 400) {
-        fprintf(stderr, "taint: pc %" VADDR_PRIx " insns %d temps %d -> %d ops %d\n",
-                tb->pc, tb->icount, p.nb_temps, s->nb_temps, s->nb_ops);
-    }
 }
 
 /* ---------------------------------------------------------------- devices and API */
