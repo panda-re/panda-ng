@@ -157,7 +157,7 @@ _PLUGIN_DIR = None
 
 ACCELS = ("tcg", "kvm")
 MONITORS = ("qmp", "hmp", None)
-CAPABILITIES = ("analysis", "fuzz", "rr", "guest-hypercall", "handoff")
+CAPABILITIES = ("analysis", "fuzz", "rr", "guest-hypercall", "handoff", "taint")
 
 
 def _analysis_capabilities(capabilities, rr, accel):
@@ -171,9 +171,11 @@ def _analysis_capabilities(capabilities, rr, accel):
         if selected == {"vanilla"}:
             selected.clear()
         if selected - set(CAPABILITIES):
-            raise ValueError("capabilities must name analysis, fuzz, rr, guest-hypercall or handoff; vanilla must stand alone")
+            raise ValueError("capabilities must name analysis, fuzz, rr, guest-hypercall, handoff or taint; vanilla must stand alone")
         if rr and "rr" not in selected:
             raise ValueError("rr=True requires the rr capability")
+    if "taint" in selected:
+        selected.add("rr")      # taint runs only in replay
     if "rr" in selected and not rr:
         raise ValueError("the rr capability requires rr=True for recordable device setup")
     if "rr" in selected and accel != "tcg":

@@ -17,10 +17,13 @@ typedef enum AnalysisCapability {
     ANALYSIS_CAP_RR = 1u << 2,
     ANALYSIS_CAP_GUEST_HYPERCALL = 1u << 3,
     ANALYSIS_CAP_HANDOFF = 1u << 4,
+    /* Taint tracking (exec/taint.h): replay only, so it brings RR and ANALYSIS. */
+    ANALYSIS_CAP_TAINT = 1u << 5,
 } AnalysisCapability;
 
 #define ANALYSIS_CAP_ALL ((uint32_t)(ANALYSIS_CAP_ANALYSIS | ANALYSIS_CAP_FUZZ | \
-    ANALYSIS_CAP_RR | ANALYSIS_CAP_GUEST_HYPERCALL | ANALYSIS_CAP_HANDOFF))
+    ANALYSIS_CAP_RR | ANALYSIS_CAP_GUEST_HYPERCALL | ANALYSIS_CAP_HANDOFF | \
+    ANALYSIS_CAP_TAINT))
 
 /* What the command line provisions with no -analysis-capabilities and no
  * embedded seal: the behavior before capabilities existed. Vanilla is explicit. */
