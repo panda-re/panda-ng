@@ -90,4 +90,4 @@
 11.1.2/0090-system-seal-capabilities-before-startup-side-effects.patch
 11.1.2/0091-replay-serialize-deferred-analysis-RAM-writes-as-ord.patch
 11.1.2/0092-replay-stub-analysis-register-effects-without-TCG.patch
-11.1.2/0093-replay-log-analysis-guest-writes-at-their-instructio.patch
+11.1.2/0093-tcg-taint-shadow-pass-hooks.patch
