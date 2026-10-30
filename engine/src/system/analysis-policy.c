@@ -22,7 +22,10 @@ bool analysis_policy_configure(uint32_t requested, Error **errp)
                    requested & ~ANALYSIS_CAP_ALL);
         return false;
     }
-    if (requested & (ANALYSIS_CAP_FUZZ | ANALYSIS_CAP_RR)) {
+    if (requested & ANALYSIS_CAP_TAINT) {
+        effective |= ANALYSIS_CAP_RR;
+    }
+    if (requested & (ANALYSIS_CAP_FUZZ | ANALYSIS_CAP_RR | ANALYSIS_CAP_TAINT)) {
         effective |= ANALYSIS_CAP_ANALYSIS;
     }
     if (requested) {
