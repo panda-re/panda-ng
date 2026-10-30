@@ -4,6 +4,28 @@ pandare2 runs the engine inside your Python process. This page explains how a pa
 is put together: the `Panda` object, where your code runs, driving the guest, reading its memory
 and registers, and callbacks. The [Python API reference](../reference/python.md) has every method.
 
+## Startup capabilities (in progress)
+
+`Panda()` explicitly provisions `analysis` and `guest-hypercall` for compatibility;
+`rr=True` also provisions `rr`. `capabilities=` accepts a sequence or comma-separated
+selection of `analysis`, `fuzz`, `rr`, `guest-hypercall`, `handoff` and `penguin`.
+Fuzz/RR imply analysis. Explicit `capabilities="vanilla"` or `capabilities=[]`
+selects zero capabilities. Accelerator choice remains separate; there is no live
+KVM/TCG toggle. Handoff is never implicitly selected.
+QEMU started without `Panda()` and without `-analysis-capabilities` (Penguin through
+`qemu_compat`, for example) gets `analysis`, `guest-hypercall` and `penguin`, the behavior
+before capabilities existed; pass `-analysis-capabilities vanilla` for zero.
+
+This is a staged implementation: zero capability selection is **not yet full upstream
+vanilla parity**. The complete patch inventory in `docs/vanilla-gates.toml` tracks
+remaining execution and snapshot-format off paths. Do not use the selector as a
+claim that those remaining changes are already gated. Python seals startup capabilities
+before loading the PANDA bridge or accepting pre-run callbacks/plugins. Explicit vanilla
+skips that bridge and rejects analysis callbacks, plugin loading and queued main-loop work.
+The constructor's sealed request cannot be overridden by a different CLI selection. This
+provisions analysis but does not activate it; runtime instrumentation activation requires
+separate quiescence and translation invalidation.
+
 ## The Panda object
 
 A `Panda` object owns one engine instance. An engine initializes QEMU once per process and can't

@@ -51,9 +51,9 @@ instance; work that drives the guest and waits for it (console commands, snapsho
 
 **Docs:** [docs/guides/getting-started.md](guides/getting-started.md), [docs/guides/python.md](guides/python.md), [python/core/README.md](https://github.com/panda-re/panda-ng/blob/main/python/core/README.md), [tests/README.md](https://github.com/panda-re/panda-ng/blob/main/tests/README.md)
 
-**Tests:** `tests/smoke.py`, `tests/static/refs.py`, `tests/api.py`, `tests/reset.py`, `tests/teardown.py`
+**Tests:** `tests/smoke.py`, `tests/static/refs.py`, `tests/api.py`, `tests/reset.py`, `tests/teardown.py`, `tests/static/capabilities.py`, `tests/static/capability_gates.py`, `tests/static/startup_capabilities.py`, `tests/static/capability_admission.py`
 
-**Engine patches:** 0041 ([series](reference/patches.md))
+**Engine patches:** 0041, 0087, 0090 ([series](reference/patches.md))
 
 <a id="callbacks"></a>
 ## Callbacks
@@ -224,7 +224,7 @@ and a savevm right after a loadvm takes as long as any other.
 
 **Tests:** `tests/reset.py`, `tests/api.py`
 
-**Engine patches:** 0061, 0063, 0074-0075, 0078 ([series](reference/patches.md))
+**Engine patches:** 0061, 0063, 0074-0075, 0078, 0089 ([series](reference/patches.md))
 
 <a id="fast-restore"></a>
 ## Fast restore
@@ -295,7 +295,7 @@ TCG), and so must the devices: build both engines with the same features or pass
 
 **Tests:** none yet.
 
-**Engine patches:** 0022, 0024, 0074 ([series](reference/patches.md))
+**Engine patches:** 0022, 0024, 0074, 0088 ([series](reference/patches.md))
 
 <a id="faulting-access"></a>
 ## Memory access that pages in

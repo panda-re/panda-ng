@@ -1,0 +1,158 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 29 Oct 2026 20:00:00 -0400
+Subject: [PATCH] riscv: select snapshot version policy at registration
+
+Restore upstream minimum CPU stream version12 unless handoff was provisioned.
+Select a stable version11-compatible descriptor before vmstate registration,
+so generic version validation rejects before pre_load and any field writes.
+Both descriptors save version12 and share all other fields/hooks/subsections.
+
+Add an optional legacy descriptor selector to SysemuCPUOps; other targets keep
+the original pointer path. Frozen startup policy and serialized CPU lifecycle
+keep the selected descriptor stable through unregister, without class mutation
+or post_load approximation. This is not whole-engine vanilla parity.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ hw/core/cpu-system.c             | 17 +++++++++++++----
+ include/hw/core/sysemu-cpu-ops.h |  7 +++++++
+ target/riscv/cpu.c               |  2 +-
+ target/riscv/internals.h         |  1 +
+ target/riscv/machine.c           | 29 +++++++++++++++++++++++------
+ 5 files changed, 45 insertions(+), 11 deletions(-)
+
+diff --git a/hw/core/cpu-system.c b/hw/core/cpu-system.c
+index 936b73985ab855e301ea3fbdc554e0037d9e7724..5a99236fa2cc8166f0eb1118dc958099e8706aa7 100644
+--- a/hw/core/cpu-system.c
++++ b/hw/core/cpu-system.c
+@@ -275,21 +275,30 @@ const VMStateDescription vmstate_cpu_common = {
+     }
+ };
+ 
++static const VMStateDescription *cpu_legacy_vmsd(CPUState *cpu)
++{
++    const SysemuCPUOps *ops = cpu->cc->sysemu_ops;
++
++    return ops->legacy_vmsd_get ? ops->legacy_vmsd_get(cpu) : ops->legacy_vmsd;
++}
++
+ void cpu_vmstate_register(CPUState *cpu)
+ {
++    const VMStateDescription *legacy = cpu_legacy_vmsd(cpu);
+     if (qdev_get_vmsd(DEVICE(cpu)) == NULL) {
+         vmstate_register(NULL, cpu->cpu_index, &vmstate_cpu_common, cpu);
+     }
+-    if (cpu->cc->sysemu_ops->legacy_vmsd != NULL) {
++    if (legacy != NULL) {
+         vmstate_register(NULL, cpu->cpu_index,
+-                         cpu->cc->sysemu_ops->legacy_vmsd, cpu);
++                         legacy, cpu);
+     }
+ }
+ 
+ void cpu_vmstate_unregister(CPUState *cpu)
+ {
+-    if (cpu->cc->sysemu_ops->legacy_vmsd != NULL) {
+-        vmstate_unregister(NULL, cpu->cc->sysemu_ops->legacy_vmsd, cpu);
++    const VMStateDescription *legacy = cpu_legacy_vmsd(cpu);
++    if (legacy != NULL) {
++        vmstate_unregister(NULL, legacy, cpu);
+     }
+     if (qdev_get_vmsd(DEVICE(cpu)) == NULL) {
+         vmstate_unregister(NULL, &vmstate_cpu_common, cpu);
+diff --git a/include/hw/core/sysemu-cpu-ops.h b/include/hw/core/sysemu-cpu-ops.h
+index 9a45596169a31823a0d4c1566fa4273a840bcd7c..1687a816863a5d2227f355a4ad928fe3e3dea0d4 100644
+--- a/include/hw/core/sysemu-cpu-ops.h
++++ b/include/hw/core/sysemu-cpu-ops.h
+@@ -121,6 +121,13 @@ typedef struct SysemuCPUOps {
+      */
+     const VMStateDescription *legacy_vmsd;
+ 
++    /**
++     * @legacy_vmsd_get: Optional startup-selected replacement for legacy_vmsd.
++     * Must return a stable descriptor for this CPU through unregister; invoked
++     * under the same serialized lifecycle as registration/unregistration.
++     */
++    const VMStateDescription *(*legacy_vmsd_get)(CPUState *cpu);
++
+ } SysemuCPUOps;
+ 
+ #endif /* SYSTEM_CPU_OPS_H */
+diff --git a/target/riscv/cpu.c b/target/riscv/cpu.c
+index b04beee5cba2bd27ee5bd026068de539567bd6db..4c70794013025cb5580196a02a8a557264d7137d 100644
+--- a/target/riscv/cpu.c
++++ b/target/riscv/cpu.c
+@@ -2926,7 +2926,7 @@ static const struct SysemuCPUOps riscv_sysemu_ops = {
+     .has_work = riscv_cpu_has_work,
+     .write_elf64_note = riscv_cpu_write_elf64_note,
+     .write_elf32_note = riscv_cpu_write_elf32_note,
+-    .legacy_vmsd = &vmstate_riscv_cpu,
++    .legacy_vmsd_get = riscv_cpu_legacy_vmsd,
+ #ifdef CONFIG_TCG
+     .translate_for_debug = riscv_cpu_translate_for_debug,
+     .monitor_get_register = riscv_monitor_get_register_legacy,
+diff --git a/target/riscv/internals.h b/target/riscv/internals.h
+index 5d84e4de960a0ee76b1e192c29914781d88e3170..2b2fb5aee15628f2eaf7777578bc61b400d5221d 100644
+--- a/target/riscv/internals.h
++++ b/target/riscv/internals.h
+@@ -104,6 +104,7 @@ target_ulong fclass_d(uint64_t frs1);
+ 
+ #ifndef CONFIG_USER_ONLY
+ extern const VMStateDescription vmstate_riscv_cpu;
++const VMStateDescription *riscv_cpu_legacy_vmsd(CPUState *cpu);
+ #endif
+ 
+ enum {
+diff --git a/target/riscv/machine.c b/target/riscv/machine.c
+index 8d5df05bb46e5ae4dc611449836506ef47d66a55..bd8a5d6c1a22b14c471fbc49fe4290a77247c0bb 100644
+--- a/target/riscv/machine.c
++++ b/target/riscv/machine.c
+@@ -17,6 +17,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "system/analysis-policy.h"
+ #include "cpu.h"
+ #include "qemu/error-report.h"
+ #include "system/kvm.h"
+@@ -499,12 +500,7 @@ static const VMStateDescription vmstate_mseccfg = {
+ const VMStateDescription vmstate_riscv_cpu = {
+     .name = "cpu",
+     .version_id = 12,
+-    /*
+-     * Version 12 added only the KVM MP-state subsection and a pre_load
+-     * hook; the fields are those of version 11, so a version 11 stream
+-     * (a snapshot saved by QEMU 11.1.0) still loads.
+-     */
+-    .minimum_version_id = 11,
++    .minimum_version_id = 12,
+ #ifdef CONFIG_KVM
+     .pre_load = riscv_cpu_kvm_pre_load,
+ #endif
+@@ -601,3 +597,24 @@ const InterfaceInfo riscv32_64_machine_interfaces[] = {
+     { TYPE_TARGET_RISCV64_MACHINE },
+     { }
+ };
++
++/* Select before vmstate registration so the generic loader rejects old versions
++ * before pre_load or any field is consumed. Save format remains version12. */
++const VMStateDescription *riscv_cpu_legacy_vmsd(CPUState *cpu)
++{
++    static VMStateDescription handoff_vmsd;
++    static gsize handoff_vmsd_initialized;
++
++    assert(analysis_policy_is_frozen());
++    if (!analysis_policy_has(ANALYSIS_CAP_HANDOFF)) {
++        return &vmstate_riscv_cpu;
++    }
++    /* Publish once even if CPU realization is parallelized later. Immutable
++     * startup policy makes unregister select the identical descriptor. */
++    if (g_once_init_enter(&handoff_vmsd_initialized)) {
++        handoff_vmsd = vmstate_riscv_cpu;
++        handoff_vmsd.minimum_version_id = 11;
++        g_once_init_leave(&handoff_vmsd_initialized, 1);
++    }
++    return &handoff_vmsd;
++}

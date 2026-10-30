@@ -75,7 +75,7 @@ isf: x86.isf.json.xz
 kconf_file: x86.kernelinfo.conf
 """
 
-PRE = ["{lib}", "-plugin", "{iface}", "-L", "{bios}"]
+PRE = ["{lib}", "-analysis-capabilities", "analysis,guest-hypercall", "-plugin", "{iface}", "-L", "{bios}"]
 SERIAL = ["-chardev", "socket,id=serial-pandare2,fd={fd}", "-serial", "chardev:serial-pandare2"]
 X86_IMG = ["{img}/x86.qcow2", "-display", "none", "-nic", "user,model=virtio-net-pci"]
 RR = ["-accel", "tcg,thread=single,rr-ready=on"]
@@ -145,6 +145,15 @@ def argv_has(*args):
 
 # name -> (Panda keywords, [(check name, check(result) -> bool)]).
 CASES = {
+    "capabilities vanilla": ({"arch": "x86_64", "capabilities": "vanilla"},
+                              [argv_has("-analysis-capabilities", "vanilla"),
+                               ("no PANDA bridge plugin", lambda r: '-plugin' not in r.get('argv', []))]),
+    "capabilities combined": ({"arch": "x86_64", "capabilities": ["fuzz", "handoff"]},
+                              [argv_has("-analysis-capabilities", "analysis,fuzz,handoff")]),
+    "capabilities invalid": ({"arch": "x86_64", "capabilities": "vanilla,analysis"},
+                             [error("ValueError", "vanilla")]),
+    "capabilities rr missing": ({"arch": "x86_64", "rr": True, "capabilities": "analysis"},
+                                [error("ValueError", "rr capability")]),
     "generic mem": ({"generic": "{img}/x86.json", "mem": "2G"}, [attr("mem", "2G"), argv_has("-m", "2G")]),
     "generic os_version": ({"generic": "{img}/x86.json", "os_version": "linux-64-other:6.1"},
                            [attr("os", "linux-64-other:6.1")]),
@@ -209,6 +218,17 @@ QMP = ["-chardev", "socket,id=pandare2-monitor,fd={fd}", "-object", "monitor-qmp
 HMP = QMP[:3] + ["monitor-hmp,id=pandare2-hmp,chardev=pandare2-monitor"]
 GENERIC_KVM = PRE + X86_IMG + ["-accel", "kvm", "-m", "1G"] + SERIAL
 CASES.update({
+    "capabilities analysis admission": ({"arch": "x86_64",
+                                         "after": ["assert_sealed_capabilities(p, 9)",
+                                                   "p.cb_before_block_exec(name='allowed')(lambda cpu, tb: None)"]},
+                                        [after(0, "ok"), after(1, "ok")]),
+    "capabilities vanilla admission": ({"arch": "x86_64", "capabilities": "vanilla",
+                                        "after": ["p.cb_before_block_exec(name='denied')(lambda cpu, tb: None)",
+                                                  "p.load_plugin('callstack_instr')",
+                                                  "p.queue_main_loop_wait_fn(lambda: None)",
+                                                  "assert_sealed_capabilities(p, 0)"]},
+                                       [after(i, "RuntimeError", "analysis capability") for i in range(3)]
+                                       + [after(3, "ok")]),
     "accel default": ({"generic": "{img}/x86.json"}, [attr("accel", "tcg"), no_warning()]),
     "accel tcg": ({"generic": "{img}/x86.json", "accel": "tcg"},
                   [attr("accel", "tcg"), ("argv as without accel=", lambda r: r.get("argv") == LEGACY["generic"][1])]),
@@ -325,6 +345,11 @@ def normalize(p, img):
     return argv, monitor
 
 
+def assert_sealed_capabilities(panda, requested):
+    assert panda.libpanda.panda_configure_capabilities(requested), 'same seal rejected'
+    assert not panda.libpanda.panda_configure_capabilities(requested ^ 1), 'different seal accepted'
+
+
 def child(spec):
     from pandare2 import Panda, MachineBuilder
     img = spec["img"]
@@ -382,7 +407,7 @@ def child(spec):
         res["after"] = []
         for call in spec["kwargs"].get("after", []):
             try:
-                eval(call, {"p": p})    # noqa: S307 - the cases' own calls
+                eval(call, {"p": p, "assert_sealed_capabilities": assert_sealed_capabilities})    # noqa: S307 - the cases' own calls
                 res["after"].append(["ok", ""])
             except Exception as e:  # noqa: BLE001
                 res["after"].append([type(e).__name__, str(e)])
@@ -438,6 +463,9 @@ def main():
     for name, (kwargs, want) in LEGACY.items():
         if only and name not in only:
             continue
+        want = list(want)
+        if kwargs.get('rr'):
+            want[2] = 'analysis,rr,guest-hypercall'
         res, r = run_case(img, kwargs)
         if res is None or "error" in res:
             check(f"legacy {name}", False, res or (r.stdout + r.stderr)[-2000:])

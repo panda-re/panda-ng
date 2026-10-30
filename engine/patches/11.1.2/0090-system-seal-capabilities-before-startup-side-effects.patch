@@ -1,0 +1,131 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 29 Oct 2026 21:00:00 -0400
+Subject: [PATCH] system: seal capabilities before startup side effects
+
+Resolve capability options using the real upstream option table/arity before
+module and option initialization. Repeated options replace; embedded sealed
+policy is retained when absent and must match the final explicit request.
+The ordinary parsing pass does not replay intermediate selections. Provisioning
+never activates analysis; the existing board boundary retains that role.
+
+With no option and no embedded seal, startup provisions
+ANALYSIS_CAP_CLI_DEFAULT (analysis, guest-hypercall, penguin), the behavior
+before capabilities existed: launchers that predate the option, such as
+Penguin through qemu_compat, keep guest hypercalls and the Penguin syscall
+trap. Vanilla is selected explicitly.
+
+This supports a preinit embedding handshake via the common policy seal helper;
+Python/plugin admission wiring and complete vanilla parity remain separate.
+
+SPDX-License-Identifier: MIT
+Origin: new
+---
+ qemu-options.hx | 12 ++++++++----
+ system/vl.c     | 38 ++++++++++++++++++++++++++++++++++----
+ 2 files changed, 42 insertions(+), 8 deletions(-)
+
+diff --git a/qemu-options.hx b/qemu-options.hx
+index 39af09f8cada6512f79a0fd4e880e5a6a0163e9c..dadb2252bcf857079fc8c772e2f5e33ea19ab837 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -5637,14 +5637,18 @@ ERST
+ 
+ DEF("analysis-capabilities", HAS_ARG, QEMU_OPTION_analysis_capabilities,
+     "-analysis-capabilities vanilla|analysis,fuzz,rr,guest-hypercall,handoff,penguin\n"
+-    "                provision startup extensions (default: vanilla/zero)\n",
++    "                provision startup extensions\n"
++    "                (default: analysis,guest-hypercall,penguin)\n",
+     QEMU_ARCH_ALL)
+ SRST
+ ``-analysis-capabilities names``
+     Provision a comma-separated list of startup capabilities. ``fuzz`` and ``rr``
+-    also provision ``analysis``. ``vanilla`` selects zero capabilities and must
+-    appear alone. Unknown or empty names are errors. Repeated options replace
+-    the preceding selection. Selection freezes before board initialization.
++    also provision ``analysis``. Without the option, startup provisions
++    ``analysis,guest-hypercall,penguin``, the behavior before capabilities
++    existed, unless an embedding sealed its own selection first. ``vanilla``
++    selects zero capabilities and must appear alone. Unknown or empty names
++    are errors. Repeated options replace the preceding selection. Selection
++    freezes before board initialization.
+     This initial policy gates guest hypercall encodings and the x86 hypercall
+     port; it does not yet provide complete upstream vanilla behavior parity.
+ ERST
+diff --git a/system/vl.c b/system/vl.c
+index ccfb349b5886c457c992a085991a274a50284ffd..ecaa77c856d216ae9db3da542423e73e90fb4544 100644
+--- a/system/vl.c
++++ b/system/vl.c
+@@ -2786,7 +2786,8 @@ static void qemu_init_displays(void)
+ }
+ 
+ /* Startup policy only: callers cannot turn extensions on after realization. */
+-static bool parse_analysis_capabilities(const char *value, Error **errp)
++static bool parse_analysis_capabilities(const char *value, uint32_t *result,
++                                        Error **errp)
+ {
+     g_auto(GStrv) names = g_strsplit(value, ",", -1);
+     uint32_t requested = 0;
+@@ -2818,7 +2819,32 @@ static bool parse_analysis_capabilities(const char *value, Error **errp)
+         error_setg(errp, "analysis capabilities must not be empty");
+         return false;
+     }
+-    return analysis_policy_configure(requested, errp);
++    *result = requested;
++    return true;
++}
++
++/* Use the real option table/arity: an option-looking string consumed by
++ * -append/-device/etc. is not another option. Match upstream --foo handling. */
++static bool seal_startup_capabilities(int argc, char **argv, Error **errp)
++{
++    uint32_t requested = analysis_policy_is_frozen() ?
++                         analysis_policy_requested() : ANALYSIS_CAP_CLI_DEFAULT;
++    int optind = 1;
++    const char *optarg;
++
++    while (optind < argc) {
++        if (argv[optind][0] != '-') {
++            optind++; /* positional disk image, as in normal parsing */
++        } else {
++            const QEMUOption *popt = lookup_opt(argc, argv, &optarg, &optind);
++
++            if (popt->index == QEMU_OPTION_analysis_capabilities &&
++                !parse_analysis_capabilities(optarg, &requested, errp)) {
++                return false;
++            }
++        }
++    }
++    return analysis_policy_seal(requested, errp);
+ }
+ 
+ static void qemu_init_board(void)
+@@ -2974,6 +3000,11 @@ void qemu_init(int argc, char **argv)
+     bool userconfig = true;
+     FILE *vmstate_dump_file = NULL;
+ 
++    /* Seal before option/module/plugin processing can run constructors. An
++     * embedding may already have sealed before its own preinit registrations. */
++    error_init(argv[0]);
++    seal_startup_capabilities(argc, argv, &error_fatal);
++
+     qemu_add_opts(&qemu_drive_opts);
+     qemu_add_drive_opts(&qemu_legacy_drive_opts);
+     qemu_add_drive_opts(&qemu_common_drive_opts);
+@@ -3008,7 +3039,6 @@ void qemu_init(int argc, char **argv)
+     qemu_add_run_with_opts();
+     module_call_init(MODULE_INIT_OPTS);
+ 
+-    error_init(argv[0]);
+     qemu_init_exec_dir(argv[0]);
+ 
+     os_setup_limits();
+@@ -3710,7 +3740,7 @@ void qemu_init(int argc, char **argv)
+                 qemu_plugin_opt_parse(optarg, &plugin_list);
+                 break;
+             case QEMU_OPTION_analysis_capabilities:
+-                parse_analysis_capabilities(optarg, &error_fatal);
++                /* Entire final selection was parsed/sealed before side effects. */
+                 break;
+             case QEMU_OPTION_module:
+                 if (is_help_option(optarg)) {
