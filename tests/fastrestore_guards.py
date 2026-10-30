@@ -31,7 +31,7 @@ def child_replay(image, name, out):
         res["snap"] = panda.libpanda.panda_fast_snap()
         res["restore"] = panda.libpanda.panda_fast_restore()
 
-    @panda.cb_asid_changed
+    @panda.cb_asid_changed(observe_only=True)
     def asid_changed(cpu, old, new):
         if "snap" not in res and panda.libpanda.rr_on():
             panda.queue_main_loop_wait_fn(try_both)

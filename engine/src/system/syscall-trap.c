@@ -16,6 +16,8 @@
 #include "exec/target_page.h"
 #include "system/tcg.h"
 #include "system/syscall-trap.h"
+#include "system/replay-analysis.h"
+#include "system/address-spaces.h"
 #ifdef CONFIG_TCG
 #include "accel/tcg/probe.h"
 #include "accel/tcg/cpu-mmu-index.h"
@@ -342,6 +344,11 @@ deliver:
         cpu->syscall_kmmu = kmmu;
         ops->enter(cpu, &sc, sc_opaque);
         cpu->syscall_kmmu = 0;
+        if (!replay_analysis_write_allowed()) {
+            /* Deliver observations, but never skip/inject/rewrite the real call. */
+            sc.fault = sc.inject = sc.skip = false;
+            memcpy(sc.args, args, sizeof(sc.args));
+        }
         if (sc.fault) {
             return sc_hold(k1, k2, pc, len, &sc, SC_HELD_ENTER);
         }
@@ -434,6 +441,17 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
 
     qemu_mutex_lock(&sc_lock);
     s = sc_find(k1, k2, pc);
+    if (!replay_analysis_write_allowed() && s && s->pc &&
+        (s->state == SC_INJECT || s->state == SC_INJECT_RET)) {
+        /* Host-side state from before a snapshot/replay transition must not
+         * rewind a task in the replay. */
+        sc_drop_later(&s->sc);
+        sc_forget(s);
+        sc_delete(s);
+        qatomic_dec(&syscall_trap_pending);
+        sc_unlock();
+        return 0;
+    }
     if (s && s->pc && s->state == SC_INJECT) {
         /*
          * The injected call is back (after any signal handler it ran into:
@@ -526,6 +544,10 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
     cpu->syscall_kmmu = kmmu;
     ops->ret(cpu, &sc, sc_opaque);
     cpu->syscall_kmmu = 0;
+    if (!replay_analysis_write_allowed()) {
+        sc.fault = sc.inject = false;
+        sc.ret = v;
+    }
     if (sc.inject) {
         return sc_ret_after(cpu, k1, k2, key, len, &sc, sc.num, sc.args,
                             false, ret, rw);
@@ -548,6 +570,9 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
 
 void syscall_trap_fault(CPUState *cpu, uintptr_t ra)
 {
+    if (!replay_analysis_write_allowed()) {
+        return;
+    }
 #ifdef CONFIG_TCG
     if (tcg_enabled()) {
         qatomic_inc(&sc_faults);
@@ -660,6 +685,24 @@ bool syscall_trap_read(CPUState *cpu, vaddr addr, void *buf, size_t len)
         }
     }
 #endif
+    if (!replay_analysis_write_allowed() && done != len) {
+        /* Debug translation does not run a guest fault handler. Check every
+         * remaining page before cpu_memory_rw_debug can issue a device read. */
+        for (size_t at = done; at < len;) {
+            vaddr a = addr + at;
+            TranslateForDebugResult tr;
+            if (!cpu_translate_for_debug(cpu, a, &tr)) {
+                return false;
+            }
+            uint64_t page = MIN(1ULL << tr.lg_page_size, qemu_target_page_size());
+            size_t chunk = MIN(len - at, page - (tr.physaddr & (page - 1)));
+            AddressSpace *as = cpu_get_address_space(cpu, cpu_asidx_from_attrs(cpu, tr.attrs));
+            if (!replay_analysis_read_allowed(as, tr.physaddr, chunk, tr.attrs)) {
+                return false;
+            }
+            at += chunk;
+        }
+    }
     return done == len ||
            cpu_memory_rw_debug(cpu, addr + done, (uint8_t *)buf + done,
                                len - done, false) == 0;
@@ -707,6 +750,10 @@ bool syscall_trap_access(CPUState *cpu, vaddr addr, void *buf, size_t len,
                          bool write, vaddr *bad)
 {
     size_t pg = qemu_target_page_size();
+    if (write && !replay_analysis_write_allowed()) {
+        *bad = addr & ~(vaddr)(pg - 1);
+        return false;
+    }
 
     if (!write) {
         for (size_t done = 0; done < len;) {

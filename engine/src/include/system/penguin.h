@@ -33,6 +33,9 @@ void penguin_unregister_guest_hypercall(uint64_t nr);
 void penguin_clear_guest_hypercalls(void);
 bool penguin_guest_hypercall_registered(uint64_t nr);
 void set_kvm_penguin_hypercall_callback(kvm_penguin_hypercall_cb_t cb);
+/* Legacy penguin consumers can replace a return value, and have no observer
+ * declaration. Replay refuses them; PANDA observers use its checked registry. */
+bool penguin_hypercall_replay_safe(Error **errp);
 /*
  * Whether penguin_handle_guest_hypercall() would hand @nr to a callback.
  * Lets a hardware accelerator answer unwanted numbers without pulling the

@@ -1,0 +1,63 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 29 Oct 2026 16:30:00 -0400
+Subject: [PATCH] replay: coalesce repeated schedules of a pending BH
+
+Match ordinary qemu_bh_schedule semantics: scheduling the same pending BH
+again does not create another invocation. Host stop/continue can reschedule
+virtio TX while its guest kick is still queued; recording both invocations
+leaves replay waiting for a host-only duplicate.
+
+Remove pending events before invoking callbacks so self-rescheduling remains
+a distinct event. Keep different BHs and one-shot callbacks distinct. This
+does not reconstruct duplicate events in recordings made before this fix.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+
+Origin: new
+---
+ replay/replay-events.c | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/replay/replay-events.c b/replay/replay-events.c
+index 3ff42acb06bfef7fc76be682edb47988e3abc95a..78e2e9394d1b31f78d1f22c4de8182ca1fd52d38 100644
+--- a/replay/replay-events.c
++++ b/replay/replay-events.c
+@@ -86,8 +86,8 @@ void replay_flush_events(void)
+ 
+     while (!QTAILQ_EMPTY(&events_list)) {
+         Event *event = QTAILQ_FIRST(&events_list);
+-        replay_run_event(event);
+         QTAILQ_REMOVE(&events_list, event, events);
++        replay_run_event(event);
+         g_free(event);
+     }
+ }
+@@ -125,6 +125,17 @@ void replay_add_event(ReplayAsyncEventKind event_kind,
+ void replay_bh_schedule_event(QEMUBH *bh)
+ {
+     if (events_enabled) {
++        Event *event;
++
++        g_assert(replay_mutex_locked());
++        /* Match qemu_bh_schedule(): one pending invocation per BH. Remove
++         * events before calling them so a callback can schedule itself again. */
++        QTAILQ_FOREACH(event, &events_list, events) {
++            if (event->event_kind == REPLAY_ASYNC_EVENT_BH &&
++                event->opaque == bh) {
++                return;
++            }
++        }
+         uint64_t id = replay_get_current_icount();
+         replay_add_event(REPLAY_ASYNC_EVENT_BH, bh, NULL, id);
+     } else {
+@@ -203,8 +214,8 @@ void replay_save_events(void)
+     while (!QTAILQ_EMPTY(&events_list)) {
+         Event *event = QTAILQ_FIRST(&events_list);
+         replay_save_event(event);
+-        replay_run_event(event);
+         QTAILQ_REMOVE(&events_list, event, events);
++        replay_run_event(event);
+         g_free(event);
+     }
+ }

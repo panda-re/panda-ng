@@ -1080,6 +1080,19 @@
             PANDA_SOURCE=${./.} bash ${./tests/static/syscalls_dispatch.sh} dispatch
             touch $out
           '';
+          # Exercise the real Python RR admission/observer wrappers without an engine build.
+          replay-policy = pkgs.runCommand "replay-policy-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            python3 ${./.}/tests/static/replay_policy.py
+            touch $out
+          '';
+          replay-bh = pkgs.runCommandCC "replay-bh-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            python3 ${./tests/static/replay_bh.py} ${p.engineSrc}/replay/replay-events.c
+            touch $out
+          '';
+          replay-native = pkgs.runCommandCC "replay-native-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            python3 ${./.}/tests/static/replay_native.py
+            touch $out
+          '';
           # repair.py on a synthetic engine: shipped siblings aren't bundled again, RUNPATHs keep
           # $ORIGIN, licenses and License-Expression are written (no engine build needed).
           wheel-repair =

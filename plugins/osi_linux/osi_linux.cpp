@@ -1324,7 +1324,8 @@ bool init_plugin(void *self) {
         // (particularly if KASLR is enabled) and we also may need to re-initialize
         // OSI on the first guest syscall after the revert.
         panda_cb pcb = { .after_loadvm = restore_after_snapshot };
-        panda_register_callback(self, PANDA_CB_AFTER_LOADVM, pcb);
+        panda_register_callback_modes(self, PANDA_CB_AFTER_LOADVM, pcb,
+            panda_callback_supported_modes(PANDA_CB_AFTER_LOADVM), true);
 
     }
 
@@ -1336,7 +1337,8 @@ bool init_plugin(void *self) {
 #if defined(OSI_LINUX_TEST)
     {
         panda_cb pcb = { .asid_changed = osi_linux_test };
-        panda_register_callback(self, PANDA_CB_ASID_CHANGED, pcb);
+        panda_register_callback_modes(self, PANDA_CB_ASID_CHANGED, pcb,
+            panda_callback_supported_modes(PANDA_CB_ASID_CHANGED), true);
     }
 #endif
 
@@ -1388,7 +1390,8 @@ bool init_plugin(void *self) {
 #ifdef TARGET_AARCH64
     if (PROFILE_KVER_GE(ki, 4, 6, 0)){
         panda_cb pcb = { .start_block_exec = aarch64_sbe };
-        panda_register_callback(self, PANDA_CB_START_BLOCK_EXEC, pcb);
+        panda_register_callback_modes(self, PANDA_CB_START_BLOCK_EXEC, pcb,
+            panda_callback_supported_modes(PANDA_CB_START_BLOCK_EXEC), true);
     }
 #endif
     return true;

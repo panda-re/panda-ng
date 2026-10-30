@@ -13,6 +13,7 @@
  */
 
 #include "qemu/osdep.h"
+#include "system/replay-analysis.h"
 #include "qemu/thread.h"
 #include "qemu/lockable.h"
 #include "qemu/rcu.h"
@@ -498,7 +499,8 @@ static bool psc_may_fault(PCtx *c, uint64_t page)
 {
     const PRun *r = c->r;
 
-    if (!qatomic_read(&psc_guarded) || !psc_hooks_ok()) {
+    if (!replay_analysis_write_allowed() ||
+        !qatomic_read(&psc_guarded) || !psc_hooks_ok()) {
         return false;
     }
     if (!r) {
@@ -910,6 +912,10 @@ static bool psc_cmd_take(PRun *r)
         }
         return true;
     case PENGUIN_SC_OP_WRITE:
+        if (!replay_analysis_write_allowed()) {
+            k->status = PENGUIN_SC_FAIL;
+            return false;
+        }
         if (!k->size || k->size > PENGUIN_SC_IO_MAX || !k->data) {
             return false;
         }
@@ -918,6 +924,11 @@ static bool psc_cmd_take(PRun *r)
         k->data = NULL;
         return true;
     case PENGUIN_SC_OP_SYSCALL:
+        if (!replay_analysis_write_allowed()) {
+            k->status = PENGUIN_SC_FAIL;
+            k->ret = 0;
+            return false;
+        }
         return k->num >= 0;
     default:
         return false;
@@ -1345,6 +1356,9 @@ static uint64_t psc_reg(CPUState *cpu, int n)
 
 static void psc_set_reg(CPUState *cpu, int n, uint64_t v)
 {
+    if (!replay_analysis_write_allowed()) {
+        return;
+    }
     g_autoptr(GByteArray) cur = g_byte_array_new();
     int len = gdb_read_register(cpu, cur, n);
     uint8_t b[8];
@@ -1398,7 +1412,7 @@ static void psc_guard_cb(CPUState *cpu, vaddr pc, void *opaque)
     uint64_t addr, ra, sp;
     uint8_t b[8];
 
-    if (psc_arch() <= 0) {
+    if (!replay_analysis_write_allowed() || psc_arch() <= 0) {
         return;
     }
     if (info) {
@@ -1624,7 +1638,7 @@ static void pkh_fn(CPUState *cpu, vaddr pc, void *opaque)
 
     tcg_hook_restore_state(cpu);
     to = k->cb(cpu, pc, k->opaque);
-    if (to && to != pc) {
+    if (replay_analysis_write_allowed() && to && to != pc) {
         tcg_hook_set_pc(cpu, to);       /* after the host's code has returned */
     }
 }

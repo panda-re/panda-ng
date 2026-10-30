@@ -302,6 +302,9 @@ int panda_init_plugin(char *plugin_name, char **plugin_args, uint32_t num_args);
  * cb is a pointer to a struct. See typedef panda_cb.
  */
 void panda_register_callback_helper(void* plugin, panda_cb_type type, panda_cb* cb);
+bool panda_register_callback_modes_helper(void *plugin, panda_cb_type type,
+    panda_cb *cb, uint32_t modes, bool observe_only);
+bool panda_enable_callback_modes_helper(void *plugin, panda_cb_type type, panda_cb *cb);
 
 
 /**

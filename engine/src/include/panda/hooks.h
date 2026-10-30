@@ -18,6 +18,11 @@
 
 #ifdef CONFIG_PANDA
 
+/* Checked both before preparing a replay and after enabling replay, before any
+ * guest execution. The second check closes registration/enable races. */
+bool panda_callbacks_replay_safe(Error **errp);
+bool panda_callbacks_record_safe(Error **errp);
+
 struct qemu_plugin_tb;
 
 extern uint32_t panda_loop_hooks;
@@ -58,6 +63,9 @@ void panda_callbacks_after_loadvm(CPUState *env);
 void panda_before_loadvm(void);
 
 #else
+
+static inline bool panda_callbacks_replay_safe(Error **errp) { return true; }
+static inline bool panda_callbacks_record_safe(Error **errp) { return true; }
 
 static inline bool panda_loop_wants(uint32_t bits)
 {

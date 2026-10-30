@@ -81,3 +81,5 @@
 11.1.2/0081-migration-qemu-file-inline-the-in-buffer-case-of-the.patch
 11.1.2/0082-accel-tcg-no-PANDA-or-hook-calls-in-the-CPU-loop-whi.patch
 11.1.2/0083-plugins-emit-block-completion-at-outgoing-edges.patch
+11.1.2/0084-replay-guard-guest-state-against-analysis-mutations.patch
+11.1.2/0085-replay-coalesce-repeated-schedules-of-a-pending-BH.patch

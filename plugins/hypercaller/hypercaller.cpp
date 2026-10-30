@@ -23,7 +23,22 @@ bool hypercall(CPUState *cpu);
 #include "hypercaller.h"
 }
 
-std::unordered_map<target_ulong, hypercall_t> hypercalls;
+struct Handler {
+    hypercall_t cb;
+    bool observe_only;
+};
+std::unordered_map<target_ulong, Handler> hypercalls;
+static void *plugin_self;
+static panda_cb bridge;
+
+static bool update_access() {
+    bool observer = true;
+    for (const auto &entry : hypercalls) {
+        observer &= entry.second.observe_only;
+    }
+    return panda_set_callback_observe_only(plugin_self, PANDA_CB_GUEST_HYPERCALL,
+                                          bridge, observer);
+}
 
 bool debug = false;
 
@@ -31,15 +46,27 @@ bool debug = false;
 
 
 void register_hypercall(uint32_t magic, hypercall_t hyp){
-    if (hypercalls.find(magic) == hypercalls.end()){
-        hypercalls[magic] = hyp;
-    }else{
-        assert(false && "Hypercall already registered");
+    if (!register_hypercall_observer(magic, hyp, false)) {
+        fprintf(stderr, "hypercaller: registration refused (duplicate magic or mutator during replay)\n");
+        abort();
     }
+}
+
+bool register_hypercall_observer(uint32_t magic, hypercall_t hyp, bool observe_only) {
+    if (!hyp || hypercalls.count(magic)) {
+        return false;
+    }
+    hypercalls[magic] = {hyp, observe_only};
+    if (!update_access()) {
+        hypercalls.erase(magic);
+        return false;
+    }
+    return true;
 }
 
 void unregister_hypercall(uint32_t magic){
     hypercalls.erase(magic);
+    update_access();
 }
 
 bool guest_hypercall(CPUState *cpu) {
@@ -53,18 +80,19 @@ bool guest_hypercall(CPUState *cpu) {
 #endif
     log("guest_hypercall: magic = %x\n", magic);
     if (hypercalls.find(magic) != hypercalls.end()){
-        hypercalls[magic](cpu);
+        hypercalls[magic].cb(cpu);
         return true;
     }
     return false;
 }
 
 bool init_plugin(void *self) {
+    plugin_self = self;
     panda_arg_list *plugin_args = panda_get_args(PLUGIN_NAME);
     debug = panda_parse_bool_opt(plugin_args, "debug", "Enable debug output");
-    panda_cb pcb = { .guest_hypercall = guest_hypercall};
-    panda_register_callback(self, PANDA_CB_GUEST_HYPERCALL, pcb);
-    return true;
+    bridge.guest_hypercall = guest_hypercall;
+    return panda_register_callback_modes(self, PANDA_CB_GUEST_HYPERCALL, bridge,
+            panda_callback_supported_modes(PANDA_CB_GUEST_HYPERCALL), true);
 }
 
 void uninit_plugin(void *self) {}

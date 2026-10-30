@@ -430,8 +430,10 @@ int32_t PCB(before_handle_exception)(CPUState *cpu, int32_t exception_index) {
     for (plist = panda_cbs[PANDA_CB_BEFORE_HANDLE_EXCEPTION]; plist != NULL;
          plist = panda_cb_list_next(plist)) {
         if (plist->enabled) {
+            bool observer = panda_callback_observe_only(plist);
             int32_t new_e = plist->entry.before_handle_exception(plist->context, cpu, exception_index);
-            if (!got_new_exception && new_e != exception_index) {
+            if (!observer &&
+                !got_new_exception && new_e != exception_index) {
                 got_new_exception = true;
                 new_exception = new_e;
             }
@@ -456,8 +458,10 @@ int32_t PCB(before_handle_interrupt)(CPUState *cpu, int32_t interrupt_request) {
     for (plist = panda_cbs[PANDA_CB_BEFORE_HANDLE_INTERRUPT]; plist != NULL;
          plist = panda_cb_list_next(plist)) {
         if (plist->enabled) {
+            bool observer = panda_callback_observe_only(plist);
             int32_t new_i = plist->entry.before_handle_interrupt(plist->context, cpu, interrupt_request);
-            if (!got_new_interrupt && new_i != interrupt_request) {
+            if (!observer &&
+                !got_new_interrupt && new_i != interrupt_request) {
                 got_new_interrupt = true;
                 new_interrupt = new_i;
             }

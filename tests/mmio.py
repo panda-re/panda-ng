@@ -29,8 +29,7 @@ loaded):
 - the value is a copy: mmio_after_read writes *val, and the program still loads the device's value;
 - from mmio_after_read, PANDA's memory readers (panda_physical_memory_read,
   panda_virtual_memory_read) fail on the register rather than access the device; pandare2's
-  physical_memory_read and virtual_memory_read should raise ValueError then, and don't (a gap:
-  they return zero bytes);
+  physical_memory_read and virtual_memory_read raise ValueError then;
 - before events come once per access: a device access from the middle of a block is rewound by
   QEMU and run again alone, and the bridge reports only the access that happens;
 - run 2: the phys/virt memory callbacks see the device accesses too, at the accessing
@@ -57,10 +56,7 @@ MEMCBS = ["vmbw", "vmar", "vmaw", "pmbr", "pmbw", "pmar", "pmaw"]
 panda = Panda(generic=sys.argv[1])
 arch = panda.arch_name
 ffi = panda.ffi
-C = Checks(arch, {
-    f"[run {n}] pandare2's physical_memory_read and virtual_memory_read raise ValueError on device memory":
-    "they raise only on a negative return; panda_physical_memory_rw fails with MEMTX_ERROR (1), and they "
-    "return zero bytes" for n in (1, 2)})
+C = Checks(arch)
 page, roff, woff, rvalue = DEVICE[arch]
 
 

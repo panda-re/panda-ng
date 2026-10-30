@@ -662,7 +662,8 @@ bool init_plugin(void *self) {
         check_banner(cpu);
         return false;
     } };
-    panda_register_callback(self, PANDA_CB_ASID_CHANGED, pcb);
+    panda_register_callback_modes(self, PANDA_CB_ASID_CHANGED, pcb,
+            panda_callback_supported_modes(PANDA_CB_ASID_CHANGED), true);
 
     // finish_task_switch runs first thing in the task switched to, so current is already the new task.
     if (auto fts = prof.symbol_prefix("finish_task_switch")) {

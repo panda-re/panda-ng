@@ -3,6 +3,7 @@
 #include "system/physmem.h"
 #include "system/ramblock.h"
 #include "exec/translation-block.h"
+#include "panda/plugin.h"
 
 /* (not kernel-doc)
  * panda_physical_memory_rw() - Copy data between host and guest.
@@ -44,6 +45,9 @@ static void panda_physical_memory_written(MemoryRegion *mr, hwaddr addr1, hwaddr
 
 int panda_physical_memory_rw(hwaddr addr, uint8_t *buf, int len,
                                            bool is_write) {
+    if (is_write && !panda_guest_mutation_allowed()) {
+        return MEMTX_ACCESS_ERROR;
+    }
     /*
      * As address_space_rw: address_space_translate clamps l to the region it found, so a range
      * that crosses regions goes in pieces (copying len from the first one overran its RAM block).
@@ -177,6 +181,9 @@ hwaddr panda_virt_to_phys(CPUState *env, target_ulong addr) {
  */
 int panda_virtual_memory_rw(CPUState *env, target_ulong addr,
                                           uint8_t *buf, int len, bool is_write) {
+    if (is_write && !panda_guest_mutation_allowed()) {
+        return MEMTX_ACCESS_ERROR;
+    }
     int l;
     int ret;
     hwaddr phys_addr;

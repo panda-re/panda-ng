@@ -41,6 +41,38 @@ struct _panda_cb_list {
 };
 panda_cb_list *panda_cb_list_next(panda_cb_list *plist);
 
+/* Valid execution contexts for a callback. These describe callback compatibility;
+ * they do not enable engine features. RR includes recording and replay, and can
+ * be combined with analysis/fuzz. KVM callbacks need a KVM call site. */
+typedef enum panda_callback_mode {
+    PANDA_MODE_ANALYSIS = 1,
+    PANDA_MODE_FUZZ = 2,
+    PANDA_MODE_RR = 4,
+    PANDA_MODE_KVM = 8
+} panda_callback_mode;
+
+/* Zero means there is no usable trampoline. Callback types with no call site
+ * retain their legacy ABI; pandare2.callbacks lists those separately. */
+uint32_t panda_callback_supported_modes(panda_cb_type type);
+bool panda_callback_observe_only(const panda_cb_list *cb);
+
+/* Checked registrations return false without installing anything on invalid
+ * modes or an unsafe record/replay registration. Observe-only callbacks may select
+ * instrumentation, but must not change guest state, including through raw
+ * pointers. Guest-control return values are ignored for observers. */
+bool panda_register_callback_modes(void *plugin, panda_cb_type type, panda_cb cb,
+                                   uint32_t modes, bool observe_only);
+bool panda_register_callback_with_context_modes(void *plugin, panda_cb_type type,
+    panda_cb_with_context cb, void *context, uint32_t modes, bool observe_only);
+/* Bridges whose subscribers change can update their declaration. Refuses a
+ * change to mutating access while record/replay is active. */
+bool panda_set_callback_observe_only(void *plugin, panda_cb_type type,
+                                     panda_cb cb, bool observe_only);
+
+/* False during record/replay until mutation effects are logged, even outside
+ * a callback (e.g. queued host work). */
+bool panda_guest_mutation_allowed(void);
+
 
 /**
  * panda_enable_plugin() - Enable this plugin.
@@ -91,6 +123,9 @@ panda_cb_with_context panda_get_cb_trampoline(panda_cb_type type);
  * 
  * type is number. See typedef panda_cb_type.
  * cb is a pointer to a struct. See typedef panda_cb.
+ * Legacy registrations are potentially mutating. They are refused during
+ * record/replay, and enabled legacy callbacks prevent RR entry. Use the checked
+ * modes API with observe_only=true for record/replay observers.
  */
 void panda_register_callback(void *plugin, panda_cb_type type, panda_cb cb);
 

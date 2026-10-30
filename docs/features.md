@@ -78,8 +78,8 @@ per access in the middle of a block (QEMU rewinds a device access there and runs
 before events of the rewound attempt are dropped). The value `mmio_after_read` and
 `mmio_before_write` get is read-only (a copy): unlike classic PANDA's, changing it changes neither
 what the guest loads nor what the device receives. PANDA's memory readers don't reach device
-memory (pandare2's `physical_memory_read` and `virtual_memory_read` return zero bytes for it
-instead of raising); QEMU's own readers perform a device access.
+memory (pandare2's `physical_memory_read` and `virtual_memory_read` raise `ValueError` for it);
+QEMU's own readers perform a device access except when RR policy refuses it.
 
 **Use it:** `Panda.enable_callback`, `Panda.disable_callback`, `Panda.disable_tb_chaining`, `Panda.flush_tb`, `panda_register_callback`
 
@@ -197,19 +197,19 @@ handle them in C.
 <a id="record-replay"></a>
 ## Record and replay
 
-Record a whole-system execution and replay it deterministically, with any callbacks and plugins
-attached during the replay. Launch with `-accel tcg,rr-ready=on` (pandare2 does this) so a
+Record a whole-system execution and replay it deterministically, with compatible observe-only
+callbacks and plugins attached during recording and replay. Launch with `-accel tcg,rr-ready=on` (pandare2 does this) so a
 recording can start at any point.
 
-**Limits.** TCG, single-threaded. Snapshot loads are refused while recording.
+**Limits.** TCG, single-threaded. Callbacks require RR compatibility and observe-only access. Unlogged analysis mutations are refused during recording and replay; native raw pointers remain a trusted-code boundary. Snapshot loads are refused while recording.
 
 **Use it:** `Panda.record`, `Panda.record_cmd`, `Panda.end_record`, `Panda.run_replay`, `-accel tcg,rr-ready=on`
 
 **Docs:** [docs/guides/record-replay.md](guides/record-replay.md)
 
-**Tests:** `tests/rr.py`, `tests/rrcb.py`, `tests/rrstop.py`, `tests/rrload.py`, `tests/rr_blocks.py`
+**Tests:** `tests/rr.py`, `tests/rrcb.py`, `tests/rrstop.py`, `tests/rrload.py`, `tests/rr_blocks.py`, `tests/replay_guard.py`, `tests/static/replay_policy.py`, `tests/static/replay_native.py`, `tests/static/replay_bh.py`
 
-**Engine patches:** 0025-0028, 0030, 0037-0040, 0050-0052, 0066-0068, 0072-0073 ([series](reference/patches.md))
+**Engine patches:** 0025-0028, 0030, 0037-0040, 0050-0052, 0066-0068, 0072-0073, 0084-0085 ([series](reference/patches.md))
 
 <a id="snapshots"></a>
 ## Snapshots

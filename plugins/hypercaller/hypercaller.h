@@ -7,6 +7,7 @@
 
 typedef void (*hypercall_t)(CPUState *cpu);
 void register_hypercall(uint32_t magic, hypercall_t);
+bool register_hypercall_observer(uint32_t magic, hypercall_t cb, bool observe_only);
 void unregister_hypercall(uint32_t magic);
 
 // END_PYPANDA_NEEDS_THIS -- do not delete this comment!

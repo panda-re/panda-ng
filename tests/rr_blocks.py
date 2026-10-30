@@ -34,13 +34,13 @@ def child(mode, image, name, out):
     panda = Panda(generic=image, rr=True)
     seen = {"asids": [], "openat": 0, "icount": None, "exits": 0, "blocks": 0}
 
-    @panda.cb_asid_changed
+    @panda.cb_asid_changed(observe_only=True)
     def asid_changed(cpu, old, new):
         if panda.libpanda.rr_on():
             seen["asids"].append(new)
         return False
 
-    @panda.ppp("syscalls2", "on_sys_openat_enter")
+    @panda.ppp("syscalls2", "on_sys_openat_enter", observe_only=True)
     def openat(cpu, pc, dfd, filename, flags, *mode_):
         if not panda.libpanda.rr_on():
             return
@@ -50,7 +50,7 @@ def child(mode, image, name, out):
         except ValueError:
             pass
 
-    @panda.cb_before_handle_exception
+    @panda.cb_before_handle_exception(observe_only=True)
     def exc(cpu, index):
         if panda.libpanda.rr_on():
             seen["icount"] = panda.rr_get_guest_instr_count()
@@ -64,7 +64,7 @@ def child(mode, image, name, out):
             for n in names:
                 panda.disable_callback(n)
 
-        @panda.cb_before_block_exec(name="bbe")
+        @panda.cb_before_block_exec(name="bbe", observe_only=True)
         def bbe(cpu, tb):
             # A prior block can fault or exit nonlocally without completion.
             # Each actual completion must still identify the latest entry.
@@ -73,14 +73,14 @@ def child(mode, image, name, out):
             if seen["blocks"] == BLOCKS:
                 window_done()
 
-        @panda.cb_after_block_exec(name="abe")
+        @panda.cb_after_block_exec(name="abe", observe_only=True)
         def abe(cpu, tb, code):
             if state["open"] != tb.pc:
                 state["pairs_bad"] += 1
             state["open"] = None
 
         if mode == "invalidate":
-            @panda.cb_before_block_exec_invalidate_opt(name="inv")
+            @panda.cb_before_block_exec_invalidate_opt(name="inv", observe_only=True)
             def inv(cpu, tb):
                 state["asks"] += 1
                 if state["asks"] % EVERY == 0:
@@ -88,7 +88,7 @@ def child(mode, image, name, out):
                     return True
                 return False
         else:
-            @panda.cb_start_block_exec(name="sbe")
+            @panda.cb_start_block_exec(name="sbe", observe_only=True)
             def sbe(cpu, tb):
                 state["asks"] += 1
                 if state["asks"] % EVERY == 0:
