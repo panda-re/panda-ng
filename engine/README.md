@@ -92,9 +92,9 @@ Export rules (from the qemu_builder workflow):
 
 | gate | what | where |
 |---|---|---|
-| `scripts/verify-series.sh <ver> <tarball>` | tarball sha256 = base.json; every patch applies with **strict** context (`git am`, no 3-way); the patched tree hashes to `patchedTree` | CI (`engine.yml`, every PR touching engine/ or the flake) |
+| `scripts/verify-series.sh <ver> <tarball>` | tarball sha256 = base.json; every patch applies with **strict** context (`git am`, no 3-way); the patched tree hashes to `patchedTree` | CI (`engine.yml`, every PR touching engine/, and main) |
 | round trip | `import-series.sh` then `export-series.sh` reproduces `patches/` byte for byte | CI (`engine.yml`) |
-| `nix build .#engine-src`, `.#engine-x86_64` + `scripts/check-delta-present.sh` | the series + overlay build; every library carries the core, hypercall and syscall-engine symbols | CI (`engine.yml`) |
+| `nix build .#engine-src`, `.#engine` + `scripts/check-delta-present.sh` | the series + overlay build; every library carries the core, hypercall and syscall-engine symbols | CI (`nix flake check` in `ci.yml`: the `engine-src` and `engine-delta` checks) |
 | `scripts/offcost-gate.sh` | stock vs this series, same configure line, guest workloads on x86_64 and aarch64: within `TOL` (5%) | manual (`engine-offcost.yml`, a quiet host) |
 | `scripts/probe-versions.sh <ver> <qemu.git> <refs>` | per patch: ok / drift (3-way) / moved / conflict on other upstream refs | weekly (`engine-canary.yml`, strict-only) |
 | panda-ng's `tests/*.py` on real guests | guest, api, blocks, rr, fastrestore, ... on debian-13 x86_64, aarch64, riscv64 and ubuntu-24.04 x86_64, aarch64 | by hand in the VM |

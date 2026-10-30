@@ -144,7 +144,11 @@
 
               buildPhase = ''
                 runHook preBuild
-                ninja -C build -j$NIX_BUILD_CORES
+                # `all` without tests/: QEMU builds its unit and qtest programs by default, and nothing
+                # here installs or runs them. (`ninja install` would build `all` again: meson install
+                # --no-rebuild below.)
+                ninja -C build -j$NIX_BUILD_CORES $(ninja -C build -t query all |
+                  awk '/^  input:/ {f = 1; next} /^  outputs:/ {f = 0} f {print $NF}' | grep -v '^tests/')
                 # libpanda-ng: gdb reads each build/libpanda-<target>.so and writes
                 # panda_{c,cpp,...}_<target>.h next to its scripts.
                 # gdb embeds its own python3 (same nixpkgs); give it build.py's modules.
@@ -155,7 +159,7 @@
 
               installPhase = ''
                 runHook preInstall
-                ninja -C build install
+                build/pyvenv/bin/meson install -C build --no-rebuild --quiet
                 cp build/contrib/plugins/libpanda_plugin_interface.so $out/lib/
                 # The board SDK: headers, per-target cflags, panda-board-cc (scripts/panda-sdk.sh).
                 bash scripts/panda-sdk.sh build $sdk
@@ -1013,6 +1017,14 @@
           # The series applies to the pinned tarball (the strict gate with the patchedTree
           # comparison is engine/scripts/verify-series.sh, run by .github/workflows/engine.yml).
           engine-src = p.engineSrc;
+          # Every patch that should contribute code to the system libraries did: a boot passes even
+          # if the IGLOO/PANDA delta were inert (engine/scripts/check-delta-present.sh).
+          engine-delta = pkgs.runCommand "panda-engine-delta-check"
+            { nativeBuildInputs = [ pkgs.binutils-unwrapped ]; }
+            ''
+              bash ${./engine/scripts/check-delta-present.sh} ${p.engine}
+              touch $out
+            '';
           docs = docsSite system;
           # Each qemu-system-<arch> starts and lists its machines.
           qemu-system = pkgs.runCommand "panda-qemu-system-check" { } ''

@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# One release at a time, in push order: two overlapping runs would compute the same next version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   version:
     if: github.repository == 'panda-re/panda-ng' && github.ref == 'refs/heads/main'
