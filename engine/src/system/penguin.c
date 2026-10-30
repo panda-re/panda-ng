@@ -2,6 +2,7 @@
 #include "qemu/error-report.h"
 #include "qapi/error.h"
 #include "system/replay.h"
+#include "system/replay-analysis.h"
 #include "system/penguin.h"
 #include "system/address-spaces.h"
 #include "system/memory.h"
@@ -77,6 +78,10 @@ void __attribute__((visibility("default")))
 set_penguin_guest_hypercall_callback(penguin_guest_hypercall_cb_t cb,
                                      void *opaque)
 {
+    if (cb && replay_mode != REPLAY_MODE_NONE) {
+        error_report("penguin hypercall consumer refused during record/replay");
+        return;
+    }
     penguin_guest_hypercall_cb = cb;
     penguin_guest_hypercall_opaque = opaque;
 }
@@ -84,7 +89,20 @@ set_penguin_guest_hypercall_callback(penguin_guest_hypercall_cb_t cb,
 void __attribute__((visibility("default")))
 set_kvm_penguin_hypercall_callback(kvm_penguin_hypercall_cb_t cb)
 {
+    if (cb && replay_mode != REPLAY_MODE_NONE) {
+        error_report("penguin hypercall consumer refused during record/replay");
+        return;
+    }
     kvm_penguin_hypercall_cb = cb;
+}
+
+bool penguin_hypercall_replay_safe(Error **errp)
+{
+    if (penguin_guest_hypercall_cb || kvm_penguin_hypercall_cb) {
+        error_setg(errp, "penguin hypercall consumers can mutate guest state; use an observe-only PANDA callback during record/replay");
+        return false;
+    }
+    return true;
 }
 
 bool penguin_guest_hypercall_wanted(uint64_t nr)
@@ -147,7 +165,8 @@ penguin_qemu_add_mmio_region(uint64_t base, uint64_t size,
 {
     PenguinMmioRegion *region;
 
-    if (!size || !name || (!read_cb && !write_cb)) {
+    if (!replay_analysis_write_allowed() ||
+        !size || !name || (!read_cb && !write_cb)) {
         return -1;
     }
 
@@ -196,7 +215,7 @@ penguin_read_guest_reg(CPUState *cs, int regnum, uint8_t *buf, int buf_len)
 int __attribute__((visibility("default")))
 penguin_write_guest_reg(CPUState *cs, int regnum, const uint8_t *buf, int len)
 {
-    if (!cs || !buf || len <= 0) {
+    if (!replay_analysis_write_allowed() || !cs || !buf || len <= 0) {
         return -1;
     }
 

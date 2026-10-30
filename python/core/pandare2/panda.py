@@ -571,6 +571,7 @@ class Panda():
         self.register_cb_decorators()
         self.plugin_register_count = 0
         self.registered_callbacks = {} # name -> {procname: "bash", enabled: False, callback: None}
+        self._callback_access = threading.local()
 
         # Register asid_changed CB if and only if a callback requires procname
         self._registered_asid_changed_internal_cb = False
@@ -580,6 +581,9 @@ class Panda():
         self.disabled_tb_chaining = False
         self.hook_list = []
         self.hypercalls = {}
+        self._disabled_hypercalls = []
+        self._ppp_observers = {}
+        self._hook_observers = {}
 
         # Asid stuff
         self.current_asid_name = None
@@ -717,7 +721,7 @@ class Panda():
 
         # Register __main_loop_wait_callback
         self.register_callback(self.callback.main_loop_wait,
-                self.callback.main_loop_wait(self.__main_loop_wait_cb), '__main_loop_wait')
+                self.callback.main_loop_wait(self.__main_loop_wait_cb), '__main_loop_wait', observe_only=True)
 
         self._initialized_panda = True
 
@@ -777,6 +781,7 @@ class Panda():
     def reset(self):
         """In the next main loop, reset to boot. During run() only."""
         self._needs_engine("reset")
+        self._check_guest_mutation("reset")
         if debug:
             progress ("Resetting machine to start state")
 
@@ -1074,6 +1079,7 @@ class Panda():
         """
         self._needs_tcg("record")
         self._needs_engine("record")
+        self._check_rr_observers()
         if snapshot_name == None:
             snapshot_name_ffi = self.ffi.NULL
         else:
@@ -1139,6 +1145,7 @@ class Panda():
             None
         '''
         self._needs_tcg("run_replay")
+        self._check_rr_observers()
         if not isfile(replaypfx+"-rr-nondet.log"):
             raise ValueError("Replay files not present to run replay of {}".format(replaypfx))
 
@@ -1448,7 +1455,7 @@ class Panda():
             else:
                 err = self.libpanda.panda_virtual_memory_read_external(env, addr_u, buf_a, length_a)
 
-        if err < 0:
+        if err != 0:
             # TODO: We should support a custom error class instead of a generic ValueError
             raise ValueError(f"Failed to read guest memory at {addr:x} got err={err}")
 
@@ -1513,6 +1520,7 @@ class Panda():
         Write a bytearray into memory at the specified physical/virtual address
         '''
         self._needs_engine("writing guest memory")
+        self._check_guest_mutation("writing guest memory")
         length = len(buf)
         c_buf = self.ffi.new("char[]",buf)
         buf_a = self.ffi.cast("char*", c_buf)
@@ -1526,7 +1534,7 @@ class Panda():
         else:
             err = self.libpanda.panda_virtual_memory_write_external(cpu, addr, buf_a, length_a)
 
-        if err < 0:
+        if err != 0:
             raise ValueError(f"Memory write failed with err={err}") # TODO: make a PANDA Exn class
 
     def _set_extra_plugin_path(self, path):
@@ -1583,6 +1591,7 @@ class Panda():
             RuntimeError: if the region could not be made (QEMU reports why)
         '''
 
+        self._check_guest_mutation("mapping guest memory")
         name_c = self.ffi.new("char[]", bytes(name, "utf-8"))
         size = ceil(size/4096)*4096 # Must be page-aligned
         if self.libpanda.map_memory(name_c, size, address) != 0:
@@ -2560,11 +2569,14 @@ class Panda():
 
             setattr(self, 'cb_'+cb_name, closure(cb_name, pandatype))
 
-    def _generated_callback(self, pandatype, name=None, procname=None, enabled=True):
+    def _generated_callback(self, pandatype, name=None, procname=None, enabled=True,
+                            modes=None, observe_only=False):
         '''
         Actual implementation of self.cb_XYZ. pandatype is pcb.XYZ
         name must uniquely describe a callback
         if procname is specified, callback will only be enabled when that asid is running (requires OSI support)
+        modes names compatible contexts (analysis, fuzz, rr, kvm); defaults to
+        the type's supported contexts. Record/replay requires observe_only=True.
         '''
 
         cb_name = self.callback_dictionary[pandatype].name
@@ -2578,12 +2590,33 @@ class Panda():
             local_name = fun.__name__ if name is None else name
             cb_name = self.callback_dictionary[pandatype].name
             result = self._cb_ftypes[cb_name].result
-            wrapped = self._catching(fun, len(self._cb_ftypes[cb_name].args), result, passthrough=cb_name in PASSTHROUGH)
-            self.register_callback(pandatype, pandatype(wrapped), local_name, enabled=enabled, procname=procname)
+            wrapped = self._catching(fun, len(self._cb_ftypes[cb_name].args), result,
+                                     passthrough=cb_name in PASSTHROUGH, observe_only=observe_only)
+            self.register_callback(pandatype, pandatype(wrapped), local_name, enabled=enabled,
+                                    procname=procname, modes=modes, observe_only=observe_only)
             return fun
         return decorator
 
-    def _catching(self, fun, nargs, result=None, passthrough=False):
+    def _check_rr_observers(self):
+        for name, cb in self.registered_callbacks.items():
+            if cb['enabled'] and (not cb['observe_only'] or not cb['modes'] & self.libpanda.PANDA_MODE_RR):
+                raise ValueError(f"callback {name!r}: record/replay requires observe_only=True and RR compatibility")
+        for name, observer in self._ppp_observers.items():
+            if not observer:
+                raise ValueError(f"PPP callback {name!r}: record/replay requires observe_only=True")
+        for hook, _ in self.hook_list:
+            if hook.enabled and not self._hook_observers.get(hook, False):
+                raise ValueError("address hook: record/replay requires observe_only=True")
+        for fun, info in self.hypercalls.items():
+            if len(info) < 3 or not info[2]:
+                raise ValueError(f"hypercall {fun.__name__!r}: record/replay requires observe_only=True")
+
+    def _check_guest_mutation(self, operation):
+        if (not self.libpanda.panda_guest_mutation_allowed() or
+                getattr(self._callback_access, 'observers', 0)):
+            raise PermissionError(f"{operation}: guest mutation is forbidden during record/replay or an observe-only callback")
+
+    def _catching(self, fun, nargs, result=None, passthrough=False, observe_only=False):
         '''
         The wrapper between C and every Python callback pandare2 registers (the cb_ decorators,
         ppp, hook, hypercall, hypersyscall): returns the function to give ffi.callback.
@@ -2596,10 +2629,10 @@ class Panda():
         (before_handle_exception/interrupt), which returns the index it was given: 0 is a
         different exception, which QEMU may abort on.
 
-        It costs a few tens of ns over a bare cffi callback (tests/bench_cb.py): it checks a list
-        it closes over rather than an attribute, takes exactly nargs arguments (no *args tuple),
-        doesn't cast the result (cffi converts it), and its try block costs nothing until it
-        catches.
+        The policy wrapper rejects unlogged mutators during record/replay and tracks
+        observe-only Python callbacks so guest-writing helpers reject their
+        writes during live execution too. Native callers remain trusted: raw
+        CPUState pointers are not a sandbox.
         '''
         if result is None or result.cname == "void":
             kind = "void"
@@ -2607,7 +2640,19 @@ class Panda():
             kind = "bool"
         else:
             kind = "passthrough" if passthrough else "int"
-        return _wrapper_maker(nargs, kind)(fun, self._exit, self._callback_raised)
+        if not observe_only and not self.libpanda.panda_guest_mutation_allowed():
+            raise ValueError(f"callback {fun.__name__!r}: record/replay requires observe_only=True")
+        original = fun
+        def checked(*args):
+            if not observe_only and not self.libpanda.panda_guest_mutation_allowed():
+                raise PermissionError(f"callback {original.__name__!r}: record/replay requires observe_only=True")
+            observers = getattr(self._callback_access, 'observers', 0)
+            self._callback_access.observers = observers + bool(observe_only)
+            try:
+                return original(*args)
+            finally:
+                self._callback_access.observers = observers
+        return _wrapper_maker(nargs, kind)(checked, self._exit, self._callback_raised)
 
     def _callback_raised(self, e):
         '''A Python callback raised e (called in its except block).'''
@@ -2626,7 +2671,7 @@ class Panda():
         if self._registered_asid_changed_internal_cb: # Already registered these callbacks
             return
 
-        @self.ppp("syscalls2", "on_sys_brk_enter")
+        @self.ppp("syscalls2", "on_sys_brk_enter", observe_only=True)
         def on_sys_brk_enter(cpu, pc, brk):
             name = self.get_process_name(cpu)
             asid = self.libpanda.panda_current_asid(cpu)
@@ -2640,7 +2685,7 @@ class Panda():
             self.asid_mapping.pop(self.libpanda.panda_current_asid(cpu), None)
 
         for event in ("exit", "exit_group", "execve", "execveat"):
-            self.ppp("syscalls2", f"on_sys_{event}_enter", name=f"__forget_asid_{event}")(__forget_asid)
+            self.ppp("syscalls2", f"on_sys_{event}_enter", name=f"__forget_asid_{event}", observe_only=True)(__forget_asid)
 
         @self.callback.after_block_exec
         def __get_pending_procname_change(cpu, tb, exit_code):
@@ -2680,27 +2725,41 @@ class Panda():
 
             return 0
 
-        self.register_callback(self.callback.asid_changed, __asid_changed, "__asid_changed") # Always call on ASID change
+        self.register_callback(self.callback.asid_changed, __asid_changed, "__asid_changed", observe_only=True) # Always call on ASID change
 
         # This internal callback is only enabled on-demand (later) when we need to figure out ASID->procname mappings
-        self.register_callback(self.callback.after_block_exec, __get_pending_procname_change, "__get_pending_procname_change", enabled=False)
+        self.register_callback(self.callback.after_block_exec, __get_pending_procname_change, "__get_pending_procname_change", enabled=False, observe_only=True)
 
         self._registered_asid_changed_internal_cb = True
 
-    def register_callback(self, callback, function, name, enabled=True, procname=None):
+    def register_callback(self, callback, function, name, enabled=True, procname=None,
+                           modes=None, observe_only=False):
         # CB   = self.callback.main_loop_wait
         # func = main_loop_wait_cb
         # name = main_loop_wait
-
-        if name in self.registered_callbacks:
-            print(f"Warning: replacing existing callback '{name}' since it was re-registered")
-            self.delete_callback(name)
 
         cb = self.callback_dictionary[callback]
         if cb.name in ABORTS:
             raise NotImplementedError(f"callback {cb.name}: {unavailable(cb.name)}")
         if tcg_only(cb.name):
             self._needs_tcg(f"callback {cb.name}")
+        supported = self.libpanda.panda_callback_supported_modes(cb.number)
+        if not supported:
+            raise NotImplementedError(f"callback {cb.name}: no supported call site")
+        if modes is None:
+            modes = supported
+        else:
+            if isinstance(modes, str):
+                modes = (modes,)
+            values = {'analysis': 1, 'fuzz': 2, 'rr': 4, 'kvm': 8}
+            try:
+                modes = sum({values[m] for m in modes})
+            except (KeyError, TypeError) as e:
+                raise ValueError("callback modes must name analysis, fuzz, rr or kvm") from e
+        if not modes or modes & ~supported:
+            raise ValueError(f"callback {cb.name}: unsupported modes")
+        if self.accel == 'kvm' and not modes & self.libpanda.PANDA_MODE_KVM:
+            raise ValueError(f"callback {cb.name}: KVM compatibility is required")
 
         # Generate a unique handle for each callback type using the number of previously registered CBs of that type added to a constant
         self.plugin_register_count += 1
@@ -2713,9 +2772,13 @@ class Panda():
         if debug:
             progress("Registered function '{}' to run on callback {}".format(name, cb.name))
 
-        self.libpanda.panda_register_callback_helper(handle, cb.number, pcb)
+        if not self.libpanda.panda_register_callback_modes_helper(handle, cb.number, pcb, modes, observe_only):
+            raise ValueError(f"callback {cb.name}: incompatible mode or mutating registration during record/replay")
+        if name in self.registered_callbacks:
+            self.delete_callback(name)
         self.registered_callbacks[name] = {"procname": procname, "enabled": True, "callback": cb,
-                           "handle": handle, "pcb": pcb, "function": function} # XXX: if function is not saved here it gets GC'd and everything breaks! Watch out!
+                           "handle": handle, "pcb": pcb, "function": function,
+                           "modes": modes, "observe_only": observe_only}
 
         if not enabled: # Note the registered_callbacks dict starts with enabled true and then we update it to false as necessary here
             self.disable_callback(name)
@@ -2758,12 +2821,13 @@ class Panda():
         if name not in self.registered_callbacks.keys():
             raise RuntimeError("No callback has been registered with name '{}'".format(name))
 
-        self.registered_callbacks[name]['enabled'] = True
         handle = self.registered_callbacks[name]['handle']
         cb = self.registered_callbacks[name]['callback']
         pcb = self.registered_callbacks[name]['pcb']
         #progress("Enabling callback '{}' on '{}' handle = {}".format(name, cb.name, handle))
-        self.libpanda.panda_enable_callback_helper(handle, cb.number, pcb)
+        if not self.libpanda.panda_enable_callback_modes_helper(handle, cb.number, pcb):
+            raise ValueError(f"callback {name!r}: enabling refused in the active mode")
+        self.registered_callbacks[name]['enabled'] = True
 
     def disable_callback(self, name, forever=False):
         '''
@@ -2821,7 +2885,7 @@ class Panda():
     ### PPP-style callbacks ###
     ###########################
 
-    def ppp(self, plugin_name, attr, name=None, autoload=True):
+    def ppp(self, plugin_name, attr, name=None, autoload=True, observe_only=False):
         '''
         Decorator for plugin-to-plugin interface. Note this isn't in decorators.py
         becuase it uses the panda object.
@@ -2851,7 +2915,7 @@ class Panda():
                 local_name = fun.__name__
 
             ctype = self.ffi.typeof(attr + "_t")
-            cast_rc = self.ffi.callback(ctype, self._catching(fun, len(ctype.args), ctype.result))
+            cast_rc = self.ffi.callback(ctype, self._catching(fun, len(ctype.args), ctype.result, observe_only=observe_only))
 
             if local_name == "<lambda>":
                 local_name = f"<lambda_{self.lambda_cnt}>"
@@ -2865,6 +2929,7 @@ class Panda():
 
             # Ensure function isn't garbage collected, and keep the name->(fn, plugin_name, attr) map for disabling
             self.ppp_registered_cbs[local_name] = (cast_rc, plugin_name, attr)
+            self._ppp_observers[local_name] = observe_only
 
             getattr(self.plugins[plugin_name], f'ppp_add_cb_{attr}')(cast_rc) # All PPP  cbs start with this string.
             return cast_rc
@@ -2899,6 +2964,7 @@ class Panda():
         (f, plugin_name, attr) = self.ppp_registered_cbs[name]
         getattr(self.plugins[plugin_name], f'ppp_remove_cb_{attr}')(f) # All PPP cbs start with this string.
         del self.ppp_registered_cbs[name] # It's now safe to be garbage collected
+        self._ppp_observers.pop(name, None)
 
     ########## GDB MIXINS ##############
     """
@@ -2922,7 +2988,7 @@ class Panda():
 
     ############# HOOKING MIXINS ###############
 
-    def hook(self, addr, enabled=True, kernel=None, asid=None, cb_type="start_block_exec"):
+    def hook(self, addr, enabled=True, kernel=None, asid=None, cb_type="start_block_exec", observe_only=False):
         '''
         Decorate a function to setup a hook: when a guest goes to execute a basic block beginning with addr,
         the function will be called with args (CPUState, TranslationBlock)
@@ -2951,7 +3017,7 @@ class Panda():
                 print("Registering breakpoint at 0x{:x} -> {} == {}".format(addr, fun, 'cdata_cb'))
 
             # Inform the plugin that it has a new breakpoint at addr
-            hook_cb_passed = hook_cb_type(self._catching(fun, 4 if cb_type == "after_block_exec" else 3, result))
+            hook_cb_passed = hook_cb_type(self._catching(fun, 4 if cb_type == "after_block_exec" else 3, result, observe_only=observe_only))
             new_hook = self.ffi.new("struct hook*")
             new_hook.type = type_num
             new_hook.addr = addr
@@ -2971,11 +3037,12 @@ class Panda():
 
             self.plugins['hooks'].add_hook(new_hook)
             self.hook_list.append((new_hook, hook_cb_passed))
+            self._hook_observers[new_hook] = observe_only
             return fun
         return decorator
 
     # HYPERCALLS
-    def hypercall(self, magic):
+    def hypercall(self, magic, observe_only=False):
         '''
         Decorate a function to run when the guest makes the PANDA hypercall `magic` (an int or a
         list of them): fun(cpu). Through the hypercaller plugin's guest_hypercall callback, so
@@ -2984,19 +3051,24 @@ class Panda():
         self._needs_tcg("hypercall (hypercaller's guest_hypercall callback)")
 
         def decorator(fun):
-            hook_cb_passed = self.ffi.callback("hypercall_t", self._catching(fun, 1))
-            if type(magic) is int:
-                self.plugins['hypercaller'].register_hypercall(magic, hook_cb_passed)
-            elif type(magic) is list:
-                for m in magic:
-                    if type(m) is int:
-                        self.plugins['hypercaller'].register_hypercall(m, hook_cb_passed)
-                    else:
-                        raise TypeError("Magic list must consist of integers")
-            else:
+            hook_cb_passed = self.ffi.callback("hypercall_t", self._catching(fun, 1, observe_only=observe_only))
+            if type(magic) not in (int, list):
                 raise TypeError("Magics must be either an int or list of ints")
+            magics = [magic] if type(magic) is int else magic
+            if not magics or any(type(m) is not int for m in magics):
+                raise TypeError("Magics must be integers")
+            registered = []
+            try:
+                for m in magics:
+                    if not self.plugins['hypercaller'].register_hypercall_observer(m, hook_cb_passed, observe_only):
+                        raise ValueError("hypercall registration refused: duplicate magic or mutator during record/replay")
+                    registered.append(m)
+            except Exception:
+                for m in registered:
+                    self.plugins['hypercaller'].unregister_hypercall(m)
+                raise
 
-            self.hypercalls[fun] = [hook_cb_passed,magic]
+            self.hypercalls[fun] = [hook_cb_passed,magic,observe_only]
             return fun
         return decorator
     
@@ -3008,6 +3080,7 @@ class Panda():
             elif type(magic) is list:
                 for m in magic:
                     self.plugins['hypercaller'].unregister_hypercall(m)
+            self._disabled_hypercalls.append(self.hypercalls.pop(fn))
         else:
             raise ValueError(f"{fn!r} is not a function @panda.hypercall returned")
     

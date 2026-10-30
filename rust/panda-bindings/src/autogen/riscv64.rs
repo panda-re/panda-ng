@@ -38042,6 +38042,9 @@ unsafe extern "C" {
     pub fn qemu_plugin_set_pc(vaddr: u64) -> !;
 }
 unsafe extern "C" {
+    pub fn qemu_plugin_try_set_pc(vaddr: u64) -> bool;
+}
+unsafe extern "C" {
     pub fn qemu_plugin_read_memory_vaddr(addr: u64, data: *mut GByteArray, len: usize) -> bool;
 }
 unsafe extern "C" {
@@ -45941,6 +45944,47 @@ const _: () = {
 unsafe extern "C" {
     pub fn panda_cb_list_next(plist: *mut panda_cb_list) -> *mut panda_cb_list;
 }
+pub const PANDA_MODE_ANALYSIS: panda_callback_mode = 1;
+pub const PANDA_MODE_FUZZ: panda_callback_mode = 2;
+pub const PANDA_MODE_RR: panda_callback_mode = 4;
+pub const PANDA_MODE_KVM: panda_callback_mode = 8;
+pub type panda_callback_mode = ::std::os::raw::c_uint;
+unsafe extern "C" {
+    pub fn panda_callback_supported_modes(type_: panda_cb_type) -> u32;
+}
+unsafe extern "C" {
+    pub fn panda_callback_observe_only(cb: *const panda_cb_list) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_register_callback_modes(
+        plugin: *mut ::std::os::raw::c_void,
+        type_: panda_cb_type,
+        cb: panda_cb,
+        modes: u32,
+        observe_only: bool,
+    ) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_register_callback_with_context_modes(
+        plugin: *mut ::std::os::raw::c_void,
+        type_: panda_cb_type,
+        cb: panda_cb_with_context,
+        context: *mut ::std::os::raw::c_void,
+        modes: u32,
+        observe_only: bool,
+    ) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_set_callback_observe_only(
+        plugin: *mut ::std::os::raw::c_void,
+        type_: panda_cb_type,
+        cb: panda_cb,
+        observe_only: bool,
+    ) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_guest_mutation_allowed() -> bool;
+}
 unsafe extern "C" {
     pub fn panda_enable_plugin(plugin: *mut ::std::os::raw::c_void);
 }
@@ -46492,6 +46536,22 @@ unsafe extern "C" {
         type_: panda_cb_type,
         cb: *mut panda_cb,
     );
+}
+unsafe extern "C" {
+    pub fn panda_register_callback_modes_helper(
+        plugin: *mut ::std::os::raw::c_void,
+        type_: panda_cb_type,
+        cb: *mut panda_cb,
+        modes: u32,
+        observe_only: bool,
+    ) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_enable_callback_modes_helper(
+        plugin: *mut ::std::os::raw::c_void,
+        type_: panda_cb_type,
+        cb: *mut panda_cb,
+    ) -> bool;
 }
 unsafe extern "C" {
     pub fn panda_enable_callback_helper(

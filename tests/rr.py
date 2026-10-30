@@ -22,14 +22,14 @@ def child(mode, image, name, out):
     # --8<-- [end:panda]
     seen = {"asids": [], "openat": 0, "icount": None}
 
-    @panda.cb_asid_changed
+    @panda.cb_asid_changed(observe_only=True)
     def asid_changed(cpu, old, new):
         if panda.libpanda.rr_on():
             seen["asids"].append(new)
         return False
 
     # --8<-- [start:openat]
-    @panda.ppp("syscalls2", "on_sys_openat_enter")
+    @panda.ppp("syscalls2", "on_sys_openat_enter", observe_only=True)
     def openat(cpu, pc, dfd, filename, flags, *mode):
         if not panda.libpanda.rr_on():
             return
@@ -41,7 +41,7 @@ def child(mode, image, name, out):
     # --8<-- [end:openat]
 
     # The log ends at the recording's end: count instructions as the replay reaches it.
-    @panda.cb_before_handle_exception
+    @panda.cb_before_handle_exception(observe_only=True)
     def exc(cpu, index):
         if panda.libpanda.rr_on():
             seen["icount"] = panda.rr_get_guest_instr_count()

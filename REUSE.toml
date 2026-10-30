@@ -42,6 +42,8 @@ SPDX-License-Identifier = "GPL-2.0-only"
 # engine/patches/11.1.2/ORIGINS.md). "override": the diffs quote other files' SPDX lines.
 [[annotations]]
 path = [
+  "engine/patches/11.1.2/0084-replay-guard-guest-state-against-analysis-mutations.patch",
+  "engine/patches/11.1.2/0085-replay-coalesce-repeated-schedules-of-a-pending-BH.patch",
   "engine/patches/11.1.2/0002-build-emit-shared-libraries-for-the-Penguin-embeddin.patch",
   "engine/patches/11.1.2/0006-target-riscv-route-guest-hypercalls-into-Penguin.patch",
   "engine/patches/11.1.2/0007-target-loongarch-route-guest-hypercalls-into-Penguin.patch",

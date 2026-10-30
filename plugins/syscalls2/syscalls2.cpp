@@ -1592,7 +1592,11 @@ bool init_plugin(void *self) {
     // parse arguments and initialize callbacks & info api
     panda_cb pcb;
     pcb.block_translate = block_translate;
-    panda_register_callback(self, PANDA_CB_BLOCK_TRANSLATE, pcb);
+    if (!panda_register_callback_modes(self, PANDA_CB_BLOCK_TRANSLATE, pcb,
+            panda_callback_supported_modes(PANDA_CB_BLOCK_TRANSLATE), true)) {
+        panda_free_args(plugin_args);
+        return false;
+    }
 
     // load system call info
     if (panda_parse_bool_opt(plugin_args, "load-info", "Load systemcall information for the selected os.")) {

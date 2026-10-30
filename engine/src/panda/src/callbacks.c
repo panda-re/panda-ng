@@ -43,6 +43,9 @@ PANDAENDCOMMENT */
 #include "system/runstate.h"
 #include "exec/translation-block.h"
 #include "panda/hooks.h"
+#include "system/replay.h"
+#include "system/kvm.h"
+#include "qemu/error-report.h"
 
 #define SOFTMMU_DIR "/" TARGET_NAME "-softmmu"
 #define LIBRARY_NAME "/libpanda-" TARGET_NAME ".so"
@@ -62,6 +65,141 @@ WARNING: This is all gloriously thread-unsafe!!!
 
 // Array of pointers to PANDA callback lists, one per callback type
 panda_cb_list *panda_cbs[PANDA_CB_LAST];
+static QemuMutex panda_cbs_lock;
+
+/* Keep the public callback-list layout unchanged for native/Rust plugins. */
+typedef struct PandaCallbackEntry {
+    panda_cb_list cb;
+    uint32_t modes;
+    bool observe_only;
+} PandaCallbackEntry;
+
+uint32_t panda_callback_supported_modes(panda_cb_type type)
+{
+    const uint32_t tcg = PANDA_MODE_ANALYSIS | PANDA_MODE_FUZZ | PANDA_MODE_RR;
+
+    switch (type) {
+    case PANDA_CB_BEFORE_BLOCK_TRANSLATE:
+    case PANDA_CB_AFTER_BLOCK_TRANSLATE:
+    case PANDA_CB_BLOCK_TRANSLATE:
+    case PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT:
+    case PANDA_CB_BEFORE_BLOCK_EXEC:
+    case PANDA_CB_AFTER_BLOCK_EXEC:
+    case PANDA_CB_INSN_TRANSLATE:
+    case PANDA_CB_INSN_EXEC:
+    case PANDA_CB_VIRT_MEM_BEFORE_READ:
+    case PANDA_CB_VIRT_MEM_BEFORE_WRITE:
+    case PANDA_CB_PHYS_MEM_BEFORE_READ:
+    case PANDA_CB_PHYS_MEM_BEFORE_WRITE:
+    case PANDA_CB_VIRT_MEM_AFTER_READ:
+    case PANDA_CB_VIRT_MEM_AFTER_WRITE:
+    case PANDA_CB_PHYS_MEM_AFTER_READ:
+    case PANDA_CB_PHYS_MEM_AFTER_WRITE:
+    case PANDA_CB_MMIO_AFTER_READ:
+    case PANDA_CB_MMIO_BEFORE_WRITE:
+    case PANDA_CB_GUEST_HYPERCALL:
+    case PANDA_CB_ASID_CHANGED:
+    case PANDA_CB_BEFORE_HANDLE_EXCEPTION:
+    case PANDA_CB_START_BLOCK_EXEC:
+    case PANDA_CB_END_BLOCK_EXEC:
+    /* Retained ABI, currently no call site (see pandare2.callbacks). */
+    case PANDA_CB_BEFORE_TCG_CODEGEN:
+    case PANDA_CB_AFTER_INSN_TRANSLATE:
+    case PANDA_CB_AFTER_INSN_EXEC:
+    case PANDA_CB_HD_READ:
+    case PANDA_CB_HD_WRITE:
+    case PANDA_CB_MONITOR:
+    case PANDA_CB_QMP:
+    case PANDA_CB_CPU_RESTORE_STATE:
+    case PANDA_CB_AFTER_CPU_EXEC_ENTER:
+    case PANDA_CB_BEFORE_CPU_EXEC_EXIT:
+    case PANDA_CB_TOP_LOOP:
+    case PANDA_CB_DURING_MACHINE_INIT:
+    case PANDA_CB_PRE_SHUTDOWN:
+    case PANDA_CB_UNASSIGNED_IO_READ:
+    case PANDA_CB_UNASSIGNED_IO_WRITE:
+    case PANDA_CB_BEFORE_HANDLE_INTERRUPT:
+        return tcg;
+    case PANDA_CB_AFTER_MACHINE_INIT:
+    case PANDA_CB_AFTER_LOADVM:
+    case PANDA_CB_MAIN_LOOP_WAIT:
+        return tcg | PANDA_MODE_KVM;
+    default:
+        return 0;
+    }
+}
+
+bool panda_callback_observe_only(const panda_cb_list *cb)
+{
+    return qatomic_read(&((const PandaCallbackEntry *)cb)->observe_only);
+}
+
+bool panda_guest_mutation_allowed(void)
+{
+    /* Synchronous writes are unlogged; deferred ND effects use a separate API. */
+    return replay_mode == REPLAY_MODE_NONE;
+}
+
+static bool callback_mode_valid(uint32_t modes, bool observe_only)
+{
+    if (kvm_enabled()) {
+        return modes & PANDA_MODE_KVM;
+    }
+    if (replay_mode != REPLAY_MODE_NONE && !(modes & PANDA_MODE_RR)) {
+        return false;
+    }
+    return replay_mode == REPLAY_MODE_NONE || observe_only;
+}
+
+static bool panda_callbacks_rr_safe(bool replay, Error **errp)
+{
+    QEMU_LOCK_GUARD(&panda_cbs_lock);
+    for (int type = 0; type < PANDA_CB_LAST; type++) {
+        for (panda_cb_list *cb = panda_cbs[type]; cb; cb = cb->next) {
+            const PandaCallbackEntry *entry = (const PandaCallbackEntry *)cb;
+            if (cb->enabled &&
+                (!(entry->modes & PANDA_MODE_RR) || !entry->observe_only)) {
+                error_setg(errp, "PANDA callback %d requires RR compatibility and "
+                           "observe-only access for %s", type,
+                           replay ? "replay" : "recording (mutation effects are not logged)");
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool panda_set_callback_observe_only(void *plugin, panda_cb_type type,
+                                     panda_cb cb, bool observe_only)
+{
+    if (!panda_callback_supported_modes(type)) {
+        return false;
+    }
+    QEMU_LOCK_GUARD(&panda_cbs_lock);
+    for (panda_cb_list *node = panda_cbs[type]; node; node = node->next) {
+        if (node->owner == plugin &&
+            node->entry.cbaddr == panda_get_cb_trampoline(type).cbaddr &&
+            ((panda_cb *)node->context)->cbaddr == cb.cbaddr) {
+            PandaCallbackEntry *entry = (PandaCallbackEntry *)node;
+            if (!callback_mode_valid(entry->modes, observe_only)) {
+                return false;
+            }
+            qatomic_set(&entry->observe_only, observe_only);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool panda_callbacks_replay_safe(Error **errp)
+{
+    return panda_callbacks_rr_safe(true, errp);
+}
+
+bool panda_callbacks_record_safe(Error **errp)
+{
+    return panda_callbacks_rr_safe(false, errp);
+}
 
 // Storage for command line options
 gchar *panda_argv[MAX_PANDA_PLUGIN_ARGS];
@@ -703,7 +841,6 @@ panda_cb_with_context panda_get_cb_trampoline(panda_cb_type type) {
  * an RCU grace period, by the call_rcu thread, which holds the BQL while it frees: so neither a vCPU
  * nor a main-loop walk can still be on it. Readers pay nothing for this.
  */
-static QemuMutex panda_cbs_lock;
 
 static void __attribute__((constructor)) panda_cbs_lock_init(void)
 {
@@ -765,11 +902,29 @@ void panda_block_cbs_changed(void)
 
 void panda_register_callback(void *plugin, panda_cb_type type, panda_cb cb)
 {
-    panda_cb_with_context trampoline = panda_get_cb_trampoline(type);
-    panda_cb* cb_context = malloc(sizeof(panda_cb));
-    *cb_context = cb;
+    if (!panda_register_callback_modes(plugin, type, cb,
+                                      panda_callback_supported_modes(type), false)) {
+        error_report("PANDA callback %d: registration refused; declare modes and observe-only for replay", type);
+        exit(EXIT_FAILURE);
+    }
+}
 
-    panda_register_callback_with_context(plugin, type, trampoline, cb_context);
+bool panda_register_callback_modes(void *plugin, panda_cb_type type, panda_cb cb,
+                                   uint32_t modes, bool observe_only)
+{
+    /* Validate before asking for a trampoline: unsupported types may abort there. */
+    if (!modes || (modes & ~panda_callback_supported_modes(type))) {
+        return false;
+    }
+    panda_cb_with_context trampoline = panda_get_cb_trampoline(type);
+    panda_cb* cb_context = g_new(panda_cb, 1);
+    *cb_context = cb;
+    if (!panda_register_callback_with_context_modes(plugin, type, trampoline,
+                                                   cb_context, modes, observe_only)) {
+        g_free(cb_context);
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -784,16 +939,34 @@ void panda_register_callback(void *plugin, panda_cb_type type, panda_cb cb)
  */
 void panda_register_callback_with_context(void *plugin, panda_cb_type type, panda_cb_with_context cb, void* context)
 {
-    panda_cb_list *plist_last = NULL;
+    if (!panda_register_callback_with_context_modes(plugin, type, cb, context,
+            panda_callback_supported_modes(type), false)) {
+        error_report("PANDA callback %d: registration refused; declare modes and observe-only for replay", type);
+        exit(EXIT_FAILURE);
+    }
+}
 
-    panda_cb_list *new_list = g_new0(panda_cb_list, 1);
+bool panda_register_callback_with_context_modes(void *plugin, panda_cb_type type,
+    panda_cb_with_context cb, void *context, uint32_t modes, bool observe_only)
+{
+    panda_cb_list *plist_last = NULL;
+    uint32_t supported = panda_callback_supported_modes(type);
+
+    QEMU_LOCK_GUARD(&panda_cbs_lock);
+    if (!modes || (modes & ~supported) || !callback_mode_valid(modes, observe_only)) {
+        return false;
+    }
+
+    PandaCallbackEntry *entry = g_new0(PandaCallbackEntry, 1);
+    entry->modes = modes;
+    entry->observe_only = observe_only;
+    panda_cb_list *new_list = &entry->cb;
     new_list->entry = cb;
     new_list->owner = plugin;
     new_list->enabled = true;
     new_list->context = context;
     assert(type < PANDA_CB_LAST);
 
-    QEMU_LOCK_GUARD(&panda_cbs_lock);
     bool was_registered = panda_cbs[type] != NULL;
     if (panda_cbs[type] != NULL) {
         for (panda_cb_list *plist = panda_cbs[type]; plist != NULL;
@@ -810,6 +983,7 @@ void panda_register_callback_with_context(void *plugin, panda_cb_type type, pand
         qatomic_rcu_set(&panda_cbs[type], new_list);
     }
     panda_cb_list_changed(type, was_registered);
+    return true;
 }
 
 /**
@@ -819,9 +993,13 @@ void panda_register_callback_with_context(void *plugin, panda_cb_type type, pand
  */
 bool panda_is_callback_enabled(void *plugin, panda_cb_type type, panda_cb cb) {
     assert(type < PANDA_CB_LAST);
+    panda_cb_with_context trampoline = panda_get_cb_trampoline(type);
     if (panda_cbs[type] != NULL) {
         for (panda_cb_list *plist = panda_cbs[type]; plist != NULL; plist = plist->next) {
-            if (plist->owner == plugin && (plist->entry.cbaddr) == cb.cbaddr) {
+            if (plist->owner == plugin &&
+                (plist->entry.cbaddr == cb.cbaddr ||
+                 (plist->entry.cbaddr == trampoline.cbaddr &&
+                  ((panda_cb *)plist->context)->cbaddr == cb.cbaddr))) {
                 return plist->enabled;
             }
         }
@@ -929,6 +1107,11 @@ void panda_enable_callback_with_context(void *plugin, panda_cb_type type, panda_
                 ))
             ) {
                 found = true;
+                const PandaCallbackEntry *entry = (const PandaCallbackEntry *)plist;
+                if (!callback_mode_valid(entry->modes, entry->observe_only)) {
+                    error_report("PANDA callback %d: enabling refused in the active mode", type);
+                    return;
+                }
                 qatomic_set(&plist->enabled, true);
                 panda_cb_list_changed(type, true);
 
@@ -990,7 +1173,12 @@ void panda_enable_plugin(void *plugin)
         plist = panda_cbs[i];
         while (plist != NULL) {
             if (plist->owner == plugin) {
-                qatomic_set(&plist->enabled, true);
+                const PandaCallbackEntry *entry = (const PandaCallbackEntry *)plist;
+                if (callback_mode_valid(entry->modes, entry->observe_only)) {
+                    qatomic_set(&plist->enabled, true);
+                } else {
+                    error_report("PANDA callback %d: enabling refused in the active mode", i);
+                }
             }
             plist = plist->next;
         }

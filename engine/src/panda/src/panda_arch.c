@@ -1,4 +1,5 @@
 #include "panda/common.h"
+#include "panda/plugin.h"
 
 /* (not kernel-doc)
  * panda_in_kernel_mode() - Determine if guest is in kernel.
@@ -230,6 +231,9 @@ target_ulong panda_get_retval(const CPUState *cpu) {
 }
 
 void panda_set_retval(CPUState *cpu, target_ulong value){
+    if (!panda_guest_mutation_allowed()) {
+        return;
+    }
     CPUArchState *env = cpu_env((CPUState *)cpu);
 #if defined(TARGET_I386)
     // EAX for x86.
@@ -305,6 +309,9 @@ target_ulong panda_get_syscall_arg(CPUState *cpu, int arg){
 }
 
 void panda_set_syscall_arg(CPUState *cpu, int arg, target_ulong value){
+    if (!panda_guest_mutation_allowed()) {
+        return;
+    }
      CPUArchState *env = cpu_env((CPUState *)cpu);
     if (arg < 0 || arg >= sizeof(regs) / sizeof(regs[0])) {
         printf("Error!!! Requested register %d. Target only has %ld registers available\n", arg, sizeof(regs) / sizeof(regs[0]));

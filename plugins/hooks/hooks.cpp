@@ -211,7 +211,8 @@ bool init_plugin(void *_self) {
     panda_require("hw_proc_id");
     assert(init_hw_proc_id_api());
     block_translate_cb.block_translate = cb_block_translate_callback;
-    panda_register_callback(_self, PANDA_CB_BLOCK_TRANSLATE, block_translate_cb);
+    panda_register_callback_modes(_self, PANDA_CB_BLOCK_TRANSLATE, block_translate_cb,
+            panda_callback_supported_modes(PANDA_CB_BLOCK_TRANSLATE), true);
     return true;
 }
 

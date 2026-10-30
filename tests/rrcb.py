@@ -25,60 +25,69 @@ from testlib import Checks, MAGIC, hypercall_args, in_program, progress, upload
 def child(mode, image, name, out, with_cbs):
     from pandare2 import Panda
     panda = Panda(generic=image, rr=True)
-    with_cbs = with_cbs == "1"
+    guard = with_cbs == "guard"
+    legacy_pc = with_cbs == "legacy-pc"
+    with_cbs = with_cbs != "0"
     seen = {"hc": [], "blocks": 0, "abe": 0, "insns": 0, "mem": [], "asids": []}
     blk = hashlib.sha256()
     ins = hashlib.sha256()
+    if guard:
+        from replay_guard import install, exercise
+        seen['guard'] = install(panda, name)
 
-    @panda.cb_asid_changed
+    @panda.cb_asid_changed(observe_only=True)
     def asid_changed(cpu, old, new):
         if panda.libpanda.rr_on():
             seen["asids"].append(new)
-        return False
+        return guard  # an observer cannot veto ASID writes, even if it returns True
 
     if with_cbs:
-        @panda.cb_before_block_exec(name="bbe", enabled=False)
+        @panda.cb_before_block_exec(name="bbe", enabled=False, observe_only=True)
         def bbe(cpu, tb):
             seen["blocks"] += 1
             blk.update(panda.arch.get_pc(cpu).to_bytes(8, "little"))
 
-        @panda.cb_after_block_exec(name="abe", enabled=False)
+        @panda.cb_after_block_exec(name="abe", enabled=False, observe_only=True)
         def abe(cpu, tb, exit_code):
             seen["abe"] += 1
             blk.update(bytes([exit_code]))
 
-        @panda.cb_insn_translate(name="it", enabled=False)
+        @panda.cb_insn_translate(name="it", enabled=False, observe_only=True)
         def it(cpu, pc):
             return in_program(pc)
 
-        @panda.cb_insn_exec(name="ie", enabled=False)
+        @panda.cb_insn_exec(name="ie", enabled=False, observe_only=True)
         def ie(cpu, pc):
             if in_program(pc):
                 seen["insns"] += 1
                 ins.update(pc.to_bytes(8, "little"))
             return 0
 
-        @panda.cb_virt_mem_after_read(name="vmar", enabled=False)
+        @panda.cb_virt_mem_after_read(name="vmar", enabled=False, observe_only=True)
         def vmar(cpu, pc, addr, size, buf):
             if in_program(pc):
                 seen["mem"].append(("r", pc, addr, size, bytes(panda.ffi.buffer(buf, size)).hex()))
 
-        @panda.cb_virt_mem_after_write(name="vmaw", enabled=False)
+        @panda.cb_virt_mem_after_write(name="vmaw", enabled=False, observe_only=True)
         def vmaw(cpu, pc, addr, size, buf):
             if in_program(pc):
                 seen["mem"].append(("w", pc, addr, size, bytes(panda.ffi.buffer(buf, size)).hex()))
 
     window = ["bbe", "abe", "it", "ie", "vmar", "vmaw"] if with_cbs else []
 
-    @panda.hypercall(MAGIC)
+    @panda.hypercall(MAGIC, observe_only=True)
     def hypercall(cpu):
         op = hypercall_args(panda, cpu)[0]
+        if legacy_pc and op == 1:
+            panda.libpanda.qemu_plugin_set_pc(0)
         if not panda.libpanda.rr_on():
             return
         # RRCB_NO_ICOUNT=1: don't read the instruction count here (riscv64/aarch64 record aborts on it,
         # see the report); the other checks still compare record and replay.
         icount = None if os.environ.get("RRCB_NO_ICOUNT") else panda.rr_get_guest_instr_count()
         seen["hc"].append((op, icount))
+        if guard and op == 1:
+            exercise(panda, cpu, seen['guard'])
         progress(f"[{mode}] hypercall {op} at instruction {seen['hc'][-1][1]}")
         for n in window:
             (panda.enable_callback if op == 1 else panda.disable_callback)(n)
@@ -90,7 +99,11 @@ def child(mode, image, name, out, with_cbs):
             upload(panda, "calls", panda.arch_name)
             progress("[record] recording /tmp/calls")
             seen["output"] = panda.run_serial_cmd("true")  # settle the prompt before recording
-            panda.record_cmd("/tmp/calls; echo rc=$?", recording_name=name, snap_name=None, timeout=600)
+            panda.record(name)
+            panda.wait_rr("record")
+            seen["output"] = panda.run_serial_cmd("/tmp/calls; echo rc=$?", timeout=600)
+            panda.end_record()
+            panda.wait_rr("off")
             panda.end_analysis()
         panda.run()
     else:

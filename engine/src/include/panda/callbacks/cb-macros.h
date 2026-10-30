@@ -87,8 +87,14 @@
         for (plist = panda_cbs[PANDA_CB_ ## name_upper]; \
              plist != NULL; \
              plist = panda_cb_list_next(plist)) { \
-              if (plist->enabled) \
-                any_true |= plist->entry. ENTRY_NAME(name, plist->context, EVERY_SECOND(__VA_ARGS__)); \
+              if (plist->enabled) { \
+                bool panda_cb_observer = panda_callback_observe_only(plist); \
+                bool panda_cb_result = plist->entry. ENTRY_NAME(name, plist->context, EVERY_SECOND(__VA_ARGS__)); \
+                if (!panda_cb_observer || \
+                    PANDA_CB_ ## name_upper == PANDA_CB_INSN_TRANSLATE || \
+                    PANDA_CB_ ## name_upper == PANDA_CB_AFTER_INSN_TRANSLATE) \
+                    any_true |= panda_cb_result; \
+              } \
         } \
         return any_true; \
     } \

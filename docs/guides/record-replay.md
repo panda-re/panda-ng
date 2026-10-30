@@ -2,7 +2,8 @@
 
 A recording captures everything nondeterministic that reaches the guest (device input, disk
 completions, interrupts, timer reads) from one point in a run. Replaying it executes exactly the
-same instructions again, as often as you like, with any callbacks and plugins attached. Record
+same instructions again, as often as you like, with compatible observe-only callbacks and plugins
+attached. Record
 cheaply, then run heavy analyses on the replay; or record something rare once and study it
 repeatedly.
 
@@ -64,6 +65,24 @@ before it, checks `panda.libpanda.rr_on()`:
 ```
 
 `panda.rr_get_guest_instr_count()` is the instruction count, the replay's clock.
+
+## Analysis access policy
+
+Declare Python callbacks, PPP subscriptions, address hooks and hypercalls with
+`observe_only=True` for recording and replay. Core callbacks also need `rr` in their
+compatible `modes` (the default includes it where supported). Entry, registration and
+re-enabling reject incompatible callbacks; disabled core callbacks may remain registered.
+
+Ordinary mutation APIs do not log effects. Guest memory, register and PC writes,
+faulting accesses and device reads through the guarded analysis APIs are refused during
+both recording and replay. Python guest-writing helpers also reject writes from an
+observe-only callback during a live run. Instrumentation decisions such as requesting
+instruction callbacks or retranslating a block remain available; observer return values
+must not replace guest exception, address-space or hypercall results.
+
+These declarations are a trusted-code contract, not a sandbox. Native plugins and Python
+code using raw `CPUState` pointers or unguarded native APIs can still write guest state;
+such writes are unsupported and can invalidate a recording.
 
 ## Limits
 

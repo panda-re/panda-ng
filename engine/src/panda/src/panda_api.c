@@ -129,6 +129,10 @@ int panda_delvm(char *snapshot_name) {
 }
 
 void panda_reset(void) {
+    if (!panda_guest_mutation_allowed()) {
+        error_report("panda_reset: guest mutation is forbidden during replay");
+        return;
+    }
     qemu_system_reset_request(SHUTDOWN_CAUSE_HOST_QMP_SYSTEM_RESET);
 }
 
@@ -176,6 +180,18 @@ void panda_register_callback_helper(void *plugin, panda_cb_type type, panda_cb* 
 	panda_cb cb_copy;
 	memcpy(&cb_copy,cb, sizeof(panda_cb));
 	panda_register_callback(plugin, type, cb_copy);
+}
+
+bool panda_register_callback_modes_helper(void *plugin, panda_cb_type type,
+    panda_cb *cb, uint32_t modes, bool observe_only)
+{
+    return panda_register_callback_modes(plugin, type, *cb, modes, observe_only);
+}
+
+bool panda_enable_callback_modes_helper(void *plugin, panda_cb_type type, panda_cb *cb)
+{
+    panda_enable_callback(plugin, type, *cb);
+    return panda_is_callback_enabled(plugin, type, *cb);
 }
 
 void panda_enable_callback_helper(void *plugin, panda_cb_type type, panda_cb* cb) {
@@ -274,6 +290,9 @@ void panda_setup_signal_handling(void (*f) (int, void*, void *))
 // (6b2103e, 2b5b2db) restored it. memory_region_init_ram registers the RAM for snapshots itself.
 // Takes the BQL if the caller (a vCPU callback) doesn't hold it.
 int map_memory(char *name, uint64_t size, uint64_t address) {
+    if (!panda_guest_mutation_allowed()) {
+        return -1;
+    }
     Error *err = NULL;
     bool locked = bql_locked();
     MemoryRegion *ram = g_new(MemoryRegion, 1);

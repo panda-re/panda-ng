@@ -22,6 +22,8 @@
 #include "system/runstate.h"
 #include "migration/snapshot.h"
 #include "panda/plugin.h"
+#include "panda/hooks.h"
+#include "system/penguin.h"
 
 enum { RR_REQ_RECORD, RR_REQ_RECORD_END, RR_REQ_REPLAY };
 
@@ -118,7 +120,12 @@ uint64_t rr_get_guest_instr_count_external(void)
 
 int panda_record_begin(const char *name, const char *snapshot)
 {
+    Error *err = NULL;
     if (!name || rr_on()) {
+        return RRCTRL_EINVALID;
+    }
+    if (!panda_callbacks_record_safe(&err) || !penguin_hypercall_replay_safe(&err)) {
+        error_report_err(err);
         return RRCTRL_EINVALID;
     }
     return rr_request(RR_REQ_RECORD, name, snapshot);
@@ -134,7 +141,12 @@ int panda_record_end(void)
 
 int panda_replay_begin(const char *name)
 {
+    Error *err = NULL;
     if (!name || rr_on()) {
+        return RRCTRL_EINVALID;
+    }
+    if (!panda_callbacks_replay_safe(&err) || !penguin_hypercall_replay_safe(&err)) {
+        error_report_err(err);
         return RRCTRL_EINVALID;
     }
     return rr_request(RR_REQ_REPLAY, name, NULL);
