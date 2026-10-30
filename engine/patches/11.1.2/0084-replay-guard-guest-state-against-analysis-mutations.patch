@@ -9,14 +9,15 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 Origin: new
 ---
- include/plugins/qemu-plugin.h    | 14 ++++++++++++-
- include/system/replay-analysis.h | 43 ++++++++++++++++++++++++++++++++++++++++
- plugins/api-system.c             | 20 +++++++++++++++++++
- plugins/api.c                    | 31 +++++++++++++++++++++++++++++
- plugins/core.c                   |  4 ++++
- replay/replay-begin.c            |  8 ++++++++
- replay/replay.c                  | 15 ++++++++++++++
+ include/plugins/qemu-plugin.h    | 14 ++++++++++-
+ include/system/replay-analysis.h | 43 ++++++++++++++++++++++++++++++++
+ plugins/api-system.c             | 20 +++++++++++++++
+ plugins/api.c                    | 31 +++++++++++++++++++++++
+ plugins/core.c                   |  4 +++
+ replay/replay-begin.c            |  8 ++++++
+ replay/replay.c                  | 15 +++++++++++
  7 files changed, 134 insertions(+), 1 deletion(-)
+ create mode 100644 include/system/replay-analysis.h
 
 diff --git a/include/plugins/qemu-plugin.h b/include/plugins/qemu-plugin.h
 index 81d026087ac85e6071b42c85d613694fef30058e..698914ea3d5a3e8c2c51e49b57dd7a171e40ee71 100644
