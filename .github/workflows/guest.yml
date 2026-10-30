@@ -32,9 +32,11 @@ concurrency:
 
 jobs:
   suite:
+    # On a PR: pushes while it carries guest-suite, and adding guest-suite (not other labels).
     if: >-
       github.event_name != 'pull_request' ||
-      contains(github.event.pull_request.labels.*.name, 'guest-suite')
+      (contains(github.event.pull_request.labels.*.name, 'guest-suite') &&
+       (github.event.action != 'labeled' || github.event.label.name == 'guest-suite'))
     strategy:
       fail-fast: false
       matrix:
@@ -75,7 +77,9 @@ jobs:
         with:
           path: ${{ env.XDG_CACHE_HOME }}/panda-images
           key: panda-images-${{ matrix.image }}-${{ hashFiles('python/core/pandare2/mkimage.py') }}
+      # A stalled download otherwise holds the runner until the job's 6 h limit.
       - name: Build the image
+        timeout-minutes: 45
         run: |
           ./result-python/bin/python3 -m pandare2.mkimage ${{ matrix.image }} -o images \
             --cache-dir "$XDG_CACHE_HOME/panda-images"

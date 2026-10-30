@@ -5,20 +5,30 @@ name: Engine
 #
 #   series  fast, no nix: the pinned tarball, a strict-context apply of the series, the patched
 #           tree's hash against base.json's patchedTree, and the import/export round trip.
-#   engine  gated on series: the source derivation, a one-target engine, and the delta check
-#           (every patch that should contribute code to the library did).
+#
+# The engine itself (all targets), its source derivation and the delta check (every patch that
+# should contribute code to the libraries did) are flake checks, built once by ci.yml's build job.
+# Runs on main too: a merge that breaks the series is caught there, not on the next engine PR.
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "engine/**"
-      - "flake.nix"
-      - "flake.lock"
+      - ".github/workflows/engine.yml"
+  push:
+    branches: [main]
+    paths:
+      - "engine/**"
       - ".github/workflows/engine.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: engine-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   series:
@@ -96,17 +106,3 @@ jobs:
             exit 1
           fi
 
-  engine:
-    needs: series
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v31
-      - name: Source derivation (series + src/ overlay)
-        run: nix build -L --out-link result-src .#engine-src
-      - name: One-target engine
-        run: nix build -L --out-link result-engine .#engine-x86_64
-      # A guest boot passes even if the IGLOO/PANDA delta were inert; this asserts the symbols the
-      # core, hypercall and syscall-engine patches must contribute are in the built library.
-      - name: The delta is in the built library
-        run: ./engine/scripts/check-delta-present.sh result-engine
