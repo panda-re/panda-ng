@@ -41,6 +41,7 @@ PANDAENDCOMMENT */
 #include "hw/core/cpu.h"
 #include "system/cpus.h"
 #include "system/runstate.h"
+#include "system/syscall-trap.h"
 #include "exec/translation-block.h"
 #include "panda/hooks.h"
 #include "system/replay.h"
@@ -337,6 +338,8 @@ static void panda_delete_plugin(int i)
 static void dlclose_plugin(int plugin_idx) {
     void *plugin = panda_plugins[plugin_idx].plugin;
     bool exported_symbols = panda_plugins[plugin_idx].exported_symbols;
+    /* init_plugin can register then fail without running uninit_plugin. */
+    panda_unregister_transient_reset(plugin);
     panda_delete_plugin(plugin_idx);
     dlclose(plugin);
     if(exported_symbols) {
@@ -621,6 +624,121 @@ void panda_require(const char *plugin_name) {
  */
 /* Depth of main-thread callback walks in progress (cb-support.c): inside one, unloads are deferred. */
 int panda_main_walk_depth;
+void panda_unload_pending(void);
+
+/* Transition hooks are host-only, main-thread policy, not callback modes. Dead
+ * entries stay allocated until the outermost walk ends: self-unregister and
+ * unregistering a later owner cannot invalidate the iterator. */
+typedef struct PandaTransientReset {
+    struct PandaTransientReset *next;
+    void *owner;
+    void (*reset)(void *opaque);
+    void *opaque;
+    bool dead;
+} PandaTransientReset;
+
+static PandaTransientReset *panda_transient_resets;
+static unsigned panda_transient_depth;
+
+static void panda_transient_sweep(void)
+{
+    PandaTransientReset **at = &panda_transient_resets;
+    while (*at) {
+        PandaTransientReset *entry = *at;
+        if (entry->dead) {
+            *at = entry->next;
+            g_free(entry);
+        } else {
+            at = &entry->next;
+        }
+    }
+}
+
+static bool panda_transient_quiescent(void)
+{
+    CPUState *cpu;
+    if (current_cpu) {
+        return false;
+    }
+    if (!first_cpu) {
+        return true;
+    }
+    if (!bql_locked() || !qemu_in_main_thread()) {
+        return false;
+    }
+    CPU_FOREACH(cpu) {
+        if (!cpu_is_stopped(cpu)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool panda_register_transient_reset(void *owner, void (*reset)(void *opaque),
+                                    void *opaque)
+{
+    bool loaded = false;
+    if (!owner || !reset || !panda_transient_quiescent()) {
+        return false;
+    }
+    for (int i = 0; i < nb_panda_plugins; i++) {
+        loaded |= panda_plugins[i].plugin == owner && !panda_plugins[i].unload;
+    }
+    if (!loaded) {
+        return false;
+    }
+    for (PandaTransientReset *entry = panda_transient_resets; entry; entry = entry->next) {
+        if (!entry->dead && entry->owner == owner) {
+            return false;
+        }
+    }
+    PandaTransientReset *entry = g_new0(PandaTransientReset, 1);
+    entry->owner = owner;
+    entry->reset = reset;
+    entry->opaque = opaque;
+    entry->next = panda_transient_resets;
+    panda_transient_resets = entry;
+    return true;
+}
+
+void panda_unregister_transient_reset(void *owner)
+{
+    /* Unload can pause all vCPUs without changing the running runstate. */
+    if (current_cpu || (first_cpu && (!bql_locked() || !qemu_in_main_thread()))) {
+        error_report("PANDA transient reset: unregister requires the main thread/BQL");
+        return;
+    }
+    for (PandaTransientReset *entry = panda_transient_resets; entry; entry = entry->next) {
+        if (entry->owner == owner) {
+            entry->dead = true;
+        }
+    }
+    if (!panda_transient_depth) {
+        panda_transient_sweep();
+    }
+}
+
+void panda_analysis_reset(void)
+{
+    PandaTransientReset *head = panda_transient_resets;
+
+    /* Also defer unloads requested from a native consumer's ABORT handler. */
+    panda_main_walk_depth++;
+    panda_transient_depth++;
+    syscall_trap_cancel_all();
+    for (PandaTransientReset *entry = head; entry; entry = entry->next) {
+        if (!entry->dead) {
+            entry->reset(entry->opaque);
+        }
+    }
+    if (--panda_transient_depth == 0) {
+        panda_transient_sweep();
+    }
+    if (--panda_main_walk_depth == 0) {
+        panda_unload_pending();
+    }
+}
+
 
 static bool panda_on_main_thread(void)
 {

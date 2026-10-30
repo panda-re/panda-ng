@@ -17,6 +17,7 @@ PANDAENDCOMMENT */
 
 #include "panda.h"
 #include <iostream>
+#include <algorithm>
 #include <unordered_map>
 #include <osi/osi_types.h>
 #include <set>
@@ -79,6 +80,30 @@ void add_hook(struct hook* h) {
         auto& temp_hooks = per_guest_cpu_temp_hooks[i];
         temp_hooks.push_back(local_h);
     }
+}
+
+void remove_hooks_by_callback(void (*callback)(CPUState *, TranslationBlock *, struct hook *)) {
+    // Called only from quiescent plugin teardown, never inside a hook walk.
+    // Instrumented udata points to hook_site (owned by hooks), NOT these records.
+    // Do not free hook_sites here: existing warm TBs may still reference them.
+    for (int i = 0; i < 16; ++i) {
+        auto matches = [callback](const hook &h) {
+            return h.type == PANDA_CB_BEFORE_TCG_CODEGEN && h.cb.before_tcg_codegen == callback;
+        };
+        auto &temp = per_guest_cpu_temp_hooks[i];
+        temp.erase(std::remove_if(temp.begin(), temp.end(), matches), temp.end());
+        for (auto &by_asid : per_guest_cpu_hooks[i]) {
+            auto &records = by_asid.second;
+            for (auto it = records.begin(); it != records.end();) {
+                if (matches(*it)) {
+                    it = records.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+    }
+    panda_do_flush_tb();
 }
 
 // An instrumented hook address: the insn callback's udata. The callback can't take the pc from the

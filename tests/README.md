@@ -12,6 +12,7 @@ export PANDA_PYTHON=$PWD/result-python/bin/python3
 |---|---|---|
 | static | `static/refs.py [arch...]` | nothing, no guest: every engine and plugin function, C type and CPUArchState field pandare2 names exists, on every arch (`nix build .#checks.x86_64-linux.pandare2-refs`) |
 | static | `static/layout.py <engine>/include/panda-ng [arch...]` | nothing, no guest: pandare2's cffi lays out CPUState, CPUArchState and the engine's structs as gcc does, on every arch (`nix build .#checks.x86_64-linux.layout`) |
+| static | `static/lifecycle.py` | Python, C compiler and GLib, no engine or guest: transient cancellation/reset-hook lifetime and fast-restore notification (`nix build .#checks.x86_64-linux.lifecycle`) |
 | static | `static/replay_bh.py <patched replay/replay-events.c>` | Python and a C compiler, no engine or guest: pending BH coalescing and reentrant event drains (`nix build .#checks.x86_64-linux.replay-bh`) |
 | static | `static/replay_native.py` | Python and a C compiler, no engine or guest: extracted native mutation guards and Penguin continuations (`nix build .#checks.x86_64-linux.replay-native`) |
 | static | `static/replay_policy.py` | Python only, no engine or guest: RR admission and observe-only wrapper policy (`nix build .#checks.x86_64-linux.replay-policy`) |
@@ -19,6 +20,7 @@ export PANDA_PYTHON=$PWD/result-python/bin/python3
 | smoke | `smoke.py <arch>` | nothing: boots the firmware, loads C plugins (CI runs it on every PR) |
 | guest suite | `guest api osi_isf blocks callbacks calls mem mmio late reset teardown asidstory tbpc hookalias rr rrcb rrstop rrload fuzz fastrestore fastcov syscalls` | an image (below); `run.sh` runs them |
 | more guest tests | `kpti physmem rr_blocks fastrestore_guards fastrestore_hotplug fastrestore_vsock` | an image; not in `run.sh`'s default list (x86_64-only, or need extra host tools: see each docstring) |
+| reset/restore lifecycle | `lifecycle.py <image>` | real public owner reset-hook ordering, ordinary/fast restore notifications, rejection, unregister/re-register and hardware reset; pending/held/injected slot and safe teardown cases are host-only in `static/lifecycle.py` and `static/penguin_detach.py` |
 | replay safety | `replay_guard.py <image> [workdir]` | record/replay observer and mutation refusal |
 | benchmark | `bench_cb.py <image>` | an image, and `PANDA_PLUGIN_DIR` from `nix build .#test-plugins` (the `tests/plugins/cbcount` C baseline): ns per callback in C, bare cffi and `@panda.cb_*` |
 | constructor | `construct.py [case...]` | nothing, no guest: the argv each `Panda(...)` form builds, which keyword wins over an image, and the errors (`nix build .#checks.x86_64-linux.pandare2-construct`) |

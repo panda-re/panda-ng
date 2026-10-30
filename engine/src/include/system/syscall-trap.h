@@ -92,6 +92,9 @@ typedef struct SyscallTrapOps {
 
 /* one consumer at a time; false if another one is set */
 bool syscall_trap_set_consumer(const SyscallTrapOps *ops, void *opaque);
+/* Main thread/BQL, vCPUs stopped: owner-checked drain before detaching.
+ * Refuses without changes while injected calls still need register restoration. */
+bool syscall_trap_clear_consumer(const SyscallTrapOps *ops, void *opaque);
 void syscall_trap_watch(int abi, int64_t num, unsigned flags); /* num -1: all */
 void syscall_trap_unwatch_all(void);
 void syscall_trap_stats(uint64_t *pending, uint64_t *full, uint64_t *stale);
@@ -102,6 +105,11 @@ uint64_t syscall_trap_faults(void);    /* faults raised for consumers */
  * SyscallTrap.task is @task, not 0).  Returns how many.
  */
 unsigned syscall_trap_forget_task(uint64_t task);
+
+/* Stopped-vCPU restore/reset boundary: abandon pending/held analysis, without
+ * restoring old registers. Drops run outside sc_lock. Watches and the consumer
+ * remain installed; a return whose entry predates the snapshot is not rebuilt. */
+unsigned syscall_trap_cancel_all(void);
 
 /*
  * Read guest virtual memory as the vCPU sees it: its TLB at the current

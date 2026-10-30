@@ -52,6 +52,11 @@ def main():
     lib = panda.libpanda
     st = {"snap": False, "pages": {}, "round": 0, "at_end": False, "results": [], "err": None}
     ad = {"snap": False, "restored": False, "reran": False, "res": None, "hc": []}
+    load_notifications = []
+
+    @panda.cb_after_loadvm(observe_only=True)
+    def loaded(cpu):
+        load_notifications.append(None)
 
     def info():
         return dict(kv.split("=", 1) for kv in panda.ffi.string(lib.panda_fast_info()).decode().split())
@@ -80,8 +85,10 @@ def main():
                 # savevm reads and clears the migration bitmap: the fast restore must notice
                 if lib.panda_snap(panda.ffi.new("char[]", b"frsave")) != 0:
                     st["err"] = "panda_snap frsave failed"
+            before_notifications = len(load_notifications)
             t = perf_counter()
             r["rc"] = lib.panda_fast_restore()
+            r["notifications"] = len(load_notifications) - before_notifications
             r["ms"] = (perf_counter() - t) * 1000
             i = info()
             r["full"] = i["last_full"] == "1"
@@ -120,7 +127,9 @@ def main():
         try:
             r["differ_before"] = lib.panda_fast_verify()
             panda.physical_memory_write(st["snap2"]["page"], b"\xa5" * 4096)
+            before_notifications = len(load_notifications)
             r["rc"] = lib.panda_fast_restore()
+            r["notifications"] = len(load_notifications) - before_notifications
             i = info()
             r["mode"] = i["last_mode"]
             r["differ_after"] = lib.panda_fast_verify()
@@ -146,7 +155,9 @@ def main():
         r = {}
         try:
             r["differ_before"] = lib.panda_fast_verify()
+            before_notifications = len(load_notifications)
             r["rc"] = lib.panda_fast_restore()
+            r["notifications"] = len(load_notifications) - before_notifications
             i = info()
             r["full"] = i["last_full"] == "1"
             r["copied"] = int(i["last_pages"])
@@ -226,6 +237,7 @@ def main():
           " (from the snapshot: hypercall 2 again)",
           ad["hc"] == [1, 2, 2] and "rc=0" in ad.get("out", "") and ad["reran"])
     check("adbits: dirty-page restore returned 0", a.get("rc") == 0 and a.get("full") is False)
+    check("adbits: restore reports after_loadvm exactly once", a.get("notifications") == 1)
     check("adbits: RAM equals the snapshot after the restore (hardware A/D PTE update was logged)",
           a.get("differ_after") == 0)
     res = [r for r in st["results"] if "rc" in r]
@@ -239,6 +251,8 @@ def main():
     if st["err"]:
         print("   ", st["err"])
     check("every restore returned 0", all(r["rc"] == 0 for r in res))
+    check("every fast restore reports after_loadvm exactly once",
+          len(res) == rounds and all(r.get("notifications") == 1 for r in res))
     check("RAM equals the snapshot after every restore (panda_fast_verify == 0)",
           all(r["differ_after"] == 0 for r in res))
     check("the guest changed RAM between restores (differ_before > 0)",
@@ -257,6 +271,7 @@ def main():
     check("the restore to it took the dirty-page path and verifies",
           r2.get("rc") == 0 and r2.get("mode") == "dirty" and r2.get("differ_before", 0) > 0
           and r2.get("differ_after") == 0 and r2.get("page_back"))
+    check("the second snapshot restore reports after_loadvm exactly once", r2.get("notifications") == 1)
     check("the guest ran on after that restore (write syscalls seen)", st.get("writes_after", 0) > 0)
     sys.exit(0 if ok else 1)
 

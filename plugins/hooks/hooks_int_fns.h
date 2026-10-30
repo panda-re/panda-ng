@@ -62,6 +62,11 @@ struct symbol_hook {
 };
 
 void add_hook(struct hook* h);
+/* Paused main-thread teardown only. Removes this exact before-codegen callback
+ * from queued/live hook records. Generated sites reference hooks-owned site
+ * objects, not removed records; a requested TB flush discards old sites safely.
+ */
+void remove_hooks_by_callback(void (*callback)(CPUState *, TranslationBlock *, struct hook *));
 void enable_hooking();
 void disable_hooking();
 void add_symbol_hook(struct symbol_hook* h);

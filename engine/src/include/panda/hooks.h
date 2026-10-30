@@ -61,6 +61,9 @@ void panda_callbacks_after_loadvm(CPUState *env);
 /* qemu_loadvm_state() is about to load RAM (loadvm, an incoming migration): the RAM it writes
  * isn't logged dirty, and a failed load leaves it half written */
 void panda_before_loadvm(void);
+/* Stopped-vCPU destructive restore/reset boundary: cancel transient analysis,
+ * independently of whether the transition subsequently succeeds. */
+void panda_analysis_reset(void);
 
 #else
 
@@ -87,6 +90,7 @@ static inline void panda_callbacks_before_find_fast(void) {}
 static inline void panda_callbacks_main_loop_wait(void) {}
 static inline void panda_callbacks_after_loadvm(CPUState *env) {}
 static inline void panda_before_loadvm(void) {}
+static inline void panda_analysis_reset(void) {}
 static inline bool panda_callbacks_asid_changed(CPUState *cpu, uint64_t oldval, uint64_t newval)
 {
     return false;

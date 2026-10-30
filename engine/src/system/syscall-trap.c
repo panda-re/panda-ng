@@ -35,6 +35,7 @@ static uint64_t sc_faults;
 static __thread uint64_t sc_fault_addr;
 static __thread bool sc_fault_write;
 static void *sc_opaque;
+static bool sc_detaching;
 
 static uint8_t sc_watch[SYSCALL_ABI_COUNT][SYSCALL_TRAP_NUMS];
 static uint8_t sc_watch_all[SYSCALL_ABI_COUNT];
@@ -613,9 +614,40 @@ unsigned syscall_trap_forget_task(uint64_t task)
     return n;
 }
 
+unsigned syscall_trap_cancel_all(void)
+{
+    CPUState *cpu;
+    unsigned n = 0;
+
+    /* Callers have stopped the vCPUs before replacing guest execution. Do not
+     * unwind injected registers into the new execution or remove watch policy. */
+    qemu_mutex_lock(&sc_lock);
+    for (unsigned i = 0; i < SC_SLOTS; i++) {
+        if (sc_slots[i].pc) {
+            sc_drop_later(&sc_slots[i].sc);
+            n++;
+        }
+    }
+    memset(sc_slots, 0, sizeof(sc_slots));
+    qatomic_set(&syscall_trap_pending, 0);
+    qatomic_set(&sc_held, 0);
+    CPU_FOREACH(cpu) {
+        cpu->syscall_current = 0;
+        cpu->syscall_kmmu = 0;
+        cpu->syscall_inject_abis = 0;
+    }
+    /* Fault scratch is vCPU TLS, consumed immediately by syscall_trap_fault
+     * before the vCPU can become stopped. These assignments clear only the
+     * caller's scratch, not other threads; no held continuation retains it. */
+    sc_fault_addr = 0;
+    sc_fault_write = false;
+    sc_unlock();  /* Penguin's drop -> ABORT -> free chain runs outside the lock. */
+    return n;
+}
+
 bool syscall_trap_set_consumer(const SyscallTrapOps *ops, void *opaque)
 {
-    if (sc_ops && sc_ops != ops) {
+    if (sc_detaching || (sc_ops && (sc_ops != ops || sc_opaque != opaque))) {
         return false;
     }
     sc_opaque = opaque;
@@ -623,9 +655,36 @@ bool syscall_trap_set_consumer(const SyscallTrapOps *ops, void *opaque)
     return true;
 }
 
+bool syscall_trap_clear_consumer(const SyscallTrapOps *ops, void *opaque)
+{
+    /* Caller owns main-thread/BQL quiescence; never detach another consumer.
+     * Unlike rewind cancellation, live detach cannot abandon injected register
+     * restoration: the task must finish its injected call under the old owner. */
+    if (sc_detaching || !ops || sc_ops != ops || sc_opaque != opaque) {
+        return false;
+    }
+    qemu_mutex_lock(&sc_lock);
+    for (unsigned i = 0; i < SC_SLOTS; i++) {
+        if (sc_slots[i].pc && (sc_slots[i].state == SC_INJECT ||
+                              sc_slots[i].state == SC_INJECT_RET)) {
+            qemu_mutex_unlock(&sc_lock);
+            return false; /* no watch, owner, counter or slot changes */
+        }
+    }
+    sc_detaching = true;
+    qemu_mutex_unlock(&sc_lock);
+    syscall_trap_unwatch_all();
+    qatomic_set(&syscall_trap_on, false);
+    syscall_trap_cancel_all(); /* old drop callback remains mapped until drained */
+    sc_opaque = NULL;
+    qatomic_set(&sc_ops, NULL);
+    sc_detaching = false;
+    return true;
+}
+
 void syscall_trap_watch(int abi, int64_t num, unsigned flags)
 {
-    if (abi < 0 || abi >= SYSCALL_ABI_COUNT || num < -1 ||
+    if (sc_detaching || abi < 0 || abi >= SYSCALL_ABI_COUNT || num < -1 ||
         num >= SYSCALL_TRAP_NUMS) {
         return;
     }
