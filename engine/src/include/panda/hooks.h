@@ -18,8 +18,9 @@
 
 #ifdef CONFIG_PANDA
 
-/* Checked both before preparing a replay and after enabling replay, before any
- * guest execution. The second check closes registration/enable races. */
+/* Called before preparing a recording or replay and again after the mode switch,
+ * before any guest execution. They never refuse: after the switch they warn about
+ * each enabled callback that dispatch will skip until the recording or replay ends. */
 bool panda_callbacks_replay_safe(Error **errp);
 bool panda_callbacks_record_safe(Error **errp);
 

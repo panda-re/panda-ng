@@ -172,7 +172,8 @@ int main(void) {
     }
     frozen=analysis=true;
     assert(callback_mode_valid(7,false)); /* sealed analysis before CPU init */
-    replay_mode=1;assert(!callback_mode_valid(7,false));assert(callback_mode_valid(7,true));
+    /* record/replay admits mutators: dispatch skips them until it ends */
+    replay_mode=1;assert(callback_mode_valid(7,false));assert(callback_mode_valid(7,true));
     return 0;
 }
 '''

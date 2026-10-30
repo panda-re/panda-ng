@@ -151,24 +151,67 @@ static bool callback_mode_valid(uint32_t modes, bool observe_only)
     if (kvm_enabled()) {
         return modes & PANDA_MODE_KVM;
     }
-    if (replay_mode != REPLAY_MODE_NONE && !(modes & PANDA_MODE_RR)) {
-        return false;
-    }
-    return replay_mode == REPLAY_MODE_NONE || observe_only;
+    /* Record/replay admits every callback; dispatch skips the ones that may not run. */
+    (void)observe_only;
+    return true;
 }
 
+static bool callback_rr_compatible(const PandaCallbackEntry *entry)
+{
+    return (entry->modes & PANDA_MODE_RR) && qatomic_read(&entry->observe_only);
+}
+
+bool panda_callback_rr_runs(const panda_cb_list *cb)
+{
+    return callback_rr_compatible((const PandaCallbackEntry *)cb);
+}
+
+extern int nb_panda_plugins;
+extern panda_plugin panda_plugins[MAX_PANDA_PLUGINS];
+
+static const char *callback_owner_name(void *owner)
+{
+    for (int i = 0; i < nb_panda_plugins; i++) {
+        if (panda_plugins[i].plugin == owner) {
+            return panda_plugins[i].name;
+        }
+    }
+    return "an embedding";
+}
+
+/* A callback admitted during record/replay that dispatch will skip. */
+static void callback_rr_skip_note(panda_cb_type type, const PandaCallbackEntry *entry)
+{
+    if (replay_mode != REPLAY_MODE_NONE && !callback_rr_compatible(entry)) {
+        warn_report("PANDA callback %d from %s is not an RR observer: it will not run "
+                    "until the %s ends", type, callback_owner_name(entry->cb.owner),
+                    replay_mode == REPLAY_MODE_PLAY ? "replay" : "recording");
+    }
+}
+
+/*
+ * Record and replay never refuse to start over callbacks. Callbacks that are not
+ * RR-compatible observers stay registered but do not run until the recording or
+ * replay ends (PANDA_CB_RUNS), so a run may switch between live analysis and any
+ * number of recordings. The pre-checks run with the mode still NONE; the check
+ * after the mode switch (replay_start) names, once, what will be skipped.
+ */
 static bool panda_callbacks_rr_safe(bool replay, Error **errp)
 {
+    if (replay_mode == REPLAY_MODE_NONE) {
+        return true;
+    }
     QEMU_LOCK_GUARD(&panda_cbs_lock);
     for (int type = 0; type < PANDA_CB_LAST; type++) {
         for (panda_cb_list *cb = panda_cbs[type]; cb; cb = cb->next) {
             const PandaCallbackEntry *entry = (const PandaCallbackEntry *)cb;
-            if (cb->enabled &&
-                (!(entry->modes & PANDA_MODE_RR) || !entry->observe_only)) {
-                error_setg(errp, "PANDA callback %d requires RR compatibility and "
-                           "observe-only access for %s", type,
-                           replay ? "replay" : "recording (mutation effects are not logged)");
-                return false;
+            if (cb->enabled && !callback_rr_compatible(entry)) {
+                warn_report("PANDA callback %d from %s is skipped during %s: %s",
+                            type, callback_owner_name(cb->owner),
+                            replay ? "replay" : "recording",
+                            (entry->modes & PANDA_MODE_RR) ?
+                            "it may mutate guest state, and mutations are not logged" :
+                            "it does not declare record/replay support");
             }
         }
     }
@@ -1088,6 +1131,7 @@ bool panda_register_callback_with_context_modes(void *plugin, panda_cb_type type
     PandaCallbackEntry *entry = g_new0(PandaCallbackEntry, 1);
     entry->modes = modes;
     entry->observe_only = observe_only;
+    callback_rr_skip_note(type, entry);
     panda_cb_list *new_list = &entry->cb;
     new_list->entry = cb;
     new_list->owner = plugin;
@@ -1240,6 +1284,7 @@ void panda_enable_callback_with_context(void *plugin, panda_cb_type type, panda_
                     error_report("PANDA callback %d: enabling refused in the active mode", type);
                     return;
                 }
+                callback_rr_skip_note(type, entry);
                 qatomic_set(&plist->enabled, true);
                 panda_cb_list_changed(type, true);
 

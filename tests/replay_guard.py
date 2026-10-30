@@ -4,9 +4,10 @@ Run: panda-python tests/replay_guard.py <image.json> [workdir]
 Set RRCB_HANDOFF=1 only for fixtures whose snapshots contain handoff extensions.
 Uses rrcb's guest call graph and compares block/instruction/memory hashes and
 hypercall instruction counts against a clean replay. Attempts native writes,
-faulting reads, syscall skip/argument/return rewrites, late mutator registration
-and re-enabling a mutator registered before record/replay. A separate recording
-checks that unlogged mutations are refused while recording is active.
+faulting reads and syscall skip/argument/return rewrites, which are refused.
+Mutating and non-rr callbacks registered before the replay, registered late, or
+re-enabled during it are admitted but never run (each fails the run if it does).
+A separate recording checks the same while recording is active.
 """
 import json
 import os
@@ -25,25 +26,25 @@ def rejected(call, error):
     return False
 
 
+def never_in_rr(panda, what):
+    """A callback body that fails the run if it executes during record/replay."""
+    def body(*args):
+        if panda.libpanda.rr_on():
+            raise AssertionError(what + ' ran during record/replay')
+        return 0
+    return body
+
+
 def install(panda, name):
     result = {}
     for suffix, opts in [('mutator', {}), ('no_rr', dict(observe_only=True, modes=('analysis',)))]:
-        @panda.cb_after_loadvm(name='unsafe', **opts)
-        def unsafe(cpu):
-            raise AssertionError('unsafe callback ran')
-        result[suffix + '_python_entry'] = rejected(lambda: panda.run_replay(name), ValueError)
-        cname = panda.ffi.new('char[]', name.encode())
-        result[suffix + '_native_entry'] = panda.libpanda.panda_replay_begin(cname) != 0
-        result[suffix + '_python_rr_preflight'] = rejected(panda._check_rr_observers, ValueError)
-        result[suffix + '_native_record_entry'] = panda.libpanda.panda_record_begin(cname, panda.ffi.NULL) != 0
-        panda.delete_callback('unsafe')
-
-    @panda.cb_after_loadvm(name='disabled_mutator', enabled=False)
-    def disabled_mutator(cpu):
-        raise AssertionError('disabled mutator ran')
-    @panda.cb_after_loadvm(name='disabled_no_rr', enabled=False, observe_only=True, modes=('analysis',))
-    def disabled_no_rr(cpu):
-        raise AssertionError('mode-incompatible callback ran')
+        panda.cb_after_loadvm(name='unsafe_' + suffix, **opts)(never_in_rr(panda, 'unsafe ' + suffix))
+    skipped = panda._check_rr_observers()
+    result['preflight_names_skipped'] = ("callback 'unsafe_mutator'" in skipped and
+                                         "callback 'unsafe_no_rr'" in skipped)
+    panda.cb_after_loadvm(name='disabled_mutator', enabled=False)(never_in_rr(panda, 'disabled mutator'))
+    panda.cb_after_loadvm(name='disabled_no_rr', enabled=False, observe_only=True,
+                          modes=('analysis',))(never_in_rr(panda, 'mode-incompatible callback'))
     return result
 
 
@@ -95,15 +96,19 @@ def exercise(panda, cpu, result):
         panda.arch.get_reg(cpu, reg) == rval and bytes(panda.virtual_memory_read(cpu, pc, 8)) == before)
 
     progress('guard: checking late registrations')
-    result['late_enable'] = rejected(lambda: panda.enable_callback('disabled_mutator'), ValueError)
-    result['late_enable_stays_disabled'] = not panda.is_callback_enabled('disabled_mutator')
-    result['late_mode_enable'] = rejected(lambda: panda.enable_callback('disabled_no_rr'), ValueError)
-    result['late_hypercall_registration'] = rejected(lambda: panda.hypercall(0x1234)(lambda cpu: None), ValueError)
-    result['late_registration'] = rejected(lambda: panda.cb_asid_changed(name='late_mutator')(lambda *a: False), ValueError)
+    # Admitted, but skipped until the recording or replay ends: each raises if it runs.
+    panda.enable_callback('disabled_mutator')
+    result['late_enable'] = panda.is_callback_enabled('disabled_mutator')
+    panda.enable_callback('disabled_no_rr')
+    result['late_mode_enable'] = panda.is_callback_enabled('disabled_no_rr')
+    result['late_hypercall_registration'] = not rejected(
+        lambda: panda.hypercall(0x1234)(never_in_rr(panda, 'late hypercall')), ValueError)
+    result['late_registration'] = not rejected(
+        lambda: panda.cb_asid_changed(name='late_mutator')(never_in_rr(panda, 'late asid mutator')), ValueError)
     cb = ffi.new('panda_cb *', {'after_loadvm': panda.callback.after_loadvm(lambda cpu: None)})
     # No Python policy wrapper: exercise the native registry directly.
     owner = ffi.cast('void *', 0xfeed0001)
-    result['native_late_registration'] = not C.panda_register_callback_modes_helper(owner, C.PANDA_CB_AFTER_LOADVM, cb, 7, False)
+    result['native_late_registration'] = bool(C.panda_register_callback_modes_helper(owner, C.PANDA_CB_AFTER_LOADVM, cb, 7, False))
     result['unsupported_mode'] = not C.panda_register_callback_modes_helper(owner, C.PANDA_CB_ASID_CHANGED, cb, 8, True)
 
     @panda.cb_before_handle_exception(name='observer_exception', observe_only=True)
@@ -161,9 +166,6 @@ def live(image):
             panda.enable_callback('it')
             panda.enable_callback('ie')
             panda.disable_hypercall(mutate)
-
-    checks.check('native bridge refuses replay with a live mutator',
-                 panda.libpanda.panda_replay_begin(b'unused') != 0)
 
     @panda.queue_blocking
     def drive():

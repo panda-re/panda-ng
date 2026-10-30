@@ -202,13 +202,13 @@ Record a whole-system execution and replay it deterministically, with compatible
 callbacks and plugins attached during recording and replay. Launch with `-accel tcg,rr-ready=on` (pandare2 does this) so a
 recording can start at any point.
 
-**Limits.** TCG, single-threaded. Callbacks require RR compatibility and observe-only access. Unlogged analysis mutations are refused during recording and replay; native raw pointers remain a trusted-code boundary. Snapshot loads are refused while recording.
+**Limits.** TCG, single-threaded. Only RR-compatible observe-only callbacks run during recording and replay; other callbacks are skipped, with a warning, and run again when it ends. Unlogged analysis mutations are refused during recording and replay; native raw pointers remain a trusted-code boundary. Snapshot loads are refused while recording.
 
 **Use it:** `Panda.record`, `Panda.record_cmd`, `Panda.end_record`, `Panda.run_replay`, `-accel tcg,rr-ready=on`
 
 **Docs:** [docs/guides/record-replay.md](guides/record-replay.md)
 
-**Tests:** `tests/rr.py`, `tests/rrcb.py`, `tests/rrstop.py`, `tests/rrload.py`, `tests/rr_blocks.py`, `tests/replay_guard.py`, `tests/static/replay_policy.py`, `tests/static/replay_native.py`, `tests/static/replay_bh.py`
+**Tests:** `tests/rr.py`, `tests/rrcb.py`, `tests/rrstop.py`, `tests/rr_mutators.py`, `tests/rrload.py`, `tests/rr_blocks.py`, `tests/replay_guard.py`, `tests/static/replay_policy.py`, `tests/static/replay_native.py`, `tests/static/replay_bh.py`
 
 **Engine patches:** 0025-0028, 0030, 0037-0040, 0050-0052, 0066-0068, 0072-0073, 0084-0085 ([series](reference/patches.md))
 

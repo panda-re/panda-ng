@@ -20,7 +20,7 @@ set -euo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 DEFAULT_TESTS="guest api osi_isf blocks block_activation callbacks calls mem mmio late reset teardown asidstory tbpc
-  hookalias rr rrcb rrstop rrload fuzz fastrestore fastcov syscalls"
+  hookalias rr rrcb rrstop rr_mutators rrload fuzz fastrestore fastcov syscalls"
 TESTS=${TESTS:-$DEFAULT_TESTS}
 TIMEOUT=${TIMEOUT:-1800}
 OUT=${OUT:-${TMPDIR:-/tmp}/panda-tests-$(date +%Y%m%d-%H%M%S)}
@@ -98,7 +98,7 @@ run_one() {
 
   local args=("$work/img/$name.json")
   # The rr tests take a work dir for their recordings.
-  case $test in rr | rrcb | rrstop | rrload | rr_blocks) mkdir -p "$work/rr" && args+=("$work/rr") ;; esac
+  case $test in rr | rrcb | rrstop | rr_mutators | rrload | rr_blocks) mkdir -p "$work/rr" && args+=("$work/rr") ;; esac
   # rrcb compares icounts across record/replay; on aarch64/riscv64 the guest's reads of it are
   # not yet exact ("Bad icount read"), so those images check callbacks without it.
   local env=(TMPDIR="$tmp")
