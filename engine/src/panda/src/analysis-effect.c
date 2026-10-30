@@ -8,3 +8,9 @@ bool panda_analysis_ram_write(uint64_t address, const uint8_t *data,
 {
     return replay_analysis_ram_write_request(address, data, length);
 }
+
+bool panda_analysis_reg_write(int cpu_index, int reg, const uint8_t *data,
+                              uint32_t length)
+{
+    return replay_analysis_reg_write_request(cpu_index, reg, data, length);
+}

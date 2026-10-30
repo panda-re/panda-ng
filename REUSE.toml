@@ -45,6 +45,7 @@ path = [
   "engine/patches/11.1.2/0084-replay-guard-guest-state-against-analysis-mutations.patch",
   "engine/patches/11.1.2/0085-replay-coalesce-repeated-schedules-of-a-pending-BH.patch",
   "engine/patches/11.1.2/0091-replay-serialize-deferred-analysis-RAM-writes-as-ord.patch",
+  "engine/patches/11.1.2/0092-replay-stub-analysis-register-effects-without-TCG.patch",
   "engine/patches/11.1.2/0089-riscv-select-snapshot-version-policy-at-registration.patch",
   "engine/patches/11.1.2/0002-build-emit-shared-libraries-for-the-Penguin-embeddin.patch",
   "engine/patches/11.1.2/0006-target-riscv-route-guest-hypercalls-into-Penguin.patch",

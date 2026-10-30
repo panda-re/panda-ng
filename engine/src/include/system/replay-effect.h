@@ -6,6 +6,8 @@
 
 #define REPLAY_RAM_EFFECT_MAX (64 * 1024)
 #define REPLAY_RAM_EFFECT_PENDING_MAX 64
+/* Largest gdbstub register (vector registers included); shares the pending cap. */
+#define REPLAY_REG_EFFECT_MAX 256
 
 /* Request admission only: main thread/BQL, every vCPU stopped, RECORD and RR
  * provisioned. Copies bytes, never writes synchronously. False has no effect.
@@ -15,6 +17,10 @@
  */
 bool replay_analysis_ram_write_request(uint64_t address, const uint8_t *data,
                                         uint32_t length);
+/* Same admission as RAM writes. The vCPU/register/size check runs at the apply
+ * boundary and is recorded, so replay verifies it rather than trusting the log. */
+bool replay_analysis_reg_write_request(int cpu_index, int reg,
+                                        const uint8_t *data, uint32_t length);
 void replay_analysis_effect_prepare(void *opaque);
 void replay_analysis_effect_save(void *opaque);
 void *replay_analysis_effect_load(void);

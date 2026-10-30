@@ -116,3 +116,4 @@ Counts: new 57, penguin 26, panda-re/qemu 6, ac88u 2.
 | 0089 | riscv: select snapshot version policy at registration | new | GPL-2.0-or-later | minimum12 upstream, HANDOFF opts into11 before loading fields |
 | 0090 | system: seal capabilities before startup side effects | new | MIT | early arity-aware CLI prepass, immutable embedding handshake |
 | 0091 | replay: serialize deferred analysis RAM writes as ordered async events | new | GPL-2.0-or-later | bounded RAM-only effects, producer-free replay, versioned ND transport |
+| 0092 | replay: stub analysis register effects without TCG | new | GPL-2.0-or-later | no-TCG linkage for the register effect request |
