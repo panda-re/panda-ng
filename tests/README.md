@@ -14,6 +14,9 @@ export PANDA_PYTHON=$PWD/result-python/bin/python3
 | static | `static/layout.py <engine>/include/panda-ng [arch...]` | nothing, no guest: pandare2's cffi lays out CPUState, CPUArchState and the engine's structs as gcc does, on every arch (`nix build .#checks.x86_64-linux.layout`) |
 | static | `static/capabilities.py`, `static/analysis_policy.py` | Python (and C compiler for native policy), no engine/guest: capability normalization, zero default and startup freeze |
 | static | `static/vanilla_inventory.py` | Python only: every patch digest/classification and overlay covered; not a vanilla parity test |
+| static | `static/thread_tracker.py` | Python/C++ compiler: exact task/lifetime/epoch return branches, no ASID guesses |
+| static | `static/thread_identity.py` | Python and a C++ compiler, no engine or guest: checked exact thread queries and unavailable/failed-read behavior (`nix build .#checks.x86_64-linux.thread-identity`) |
+| static | `static/syscalls2/observer_test.py` | Python, C compiler and GLib, no guest: native observer ownership, cookie drain, unload refusal and hook removal (`nix build .#checks.x86_64-linux.syscall-observer`) |
 | static | `static/lifecycle.py` | Python, C compiler and GLib, no engine or guest: transient cancellation/reset-hook lifetime and fast-restore notification (`nix build .#checks.x86_64-linux.lifecycle`) |
 | static | `static/replay_bh.py <patched replay/replay-events.c>` | Python and a C compiler, no engine or guest: pending BH coalescing and reentrant event drains (`nix build .#checks.x86_64-linux.replay-bh`) |
 | static | `static/replay_native.py` | Python and a C compiler, no engine or guest: extracted native mutation guards and Penguin continuations (`nix build .#checks.x86_64-linux.replay-native`) |

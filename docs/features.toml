@@ -144,7 +144,7 @@ Python, `panda.get_current_process`, `get_process_name` and `get_mappings` call 
 api = ["plugin:osi", "plugin:osi_linux", "plugin:osi_isf", "py:Panda.get_current_process",
        "py:Panda.get_process_name", "py:Panda.get_mappings"]
 docs = ["docs/guides/getting-started.md#a-first-analysis", "docs/guides/plugins.md"]
-tests = ["tests/osi_isf.py", "tests/asidstory.py", "tests/kpti.py"]
+tests = ["tests/osi_isf.py", "tests/asidstory.py", "tests/kpti.py", "tests/static/thread_identity.py"]
 
 [[feature]]
 id = "syscalls"
@@ -158,7 +158,10 @@ processes (proc_start_linux).
 """
 api = ["plugin:syscalls2", "plugin:proc_start_linux"]
 docs = ["docs/guides/plugins.md#using-a-plugin-from-python", "plugins/syscalls2/README.md"]
-tests = ["tests/guest.py", "tests/syscalls.py"]
+tests = ["tests/guest.py", "tests/syscalls.py", "tests/syscall_observer.py",
+         "tests/static/syscalls2/observer_test.py", "tests/static/thread_tracker.py",
+         "tests/static/exact_thread_backend.py"]
+limits = "The native-observer backend is opt-in and experimental, Linux x86_64 only, with exclusive native trap ownership and no guest mutation. Fork/clone child correlation and full lifecycle/guest conformance remain acceptance blockers; the legacy backend remains the default."
 
 [[feature]]
 id = "hooks"

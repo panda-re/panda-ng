@@ -336,7 +336,7 @@ Profile profiles[PROFILE_LAST] = {
     {   /* PROFILE_LINUX_X64 */
         .enter_switch = syscall_enter_switch_linux_x64,
         .return_switch = syscall_return_switch_linux_x64,
-        .get_return_val = get_return_val_x86,
+        .get_return_val = get_return_val_x64,
         .calc_retaddr = calc_retaddr_linux_x64,
         .get_32 = get_32_linux_x64,
         .get_s32 = get_s32_generic,
@@ -423,6 +423,12 @@ Profile profiles[PROFILE_LAST] = {
 static ProfileType default_profile;
 bool load_info = false;
 
+static std::vector<void (*)(CPUState*, target_ulong)> preExecCallbacks;
+#if defined(TARGET_X86_64)
+#include <climits>
+#include "native_observer.h"
+#endif
+
 // Reinterpret the ulong as a long. Arch and host specific.
 target_long get_return_val_x86(CPUState *cpu){
 #if defined(TARGET_I386)
@@ -435,6 +441,11 @@ target_long get_return_val_x86(CPUState *cpu){
 }
 
 target_long get_return_val_x64(CPUState *cpu){
+#if defined(TARGET_X86_64)
+    if (native_frame) {
+        return native_frame->event->ret;
+    }
+#endif
     return get_return_val_x86(cpu);
 }
 
@@ -673,6 +684,10 @@ uint32_t get_linux_x86_argnum(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) 
 // Argument getting (at syscall entry)
 uint64_t get_linux_x64_argnum(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
 #if defined(TARGET_X86_64)
+    if (native_frame) {
+        assert(argnum < 6);
+        return native_frame->event->args[argnum];
+    }
     CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
 
     // PANDA uses x86 register names to get at the x64 registers
@@ -1129,8 +1144,6 @@ void syscall_return_linux_mips64(CPUState *cpu, target_ptr_t pc, const syscall_c
 }
 
 
-static std::vector<void (*)(CPUState*, target_ulong)> preExecCallbacks;
-
 void registerExecPreCallback(void (*callback)(CPUState*, target_ulong)){
     preExecCallbacks.push_back(callback);
 }
@@ -1489,6 +1502,9 @@ const syscall_meta_t *get_syscall_meta(void) {
  * Re-resolve hooks on each transition: reverse unload may already have unmapped it. */
 static void syscalls2_reset_transient(void *)
 {
+#if defined(TARGET_X86_64)
+    if (exact_backend) exact_reset();
+#endif
     void *hooks = panda_get_plugin_by_name("hooks");
     if (hooks) {
         auto remove = (void (*)(void (*)(CPUState *, TranslationBlock *, struct hook *)))
@@ -1605,13 +1621,79 @@ bool init_plugin(void *self) {
         return false;
     }
 
-    // parse arguments and initialize callbacks & info api
-    panda_cb pcb;
-    pcb.block_translate = block_translate;
-    if (!panda_register_callback_modes(self, PANDA_CB_BLOCK_TRANSLATE, pcb,
-            panda_callback_supported_modes(PANDA_CB_BLOCK_TRANSLATE), true)) {
+    // Native mode is deliberately opt-in and observation-only. Reject unsupported
+    // target/profile and unsafe registration contexts; never partial fallback.
+    bool use_native = panda_parse_bool_opt(plugin_args, "native-observer",
+            "EXPERIMENTAL Linux x86_64 native trap observation (no guest mutation).");
+    bool use_exact = panda_parse_bool_opt(plugin_args, "exact-thread",
+            "Native Linux x64 exact task/lifetime returns; requires validated kernel sites.");
+#if defined(TARGET_X86_64)
+    if (use_exact) {
+        exact_birth_site = panda_parse_uint64_opt(plugin_args, "exact-birth", 0,
+                "Validated wake_up_new_task entry VA: RDI=child, current=creator.");
+        exact_death_site = panda_parse_uint64_opt(plugin_args, "exact-death", 0,
+                "Validated do_exit entry VA: current is dying thread.");
+        exact_exec_site = panda_parse_uint64_opt(plugin_args, "exact-exec", 0,
+                "Validated successful-exec commit VA BEFORE de_thread identity changes; current=old thread.");
+        panda_require("osi");
+        void *osi = panda_get_plugin_by_name("osi");
+        exact_current = osi ? (ExactCurrent)dlsym(osi, "get_current_thread_identity") : nullptr;
+        exact_by_task = osi ? (ExactByTask)dlsym(osi, "get_thread_identity") : nullptr;
+        exact_hook = (decltype(exact_hook))dlsym(RTLD_DEFAULT, "penguin_kernel_hook");
+        exact_unhook = (decltype(exact_unhook))dlsym(RTLD_DEFAULT, "penguin_kernel_unhook");
+        OsiThreadIdentity probe = {};
+        CPUState *cpu = qemu_get_cpu(0);
+        if (!use_native || default_profile != PROFILE_LINUX_X64 ||
+            !exact_birth_site || !exact_death_site || !exact_exec_site ||
+            !exact_current || !exact_by_task || !exact_hook || !exact_unhook ||
+            !cpu || !exact_current(cpu, &probe) || !probe.lifetime_valid) {
+            std::cerr << PANDA_MSG "exact-thread requires native Linux64, ready checked OSI identity and all validated birth/death/pre-dethread exec sites" << std::endl;
+            panda_free_args(plugin_args);
+            return false;
+        }
+        exact_backend = true;
+        exact_kernel_hooks[0] = exact_hook(exact_birth_site, exact_birth, nullptr);
+        exact_kernel_hooks[1] = exact_hook(exact_death_site, exact_invalidate, nullptr);
+        exact_kernel_hooks[2] = exact_hook(exact_exec_site, exact_invalidate, nullptr);
+        if (!exact_kernel_hooks[0] || !exact_kernel_hooks[1] || !exact_kernel_hooks[2]) {
+            exact_shutdown();
+            panda_free_args(plugin_args);
+            return false;
+        }
+    }
+    if (use_native) {
+        if (default_profile != PROFILE_LINUX_X64 ||
+            !panda_syscall_observer_register(self, &native_ops, nullptr)) {
+            std::cerr << PANDA_MSG "native-observer: Linux x86_64 requires exclusive trap ownership and main/BQL/quiescent registration" << std::endl;
+            if (exact_backend) exact_shutdown();
+            panda_free_args(plugin_args);
+            return false;
+        }
+        if (!panda_syscall_observer_watch(self, PANDA_SYSCALL_OBSERVER_X86_64, -1,
+                PANDA_SYSCALL_OBSERVER_ENTER | PANDA_SYSCALL_OBSERVER_RETURN)) {
+            panda_syscall_observer_unregister(self);
+            if (exact_backend) exact_shutdown();
+            panda_free_args(plugin_args);
+            return false;
+        }
+        native_backend = true;
+    }
+#else
+    if (use_native || use_exact) {
+        std::cerr << PANDA_MSG "native-observer/exact-thread supports only Linux x86_64" << std::endl;
         panda_free_args(plugin_args);
         return false;
+    }
+#endif
+    // Default/other backends retain the legacy translation path.
+    if (!use_native) {
+        panda_cb pcb;
+        pcb.block_translate = block_translate;
+        if (!panda_register_callback_modes(self, PANDA_CB_BLOCK_TRANSLATE, pcb,
+                panda_callback_supported_modes(PANDA_CB_BLOCK_TRANSLATE), true)) {
+            panda_free_args(plugin_args);
+            return false;
+        }
     }
 
     // load system call info
@@ -1642,6 +1724,13 @@ bool init_plugin(void *self) {
     if (!hooks_add_hook || !hooks_remove_syscall_return ||
         !panda_register_transient_reset(self, syscalls2_reset_transient, nullptr)) {
         std::cerr << PANDA_MSG "syscalls2 requires lifetime-safe hooks API and quiescent transient reset registration" << std::endl;
+#if defined(TARGET_X86_64)
+        if (native_backend) {
+            panda_syscall_observer_unregister(self);
+            native_backend = false;
+        }
+        if (exact_backend) exact_shutdown();
+#endif
         // Failed initialization does not run uninit_plugin.
         panda_unregister_callbacks(self);
         return false;
@@ -1663,7 +1752,20 @@ bool init_plugin(void *self) {
 }
 
 void uninit_plugin(void *self) {
+#if defined(TARGET_X86_64)
+    if (native_backend) {
+        // Engine also detaches before uninit/dlclose; this is idempotent.
+        if (!panda_syscall_observer_unregister(self)) {
+            std::cerr << PANDA_MSG "native-observer detach requires quiescent main thread" << std::endl;
+            return;
+        }
+        native_backend = false;
+    }
+#endif
     syscalls2_reset_transient(nullptr);
+#if defined(TARGET_X86_64)
+    if (exact_backend) exact_shutdown();
+#endif
     // if we don't clear tb's when this exits we have TBs which can call
     // into our exited plugin.
     panda_do_flush_tb();

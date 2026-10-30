@@ -428,6 +428,59 @@ void on_get_process_ppid(CPUState *cpu, const OsiProcHandle *h, target_pid_t *pp
         ? field_int(cpu, field_ptr(cpu, h->taskd, off.task_real_parent), off.task_tgid) : -1;
 }
 
+/* Profile currently retains member kind/name, not the base_types size table.
+ * Accept only known Linux 64-bit scalar spellings, never structs/timespecs or
+ * unknown typedefs whose width would otherwise have to be guessed. */
+static bool identity_start_time_u64(void) {
+    const auto *f = prof.field("task_struct", "start_time");
+    if (!f || f->kind != "base") return false;
+    return f->type_name == "unsigned long long" ||
+           f->type_name == "long long unsigned int" ||
+           ((f->type_name == "unsigned long" ||
+             f->type_name == "long unsigned int") && prof.pointer_size == 8);
+}
+
+static bool read_thread_identity(CPUState *cpu, target_ptr_t task,
+                                 OsiThreadIdentity *out) {
+    OsiThreadIdentity id = {};
+    uint64_t tid, tgid, start;
+    if (!cpu || !is_kernel_ptr(task) || !identity_start_time_u64() ||
+        off.task_pid < 0 || off.task_tgid < 0 || off.task_start_time < 0 ||
+        !read_uint(cpu, task + off.task_pid, 4, &tid) ||
+        !read_uint(cpu, task + off.task_tgid, 4, &tgid) ||
+        !read_uint(cpu, task + off.task_start_time, 8, &start)) return false;
+    id.task = task;
+    id.tid = (int32_t)tid;
+    id.tgid = (int32_t)tgid;
+    if (id.tid < 0 || id.tgid < 0) return false;
+    id.lifetime = start;
+    id.lifetime_format = OSI_THREAD_LIFETIME_START_TIME_U64;
+    id.lifetime_valid = true;
+    uint64_t mm, pgd;
+    if (off.task_mm >= 0 && read_uint(cpu, task + off.task_mm, prof.pointer_size, &mm)) {
+        id.mm = mm;
+        id.mm_valid = true;
+        if (mm && off.mm_pgd >= 0 &&
+            read_uint(cpu, mm + off.mm_pgd, prof.pointer_size, &pgd) && pgd) {
+            id.asid = panda_virt_to_phys(cpu, pgd);
+            id.asid_valid = id.asid != (target_ptr_t)-1;
+            if (!id.asid_valid) id.asid = 0;
+        }
+    }
+    *out = id;
+    return true;
+}
+
+void on_get_thread_identity(CPUState *cpu, target_ptr_t task,
+                            OsiThreadIdentity *out, bool *ok) {
+    *ok = read_thread_identity(cpu, task, out);
+}
+
+void on_get_current_thread_identity(CPUState *cpu, OsiThreadIdentity *out,
+                                    bool *ok) {
+    *ok = cpu && read_thread_identity(cpu, current_task(cpu), out);
+}
+
 void on_get_current_thread(CPUState *cpu, OsiThread **out) {
     uint64_t ts = current_task(cpu);
     *out = NULL;
@@ -655,6 +708,8 @@ bool init_plugin(void *self) {
     PPP_REG_CB("osi", on_get_mapping_base_address_by_name, on_get_mapping_base_address_by_name);
     PPP_REG_CB("osi", on_has_mapping_prefix, on_has_mapping_prefix);
     PPP_REG_CB("osi", on_get_current_thread, on_get_current_thread);
+    PPP_REG_CB("osi", on_get_current_thread_identity, on_get_current_thread_identity);
+    PPP_REG_CB("osi", on_get_thread_identity, on_get_thread_identity);
     PPP_REG_CB("osi", on_get_process_pid, on_get_process_pid);
     PPP_REG_CB("osi", on_get_process_ppid, on_get_process_ppid);
 

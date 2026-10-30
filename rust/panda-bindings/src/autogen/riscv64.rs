@@ -45991,6 +45991,99 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn panda_disable_plugin(plugin: *mut ::std::os::raw::c_void);
 }
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PandaSyscallObservation {
+    pub abi: ::std::os::raw::c_int,
+    pub num: i64,
+    pub args: [u64; 6usize],
+    pub pc: u64,
+    pub ret: i64,
+    pub restart: bool,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of PandaSyscallObservation"][::std::mem::size_of::<PandaSyscallObservation>() - 88usize];
+    ["Alignment of PandaSyscallObservation"]
+        [::std::mem::align_of::<PandaSyscallObservation>() - 8usize];
+    ["Offset of field: PandaSyscallObservation::abi"]
+        [::std::mem::offset_of!(PandaSyscallObservation, abi) - 0usize];
+    ["Offset of field: PandaSyscallObservation::num"]
+        [::std::mem::offset_of!(PandaSyscallObservation, num) - 8usize];
+    ["Offset of field: PandaSyscallObservation::args"]
+        [::std::mem::offset_of!(PandaSyscallObservation, args) - 16usize];
+    ["Offset of field: PandaSyscallObservation::pc"]
+        [::std::mem::offset_of!(PandaSyscallObservation, pc) - 64usize];
+    ["Offset of field: PandaSyscallObservation::ret"]
+        [::std::mem::offset_of!(PandaSyscallObservation, ret) - 72usize];
+    ["Offset of field: PandaSyscallObservation::restart"]
+        [::std::mem::offset_of!(PandaSyscallObservation, restart) - 80usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PandaSyscallObserverOps {
+    pub enter: ::std::option::Option<
+        unsafe extern "C" fn(
+            arg1: *mut CPUState,
+            arg2: *const PandaSyscallObservation,
+            opaque: *mut ::std::os::raw::c_void,
+        ) -> *mut ::std::os::raw::c_void,
+    >,
+    pub ret: ::std::option::Option<
+        unsafe extern "C" fn(
+            arg1: *mut CPUState,
+            arg2: *const PandaSyscallObservation,
+            cookie: *mut ::std::os::raw::c_void,
+            opaque: *mut ::std::os::raw::c_void,
+        ),
+    >,
+    pub drop: ::std::option::Option<
+        unsafe extern "C" fn(
+            cookie: *mut ::std::os::raw::c_void,
+            opaque: *mut ::std::os::raw::c_void,
+        ),
+    >,
+    pub accept_return: ::std::option::Option<
+        unsafe extern "C" fn(
+            arg1: *mut CPUState,
+            arg2: *const PandaSyscallObservation,
+            cookie: *mut ::std::os::raw::c_void,
+            opaque: *mut ::std::os::raw::c_void,
+        ) -> bool,
+    >,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of PandaSyscallObserverOps"][::std::mem::size_of::<PandaSyscallObserverOps>() - 32usize];
+    ["Alignment of PandaSyscallObserverOps"]
+        [::std::mem::align_of::<PandaSyscallObserverOps>() - 8usize];
+    ["Offset of field: PandaSyscallObserverOps::enter"]
+        [::std::mem::offset_of!(PandaSyscallObserverOps, enter) - 0usize];
+    ["Offset of field: PandaSyscallObserverOps::ret"]
+        [::std::mem::offset_of!(PandaSyscallObserverOps, ret) - 8usize];
+    ["Offset of field: PandaSyscallObserverOps::drop"]
+        [::std::mem::offset_of!(PandaSyscallObserverOps, drop) - 16usize];
+    ["Offset of field: PandaSyscallObserverOps::accept_return"]
+        [::std::mem::offset_of!(PandaSyscallObserverOps, accept_return) - 24usize];
+};
+unsafe extern "C" {
+    pub fn panda_syscall_observer_register(
+        owner: *mut ::std::os::raw::c_void,
+        ops: *const PandaSyscallObserverOps,
+        opaque: *mut ::std::os::raw::c_void,
+    ) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_syscall_observer_watch(
+        owner: *mut ::std::os::raw::c_void,
+        abi: ::std::os::raw::c_int,
+        num: i64,
+        flags: ::std::os::raw::c_uint,
+    ) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_syscall_observer_unregister(owner: *mut ::std::os::raw::c_void) -> bool;
+}
 unsafe extern "C" {
     pub fn panda_analysis_ram_write(address: u64, data: *const u8, length: u32) -> bool;
 }

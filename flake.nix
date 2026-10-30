@@ -163,7 +163,7 @@
                 cp ../libpanda-ng/*.h $out/include/panda-ng/
                 # Additive APIs are not part of the generated flattened ABI headers.
                 mkdir -p $out/include/panda
-                cp include/panda/analysis-effect.h $out/include/panda/
+                cp include/panda/{syscall-observer,analysis-effect}.h $out/include/panda/
                 # libqemu-system-<name>.so (with penguin's alias names), libqemu-kvm-<target>.so and
                 # libpanda-<target>-softmmu.so are links of the same objects; only the soname differs,
                 # and all of them are dlopened by path. Keep libpanda-* and link the rest to it.
@@ -1093,6 +1093,10 @@
             python3 ${./.}/tests/static/replay_policy.py
             touch $out
           '';
+          exact-thread-backend = pkgs.runCommandCC "exact-thread-backend-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            python3 ${./.}/tests/static/exact_thread_backend.py
+            touch $out
+          '';
           capability-gates = pkgs.runCommandCC "capability-gates-check" {
             nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
             buildInputs = [ pkgs.glib ];
@@ -1134,11 +1138,26 @@
             python3 ${./.}/tests/static/vanilla_inventory.py
             touch $out
           '';
+          thread-tracker = pkgs.runCommandCC "thread-tracker-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            python3 ${./.}/tests/static/thread_tracker.py
+            touch $out
+          '';
+          thread-identity = pkgs.runCommandCC "thread-identity-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            python3 ${./.}/tests/static/thread_identity.py
+            touch $out
+          '';
           penguin-detach = pkgs.runCommandCC "penguin-detach-check" {
             nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
             buildInputs = [ pkgs.glib ];
           } ''
             python3 ${./.}/tests/static/penguin_detach.py
+            touch $out
+          '';
+          syscall-observer = pkgs.runCommandCC "syscall-observer-check" {
+            nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
+            buildInputs = [ pkgs.glib ];
+          } ''
+            python3 ${./.}/tests/static/syscalls2/observer_test.py
             touch $out
           '';
           lifecycle = pkgs.runCommandCC "analysis-lifecycle-check" {

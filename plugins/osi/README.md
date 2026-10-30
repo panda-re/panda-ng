@@ -15,6 +15,23 @@ Expressed graphically, this arrangement looks like:
 
 The key is that you can swap out the bottom layer to support a new operating system without needing to modify your plugin. panda-ng ships two providers, both for Linux: `osi_linux` (kernel offsets from a kernelinfo file) and `osi_isf` (a Volatility 3 ISF of the guest kernel). There is no Windows provider.
 
+## Exact thread identity (experimental)
+
+`get_current_thread_identity(cpu, out)` and `get_thread_identity(cpu, task, out)`
+are additive checked queries for an actual thread's task descriptor, raw lifetime
+discriminator and format, and tid/tgid. They do not change `OsiProc`'s process/group-leader
+semantics or `OsiThread`'s existing layout. Consumers must add a restore/session epoch
+and bind observed task-creation relationships; a shared ASID or return PC is not proof
+of thread identity or parentage.
+
+Failure returns false and clears the output. A successfully read zero lifetime is
+valid; missing metadata or a failed read is not a zero-valued identity. Address-space
+availability is separate (`mm_valid`, `asid_valid`), and a physical ASID of zero can be
+valid. Unsupported providers return unavailable. The kernelinfo provider relies on the
+standard Linux >=3.17 scalar `start_time` ABI; old timespec layouts are unavailable.
+The ISF provider requires a recognized unsigned 64-bit scalar spelling. These checks
+do not establish profile provenance or authenticate an arbitrary task pointer as live.
+
 ## The guest OS
 `osi` needs the guest OS name: without one it fails an assertion when it loads. pandare2 sets it from `Panda(os_version=...)`, or from the `os` of an image description passed as `Panda(generic=...)` (images written by `pandare2.mkimage` have one, e.g. `linux-64-debian:6.12.113+deb13-amd64`). The name is validated against a list of regular expressions in [common.c][common.c]. For Linux, the part after the second `-` names the kernel and, with the bits, `osi_linux`'s default kernelinfo group. See the [osi_linux documentation][osi_linux_usage] for details.
 

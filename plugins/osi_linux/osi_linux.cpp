@@ -302,6 +302,68 @@ static bool fill_osimodule(CPUState *env, OsiModule *m, target_ptr_t vma_addr,
 /**
  * @brief Fills an OsiThread struct. Any existing contents are overwritten.
  */
+/* kernelinfo records offsets, not member types: scalar start_time is a Linux
+ * >= 3.17 profile contract. Older timespec profiles are deliberately unavailable.
+ * Do not use optional getters here: they turn failed reads into valid zeroes. */
+static bool read_thread_identity(CPUState *cpu, target_ptr_t task,
+                                 OsiThreadIdentity *out) {
+    OsiThreadIdentity id = {};
+    if (!cpu || !task || ki.version.a < 3 ||
+        (ki.version.a == 3 && ki.version.b < 17) ||
+        ki.task.start_time_offset <= 0 || ki.task.pid_offset <= 0 ||
+        ki.task.tgid_offset <= 0 ||
+        (size_t)ki.task.start_time_offset + sizeof(uint64_t) > ki.task.size) {
+        return false;
+    }
+    int32_t tid, tgid;
+    uint64_t start;
+    if (panda_virtual_memory_read(cpu, task + ki.task.pid_offset,
+                                 (uint8_t *)&tid, sizeof(tid)) != 0 ||
+        panda_virtual_memory_read(cpu, task + ki.task.tgid_offset,
+                                 (uint8_t *)&tgid, sizeof(tgid)) != 0 ||
+        panda_virtual_memory_read(cpu, task + ki.task.start_time_offset,
+                                 (uint8_t *)&start, sizeof(start)) != 0) {
+        return false;
+    }
+    id.task = task;
+    id.tid = flipbadendian(tid);
+    id.tgid = flipbadendian(tgid);
+    if (id.tid < 0 || id.tgid < 0) return false;
+    id.lifetime = flipbadendian(start);
+    id.lifetime_format = OSI_THREAD_LIFETIME_START_TIME_U64;
+    id.lifetime_valid = true;
+    target_ptr_t mm, pgd;
+    if (ki.task.mm_offset > 0 &&
+        panda_virtual_memory_read(cpu, task + ki.task.mm_offset,
+                                 (uint8_t *)&mm, sizeof(mm)) == 0) {
+        id.mm = flipbadendian(mm);
+        id.mm_valid = true; /* A checked NULL mm is meaningful for kernel tasks. */
+        if (id.mm && ki.mm.pgd_offset >= 0 &&
+            panda_virtual_memory_read(cpu, id.mm + ki.mm.pgd_offset,
+                                     (uint8_t *)&pgd, sizeof(pgd)) == 0) {
+            pgd = flipbadendian(pgd);
+            if (pgd) {
+                id.asid = panda_virt_to_phys(cpu, pgd);
+                id.asid_valid = id.asid != (target_ptr_t)-1;
+                if (!id.asid_valid) id.asid = 0;
+            }
+        }
+    }
+    *out = id;
+    return true;
+}
+
+void on_get_thread_identity(CPUState *cpu, target_ptr_t task,
+                            OsiThreadIdentity *out, bool *ok) {
+    *ok = read_thread_identity(cpu, task, out);
+}
+
+void on_get_current_thread_identity(CPUState *cpu, OsiThreadIdentity *out,
+                                    bool *ok) {
+    *ok = cpu && kernel_profile &&
+          read_thread_identity(cpu, kernel_profile->get_current_task_struct(cpu), out);
+}
+
 void fill_osithread(CPUState *env, OsiThread *t,
                            target_ptr_t task_addr) {
     memset(t, 0, sizeof(*t));
@@ -1301,6 +1363,8 @@ bool init_plugin(void *self) {
         on_get_mapping_base_address_by_name);
     PPP_REG_CB("osi", on_has_mapping_prefix, on_has_mapping_prefix);
     PPP_REG_CB("osi", on_get_current_thread, on_get_current_thread);
+    PPP_REG_CB("osi", on_get_current_thread_identity, on_get_current_thread_identity);
+    PPP_REG_CB("osi", on_get_thread_identity, on_get_thread_identity);
     PPP_REG_CB("osi", on_get_process_pid, on_get_process_pid);
     PPP_REG_CB("osi", on_get_process_ppid, on_get_process_ppid);
 

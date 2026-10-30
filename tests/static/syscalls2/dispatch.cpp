@@ -16,12 +16,16 @@ Profile profiles[PROFILE_LAST];
 bool load_info = false;
 context_map_t running_syscalls;
 static uint64_t reads, hooks, enters, returns;
-static uint64_t args[3] = {100, 200, 3};
+static uint64_t args[6] = {100, 200, 3, 400, 500, 600};
+#include <climits>
+#include <vector>
+static std::vector<void (*)(CPUState*, target_ulong)> preExecCallbacks;
+#include "native_observer.h"
 static uint64_t seen[3];
 static CPUState cpu;
 static constexpr uint64_t pc = 0x400100;
-uint32_t get_32(CPUState *, syscall_ctx *, uint32_t n) { ++reads; return args[n % 3]; }
-uint64_t get_64(CPUState *, syscall_ctx *, uint32_t n) { ++reads; return args[n % 3]; }
+uint32_t get_32(CPUState *, syscall_ctx *, uint32_t n) { ++reads; return native_frame ? native_frame->event->args[n] : args[n]; }
+uint64_t get_64(CPUState *, syscall_ctx *, uint32_t n) { ++reads; return native_frame ? native_frame->event->args[n] : args[n]; }
 int32_t get_s32(CPUState *c, syscall_ctx *x, uint32_t n) { return get_32(c, x, n); }
 int64_t get_s64(CPUState *c, syscall_ctx *x, uint32_t n) { return get_64(c, x, n); }
 target_ulong calc_retaddr(CPUState *, syscall_ctx *, target_ulong p) { return p + 2; }
@@ -93,6 +97,52 @@ static void check_args() {
     assert(seen[0] == args[0] && seen[1] == args[1] && seen[2] == args[2]);
 }
 
+static int preexec_count;
+static void preexec(CPUState *, target_ulong p) {
+    assert(p == pc && enters == 0); ++preexec_count;
+}
+static void native_tests() {
+    PandaSyscallObservation event = {};
+    event.abi = PANDA_SYSCALL_OBSERVER_X86_64;
+    event.num = 436;
+    event.pc = pc + 2;
+    for (int i = 0; i < 6; ++i) event.args[i] = args[i];
+    reset(); preExecCallbacks.push_back(preexec);
+    ppp_add_cb_on_all_sys_enter(all_enter);
+    assert(native_enter(&cpu, &event, nullptr) == nullptr);
+    assert(preexec_count == 1 && enters == 1);
+    preExecCallbacks.clear();
+    assert(reads == 0 && hooks == 0 && running_syscalls.empty());
+    reset(); ppp_add_cb_on_sys_close_range_return(ret);
+    void *cookie = native_enter(&cpu, &event, nullptr);
+    assert(cookie && reads == 3 && hooks == 0 && running_syscalls.empty());
+    auto *context = static_cast<syscall_ctx_t *>(cookie);
+    assert(context->retaddr == pc + 2);
+    native_return(&cpu, &event, cookie, nullptr);
+    assert(returns == 1); check_args(); native_drop(cookie, nullptr);
+    reset(); ppp_add_cb_on_all_sys_enter(late_generic);
+    cookie = native_enter(&cpu, &event, nullptr);
+    assert(cookie && hooks == 0);
+    event.restart = true;
+    native_return(&cpu, &event, cookie, nullptr);
+    assert(returns == 0); native_drop(cookie, nullptr);
+    event.restart = false;
+    reset(); ppp_add_cb_on_all_sys_return(all_return);
+    event.num = 60; assert(!native_enter(&cpu, &event, nullptr)); // no-return
+    event.num = 9999; cookie = native_enter(&cpu, &event, nullptr);
+    assert(cookie); native_return(&cpu, &event, cookie, nullptr); native_drop(cookie, nullptr);
+    assert(returns == 1);
+    reset(); ppp_add_cb_on_all_sys_return(all_return);
+    event.num = 435; assert(!native_enter(&cpu, &event, nullptr));
+    assert(hooks == 1 && running_syscalls.begin()->second.double_return);
+    reset(); event.abi = 1;
+    assert(!native_enter(&cpu, &event, nullptr) && reads == 0 && hooks == 0);
+    event.abi = 0; event.num = -1;
+    assert(!native_enter(&cpu, &event, nullptr));
+    reset();
+    std::puts("PASS: native context capture, late subscription, restart suppression, ABI rejection and double-return fallback");
+}
+
 static void tests() {
     reset(); call();
     assert(reads == 0 && hooks == 0 && running_syscalls.empty());
@@ -155,5 +205,5 @@ static void bench(const char *mode) {
 
 int main(int argc, char **argv) {
     if (argc == 3 && !std::strcmp(argv[1], "--bench")) bench(argv[2]);
-    else tests();
+    else { tests(); native_tests(); }
 }

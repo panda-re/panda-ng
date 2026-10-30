@@ -152,7 +152,7 @@ Python, `panda.get_current_process`, `get_process_name` and `get_mappings` call 
 
 **Docs:** [docs/guides/getting-started.md#a-first-analysis](guides/getting-started.md#a-first-analysis), [docs/guides/plugins.md](guides/plugins.md)
 
-**Tests:** `tests/osi_isf.py`, `tests/asidstory.py`, `tests/kpti.py`
+**Tests:** `tests/osi_isf.py`, `tests/asidstory.py`, `tests/kpti.py`, `tests/static/thread_identity.py`
 
 
 <a id="syscalls"></a>
@@ -161,11 +161,13 @@ Python, `panda.get_current_process`, `get_process_name` and `get_mappings` call 
 Callbacks on every system call entry and return, with decoded arguments (syscalls2), and on new
 processes (proc_start_linux).
 
+**Limits.** The native-observer backend is opt-in and experimental, Linux x86_64 only, with exclusive native trap ownership and no guest mutation. Fork/clone child correlation and full lifecycle/guest conformance remain acceptance blockers; the legacy backend remains the default.
+
 **Use it:** `syscalls2` (plugin), `proc_start_linux` (plugin)
 
 **Docs:** [docs/guides/plugins.md#using-a-plugin-from-python](guides/plugins.md#using-a-plugin-from-python), [plugins/syscalls2/README.md](https://github.com/panda-re/panda-ng/blob/main/plugins/syscalls2/README.md)
 
-**Tests:** `tests/guest.py`, `tests/syscalls.py`
+**Tests:** `tests/guest.py`, `tests/syscalls.py`, `tests/syscall_observer.py`, `tests/static/syscalls2/observer_test.py`, `tests/static/thread_tracker.py`, `tests/static/exact_thread_backend.py`
 
 
 <a id="hooks"></a>

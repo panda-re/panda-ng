@@ -106,6 +106,7 @@ static void panda_delete_plugin(int i)
 }
 static int dlclose(void *plugin) { closed++; return 0; }
 #define LOG_ERROR(...) ((void)0)
+static bool panda_syscall_observer_unregister(void *owner) { return true; }
 '''
 # Exercise the actual central removal body, not merely its source ordering.
 checks += close + r'''

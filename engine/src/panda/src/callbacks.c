@@ -18,6 +18,7 @@ PANDAENDCOMMENT */
 
 #include "config-host.h"
 #include "panda/plugin.h"
+#include "panda/syscall-observer.h"
 #include "qobject/qdict.h"
 #include "qapi/error.h"
 #include "monitor/monitor.h"
@@ -340,8 +341,12 @@ static void panda_delete_plugin(int i)
     nb_panda_plugins--;
 }
 
-static void dlclose_plugin(int plugin_idx) {
+static bool dlclose_plugin(int plugin_idx) {
     void *plugin = panda_plugins[plugin_idx].plugin;
+    if (!panda_syscall_observer_unregister(plugin)) {
+        LOG_ERROR("Refusing dlclose: syscall observer owner is not quiescent\n");
+        return false;
+    }
     bool exported_symbols = panda_plugins[plugin_idx].exported_symbols;
     /* init_plugin can register then fail without running uninit_plugin. */
     panda_unregister_transient_reset(plugin);
@@ -351,6 +356,7 @@ static void dlclose_plugin(int plugin_idx) {
         // This plugin was dlopened twice.  dlclose it twice to fully unload it.
         dlclose(plugin);
     }
+    return true;
 }
 
 // Determine if the plugin being loaded wants to export symbols to
@@ -469,7 +475,9 @@ static bool _panda_load_plugin(const char *filename, const char *plugin_name, bo
     }
 
     if(!init_fn(plugin) || panda_plugin_load_failed) {
-        dlclose_plugin(nb_panda_plugins - 1);
+        if (!dlclose_plugin(nb_panda_plugins - 1)) {
+            LOG_ERROR("Failed plugin retained: syscall observer could not detach safely\n");
+        }
         return false;
     }
 
@@ -774,6 +782,10 @@ static void panda_vcpus_resume(bool paused)
 void panda_do_unload_plugin(int plugin_idx)
 {
     void *plugin = panda_plugins[plugin_idx].plugin;
+    if (!panda_syscall_observer_unregister(plugin)) {
+        LOG_ERROR("Refusing unload: syscall observer owner is not quiescent\n");
+        return; /* no uninit or registry mutation; a later explicit request may retry */
+    }
     void (*uninit_fn)(void *) = dlsym(plugin, "uninit_plugin");
     if (!uninit_fn) {
         LOG_ERROR("Couldn't get symbol %s: %s\n", "uninit_plugin",
@@ -791,7 +803,11 @@ static void panda_unload_marked(void)
     panda_plugin_to_unload = false;
     for (int i = 0; i < nb_panda_plugins;) {
         if (panda_plugins[i].unload) {
+            int before = nb_panda_plugins;
             panda_do_unload_plugin(i);
+            if (nb_panda_plugins == before) {
+                i++; /* refused owner detach: never spin or uninit repeatedly */
+            }
         } else {
             i++;
         }
@@ -869,7 +885,11 @@ void panda_unload_plugins(void)
     // Unload them starting from the end to avoid having to shuffle everything
     // down each time
     while (nb_panda_plugins > 0) {
+        int before = nb_panda_plugins;
         panda_do_unload_plugin(nb_panda_plugins - 1);
+        if (nb_panda_plugins == before) {
+            break; /* retain owner and dependencies if safe detach was refused */
+        }
     }
     panda_vcpus_resume(paused);
 }

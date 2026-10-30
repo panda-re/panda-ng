@@ -4,6 +4,7 @@
  */
 #pragma once
 #include <gmodule.h>
+#include <stdbool.h>
 
 // BEGIN_PYPANDA_NEEDS_THIS -- do not delete this comment bc pypanda
 // api autogen needs it.  And don't put any compiler directives
@@ -40,6 +41,30 @@ typedef struct osi_thread_struct {
     target_pid_t pid;
     target_pid_t tid;
 } OsiThread;
+
+/** Exact thread identity, separate from group-leader OsiProc handles.
+ * Lifetime is a raw guest discriminator, not a globally unique ID. Consumers
+ * must add a snapshot/session epoch. No provider-generated generation is used.
+ * A successful query requires task, tid/tgid and a checked lifetime read;
+ * mm/asid availability is independent. Zero lifetime is valid when read.
+ */
+typedef enum {
+    OSI_THREAD_LIFETIME_UNAVAILABLE = 0,
+    OSI_THREAD_LIFETIME_START_TIME_U64 = 1
+} OsiThreadLifetimeFormat;
+
+typedef struct osi_thread_identity_struct {
+    target_ptr_t task;
+    target_pid_t tid;
+    target_pid_t tgid;
+    uint64_t lifetime;
+    OsiThreadLifetimeFormat lifetime_format;
+    bool lifetime_valid;
+    target_ptr_t mm;
+    target_ptr_t asid;
+    bool mm_valid;
+    bool asid_valid;
+} OsiThreadIdentity;
 
 /**
  * @brief Represents a page in the address space of a process.

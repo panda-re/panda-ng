@@ -93,6 +93,7 @@ void panda_disable_plugin(void *plugin);
 
 
 /* Additive analysis APIs, also visible to generated bindings. */
+#include "panda/syscall-observer.h"
 #include "panda/analysis-effect.h"
 
 // Structure to store metadata about a plugin

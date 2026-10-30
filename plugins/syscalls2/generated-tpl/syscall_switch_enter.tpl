@@ -103,6 +103,11 @@ void syscall_enter_switch_{{os}}_{{arch}}(CPUState *cpu, int profile, target_ptr
 	PPP_RUN_CB(on_all_sys_enter2, cpu, pc, call, &ctx);
 	if (!panda_noreturn && (*return_count > 0 || *return_context_count > 0 ||
 			PPP_CHECK_CB(on_all_sys_return) || PPP_CHECK_CB(on_all_sys_return2))) {
+{% if os == 'linux' and arch == 'x64' %}
+		if (syscalls2_capture_native_context(cpu, &ctx)) {
+			return;
+		}
+{% endif %}
 		struct hook h;
 		h.addr = ctx.retaddr;
 		h.asid = ctx.asid;

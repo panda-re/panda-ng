@@ -7680,6 +7680,11 @@ void syscall_enter_switch_linux_x64(CPUState *cpu, int profile, target_ptr_t pc,
 	PPP_RUN_CB(on_all_sys_enter2, cpu, pc, call, &ctx);
 	if (!panda_noreturn && (*return_count > 0 || *return_context_count > 0 ||
 			PPP_CHECK_CB(on_all_sys_return) || PPP_CHECK_CB(on_all_sys_return2))) {
+
+		if (syscalls2_capture_native_context(cpu, &ctx)) {
+			return;
+		}
+
 		struct hook h;
 		h.addr = ctx.retaddr;
 		h.asid = ctx.asid;

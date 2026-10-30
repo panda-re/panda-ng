@@ -3,6 +3,7 @@ specific_ss.add(
         'common.c',
         'analysis-effect.c',
         'callbacks.c',
+        'syscall-observer.c',
         'cb-support.c',
         'panda_api.c',
         'panda_arch.c',

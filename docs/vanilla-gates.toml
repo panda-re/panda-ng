@@ -1463,6 +1463,17 @@ required_action = "Reject runtime RR extension transitions in vanilla while pres
 vanilla_verified = false
 
 [[overlay]]
+id = "native-observer"
+class = "runtime-gate"
+capability = "native-syscall-observer"
+paths = ["engine/src/panda/src/syscall-observer.c"]
+functions = ["panda_syscall_observer_register", "panda_syscall_observer_watch", "panda_syscall_observer_unregister", "observer_quiescent"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Live owner/exclusive/quiescent/preinit validation exists; native option stays opt-in; no explicit vanilla admission."
+required_action = "Refuse native observer registration/watch in vanilla before consumer publication; drain mapped callbacks outside lock and retain live injected-register refusal on detach."
+vanilla_verified = false
+
+[[overlay]]
 id = "dynamic-module-overlay"
 class = "startup-gate"
 capability = "dynamic-modules"
@@ -1488,7 +1499,7 @@ vanilla_verified = false
 id = "overlay-headers-and-build"
 class = "build-only"
 capability = "overlay-build-and-abi"
-paths = ["engine/src/accel/tcg/hooks-internal.h", "engine/src/include/accel/tcg/hooks.h", "engine/src/include/hw/core/configurable-cpu.h", "engine/src/include/hw/core/panda-modules.h", "engine/src/include/panda/callbacks/cb-defs.h", "engine/src/include/panda/callbacks/cb-helper-defs.h", "engine/src/include/panda/callbacks/cb-helper-impl.h", "engine/src/include/panda/callbacks/cb-macros.h", "engine/src/include/panda/callbacks/cb-support.h", "engine/src/include/panda/callbacks/cb-trampolines.h", "engine/src/include/panda/cheaders.h", "engine/src/include/panda/checkpoint.h", "engine/src/include/panda/common.h", "engine/src/include/panda/debug.h", "engine/src/include/panda/helper_runtime.h", "engine/src/include/panda/hooks.h", "engine/src/include/panda/network.h", "engine/src/include/panda/panda_api.h", "engine/src/include/panda/panda_qemu_plugin_helpers.h", "engine/src/include/panda/plugin.h", "engine/src/include/panda/plugin_plugin.h", "engine/src/include/panda/types.h", "engine/src/include/panda/wrap_ops.h", "engine/src/include/qemu/panda-module-info.h", "engine/src/include/qemu/panda-module.h", "engine/src/include/qemu/plugin-hw.h", "engine/src/include/system/penguin-osi.h", "engine/src/include/system/penguin-syscalls.h", "engine/src/include/system/penguin.h", "engine/src/include/system/syscall-trap.h", "engine/src/panda/meson.build", "engine/src/panda/src/meson.build", "engine/src/scripts/panda-abi.py", "engine/src/scripts/panda-sdk.sh"]
+paths = ["engine/src/accel/tcg/hooks-internal.h", "engine/src/include/accel/tcg/hooks.h", "engine/src/include/hw/core/configurable-cpu.h", "engine/src/include/hw/core/panda-modules.h", "engine/src/include/panda/callbacks/cb-defs.h", "engine/src/include/panda/callbacks/cb-helper-defs.h", "engine/src/include/panda/callbacks/cb-helper-impl.h", "engine/src/include/panda/callbacks/cb-macros.h", "engine/src/include/panda/callbacks/cb-support.h", "engine/src/include/panda/callbacks/cb-trampolines.h", "engine/src/include/panda/cheaders.h", "engine/src/include/panda/checkpoint.h", "engine/src/include/panda/common.h", "engine/src/include/panda/debug.h", "engine/src/include/panda/helper_runtime.h", "engine/src/include/panda/hooks.h", "engine/src/include/panda/network.h", "engine/src/include/panda/panda_api.h", "engine/src/include/panda/panda_qemu_plugin_helpers.h", "engine/src/include/panda/plugin.h", "engine/src/include/panda/plugin_plugin.h", "engine/src/include/panda/syscall-observer.h", "engine/src/include/panda/types.h", "engine/src/include/panda/wrap_ops.h", "engine/src/include/qemu/panda-module-info.h", "engine/src/include/qemu/panda-module.h", "engine/src/include/qemu/plugin-hw.h", "engine/src/include/system/penguin-osi.h", "engine/src/include/system/penguin-syscalls.h", "engine/src/include/system/penguin.h", "engine/src/include/system/syscall-trap.h", "engine/src/panda/meson.build", "engine/src/panda/src/meson.build", "engine/src/scripts/panda-abi.py", "engine/src/scripts/panda-sdk.sh"]
 functions = ["CONFIG_PANDA hook stubs/declarations", "callback ABI and generated helper macros", "Meson overlay source/link selection", "public API inline/accessor contracts"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "Headers/build inputs grouped for coverage only; inline dispatch, ABI/layout, CONFIG_PANDA and linker effects are not exempt from strict upstream vanilla behavior."

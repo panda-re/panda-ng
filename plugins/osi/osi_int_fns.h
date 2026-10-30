@@ -13,6 +13,11 @@ GArray *get_process_handles(CPUState *cpu);
 // returns the current thread
 OsiThread *get_current_thread(CPUState *cpu);
 
+// Checked exact identity. False (and zeroed output) if provider/fields unavailable.
+// By-task accepts an actual thread descriptor, never a group-leader substitution.
+bool get_current_thread_identity(CPUState *cpu, OsiThreadIdentity *out);
+bool get_thread_identity(CPUState *cpu, target_ptr_t task, OsiThreadIdentity *out);
+
 // returns information about the modules loaded by the guest OS kernel
 GArray *get_modules(CPUState *cpu);
 

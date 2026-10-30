@@ -19,6 +19,7 @@
 typedef void CPUState;
 typedef void OsiProcHandle;
 typedef void OsiThread;
+typedef void OsiThreadIdentity;
 typedef void OsiProc;
 typedef void OsiProcMem;
 typedef void OsiModule;

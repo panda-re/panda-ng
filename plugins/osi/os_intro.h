@@ -22,6 +22,8 @@ PPP_CB_TYPEDEF(void,on_get_mapping_by_addr,CPUState *, OsiProc *, const target_p
 PPP_CB_TYPEDEF(void,on_get_mapping_base_address_by_name,CPUState *, OsiProc *, const char *, target_ptr_t *);
 PPP_CB_TYPEDEF(void,on_has_mapping_prefix,CPUState *, OsiProc *, const char *, bool *);
 PPP_CB_TYPEDEF(void,on_get_current_thread,CPUState *, OsiThread **);
+PPP_CB_TYPEDEF(void,on_get_current_thread_identity,CPUState *, OsiThreadIdentity *, bool *);
+PPP_CB_TYPEDEF(void,on_get_thread_identity,CPUState *, target_ptr_t, OsiThreadIdentity *, bool *);
 
 PPP_CB_TYPEDEF(void,on_get_process_pid,CPUState *, const OsiProcHandle *, target_pid_t *);
 PPP_CB_TYPEDEF(void,on_get_process_ppid,CPUState *, const OsiProcHandle *, target_pid_t *);

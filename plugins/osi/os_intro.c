@@ -52,6 +52,8 @@ PPP_PROT_REG_CB(on_get_mapping_by_addr)
 PPP_PROT_REG_CB(on_get_mapping_base_address_by_name)
 PPP_PROT_REG_CB(on_has_mapping_prefix)
 PPP_PROT_REG_CB(on_get_current_thread)
+PPP_PROT_REG_CB(on_get_current_thread_identity)
+PPP_PROT_REG_CB(on_get_thread_identity)
 PPP_PROT_REG_CB(on_get_process_pid)
 PPP_PROT_REG_CB(on_get_process_ppid)
 
@@ -73,6 +75,8 @@ PPP_CB_BOILERPLATE(on_get_mapping_by_addr)
 PPP_CB_BOILERPLATE(on_get_mapping_base_address_by_name)
 PPP_CB_BOILERPLATE(on_has_mapping_prefix)
 PPP_CB_BOILERPLATE(on_get_current_thread)
+PPP_CB_BOILERPLATE(on_get_current_thread_identity)
+PPP_CB_BOILERPLATE(on_get_thread_identity)
 PPP_CB_BOILERPLATE(on_get_process_pid)
 PPP_CB_BOILERPLATE(on_get_process_ppid)
 
@@ -81,6 +85,25 @@ PPP_CB_BOILERPLATE(on_task_change)
 // The copious use of pointers to pointers in this file is due to
 // the fact that PPP doesn't support return values (since it assumes
 // that you will be running multiple callbacks at one site)
+
+bool get_current_thread_identity(CPUState *cpu, OsiThreadIdentity *out) {
+    bool ok = false;
+    if (!out) return false;
+    memset(out, 0, sizeof(*out));
+    PPP_RUN_CB(on_get_current_thread_identity, cpu, out, &ok);
+    if (!ok) memset(out, 0, sizeof(*out));
+    return ok;
+}
+
+bool get_thread_identity(CPUState *cpu, target_ptr_t task, OsiThreadIdentity *out) {
+    bool ok = false;
+    if (!out) return false;
+    memset(out, 0, sizeof(*out));
+    if (!task) return false;
+    PPP_RUN_CB(on_get_thread_identity, cpu, task, out, &ok);
+    if (!ok) memset(out, 0, sizeof(*out));
+    return ok;
+}
 
 GArray *get_processes(CPUState *cpu) {
     GArray *p = NULL;
