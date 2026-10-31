@@ -252,6 +252,43 @@ def scenario_pen():
     hook('on_all_sys_enter', counter('allneg'), comm='nomatch')
 
 
+def scenario_uapi():
+    """sc-pen's hooks that need no kernel identity (ISF=none): no comm, scope or
+    pid filter, so each matches by syscall number, arguments and strings alone"""
+    for tag, f in (('sw', ValueFilter.string_startswith('/proc/')),
+                   ('ct', ValueFilter.string_contains('self')),
+                   ('ew', ValueFilter.string_endswith('status')),
+                   ('exneg', ValueFilter.string_exact('/proc/self')),
+                   ('swneg', ValueFilter.string_startswith('/proc/selfx'))):
+        hook('openat', logger(tag, strargs=(1,)), enter=True, comm=None,
+             arg_filters=[None, f])
+
+    seen = []
+    handle = {}
+
+    def unreg(regs, proto, sc, *args):
+        count(sc, 'unregister')
+        seen.append(1)
+        if len(seen) == 3:
+            plugins.syscalls.unregister(handle['h'])
+    # no comm filter: any task's first 3 getppid calls, then the hook is gone
+    handle['h'] = hook('getppid', unreg, enter=True, comm=None)
+
+    # igloo runs a call's hooks newest first: each pair is registered in reverse
+    hook('getpgid', counter('afterskip'), enter=True, comm=None, arg_filters=[6161])
+    hook('getpgid', logger('skip', then=setter(skip=616)), enter=True, comm=None,
+         arg_filters=[6161])
+    hook('getpgid', logger('skipret'), ret=True, comm=None, arg_filters=[6161])
+    hook('getpgid', logger('ret2', then=setter(ret=2)), ret=True, comm=None,
+         arg_filters=[6262])
+    hook('getpgid', logger('ret1', then=setter(ret=1)), ret=True, comm=None,
+         arg_filters=[6262])
+    hook('dup3', logger('arg2', then=setter(a1=202)), enter=True, comm=None,
+         arg_filters=[None, 200])
+    hook('dup3', logger('arg1', then=setter(a1=201)), enter=True, comm=None,
+         arg_filters=[None, 200])
+
+
 def scenario_fault():
     """sc-fault with the callbacks on penguin's mem"""
     hook('openat', logger('fstr', then=setter(skip=7777)), enter=True,
@@ -944,7 +981,7 @@ if scenario.startswith('bench-'):
         osi_ticks = (panda.ffi.new('uint64_t[7]'), time.perf_counter())
         panda.lib.penguin_osi_counters(osi_ticks[0])
 else:
-    {'pen': scenario_pen, 'fault': scenario_fault, 'reap': scenario_reap,
+    {'pen': scenario_pen, 'uapi': scenario_uapi, 'fault': scenario_fault, 'reap': scenario_reap,
      'osi': scenario_osi, 'inject': scenario_inject,
      'first': scenario_first, 'takeover': scenario_takeover,
      'kmod': scenario_kmod, 'hcwrite': scenario_hcwrite,
