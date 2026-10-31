@@ -410,6 +410,7 @@ static TCGHelperInfo ptr_model_info = {
 #define ELASTIC_PERIOD 1024
 #define ELASTIC_MAX (64 * 1024)
 static bool elastic;
+static bool addr_taint;         /* address mode: see taint_set_address_mode */
 
 static bool senv_any(CPUState *cpu)
 {
@@ -1172,7 +1173,7 @@ typedef struct Pass {
      * TB temps that cross the pass's own labels but live only within one guest op: one set per
      * TB, reused by every op, since each TB temp costs a spill slot in TCG's small frame.
      */
-    TCGv_i64 res, res2, addr, addr2, acc, any, sval;
+    TCGv_i64 res, res2, addr, addr2, acc, any, sval, ash, sv1, sv2;
     /* scratch outputs for untracked globals, per op (so repeated D() calls agree) */
     TCGTemp *dkey[4], *dval[4];
     int nd;
@@ -2253,20 +2254,45 @@ static void taint_qemu_ldst(Pass *p, TCGOp *op, TCGOp *next)
     TCGTemp *v1 = two ? arg_temp(op->args[1]) : NULL;
     TCGTemp *addr = arg_temp(op->args[two ? 2 : 1]);
     MemOpIdx oi = op->args[two ? 3 : 2];
-    TCGv_i64 a;
+    TCGv_i64 a, as = NULL;
 
     s->emit_before_op = op;
     a = copy_addr(addr, pool(&p->addr));
+    if (addr_taint) {
+        /* address mode: all ones if any bit of the address is tainted (copied before the op,
+         * which may overwrite the address register) */
+        as = pool(&p->ash);
+        tcg_gen_negsetcondi_i64(TCG_COND_NE, as, as_i64(p, addr), 0);
+    }
     s->emit_before_op = next;
 
     if (!two) {
         if (op->opc == INDEX_op_qemu_ld) {
-            set_from_i64(p, v0, shadow_load(p, a, oi, pool(&p->res)));
+            TCGv_i64 r = shadow_load(p, a, oi, pool(&p->res));
+            MemOp mop = get_memop(oi);
+            unsigned size = memop_size(mop);
+
+            if (as) {
+                TCGv_i64 m = s64();
+
+                tcg_gen_andi_i64(m, as, size < 8 && !(mop & MO_SIGN) ? MAKE_64BIT_MASK(0, 8 * size)
+                                                                      : -1);
+                tcg_gen_or_i64(r, r, m);
+            }
+            set_from_i64(p, v0, r);
             if (labels_on) {
                 lab_ld(p, v0, p->res, a, oi);
             }
         } else {
-            shadow_store(p, a, oi, as_i64(p, v0));
+            TCGv_i64 sv = as_i64(p, v0);
+
+            if (as) {                   /* a TB temp: shadow_store branches */
+                TCGv_i64 t = pool(&p->sv1);
+
+                tcg_gen_or_i64(t, sv, as);
+                sv = t;
+            }
+            shadow_store(p, a, oi, sv);
             if (labels_on) {
                 lab_st(p, v0, p->sval, a, oi);
             }
@@ -2280,18 +2306,37 @@ static void taint_qemu_ldst(Pass *p, TCGOp *op, TCGOp *next)
 
     tcg_gen_addi_i64(a2, a, 8);
     if (op->opc == INDEX_op_qemu_ld2) {
-        set_from_i64(p, lo_ts, shadow_load(p, be ? a2 : a, half_oi(oi), pool(&p->res)));
-        set_from_i64(p, hi_ts, shadow_load(p, be ? a : a2, half_oi(oi), pool(&p->res2)));
+        TCGv_i64 rl = shadow_load(p, be ? a2 : a, half_oi(oi), pool(&p->res));
+        TCGv_i64 rh = shadow_load(p, be ? a : a2, half_oi(oi), pool(&p->res2));
+
+        if (as) {
+            tcg_gen_or_i64(rl, rl, as);
+            tcg_gen_or_i64(rh, rh, as);
+        }
+        set_from_i64(p, lo_ts, rl);
+        set_from_i64(p, hi_ts, rh);
         if (labels_on) {
             lab_ld(p, lo_ts, p->res, be ? a2 : a, half_oi(oi));
             lab_ld(p, hi_ts, p->res2, be ? a : a2, half_oi(oi));
         }
     } else {
-        shadow_store(p, be ? a2 : a, half_oi(oi), as_i64(p, lo_ts));
+        /* each half's shadow just before its store: scratch temps end at the store's branches */
+        TCGv_i64 sl = as_i64(p, lo_ts), shi;
+
+        if (as) {                       /* a TB temp: shadow_store branches */
+            tcg_gen_or_i64(pool(&p->sv1), sl, as);
+            sl = p->sv1;
+        }
+        shadow_store(p, be ? a2 : a, half_oi(oi), sl);
         if (labels_on) {
             lab_st(p, lo_ts, p->sval, be ? a2 : a, half_oi(oi));
         }
-        shadow_store(p, be ? a : a2, half_oi(oi), as_i64(p, hi_ts));
+        shi = as_i64(p, hi_ts);
+        if (as) {
+            tcg_gen_or_i64(pool(&p->sv2), shi, as);
+            shi = p->sv2;
+        }
+        shadow_store(p, be ? a : a2, half_oi(oi), shi);
         if (labels_on) {
             lab_st(p, hi_ts, p->sval, be ? a : a2, half_oi(oi));
         }
@@ -3348,9 +3393,27 @@ int taint_query_reg(CPUState *cpu, int regno, uint8_t *out, int len)
     return size;
 }
 
+/*
+ * Address mode (opt-in): a load through a tainted address is tainted, and so is a store through
+ * one (table lookups, pointer chasing). Tier A only: label sets have no id for such bytes.
+ */
+bool taint_set_address_mode(bool on)
+{
+    if (!senv_idx || (on && labels_on)) {
+        return false;
+    }
+    if (on != addr_taint) {
+        addr_taint = on;
+        if (taint_active) {
+            commit(true);
+        }
+    }
+    return true;
+}
+
 bool taint_enable_labels(bool on)
 {
-    if (!senv_idx) {
+    if (!senv_idx || (on && addr_taint)) {
         return false;
     }
     if (on) {

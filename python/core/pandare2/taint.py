@@ -33,6 +33,7 @@ void taint_set_branch_cb(TaintEventFn fn, void *opaque);
 void taint_set_pc_cb(TaintEventFn fn, void *opaque);
 void taint_stats(char *buf, size_t len);
 bool taint_enable_labels(bool on);
+bool taint_set_address_mode(bool on);
 void taint_label_ram_l(uint64_t ram_addr, uint64_t len, uint8_t mask, uint32_t label);
 int taint_label_reg_l(void *cpu, int regno, uint8_t mask, uint32_t label);
 int taint_query_ram_labels(uint64_t ram_addr, uint32_t *out, int max);
@@ -74,6 +75,11 @@ class TaintMixin:
         '''Turn label sets (which sources reach each byte) on or off; costs extra only while on.
         Call before taint_enable.'''
         return bool(self._taint_lib()[1].taint_enable_labels(on))
+
+    def taint_address_mode(self, on=True):
+        '''Address mode on or off: a load through a tainted address is tainted, and so is a store
+        through one (table lookups, pointer chasing). Not with label sets: False if they are on.'''
+        return bool(self._taint_lib()[1].taint_set_address_mode(on))
 
     def taint_label_ram(self, ram_addr, length=1, mask=0xFF, label=None):
         '''Set the shadow of RAM bytes [ram_addr, ram_addr + length) to mask (0 clears), and with

@@ -59,6 +59,7 @@ int taint_query_reg(CPUState *cpu, int regno, uint8_t *out, int len);
  * re-translated). Labels follow data flow by byte; the mask still decides what is tainted.
  */
 bool taint_enable_labels(bool on);
+bool taint_set_address_mode(bool on);
 /* Like taint_label_ram, and give the bytes the single label @label (0: none). */
 void taint_label_ram_l(uint64_t ram_addr, uint64_t len, uint8_t mask, uint32_t label);
 int taint_label_reg_l(CPUState *cpu, int regno, uint8_t mask, uint32_t label);
