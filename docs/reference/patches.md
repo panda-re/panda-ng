@@ -2,7 +2,7 @@
 
 # The engine patch series
 
-QEMU 11.1.2 plus 90 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
+QEMU 11.1.2 plus 91 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
@@ -96,3 +96,4 @@ QEMU 11.1.2 plus 90 patches (`engine/patches/11.1.2/`). `engine/README.md` expla
 | 0088 | system: gate handoff and snapshot clock adaptations | [kvm-tcg](../features.md#kvm-tcg) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
 | 0089 | riscv: select snapshot version policy at registration | [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
 | 0090 | system: seal capabilities before startup side effects | [python](../features.md#python) | new | MIT |
+| 0091 | replay: serialize deferred analysis RAM writes as ordered async events | [recorded-ram-effects](../features.md#recorded-ram-effects) | new | GPL-2.0-or-later |

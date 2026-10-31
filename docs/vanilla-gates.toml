@@ -1272,6 +1272,31 @@ current_gate = "Arity-aware prepass resolves final repeated CLI selection before
 required_action = "Validate packaged constructor/preinit and command-line startup behavior; complete runtime dispatch/API and all remaining vanilla off paths."
 vanilla_verified = false
 
+[[patch]]
+id = "0091"
+file = "engine/patches/11.1.2/0091-replay-serialize-deferred-analysis-RAM-writes-as-ord.patch"
+sha256 = "d9cf1fc1c82fc4067a226d505552b12d682092a018a47d738b0804ffc7f63826"
+class = "runtime-gate"
+capability = "rr-analysis-effects"
+paths = ["replay/replay-internal.h", "replay/replay.c", "replay/meson.build", "replay/replay-events.c", "replay/stubs-system.c"]
+functions = ["replay_save_events", "replay_read_event", "replay_flush_events", "replay_analysis_ram_write_request"]
+hunk_contexts = ["REPLAY_ASYNC_EVENT_NET", "REPLAY_VERSION", "while (!QTAILQ_EMPTY(&events_list))"]
+gate_status = "rr-request-gated-stream-format-not-vanilla-verified"
+current_gate = "RAM effects require RECORD, RR capability and quiescent main-thread admission; existing async stream applies logged results without requester. Teardown cancels unsaved effects. Outer replay version is bumped globally."
+required_action = "Validate actual record/replay guest ordering, malformed/truncated logs and no-TCG linkage; complete explicit vanilla replay-format off path and exclude extension payloads when not provisioned."
+vanilla_verified = false
+
+[[overlay]]
+id = "ordered-ram-effects"
+class = "runtime-gate"
+capability = "rr-analysis-effects"
+paths = ["engine/src/include/panda/analysis-effect.h", "engine/src/include/system/replay-effect.h", "engine/src/panda/src/analysis-effect.c", "engine/src/replay/replay-effect.c"]
+functions = ["panda_analysis_ram_write", "replay_analysis_ram_write_request", "replay_analysis_effect_load", "replay_analysis_effect_run"]
+gate_status = "bounded-request-admission-implemented-not-guest-verified"
+current_gate = "64 KiB bounded deferred writes, full-range RAM preflight, versioned payload and result replay validation. Raw RAM copies are avoided; standard address_space_write performs dirty/TB invalidation."
+required_action = "Prove scheduler/request locking and producer-free replay in a guest, validate malformed logs and integrated replay capability rejection. No register/syscall/device effects supported."
+vanilla_verified = false
+
 [[overlay]]
 id = "embedding-control"
 class = "runtime-gate"
