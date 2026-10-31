@@ -70,6 +70,8 @@ typedef struct STLBEntry {
 
 static size_t env_size;    /* bytes of CPU state from env on (instance size - env offset) */
 static size_t stlb_off;    /* offset of the shadow TLB in the shadow env buffer */
+static size_t ctlb_off;    /* ... and of the check variant's store TLB (see ctlb_fill) */
+static size_t tick_off;         /* elastic: track TBs left before the next all-clean scan */
 static size_t senv_bytes;
 static intptr_t senv_field_off;   /* env-relative offset of CPUState::taint_senv */
 static int senv_idx;              /* temp index of the senv pointer global */
@@ -78,6 +80,16 @@ static uint16_t shadow_global[TCG_MAX_TEMPS];    /* guest global idx -> shadow g
 
 static uint8_t *ram_shadow;
 static uint64_t ram_shadow_size;
+
+/*
+ * The page bit: one byte per 4 KiB of RAM shadow, set before anything can write a nonzero
+ * shadow byte there (a track-variant shadow TLB entry allows inline stores, so filling one
+ * sets it). Never cleared. A check-variant store to a page without it has nothing to clean.
+ */
+#define DIRTY_BITS 12
+static uint8_t *ram_dirty;
+/* where a check-variant store to a clean page puts its zero shadow; never read */
+static uint8_t ctlb_sink[64 * 1024] __attribute__((aligned(64)));
 
 static TaintDeviceWriteFn device_write_fn;
 static void *device_write_opaque;
@@ -95,7 +107,7 @@ static struct {
     uint64_t tbs, ops, untracked_ld, untracked_st, ptr_calls, ld_slow, st_slow,
              ram_oob, unknown_ops, h1_tainted, device_writes, device_bytes,
              ptr_tainted, branch_events, pc_events, lab_calls, lab_many, mmio_tainted,
-             helper_mem_bytes, h2b_calls, to_track, to_check, chk_slow;
+             helper_mem_bytes, h2b_calls, to_track, to_check, chk_slow, chk_st_slow;
 } stats;
 static GHashTable *h1_hits;     /* helper name -> tainted-call count */
 
@@ -104,10 +116,23 @@ static STLBEntry *stlb(CPUState *cpu, int mmu_idx)
     return (STLBEntry *)((uint8_t *)cpu->taint_senv + stlb_off) + (size_t)mmu_idx * STLB_N;
 }
 
+static STLBEntry *ctlb(CPUState *cpu, int mmu_idx)
+{
+    return (STLBEntry *)((uint8_t *)cpu->taint_senv + ctlb_off) + (size_t)mmu_idx * STLB_N;
+}
+
+static void ctlb_flush(CPUState *cpu)
+{
+    if (cpu->taint_senv) {
+        memset(ctlb(cpu, 0), -1, sizeof(STLBEntry) * STLB_N * NB_MMU_MODES);
+    }
+}
+
 static void stlb_flush_all(CPUState *cpu)
 {
     if (cpu->taint_senv) {
         memset(stlb(cpu, 0), -1, sizeof(STLBEntry) * STLB_N * NB_MMU_MODES);
+        ctlb_flush(cpu);
     }
 }
 
@@ -115,14 +140,17 @@ void taint_tlb_flush_mmuidx(CPUState *cpu, int mmu_idx)
 {
     if (cpu->taint_senv) {
         memset(stlb(cpu, mmu_idx), -1, sizeof(STLBEntry) * STLB_N);
+        memset(ctlb(cpu, mmu_idx), -1, sizeof(STLBEntry) * STLB_N);
     }
 }
 
 void taint_tlb_flush_page(CPUState *cpu, int mmu_idx, vaddr page)
 {
     if (cpu->taint_senv) {
-        STLBEntry *e = stlb(cpu, mmu_idx) + ((page >> TARGET_PAGE_BITS) & (STLB_N - 1));
-        e->tag = -1;
+        size_t i = (page >> TARGET_PAGE_BITS) & (STLB_N - 1);
+
+        stlb(cpu, mmu_idx)[i].tag = -1;
+        ctlb(cpu, mmu_idx)[i].tag = -1;
     }
 }
 
@@ -138,8 +166,50 @@ static uint64_t ram_extent(void)
     return end;
 }
 
+/* [0]: track blocks left before the next scan; [1]: the countdown it restarts from;
+ * [2]: the check store TLB has sink entries (ctlb_fill) */
+static uint32_t *tick(CPUState *cpu)
+{
+    return (uint32_t *)((uint8_t *)cpu->taint_senv + tick_off);
+}
+
+/* The page bit for [ra, ra + len) of RAM shadow; a check store TLB sink entry for it goes. */
+static void ram_mark(uint64_t ra, uint64_t len)
+{
+    bool fresh = false;
+    CPUState *cpu;
+
+    if (!len || ra >= ram_shadow_size) {
+        return;
+    }
+    for (uint64_t i = ra >> DIRTY_BITS; i <= (ra + len - 1) >> DIRTY_BITS; i++) {
+        fresh |= !ram_dirty[i];
+        ram_dirty[i] = 1;
+    }
+    if (!fresh) {
+        return;
+    }
+    CPU_FOREACH(cpu) {
+        if (cpu->taint_senv && tick(cpu)[2]) {
+            tick(cpu)[2] = 0;
+            ctlb_flush(cpu);
+        }
+    }
+}
+
+static bool ram_clean(uint64_t ra, uint64_t len)
+{
+    for (uint64_t i = ra >> DIRTY_BITS; i <= (ra + len - 1) >> DIRTY_BITS; i++) {
+        if (ram_dirty[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static void ram_shadow_alloc(void)
 {
+    CPUState *cpu;
     uint64_t size = ROUND_UP(ram_extent(), qemu_real_host_page_size());
 
     if (ram_shadow && size <= ram_shadow_size) {
@@ -155,6 +225,11 @@ static void ram_shadow_alloc(void)
         abort();
     }
     ram_shadow_size = size;
+    g_free(ram_dirty);
+    ram_dirty = g_new0(uint8_t, (size >> DIRTY_BITS) + 1);
+    CPU_FOREACH(cpu) {
+        stlb_flush_all(cpu);    /* entries into the old mapping */
+    }
 }
 
 static void ram_shadow_clear(void)
@@ -188,18 +263,59 @@ static uint8_t *ram_shadow_at(CPUState *cpu, vaddr addr, int mmu_idx, MMUAccessT
     return ram_shadow + ra;
 }
 
-/* Fill the shadow TLB for the page of @addr if it is RAM. */
-static void stlb_fill(CPUState *cpu, vaddr addr, int mmu_idx, MMUAccessType type)
+/* The shadow of @addr's page if it is RAM all the way through. */
+static uint8_t *ram_shadow_page(CPUState *cpu, vaddr addr, int mmu_idx, MMUAccessType type)
 {
     vaddr page = addr & TARGET_PAGE_MASK;
     uint8_t *sp = ram_shadow_at(cpu, page, mmu_idx, type);
 
     if (sp && ram_shadow_at(cpu, page + TARGET_PAGE_SIZE - 1, mmu_idx, type)
               == sp + TARGET_PAGE_SIZE - 1) {
+        return sp;
+    }
+    return NULL;
+}
+
+/*
+ * Fill the shadow TLB for the page of @addr if it is RAM. A track block may then store taint
+ * there inline, so the page bit is set; a check block only reads through it, and leaving the
+ * check variant flushes it (taint_to_track).
+ */
+static void stlb_fill(CPUState *cpu, vaddr addr, int mmu_idx, MMUAccessType type)
+{
+    vaddr page = addr & TARGET_PAGE_MASK;
+    uint8_t *sp = ram_shadow_page(cpu, addr, mmu_idx, type);
+
+    if (sp) {
         STLBEntry *e = stlb(cpu, mmu_idx) + ((page >> TARGET_PAGE_BITS) & (STLB_N - 1));
+
+        if (!(cpu->tcg_cflags & CF_TAINT_CHECK)) {
+            ram_mark(sp - ram_shadow, TARGET_PAGE_SIZE);
+        }
         e->saddend = (intptr_t)sp - (intptr_t)page;
         e->tag = page;
     }
+}
+
+/*
+ * Fill the check variant's store TLB, which only ever stores zero: a page without the page bit
+ * has no taint to clean, so its entry points at a sink and the clean store costs no shadow page.
+ */
+static void ctlb_fill(CPUState *cpu, vaddr addr, int mmu_idx)
+{
+    vaddr page = addr & TARGET_PAGE_MASK;
+    uint8_t *sp = ram_shadow_page(cpu, addr, mmu_idx, MMU_DATA_STORE);
+    STLBEntry *e = ctlb(cpu, mmu_idx) + ((page >> TARGET_PAGE_BITS) & (STLB_N - 1));
+
+    if (!sp) {
+        return;
+    }
+    if (ram_clean(sp - ram_shadow, TARGET_PAGE_SIZE)) {
+        sp = ctlb_sink;
+        tick(cpu)[2] = 1;
+    }
+    e->saddend = (intptr_t)sp - (intptr_t)page;
+    e->tag = page;
 }
 
 static bool guest_big_endian(MemOp mop)
@@ -281,11 +397,34 @@ static void taint_st_slow(CPUArchState *env, uint64_t addr, uint32_t oi, uint64_
         unsigned shift = guest_big_endian(mop) ? 8 * (size - 1 - i) : 8 * i;
 
         if (sp) {
+            if ((uint8_t)(v >> shift)) {
+                ram_mark(sp - ram_shadow, 1);
+            }
             *sp = v >> shift;
         }
     }
     if (((addr & ~TARGET_PAGE_MASK) + size) <= TARGET_PAGE_SIZE) {
         stlb_fill(cpu, addr, mmu_idx, MMU_DATA_STORE);
+    }
+}
+
+/* A check-variant store missed its store TLB: clean what it wrote, then fill the TLB. */
+static void taint_chk_st_slow(CPUArchState *env, uint64_t addr, uint32_t oi)
+{
+    CPUState *cpu = env_cpu(env);
+    int mmu_idx = get_mmuidx(oi);
+    unsigned size = memop_size(get_memop(oi));
+
+    stats.chk_st_slow++;
+    for (unsigned i = 0; i < size; i++) {
+        uint8_t *sp = ram_shadow_at(cpu, addr + i, mmu_idx, MMU_DATA_STORE);
+
+        if (sp && *sp) {
+            *sp = 0;        /* a clean byte is left alone: no shadow page for it */
+        }
+    }
+    if (((addr & ~TARGET_PAGE_MASK) + size) <= TARGET_PAGE_SIZE) {
+        ctlb_fill(cpu, addr, mmu_idx);
     }
 }
 
@@ -307,7 +446,6 @@ typedef struct H2bRow {
 } H2bRow;
 static GHashTable *h2b_rows;    /* helper name -> const H2bRow * */
 static size_t h2b_off;          /* the staged arguments and shadows, in the shadow env */
-static size_t tick_off;         /* elastic: track TBs left before the next all-clean scan */
 
 static void h2b_load(void)
 {
@@ -427,18 +565,13 @@ static bool senv_any(CPUState *cpu)
     return acc != 0;
 }
 
-/* [0]: track blocks left before the next scan; [1]: the countdown it restarts from */
-static uint32_t *tick(CPUState *cpu)
-{
-    return (uint32_t *)((uint8_t *)cpu->taint_senv + tick_off);
-}
-
 static G_NORETURN void taint_to_track(CPUState *cpu, uintptr_t ra)
 {
     uint32_t *t = tick(cpu);
 
     stats.to_track++;
     cpu->tcg_cflags &= ~CF_TAINT_CHECK;
+    stlb_flush_all(cpu);        /* check-variant fills did not set the page bit */
     t[1] = MIN(MAX(t[1], ELASTIC_PERIOD / 2) * 2, ELASTIC_MAX);
     t[0] = t[1];
     cpu_loop_exit_restore(cpu, ra);
@@ -494,6 +627,7 @@ static void elastic_tainted_cpu(CPUState *cpu)
 {
     if (cpu->tcg_cflags & CF_TAINT_CHECK) {
         cpu->tcg_cflags &= ~CF_TAINT_CHECK;
+        stlb_flush_all(cpu);
         tick(cpu)[0] = MAX(tick(cpu)[1], ELASTIC_PERIOD);
         cpu_exit(cpu);
     }
@@ -519,6 +653,12 @@ static TCGHelperInfo ld_slow_info = {
     .typemask = dh_typemask(i64, 0) | dh_typemask(ptr, 1) | dh_typemask(i64, 2) |
                 dh_typemask(i32, 3),
 };
+static TCGHelperInfo chk_st_slow_info = {
+    .func = taint_chk_st_slow, .name = "taint_chk_st_slow", .flags = TCG_CALL_NO_RWG,
+    .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1) | dh_typemask(i64, 2) |
+                dh_typemask(i32, 3),
+};
+
 static TCGHelperInfo st_slow_info = {
     .func = taint_st_slow, .name = "taint_st_slow", .flags = TCG_CALL_NO_RWG,
     .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1) | dh_typemask(i64, 2) |
@@ -1108,10 +1248,11 @@ void taint_tcg_init(CPUState *cpu)
     env_size = object_class_get_instance_size(OBJECT_CLASS(cpu->cc)) -
                ((uintptr_t)cpu_env(cpu) - (uintptr_t)cpu);
     stlb_off = ROUND_UP(env_size, 64);
-    stage_off = ROUND_UP(stlb_off + sizeof(STLBEntry) * STLB_N * NB_MMU_MODES, 64);
+    ctlb_off = stlb_off + sizeof(STLBEntry) * STLB_N * NB_MMU_MODES;
+    stage_off = ROUND_UP(ctlb_off + sizeof(STLBEntry) * STLB_N * NB_MMU_MODES, 64);
     h2b_off = ROUND_UP(stage_off + STAGE_BYTES * (1 + LAB_BATCH), 64);
     tick_off = h2b_off + (H2B_MAX_ARGS * 2 + 1) * sizeof(uint64_t);
-    lab_off = ROUND_UP(tick_off + sizeof(uint64_t), 64);
+    lab_off = ROUND_UP(tick_off + 3 * sizeof(uint32_t), 64);
     lab_carry = env_size + TCG_MAX_TEMPS * LSLOT;
     senv_bytes = lab_off + (lab_carry + 1) * sizeof(uint32_t);
     senv_field_off = (uintptr_t)&cpu->taint_senv - (uintptr_t)cpu_env(cpu);
@@ -2871,6 +3012,35 @@ static void chk_load(Pass *p, TCGv_i64 a, MemOpIdx oi)
     gen_set_label(done);
 }
 
+/* Elastic, check variant: a store writes a clean value, so its destination's shadow is zero. */
+static void chk_store(Pass *p, TCGv_i64 a, MemOpIdx oi)
+{
+    unsigned size = memop_size(get_memop(oi));
+    intptr_t off;
+    TCGv_i64 tag = s64(), end = s64(), zero = tcg_constant_i64(0);
+    TCGv_ptr ent = stlb_entry(p, a, get_mmuidx(oi), &off), hp = sptrtmp();
+    TCGLabel *slow = gen_new_label(), *done = gen_new_label();
+
+    off += ctlb_off - stlb_off;
+    tcg_gen_ld_i64(tag, ent, off + offsetof(STLBEntry, tag));
+    tcg_gen_addi_i64(end, a, size - 1);
+    tcg_gen_andi_i64(end, end, TARGET_PAGE_MASK);
+    tcg_gen_brcond_i64(TCG_COND_NE, tag, end, slow);
+    tcg_gen_ld_ptr(hp, ent, off + offsetof(STLBEntry, saddend));
+    tcg_gen_add_ptr(hp, hp, temp_tcgv_ptr(tcgv_i64_temp(a)));
+    switch (size) {
+    case 1: tcg_gen_st8_i64(zero, hp, 0); break;
+    case 2: tcg_gen_st16_i64(zero, hp, 0); break;
+    case 4: tcg_gen_st32_i64(zero, hp, 0); break;
+    default: tcg_gen_st_i64(zero, hp, 0); break;
+    }
+    tcg_gen_br(done);
+    gen_set_label(slow);
+    tcg_gen_call3(taint_chk_st_slow, &chk_st_slow_info, NULL, tcgv_ptr_temp(tcg_env),
+                  tcgv_i64_temp(a), tcg_constant_internal(TCG_TYPE_I32, oi));
+    gen_set_label(done);
+}
+
 /* The check variant instruments only guest memory: CPU state is clean while it runs. */
 static void check_op(Pass *p, TCGOp *op, TCGOp *next)
 {
@@ -2900,9 +3070,9 @@ static void check_op(Pass *p, TCGOp *op, TCGOp *next)
         return;
     }
     s->emit_before_op = next;       /* a clean value overwrites whatever was there */
-    shadow_store(p, a, oi, tcg_constant_i64(0));
+    chk_store(p, a, oi);
     if (two) {
-        shadow_store(p, a2, oi, tcg_constant_i64(0));
+        chk_store(p, a2, oi);
     }
 }
 
@@ -3244,6 +3414,7 @@ void taint_helper_copy(CPUState *cpu, vaddr to, int to_idx, vaddr from, int from
         memset(d, 0, len);  /* from a device: clean, as a load from it with no source cb */
         return;
     }
+    ram_mark(d - ram_shadow, len);
     memmove(d, s, len);
     if (ram_lab && d - ram_shadow + len <= ram_lab_size && s - ram_shadow + len <= ram_lab_size) {
         memmove(ram_lab + (d - ram_shadow), ram_lab + (s - ram_shadow), len * sizeof(uint32_t));
@@ -3266,6 +3437,9 @@ void taint_helper_fill(CPUState *cpu, vaddr to, int idx, uint64_t len, ptrdiff_t
     if (data_off >= 0 && data_off < env_size) {
         m = ((uint8_t *)cpu->taint_senv)[data_off];
         id = m ? labfile(cpu)[data_off] : 0;
+    }
+    if (m) {
+        ram_mark(d - ram_shadow, len);
     }
     memset(d, m, len);
     if (ram_lab && d - ram_shadow + len <= ram_lab_size) {
@@ -3380,6 +3554,9 @@ void taint_label_ram(uint64_t ram_addr, uint64_t len, uint8_t mask)
     }
     if (ram_addr < ram_shadow_size) {
         len = MIN(len, ram_shadow_size - ram_addr);
+        if (mask) {
+            ram_mark(ram_addr, len);
+        }
         memset(ram_shadow + ram_addr, mask, len);
         if (ram_lab) {
             memset(ram_lab + ram_addr, 0, len * sizeof(uint32_t));
@@ -3616,13 +3793,14 @@ void taint_stats(char *buf, size_t len)
         " device_bytes %" PRIu64 " ptr_tainted %" PRIu64 " branch_events %" PRIu64
         " pc_events %" PRIu64 " lab_calls %" PRIu64 " lab_many %" PRIu64 " lab_sets %u"
         " mmio_tainted %" PRIu64 " helper_mem_bytes %" PRIu64 " h2b_calls %" PRIu64
-        " to_track %" PRIu64 " to_check %" PRIu64 " chk_slow %" PRIu64 "\n",
+        " to_track %" PRIu64 " to_check %" PRIu64 " chk_slow %" PRIu64 " chk_st_slow %" PRIu64
+        "\n",
         stats.tbs, stats.ops, stats.untracked_ld, stats.untracked_st, stats.ptr_calls,
         stats.ld_slow, stats.st_slow, stats.ram_oob, stats.unknown_ops, stats.h1_tainted,
         stats.device_writes, stats.device_bytes, stats.ptr_tainted, stats.branch_events,
         stats.pc_events, stats.lab_calls, stats.lab_many, lsets ? lsets->len - 2 : 0,
         stats.mmio_tainted, stats.helper_mem_bytes, stats.h2b_calls, stats.to_track,
-        stats.to_check, stats.chk_slow);
+        stats.to_check, stats.chk_slow, stats.chk_st_slow);
     if (h1_hits) {
         g_hash_table_iter_init(&it, h1_hits);
         while (g_hash_table_iter_next(&it, &k, &v)) {
