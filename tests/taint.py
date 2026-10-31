@@ -1,18 +1,22 @@
 """Taint mode (CF_TAINT pass, capability "taint") on a recording, end to end.
 
 Run: panda-python tests/taint.py <dir>/debian-13-x86_64.json [workdir]
+(TAINT_TEST_CAPS adds capabilities: "handoff" for older snapshots, "guest-hypercall" for syscalls2
+on 32-bit Arm.)
 
 Records, in one process, a command that writes a marker file, drops the page cache, then `cat`s the
-file (so its bytes come back from disk by DMA) and `echo`s a constant line typed on the serial
-console. Then, each in a fresh process:
+file (so its bytes come back from disk by DMA) through a pipe and a second `cat` (busybox's cat
+sendfile()s a file straight to the console, which no write() sees) and `echo`s a constant line
+typed on the serial console. Then, each in a fresh process:
 - plain: replays with taint off; reports the instruction count at echo's write;
 - clean: replays with taint enabled and nothing labelled;
 - taint: replays with taint and label sets enabled at the first block and every device write into
   RAM labelled, each with its own label (Panda.taint_device_write). Checks:
   - echo's write(1, ...) of the marker into the file is clean (the shell computed it);
-  - cat's write(1, ...) of the marker carries taint on every marker byte (disk -> page cache ->
-    user buffer -> syscall buffer, through the TCG shadow), and every marker byte carries exactly
-    one label, the same one (the disk read that brought the block in);
+  - the cats' write(1, ...)s of the marker (glibc: into the pipe and to the console; busybox: to
+    the console) carry taint on every marker byte (disk -> page cache -> user buffer -> syscall
+    buffer, through the TCG shadow), and every marker byte carries exactly one label, the same
+    one (the disk read that brought the block in);
   - echo's write of the computed line is clean (never in a device write);
   - taint_label_ram / taint_query_ram / taint_count_ram round-trip on a scratch page,
     taint_label_reg / taint_query_reg round-trip on gdb register 1 (riscv64's x0 is hardwired),
@@ -34,7 +38,7 @@ from pandare2 import Panda
 MARKER = "taintmarker-4242"
 CLEAN = "cleanline-1764"
 CMD = ("echo taintmarker-$((2*2121)) > /root/taint.txt; sync; echo 3 > /proc/sys/vm/drop_caches; "
-       "cat /root/taint.txt; echo cleanline-$((42*42))")
+       "cat /root/taint.txt | cat; echo cleanline-$((42*42))")
 CAPS = ["analysis", "rr", "taint"] + os.environ.get("TAINT_TEST_CAPS", "").split()
 
 
@@ -81,7 +85,27 @@ def child(mode, image, name, out):
 
     @panda.ppp("syscalls2", "on_sys_write_enter", observe_only=True)
     def write(cpu, pc, fd, buf, count):
-        if fd != 1 or count > 4096:
+        if fd == 1:
+            one_write(cpu, buf, count)
+
+    # musl's stdio (busybox guests) writes with writev
+    @panda.ppp("syscalls2", "on_sys_writev_enter", observe_only=True)
+    def writev(cpu, pc, fd, iov, iovcnt):
+        if fd != 1 or iovcnt > 64:
+            return
+        w = panda.bits // 8
+        try:
+            raw = panda.virtual_memory_read(cpu, iov, 2 * w * iovcnt)
+        except ValueError:
+            return
+        for i in range(iovcnt):
+            base = int.from_bytes(raw[2 * w * i:2 * w * i + w], panda.endianness)
+            n = int.from_bytes(raw[2 * w * i + w:2 * w * (i + 1)], panda.endianness)
+            if n:
+                one_write(cpu, base, n)
+
+    def one_write(cpu, buf, count):
+        if count > 4096:
             return
         try:
             data = panda.virtual_memory_read(cpu, buf, count)
@@ -131,15 +155,15 @@ def main():
     marker, clean = t["writes"].get(MARKER, []), t["writes"].get(CLEAN, [])
     checks = [
         ("taint enabled at the first block", t.get("enabled") is True, ""),
-        # fd 1 writes of the marker: echo's into the file (computed by the shell), then cat's
+        # fd 1 writes of the marker: echo's into the file (computed by the shell), then the cats'
         ("echo's write of the computed marker into the file is clean",
-         len(marker) == 2 and all(m == 0 for m in marker[0]), marker),
+         len(marker) >= 2 and all(m == 0 for m in marker[0]), marker),
         ("cat's write of the disk-read marker is tainted on every byte",
-         len(marker) == 2 and all(m > 0 for m in marker[1]), marker),
+         len(marker) >= 2 and all(m > 0 for w in marker[1:] for m in w), marker),
         ("cat's marker bytes carry one label, the same for all",
-         len(t.get("labels", {}).get(MARKER, [])) == 2 and
-         all(ls is not None and len(ls) == 1 for ls in t["labels"][MARKER][1]) and
-         len({ls[0] for ls in t["labels"][MARKER][1]}) == 1,
+         len(t.get("labels", {}).get(MARKER, [])) >= 2 and
+         all(ls is not None and len(ls) == 1 for w in t["labels"][MARKER][1:] for ls in w) and
+         len({ls[0] for w in t["labels"][MARKER][1:] for ls in w}) == 1,
          t.get("labels", {}).get(MARKER, [None, None])[1:]),
         ("echo's write of the computed line is clean",
          len(clean) == 1 and all(m == 0 for m in clean[0]), clean),

@@ -26,6 +26,16 @@ void taint_device_write(uint64_t ram_addr, uint64_t len);
 void taint_helper_copy(CPUState *cpu, vaddr to, int to_idx, vaddr from, int from_idx,
                        uint64_t len);
 void taint_helper_fill(CPUState *cpu, vaddr to, int idx, uint64_t len, ptrdiff_t data_off);
+/*
+ * Target setup: helper @helper (its TCGHelperInfo name) moves one guest register between a TCG
+ * value and a CPU-state field that the target picks at run time, such as Arm's user-mode bank
+ * (get_user_reg, set_user_reg: what the kernel's return to user loads r0-r14 with). @field
+ * returns that field's offset from the CPU state for the helper's register-number argument;
+ * the field is 4 bytes. @write: the helper is (env, regno, value) -> void, else
+ * (env, regno) -> value. The shadow (and labels) move with the value.
+ */
+typedef ptrdiff_t (*TaintEnvFieldFn)(void *env, uint32_t regno);
+void taint_register_env_field_helper(const char *helper, TaintEnvFieldFn field, bool write);
 /* cputlb.c: the ram_addr behind a TLB-mapped address, without filling or faulting. */
 bool tlb_peek_ram_addr(CPUState *cpu, vaddr addr, int mmu_idx,
                        MMUAccessType type, uint64_t *ram_addr);

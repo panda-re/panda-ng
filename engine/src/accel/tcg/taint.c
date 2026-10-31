@@ -2802,6 +2802,102 @@ static void taint_host_ldst(Pass *p, TCGOp *op, bool load)
 
 /* ---- calls */
 
+/* Helpers that move a register to or from a CPU-state field chosen at run time (taint.h). */
+typedef struct EnvFieldHelper {
+    TaintEnvFieldFn field;
+    bool write;
+} EnvFieldHelper;
+
+static GHashTable *env_field_helpers;      /* helper name -> EnvFieldHelper */
+
+void taint_register_env_field_helper(const char *helper, TaintEnvFieldFn field, bool write)
+{
+    EnvFieldHelper *h = g_new(EnvFieldHelper, 1);
+
+    if (!env_field_helpers) {
+        env_field_helpers = g_hash_table_new(g_str_hash, g_str_equal);
+    }
+    h->field = field;
+    h->write = write;
+    g_hash_table_insert(env_field_helpers, (gpointer)helper, h);
+}
+
+static void taint_env_field_set(CPUArchState *env, void *h, uint32_t regno, uint64_t sv,
+                                uint32_t slot)
+{
+    CPUState *cpu = env_cpu(env);
+    ptrdiff_t off = ((EnvFieldHelper *)h)->field(env, regno);
+
+    stl_he_p((uint8_t *)cpu->taint_senv + off, sv);
+    if (labels_on) {
+        uint32_t *lf = labfile(cpu);
+
+        for (int i = 0; i < 4; i++) {
+            lf[off + i] = slot == NOSLOT ? 0 : lf[slot + i];
+        }
+    }
+}
+
+static uint64_t taint_env_field_get(CPUArchState *env, void *h, uint32_t regno, uint32_t slot)
+{
+    CPUState *cpu = env_cpu(env);
+    ptrdiff_t off = ((EnvFieldHelper *)h)->field(env, regno);
+
+    if (labels_on && slot != NOSLOT) {
+        uint32_t *lf = labfile(cpu);
+
+        for (int i = 0; i < 4; i++) {
+            lf[slot + i] = lf[off + i];
+        }
+    }
+    return ldl_he_p((uint8_t *)cpu->taint_senv + off);
+}
+
+/* Both read or write guest registers held in TCG globals: no NO_RWG. */
+static TCGHelperInfo env_field_set_info = {
+    .func = taint_env_field_set, .name = "taint_env_field_set",
+    .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1) | dh_typemask(ptr, 2) |
+                dh_typemask(i32, 3) | dh_typemask(i64, 4) | dh_typemask(i32, 5),
+};
+static TCGHelperInfo env_field_get_info = {
+    .func = taint_env_field_get, .name = "taint_env_field_get",
+    .typemask = dh_typemask(i64, 0) | dh_typemask(ptr, 1) | dh_typemask(ptr, 2) |
+                dh_typemask(i32, 3) | dh_typemask(i32, 4),
+};
+
+static bool taint_env_field(Pass *p, TCGOp *op, const EnvFieldHelper *h)
+{
+    int no = TCGOP_CALLO(op), ni = TCGOP_CALLI(op);
+    TCGTemp *hp = tcg_constant_internal(TCG_TYPE_PTR, (uintptr_t)h);
+    TCGTemp *reg;
+
+    if (h->write ? no != 0 || ni != 3 : no != 1 || ni != 2) {
+        return false;
+    }
+    reg = arg_temp(op->args[no + 1]);
+    if (!is_env(arg_temp(op->args[no])) || reg->type != TCG_TYPE_I32) {
+        return false;
+    }
+    lab_flush(p);       /* the call reads and writes the label file: batched steps first */
+    if (h->write) {
+        TCGTemp *v = arg_temp(op->args[no + 2]);
+        bool c = v->kind == TEMP_CONST;
+
+        tcg_gen_call5(taint_env_field_set, &env_field_set_info, NULL, tcgv_ptr_temp(tcg_env), hp,
+                      reg, c ? tcg_constant_internal(TCG_TYPE_I64, 0) : tcgv_i64_temp(as_i64(p, v)),
+                      tcg_constant_internal(TCG_TYPE_I32, c || !labels_on ? NOSLOT : lslot(p, v)));
+    } else {
+        TCGTemp *o = arg_temp(op->args[0]);
+        TCGv_i64 r = s64();
+
+        tcg_gen_call4(taint_env_field_get, &env_field_get_info, tcgv_i64_temp(r),
+                      tcgv_ptr_temp(tcg_env), hp, reg,
+                      tcg_constant_internal(TCG_TYPE_I32, labels_on ? lslot(p, o) : NOSLOT));
+        set_from_i64(p, o, r);
+    }
+    return true;
+}
+
 static const char *const control_prefixes[] = {
     "lookup_tb_ptr", "raise_exception", "exception", "panda_", "plugin_", "debug",
     "wfi", "wfe", "yield", "hlt", "pause", "rechecking_single_step", "check_bxj_trap",
@@ -2916,6 +3012,12 @@ static void taint_call(Pass *p, TCGOp *op)
 
     if (pc_fn && pc_off >= 0 && info->name && !strcmp(info->name, "lookup_tb_ptr")) {
         tcg_gen_call1(taint_pc_ev, &pc_ev_info, NULL, tcgv_ptr_temp(tcg_env));
+    }
+
+    const EnvFieldHelper *ef = info->name && env_field_helpers ?
+                               g_hash_table_lookup(env_field_helpers, info->name) : NULL;
+    if (ef && taint_env_field(p, op, ef)) {
+        return;
     }
 
     const H2bRow *row = control || !info->name ? NULL : g_hash_table_lookup(h2b_rows, info->name);

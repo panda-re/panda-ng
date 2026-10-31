@@ -528,7 +528,7 @@ class Panda(TaintMixin):
 
         # The disk device each arch gets for a bare qcow, when rr needs to name it.
         rr_disk = {'x86_64': 'ide-hd,bus=ide.0,unit=0', 'i386': 'ide-hd,bus=ide.0,unit=0',
-                   'aarch64': 'virtio-blk-pci', 'riscv64': 'virtio-blk-pci',
+                   'aarch64': 'virtio-blk-pci', 'riscv64': 'virtio-blk-pci', 'arm': 'virtio-blk-device',
                    'mips64': 'virtio-blk-pci', 'mips64el': 'virtio-blk-pci'}
         if self.qcow and rr and self.arch_name in rr_disk:
             # Under record/replay, disk I/O completes asynchronously: blkreplay journals the
