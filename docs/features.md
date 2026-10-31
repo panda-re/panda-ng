@@ -24,7 +24,7 @@ ubuntu-24.04 images (see
 | [Address hooks](#hooks) | supported | TCG | x86_64, aarch64, riscv64 |
 | [Guest hypercalls](#hypercalls) | supported | TCG, KVM | x86_64, aarch64, riscv64 |
 | [Record and replay](#record-replay) | supported | TCG | x86_64, aarch64, riscv64 |
-| [Recorded analysis RAM effects](#recorded-ram-effects) | experimental | TCG | **untested** |
+| [Recorded analysis RAM and register effects](#recorded-ram-effects) | experimental | TCG | **untested** |
 | [Snapshots](#snapshots) | supported | TCG, KVM | x86_64, aarch64, riscv64 |
 | [Fast restore](#fast-restore) | supported | TCG | x86_64, aarch64, riscv64 |
 | [Edge coverage for fuzzing](#fast-coverage) | experimental | TCG | x86_64, aarch64, riscv64 |
@@ -213,21 +213,21 @@ recording can start at any point.
 **Engine patches:** 0025-0028, 0030, 0037-0040, 0050-0052, 0066-0068, 0072-0073, 0084-0085 ([series](reference/patches.md))
 
 <a id="recorded-ram-effects"></a>
-## Recorded analysis RAM effects
+## Recorded analysis RAM and register effects
 
-Enqueue bounded physical RAM writes into the existing ordered ND async stream. Recording
-logs the apply-boundary result and bytes; replay applies them without the original requester.
-Standalone implementation tests pass; integrated engine and guest conformance remain pending.
+Enqueue bounded physical RAM and register writes into the existing ordered ND async stream.
+Recording logs the apply-boundary result and bytes; replay applies them without the original
+requester. Registers are named by the CPU's gdbstub register number, so no PANDA arch tables.
 
-**Limits.** Admission requires RR capability, RECORD, main thread/BQL/replay mutex and stopped vCPUs. Admission is not completion. Maximum 64 KiB per request and 64 pending requests. MMIO, readonly, ROMD and RAM-device ranges are denied as a whole. Unsaved requests are canceled at end-record. Registers, syscall and device effects remain unsupported. The outer ND log version changes.
+**Limits.** Admission requires RR capability, RECORD, main thread/BQL/replay mutex and stopped vCPUs. Admission is not completion. Maximum 64 KiB per request and 64 pending requests. MMIO, readonly, ROMD and RAM-device ranges are denied as a whole. Unsaved requests are canceled at end-record. A register write must match the gdbstub register size (at most 256 bytes) and shares the pending limit. Syscall and device effects remain unsupported. The outer ND log version changes.
 
-**Use it:** `panda_analysis_ram_write`
+**Use it:** `panda_analysis_ram_write`, `panda_analysis_reg_write`
 
 **Docs:** [docs/guides/record-replay.md](guides/record-replay.md)
 
 **Tests:** `tests/static/replay_effect.py`, `tests/replay_effect.py`
 
-**Engine patches:** 0091 ([series](reference/patches.md))
+**Engine patches:** 0091-0092 ([series](reference/patches.md))
 
 <a id="snapshots"></a>
 ## Snapshots
