@@ -129,6 +129,19 @@ panda_cb_with_context panda_get_cb_trampoline(panda_cb_type type);
  */
 void panda_register_callback(void *plugin, panda_cb_type type, panda_cb cb);
 
+/* Host-analysis cancellation, not a successful-load notification. One hook per
+ * owner, called before destructive full/fast restore or reset, even if it later
+ * fails. It must be idempotent and must not write guest state or change persistent
+ * registration/layout/filter policy. Register from any thread, before or during
+ * execution (a plugin loaded mid-run included); unregister on the main thread/BQL.
+ * Self-unregister and deferred plugin unload are safe;
+ * new registrations during notification start with the next transition.
+ * Hooks are removed automatically when their owner unloads. */
+bool panda_register_transient_reset(void *owner, void (*reset)(void *opaque),
+                                    void *opaque);
+void panda_unregister_transient_reset(void *owner);
+
+
 
 /**
  * panda_register_callback_with_context() - Register a callback for a plugin with context.

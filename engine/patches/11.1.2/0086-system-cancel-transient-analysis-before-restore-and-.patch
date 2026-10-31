@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 28 Oct 2026 18:30:00 -0400
+Subject: [PATCH] system: cancel transient analysis before restore and reset
+
+Cancel abandoned host-side syscall/plugin analysis at destructive transitions,
+independently of successful-load notification. Preserve registration policy.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: new
+---
+ migration/savevm.c | 1 +
+ system/runstate.c  | 2 ++
+ 2 files changed, 3 insertions(+)
+
+diff --git a/migration/savevm.c b/migration/savevm.c
+index 490aa7e5ae056780c82308566bb327cfcb232cae..a3608ae6c1a999ce929705f20671196d8debbbc5 100644
+--- a/migration/savevm.c
++++ b/migration/savevm.c
+@@ -3112,6 +3112,7 @@ int qemu_loadvm_state(QEMUFile *f, Error **errp)
+ 
+     /* RAM is about to change without dirty bits, whether or not the load succeeds */
+     panda_before_loadvm();
++    panda_analysis_reset();
+     ret = qemu_loadvm_state_main(f, mis, errp);
+     qemu_event_set(&mis->main_thread_load_event);
+ 
+diff --git a/system/runstate.c b/system/runstate.c
+index ae95fdb43bc4a8bf652e6675d7b0d3b2d50f95a3..75afa70e8020b81d4baa3b0063ba501e8b23ef74 100644
+--- a/system/runstate.c
++++ b/system/runstate.c
+@@ -522,6 +522,8 @@ void qemu_system_reset(ShutdownCause reason)
+     int ret;
+     ResetType type;
+ 
++    /* Abandon host analysis before reset/rebuild, including failed resets. */
++    panda_analysis_reset();
+     cpu_synchronize_all_states();
+ 
+     switch (reason) {

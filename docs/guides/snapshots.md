@@ -76,6 +76,30 @@ reset the machine first, as `loadvm` does. On debian-13-aarch64 a restore took 3
 500) before these two changes and ~1.8 ms in a 30-restore check after them, most of it the device
 load. The second figure is a smoke check on a busy host, not a timing run.
 
+### Transient analysis state
+
+Full loads, machine resets and fast restores abandon pending host-side syscall analysis
+before replacing guest execution. Native plugins can register one
+`panda_register_transient_reset` hook per loaded owner to discard their own transient
+state. These hooks must be idempotent and must not write guest state or change persistent
+registration/filter policy; they are removed before the owner unloads.
+
+Cancellation is not a success notification: it also happens if a destructive transition
+later fails. A fast restore rejected before changing RAM leaves analysis state alone.
+A fast restore does not fire `after_loadvm`: it returns the machine it snapshotted to an
+earlier state, so plugin state derived from the kernel (OSI's, for example) stays valid, and
+restore loops don't pay to rebuild it. Transient-reset hooks are its notification. This cancellation API is not permission to
+detach a live syscall injector whose guest registers still need restoration.
+
+An ordinary snapshot load can call cancellation more than once (machine reset,
+then state loading); hooks must not assume one cancellation per load. Only the
+successful `after_loadvm` notification of a full load is exactly once. `tests/lifecycle.py`
+exercises the public hooks on real x86_64/aarch64 guests, including unregister,
+re-register, rejected operations and hardware reset. Mixed pending/held/injected
+slot cancellation and atomic detach refusal are tested separately by the actual-C-body
+host harnesses `tests/static/lifecycle.py` and `tests/static/penguin_detach.py`;
+these do not establish end-to-end injected-syscall guest conformance.
+
 ### Edge coverage
 
 `Panda.enable_fast_coverage()` turns on AFL-style edge coverage for a fuzzing loop: each executed

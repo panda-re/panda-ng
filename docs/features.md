@@ -31,7 +31,7 @@ ubuntu-24.04 images (see
 | [Moving a running guest between KVM and TCG](#kvm-tcg) | experimental | KVM, TCG | x86_64 (by hand), aarch64 (by hand) |
 | [Memory access that pages in](#faulting-access) | engine API | TCG, KVM | x86_64, aarch64 |
 | [Translation-time hooks and register pointers](#engine-hooks) | engine API | TCG | x86_64, aarch64 |
-| [Syscall trap and host-side introspection](#syscall-trap) | engine API | TCG, KVM | x86_64, aarch64 |
+| [Syscall trap and host-side introspection](#syscall-trap) | engine API | TCG | x86_64, aarch64 |
 | [Embedding for penguin](#penguin) | engine API | TCG, KVM | **untested** |
 | [Custom machines and modules](#machines) | supported | TCG | arm, aarch64 |
 | [Packages](#packaging) | supported | - | **untested** |
@@ -240,9 +240,9 @@ a machine reset. tests/fuzz.py runs a fuzzing loop with it.
 
 **Docs:** [docs/guides/snapshots.md#fast-restore](guides/snapshots.md#fast-restore)
 
-**Tests:** `tests/fastrestore.py`, `tests/fastrestore_guards.py`, `tests/fastrestore_hotplug.py`, `tests/fastrestore_vsock.py`, `tests/fuzz.py`
+**Tests:** `tests/fastrestore.py`, `tests/fastrestore_guards.py`, `tests/fastrestore_hotplug.py`, `tests/fastrestore_vsock.py`, `tests/fuzz.py`, `tests/static/lifecycle.py`
 
-**Engine patches:** 0055-0057, 0060, 0064, 0076, 0079-0081 ([series](reference/patches.md))
+**Engine patches:** 0055-0057, 0060, 0064, 0076, 0079-0081, 0086 ([series](reference/patches.md))
 
 <a id="fast-coverage"></a>
 ## Edge coverage for fuzzing
@@ -327,9 +327,11 @@ hit), and read registers through stable pointers instead of the register API.
 Trap guest system calls in the engine, serve them on the host (penguin's syscall engine), read
 process state host-side from the kernel's symbols, and redirect the guest from a syscall entry.
 
-**Use it:** `qemu_plugin_set_pc`
+**Limits.** Native syscall trap events require TCG; symbol presence does not establish KVM support. Penguin's explicit detach requires main-thread/BQL stopped-vCPU quiescence and no public kernel hooks or live injected calls. Persistent profile/internal hooks survive; this is not full unload or profile reconfiguration. Checked lifetime/child-birth correlation and current consumer admission remain incomplete.
 
-**Tests:** `engine/tests/guest/sctest.sh`, `engine/tests/guest/ositest.sh`, `engine/tests/guest/setpctest.sh`
+**Use it:** `qemu_plugin_set_pc`, `penguin_syscall_detach`
+
+**Tests:** `engine/tests/guest/sctest.sh`, `engine/tests/guest/ositest.sh`, `engine/tests/guest/setpctest.sh`, `tests/static/penguin_detach.py`
 
 **Engine patches:** 0019, 0021, 0033 ([series](reference/patches.md))
 

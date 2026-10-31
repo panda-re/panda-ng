@@ -237,8 +237,8 @@ limits = "TCG only, and not while recording or replaying (both refuse)."
 api = ["c:panda_fast_snap", "c:panda_fast_restore", "c:panda_fast_delete"]
 docs = ["docs/guides/snapshots.md#fast-restore"]
 tests = ["tests/fastrestore.py", "tests/fastrestore_guards.py", "tests/fastrestore_hotplug.py",
-         "tests/fastrestore_vsock.py", "tests/fuzz.py"]
-patches = ["0055-0057", "0060", "0064", "0076", "0079-0081"]
+         "tests/fastrestore_vsock.py", "tests/fuzz.py", "tests/static/lifecycle.py"]
+patches = ["0055-0057", "0060", "0064", "0076", "0079-0081", "0086"]
 
 [[feature]]
 id = "fast-coverage"
@@ -327,14 +327,16 @@ patches = ["0018", "0020", "0036"]
 id = "syscall-trap"
 name = "Syscall trap and host-side introspection"
 status = "engine"
-accel = ["TCG", "KVM"]
+accel = ["TCG"]
 tested_on = ["x86_64", "aarch64"]
 summary = """
 Trap guest system calls in the engine, serve them on the host (penguin's syscall engine), read
 process state host-side from the kernel's symbols, and redirect the guest from a syscall entry.
 """
-api = ["c:qemu_plugin_set_pc"]
-tests = ["engine/tests/guest/sctest.sh", "engine/tests/guest/ositest.sh", "engine/tests/guest/setpctest.sh"]
+limits = "Native syscall trap events require TCG; symbol presence does not establish KVM support. Penguin's explicit detach requires main-thread/BQL stopped-vCPU quiescence and no public kernel hooks or live injected calls. Persistent profile/internal hooks survive; this is not full unload or profile reconfiguration. Checked lifetime/child-birth correlation and current consumer admission remain incomplete."
+api = ["c:qemu_plugin_set_pc", "c:penguin_syscall_detach"]
+tests = ["engine/tests/guest/sctest.sh", "engine/tests/guest/ositest.sh", "engine/tests/guest/setpctest.sh",
+         "tests/static/penguin_detach.py"]
 patches = ["0019", "0021", "0033"]
 
 [[feature]]

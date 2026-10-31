@@ -45257,6 +45257,16 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    pub fn panda_register_transient_reset(
+        owner: *mut ::std::os::raw::c_void,
+        reset: ::std::option::Option<unsafe extern "C" fn(opaque: *mut ::std::os::raw::c_void)>,
+        opaque: *mut ::std::os::raw::c_void,
+    ) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_unregister_transient_reset(owner: *mut ::std::os::raw::c_void);
+}
+unsafe extern "C" {
     pub fn panda_register_callback_with_context(
         plugin: *mut ::std::os::raw::c_void,
         type_: panda_cb_type,

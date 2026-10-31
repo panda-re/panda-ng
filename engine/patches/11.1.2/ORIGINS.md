@@ -21,7 +21,7 @@ The trailers are part of each commit message in an `import-series.sh` tree, so
 `export-series.sh` keeps them. Add both to a new patch, and update this table when the series
 changes (the export does not rewrite this file). "Uncertain" in a note marks a judgement call.
 
-Counts: new 51, penguin 26, panda-re/qemu 6, ac88u 2.
+Counts: new 52, penguin 26, panda-re/qemu 6, ac88u 2.
 
 | # | subject | origin | license | note |
 |---|---|---|---|---|
@@ -110,3 +110,4 @@ Counts: new 51, penguin 26, panda-re/qemu 6, ac88u 2.
 | 0083 | plugins: emit block completion at outgoing edges | new | GPL-2.0-or-later AND LGPL-2.1-or-later | normal-completion TCG exits, no deferred PANDA block bookkeeping |
 | 0084 | replay: guard guest state against analysis mutations | new | GPL-2.0-or-later | observer-only RR; reject unlogged analysis effects |
 | 0085 | replay: coalesce repeated schedules of a pending BH | new | GPL-2.0-or-later | match ordinary BH pending semantics; retain self-reschedules |
+| 0086 | system: cancel transient analysis before restore and reset | new | GPL-2.0-or-later AND MIT | abandon host in-flight state independently of load success |

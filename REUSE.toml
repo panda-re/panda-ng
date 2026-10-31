@@ -100,6 +100,7 @@ SPDX-License-Identifier = "GPL-2.0-or-later AND LGPL-2.1-or-later"
 
 [[annotations]]
 path = [
+  "engine/patches/11.1.2/0086-system-cancel-transient-analysis-before-restore-and-.patch",
   "engine/patches/11.1.2/0001-penguin-core-callbacks-and-build-wiring.patch",
   "engine/patches/11.1.2/0010-penguin-snapshot-ABI-and-a-migratable-vhost-user-vso.patch",
   "engine/patches/11.1.2/0025-system-cpu-timers-continue-the-virtual-clock-when-an.patch",

@@ -41,6 +41,7 @@ PANDAENDCOMMENT */
 #include "hw/core/cpu.h"
 #include "system/cpus.h"
 #include "system/runstate.h"
+#include "system/syscall-trap.h"
 #include "exec/translation-block.h"
 #include "panda/hooks.h"
 #include "system/replay.h"
@@ -337,6 +338,8 @@ static void panda_delete_plugin(int i)
 static void dlclose_plugin(int plugin_idx) {
     void *plugin = panda_plugins[plugin_idx].plugin;
     bool exported_symbols = panda_plugins[plugin_idx].exported_symbols;
+    /* init_plugin can register then fail without running uninit_plugin. */
+    panda_unregister_transient_reset(plugin);
     panda_delete_plugin(plugin_idx);
     dlclose(plugin);
     if(exported_symbols) {
@@ -621,6 +624,118 @@ void panda_require(const char *plugin_name) {
  */
 /* Depth of main-thread callback walks in progress (cb-support.c): inside one, unloads are deferred. */
 int panda_main_walk_depth;
+void panda_unload_pending(void);
+
+/* Transition hooks are host-only policy, not callback modes. They are walked only
+ * on the main thread with the BQL held and every vCPU stopped (a load or reset).
+ * Registration may come from any thread, a plugin loaded from a vCPU's callback
+ * included: it only prepends under panda_transient_lock, and the walk never
+ * visits an entry newer than the head it started from. Dead entries stay
+ * allocated until the outermost walk ends: self-unregister and unregistering a
+ * later owner cannot invalidate the iterator. */
+typedef struct PandaTransientReset {
+    struct PandaTransientReset *next;
+    void *owner;
+    void (*reset)(void *opaque);
+    void *opaque;
+    bool dead;
+} PandaTransientReset;
+
+static PandaTransientReset *panda_transient_resets;
+static unsigned panda_transient_depth;
+static QemuMutex panda_transient_lock;
+
+static void __attribute__((constructor)) panda_transient_lock_init(void)
+{
+    qemu_mutex_init(&panda_transient_lock);
+}
+
+/* Caller holds panda_transient_lock. */
+static void panda_transient_sweep(void)
+{
+    PandaTransientReset **at = &panda_transient_resets;
+    while (*at) {
+        PandaTransientReset *entry = *at;
+        if (entry->dead) {
+            *at = entry->next;
+            g_free(entry);
+        } else {
+            at = &entry->next;
+        }
+    }
+}
+
+bool panda_register_transient_reset(void *owner, void (*reset)(void *opaque),
+                                    void *opaque)
+{
+    bool loaded = false, registered = false;
+    if (!owner || !reset) {
+        return false;
+    }
+    for (int i = 0; i < nb_panda_plugins; i++) {
+        loaded |= panda_plugins[i].plugin == owner && !panda_plugins[i].unload;
+    }
+    if (!loaded) {
+        return false;
+    }
+    qemu_mutex_lock(&panda_transient_lock);
+    for (PandaTransientReset *entry = panda_transient_resets; entry; entry = entry->next) {
+        registered |= !qatomic_read(&entry->dead) && entry->owner == owner;
+    }
+    if (!registered) {
+        PandaTransientReset *entry = g_new0(PandaTransientReset, 1);
+        entry->owner = owner;
+        entry->reset = reset;
+        entry->opaque = opaque;
+        entry->next = panda_transient_resets;
+        qatomic_set(&panda_transient_resets, entry);
+    }
+    qemu_mutex_unlock(&panda_transient_lock);
+    return !registered;
+}
+
+void panda_unregister_transient_reset(void *owner)
+{
+    /* Unload can pause all vCPUs without changing the running runstate. */
+    if (current_cpu || (first_cpu && (!bql_locked() || !qemu_in_main_thread()))) {
+        error_report("PANDA transient reset: unregister requires the main thread/BQL");
+        return;
+    }
+    qemu_mutex_lock(&panda_transient_lock);
+    for (PandaTransientReset *entry = panda_transient_resets; entry; entry = entry->next) {
+        if (entry->owner == owner) {
+            qatomic_set(&entry->dead, true);
+        }
+    }
+    if (!panda_transient_depth) {
+        panda_transient_sweep();
+    }
+    qemu_mutex_unlock(&panda_transient_lock);
+}
+
+void panda_analysis_reset(void)
+{
+    PandaTransientReset *head = qatomic_read(&panda_transient_resets);
+
+    /* Also defer unloads requested from a native consumer's ABORT handler. */
+    panda_main_walk_depth++;
+    panda_transient_depth++;
+    syscall_trap_cancel_all();
+    for (PandaTransientReset *entry = head; entry; entry = entry->next) {
+        if (!qatomic_read(&entry->dead)) {
+            entry->reset(entry->opaque);
+        }
+    }
+    if (--panda_transient_depth == 0) {
+        qemu_mutex_lock(&panda_transient_lock);
+        panda_transient_sweep();
+        qemu_mutex_unlock(&panda_transient_lock);
+    }
+    if (--panda_main_walk_depth == 0) {
+        panda_unload_pending();
+    }
+}
+
 
 static bool panda_on_main_thread(void)
 {
