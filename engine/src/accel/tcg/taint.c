@@ -575,7 +575,7 @@ static TCGHelperInfo ptr_model_info = {
  * switches the vCPU to the track variant and restarts the instruction, as a page fault would.
  * Track blocks count down; at zero, an all-clean CPU state switches back to check. Each return
  * to track doubles the countdown (up to ELASTIC_MAX), so code that keeps touching tainted memory
- * settles in track instead of bouncing. Opt-in for now: PANDA_TAINT_ELASTIC=1.
+ * settles in track instead of bouncing. On by default; PANDA_TAINT_ELASTIC=0 runs track-only.
  */
 #define ELASTIC_PERIOD 1024
 #define ELASTIC_MAX (64 * 1024)
@@ -3882,7 +3882,7 @@ bool taint_enable(void)
     if (taint_active) {
         return true;
     }
-    elastic = g_strcmp0(getenv("PANDA_TAINT_ELASTIC"), "1") == 0;
+    elastic = g_strcmp0(getenv("PANDA_TAINT_ELASTIC"), "0") != 0;
     ram_shadow_alloc();
     CPU_FOREACH(cpu) {
         senv_clear(cpu);
