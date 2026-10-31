@@ -529,6 +529,7 @@ class Panda(TaintMixin):
         # The disk device each arch gets for a bare qcow, when rr needs to name it.
         rr_disk = {'x86_64': 'ide-hd,bus=ide.0,unit=0', 'i386': 'ide-hd,bus=ide.0,unit=0',
                    'aarch64': 'virtio-blk-pci', 'riscv64': 'virtio-blk-pci', 'arm': 'virtio-blk-device',
+                   'ppc64': 'scsi-hd,bus=rr-vscsi.0,scsi-id=0,lun=0',
                    'mips64': 'virtio-blk-pci', 'mips64el': 'virtio-blk-pci'}
         if self.qcow and rr and self.arch_name in rr_disk:
             # Under record/replay, disk I/O completes asynchronously: blkreplay journals the
@@ -557,6 +558,11 @@ class Panda(TaintMixin):
         if self.qcow and rr and self.arch_name in rr_disk:
             # After extra_args' -devices, where a -drive's own device goes: the same PCI slot, so
             # the image's snapshots still load.
+            if self.arch_name == 'ppc64':
+                # pseries puts a bare qcow at scsi 0:0:0 and its default CD-ROM at 0:2:0, both on
+                # a spapr-vscsi; the image's snapshots hold all three.
+                self.panda_args += ["-device", "spapr-vscsi,id=rr-vscsi",
+                                    "-device", "scsi-cd,bus=rr-vscsi.0,scsi-id=2,lun=0"]
             self.panda_args += ["-device", f"{rr_disk[self.arch_name]},drive=panda-disk"]
 
         # Record/replay needs what can't change on a running VM (rr-ready): one TCG vCPU thread,

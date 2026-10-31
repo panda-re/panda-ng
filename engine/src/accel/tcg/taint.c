@@ -617,23 +617,33 @@ static void taint_chk_hit(CPUArchState *env)
 
 /*
  * A check-variant load missed the shadow TLB. It runs before the load, so the TLB is filled here
- * as the load is about to (no fault: a faulting load restarts and comes back); then the shadow is
- * read as taint_ld_slow reads it, the MMIO source included.
+ * as the load is about to; then the shadow is read as taint_ld_slow reads it, the MMIO source
+ * included.
+ *
+ * The fill must be the load's own, faults included: a non-faulting probe is not guest-faithful
+ * everywhere. ppc radix skips the R/C check for a probe (guest_visible = false) and fills the
+ * TLB, so the load that follows hits it and the guest never takes the storage interrupt that
+ * sets the accessed bit; a replay then diverges. A misaligned access is left to the load, whose
+ * alignment fault (if the target has one) comes before translation.
  */
 static void taint_chk_slow(CPUArchState *env, uint64_t addr, uint32_t oi)
 {
     MemOp mop = get_memop(oi);
     int mmu_idx = get_mmuidx(oi);
     uint64_t last = addr + memop_size(mop) - 1;
+    uintptr_t ra = GETPC();
     void *host;
 
     stats.chk_slow++;
-    if (probe_access_flags(env, addr, 0, MMU_DATA_LOAD, mmu_idx, true, &host, GETPC()) &
+    if (addr & ((1u << memop_alignment_bits(mop)) - 1)) {
+        return;
+    }
+    if (probe_access_flags(env, addr, 0, MMU_DATA_LOAD, mmu_idx, false, &host, ra) &
         TLB_INVALID_MASK) {
         return;
     }
     if ((last & TARGET_PAGE_MASK) != (addr & TARGET_PAGE_MASK) &&
-        (probe_access_flags(env, last, 0, MMU_DATA_LOAD, mmu_idx, true, &host, GETPC()) &
+        (probe_access_flags(env, last, 0, MMU_DATA_LOAD, mmu_idx, false, &host, ra) &
          TLB_INVALID_MASK)) {
         return;
     }
