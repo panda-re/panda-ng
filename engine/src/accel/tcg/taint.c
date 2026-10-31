@@ -78,6 +78,9 @@ static uint64_t ram_shadow_size;
 static TaintDeviceWriteFn device_write_fn;
 static void *device_write_opaque;
 
+static TaintMmioReadFn mmio_fn;
+static void *mmio_opaque;
+
 /* Events; the pass emits their checks only while a function is set. */
 static TaintEventFn branch_fn, pc_fn;
 static void *branch_opaque, *pc_opaque;
@@ -87,7 +90,7 @@ static unsigned pc_size;
 static struct {
     uint64_t tbs, ops, untracked_ld, untracked_st, ptr_calls, ld_slow, st_slow,
              ram_oob, unknown_ops, h1_tainted, device_writes, device_bytes,
-             ptr_tainted, branch_events, pc_events, lab_calls, lab_many;
+             ptr_tainted, branch_events, pc_events, lab_calls, lab_many, mmio_tainted;
 } stats;
 static GHashTable *h1_hits;     /* helper name -> tainted-call count */
 
@@ -199,6 +202,36 @@ static bool guest_big_endian(MemOp mop)
     return !!(mop & MO_BSWAP) != HOST_BIG_ENDIAN;
 }
 
+/*
+ * Recent MMIO loads that the source callback tainted, for the same load's label step (which may
+ * run at the end of the instruction). One vCPU runs at a time under rr.
+ */
+static struct {
+    CPUState *cpu;
+    uint64_t addr;
+    unsigned size;
+    uint32_t label;
+} mmio_ring[8];
+static unsigned mmio_next;
+
+static void mmio_note(CPUState *cpu, uint64_t addr, unsigned size, uint32_t label)
+{
+    mmio_ring[mmio_next++ % ARRAY_SIZE(mmio_ring)] =
+        (typeof(mmio_ring[0])){ cpu, addr, size, label };
+}
+
+static uint32_t mmio_label_at(CPUState *cpu, uint64_t addr)
+{
+    for (unsigned i = 1; i <= ARRAY_SIZE(mmio_ring); i++) {
+        typeof(mmio_ring[0]) *e = &mmio_ring[(mmio_next - i) % ARRAY_SIZE(mmio_ring)];
+
+        if (e->cpu == cpu && addr - e->addr < e->size) {
+            return e->label;
+        }
+    }
+    return 0;
+}
+
 static uint64_t taint_ld_slow(CPUArchState *env, uint64_t addr, uint32_t oi)
 {
     CPUState *cpu = env_cpu(env);
@@ -206,11 +239,17 @@ static uint64_t taint_ld_slow(CPUArchState *env, uint64_t addr, uint32_t oi)
     int mmu_idx = get_mmuidx(oi);
     unsigned size = memop_size(mop);
     uint64_t v = 0;
+    uint32_t mmio = 0;
 
     stats.ld_slow++;
+    if (mmio_fn && !ram_shadow_at(cpu, addr, mmu_idx, MMU_DATA_LOAD) &&
+        (mmio = mmio_fn(mmio_opaque, cpu, addr, size))) {
+        stats.mmio_tainted++;
+        mmio_note(cpu, addr, size, mmio);
+    }
     for (unsigned i = 0; i < size; i++) {
         uint8_t *sp = ram_shadow_at(cpu, addr + i, mmu_idx, MMU_DATA_LOAD);
-        uint64_t b = sp ? *sp : 0;
+        uint64_t b = sp ? *sp : mmio ? 0xff : 0;
         unsigned shift = guest_big_endian(mop) ? 8 * (size - 1 - i) : 8 * i;
 
         v |= b << shift;
@@ -616,11 +655,18 @@ static void lab_run(CPUState *cpu, const LabDesc *d, const uint8_t *st)
 
         for (unsigned i = 0; i < size; i++) {
             unsigned m = guest_big_endian(mop) ? size - 1 - i : i;
-            uint32_t *rl;
+            uint32_t *rl, lab;
 
             /* the loaded shadow byte says whether the RAM byte's id is valid */
-            out[i] = st[STAGE_DST + i] &&
-                     (rl = ram_lab_ptr(cpu, addr + m, get_mmuidx(d->off), MMU_DATA_LOAD)) ? *rl : 0;
+            out[i] = 0;
+            if (st[STAGE_DST + i]) {
+                rl = ram_lab_ptr(cpu, addr + m, get_mmuidx(d->off), MMU_DATA_LOAD);
+                if (rl) {
+                    out[i] = *rl;
+                } else if ((lab = mmio_label_at(cpu, addr + m))) {
+                    out[i] = lset_intern(&lab, 1);     /* a device register (MMIO source) */
+                }
+            }
         }
         for (unsigned i = 0; i < d->dsize; i++) {
             lf[d->dslot[0] + i] = out[MIN(i, size - 1)];
@@ -2992,6 +3038,12 @@ static void set_event(TaintEventFn *slot, void **opq, TaintEventFn fn, void *opa
     }
 }
 
+void taint_set_mmio_read_cb(TaintMmioReadFn fn, void *opaque)
+{
+    mmio_fn = fn;
+    mmio_opaque = opaque;
+}
+
 void taint_set_branch_cb(TaintEventFn fn, void *opaque)
 {
     set_event(&branch_fn, &branch_opaque, fn, opaque);
@@ -3013,11 +3065,13 @@ void taint_stats(char *buf, size_t len)
         " ptr_calls %" PRIu64 " ld_slow %" PRIu64 " st_slow %" PRIu64 " ram_oob %" PRIu64
         " unknown_ops %" PRIu64 " h1_tainted %" PRIu64 " device_writes %" PRIu64
         " device_bytes %" PRIu64 " ptr_tainted %" PRIu64 " branch_events %" PRIu64
-        " pc_events %" PRIu64 " lab_calls %" PRIu64 " lab_many %" PRIu64 " lab_sets %u\n",
+        " pc_events %" PRIu64 " lab_calls %" PRIu64 " lab_many %" PRIu64 " lab_sets %u"
+        " mmio_tainted %" PRIu64 "\n",
         stats.tbs, stats.ops, stats.untracked_ld, stats.untracked_st, stats.ptr_calls,
         stats.ld_slow, stats.st_slow, stats.ram_oob, stats.unknown_ops, stats.h1_tainted,
         stats.device_writes, stats.device_bytes, stats.ptr_tainted, stats.branch_events,
-        stats.pc_events, stats.lab_calls, stats.lab_many, lsets ? lsets->len - 2 : 0);
+        stats.pc_events, stats.lab_calls, stats.lab_many, lsets ? lsets->len - 2 : 0,
+        stats.mmio_tainted);
     if (h1_hits) {
         g_hash_table_iter_init(&it, h1_hits);
         while (g_hash_table_iter_next(&it, &k, &v)) {

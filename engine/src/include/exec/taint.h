@@ -72,6 +72,15 @@ int taint_query_reg_labels(CPUState *cpu, int regno, int byte, uint32_t *out, in
 typedef void (*TaintEventFn)(void *opaque, CPUState *cpu, uint64_t pc, uint64_t mask);
 void taint_set_branch_cb(TaintEventFn fn, void *opaque);
 void taint_set_pc_cb(TaintEventFn fn, void *opaque);
+/*
+ * MMIO as a source: called for each guest load from an address that is not RAM (a device
+ * register) while taint is on, with the load's guest virtual address and size. Return a nonzero
+ * label to taint the loaded bytes (with labels on, they carry that label), or 0 to leave them
+ * clean (the default). Called from translated code, where registers may not be up to date:
+ * decide from the address; don't change guest state.
+ */
+typedef uint32_t (*TaintMmioReadFn)(void *opaque, CPUState *cpu, uint64_t vaddr, unsigned size);
+void taint_set_mmio_read_cb(TaintMmioReadFn fn, void *opaque);
 /* Counters: helper calls with tainted inputs that have no model (H1 fallback), etc. */
 void taint_stats(char *buf, size_t len);
 
