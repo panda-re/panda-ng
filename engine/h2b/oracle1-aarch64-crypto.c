@@ -21,7 +21,11 @@ extern const struct row taint_h2b_table[];
 #define F2(n) void helper_crypto_##n(void *, void *, uint32_t);
 F3(sha1su0) F3(sha1c) F3(sha1p) F3(sha1m) F2(sha1h) F2(sha1su1) F3(sha256h) F3(sha256h2)
 F2(sha256su0) F3(sha256su1) F3(sha512h) F3(sha512h2) F2(sha512su0) F3(sha512su1) F3(sm3partw1)
-F3(sm3partw2) F3(sm3tt1a) F3(sm3tt1b) F3(sm3tt2a) F3(sm3tt2b) F3(rax1)
+F3(sm3partw2) F3(sm3tt1a) F3(sm3tt1b) F3(sm3tt2a) F3(sm3tt2b) F3(rax1) F3(aese) F3(aesd)
+F2(aesmc) F2(aesimc)
+
+/* the reference helpers take the portable path, as the clones do (no host AES instructions) */
+unsigned cpuinfo = 0;
 
 struct target { const char *name; void *fn; int nptr; };
 #define T3(n) { "crypto_" #n, (void *)helper_crypto_##n, 3 }
@@ -30,7 +34,7 @@ static const struct target targets[] = {
     T3(sha1su0), T3(sha1c), T3(sha1p), T3(sha1m), T2(sha1h), T2(sha1su1), T3(sha256h),
     T3(sha256h2), T2(sha256su0), T3(sha256su1), T3(sha512h), T3(sha512h2), T2(sha512su0),
     T3(sha512su1), T3(sm3partw1), T3(sm3partw2), T3(sm3tt1a), T3(sm3tt1b), T3(sm3tt2a),
-    T3(sm3tt2b), T3(rax1),
+    T3(sm3tt2b), T3(rax1), T3(aese), T3(aesd), T2(aesmc), T2(aesimc),
 };
 
 #define REGS 4

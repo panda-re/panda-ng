@@ -20,6 +20,7 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
@@ -72,6 +73,14 @@ Type *shadowTy(Type *T)
     return nullptr;
 }
 
+// Host feature words: a helper reads them only to choose between equivalent implementations
+// (AES-NI or C). Clones read them as 0, the portable path, which the library can compute alone.
+bool hostFeature(const Value *U)
+{
+    auto *G = dyn_cast<GlobalVariable>(U);
+    return G && G->getName() == "cpuinfo";
+}
+
 // Memory the shadow helper can mirror: locals, pointer arguments (the engine maps them into the
 // shadow env), and, for reads, constant tables.
 bool ownMemory(Value *P, bool write)
@@ -79,7 +88,8 @@ bool ownMemory(Value *P, bool write)
     const Value *U = getUnderlyingObject(P, 0);
     auto *G = dyn_cast<GlobalVariable>(U);
     return isa<AllocaInst>(U) || (isa<Argument>(U) && U->getType()->isPointerTy()) ||
-           (!write && G && G->isConstant() && G->hasDefinitiveInitializer());
+           (!write && G && G->isConstant() && G->hasDefinitiveInitializer()) ||
+           (!write && hostFeature(U));
 }
 
 // Is the helper simple enough for this pass? Explains the first reason it is not.
@@ -566,6 +576,17 @@ Function *makeShadow(Function &F)
         rets.push_back(R);
         DeleteDeadBlock(rest);
     }
+    SmallVector<LoadInst *, 4> feats;
+    for (Instruction &I : instructions(*NF)) {
+        if (auto *L = dyn_cast<LoadInst>(&I); L && hostFeature(getUnderlyingObject(
+                                                       L->getPointerOperand(), 0))) {
+            feats.push_back(L);
+        }
+    }
+    for (LoadInst *L : feats) {
+        L->replaceAllUsesWith(Constant::getNullValue(L->getType()));
+        L->eraseFromParent();
+    }
     removeUnreachableBlocks(*NF);
 
     Shadower S(*NF);
@@ -623,10 +644,66 @@ struct TaintH2B : PassInfoMixin<TaintH2B> {
         SmallVector<Constant *, 64> rows;
         StructType *Row = StructType::get(C, {PointerType::get(C, 0), PointerType::get(C, 0),
                                               Type::getInt32Ty(C), Type::getInt32Ty(C)});
+        // The output keeps only the shadow helpers, so the originals can be simplified first:
+        // host feature words read as 0 and the accelerated paths they guard fold away.
+        for (Function &F : M) {
+            SmallVector<LoadInst *, 4> feats;
+            for (Instruction &I : instructions(F)) {
+                if (auto *L = dyn_cast<LoadInst>(&I); L && hostFeature(getUnderlyingObject(
+                                                               L->getPointerOperand(), 0))) {
+                    feats.push_back(L);
+                }
+            }
+            if (feats.empty()) {
+                continue;
+            }
+            for (LoadInst *L : feats) {
+                L->replaceAllUsesWith(Constant::getNullValue(L->getType()));
+                L->eraseFromParent();
+            }
+            for (int round = 0; round < 8; round++) {
+                bool changed = false;
+                for (BasicBlock &BB : F) {
+                    for (Instruction &I : make_early_inc_range(BB)) {
+                        if (Value *V = simplifyInstruction(&I, M.getDataLayout())) {
+                            I.replaceAllUsesWith(V);
+                            changed = true;
+                        }
+                    }
+                    changed |= ConstantFoldTerminator(&BB, true);
+                }
+                changed |= removeUnreachableBlocks(F);
+                if (!changed) {
+                    break;
+                }
+            }
+        }
         SmallVector<Function *, 64> cands;
         for (Function &F : M) {
             if (F.getName().starts_with("helper_")) {
                 cands.push_back(&F);
+            }
+        }
+        // what the folding exposed (the portable paths) is inlined here, the inliner having run
+        // before it
+        for (Function *F : cands) {
+            for (int depth = 0; depth < 4; depth++) {
+                SmallVector<CallBase *, 8> calls;
+                for (Instruction &I : instructions(*F)) {
+                    auto *CB = dyn_cast<CallBase>(&I);
+                    Function *Callee = CB ? CB->getCalledFunction() : nullptr;
+                    if (Callee && !Callee->isDeclaration() && !Callee->isIntrinsic() &&
+                        Callee != F && !CB->doesNotReturn()) {
+                        calls.push_back(CB);
+                    }
+                }
+                if (calls.empty()) {
+                    break;
+                }
+                for (CallBase *CB : calls) {
+                    InlineFunctionInfo IFI;
+                    InlineFunction(*CB, IFI);
+                }
             }
         }
         for (Function *F : cands) {
