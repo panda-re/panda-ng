@@ -46,6 +46,7 @@
 #include "tcg/tcg-internal.h"
 #include "exec/taint.h"
 #include "accel/tcg/hooks.h"
+#include <dlfcn.h>
 
 /* panda/plugin.h is target-specific; these two are not (panda/src/callbacks.c). */
 bool panda_register_transient_reset(void *owner, void (*reset)(void *opaque), void *opaque);
@@ -90,7 +91,7 @@ static unsigned pc_size;
 static struct {
     uint64_t tbs, ops, untracked_ld, untracked_st, ptr_calls, ld_slow, st_slow,
              ram_oob, unknown_ops, h1_tainted, device_writes, device_bytes,
-             ptr_tainted, branch_events, pc_events, lab_calls, lab_many, mmio_tainted, helper_mem_bytes;
+             ptr_tainted, branch_events, pc_events, lab_calls, lab_many, mmio_tainted, helper_mem_bytes, h2b_calls;
 } stats;
 static GHashTable *h1_hits;     /* helper name -> tainted-call count */
 
@@ -283,6 +284,68 @@ static void taint_st_slow(CPUArchState *env, uint64_t addr, uint32_t oi, uint64_
         stlb_fill(cpu, addr, mmu_idx, MMU_DATA_STORE);
     }
 }
+
+/*
+ * H2b: shadow helpers generated at build time by the LLVM pass in engine/h2b. A library holds
+ * `taint_h2b_table`; each entry takes the helper's arguments, their shadows and the shadow env's
+ * offset from env, staged in the shadow env at h2b_off, and returns the shadow of the result.
+ * - pure helpers (no pointer arguments): the entry only computes shadows; it runs beside the
+ *   helper, and only when an input is tainted;
+ * - helpers with pointers into the CPU state: the entry is an instrumented clone that does the
+ *   helper's work too (its stores and their shadows), and replaces the helper's call.
+ */
+#define H2B_MAX_ARGS 8
+typedef struct H2bRow {
+    const char *name;
+    uint64_t (*fn)(const uint64_t *in);
+    int32_t nargs;
+    uint32_t ptrmask;           /* which arguments are pointers */
+} H2bRow;
+static GHashTable *h2b_rows;    /* helper name -> const H2bRow * */
+static size_t h2b_off;          /* the staged arguments and shadows, in the shadow env */
+
+static void h2b_load(void)
+{
+    const char *path = getenv("PANDA_TAINT_H2B");
+    const H2bRow *t;
+    void *lib;
+
+    h2b_rows = g_hash_table_new(g_str_hash, g_str_equal);
+    if (!path || !*path) {
+        return;
+    }
+    lib = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+    t = lib ? dlsym(lib, "taint_h2b_table") : NULL;
+    if (!t) {
+        warn_report("taint: no shadow helpers from %s: %s", path, dlerror());
+        return;
+    }
+    for (; t->name; t++) {
+        if (t->nargs <= H2B_MAX_ARGS) {
+            g_hash_table_insert(h2b_rows, (gpointer)t->name, (gpointer)t);
+        }
+    }
+}
+
+static uint64_t taint_h2b_call(CPUArchState *env, const H2bRow *row)
+{
+    uint8_t *senv = env_cpu(env)->taint_senv;
+    uint64_t *in = (uint64_t *)(senv + h2b_off);
+
+    stats.h2b_calls++;
+    in[2 * row->nargs] = (uintptr_t)senv - (uintptr_t)env;
+    return row->fn(in);
+}
+
+static TCGHelperInfo h2b_call_info = {
+    .func = taint_h2b_call, .name = "taint_h2b_call", .flags = TCG_CALL_NO_RWG,
+    .typemask = dh_typemask(i64, 0) | dh_typemask(ptr, 1) | dh_typemask(ptr, 2),
+};
+/* in place of a helper: globals are synced around it, as for any helper that may touch them */
+static TCGHelperInfo h2b_replace_info = {
+    .func = taint_h2b_call, .name = "taint_h2b_replace", .flags = 0,  /* result unused */
+    .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1) | dh_typemask(ptr, 2),
+};
 
 static void taint_h1_hit(const TCGHelperInfo *info)
 {
@@ -926,7 +989,8 @@ void taint_tcg_init(CPUState *cpu)
                ((uintptr_t)cpu_env(cpu) - (uintptr_t)cpu);
     stlb_off = ROUND_UP(env_size, 64);
     stage_off = ROUND_UP(stlb_off + sizeof(STLBEntry) * STLB_N * NB_MMU_MODES, 64);
-    lab_off = ROUND_UP(stage_off + STAGE_BYTES * (1 + LAB_BATCH), 64);
+    h2b_off = ROUND_UP(stage_off + STAGE_BYTES * (1 + LAB_BATCH), 64);
+    lab_off = ROUND_UP(h2b_off + (H2B_MAX_ARGS * 2 + 1) * sizeof(uint64_t), 64);
     lab_carry = env_size + TCG_MAX_TEMPS * LSLOT;
     senv_bytes = lab_off + (lab_carry + 1) * sizeof(uint32_t);
     senv_field_off = (uintptr_t)&cpu->taint_senv - (uintptr_t)cpu_env(cpu);
@@ -954,6 +1018,7 @@ void taint_tcg_init(CPUState *cpu)
         shadow_global[i] = temp_idx(sh);
     }
     h1_hits = g_hash_table_new(g_str_hash, g_str_equal);
+    h2b_load();
     lsets = g_ptr_array_new();
     g_ptr_array_add(lsets, NULL);       /* 0: no labels */
     g_ptr_array_add(lsets, NULL);       /* 1: LSET_MANY */
@@ -2208,6 +2273,51 @@ static TCGTemp *global_named(Pass *p, const char *name)
     return NULL;
 }
 
+/* Stage a call's arguments and their shadows for an H2b entry. */
+static void h2b_stage(Pass *p, TCGOp *op, int no, int ni, uint32_t ptrmask)
+{
+    for (int i = 0; i < ni; i++) {
+        TCGTemp *ts = arg_temp(op->args[no + i]);
+        TCGv_i64 v;
+
+        if (ts->type == TCG_TYPE_I32) {
+            v = s64();
+            tcg_gen_extu_i32_i64(v, temp_tcgv_i32(ts));
+        } else {
+            v = temp_tcgv_i64(ts);
+        }
+        tcg_gen_st_i64(v, senv_ptr(p), h2b_off + 8 * i);
+        tcg_gen_st_i64(ts->kind == TEMP_CONST || (ptrmask >> i & 1) ? tcg_constant_i64(0)
+                                                                    : as_i64(p, ts),
+                       senv_ptr(p), h2b_off + 8 * (ni + i));
+    }
+}
+
+/*
+ * Replace a call by its H2b clone when every pointer argument points into the CPU state (the
+ * clone maps those to the shadow env). Not with labels on: their step for pointer helpers expects
+ * the coarse model.
+ */
+static bool h2b_replace(Pass *p, TCGOp *op, const H2bRow *row, int no, int ni)
+{
+    if (no || labels_on || row->nargs != ni) {
+        return false;
+    }
+    for (int i = 0; i < ni; i++) {
+        TCGTemp *ts = arg_temp(op->args[no + i]);
+
+        if ((row->ptrmask >> i & 1) &&
+            !(is_env(ts) || (temp_idx(ts) < p->nb_temps && p->sptr[temp_idx(ts)]))) {
+            return false;
+        }
+    }
+    h2b_stage(p, op, no, ni, row->ptrmask);
+    tcg_gen_call2(taint_h2b_call, &h2b_replace_info, NULL, tcgv_ptr_temp(tcg_env),
+                  tcg_constant_internal(TCG_TYPE_PTR, (uintptr_t)row));
+    tcg_op_remove(p->s, op);
+    return true;
+}
+
 static void taint_call(Pass *p, TCGOp *op)
 {
     const TCGHelperInfo *info = tcg_call_info(op);
@@ -2219,6 +2329,14 @@ static void taint_call(Pass *p, TCGOp *op)
 
     if (pc_fn && pc_off >= 0 && info->name && !strcmp(info->name, "lookup_tb_ptr")) {
         tcg_gen_call1(taint_pc_ev, &pc_ev_info, NULL, tcgv_ptr_temp(tcg_env));
+    }
+
+    const H2bRow *row = control || !info->name ? NULL : g_hash_table_lookup(h2b_rows, info->name);
+    if (row && row->ptrmask) {
+        if (h2b_replace(p, op, row, no, ni)) {
+            return;
+        }
+        row = NULL;
     }
 
     if (!control) {
@@ -2299,7 +2417,23 @@ static void taint_call(Pass *p, TCGOp *op)
                       acc ? tcgv_i64_temp(acc) : tcg_constant_internal(TCG_TYPE_I64, 0));
         acc = any;
     }
-    if (acc) {
+    if (!acc || nsp || nw || (row && row->nargs != ni)) {
+        row = NULL;
+    }
+    if (row) {
+        /* H2b: the shadow helper computes the result's shadow, only when an input is tainted */
+        TCGLabel *skip = gen_new_label();
+
+        tcg_gen_brcondi_i64(TCG_COND_EQ, acc, 0, skip);
+        h2b_stage(p, op, no, ni, 0);
+        tcg_gen_call2(taint_h2b_call, &h2b_call_info, tcgv_i64_temp(acc),
+                      tcgv_ptr_temp(tcg_env), tcg_constant_internal(TCG_TYPE_PTR, (uintptr_t)row));
+        gen_set_label(skip);
+        tcg_gen_andi_i64(acc, acc, result_mask(info->name));
+        if (labels_on) {
+            lab_callop(p, op, ins, nin, writes, nw, sps, 0, 0, acc);
+        }
+    } else if (acc) {
         TCGLabel *skip = gen_new_label();
 
         tcg_gen_brcondi_i64(TCG_COND_EQ, acc, 0, skip);
@@ -3117,12 +3251,12 @@ void taint_stats(char *buf, size_t len)
         " unknown_ops %" PRIu64 " h1_tainted %" PRIu64 " device_writes %" PRIu64
         " device_bytes %" PRIu64 " ptr_tainted %" PRIu64 " branch_events %" PRIu64
         " pc_events %" PRIu64 " lab_calls %" PRIu64 " lab_many %" PRIu64 " lab_sets %u"
-        " mmio_tainted %" PRIu64 " helper_mem_bytes %" PRIu64 "\n",
+        " mmio_tainted %" PRIu64 " helper_mem_bytes %" PRIu64 " h2b_calls %" PRIu64 "\n",
         stats.tbs, stats.ops, stats.untracked_ld, stats.untracked_st, stats.ptr_calls,
         stats.ld_slow, stats.st_slow, stats.ram_oob, stats.unknown_ops, stats.h1_tainted,
         stats.device_writes, stats.device_bytes, stats.ptr_tainted, stats.branch_events,
         stats.pc_events, stats.lab_calls, stats.lab_many, lsets ? lsets->len - 2 : 0,
-        stats.mmio_tainted, stats.helper_mem_bytes);
+        stats.mmio_tainted, stats.helper_mem_bytes, stats.h2b_calls);
     if (h1_hits) {
         g_hash_table_iter_init(&it, h1_hits);
         while (g_hash_table_iter_next(&it, &k, &v)) {
