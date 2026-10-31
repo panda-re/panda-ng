@@ -245,10 +245,11 @@ data and indirect jumps to tainted targets.
 
 **Limits.** Replay only (the `taint` startup capability brings `rr`). Helpers propagate the OR of their
 scalar inputs into their result (x86's lazy-flags helpers have exact masks); helpers that read or
-write vector registers through pointers taint the whole region, and helpers that write guest
-memory (Arm MOPS, DC ZVA, RISC-V cbo.zero, x86 fxsave) are not modelled yet. Labels follow data
-by byte; more than 256 labels on one byte collapse to "many". Control dependence (branches,
-table lookups) is not followed, only reported.
+write vector registers through pointers taint the whole region, unless an optional library of
+shadow helpers generated at build time covers them (engine/h2b). Helpers that write guest memory
+move its taint (Arm MOPS, DC ZVA, RISC-V cbo.zero); x86 fxsave/xsave do not yet. Labels follow
+data by byte; more than 256 labels on one byte collapse to "many". Control dependence is not
+followed, only reported; table lookups are followed only in address mode.
 
 **Use it:** `taint_enable`, `taint_disable`, `taint_label_ram`, `taint_query_ram`, `taint_va_to_ram`, `taint_label_reg`, `taint_query_reg`, `taint_enable_labels`, `taint_set_address_mode`, `taint_label_ram_l`, `taint_query_ram_labels`, `taint_label_reg_l`, `taint_query_reg_labels`, `taint_set_device_write_cb`, `taint_set_branch_cb`, `taint_set_pc_cb`, `taint_set_mmio_read_cb`, `taint_stats`, `TaintMixin.taint_enable`, `TaintMixin.taint_label_va`, `TaintMixin.taint_labels_va`, `TaintMixin.cb_taint_branch`, `TaintMixin.taint_device_write`, `TaintMixin.taint_mmio_read`, `TaintMixin.taint_address_mode`
 

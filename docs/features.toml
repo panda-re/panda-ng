@@ -244,10 +244,11 @@ data and indirect jumps to tainted targets.
 limits = """
 Replay only (the `taint` startup capability brings `rr`). Helpers propagate the OR of their
 scalar inputs into their result (x86's lazy-flags helpers have exact masks); helpers that read or
-write vector registers through pointers taint the whole region, and helpers that write guest
-memory (Arm MOPS, DC ZVA, RISC-V cbo.zero, x86 fxsave) are not modelled yet. Labels follow data
-by byte; more than 256 labels on one byte collapse to "many". Control dependence (branches,
-table lookups) is not followed, only reported.
+write vector registers through pointers taint the whole region, unless an optional library of
+shadow helpers generated at build time covers them (engine/h2b). Helpers that write guest memory
+move its taint (Arm MOPS, DC ZVA, RISC-V cbo.zero); x86 fxsave/xsave do not yet. Labels follow
+data by byte; more than 256 labels on one byte collapse to "many". Control dependence is not
+followed, only reported; table lookups are followed only in address mode.
 """
 api = ["c:taint_enable", "c:taint_disable", "c:taint_label_ram", "c:taint_query_ram",
        "c:taint_va_to_ram", "c:taint_label_reg", "c:taint_query_reg", "c:taint_enable_labels", "c:taint_set_address_mode",
