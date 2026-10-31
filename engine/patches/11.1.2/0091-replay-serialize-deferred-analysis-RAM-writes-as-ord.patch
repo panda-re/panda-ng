@@ -1,0 +1,154 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 29 Oct 2026 20:00:00 -0400
+Subject: [PATCH] replay: serialize deferred analysis RAM writes as ordered
+ async events
+
+Version the ND stream and materialize bounded RAM effects without a producer
+on replay. Apply at the existing deterministic scheduler async boundary, not
+the request thread; cancel unsaved effects during teardown flush.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ replay/meson.build       |  1 +
+ replay/replay-events.c   | 22 +++++++++++++++++++++-
+ replay/replay-internal.h |  1 +
+ replay/replay.c          |  3 ++-
+ replay/stubs-system.c    |  8 ++++++++
+ 5 files changed, 33 insertions(+), 2 deletions(-)
+
+diff --git a/replay/meson.build b/replay/meson.build
+index 6f86061e40de66f91118653db3b22e2428e29eb4..b665124157d600b712eed7a1365c832e4b4af011 100644
+--- a/replay/meson.build
++++ b/replay/meson.build
+@@ -2,6 +2,7 @@ system_ss.add(when: 'CONFIG_TCG', if_true: files(
+   'replay.c',
+   'replay-internal.c',
+   'replay-events.c',
++  'replay-effect.c',
+   'replay-time.c',
+   'replay-input.c',
+   'replay-char.c',
+diff --git a/replay/replay-events.c b/replay/replay-events.c
+index 78e2e9394d1b31f78d1f22c4de8182ca1fd52d38..53b8fdec2ef854f589c7314dec7d9f9d2b9154cc 100644
+--- a/replay/replay-events.c
++++ b/replay/replay-events.c
+@@ -10,6 +10,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "system/replay-effect.h"
+ #include "qemu/error-report.h"
+ #include "system/replay.h"
+ #include "replay-internal.h"
+@@ -53,6 +54,9 @@ static void replay_run_event(Event *event)
+     case REPLAY_ASYNC_EVENT_BLOCK:
+         aio_bh_call(event->opaque);
+         break;
++    case REPLAY_ASYNC_EVENT_ANALYSIS_EFFECT:
++        replay_analysis_effect_run(event->opaque);
++        break;
+     case REPLAY_ASYNC_EVENT_NET:
+         replay_event_net_run(event->opaque);
+         break;
+@@ -87,7 +91,12 @@ void replay_flush_events(void)
+     while (!QTAILQ_EMPTY(&events_list)) {
+         Event *event = QTAILQ_FIRST(&events_list);
+         QTAILQ_REMOVE(&events_list, event, events);
+-        replay_run_event(event);
++        if (event->event_kind == REPLAY_ASYNC_EVENT_ANALYSIS_EFFECT) {
++            /* Teardown never applies an event that was not serialized. */
++            replay_analysis_effect_cancel(event->opaque);
++        } else {
++            replay_run_event(event);
++        }
+         g_free(event);
+     }
+ }
+@@ -197,6 +206,9 @@ static void replay_save_event(Event *event)
+         case REPLAY_ASYNC_EVENT_BLOCK:
+             replay_put_qword(event->id);
+             break;
++        case REPLAY_ASYNC_EVENT_ANALYSIS_EFFECT:
++            replay_analysis_effect_save(event->opaque);
++            break;
+         case REPLAY_ASYNC_EVENT_NET:
+             replay_event_net_save(event->opaque);
+             break;
+@@ -213,6 +225,9 @@ void replay_save_events(void)
+     g_assert(replay_mutex_locked());
+     while (!QTAILQ_EMPTY(&events_list)) {
+         Event *event = QTAILQ_FIRST(&events_list);
++        if (event->event_kind == REPLAY_ASYNC_EVENT_ANALYSIS_EFFECT) {
++            replay_analysis_effect_prepare(event->opaque);
++        }
+         replay_save_event(event);
+         QTAILQ_REMOVE(&events_list, event, events);
+         replay_run_event(event);
+@@ -253,6 +268,11 @@ static Event *replay_read_event(void)
+             replay_state.read_event_id = replay_get_qword();
+         }
+         break;
++    case REPLAY_ASYNC_EVENT_ANALYSIS_EFFECT:
++        event = g_new0(Event, 1);
++        event->event_kind = event_kind;
++        event->opaque = replay_analysis_effect_load();
++        return event;
+     case REPLAY_ASYNC_EVENT_NET:
+         event = g_new0(Event, 1);
+         event->event_kind = event_kind;
+diff --git a/replay/replay-internal.h b/replay/replay-internal.h
+index 7651d28fcd2cb4e1d403ad8bc951971a01f67dcb..fa94be90af6ae8c83bde51b47c63ec5713c6bfdb 100644
+--- a/replay/replay-internal.h
++++ b/replay/replay-internal.h
+@@ -22,6 +22,7 @@ typedef enum ReplayAsyncEventKind {
+     REPLAY_ASYNC_EVENT_CHAR_READ,
+     REPLAY_ASYNC_EVENT_BLOCK,
+     REPLAY_ASYNC_EVENT_NET,
++    REPLAY_ASYNC_EVENT_ANALYSIS_EFFECT,
+     REPLAY_ASYNC_COUNT
+ } ReplayAsyncEventKind;
+ 
+diff --git a/replay/replay.c b/replay/replay.c
+index fc5cc2f34471f8a490b1d971d58ef5aa0f0d0878..0f65e6b85a8822aa8bb8bbdec860808d618f2eb5 100644
+--- a/replay/replay.c
++++ b/replay/replay.c
+@@ -26,7 +26,7 @@
+ 
+ /* Current version of the replay mechanism.
+    Increase it when file format changes. */
+-#define REPLAY_VERSION              0xe0200e
++#define REPLAY_VERSION              0xe0200f
+ /* Size of replay log header */
+ #define HEADER_SIZE                 (sizeof(uint32_t) + sizeof(uint64_t))
+ 
+@@ -64,6 +64,7 @@ static const char *replay_async_event_name(ReplayAsyncEventKind event)
+         ASYNC_EVENT(CHAR_READ);
+         ASYNC_EVENT(BLOCK);
+         ASYNC_EVENT(NET);
++        ASYNC_EVENT(ANALYSIS_EFFECT);
+ #undef ASYNC_EVENT
+     default:
+         g_assert_not_reached();
+diff --git a/replay/stubs-system.c b/replay/stubs-system.c
+index 62defd60fd251b3d98e3e39c334de89574fe9bd6..2018b72bd7a645a947a01bd782f4d07c3dee4a08 100644
+--- a/replay/stubs-system.c
++++ b/replay/stubs-system.c
+@@ -1,4 +1,5 @@
+ #include "qemu/osdep.h"
++#include "system/replay-effect.h"
+ #include "system/replay.h"
+ #include "ui/input.h"
+ 
+@@ -132,3 +133,10 @@ void qmp_x_rr_end_record(Error **errp)
+ {
+     error_setg(errp, "replay support not available");
+ }
++
++/* No TCG/replay engine: requests are unavailable. */
++bool replay_analysis_ram_write_request(uint64_t address, const uint8_t *data,
++                                        uint32_t length)
++{
++    return false;
++}

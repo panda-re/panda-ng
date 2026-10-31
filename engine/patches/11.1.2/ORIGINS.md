@@ -21,7 +21,7 @@ The trailers are part of each commit message in an `import-series.sh` tree, so
 `export-series.sh` keeps them. Add both to a new patch, and update this table when the series
 changes (the export does not rewrite this file). "Uncertain" in a note marks a judgement call.
 
-Counts: new 56, penguin 26, panda-re/qemu 6, ac88u 2.
+Counts: new 57, penguin 26, panda-re/qemu 6, ac88u 2.
 
 | # | subject | origin | license | note |
 |---|---|---|---|---|
@@ -115,3 +115,4 @@ Counts: new 56, penguin 26, panda-re/qemu 6, ac88u 2.
 | 0088 | system: gate handoff and snapshot clock adaptations | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT | bounded handoff/RR/fuzz off paths; RISC-V version acceptance remains ungated |
 | 0089 | riscv: select snapshot version policy at registration | new | GPL-2.0-or-later | minimum12 upstream, HANDOFF opts into11 before loading fields |
 | 0090 | system: seal capabilities before startup side effects | new | MIT | early arity-aware CLI prepass, immutable embedding handshake |
+| 0091 | replay: serialize deferred analysis RAM writes as ordered async events | new | GPL-2.0-or-later | bounded RAM-only effects, producer-free replay, versioned ND transport |

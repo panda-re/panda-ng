@@ -1,6 +1,7 @@
 specific_ss.add(
     files(
         'common.c',
+        'analysis-effect.c',
         'callbacks.c',
         'cb-support.c',
         'panda_api.c',

@@ -88,3 +88,4 @@
 11.1.2/0088-system-gate-handoff-and-snapshot-clock-adaptations.patch
 11.1.2/0089-riscv-select-snapshot-version-policy-at-registration.patch
 11.1.2/0090-system-seal-capabilities-before-startup-side-effects.patch
+11.1.2/0091-replay-serialize-deferred-analysis-RAM-writes-as-ord.patch

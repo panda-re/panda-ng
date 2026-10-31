@@ -161,6 +161,9 @@
                 bash scripts/panda-sdk.sh build $sdk
                 mkdir -p $out/include/panda-ng
                 cp ../libpanda-ng/*.h $out/include/panda-ng/
+                # Additive APIs are not part of the generated flattened ABI headers.
+                mkdir -p $out/include/panda
+                cp include/panda/analysis-effect.h $out/include/panda/
                 # libqemu-system-<name>.so (with penguin's alias names), libqemu-kvm-<target>.so and
                 # libpanda-<target>-softmmu.so are links of the same objects; only the soname differs,
                 # and all of them are dlopened by path. Keep libpanda-* and link the rest to it.
@@ -264,6 +267,7 @@
               preConfigure = ''
                 mkdir -p local_packages
                 ln -s ${engine}/include/panda-ng local_packages/panda-ng
+                ln -s ${engine}/include/panda local_packages/panda
               '';
               # meson installs only the rust plugins. Install the build tree's layout, which is what
               # libpanda's plugin search and syscalls2 (dso_info libraries in syscalls2/) expect.
@@ -1081,6 +1085,10 @@
             touch $out
           '';
           # Exercise the real Python RR admission/observer wrappers without an engine build.
+          replay-effect = pkgs.runCommandCC "replay-effect-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            python3 ${./.}/tests/static/replay_effect.py
+            touch $out
+          '';
           replay-policy = pkgs.runCommand "replay-policy-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
             python3 ${./.}/tests/static/replay_policy.py
             touch $out
