@@ -11,8 +11,8 @@ untyped line, then, each in a fresh process:
   - the source callback tainted some loads;
   - every byte the shell reads from the console carries exactly the label 7 (register -> UART
     driver -> tty buffers -> read());
-  - echo's write of the typed word is tainted on every byte, with exactly the label 7 (XFAIL on
-    aarch64: glibc copies with FEAT_MOPS, whose helpers have no shadow store yet);
+  - echo's write of the typed word is tainted on every byte, with exactly the label 7 (on aarch64
+    this goes through glibc's FEAT_MOPS memcpy, whose helpers report their writes);
   - the untyped line (uname's output) is clean;
   - its write comes at the same instruction count as in the plain replay.
 x86_64's UART is port I/O, not MMIO: the test says so and passes. (The RTC is not used: RISC-V virt
@@ -110,11 +110,6 @@ def main():
     typed = "".join(r[0] for r in t["reads"])
     word = [w for w in t["writes"] if w[0].strip() == WORD]
     clean = [w for w in t["writes"] if w[0].strip() == arch]
-    # Known gap on aarch64 (notes/phase1.md): the guest CPU has FEAT_MOPS, so glibc's memcpy is
-    # CPY* instructions, whose helpers write guest memory with no shadow store (Phase 3). The
-    # shell's copies of what it read lose the taint; reported as XFAIL until that model exists.
-    xfail = {"echo's write of the typed word carries exactly the UART's label"} \
-        if arch == "aarch64" else set()
     checks = [
         ("taint enabled", t.get("enabled") is True, ""),
         ("the source callback tainted UART loads", t["stats"]["mmio_tainted"] > 0, t["stats"]),
@@ -130,11 +125,8 @@ def main():
     ]
     bad = 0
     for what, ok, detail in checks:
-        tag = "ok  " if ok else "XFAIL" if what in xfail else "FAIL"
-        print(f"{tag} {what}" + ("" if ok else f": {detail}"))
-        if ok and what in xfail:
-            print(f"XPASS {what}: the known gap is gone, drop it from xfail")
-        bad += not ok and what not in xfail
+        print(f"{'ok  ' if ok else 'FAIL'} {what}" + ("" if ok else f": {detail}"))
+        bad += not ok
     sys.exit(1 if bad else 0)
 
 

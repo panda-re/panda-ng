@@ -117,4 +117,4 @@ Counts: new 57, penguin 26, panda-re/qemu 6, ac88u 2.
 | 0090 | system: seal capabilities before startup side effects | new | MIT | early arity-aware CLI prepass, immutable embedding handshake |
 | 0091 | replay: serialize deferred analysis RAM writes as ordered async events | new | GPL-2.0-or-later | bounded RAM-only effects, producer-free replay, versioned ND transport |
 | 0092 | replay: stub analysis register effects without TCG | new | GPL-2.0-or-later | no-TCG linkage for the register effect request |
-| 0093 | tcg: taint shadow pass hooks | new | GPL-2.0-or-later | CF_TAINT pass call site, shadow TLB hooks, device-write clear, aarch64 MOPS step reports; cap-gated |
+| 0093 | tcg: taint shadow pass hooks | new | GPL-2.0-or-later | CF_TAINT pass call site, shadow TLB hooks, device-write clear, reports from memory-writing helpers (MOPS, DC ZVA, cbo.zero); cap-gated |

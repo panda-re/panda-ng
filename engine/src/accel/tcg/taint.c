@@ -2757,9 +2757,9 @@ void taint_device_write(uint64_t ram_addr, uint64_t len)
 }
 
 /*
- * Helpers that move guest memory themselves (aarch64 FEAT_MOPS CPY*, SET*) report each step:
- * glibc's memcpy/memset are these instructions on a CPU that has them. A step never crosses a
- * page on either side, and its pages are in the TLB (the helper just accessed them).
+ * Helpers that write guest memory themselves report each write: aarch64 FEAT_MOPS CPY*, SET*
+ * (glibc's memcpy/memset on a CPU that has them), DC ZVA and RISC-V cbo.zero. A write never
+ * crosses a page on either side, and its pages are in the TLB (the helper just accessed them).
  */
 void taint_helper_copy(CPUState *cpu, vaddr to, int to_idx, vaddr from, int from_idx,
                        uint64_t len)
