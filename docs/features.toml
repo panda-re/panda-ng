@@ -235,7 +235,8 @@ Label guest RAM bytes or registers during a replay and follow their influence th
 CPU state, memory, the kernel and devices, bit by bit. A TCG pass adds shadow ops to each
 translated block while taint is enabled; nothing is emitted, and nothing changes, for an engine
 started without the `taint` capability or a replay with taint off. Device and DMA writes into
-RAM clear the written bytes' taint, then a callback may label them. Optional label sets say which
+RAM clear the written bytes' taint, then a callback may label them; another may label loads from
+device registers (MMIO as a source). Optional label sets say which
 sources (u32 labels) reach each byte; optional events report conditional branches on tainted
 data and indirect jumps to tainted targets.
 """
@@ -251,11 +252,11 @@ api = ["c:taint_enable", "c:taint_disable", "c:taint_label_ram", "c:taint_query_
        "c:taint_va_to_ram", "c:taint_label_reg", "c:taint_query_reg", "c:taint_enable_labels",
        "c:taint_label_ram_l", "c:taint_query_ram_labels", "c:taint_label_reg_l",
        "c:taint_query_reg_labels", "c:taint_set_device_write_cb", "c:taint_set_branch_cb",
-       "c:taint_set_pc_cb", "c:taint_stats", "py:TaintMixin.taint_enable", "py:TaintMixin.taint_label_va",
+       "c:taint_set_pc_cb", "c:taint_set_mmio_read_cb", "c:taint_stats", "py:TaintMixin.taint_enable", "py:TaintMixin.taint_label_va",
        "py:TaintMixin.taint_labels_va", "py:TaintMixin.cb_taint_branch",
-       "py:TaintMixin.taint_device_write"]
+       "py:TaintMixin.taint_device_write", "py:TaintMixin.taint_mmio_read"]
 docs = ["docs/guides/record-replay.md"]
-tests = ["tests/taint.py"]
+tests = ["tests/taint.py", "tests/taint_mmio.py"]
 patches = ["0093"]
 
 [[feature]]

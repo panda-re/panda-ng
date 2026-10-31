@@ -37,6 +37,8 @@ void taint_label_ram_l(uint64_t ram_addr, uint64_t len, uint8_t mask, uint32_t l
 int taint_label_reg_l(void *cpu, int regno, uint8_t mask, uint32_t label);
 int taint_query_ram_labels(uint64_t ram_addr, uint32_t *out, int max);
 int taint_query_reg_labels(void *cpu, int regno, int byte, uint32_t *out, int max);
+typedef uint32_t (*TaintMmioReadFn)(void *opaque, void *cpu, uint64_t vaddr, unsigned size);
+void taint_set_mmio_read_cb(TaintMmioReadFn fn, void *opaque);
 """
 
 NO_RAM = 2**64 - 1
@@ -188,6 +190,20 @@ class TaintMixin:
         return self._taint_set("device", "taint_set_device_write_cb",
                                "void(void *, uint64_t, uint64_t)", fn,
                                lambda opaque, ra, n: fn(ra, n))
+
+    def taint_mmio_read(self, fn):
+        '''Decorator: fn(cpu, vaddr, size) runs for each guest load from a device register (an
+        address that is not RAM) while taint is on, and returns a label (nonzero int) to taint the
+        loaded value, or 0/None to leave it clean: MMIO as a taint source. Registers may be stale
+        when it runs; decide from the address. None unregisters.'''
+        def wrap(opaque, cpu, vaddr, size):
+            r = fn(self.ffi.cast("CPUState *", int(self._taint_lib()[0].cast("uintptr_t", cpu))),
+                   vaddr, size)
+            return int(r or 0)
+        if fn is None:
+            return self._taint_set("mmio", "taint_set_mmio_read_cb", None, None, None)
+        return self._taint_set("mmio", "taint_set_mmio_read_cb",
+                               "uint32_t(void *, void *, uint64_t, unsigned)", fn, wrap)
 
     def _taint_event(self, kind, setter, fn):
         def wrap(opaque, cpu, pc, mask):
