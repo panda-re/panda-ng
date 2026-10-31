@@ -88,6 +88,10 @@ static uint64_t ram_shadow_size;
  */
 #define DIRTY_BITS 12
 static uint8_t *ram_dirty;
+static void ram_lab_alloc(void);
+static uint32_t *ram_lab;
+/* ram_lab - 4 * ram_shadow: a RAM shadow byte's address times 4 plus this is its label id's */
+static intptr_t lab_delta;
 /* where a check-variant store to a clean page puts its zero shadow; never read */
 static uint8_t ctlb_sink[64 * 1024] __attribute__((aligned(64)));
 
@@ -227,6 +231,9 @@ static void ram_shadow_alloc(void)
     ram_shadow_size = size;
     g_free(ram_dirty);
     ram_dirty = g_new0(uint8_t, (size >> DIRTY_BITS) + 1);
+    if (ram_lab) {
+        ram_lab_alloc();        /* the same size (inline label steps index it as the shadow) */
+    }
     CPU_FOREACH(cpu) {
         stlb_flush_all(cpu);    /* entries into the old mapping */
     }
@@ -745,7 +752,6 @@ QEMU_BUILD_BUG_ON(STAGE_DST % 32 || STAGE_BYTES % 32);
 
 static bool labels_on;
 static size_t stage_off, lab_off, lab_carry;    /* lab_carry: the carry flag's slot */
-static uint32_t *ram_lab;
 static uint64_t ram_lab_size;       /* entries */
 
 typedef struct LSet {
@@ -864,6 +870,7 @@ static void ram_lab_alloc(void)
         abort();
     }
     ram_lab_size = ram_shadow_size;
+    lab_delta = (intptr_t)ram_lab - 4 * (intptr_t)ram_shadow;
 }
 
 /* The id of a RAM byte's labels, or 0 when the byte is clean. */
@@ -2112,6 +2119,119 @@ static TCGTemp *lab_contrib(Pass *p, TCGOp *op, TCGType ty, TCGTemp **pre, int k
     return c;
 }
 
+/* Copy @n label ids from slot @from to slot @to of the label file. */
+static void lab_copy(Pass *p, uint32_t from, uint32_t to, int n)
+{
+    TCGv_ptr b = temp_tcgv_ptr(senv_temp(p));
+    TCGv_i64 t = s64();
+
+    for (int o = 0; o < n * 4; o += 8) {
+        tcg_gen_ld_i64(t, b, lab_off + from * 4 + o);
+        tcg_gen_st_i64(t, b, lab_off + to * 4 + o);
+    }
+}
+
+/* Branch to @l if the mask @m is nonzero. */
+static void lab_if_any(Pass *p, TCGTemp *m, TCGLabel *l)
+{
+    TCGv_ptr b = temp_tcgv_ptr(senv_temp(p));
+    TCGv_i64 acc, t;
+
+    switch (m->type) {
+    case TCG_TYPE_I32:
+        tcg_gen_brcondi_i32(TCG_COND_NE, I32(m), 0, l);
+        return;
+    case TCG_TYPE_I64:
+        tcg_gen_brcondi_i64(TCG_COND_NE, I64(m), 0, l);
+        return;
+    default:
+        acc = s64(), t = s64();
+        stage_put(p, m, STAGE_DST);
+        tcg_gen_ld_i64(acc, b, stage_off + STAGE_DST);
+        for (int o = 8; o < tcg_type_size(m->type); o += 8) {
+            tcg_gen_ld_i64(t, b, stage_off + STAGE_DST + o);
+            tcg_gen_or_i64(acc, acc, t);
+        }
+        tcg_gen_brcondi_i64(TCG_COND_NE, acc, 0, l);
+    }
+}
+
+/*
+ * Take one input's ids for the output: a byte-wise input's as they are; a prefix input's (add,
+ * sub, mul: each output byte takes every input byte at or below it) only when they are all the
+ * same id, which then is every output byte's union. Otherwise branch to @slow.
+ */
+static void lab_take(Pass *p, const LabIn *in, const LabDesc *d, TCGLabel *slow)
+{
+    if (in->mode == LM_PREFIX) {
+        TCGv_ptr b = temp_tcgv_ptr(senv_temp(p));
+        TCGv_i64 w = s64(), t = s64();
+
+        tcg_gen_ld32u_i64(w, b, lab_off + in->slot * 4);
+        tcg_gen_deposit_i64(w, w, w, 32, 32);
+        for (int o = 0; o < in->size * 4; o += 8) {
+            tcg_gen_ld_i64(t, b, lab_off + in->slot * 4 + o);
+            tcg_gen_brcond_i64(TCG_COND_NE, t, w, slow);
+        }
+    }
+    lab_copy(p, in->slot, d->dslot[0], d->dsize);
+}
+
+/*
+ * The common label steps, inline: the output takes one input's ids (lab_take), that input being
+ * the only one that is not a constant or, at run time, the only tainted one. Two tainted inputs,
+ * or a prefix input with mixed ids, need the union, out of line. False: the step is not of this
+ * kind. True, and *@rest set: the out-of-line step still follows, for the cases above.
+ */
+static bool lab_inline(Pass *p, const LabDesc *d, TCGTemp **ins, TCGTemp **pre,
+                       TCGLabel *done, bool *rest)
+{
+    int src = -1, other = -1;
+    bool prefix = false;
+    TCGLabel *b2, *slow;
+
+    *rest = false;
+    if (p->batch || !done || d->nd != 1) {
+        return false;
+    }
+    for (int k = 0; k < d->nin; k++) {
+        const LabIn *in = &d->in[k];
+
+        if (in->slot == NOSLOT) {
+            continue;
+        }
+        if ((in->mode != LM_BYTE && in->mode != LM_PREFIX) || in->size < d->dsize ||
+            other >= 0) {
+            return false;
+        }
+        prefix |= in->mode == LM_PREFIX;
+        *(src < 0 ? &src : &other) = k;
+    }
+    if (src < 0) {
+        return false;
+    }
+    if (other < 0 && !prefix) {
+        lab_copy(p, d->in[src].slot, d->dslot[0], d->dsize);
+        return true;
+    }
+    slow = gen_new_label();
+    if (other >= 0) {
+        b2 = gen_new_label();
+        lab_if_any(p, pre[other] ? pre[other] : S(p, ins[other]), b2);
+        lab_take(p, &d->in[src], d, slow);
+        tcg_gen_br(done);
+        gen_set_label(b2);
+        lab_if_any(p, pre[src] ? pre[src] : S(p, ins[src]), slow);
+        lab_take(p, &d->in[other], d, slow);
+    } else {
+        lab_take(p, &d->in[src], d, slow);
+    }
+    tcg_gen_br(done);
+    gen_set_label(slow);
+    *rest = true;
+    return true;
+}
+
 /* Emit the label computation for each output of @op (after its shadow, before the op). */
 static void lab_op(Pass *p, TCGOp *op, TCGType ty, TCGTemp **pre)
 {
@@ -2122,6 +2242,7 @@ static void lab_op(Pass *p, TCGOp *op, TCGType ty, TCGTemp **pre)
         TCGTemp *ins[STAGE_IN];
         LabDesc d;
         LabCtx c;
+        bool rest;
 
         memset(&d, 0, sizeof(d));
         d.op = LOP_PLAIN;
@@ -2141,6 +2262,10 @@ static void lab_op(Pass *p, TCGOp *op, TCGType ty, TCGTemp **pre)
             ins[d.nin++] = it;
         }
         if (!lab_begin(p, D(p, dt), &c)) {
+            continue;
+        }
+        if (lab_inline(p, &d, ins, pre, c.skip, &rest) && !rest) {
+            gen_set_label(c.skip);
             continue;
         }
         for (int k = 0; k < d.nin; k++) {
@@ -2198,6 +2323,51 @@ static void lab_carry_op(Pass *p, TCGOp *op, bool cin, bool cout, TCGTemp **pre)
 }
 
 /* A guest load: the loaded value's labels from RAM (when its shadow @res is nonzero). */
+static TCGv_ptr stlb_entry(Pass *p, TCGv_i64 a, int mmu_idx, intptr_t *off);
+
+/*
+ * The address of the RAM label ids of a guest access at @a, from the shadow TLB; a miss (not
+ * RAM, or not in the TLB) branches to @miss.
+ */
+static TCGv_ptr lab_ram_ptr(Pass *p, TCGv_i64 a, MemOpIdx oi, TCGLabel *miss)
+{
+    unsigned size = memop_size(get_memop(oi));
+    intptr_t off;
+    TCGv_i64 tag = s64(), end = s64(), k = s64();
+    TCGv_ptr ent = stlb_entry(p, a, get_mmuidx(oi), &off), hp = sptrtmp();
+    TCGv_i64 h = temp_tcgv_i64(tcgv_ptr_temp(hp));
+
+    tcg_gen_ld_i64(tag, ent, off + offsetof(STLBEntry, tag));
+    tcg_gen_addi_i64(end, a, size - 1);
+    tcg_gen_andi_i64(end, end, TARGET_PAGE_MASK);
+    tcg_gen_brcond_i64(TCG_COND_NE, tag, end, miss);
+    tcg_gen_ld_ptr(hp, ent, off + offsetof(STLBEntry, saddend));
+    tcg_gen_add_i64(h, h, a);
+    tcg_gen_ld_i64(k, temp_tcgv_ptr(tcg_constant_internal(TCG_TYPE_PTR, (uintptr_t)&lab_delta)),
+                   0);
+    tcg_gen_shli_i64(h, h, 2);
+    tcg_gen_add_i64(h, h, k);
+    return hp;
+}
+
+/* Copy @n label ids between @ram (RAM's, through a pointer) and slot @slot of the label file. */
+static void lab_ram_copy(Pass *p, TCGv_ptr ram, uint32_t slot, int n, bool load)
+{
+    TCGv_ptr b = temp_tcgv_ptr(senv_temp(p));
+    TCGv_i64 t = s64();
+    intptr_t lo = lab_off + slot * 4;
+
+    for (int o = 0; o < n * 4; o += 8) {
+        if (n == 1) {
+            tcg_gen_ld32u_i64(t, load ? ram : b, load ? 0 : lo);
+            tcg_gen_st32_i64(t, load ? b : ram, load ? lo : 0);
+            break;
+        }
+        tcg_gen_ld_i64(t, load ? ram : b, load ? o : lo + o);
+        tcg_gen_st_i64(t, load ? b : ram, load ? lo + o : o);
+    }
+}
+
 static void lab_ld(Pass *p, TCGTemp *v, TCGv_i64 res, TCGv_i64 a, MemOpIdx oi)
 {
     LabDesc d;
@@ -2211,6 +2381,25 @@ static void lab_ld(Pass *p, TCGTemp *v, TCGv_i64 res, TCGv_i64 a, MemOpIdx oi)
     d.off = oi;
     if (d.dslot[0] == NOSLOT || !lab_begin(p, tcgv_i64_temp(res), &c)) {
         return;
+    }
+    /* inline when RAM is in the shadow TLB and the bytes are in order */
+    if (!p->batch && c.skip && !guest_big_endian(get_memop(oi))) {
+        unsigned size = memop_size(get_memop(oi));
+        TCGLabel *slow = gen_new_label();
+        TCGv_ptr ram = lab_ram_ptr(p, a, oi, slow);
+        TCGv_ptr b = temp_tcgv_ptr(senv_temp(p));
+        TCGv_i32 top = s32();
+
+        lab_ram_copy(p, ram, d.dslot[0], MIN(size, d.dsize), true);
+        if (d.dsize > size) {
+            /* an extension's bytes: the top byte's ids (their mask says if they matter) */
+            tcg_gen_ld_i32(top, ram, 4 * (size - 1));
+            for (unsigned i = size; i < d.dsize; i++) {
+                tcg_gen_st_i32(top, b, lab_off + (d.dslot[0] + i) * 4);
+            }
+        }
+        tcg_gen_br(c.skip);
+        gen_set_label(slow);
     }
     /* the loaded shadow, byte by byte, says which RAM label ids are valid */
     lab_put(p, &c, tcgv_i64_temp(res), STAGE_DST);
@@ -2231,6 +2420,15 @@ static void lab_st(Pass *p, TCGTemp *v, TCGv_i64 sv, TCGv_i64 a, MemOpIdx oi)
     d.off = oi;
     if (d.in[0].slot == NOSLOT || !lab_begin(p, tcgv_i64_temp(sv), &c)) {
         return;
+    }
+    if (!p->batch && c.skip && !guest_big_endian(get_memop(oi))) {
+        TCGLabel *slow = gen_new_label();
+        TCGv_ptr ram = lab_ram_ptr(p, a, oi, slow);
+
+        /* every byte's id: those whose mask is zero do not matter */
+        lab_ram_copy(p, ram, d.in[0].slot, d.in[0].size, false);
+        tcg_gen_br(c.skip);
+        gen_set_label(slow);
     }
     lab_put(p, &c, tcgv_i64_temp(sv), 0);
     lab_put(p, &c, tcgv_i64_temp(a), STAGE_ADDR);
