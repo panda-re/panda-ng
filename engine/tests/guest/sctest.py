@@ -356,6 +356,53 @@ def reap(a, n):
     return 'PASS' if not fails else 'FAIL: ' + '; '.join(fails)
 
 
+def uapi(a, n):
+    """sc-pen under penhost.py with no kernel ISF: the hooks that need no
+    identity (string filters, unregister, skip, chains). Events carry no
+    trusted pid here, so string filter events are matched by path alone."""
+    con, log = read(f'{O}/{a}-{n}.con'), read(f'{O}/{a}-{n}.log') or ''
+    if con is None:
+        return None
+    fails = []
+
+    def check(ok, what):
+        if not ok:
+            fails.append(what)
+    rc = re.search(r'^RC (\d+)', con, re.M)
+    check(rc and rc.group(1) == '0', f'qemu exit {rc and rc.group(1)}')
+    exp = {}
+    for line in con.splitlines():
+        m = re.match(r'SC expect (\w+) (.*)', line)
+        if m:
+            exp[m.group(1)] = kv(m.group(2))
+    ev = [dict(kv(x), ev=x.split()[1]) for x in log.splitlines()
+          if x.startswith('SC ') and x.split()[1] in ('enter', 'return')]
+    cnt = {d['tag']: d for d in (kv(x) for x in log.splitlines() if x.startswith('SC count'))}
+
+    def c(tag, k='enter'):
+        return int(cnt.get(tag, {}).get(k, -1))
+    check(exp.get('self', {}).get('pid'), 'no guest expectations')
+    for tag in ('sw', 'ct', 'ew'):
+        e = [x for x in ev if x.get('tag') == tag and x.get('a1') == '/proc/self/status']
+        check(len(e) >= 1, f'string filter {tag}: {e}')
+    check(c('exneg') == 0 and c('swneg') == 0,
+          f'string filters that must fail: exact {c("exneg")}, prefix {c("swneg")}')
+    check(c('unregister') == 3, f'unregister: {c("unregister")} events, want 3')
+    for k in ('skip', 'retchain', 'argchain'):
+        w = exp.get(k, {})
+        check(w.get('got') is not None and w.get('got') == w.get('want'), f'{k}: {w}')
+    check(c('afterskip') == 0, f'skip: the later hook ran {c("afterskip")} times')
+    sr = [x for x in ev if x.get('tag') == 'skipret']
+    check(len(sr) == 1 and sr[0].get('ret') == '616', f'skip: return hooks saw {sr}')
+    r2 = [x for x in ev if x.get('tag') == 'ret2']
+    check(len(r2) == 1 and r2[0].get('ret') == '1', f'return chain: {r2}')
+    a2 = [x for x in ev if x.get('tag') == 'arg2']
+    check(len(a2) == 1 and a2[0].get('a1') == '0xc9', f'argument chain: {a2}')
+    pend = re.search(r'SC exit pending=(\d+) stale=(\d+)', log)
+    check(pend and pend.group(1) == '0' and pend.group(2) == '0', f'leftover: {pend and pend.group(0)}')
+    return 'PASS' if not fails else 'FAIL: ' + '; '.join(fails)
+
+
 def penguin(judge, a, n):
     """a run under penhost.py (penguin's Syscalls, trap backend): the judge's
     verdict, every pt_regs consistent with its event, the prototypes from
@@ -471,6 +518,13 @@ for a in ARCHS:
         r = [x if x is not None else 'not run' for x in r]
         bad += sum(1 for x in r if x.startswith('FAIL'))
         ns.append((a, r))
+us = []
+for a in ARCHS:
+    r = [penguin(uapi, a, 'nuapi'), penguin(uapi, a, 'nuapi32')]
+    if any(x is not None for x in r):
+        r = [x if x is not None else 'not run' for x in r]
+        bad += sum(1 for x in r if x.startswith('FAIL'))
+        us.append((a, r))
 if prows:
     print('\n## penguin_syscall_* hooks (system/penguin-syscalls.c, hosted by pyhost.py)\n')
     print('| arch | sc-func, 1 vCPU | sc-func, 2 vCPUs | sc-trap | sc-trap, 32-bit build '
@@ -488,6 +542,13 @@ if ns:
           '| sc-reap | sc-reap, 32-bit build |')
     print('|---|---|---|---|---|---|---|')
     for a, r in ns:
+        print(f'| {a} | ' + ' | '.join(r) + ' |')
+
+if us:
+    print('\n## penguin\'s Syscalls with no kernel ISF (ISF=none: uapi numbers, no identity filters)\n')
+    print('| arch | sc-pen hooks without comm/scope/pid | the same, 32-bit build |')
+    print('|---|---|---|')
+    for a, r in us:
         print(f'| {a} | ' + ' | '.join(r) + ' |')
 
 SETS = ['none', 'empty', 'one', 'ret', 'comm', 'all', 'allret', 'log', 'fail', 'pass']
