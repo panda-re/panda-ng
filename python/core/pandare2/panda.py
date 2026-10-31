@@ -38,6 +38,7 @@ from .asyncthread import AsyncThread
 from .qcows_internal import Qcows
 from .callbacks import unavailable, tcg_only, ABORTS, PASSTHROUGH
 from .guest import Guest, GuestWriteRefused
+from .taint import TaintMixin
 from .arch import ArmArch, Aarch64Arch, Loongarch64, MipsArch, Mips64Arch, X86Arch, X86_64Arch, PowerPCArch, PowerPC64Arch, Riscv32Arch, Riscv64Arch
 from dataclasses import dataclass
 import logging
@@ -221,7 +222,7 @@ def _kvm_unavailable(arch):
     return None
 
 
-class Panda():
+class Panda(TaintMixin):
     '''
     This is the object used to interact with PANDA. Initializing it creates a virtual machine to interact with.
     '''
