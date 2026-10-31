@@ -209,20 +209,20 @@ patches = ["0025-0028", "0030", "0037-0040", "0050-0052", "0066-0068", "0072", "
 
 [[feature]]
 id = "recorded-ram-effects"
-name = "Recorded analysis RAM effects"
+name = "Recorded analysis RAM and register effects"
 status = "experimental"
 accel = ["TCG"]
 tested_on = []
 summary = """
-Enqueue bounded physical RAM writes into the existing ordered ND async stream. Recording
-logs the apply-boundary result and bytes; replay applies them without the original requester.
-Standalone implementation tests pass; integrated engine and guest conformance remain pending.
+Enqueue bounded physical RAM and register writes into the existing ordered ND async stream.
+Recording logs the apply-boundary result and bytes; replay applies them without the original
+requester. Registers are named by the CPU's gdbstub register number, so no PANDA arch tables.
 """
-limits = "Admission requires RR capability, RECORD, main thread/BQL/replay mutex and stopped vCPUs. Admission is not completion. Maximum 64 KiB per request and 64 pending requests. MMIO, readonly, ROMD and RAM-device ranges are denied as a whole. Unsaved requests are canceled at end-record. Registers, syscall and device effects remain unsupported. The outer ND log version changes."
-api = ["c:panda_analysis_ram_write"]
+limits = "Admission requires RR capability, RECORD, main thread/BQL/replay mutex and stopped vCPUs. Admission is not completion. Maximum 64 KiB per request and 64 pending requests. MMIO, readonly, ROMD and RAM-device ranges are denied as a whole. Unsaved requests are canceled at end-record. A register write must match the gdbstub register size (at most 256 bytes) and shares the pending limit. Syscall and device effects remain unsupported. The outer ND log version changes."
+api = ["c:panda_analysis_ram_write", "c:panda_analysis_reg_write"]
 docs = ["docs/guides/record-replay.md"]
 tests = ["tests/static/replay_effect.py", "tests/replay_effect.py"]
-patches = ["0091"]
+patches = ["0091", "0092"]
 
 [[feature]]
 id = "snapshots"

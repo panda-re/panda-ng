@@ -1,9 +1,10 @@
-"""Real ND-stream deferred RAM effect fixture (record producer, fresh replay).
+"""Real ND-stream deferred RAM and register effect fixture (record producer, fresh replay).
 
 Run: panda-python tests/replay_effect.py <debian-13-x86_64.json> [workdir]
 No native compilation. Uses the existing calls guest; modifies only the first
 read-only label-table quad after it is resident, not program instructions.
-The recording queues two overlapping physical writes while main-thread/stopped;
+The recording queues two overlapping physical writes and an r12 write (the calls
+guest leaves r12 alone between hypercalls 1 and 2) while main-thread/stopped;
 replay installs observations only, never calls the effect request API.
 """
 import json
@@ -17,6 +18,8 @@ from testlib import Checks, MAGIC, hypercall_args, progress, upload
 BASE = bytes.fromhex('8877665544332211')
 TAIL = bytes.fromhex('aabbccdd')
 EXPECTED = BASE[:2] + TAIL + BASE[6:]
+R12 = 0x1122334455667788
+R12_GDB = 12    # x86_64 gdbstub order: rax rbx rcx rdx rsi rdi rbp rsp r8..r15
 
 
 def child(mode, image, name, output):
@@ -27,6 +30,7 @@ def child(mode, image, name, output):
     # Exercise the generated public binding, not a ctypes fallback that could
     # hide a missing SDK declaration. Do not acquire replay/BQL manually.
     request = panda.libpanda.panda_analysis_ram_write
+    request_reg = panda.libpanda.panda_analysis_reg_write
     result = {'observations': [], 'requests': 0, 'admitted': [], 'deferred': False}
     waiting = {'done': False}
 
@@ -35,7 +39,8 @@ def child(mode, image, name, output):
         value = bytes(panda.physical_memory_read(physical, 8))
         result['observations'].append({
             'op': op, 'icount': panda.rr_get_guest_instr_count(),
-            'physical': physical, 'value': value.hex()})
+            'physical': physical, 'value': value.hex(),
+            'r12': int(panda.arch.get_reg(cpu, 'R12'))})
         return physical, value
 
     @panda.hypercall(MAGIC, observe_only=True)
@@ -55,9 +60,11 @@ def child(mode, image, name, output):
         def enqueue_stopped():
             first = panda.ffi.new('uint8_t[]', BASE)
             second = panda.ffi.new('uint8_t[]', TAIL)
-            result['requests'] += 2
+            reg = panda.ffi.new('uint8_t[]', R12.to_bytes(8, 'little'))
+            result['requests'] += 3
             result['admitted'] = [bool(request(physical, first, len(BASE))),
-                                  bool(request(physical + 2, second, len(TAIL)))]
+                                  bool(request(physical + 2, second, len(TAIL))),
+                                  bool(request_reg(0, R12_GDB, reg, 8))]
             result['deferred'] = bytes(panda.physical_memory_read(physical, 8)) == value
             waiting['done'] = True
             # Resume only after both ordered events have entered the real ND
@@ -103,7 +110,7 @@ def main():
     runs = {}
     for mode in ('record', 'replay', 'replay-again'):
         out = os.path.join(work, mode + '.json')
-        progress(mode + ': real ordered RAM effects')
+        progress(mode + ': real ordered RAM and register effects')
         process = subprocess.run([sys.executable, '-u', __file__, '--child',
                                   'record' if mode == 'record' else 'replay',
                                   image, name, out], timeout=900)
@@ -112,8 +119,8 @@ def main():
             sys.exit(checks.report('REPLAY_EFFECT'))
         runs[mode] = json.load(open(out))
     record = runs['record']
-    checks.check('both ordered requests admitted while stopped',
-                 record['requests'] == 2 and record['admitted'] == [True, True])
+    checks.check('all ordered requests admitted while stopped',
+                 record['requests'] == 3 and record['admitted'] == [True, True, True])
     checks.check('admission does not synchronously mutate RAM', record['deferred'])
     observations = record['observations']
     checks.check('record observes both guest boundaries',
@@ -121,6 +128,9 @@ def main():
     checks.check('ordered overlapping writes visible before next boundary',
                  len(observations) == 2 and observations[1]['value'] == EXPECTED.hex(),
                  observations)
+    checks.check('register write applied before next boundary',
+                 len(observations) == 2 and observations[0]['r12'] != R12 and
+                 observations[1]['r12'] == R12, observations)
     checks.check('record guest completes', 'rc=0' in record.get('output', ''))
     for mode in ('replay', 'replay-again'):
         replay = runs[mode]

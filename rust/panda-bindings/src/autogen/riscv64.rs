@@ -45994,6 +45994,14 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn panda_analysis_ram_write(address: u64, data: *const u8, length: u32) -> bool;
 }
+unsafe extern "C" {
+    pub fn panda_analysis_reg_write(
+        cpu_index: ::std::os::raw::c_int,
+        reg: ::std::os::raw::c_int,
+        data: *const u8,
+        length: u32,
+    ) -> bool;
+}
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct panda_plugin {

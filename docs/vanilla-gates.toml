@@ -3,7 +3,7 @@
 # Overlay paths are repository-relative; hunk_contexts are evidence, not exhaustive symbols.
 schema_version = 1
 patch_series = "engine/patches/11.1.2/series"
-patch_range = "0001-0090"
+patch_range = "0001-0092"
 review_date = "2026-10-29"
 vanilla_parity_implemented = false
 source_audit = "../notes/mode-audit.md (historical0001-0081; read-only, findings rechecked against current series)"
@@ -1286,12 +1286,26 @@ current_gate = "RAM effects require RECORD, RR capability and quiescent main-thr
 required_action = "Validate actual record/replay guest ordering, malformed/truncated logs and no-TCG linkage; complete explicit vanilla replay-format off path and exclude extension payloads when not provisioned."
 vanilla_verified = false
 
+[[patch]]
+id = "0092"
+file = "engine/patches/11.1.2/0092-replay-stub-analysis-register-effects-without-TCG.patch"
+sha256 = "8757bb687c35b46d9c288523731bfc45381487b7d1b281b3f84b0fd21f8afd02"
+class = "build-only"
+capability = "rr-analysis-effects"
+paths = ["replay/stubs-system.c"]
+functions = ["replay_analysis_reg_write_request"]
+hunk_contexts = ["replay_analysis_ram_write_request"]
+gate_status = "no-tcg-stub-only"
+current_gate = "Adds a no-TCG stub that refuses register effect requests; no runtime path changes."
+required_action = "Verify no-TCG linkage in a TCG-disabled build."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
 capability = "rr-analysis-effects"
 paths = ["engine/src/include/panda/analysis-effect.h", "engine/src/include/system/replay-effect.h", "engine/src/panda/src/analysis-effect.c", "engine/src/replay/replay-effect.c"]
-functions = ["panda_analysis_ram_write", "replay_analysis_ram_write_request", "replay_analysis_effect_load", "replay_analysis_effect_run"]
+functions = ["panda_analysis_ram_write", "panda_analysis_reg_write", "replay_analysis_ram_write_request", "replay_analysis_reg_write_request", "replay_analysis_effect_load", "replay_analysis_effect_run"]
 gate_status = "bounded-request-admission-implemented-not-guest-verified"
 current_gate = "64 KiB bounded deferred writes, full-range RAM preflight, versioned payload and result replay validation. Raw RAM copies are avoided; standard address_space_write performs dirty/TB invalidation."
 required_action = "Prove scheduler/request locking and producer-free replay in a guest, validate malformed logs and integrated replay capability rejection. No register/syscall/device effects supported."

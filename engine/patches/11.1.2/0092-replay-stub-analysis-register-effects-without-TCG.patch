@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 30 Oct 2026 12:00:00 -0400
+Subject: [PATCH] replay: stub analysis register effects without TCG
+
+Register writes join RAM writes in the ordered analysis effect event (the
+engine/src/replay overlay). Without TCG there is no replay engine, so the
+request is unavailable, as the RAM request already is.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ replay/stubs-system.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/replay/stubs-system.c b/replay/stubs-system.c
+index 2018b72bd7a645a947a01bd782f4d07c3dee4a08..8e1ba878362c2869becbb6caf7d9869d895d6655 100644
+--- a/replay/stubs-system.c
++++ b/replay/stubs-system.c
+@@ -140,3 +140,9 @@ bool replay_analysis_ram_write_request(uint64_t address, const uint8_t *data,
+ {
+     return false;
+ }
++
++bool replay_analysis_reg_write_request(int cpu_index, int reg,
++                                        const uint8_t *data, uint32_t length)
++{
++    return false;
++}
