@@ -150,6 +150,7 @@ path = [
   "engine/patches/11.1.2/0076-system-cpu-timers-a-snapshot-load-resets-the-ticks-m.patch",
   "engine/patches/11.1.2/0090-system-seal-capabilities-before-startup-side-effects.patch",
   "engine/patches/11.1.2/0081-migration-qemu-file-inline-the-in-buffer-case-of-the.patch",
+  "engine/patches/11.1.2/0094-migration-savevm-reset-load_section_id-at-the-start-.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]

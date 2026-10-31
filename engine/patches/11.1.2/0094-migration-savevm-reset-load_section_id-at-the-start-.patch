@@ -1,0 +1,58 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Sat, 31 Oct 2026 10:21:47 -0400
+Subject: [PATCH] migration/savevm: reset load_section_id at the start of
+ qemu_loadvm_state
+
+A part or end section names its handler by the section id that the
+stream's full or start section gave it, and the lookup takes the first
+handler whose load_section_id matches. Nothing ever cleared those ids,
+so after one load a second load in the same process can match a handler
+by an id from the earlier stream: whenever the two streams were saved
+with a different device order, the section goes to the wrong handler.
+
+Seen on pseries: loadvm of an image snapshot saved without an extra
+spapr-vscsi, then savevm and loadvm in the extended config. The second
+stream's spapr/htab part section went to xhci (the id it had in the
+first stream), and the load failed with "Invalid value -1 expecting
+positive value <= 2" in the PCI device state. Record/replay hits this
+on every begin, since it saves and reloads its start snapshot right
+after the image's snapshot was loaded.
+
+Forget the ids before reading a new stream.
+
+SPDX-License-Identifier: MIT
+
+Origin: new
+---
+ migration/savevm.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/migration/savevm.c b/migration/savevm.c
+index a3608ae6c1a999ce929705f20671196d8debbbc5..f028f88005758c13fbe6e805878b43c5060cd358 100644
+--- a/migration/savevm.c
++++ b/migration/savevm.c
+@@ -3092,6 +3092,7 @@ int qemu_loadvm_state(QEMUFile *f, Error **errp)
+     MigrationState *s = migrate_get_current();
+     MigrationIncomingState *mis = migration_incoming_get_current();
+     int ret;
++    SaveStateEntry *se;
+ 
+     if (qemu_savevm_state_blocked(errp)) {
+         return -EINVAL;
+@@ -3099,6 +3100,15 @@ int qemu_loadvm_state(QEMUFile *f, Error **errp)
+ 
+     qemu_loadvm_thread_pool_create(mis);
+ 
++    /*
++     * Section ids belong to the stream being loaded: forget the previous
++     * load's, or a part/end section matches the first handler that had
++     * this id in an earlier stream saved with a different device order.
++     */
++    QTAILQ_FOREACH(se, &savevm_state.handlers, entry) {
++        se->load_section_id = -1;
++    }
++
+     ret = qemu_loadvm_state_header(f, errp);
+     if (ret) {
+         return ret;
