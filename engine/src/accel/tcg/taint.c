@@ -46,6 +46,9 @@
 #include "tcg/tcg-internal.h"
 #include "exec/taint.h"
 #include "accel/tcg/hooks.h"
+#include "accel/tcg/probe.h"
+#include "exec/tlb-flags.h"
+#include "accel/tcg/cpu-loop.h"
 #include <dlfcn.h>
 
 /* panda/plugin.h is target-specific; these two are not (panda/src/callbacks.c). */
@@ -91,7 +94,8 @@ static unsigned pc_size;
 static struct {
     uint64_t tbs, ops, untracked_ld, untracked_st, ptr_calls, ld_slow, st_slow,
              ram_oob, unknown_ops, h1_tainted, device_writes, device_bytes,
-             ptr_tainted, branch_events, pc_events, lab_calls, lab_many, mmio_tainted, helper_mem_bytes, h2b_calls;
+             ptr_tainted, branch_events, pc_events, lab_calls, lab_many, mmio_tainted,
+             helper_mem_bytes, h2b_calls, to_track, to_check, chk_slow;
 } stats;
 static GHashTable *h1_hits;     /* helper name -> tainted-call count */
 
@@ -303,6 +307,7 @@ typedef struct H2bRow {
 } H2bRow;
 static GHashTable *h2b_rows;    /* helper name -> const H2bRow * */
 static size_t h2b_off;          /* the staged arguments and shadows, in the shadow env */
+static size_t tick_off;         /* elastic: track TBs left before the next all-clean scan */
 
 static void h2b_load(void)
 {
@@ -392,6 +397,120 @@ static TCGHelperInfo ptr_model_info = {
     .typemask = dh_typemask(i64, 0) | dh_typemask(ptr, 1) | dh_typemask(ptr, 2) |
                 dh_typemask(ptr, 3) | dh_typemask(ptr, 4) | dh_typemask(ptr, 5) |
                 dh_typemask(i32, 6) | dh_typemask(i64, 7),
+};
+
+/*
+ * Elastic TBs (PLAN §3c, DECAF++): while no CPU state is tainted, blocks run as a check variant
+ * that only tests each load's shadow (and clears each store's). A tainted load, before it reads,
+ * switches the vCPU to the track variant and restarts the instruction, as a page fault would.
+ * Track blocks count down; at zero, an all-clean CPU state switches back to check. Each return
+ * to track doubles the countdown (up to ELASTIC_MAX), so code that keeps touching tainted memory
+ * settles in track instead of bouncing. Opt-in for now: PANDA_TAINT_ELASTIC=1.
+ */
+#define ELASTIC_PERIOD 1024
+#define ELASTIC_MAX (64 * 1024)
+static bool elastic;
+
+static bool senv_any(CPUState *cpu)
+{
+    const uint64_t *w = cpu->taint_senv;
+    size_t n = env_size / 8;
+    uint64_t acc = 0;
+
+    for (size_t i = 0; i < n; i++) {
+        acc |= w[i];
+    }
+    for (size_t i = n * 8; i < env_size; i++) {
+        acc |= ((uint8_t *)cpu->taint_senv)[i];
+    }
+    return acc != 0;
+}
+
+/* [0]: track blocks left before the next scan; [1]: the countdown it restarts from */
+static uint32_t *tick(CPUState *cpu)
+{
+    return (uint32_t *)((uint8_t *)cpu->taint_senv + tick_off);
+}
+
+static G_NORETURN void taint_to_track(CPUState *cpu, uintptr_t ra)
+{
+    uint32_t *t = tick(cpu);
+
+    stats.to_track++;
+    cpu->tcg_cflags &= ~CF_TAINT_CHECK;
+    t[1] = MIN(MAX(t[1], ELASTIC_PERIOD / 2) * 2, ELASTIC_MAX);
+    t[0] = t[1];
+    cpu_loop_exit_restore(cpu, ra);
+}
+
+/* A check-variant load found its shadow tainted in the shadow TLB. */
+static void taint_chk_hit(CPUArchState *env)
+{
+    taint_to_track(env_cpu(env), GETPC());
+}
+
+/*
+ * A check-variant load missed the shadow TLB. It runs before the load, so the TLB is filled here
+ * as the load is about to (no fault: a faulting load restarts and comes back); then the shadow is
+ * read as taint_ld_slow reads it, the MMIO source included.
+ */
+static void taint_chk_slow(CPUArchState *env, uint64_t addr, uint32_t oi)
+{
+    MemOp mop = get_memop(oi);
+    int mmu_idx = get_mmuidx(oi);
+    uint64_t last = addr + memop_size(mop) - 1;
+    void *host;
+
+    stats.chk_slow++;
+    if (probe_access_flags(env, addr, 0, MMU_DATA_LOAD, mmu_idx, true, &host, GETPC()) &
+        TLB_INVALID_MASK) {
+        return;
+    }
+    if ((last & TARGET_PAGE_MASK) != (addr & TARGET_PAGE_MASK) &&
+        (probe_access_flags(env, last, 0, MMU_DATA_LOAD, mmu_idx, true, &host, GETPC()) &
+         TLB_INVALID_MASK)) {
+        return;
+    }
+    if (taint_ld_slow(env, addr, oi)) {
+        taint_to_track(env_cpu(env), GETPC());
+    }
+}
+
+/* A track block's countdown reached zero. */
+static void taint_track_tick(CPUArchState *env)
+{
+    CPUState *cpu = env_cpu(env);
+
+    tick(cpu)[0] = MAX(tick(cpu)[1], ELASTIC_PERIOD);
+    if (!senv_any(cpu)) {
+        stats.to_check++;
+        cpu->tcg_cflags |= CF_TAINT_CHECK;  /* from the next block looked up */
+    }
+}
+
+/* The API tainted CPU state: leave the check variant at the next block. */
+static void elastic_tainted_cpu(CPUState *cpu)
+{
+    if (cpu->tcg_cflags & CF_TAINT_CHECK) {
+        cpu->tcg_cflags &= ~CF_TAINT_CHECK;
+        tick(cpu)[0] = MAX(tick(cpu)[1], ELASTIC_PERIOD);
+        cpu_exit(cpu);
+    }
+}
+
+/* restoring needs the guest globals in env: NO_WG (they are read, not written) */
+static TCGHelperInfo chk_hit_info = {
+    .func = taint_chk_hit, .name = "taint_chk_hit", .flags = TCG_CALL_NO_WG,
+    .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1),
+};
+static TCGHelperInfo chk_slow_info = {
+    .func = taint_chk_slow, .name = "taint_chk_slow", .flags = TCG_CALL_NO_WG,
+    .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1) | dh_typemask(i64, 2) |
+                dh_typemask(i32, 3),
+};
+static TCGHelperInfo track_tick_info = {
+    .func = taint_track_tick, .name = "taint_track_tick", .flags = TCG_CALL_NO_RWG,
+    .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1),
 };
 
 static TCGHelperInfo ld_slow_info = {
@@ -990,7 +1109,8 @@ void taint_tcg_init(CPUState *cpu)
     stlb_off = ROUND_UP(env_size, 64);
     stage_off = ROUND_UP(stlb_off + sizeof(STLBEntry) * STLB_N * NB_MMU_MODES, 64);
     h2b_off = ROUND_UP(stage_off + STAGE_BYTES * (1 + LAB_BATCH), 64);
-    lab_off = ROUND_UP(h2b_off + (H2B_MAX_ARGS * 2 + 1) * sizeof(uint64_t), 64);
+    tick_off = h2b_off + (H2B_MAX_ARGS * 2 + 1) * sizeof(uint64_t);
+    lab_off = ROUND_UP(tick_off + sizeof(uint64_t), 64);
     lab_carry = env_size + TCG_MAX_TEMPS * LSLOT;
     senv_bytes = lab_off + (lab_carry + 1) * sizeof(uint32_t);
     senv_field_off = (uintptr_t)&cpu->taint_senv - (uintptr_t)cpu_env(cpu);
@@ -1063,6 +1183,8 @@ typedef struct Pass {
     struct LabStep bent[LAB_BATCH];
     uint64_t pc;            /* insn_start word of the current guest instruction */
     bool pcrel;
+    bool check;             /* the check variant of an elastic pair (CF_TAINT_CHECK) */
+    bool ticked;            /* a track TB's mode tick is emitted */
 } Pass;
 
 static TCGv_i64 pool(TCGv_i64 *slot)
@@ -2593,6 +2715,85 @@ static void taint_brcond(Pass *p, TCGTemp *a, TCGTemp *b)
     gen_set_label(skip);
 }
 
+/* Elastic, check variant: test a load's shadow before it reads; leave for track if tainted. */
+static void chk_load(Pass *p, TCGv_i64 a, MemOpIdx oi)
+{
+    unsigned size = memop_size(get_memop(oi));
+    intptr_t off;
+    TCGv_i64 tag = s64(), end = s64(), v = s64();
+    TCGv_ptr ent = stlb_entry(p, a, get_mmuidx(oi), &off), hp = sptrtmp();
+    TCGLabel *slow = gen_new_label(), *done = gen_new_label();
+
+    tcg_gen_ld_i64(tag, ent, off + offsetof(STLBEntry, tag));
+    tcg_gen_addi_i64(end, a, size - 1);
+    tcg_gen_andi_i64(end, end, TARGET_PAGE_MASK);
+    tcg_gen_brcond_i64(TCG_COND_NE, tag, end, slow);
+    tcg_gen_ld_ptr(hp, ent, off + offsetof(STLBEntry, saddend));
+    tcg_gen_add_ptr(hp, hp, temp_tcgv_ptr(tcgv_i64_temp(a)));
+    switch (size) {
+    case 1: tcg_gen_ld8u_i64(v, hp, 0); break;
+    case 2: tcg_gen_ld16u_i64(v, hp, 0); break;
+    case 4: tcg_gen_ld32u_i64(v, hp, 0); break;
+    default: tcg_gen_ld_i64(v, hp, 0); break;
+    }
+    tcg_gen_brcondi_i64(TCG_COND_EQ, v, 0, done);
+    tcg_gen_call1(taint_chk_hit, &chk_hit_info, NULL, tcgv_ptr_temp(tcg_env));
+    tcg_gen_br(done);
+    gen_set_label(slow);
+    tcg_gen_call3(taint_chk_slow, &chk_slow_info, NULL, tcgv_ptr_temp(tcg_env),
+                  tcgv_i64_temp(a), tcg_constant_internal(TCG_TYPE_I32, oi));
+    gen_set_label(done);
+}
+
+/* The check variant instruments only guest memory: CPU state is clean while it runs. */
+static void check_op(Pass *p, TCGOp *op, TCGOp *next)
+{
+    TCGContext *s = p->s;
+    bool two = op->opc == INDEX_op_qemu_ld2 || op->opc == INDEX_op_qemu_st2;
+    bool load = op->opc == INDEX_op_qemu_ld || op->opc == INDEX_op_qemu_ld2;
+    TCGv_i64 a, a2 = NULL;
+    MemOpIdx oi;
+
+    if (!load && op->opc != INDEX_op_qemu_st && op->opc != INDEX_op_qemu_st2) {
+        return;
+    }
+    stats.ops++;
+    oi = op->args[two ? 3 : 2];
+    s->emit_before_op = op;
+    a = copy_addr(arg_temp(op->args[two ? 2 : 1]), pool(&p->addr));
+    if (two) {
+        a2 = pool(&p->addr2);
+        tcg_gen_addi_i64(a2, a, 8);
+        oi = half_oi(oi);
+    }
+    if (load) {
+        chk_load(p, a, oi);
+        if (two) {
+            chk_load(p, a2, oi);
+        }
+        return;
+    }
+    s->emit_before_op = next;       /* a clean value overwrites whatever was there */
+    shadow_store(p, a, oi, tcg_constant_i64(0));
+    if (two) {
+        shadow_store(p, a2, oi, tcg_constant_i64(0));
+    }
+}
+
+/* Elastic, track variant: count blocks down to the next all-clean scan. */
+static void gen_tick(Pass *p)
+{
+    TCGv_i32 t = s32();
+    TCGLabel *skip = gen_new_label();
+
+    tcg_gen_ld_i32(t, senv_ptr(p), tick_off);
+    tcg_gen_subi_i32(t, t, 1);
+    tcg_gen_st_i32(t, senv_ptr(p), tick_off);
+    tcg_gen_brcondi_i32(TCG_COND_NE, t, 0, skip);
+    tcg_gen_call1(taint_track_tick, &track_tick_info, NULL, tcgv_ptr_temp(tcg_env));
+    gen_set_label(skip);
+}
+
 static void taint_op(Pass *p, TCGOp *op, TCGOp *next)
 {
     TCGContext *s = p->s;
@@ -2604,6 +2805,10 @@ static void taint_op(Pass *p, TCGOp *op, TCGOp *next)
     TCGTemp *a = def->nb_iargs > 0 ? arg_temp(op->args[def->nb_oargs]) : NULL;
     TCGTemp *b = def->nb_iargs > 1 ? arg_temp(op->args[def->nb_oargs + 1]) : NULL;
 
+    if (p->check) {
+        check_op(p, op, next);
+        return;
+    }
     /* Shadow work goes before the op, so value-dependent rules see the inputs. */
     if (is_carry_op(opc)) {
         if (!p->chain) {
@@ -2623,6 +2828,10 @@ static void taint_op(Pass *p, TCGOp *op, TCGOp *next)
         memset(p->sptr, 0, sizeof(TCGTemp *) * p->nb_temps);
         return;
     case INDEX_op_insn_start:
+        if (elastic && !p->ticked) {
+            p->ticked = true;
+            gen_tick(p);
+        }
         lab_flush(p);
         p->pc = tcg_get_insn_start_param(op, 0);
         if (labels_on) {
@@ -2842,7 +3051,8 @@ static void taint_op(Pass *p, TCGOp *op, TCGOp *next)
 void taint_gen_tb(CPUState *cpu, TranslationBlock *tb)
 {
     TCGContext *s = tcg_ctx;
-    Pass p = { .s = s, .nb_temps = s->nb_temps, .pcrel = tb_cflags(tb) & CF_PCREL };
+    Pass p = { .s = s, .nb_temps = s->nb_temps, .pcrel = tb_cflags(tb) & CF_PCREL,
+               .check = tb_cflags(tb) & CF_TAINT_CHECK };
     TCGOp *op, *next;
     const TCGOpcode *old_list = tcg_swap_vecop_list(NULL);
 
@@ -2965,7 +3175,12 @@ static void set_cflags(bool on)
 
     CPU_FOREACH(cpu) {
         stlb_flush_all(cpu);
+        tcg_cflags_clear(cpu, CF_TAINT_CHECK);      /* start in track; elastic finds clean */
+        if (cpu->cflags_next_tb != -1) {
+            cpu->cflags_next_tb &= ~CF_TAINT_CHECK;
+        }
         if (on) {
+            tick(cpu)[0] = tick(cpu)[1] = ELASTIC_PERIOD;
             tcg_cflags_set(cpu, CF_TAINT);
             if (cpu->cflags_next_tb != -1) {
                 cpu->cflags_next_tb |= CF_TAINT;
@@ -3007,6 +3222,7 @@ bool taint_enable(void)
     if (taint_active) {
         return true;
     }
+    elastic = g_strcmp0(getenv("PANDA_TAINT_ELASTIC"), "1") == 0;
     ram_shadow_alloc();
     CPU_FOREACH(cpu) {
         senv_clear(cpu);
@@ -3113,6 +3329,9 @@ int taint_label_reg(CPUState *cpu, int regno, uint8_t mask)
     }
     memset((uint8_t *)cpu->taint_senv + off, mask, size);
     memset(labfile(cpu) + off, 0, size * sizeof(uint32_t));
+    if (mask) {
+        elastic_tainted_cpu(cpu);
+    }
     return size;
 }
 
@@ -3193,6 +3412,9 @@ int taint_label_reg_l(CPUState *cpu, int regno, uint8_t mask, uint32_t label)
     for (unsigned i = 0; i < size; i++) {
         labfile(cpu)[off + i] = id;
     }
+    if (mask) {
+        elastic_tainted_cpu(cpu);
+    }
     return size;
 }
 
@@ -3251,12 +3473,14 @@ void taint_stats(char *buf, size_t len)
         " unknown_ops %" PRIu64 " h1_tainted %" PRIu64 " device_writes %" PRIu64
         " device_bytes %" PRIu64 " ptr_tainted %" PRIu64 " branch_events %" PRIu64
         " pc_events %" PRIu64 " lab_calls %" PRIu64 " lab_many %" PRIu64 " lab_sets %u"
-        " mmio_tainted %" PRIu64 " helper_mem_bytes %" PRIu64 " h2b_calls %" PRIu64 "\n",
+        " mmio_tainted %" PRIu64 " helper_mem_bytes %" PRIu64 " h2b_calls %" PRIu64
+        " to_track %" PRIu64 " to_check %" PRIu64 " chk_slow %" PRIu64 "\n",
         stats.tbs, stats.ops, stats.untracked_ld, stats.untracked_st, stats.ptr_calls,
         stats.ld_slow, stats.st_slow, stats.ram_oob, stats.unknown_ops, stats.h1_tainted,
         stats.device_writes, stats.device_bytes, stats.ptr_tainted, stats.branch_events,
         stats.pc_events, stats.lab_calls, stats.lab_many, lsets ? lsets->len - 2 : 0,
-        stats.mmio_tainted, stats.helper_mem_bytes, stats.h2b_calls);
+        stats.mmio_tainted, stats.helper_mem_bytes, stats.h2b_calls, stats.to_track,
+        stats.to_check, stats.chk_slow);
     if (h1_hits) {
         g_hash_table_iter_init(&it, h1_hits);
         while (g_hash_table_iter_next(&it, &k, &v)) {
