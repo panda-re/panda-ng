@@ -85,7 +85,7 @@ code using raw `CPUState` pointers or unguarded native APIs can still write gues
 such writes are unsupported and can invalidate a recording. The separate experimental effect
 API below is not an unsafe override of these guards.
 
-### Experimental ordered RAM effects
+### Experimental ordered RAM and register effects
 
 `panda_analysis_ram_write(address, data, length)` copies a bounded physical RAM write into
 the existing ND async queue. It returns **admission**, not completion. Admission requires
@@ -101,10 +101,24 @@ for dirty tracking and translated-code invalidation. Replay loads and applies th
 without the original requester, verifies the same preflight result, and refuses effects
 without the `rr` capability. Unsaved requests are canceled rather than applied at teardown.
 
+`panda_analysis_reg_write(cpu_index, reg, data, length)` queues a register write with the same
+admission, ordering and limits. `reg` is the CPU's gdbstub register number (the numbering
+`gdb` and QEMU's own plugin register API use), so no PANDA architecture table is involved;
+`length` must equal that register's gdbstub size, at most 256 bytes. The drain checks that
+the vCPU and register exist and the size matches, then writes through the target's gdbstub
+register setter and records whether the setter accepted it: some refuse (ARM system
+registers, aarch64's pointer-authentication keys), and the effect is then ACCESS_DENIED and
+changes nothing; the recording goes on. Replay makes the write only where the recording's did,
+and stops with a divergence error if the setter refuses one it accepted then.
+
+OK means the setter accepted the write, not that the guest sees the value: QEMU's setters
+accept `r8`-`r15` on x86 in 32-bit mode without writing them, and aarch64's `pstate` without
+rebuilding the execution state QEMU derives from it. The replay
+does exactly the same, so it stays consistent with the recording.
+
 The payload has its own version and the outer ND version is bumped; old logs are not
-claimed compatible. Register, syscall and device effects remain unsupported. Standalone
-implementation tests pass; integrated builds, producer-free guest replay and observer-order
-conformance are still pending. There is no apply-completion callback yet.
+claimed compatible. Syscall and device effects remain unsupported. There is no
+apply-completion callback yet.
 
 ## Limits
 

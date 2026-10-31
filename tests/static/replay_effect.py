@@ -27,8 +27,8 @@ STUBS = r'''
 #define CPU_FOREACH(cpu) for (int i=0;i<2 && ((cpu)=&cpus[i],1);i++)
 enum {REPLAY_MODE_NONE,REPLAY_MODE_RECORD,REPLAY_MODE_PLAY};
 typedef uint64_t hwaddr;
-typedef struct { bool stopped; } CPUState;
-static CPUState cpus[]={{true},{true}}, *current_cpu;
+typedef struct { bool stopped; int gdb_num_regs; } CPUState;
+static CPUState cpus[]={{true,4},{true,4}}, *current_cpu;
 static int replay_mode=REPLAY_MODE_RECORD;
 static bool main_thread=true,bql=true,locked=true,enabled=true,cap=true;
 static void *replay_file=(void*)1;
@@ -64,6 +64,21 @@ static unsigned pending_count;
 static void replay_add_event(int kind,void *effect,void *other,uint64_t id) {
     assert(kind==7 && !other && !id);pending[pending_count++]=effect;
 }
+/* gdbstub registers: 0-2 are 8 bytes, 3 is 16; reg_writes counts setter calls. */
+typedef struct { uint8_t *data; unsigned len; } GByteArray;
+static uint8_t regs[2][4][16];
+static unsigned reg_writes;
+static bool setter_refuses;  /* an ARM sysreg/pauth-style setter: returns 0, writes nothing */
+static CPUState *qemu_get_cpu(int index) {return index>=0 && index<2 ? &cpus[index] : NULL;}
+static GByteArray *g_byte_array_new(void) {return calloc(1,sizeof(GByteArray));}
+static void g_byte_array_free(GByteArray *b,bool all) {(void)all;free(b);}
+static int reg_size(CPUState *cpu,int reg) {return reg<0 || reg>=cpu->gdb_num_regs ? 0 : reg==3 ? 16 : 8;}
+static int gdb_read_register(CPUState *cpu,GByteArray *buf,int reg) {(void)buf;return reg_size(cpu,reg);}
+static int gdb_write_register(CPUState *cpu,uint8_t *p,int reg) {
+    int n=reg_size(cpu,reg);assert(n);reg_writes++;
+    if(setter_refuses)return 0;
+    memcpy(regs[cpu-cpus][reg],p,n);return n;
+}
 static uint8_t log_bytes[70000];
 static unsigned log_len, log_at;
 static void replay_put_byte(uint8_t b) {log_bytes[log_len++]=b;}
@@ -82,8 +97,8 @@ static void record_one(void *p) {
     replay_analysis_effect_run(p);
 }
 static void reset(void) {
-    allocations=writes=dirty_invalidations=pending_count=log_len=log_at=0;
-    memset(ram,0,sizeof(ram));
+    allocations=writes=dirty_invalidations=pending_count=log_len=log_at=reg_writes=0;
+    memset(ram,0,sizeof(ram));memset(regs,0,sizeof(regs));
 }
 int main(void) {
     const uint8_t data[]={1,2,3,4};
@@ -164,6 +179,83 @@ int main(void) {
     regions[0].readonly=true;
     if(!setjmp(failure)) {replay_analysis_effect_run(effect);assert(!"preflight mismatch accepted");}
     replay_analysis_effect_cancel(effect);
+    regions[0].readonly=false;
+    /* Register effects: shape is refused before allocation. */
+    replay_mode=REPLAY_MODE_RECORD;reset();
+    const uint8_t value[]={0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88};
+    assert(!replay_analysis_reg_write_request(-1,0,value,8));
+    assert(!replay_analysis_reg_write_request(0,-1,value,8));
+    assert(!replay_analysis_reg_write_request(0,0,value,0));
+    assert(!replay_analysis_reg_write_request(0,0,value,REPLAY_REG_EFFECT_MAX+1));
+    assert(!replay_analysis_reg_write_request(0,0,NULL,8));
+    for(unsigned i=0;i<sizeof(gates)/sizeof(*gates);i++) {
+        *gates[i]=false;assert(!replay_analysis_reg_write_request(1,2,value,8));*gates[i]=true;
+    }
+    assert(!allocations);
+    /* Admission copies; the drain writes through the gdbstub setter. */
+    uint8_t copy[8];memcpy(copy,value,8);
+    assert(replay_analysis_reg_write_request(1,2,copy,8));
+    copy[0]=0;assert(!reg_writes);
+    record_one(pending[0]);
+    assert(reg_writes==1 && !memcmp(regs[1][2],value,8) && !writes);
+    assert(log_bytes[1]==2 && log_bytes[2]==RAM_EFFECT_OK && !ram_effect_pending);
+    replay_mode=REPLAY_MODE_PLAY;memset(regs,0,sizeof(regs));
+    effect=replay_analysis_effect_load();replay_analysis_effect_run(effect);
+    assert(reg_writes==2 && !memcmp(regs[1][2],value,8) && log_at==log_len);
+    /* Missing vCPU, missing register and wrong size are recorded as denied. */
+    const int denied[][3]={{5,0,8},{0,4,8},{0,3,8},{0,0,4}};
+    for(unsigned i=0;i<4;i++) {
+        replay_mode=REPLAY_MODE_RECORD;reset();
+        assert(replay_analysis_reg_write_request(denied[i][0],denied[i][1],value,denied[i][2]));
+        record_one(pending[0]);
+        assert(!reg_writes && log_bytes[2]==RAM_EFFECT_DENIED);
+        replay_mode=REPLAY_MODE_PLAY;
+        effect=replay_analysis_effect_load();replay_analysis_effect_run(effect);
+        assert(!reg_writes);
+    }
+    /* A 16-byte register takes a 16-byte payload. */
+    replay_mode=REPLAY_MODE_RECORD;reset();
+    const uint8_t wide[16]={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
+    assert(replay_analysis_reg_write_request(0,3,wide,16));record_one(pending[0]);
+    assert(reg_writes==1 && !memcmp(regs[0][3],wide,16));
+    /* Replay against a machine without the register is a sync error. */
+    reset();assert(replay_analysis_reg_write_request(0,1,value,8));record_one(pending[0]);
+    replay_mode=REPLAY_MODE_PLAY;effect=replay_analysis_effect_load();
+    cpus[0].gdb_num_regs=1;
+    if(!setjmp(failure)) {replay_analysis_effect_run(effect);assert(!"register mismatch accepted");}
+    replay_analysis_effect_cancel(effect);cpus[0].gdb_num_regs=4;
+    /* A setter that refuses the write is recorded as denied, changes nothing and
+     * leaves the recording going; replay does not attempt it. */
+    replay_mode=REPLAY_MODE_RECORD;reset();setter_refuses=true;
+    assert(replay_analysis_reg_write_request(0,2,value,8));
+    if(setjmp(failure)) assert(!"a refused register write ended the recording");
+    record_one(pending[0]);
+    assert(reg_writes==1 && log_bytes[2]==RAM_EFFECT_DENIED && !regs[0][2][0] && !ram_effect_pending);
+    replay_mode=REPLAY_MODE_PLAY;effect=replay_analysis_effect_load();replay_analysis_effect_run(effect);
+    assert(reg_writes==1 && !regs[0][2][0]);
+    /* One the recording's setter accepted but replay's refuses is a divergence. */
+    replay_mode=REPLAY_MODE_RECORD;reset();setter_refuses=false;
+    assert(replay_analysis_reg_write_request(0,2,value,8));record_one(pending[0]);
+    assert(log_bytes[2]==RAM_EFFECT_OK);
+    replay_mode=REPLAY_MODE_PLAY;effect=replay_analysis_effect_load();setter_refuses=true;
+    if(!setjmp(failure)) {replay_analysis_effect_run(effect);assert(!"refused replay write accepted");}
+    replay_analysis_effect_cancel(effect);setter_refuses=false;
+    /* Header (version, opcode, result), negative cpu/reg and length fields. */
+    const unsigned bad_reg[]={0,1,2,3,7,11};
+    for(unsigned i=0;i<sizeof(bad_reg)/sizeof(*bad_reg);i++) {
+        unsigned field=bad_reg[i];uint8_t saved=log_bytes[field];
+        log_bytes[field]=255;log_at=0;unsigned before=allocations;
+        if(!setjmp(failure)) {effect=replay_analysis_effect_load();assert(!"bad register payload accepted");}
+        assert(allocations==before);log_bytes[field]=saved;
+    }
+    /* RAM and register requests share one ordered queue and one pending cap. */
+    replay_mode=REPLAY_MODE_RECORD;reset();
+    for(int i=0;i<63;i++)assert(replay_analysis_ram_write_request(0,data,4));
+    assert(replay_analysis_reg_write_request(0,0,value,8));
+    assert(!replay_analysis_reg_write_request(0,0,value,8));
+    assert(!replay_analysis_ram_write_request(0,data,4));
+    for(int i=0;i<64;i++)replay_analysis_effect_cancel(pending[i]);
+    assert(!ram_effect_pending && !writes && !reg_writes);
     return 0;
 }
 '''
@@ -174,12 +266,12 @@ class ReplayEffect(unittest.TestCase):
         plugin = (SRC / 'include/panda/plugin.h').read_text()
         self.assertIn('#include "panda/analysis-effect.h"', plugin)
 
-    def test_bounded_deferred_ram_write(self):
+    def test_bounded_deferred_ram_and_register_writes(self):
         with tempfile.TemporaryDirectory(prefix='ram-effect-') as tmp:
             tmp = Path(tmp)
             for name in ('qemu/osdep.h', 'qemu/main-loop.h', 'qemu/rcu.h', 'hw/core/cpu.h',
                          'system/cpus.h', 'system/address-spaces.h', 'system/memory.h', 'system/replay.h',
-                         'system/analysis-policy.h', 'replay-internal.h'):
+                         'system/analysis-policy.h', 'replay-internal.h', 'exec/gdbstub.h'):
                 path = tmp / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text('')
