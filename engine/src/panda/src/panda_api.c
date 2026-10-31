@@ -10,6 +10,7 @@
 // for map_memory
 #include "qapi/error.h"
 #include "system/replay.h"
+#include "system/analysis-policy.h"
 #include "migration/vmstate.h"
 #include "migration/snapshot.h"
 #include "qemu/error-report.h"
@@ -26,6 +27,11 @@
 #include "panda/wrap_ops.h"
 #include "accel/tcg/hooks.h"
 #include "hw/core/panda-modules.h"
+
+bool panda_configure_capabilities(uint32_t requested)
+{
+    return analysis_policy_seal(requested, NULL);
+}
 
 void panda_mark_hook_address(target_ulong pc)
 {

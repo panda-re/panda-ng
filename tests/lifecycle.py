@@ -1,9 +1,11 @@
 """Public reset-hook ordering on ordinary/fast restore, refusal and hardware reset.
 
 Run: python3 tests/lifecycle.py <image.json>
-Uses the packaged pandare2 runtime. Pending syscall slot coverage is in
+Uses the packaged pandare2 runtime. Set RRCB_HANDOFF=1 only for old fixtures
+containing handoff snapshot extensions. Pending syscall slot coverage is in
 static/lifecycle.py; this test exercises the real reset/load integration points.
 """
+import os
 import sys
 import threading
 
@@ -15,7 +17,10 @@ RESET_PC = {'x86_64': 0xfffffff0, 'aarch64': 0, 'riscv64': 0x1000}
 
 
 def main():
-    panda = Panda(generic=sys.argv[1])
+    capabilities = None
+    if os.environ.get('RRCB_HANDOFF') == '1':
+        capabilities = ('analysis', 'guest-hypercall', 'handoff')
+    panda = Panda(generic=sys.argv[1], capabilities=capabilities)
     lib, ffi = panda.libpanda, panda.ffi
     # A real loaded owner is required; do not fabricate a plugin handle.
     panda.load_plugin('hypercaller')

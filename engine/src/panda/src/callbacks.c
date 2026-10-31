@@ -46,6 +46,7 @@ PANDAENDCOMMENT */
 #include "panda/hooks.h"
 #include "system/replay.h"
 #include "system/kvm.h"
+#include "system/analysis-policy.h"
 #include "qemu/error-report.h"
 
 #define SOFTMMU_DIR "/" TARGET_NAME "-softmmu"
@@ -143,6 +144,10 @@ bool panda_guest_mutation_allowed(void)
 
 static bool callback_mode_valid(uint32_t modes, bool observe_only)
 {
+    if (!analysis_policy_is_frozen() ||
+        !analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
+        return false;
+    }
     if (kvm_enabled()) {
         return modes & PANDA_MODE_KVM;
     }
@@ -369,6 +374,11 @@ static void do_check_export_symbols(panda_plugin *panda_plugin, const char *file
 }
 
 static bool _panda_load_plugin(const char *filename, const char *plugin_name, bool library_mode) {
+    if (!analysis_policy_is_frozen() ||
+        !analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
+        error_report("PANDA plugin loading requires sealed analysis capability");
+        return false;
+    }
 
     // static bool libpanda_loaded = false;
 

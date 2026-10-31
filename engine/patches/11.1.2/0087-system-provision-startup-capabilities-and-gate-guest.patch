@@ -1,0 +1,385 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 29 Oct 2026 18:00:00 -0400
+Subject: [PATCH] system: provision startup capabilities and gate guest
+ hypercalls
+
+Introduce the common startup policy source and explicit CLI selection. Freeze
+before board initialization; bare startup remains zero. Restore upstream ARM
+reserved-instruction decoding and ordinary other-target instruction paths when
+guest-hypercall is absent, and do not install the x86 port region. User-only
+translators keep a constant-off wrapper with no system-policy dependency.
+
+This bounded first gate is not complete vanilla parity: the earlier series has
+additional independently inventoried behavior changes still requiring off paths.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
+Origin: new
+---
+ hw/i386/pc.c                                  | 11 +++--
+ qemu-options.hx                               | 14 ++++++
+ system/meson.build                            |  1 +
+ system/vl.c                                   | 45 +++++++++++++++++++
+ target/arm/tcg/translate-a64.c                | 15 +++++++
+ target/arm/tcg/translate.c                    | 15 ++++++-
+ .../tcg/insn_trans/trans_extra.c.inc          |  3 +-
+ target/loongarch/tcg/translate.c              | 12 +++++
+ target/mips/tcg/translate.c                   | 15 ++++++-
+ target/ppc/translate.c                        | 12 +++++
+ target/ppc/translate/fixedpoint-impl.c.inc    |  3 +-
+ target/riscv/tcg/translate.c                  | 15 ++++++-
+ 12 files changed, 152 insertions(+), 9 deletions(-)
+
+diff --git a/hw/i386/pc.c b/hw/i386/pc.c
+index e7997007170d7363891c97c000b88983c761682b..982545cc1a65c5da9116a1798245253168ef55e9 100644
+--- a/hw/i386/pc.c
++++ b/hw/i386/pc.c
+@@ -23,6 +23,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "system/analysis-policy.h"
+ #include "qemu/units.h"
+ #include "exec/target_page.h"
+ #include "hw/i386/pc.h"
+@@ -1113,7 +1114,6 @@ void pc_basic_device_init(struct PCMachineState *pcms,
+     qemu_irq pit_alt_irq = NULL;
+     ISADevice *pit = NULL;
+     MemoryRegion *ioport80_io = g_new(MemoryRegion, 1);
+-    MemoryRegion *ioport88_io = g_new(MemoryRegion, 1);
+     MemoryRegion *ioportF0_io = g_new(MemoryRegion, 1);
+     X86MachineState *x86ms = X86_MACHINE(pcms);
+ 
+@@ -1121,9 +1121,12 @@ void pc_basic_device_init(struct PCMachineState *pcms,
+                           "ioport80", 1);
+     memory_region_add_subregion(isa_bus->address_space_io, 0x80, ioport80_io);
+ 
+-    memory_region_init_io(ioport88_io, NULL, &ioport88_io_ops, NULL,
+-                          "penguin-hypercall", 4);
+-    memory_region_add_subregion(isa_bus->address_space_io, 0x88, ioport88_io);
++    if (analysis_policy_has(ANALYSIS_CAP_GUEST_HYPERCALL)) {
++        MemoryRegion *ioport88_io = g_new(MemoryRegion, 1);
++        memory_region_init_io(ioport88_io, NULL, &ioport88_io_ops, NULL,
++                              "penguin-hypercall", 4);
++        memory_region_add_subregion(isa_bus->address_space_io, 0x88, ioport88_io);
++    }
+ 
+     memory_region_init_io(ioportF0_io, OBJECT(pcms), &ioportF0_io_ops, NULL,
+                           "ioportF0", 1);
+diff --git a/qemu-options.hx b/qemu-options.hx
+index 6d6fc98da4dea3fce29ca1557a78342ba5ccf94b..39af09f8cada6512f79a0fd4e880e5a6a0163e9c 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -5635,6 +5635,20 @@ SRST
+         Argument passed to the plugin. (Can be given multiple times.)
+ ERST
+ 
++DEF("analysis-capabilities", HAS_ARG, QEMU_OPTION_analysis_capabilities,
++    "-analysis-capabilities vanilla|analysis,fuzz,rr,guest-hypercall,handoff,penguin\n"
++    "                provision startup extensions (default: vanilla/zero)\n",
++    QEMU_ARCH_ALL)
++SRST
++``-analysis-capabilities names``
++    Provision a comma-separated list of startup capabilities. ``fuzz`` and ``rr``
++    also provision ``analysis``. ``vanilla`` selects zero capabilities and must
++    appear alone. Unknown or empty names are errors. Repeated options replace
++    the preceding selection. Selection freezes before board initialization.
++    This initial policy gates guest hypercall encodings and the x86 hypercall
++    port; it does not yet provide complete upstream vanilla behavior parity.
++ERST
++
+ DEF("module", HAS_ARG, QEMU_OPTION_module,
+     "-module path    load a panda module (external boards, devices) from a\n"
+     "                shared object built with the engine's SDK\n"
+diff --git a/system/meson.build b/system/meson.build
+index 4e3cbb680979b9fd27cf29577f4a02a69016a844..bf30ad65891e716154b97467a68c43a4c0359323 100644
+--- a/system/meson.build
++++ b/system/meson.build
+@@ -4,6 +4,7 @@ system_ss.add(files(
+ 
+ system_ss.add(files(
+   'arch_init.c',
++  'analysis-policy.c',
+   'balloon.c',
+   'bootdevice.c',
+   'cpus.c',
+diff --git a/system/vl.c b/system/vl.c
+index 626d854e71c3a2bb8f3f4aafee365e2236f1196d..ccfb349b5886c457c992a085991a274a50284ffd 100644
+--- a/system/vl.c
++++ b/system/vl.c
+@@ -23,6 +23,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "system/analysis-policy.h"
+ #include "qemu/help-texts.h"
+ #include "qemu/datadir.h"
+ #include "qemu/units.h"
+@@ -2784,10 +2785,51 @@ static void qemu_init_displays(void)
+     }
+ }
+ 
++/* Startup policy only: callers cannot turn extensions on after realization. */
++static bool parse_analysis_capabilities(const char *value, Error **errp)
++{
++    g_auto(GStrv) names = g_strsplit(value, ",", -1);
++    uint32_t requested = 0;
++
++    for (char **name = names; *name; name++) {
++        if (!strcmp(*name, "vanilla")) {
++            if (names[1]) {
++                error_setg(errp, "vanilla cannot be combined with capabilities");
++                return false;
++            }
++        } else if (!strcmp(*name, "analysis")) {
++            requested |= ANALYSIS_CAP_ANALYSIS;
++        } else if (!strcmp(*name, "fuzz")) {
++            requested |= ANALYSIS_CAP_FUZZ;
++        } else if (!strcmp(*name, "rr")) {
++            requested |= ANALYSIS_CAP_RR;
++        } else if (!strcmp(*name, "guest-hypercall")) {
++            requested |= ANALYSIS_CAP_GUEST_HYPERCALL;
++        } else if (!strcmp(*name, "handoff")) {
++            requested |= ANALYSIS_CAP_HANDOFF;
++        } else if (!strcmp(*name, "penguin")) {
++            requested |= ANALYSIS_CAP_PENGUIN;
++        } else {
++            error_setg(errp, "unknown analysis capability '%s'", *name);
++            return false;
++        }
++    }
++    if (!value[0]) {
++        error_setg(errp, "analysis capabilities must not be empty");
++        return false;
++    }
++    return analysis_policy_configure(requested, errp);
++}
++
+ static void qemu_init_board(void)
+ {
+     MachineClass *machine_class = MACHINE_GET_CLASS(current_machine);
+ 
++    analysis_policy_freeze();
++    if (analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
++        analysis_policy_set_analysis_active(true, &error_fatal);
++    }
++
+     /* process plugin before CPUs are created, but once -smp has been parsed */
+     qemu_plugin_load_list(&plugin_list, &error_fatal);
+ 
+@@ -3667,6 +3709,9 @@ void qemu_init(int argc, char **argv)
+             case QEMU_OPTION_plugin:
+                 qemu_plugin_opt_parse(optarg, &plugin_list);
+                 break;
++            case QEMU_OPTION_analysis_capabilities:
++                parse_analysis_capabilities(optarg, &error_fatal);
++                break;
+             case QEMU_OPTION_module:
+                 if (is_help_option(optarg)) {
+                     printf("panda ABI %s\n", module_panda_abi());
+diff --git a/target/arm/tcg/translate-a64.c b/target/arm/tcg/translate-a64.c
+index 8c5a6d9eafd162dd0768ca70f7b034e8cf29d79e..7c8a865b3bc7424284f1bdba27c4c941524af37b 100644
+--- a/target/arm/tcg/translate-a64.c
++++ b/target/arm/tcg/translate-a64.c
+@@ -17,6 +17,18 @@
+  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+  */
+ #include "qemu/osdep.h"
++#ifndef CONFIG_USER_ONLY
++#include "system/analysis-policy.h"
++#endif
++
++static inline bool analysis_guest_hypercall_enabled(void)
++{
++#ifdef CONFIG_USER_ONLY
++    return false;
++#else
++    return analysis_policy_has(ANALYSIS_CAP_GUEST_HYPERCALL);
++#endif
++}
+ #include "exec/target_page.h"
+ #include "exec/translator.h"
+ #include "helper-a64.h"
+@@ -3280,6 +3292,9 @@ static bool trans_SYS(DisasContext *s, arg_SYS *a)
+ 
+ static bool trans_PENGUIN(DisasContext *s, arg_PENGUIN *a)
+ {
++    if (!analysis_guest_hypercall_enabled()) {
++        return false; /* preserve upstream UNDEF decoding */
++    }
+     gen_helper_penguin_guest_hypercall(cpu_reg(s, 0), tcg_env,
+                                        cpu_reg(s, 8), cpu_reg(s, 0),
+                                        cpu_reg(s, 1), cpu_reg(s, 2),
+diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
+index 0ce1cdaf286c19b5c4ddb15cddb18afd6dddfe70..c09865a2d81636f9d355d7be0c32037863304b4d 100644
+--- a/target/arm/tcg/translate.c
++++ b/target/arm/tcg/translate.c
+@@ -20,6 +20,18 @@
+  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+  */
+ #include "qemu/osdep.h"
++#ifndef CONFIG_USER_ONLY
++#include "system/analysis-policy.h"
++#endif
++
++static inline bool analysis_guest_hypercall_enabled(void)
++{
++#ifdef CONFIG_USER_ONLY
++    return false;
++#else
++    return analysis_policy_has(ANALYSIS_CAP_GUEST_HYPERCALL);
++#endif
++}
+ 
+ #include "translate.h"
+ #include "translate-a32.h"
+@@ -2346,7 +2358,8 @@ static bool valid_cp(DisasContext *s, int cp)
+ 
+ static bool trans_MCR(DisasContext *s, arg_MCR *a)
+ {
+-    if (a->cp == 7 && a->opc1 == 0 && a->rt == 0 &&
++    if (analysis_guest_hypercall_enabled() &&
++        a->cp == 7 && a->opc1 == 0 && a->rt == 0 &&
+         a->crn == 0 && a->crm == 0 && a->opc2 == 0) {
+         TCGv_i64 nr = tcg_temp_new_i64();
+         TCGv_i64 a0 = tcg_temp_new_i64();
+diff --git a/target/loongarch/tcg/insn_trans/trans_extra.c.inc b/target/loongarch/tcg/insn_trans/trans_extra.c.inc
+index 78d79c70fa51927dbb9560cf3a598f926686855a..9f0557857bdf95670ba1b9493e1bcb4b785d47ef 100644
+--- a/target/loongarch/tcg/insn_trans/trans_extra.c.inc
++++ b/target/loongarch/tcg/insn_trans/trans_extra.c.inc
+@@ -87,7 +87,8 @@ static bool trans_cpucfg(DisasContext *ctx, arg_cpucfg *a)
+ 
+     gen_helper_cpucfg(dest, tcg_env, src1);
+     gen_set_gpr(a->rd, dest, EXT_NONE);
+-    if (a->rd == 0 && a->rj == 0) {
++    if (analysis_guest_hypercall_enabled() &&
++        a->rd == 0 && a->rj == 0) {
+         TCGv ret = tcg_temp_new();
+         gen_helper_penguin_guest_hypercall(ret, tcg_env,
+                                            gpr_src(ctx, 11, EXT_NONE),
+diff --git a/target/loongarch/tcg/translate.c b/target/loongarch/tcg/translate.c
+index 124dce626954a85e5754de847ccba1796aebd8a6..d289e3f3c64c1d46906e49bca9d5fcb696f3e301 100644
+--- a/target/loongarch/tcg/translate.c
++++ b/target/loongarch/tcg/translate.c
+@@ -6,6 +6,18 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#ifndef CONFIG_USER_ONLY
++#include "system/analysis-policy.h"
++#endif
++
++static inline bool analysis_guest_hypercall_enabled(void)
++{
++#ifdef CONFIG_USER_ONLY
++    return false;
++#else
++    return analysis_policy_has(ANALYSIS_CAP_GUEST_HYPERCALL);
++#endif
++}
+ #include "cpu.h"
+ #include "tcg/tcg-op.h"
+ #include "tcg/tcg-op-gvec.h"
+diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
+index a738c3d7be75f208167d8e2e319b6ee3d2597fd0..a402df7e55d504eb47a9627343e8c0bfcfa6ec5b 100644
+--- a/target/mips/tcg/translate.c
++++ b/target/mips/tcg/translate.c
+@@ -23,6 +23,18 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#ifndef CONFIG_USER_ONLY
++#include "system/analysis-policy.h"
++#endif
++
++static inline bool analysis_guest_hypercall_enabled(void)
++{
++#ifdef CONFIG_USER_ONLY
++    return false;
++#else
++    return analysis_policy_has(ANALYSIS_CAP_GUEST_HYPERCALL);
++#endif
++}
+ #include "translate.h"
+ #include "internal.h"
+ #include "exec/helper-proto.h"
+@@ -2724,7 +2736,8 @@ static void gen_cond_move(DisasContext *ctx, uint32_t opc,
+ {
+     TCGv t0, t1, t2;
+ 
+-    if (opc == OPC_MOVZ && rd == 0 && rs == 0 && rt == 0) {
++    if (analysis_guest_hypercall_enabled() &&
++        opc == OPC_MOVZ && rd == 0 && rs == 0 && rt == 0) {
+         gen_helper_penguin_guest_hypercall(cpu_gpr[2], tcg_env,
+                                            cpu_gpr[2], cpu_gpr[4],
+                                            cpu_gpr[5], cpu_gpr[6],
+diff --git a/target/ppc/translate.c b/target/ppc/translate.c
+index 06ed2adf1053ddec214d17b6416e70269e29a38a..cabe5d6b4a2d774e7e8e086e610fe47f7966dbfc 100644
+--- a/target/ppc/translate.c
++++ b/target/ppc/translate.c
+@@ -19,6 +19,18 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#ifndef CONFIG_USER_ONLY
++#include "system/analysis-policy.h"
++#endif
++
++static inline bool analysis_guest_hypercall_enabled(void)
++{
++#ifdef CONFIG_USER_ONLY
++    return false;
++#else
++    return analysis_policy_has(ANALYSIS_CAP_GUEST_HYPERCALL);
++#endif
++}
+ #include "cpu.h"
+ #include "internal.h"
+ #include "exec/target_page.h"
+diff --git a/target/ppc/translate/fixedpoint-impl.c.inc b/target/ppc/translate/fixedpoint-impl.c.inc
+index 90fd9139113b6dbed4c2672f6ba50a77162e41c0..c28108670663faee02416634c53155dbc5fc88d7 100644
+--- a/target/ppc/translate/fixedpoint-impl.c.inc
++++ b/target/ppc/translate/fixedpoint-impl.c.inc
+@@ -880,7 +880,8 @@ static bool do_ori(DisasContext *ctx, arg_D_ui *a, bool shift)
+ static bool do_xori(DisasContext *ctx, arg_D_ui *a, bool shift)
+ {
+     if (a->rt == a->ra && a->ui == 0) {
+-        if (!shift && a->rt == 10) {
++        if (analysis_guest_hypercall_enabled() &&
++            !shift && a->rt == 10) {
+             gen_helper_penguin_guest_hypercall(cpu_gpr[3], tcg_env,
+                                                cpu_gpr[0], cpu_gpr[3],
+                                                cpu_gpr[4], cpu_gpr[5],
+diff --git a/target/riscv/tcg/translate.c b/target/riscv/tcg/translate.c
+index 0418e153d47cdc4949409e23a2ba92c2f568868e..9234795c260fdb49d28514d549242e929c3a963a 100644
+--- a/target/riscv/tcg/translate.c
++++ b/target/riscv/tcg/translate.c
+@@ -17,6 +17,18 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#ifndef CONFIG_USER_ONLY
++#include "system/analysis-policy.h"
++#endif
++
++static inline bool analysis_guest_hypercall_enabled(void)
++{
++#ifdef CONFIG_USER_ONLY
++    return false;
++#else
++    return analysis_policy_has(ANALYSIS_CAP_GUEST_HYPERCALL);
++#endif
++}
+ #include "qemu/log.h"
+ #include "cpu.h"
+ #include "tcg/tcg-op.h"
+@@ -866,7 +878,8 @@ static int ex_rvc_shiftri(DisasContext *ctx, int imm)
+ static bool gen_logic_imm_fn(DisasContext *ctx, arg_i *a,
+                              void (*func)(TCGv, TCGv, target_long))
+ {
+-    if (a->rs1 == 0 && a->rd == 0 && a->imm == 0 &&
++    if (analysis_guest_hypercall_enabled() &&
++        a->rs1 == 0 && a->rd == 0 && a->imm == 0 &&
+         func == tcg_gen_xori_tl) {
+         TCGv ret = tcg_temp_new();
+         gen_helper_penguin_guest_hypercall(ret, tcg_env,
