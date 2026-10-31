@@ -22,6 +22,10 @@ in the overlay). With ANALYSIS_CAP_TAINT provisioned:
   (taint_helper_copy/_fill) so the shadow moves with the data: target/arm's
   FEAT_MOPS steps (CPY*, SET*; glibc's memcpy/memset on a CPU that has
   them) and DC ZVA, and RISC-V cbo.zero;
+- target/arm registers get_user_reg/set_user_reg (now one user_reg_ptr())
+  as helpers whose CPU-state field the mode picks at run time, so the
+  shadow follows a 32-bit kernel's return to user (LDM ^ loads r0-r14
+  through set_user_reg);
 - -analysis-capabilities accepts "taint".
 
 Every hook is behind taint_active (false unless taint is enabled in a
@@ -32,16 +36,19 @@ SPDX-License-Identifier: GPL-2.0-or-later
 Origin: new
 ---
  accel/tcg/cpu-exec.c             | 11 ++++++++
- accel/tcg/cputlb.c               | 44 ++++++++++++++++++++++++++++++++
+ accel/tcg/cputlb.c               | 44 +++++++++++++++++++++++++++++
  accel/tcg/meson.build            |  1 +
  accel/tcg/translator.c           |  5 ++++
  include/exec/translation-block.h |  2 ++
  include/hw/core/cpu.h            |  2 ++
  system/physmem.c                 |  5 ++++
  system/vl.c                      |  2 ++
- target/arm/tcg/helper-a64.c      | 29 +++++++++++++++++++++
+ target/arm/internals.h           |  3 ++
+ target/arm/tcg/helper-a64.c      | 29 +++++++++++++++++++
+ target/arm/tcg/op_helper.c       | 48 ++++++++++++++++++++------------
+ target/arm/tcg/translate.c       |  3 ++
  target/riscv/tcg/op_helper.c     |  4 +++
- 10 files changed, 105 insertions(+)
+ 13 files changed, 141 insertions(+), 18 deletions(-)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
 index 543d5fb7961932ae9ede3ef2932a208bee31f2c8..0a36eb4b30e2ce184d1805f265bc6c9dbfbf5ee5 100644
@@ -271,6 +278,20 @@ index ecaa77c856d216ae9db3da542423e73e90fb4544..f56cfbe0bfd71ac6bec974ea70649423
          } else {
              error_setg(errp, "unknown analysis capability '%s'", *name);
              return false;
+diff --git a/target/arm/internals.h b/target/arm/internals.h
+index 051e9e34044cecf743eba2c730e8d8e66e1245fb..11f45b678f20351104cc1f42dc128c8764c5bc68 100644
+--- a/target/arm/internals.h
++++ b/target/arm/internals.h
+@@ -422,6 +422,9 @@ void arm_init_cpreg_list(ARMCPU *cpu);
+ 
+ void arm_cpu_register_gdb_regs_for_features(ARMCPU *cpu);
+ void arm_translate_init(void);
++#ifndef CONFIG_USER_ONLY
++void arm_taint_init(void);
++#endif
+ void aarch64_translate_code(CPUState *cs, TranslationBlock *tb,
+                             int *max_insns, vaddr pc, void *host_pc);
+ void arm_translate_code(CPUState *cs, TranslationBlock *tb,
 diff --git a/target/arm/tcg/helper-a64.c b/target/arm/tcg/helper-a64.c
 index 6cc9ddfb31915a5777cecc877a4713cb57c463b7..e235c9d1aa8e30cf87dab47e5d3e949d6110118e 100644
 --- a/target/arm/tcg/helper-a64.c
@@ -367,6 +388,99 @@ index 6cc9ddfb31915a5777cecc877a4713cb57c463b7..e235c9d1aa8e30cf87dab47e5d3e949d
      return copysize;
  }
  
+diff --git a/target/arm/tcg/op_helper.c b/target/arm/tcg/op_helper.c
+index 493cb42fd2681d7c7590a41e75833b17e238ff9c..1e79fca8a59a293b6f7460fd025acabec607d859 100644
+--- a/target/arm/tcg/op_helper.c
++++ b/target/arm/tcg/op_helper.c
+@@ -26,6 +26,7 @@
+ #include "accel/tcg/cpu-loop.h"
+ #include "accel/tcg/probe.h"
+ #include "cpregs.h"
++#include "exec/taint.h"
+ #include "system/penguin.h"
+ #include "panda/hooks.h"
+ #ifndef CONFIG_USER_ONLY
+@@ -847,37 +848,48 @@ void HELPER(cpsr_write_eret)(CPUARMState *env, uint32_t val)
+ }
+ 
+ /* Access to user mode registers from privileged modes.  */
+-uint32_t HELPER(get_user_reg)(CPUARMState *env, uint32_t regno)
++/* The user-mode copy of a register: banked r13/r14, and r8-r12 in FIQ mode. */
++static uint32_t *user_reg_ptr(CPUARMState *env, uint32_t regno)
+ {
+-    uint32_t val;
+-
+     if (regno == 13) {
+-        val = env->banked_r13[BANK_USRSYS];
++        return &env->banked_r13[BANK_USRSYS];
+     } else if (regno == 14) {
+-        val = env->banked_r14[BANK_USRSYS];
++        return &env->banked_r14[BANK_USRSYS];
+     } else if (regno >= 8
+                && (env->uncached_cpsr & 0x1f) == ARM_CPU_MODE_FIQ) {
+-        val = env->usr_regs[regno - 8];
++        return &env->usr_regs[regno - 8];
+     } else {
+-        val = env->regs[regno];
++        return &env->regs[regno];
+     }
+-    return val;
++}
++
++uint32_t HELPER(get_user_reg)(CPUARMState *env, uint32_t regno)
++{
++    return *user_reg_ptr(env, regno);
+ }
+ 
+ void HELPER(set_user_reg)(CPUARMState *env, uint32_t regno, uint32_t val)
+ {
+-    if (regno == 13) {
+-        env->banked_r13[BANK_USRSYS] = val;
+-    } else if (regno == 14) {
+-        env->banked_r14[BANK_USRSYS] = val;
+-    } else if (regno >= 8
+-               && (env->uncached_cpsr & 0x1f) == ARM_CPU_MODE_FIQ) {
+-        env->usr_regs[regno - 8] = val;
+-    } else {
+-        env->regs[regno] = val;
+-    }
++    *user_reg_ptr(env, regno) = val;
++}
++
++#ifndef CONFIG_USER_ONLY
++static ptrdiff_t user_reg_offset(void *env, uint32_t regno)
++{
++    return (uint8_t *)user_reg_ptr(env, regno) - (uint8_t *)env;
+ }
+ 
++/*
++ * Taint: a return to user mode loads r0-r14 with LDM ^ (set_user_reg), so the shadow must
++ * follow the bank that the mode picks.
++ */
++void arm_taint_init(void)
++{
++    taint_register_env_field_helper("get_user_reg", user_reg_offset, false);
++    taint_register_env_field_helper("set_user_reg", user_reg_offset, true);
++}
++#endif
++
+ void HELPER(set_r13_banked)(CPUARMState *env, uint32_t mode, uint32_t val)
+ {
+     if ((env->uncached_cpsr & CPSR_M) == mode) {
+diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
+index c09865a2d81636f9d355d7be0c32037863304b4d..76e3a8a4d3294fe3607f89aa8fc7b818f487d925 100644
+--- a/target/arm/tcg/translate.c
++++ b/target/arm/tcg/translate.c
+@@ -91,6 +91,9 @@ void arm_translate_init(void)
+         offsetof(CPUARMState, exclusive_val), "exclusive_val");
+ 
+     a64_translate_init();
++#ifndef CONFIG_USER_ONLY
++    arm_taint_init();
++#endif
+ }
+ 
+ uint64_t asimd_imm_const(uint32_t imm, int cmode, int op)
 diff --git a/target/riscv/tcg/op_helper.c b/target/riscv/tcg/op_helper.c
 index 10b7a7dd80c70904677095f4c8a6ed97bfbb029d..099c0f436b606d6b3f7362d9fbede5c6c5a4577a 100644
 --- a/target/riscv/tcg/op_helper.c
