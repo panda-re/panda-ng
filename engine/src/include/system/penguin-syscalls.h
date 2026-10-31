@@ -40,7 +40,8 @@
  * - a return hook's filters other than the return value's are also checked
  *   at the entry: a call is followed to its return only if one can match.
  *
- * Every function may be called from any thread.  Callbacks run on the vCPU
+ * Except penguin_syscall_detach() (main thread/BQL, every vCPU stopped),
+ * functions may be called from any thread. Callbacks run on the vCPU
  * thread, in user mode, without the BQL.  The C ABI below is for Penguin's
  * CFFI layer: plain types, literal array sizes.
  *
@@ -249,6 +250,18 @@ typedef void (*penguin_syscall_boot_cb_t)(CPUState *cs, void *opaque);
  * @cb for every event.  TCG only: under KVM no event is ever delivered.
  */
 bool set_penguin_syscall_callback(penguin_syscall_cb_t cb, void *opaque);
+
+/* Explicit ownership release, NOT set_penguin_syscall_callback(NULL, ...).
+ * Main thread/BQL with every vCPU stopped. Refuses without partial changes if
+ * injections still need register restoration, public penguin_kernel_hook()s
+ * remain, or a detach is in progress. Unhook public hooks first, then stop all
+ * vCPUs before releasing their callbacks/opaque (unhook alone is asynchronous).
+ * Ordinary runs receive ABORT exactly once with old callback/opaque mapped;
+ * drops run outside locks and registration during that drain is refused.
+ * Clears syscall/boot callbacks on success. Names/layout/filter configuration
+ * and engine-owned guard/reaper/exec hooks remain inert until reacquisition;
+ * this is not full configuration teardown or a general plugin unload API. */
+bool penguin_syscall_detach(void);
 
 /*
  * Called once, at the first syscall trap, before any hook runs: where the

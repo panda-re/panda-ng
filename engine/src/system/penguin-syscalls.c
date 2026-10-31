@@ -15,6 +15,8 @@
 #include "qemu/osdep.h"
 #include "system/replay-analysis.h"
 #include "qemu/thread.h"
+#include "qemu/main-loop.h"
+#include "system/cpus.h"
 #include "qemu/lockable.h"
 #include "qemu/rcu.h"
 #include "qemu/atomic.h"
@@ -87,6 +89,8 @@ static struct penguin_sc_layout psc_layout = {
 };
 static uint64_t psc_next_id;
 static bool psc_consumer;
+static bool psc_detaching;
+static unsigned psc_kernel_hooks;
 
 static PTable *psc_table;       /* RCU */
 static bool psc_dirty;
@@ -278,7 +282,7 @@ static void psc_rebuild(void)
 static void psc_mark_dirty(void)
 {
     qatomic_set(&psc_dirty, true);
-    if (psc_consumer) {
+    if (psc_consumer && !psc_detaching) {
         for (int abi = 0; abi < SYSCALL_ABI_COUNT; abi++) {
             syscall_trap_watch(abi, -1, SYSCALL_TRAP_ENTER);
         }
@@ -287,6 +291,9 @@ static void psc_mark_dirty(void)
 
 static void psc_refresh(CPUState *cpu)
 {
+    if (!qatomic_read(&psc_consumer) || qatomic_read(&psc_detaching)) {
+        return;
+    }
     if (!qatomic_read(&psc_booted)) {
         WITH_QEMU_LOCK_GUARD(&psc_boot_lock) {
             if (!psc_booted) {
@@ -1412,7 +1419,8 @@ static void psc_guard_cb(CPUState *cpu, vaddr pc, void *opaque)
     uint64_t addr, ra, sp;
     uint8_t b[8];
 
-    if (!replay_analysis_write_allowed() || psc_arch() <= 0) {
+    if (!qatomic_read(&psc_consumer) ||
+        !replay_analysis_write_allowed() || psc_arch() <= 0) {
         return;
     }
     if (info) {
@@ -1450,7 +1458,7 @@ static void psc_reap_cb(CPUState *cpu, vaddr pc, void *opaque)
 {
     unsigned n;
 
-    if (psc_arch() <= 0) {
+    if (!qatomic_read(&psc_consumer) || psc_arch() <= 0) {
         return;
     }
     n = syscall_trap_forget_task(psc_reg(cpu, psc_x86 ? 5 : 0));
@@ -1469,7 +1477,8 @@ static void psc_exec_cb(CPUState *cpu, vaddr pc, void *opaque)
 {
     unsigned n;
 
-    if (psc_arch() <= 0 || !(psc_reg(cpu, psc_x86 ? 3 : 2) & 0xff)) {
+    if (!qatomic_read(&psc_consumer) || psc_arch() <= 0 ||
+        !(psc_reg(cpu, psc_x86 ? 3 : 2) & 0xff)) {
         return;
     }
     n = syscall_trap_forget_task(psc_reg(cpu, psc_x86 ? 5 : 0));
@@ -1485,7 +1494,7 @@ bool __attribute__((visibility("default")))
 set_penguin_syscall_callback(penguin_syscall_cb_t cb, void *opaque)
 {
     QEMU_LOCK_GUARD(&psc_lock);
-    if (!syscall_trap_set_consumer(&psc_ops, NULL)) {
+    if (psc_detaching || !syscall_trap_set_consumer(&psc_ops, NULL)) {
         return false;
     }
     psc_cb_opaque = opaque;
@@ -1495,10 +1504,64 @@ set_penguin_syscall_callback(penguin_syscall_cb_t cb, void *opaque)
     return true;
 }
 
+static bool psc_detach_quiescent(void)
+{
+    CPUState *cpu;
+
+    if (current_cpu || !bql_locked() || !qemu_in_main_thread()) {
+        return false;
+    }
+    CPU_FOREACH(cpu) {
+        if (!cpu_is_stopped(cpu)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool __attribute__((visibility("default")))
+penguin_syscall_detach(void)
+{
+    if (!psc_detach_quiescent()) {
+        return false;
+    }
+    qemu_mutex_lock(&psc_lock);
+    if (psc_detaching || psc_kernel_hooks) {
+        qemu_mutex_unlock(&psc_lock);
+        return false;
+    }
+    bool owned = psc_consumer;
+    qatomic_set(&psc_detaching, true);
+    qemu_mutex_unlock(&psc_lock);
+
+    /* Core refuses live injections before mutation. ABORT/free uses the old
+     * callback and opaque outside both core and psc locks. Writers cannot
+     * reacquire or publish watches while this drain is in progress. */
+    bool cleared = !owned || syscall_trap_clear_consumer(&psc_ops, NULL);
+
+    qemu_mutex_lock(&psc_lock);
+    if (cleared) {
+        qatomic_set(&psc_consumer, false);
+        qatomic_set(&psc_cb, NULL);
+        psc_cb_opaque = NULL;
+        qemu_mutex_lock(&psc_boot_lock);
+        psc_boot_cb = NULL;
+        psc_boot_opaque = NULL;
+        qatomic_set(&psc_booted, false);
+        qemu_mutex_unlock(&psc_boot_lock);
+    }
+    qatomic_set(&psc_detaching, false);
+    qemu_mutex_unlock(&psc_lock);
+    return cleared;
+}
+
 void __attribute__((visibility("default")))
 set_penguin_syscall_boot_callback(penguin_syscall_boot_cb_t cb, void *opaque)
 {
     QEMU_LOCK_GUARD(&psc_boot_lock);
+    if (qatomic_read(&psc_detaching)) {
+        return;
+    }
     psc_boot_cb = cb;
     psc_boot_opaque = opaque;
 }
@@ -1514,6 +1577,9 @@ penguin_syscall_set_name(int32_t abi, int64_t num, const char *name,
         return false;
     }
     QEMU_LOCK_GUARD(&psc_lock);
+    if (psc_detaching) {
+        return false;
+    }
     if (!psc_names[abi]) {
         if (!name) {
             return true;
@@ -1545,6 +1611,9 @@ penguin_syscall_set_layout(const struct penguin_sc_layout *layout)
         return false;
     }
     QEMU_LOCK_GUARD(&psc_lock);
+    if (psc_detaching) {
+        return false;
+    }
     psc_layout = *layout;
     psc_mark_dirty();
     return true;
@@ -1561,6 +1630,9 @@ penguin_syscall_set_guard(uint64_t force_sig_fault, uint64_t force_sig_info)
         return false;
     }
     QEMU_LOCK_GUARD(&psc_lock);
+    if (psc_detaching) {
+        return false;
+    }
     if (!done) {
         if (force_sig_fault) {
             tcg_hook_insert(force_sig_fault, psc_guard_cb, (void *)0);
@@ -1587,6 +1659,9 @@ penguin_syscall_set_reaper(uint64_t release_task)
         return false;
     }
     QEMU_LOCK_GUARD(&psc_lock);
+    if (psc_detaching) {
+        return false;
+    }
     if (!done) {
         tcg_hook_insert(release_task, psc_reap_cb, NULL);
         done = true;
@@ -1607,6 +1682,9 @@ penguin_syscall_set_exec(uint64_t set_task_comm)
         return false;
     }
     QEMU_LOCK_GUARD(&psc_lock);
+    if (psc_detaching) {
+        return false;
+    }
     if (!done) {
         tcg_hook_insert(set_task_comm, psc_exec_cb, NULL);
         done = true;
@@ -1621,7 +1699,10 @@ penguin_syscall_set_exec(uint64_t set_task_comm)
 void __attribute__((visibility("default")))
 penguin_syscall_set_scope(bool enabled)
 {
-    qatomic_set(&psc_scope, enabled);
+    QEMU_LOCK_GUARD(&psc_lock);
+    if (!psc_detaching) {
+        qatomic_set(&psc_scope, enabled);
+    }
 }
 
 #ifdef CONFIG_TCG
@@ -1653,6 +1734,10 @@ penguin_kernel_hook(uint64_t addr, penguin_kernel_hook_cb_t cb, void *opaque)
     if (!cb) {
         return 0;
     }
+    QEMU_LOCK_GUARD(&psc_lock);
+    if (psc_detaching) {
+        return 0;
+    }
     /* may come before the accelerator is chosen; under KVM it never runs */
     k = g_new0(PKHook, 1);
     k->cb = cb;
@@ -1662,6 +1747,7 @@ penguin_kernel_hook(uint64_t addr, penguin_kernel_hook_cb_t cb, void *opaque)
         g_free(k);
         return 0;
     }
+    psc_kernel_hooks++;
     return (uintptr_t)k;
 #else
     return 0;
@@ -1674,11 +1760,16 @@ penguin_kernel_unhook(uint64_t id)
 #ifdef CONFIG_TCG
     PKHook *k = (PKHook *)(uintptr_t)id;
 
+    QEMU_LOCK_GUARD(&psc_lock);
+    if (psc_detaching) {
+        return false;
+    }
     if (!k || !k->h) {
         return false;
     }
     tcg_hook_remove(k->h);
     k->h = NULL;        /* kept: a vCPU may be in its callback (a few bytes) */
+    psc_kernel_hooks--;
     return true;
 #else
     return false;
@@ -1688,7 +1779,10 @@ penguin_kernel_unhook(uint64_t id)
 void __attribute__((visibility("default")))
 penguin_syscall_set_current_source(bool from_cpu)
 {
-    qatomic_set(&psc_cur_cpu, from_cpu);
+    QEMU_LOCK_GUARD(&psc_lock);
+    if (!psc_detaching) {
+        qatomic_set(&psc_cur_cpu, from_cpu);
+    }
 }
 
 uint64_t __attribute__((visibility("default")))
@@ -1713,6 +1807,10 @@ penguin_syscall_register(const struct penguin_sc_hook *hook)
         f->pattern = h->pat[i];
     }
     QEMU_LOCK_GUARD(&psc_lock);
+    if (psc_detaching) {
+        psc_hook_free(h);
+        return 0;
+    }
     h->id = ++psc_next_id;
     g_ptr_array_add(psc_hooks, h);
     psc_mark_dirty();
@@ -1723,6 +1821,9 @@ bool __attribute__((visibility("default")))
 penguin_syscall_unregister(uint64_t id)
 {
     QEMU_LOCK_GUARD(&psc_lock);
+    if (psc_detaching) {
+        return false;
+    }
     for (unsigned i = 0; i < psc_hooks->len; i++) {
         PHook *h = g_ptr_array_index(psc_hooks, i);
         if (h->id == id && !h->dead) {

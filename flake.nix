@@ -1085,6 +1085,20 @@
             python3 ${./.}/tests/static/replay_policy.py
             touch $out
           '';
+          penguin-detach = pkgs.runCommandCC "penguin-detach-check" {
+            nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
+            buildInputs = [ pkgs.glib ];
+          } ''
+            python3 ${./.}/tests/static/penguin_detach.py
+            touch $out
+          '';
+          lifecycle = pkgs.runCommandCC "analysis-lifecycle-check" {
+            nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
+            buildInputs = [ pkgs.glib ];
+          } ''
+            python3 ${./.}/tests/static/lifecycle.py
+            touch $out
+          '';
           replay-bh = pkgs.runCommandCC "replay-bh-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
             python3 ${./tests/static/replay_bh.py} ${p.engineSrc}/replay/replay-events.c
             touch $out

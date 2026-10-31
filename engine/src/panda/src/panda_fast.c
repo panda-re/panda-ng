@@ -493,6 +493,10 @@ int panda_fast_restore(void) {
      * RAM, then devices, and no system reset (see the top of this file): a device's load may read
      * guest RAM (virtio_load checks the rings' indices), so RAM must be the snapshot's first.
      */
+    /* Every rejection above leaves the analysis alone. From here RAM changes,
+     * so abandon host in-flight work even if device restoration later fails.
+     * Do not call panda_before_loadvm(): it invalidates the dirty-page path. */
+    panda_analysis_reset();
     t0 = g_get_monotonic_time();
 
     if (full) {

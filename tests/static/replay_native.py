@@ -162,7 +162,7 @@ typedef void (*penguin_syscall_cb_t)(CPUState *, Event *, struct penguin_sc_cmd 
 static penguin_syscall_cb_t psc_cb;
 static void *psc_cb_opaque;
 static unsigned psc_events, psc_next_call;
-static bool psc_guarded = true;
+static bool psc_guarded = true, psc_consumer = true;
 static bool psc_hooks_ok(void) { hooks_checks++; return true; }
 static size_t qemu_target_page_size(void) { return 4096; }
 static PHook test_hook = { .id = 1 };
@@ -218,6 +218,12 @@ int main(int argc, char **argv) {
         assert(restores == 1 && observers == 1);
         assert(jumps == live);
     } else if (!strcmp(argv[2], "guard")) {
+        /* Detached internal hooks remain inert even outside record/replay. */
+        psc_consumer = false;
+        psc_guard_cb(&cpu, 4096, NULL);
+        psc_guard_cb(&cpu, 4096, (void *)1);
+        assert(!arch_calls && !reads && !refusals && !reg_sets && !jumps);
+        psc_consumer = true;
         /* Both signal forms must reject before any guest lookup/bookkeeping. */
         psc_guard_cb(&cpu, 4096, NULL);
         psc_guard_cb(&cpu, 4096, (void *)1);

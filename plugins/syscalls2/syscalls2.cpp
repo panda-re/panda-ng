@@ -1484,6 +1484,13 @@ const syscall_meta_t *get_syscall_meta(void) {
 
 
 /* ### Plugin bootstrapping ############################################# */
+/* Host-only transient state: subscriptions, profile and backend selection survive.
+ * Return hooks stay: one whose syscall was dropped finds no entry and disables itself. */
+static void syscalls2_reset_transient(void *)
+{
+    running_syscalls.clear();
+}
+
 bool init_plugin(void *self) {
 // Don't bother if we're not on a supported target
 #if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_MIPS) || defined(TARGET_RISCV64) || defined(TARGET_PPC)
@@ -1621,6 +1628,13 @@ bool init_plugin(void *self) {
 		hooks = panda_get_plugin_by_name("hooks");
 	}
     hooks_add_hook = (void(*)(struct hook*)) dlsym(hooks, "add_hook");
+    if (!hooks_add_hook ||
+        !panda_register_transient_reset(self, syscalls2_reset_transient, nullptr)) {
+        std::cerr << PANDA_MSG "syscalls2 requires the hooks plugin and a transient reset registration" << std::endl;
+        // Failed initialization does not run uninit_plugin.
+        panda_unregister_callbacks(self);
+        return false;
+    }
 #elif defined(TARGET_RISCV32) || defined(TARGET_LOONGARCH)
     fprintf(stderr,"The syscalls plugin is not currently supported on this platform.\n");
     return false;
@@ -1638,7 +1652,7 @@ bool init_plugin(void *self) {
 }
 
 void uninit_plugin(void *self) {
-    //(void) self;
+    syscalls2_reset_transient(nullptr);
     // if we don't clear tb's when this exits we have TBs which can call
     // into our exited plugin.
     panda_do_flush_tb();
