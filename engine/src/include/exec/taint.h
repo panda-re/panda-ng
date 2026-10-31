@@ -23,6 +23,9 @@ void taint_gen_tb(CPUState *cpu, TranslationBlock *tb);
 void taint_tlb_flush_mmuidx(CPUState *cpu, int mmu_idx);
 void taint_tlb_flush_page(CPUState *cpu, int mmu_idx, vaddr page);
 void taint_device_write(uint64_t ram_addr, uint64_t len);
+void taint_helper_copy(CPUState *cpu, vaddr to, int to_idx, vaddr from, int from_idx,
+                       uint64_t len);
+void taint_helper_fill(CPUState *cpu, vaddr to, int idx, uint64_t len, ptrdiff_t data_off);
 /* cputlb.c: the ram_addr behind a TLB-mapped address, without filling or faulting. */
 bool tlb_peek_ram_addr(CPUState *cpu, vaddr addr, int mmu_idx,
                        MMUAccessType type, uint64_t *ram_addr);

@@ -16,11 +16,15 @@ in the overlay). With ANALYSIS_CAP_TAINT provisioned:
   the ram_addr behind a mapped address for the shadow slow path;
 - invalidate_and_set_dirty(), which every device, DMA and loader write into
   RAM reaches and no CPU store does, clears the written bytes' shadow;
+- target/arm's FEAT_MOPS step functions (CPY*, SET*), which move guest
+  memory from C, report each step (taint_helper_copy/_fill) so the shadow
+  moves with the data: glibc's memcpy/memset are these instructions on a
+  CPU that has them;
 - -analysis-capabilities accepts "taint".
 
 Every hook is behind taint_active (false unless taint is enabled in a
 replay) or the capability, so an engine without taint pays one predicted
-branch on TLB flushes and device writes.
+branch on TLB flushes, device writes and MOPS steps.
 
 SPDX-License-Identifier: GPL-2.0-or-later
 Origin: new
@@ -33,7 +37,8 @@ Origin: new
  include/hw/core/cpu.h            |  2 ++
  system/physmem.c                 |  5 ++++
  system/vl.c                      |  2 ++
- 8 files changed, 67 insertions(+)
+ target/arm/tcg/helper-a64.c      | 26 +++++++++++++++++++
+ 9 files changed, 93 insertions(+)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
 index 543d5fb7961932ae9ede3ef2932a208bee31f2c8..816d0e836e1ee7a38cf0e279217f45b6bb4a5674 100644
@@ -251,3 +256,89 @@ index ecaa77c856d216ae9db3da542423e73e90fb4544..f56cfbe0bfd71ac6bec974ea70649423
          } else {
              error_setg(errp, "unknown analysis capability '%s'", *name);
              return false;
+diff --git a/target/arm/tcg/helper-a64.c b/target/arm/tcg/helper-a64.c
+index 6cc9ddfb31915a5777cecc877a4713cb57c463b7..514a3ffc20f2830c87e0e262c03a59e2bd31efab 100644
+--- a/target/arm/tcg/helper-a64.c
++++ b/target/arm/tcg/helper-a64.c
+@@ -37,6 +37,7 @@
+ #include "accel/tcg/probe.h"
+ #include "exec/target_page.h"
+ #include "exec/tlb-flags.h"
++#include "exec/taint.h"
+ #include "qemu/int128.h"
+ #include "qemu/atomic128.h"
+ #include "fpu/softfloat.h"
+@@ -1196,6 +1197,10 @@ static void do_setp(CPUARMState *env, uint32_t syndrome, uint32_t mtedesc,
+         env->xregs[rd] = toaddr;
+         env->xregs[rn] = setsize;
+         step = stepfn(env, toaddr, stagesetsize, data, memidx, &mtedesc, ra);
++        if (unlikely(taint_active)) {
++            taint_helper_fill(env_cpu(env), toaddr, memidx, step,
++                              rs == 31 ? -1 : offsetof(CPUARMState, xregs[rs]));
++        }
+         toaddr += step;
+         setsize -= step;
+         stagesetsize -= step;
+@@ -1265,6 +1270,10 @@ static void do_setm(CPUARMState *env, uint32_t syndrome, uint32_t mtedesc,
+     stagesetsize = setsize & TARGET_PAGE_MASK;
+     while (stagesetsize > 0) {
+         step = stepfn(env, toaddr, stagesetsize, data, memidx, &mtedesc, ra);
++        if (unlikely(taint_active)) {
++            taint_helper_fill(env_cpu(env), toaddr, memidx, step,
++                              rs == 31 ? -1 : offsetof(CPUARMState, xregs[rs]));
++        }
+         toaddr += step;
+         setsize -= step;
+         stagesetsize -= step;
+@@ -1329,6 +1338,10 @@ static void do_sete(CPUARMState *env, uint32_t syndrome, uint32_t mtedesc,
+     /* Do the actual memset */
+     while (setsize > 0) {
+         step = stepfn(env, toaddr, setsize, data, memidx, &mtedesc, ra);
++        if (unlikely(taint_active)) {
++            taint_helper_fill(env_cpu(env), toaddr, memidx, step,
++                              rs == 31 ? -1 : offsetof(CPUARMState, xregs[rs]));
++        }
+         toaddr += step;
+         setsize -= step;
+         env->xregs[rn] = -setsize;
+@@ -1415,6 +1428,9 @@ static uint64_t copy_step(CPUARMState *env, uint64_t toaddr, uint64_t fromaddr,
+         } else {
+             cpu_stb_mmuidx_ra(env, toaddr, byte, wmemidx, ra);
+         }
++        if (unlikely(taint_active)) {
++            taint_helper_copy(env_cpu(env), toaddr, wmemidx, fromaddr, rmemidx, 1);
++        }
+         return 1;
+     }
+ #endif
+@@ -1422,6 +1438,9 @@ static uint64_t copy_step(CPUARMState *env, uint64_t toaddr, uint64_t fromaddr,
+     set_helper_retaddr(ra);
+     memmove(wmem, rmem, copysize);
+     clear_helper_retaddr();
++    if (unlikely(taint_active)) {
++        taint_helper_copy(env_cpu(env), toaddr, wmemidx, fromaddr, rmemidx, copysize);
++    }
+     return copysize;
+ }
+ 
+@@ -1489,6 +1508,9 @@ static uint64_t copy_step_rev(CPUARMState *env, uint64_t toaddr,
+         } else {
+             cpu_stb_mmuidx_ra(env, toaddr, byte, wmemidx, ra);
+         }
++        if (unlikely(taint_active)) {
++            taint_helper_copy(env_cpu(env), toaddr, wmemidx, fromaddr, rmemidx, 1);
++        }
+         return 1;
+     }
+ #endif
+@@ -1499,6 +1521,10 @@ static uint64_t copy_step_rev(CPUARMState *env, uint64_t toaddr,
+     set_helper_retaddr(ra);
+     memmove(wmem - (copysize - 1), rmem - (copysize - 1), copysize);
+     clear_helper_retaddr();
++    if (unlikely(taint_active)) {
++        taint_helper_copy(env_cpu(env), toaddr - (copysize - 1), wmemidx,
++                          fromaddr - (copysize - 1), rmemidx, copysize);
++    }
+     return copysize;
+ }
+ 
