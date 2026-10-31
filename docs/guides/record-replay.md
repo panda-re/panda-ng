@@ -82,7 +82,29 @@ must not replace guest exception, address-space or hypercall results.
 
 These declarations are a trusted-code contract, not a sandbox. Native plugins and Python
 code using raw `CPUState` pointers or unguarded native APIs can still write guest state;
-such writes are unsupported and can invalidate a recording.
+such writes are unsupported and can invalidate a recording. The separate experimental effect
+API below is not an unsafe override of these guards.
+
+### Experimental ordered RAM effects
+
+`panda_analysis_ram_write(address, data, length)` copies a bounded physical RAM write into
+the existing ND async queue. It returns **admission**, not completion. Admission requires
+RECORD, the startup `rr` capability, main thread with BQL and replay mutex held, and all
+vCPUs stopped. It is not callable as a synchronous vCPU callback mutation. Each request is
+limited to 64 KiB; at most 64 requests may be pending.
+
+At the existing deterministic scheduler async drain, before the next guest budget, the
+engine checks the entire range and records an OK or ACCESS_DENIED result plus the request.
+Only writable direct RAM is supported: MMIO, readonly, ROMD and RAM-device ranges are denied
+without writing a RAM prefix. Successful writes use the standard address-space write path
+for dirty tracking and translated-code invalidation. Replay loads and applies the event
+without the original requester, verifies the same preflight result, and refuses effects
+without the `rr` capability. Unsaved requests are canceled rather than applied at teardown.
+
+The payload has its own version and the outer ND version is bumped; old logs are not
+claimed compatible. Register, syscall and device effects remain unsupported. Standalone
+implementation tests pass; integrated builds, producer-free guest replay and observer-order
+conformance are still pending. There is no apply-completion callback yet.
 
 ## Limits
 

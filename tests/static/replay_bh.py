@@ -56,7 +56,7 @@ typedef enum {
     REPLAY_ASYNC_EVENT_BH, REPLAY_ASYNC_EVENT_BH_ONESHOT,
     REPLAY_ASYNC_EVENT_INPUT, REPLAY_ASYNC_EVENT_INPUT_SYNC,
     REPLAY_ASYNC_EVENT_CHAR_READ, REPLAY_ASYNC_EVENT_BLOCK,
-    REPLAY_ASYNC_EVENT_NET, REPLAY_ASYNC_COUNT
+    REPLAY_ASYNC_EVENT_NET, REPLAY_ASYNC_EVENT_ANALYSIS_EFFECT, REPLAY_ASYNC_COUNT
 } ReplayAsyncEventKind;
 enum { EVENT_ASYNC = 100, EVENT_ASYNC_LAST = EVENT_ASYNC + REPLAY_ASYNC_COUNT - 1 };
 typedef void QEMUBHFunc(void *);
@@ -97,6 +97,12 @@ static void replay_event_net_save(void *p) { (void)p; abort(); }
 static void *replay_read_input_event(void) { abort(); }
 static void *replay_event_char_read_load(void) { abort(); }
 static void *replay_event_net_load(void) { abort(); }
+/* Recorded analysis RAM effects are covered by tests/static/replay_effect.py. */
+static void replay_analysis_effect_run(void *p) { (void)p; abort(); }
+static void replay_analysis_effect_cancel(void *p) { (void)p; abort(); }
+static void replay_analysis_effect_prepare(void *p) { (void)p; abort(); }
+static void replay_analysis_effect_save(void *p) { (void)p; abort(); }
+static void *replay_analysis_effect_load(void) { abort(); }
 '''
 
 
