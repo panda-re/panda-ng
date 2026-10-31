@@ -231,21 +231,29 @@ status = "experimental"
 accel = ["TCG"]
 tested_on = []
 summary = """
-Label guest RAM bytes during a replay and follow their influence through registers, CPU state,
-memory, the kernel and devices, bit by bit. A TCG pass adds shadow ops to each translated block
-while taint is enabled; nothing is emitted, and nothing changes, for an engine started without
-the `taint` capability or a replay with taint off. Device and DMA writes into RAM clear the
-written bytes' taint.
+Label guest RAM bytes or registers during a replay and follow their influence through registers,
+CPU state, memory, the kernel and devices, bit by bit. A TCG pass adds shadow ops to each
+translated block while taint is enabled; nothing is emitted, and nothing changes, for an engine
+started without the `taint` capability or a replay with taint off. Device and DMA writes into
+RAM clear the written bytes' taint, then a callback may label them. Optional label sets say which
+sources (u32 labels) reach each byte; optional events report conditional branches on tainted
+data and indirect jumps to tainted targets.
 """
 limits = """
-Replay only (the `taint` startup capability brings `rr`). Tier A only: a byte is tainted or not,
-with no label sets yet. Helpers propagate the OR of their scalar inputs into their result (x86's
-lazy-flags helpers have exact masks); helpers that read or write vector registers or guest memory
-through pointers are not modelled yet and are counted. Control dependence (branches, table
-lookups) is not followed.
+Replay only (the `taint` startup capability brings `rr`). Helpers propagate the OR of their
+scalar inputs into their result (x86's lazy-flags helpers have exact masks); helpers that read or
+write vector registers through pointers taint the whole region, and helpers that write guest
+memory (Arm MOPS, DC ZVA, RISC-V cbo.zero, x86 fxsave) are not modelled yet. Labels follow data
+by byte; more than 256 labels on one byte collapse to "many". Control dependence (branches,
+table lookups) is not followed, only reported.
 """
 api = ["c:taint_enable", "c:taint_disable", "c:taint_label_ram", "c:taint_query_ram",
-       "c:taint_va_to_ram", "c:taint_set_device_write_cb", "c:taint_stats"]
+       "c:taint_va_to_ram", "c:taint_label_reg", "c:taint_query_reg", "c:taint_enable_labels",
+       "c:taint_label_ram_l", "c:taint_query_ram_labels", "c:taint_label_reg_l",
+       "c:taint_query_reg_labels", "c:taint_set_device_write_cb", "c:taint_set_branch_cb",
+       "c:taint_set_pc_cb", "c:taint_stats", "py:TaintMixin.taint_enable", "py:TaintMixin.taint_label_va",
+       "py:TaintMixin.taint_labels_va", "py:TaintMixin.cb_taint_branch",
+       "py:TaintMixin.taint_device_write"]
 docs = ["docs/guides/record-replay.md"]
 tests = ["tests/taint.py"]
 patches = ["0093"]

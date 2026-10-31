@@ -18,6 +18,8 @@
  */
 #include "qemu/osdep.h"
 #include "qemu/bitops.h"
+#include "qemu/bswap.h"
+#include "qemu/error-report.h"
 #include "qemu/log.h"
 #include "qemu/madvise.h"
 #include "qemu/memalign.h"
@@ -43,6 +45,7 @@
 #include "tcg/tcg-op-common.h"
 #include "tcg/tcg-internal.h"
 #include "exec/taint.h"
+#include "accel/tcg/hooks.h"
 
 /* panda/plugin.h is target-specific; these two are not (panda/src/callbacks.c). */
 bool panda_register_transient_reset(void *owner, void (*reset)(void *opaque), void *opaque);
@@ -75,10 +78,16 @@ static uint64_t ram_shadow_size;
 static TaintDeviceWriteFn device_write_fn;
 static void *device_write_opaque;
 
+/* Events; the pass emits their checks only while a function is set. */
+static TaintEventFn branch_fn, pc_fn;
+static void *branch_opaque, *pc_opaque;
+static ptrdiff_t pc_off = -1;   /* the PC's field in the CPU state (found by find_pc) */
+static unsigned pc_size;
+
 static struct {
     uint64_t tbs, ops, untracked_ld, untracked_st, ptr_calls, ld_slow, st_slow,
              ram_oob, unknown_ops, h1_tainted, device_writes, device_bytes,
-             ptr_tainted;
+             ptr_tainted, branch_events, pc_events, lab_calls, lab_many;
 } stats;
 static GHashTable *h1_hits;     /* helper name -> tainted-call count */
 
@@ -298,7 +307,565 @@ static TCGHelperInfo h1_hit_info = {
     .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1),
 };
 
+/* The guest address of an instruction from its insn_start word (page offset for PC-relative code). */
+static uint64_t insn_pc(CPUState *cpu, uint64_t pc, bool pcrel)
+{
+    if (pcrel) {
+        return (cpu->cc->get_pc(cpu) & TARGET_PAGE_MASK) | (pc & ~TARGET_PAGE_MASK);
+    }
+    return pc;
+}
+
+static void taint_branch_ev(CPUArchState *env, uint64_t pc, uint32_t pcrel, uint64_t mask)
+{
+    stats.branch_events++;
+    if (branch_fn) {
+        branch_fn(branch_opaque, env_cpu(env), insn_pc(env_cpu(env), pc, pcrel), mask);
+    }
+}
+
+/*
+ * Before an indirect jump's TB lookup: the PC already holds the target. A tainted target is
+ * reported, then its shadow is cleared, since taint is data flow only: PC-relative updates after
+ * the jump would otherwise keep reporting it.
+ */
+static void taint_pc_ev(CPUArchState *env)
+{
+    CPUState *cpu = env_cpu(env);
+    uint8_t *sp = (uint8_t *)cpu->taint_senv + pc_off;
+    uint64_t m = pc_size == 8 ? ldq_he_p(sp) : ldl_he_p(sp);
+
+    if (m) {
+        stats.pc_events++;
+        if (pc_fn) {
+            pc_fn(pc_opaque, cpu, cpu->cc->get_pc(cpu), m);
+        }
+        memset(sp, 0, pc_size);
+    }
+}
+
+/* Reads globals (the callback may look at registers); writes none. */
+static TCGHelperInfo branch_ev_info = {
+    .func = taint_branch_ev, .name = "taint_branch_ev", .flags = TCG_CALL_NO_WG,
+    .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1) | dh_typemask(i64, 2) |
+                dh_typemask(i32, 3) | dh_typemask(i64, 4),
+};
+/* Writes the PC's shadow global. */
+static TCGHelperInfo pc_ev_info = {
+    .func = taint_pc_ev, .name = "taint_pc_ev", .flags = 0,
+    .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1),
+};
+
+/* ---------------------------------------------------------------- tier B: labels */
+
+/*
+ * Opt-in (taint_enable_labels): besides its tier-A bit mask, every tainted byte carries a label
+ * set, an interned u32 id (0 = none, LSET_MANY = more than LSET_MAX labels). Ids live in a
+ * per-vCPU label file (one per CPU-state byte, then LSLOT per TCG temp of the current block) and
+ * one per RAM byte. An id is meaningful only where the byte's tier-A mask is nonzero, so nothing
+ * is ever cleared: the pass emits, after each op's shadow computation, a branch on the output
+ * mask and, only when it is nonzero, a call that computes the output's ids from the inputs'.
+ * Input masks are passed through a staging area in the shadow buffer.
+ */
+#define LSLOT 32                    /* ids per temp: the widest vector */
+#define LSET_MAX 256
+#define LSET_MANY 1u
+#define NOSLOT UINT32_MAX
+/* The staging area is 64-byte aligned; vector masks need their own size's alignment. */
+#define STAGE_IN 16                 /* staged input masks, 32 bytes each */
+#define STAGE_ADDR (STAGE_IN * 32)
+#define STAGE_PTR (STAGE_ADDR + 32) /* four pointers */
+#define STAGE_DST (STAGE_PTR + 32)  /* a vector output mask, for the gate (32-byte aligned) */
+#define STAGE_BYTES (STAGE_DST + 32)
+QEMU_BUILD_BUG_ON(STAGE_DST % 32 || STAGE_BYTES % 32);
+#define LAB_BATCH 128               /* staging entries for batched instructions (after entry 0) */
+#define LAB_BATCH_OPS 48            /* instructions with more ops than this are batched */
+
+static bool labels_on;
+static size_t stage_off, lab_off, lab_carry;    /* lab_carry: the carry flag's slot */
+static uint32_t *ram_lab;
+static uint64_t ram_lab_size;       /* entries */
+
+typedef struct LSet {
+    uint32_t n, hash;
+    uint32_t v[];
+} LSet;
+static GPtrArray *lsets;            /* id -> LSet *; 0 and 1 are placeholders */
+static GHashTable *lset_ids;        /* LSet * -> id */
+static GHashTable *lunions;         /* (a << 32 | b), a < b -> id + 1 */
+
+static guint lset_hash(gconstpointer k)
+{
+    return ((const LSet *)k)->hash;
+}
+
+static gboolean lset_equal(gconstpointer a, gconstpointer b)
+{
+    const LSet *x = a, *y = b;
+
+    return x->n == y->n && !memcmp(x->v, y->v, x->n * sizeof(uint32_t));
+}
+
+static uint32_t lset_intern(const uint32_t *v, uint32_t n)
+{
+    gpointer id;
+    LSet *k;
+
+    if (!n) {
+        return 0;
+    }
+    if (n > LSET_MAX) {
+        stats.lab_many++;
+        return LSET_MANY;
+    }
+    k = g_malloc(sizeof(LSet) + n * sizeof(uint32_t));
+    k->n = n;
+    k->hash = 2166136261u;
+    for (uint32_t i = 0; i < n; i++) {
+        k->v[i] = v[i];
+        k->hash = (k->hash ^ v[i]) * 16777619u;
+    }
+    if (g_hash_table_lookup_extended(lset_ids, k, NULL, &id)) {
+        g_free(k);
+        return GPOINTER_TO_UINT(id);
+    }
+    g_ptr_array_add(lsets, k);
+    g_hash_table_insert(lset_ids, k, GUINT_TO_POINTER(lsets->len - 1));
+    return lsets->len - 1;
+}
+
+static uint32_t lunion(uint32_t a, uint32_t b)
+{
+    uint64_t key;
+    gpointer r;
+
+    if (a == b || !b) {
+        return a;
+    }
+    if (!a) {
+        return b;
+    }
+    if (a == LSET_MANY || b == LSET_MANY) {
+        return LSET_MANY;
+    }
+    if (a > b) {
+        uint32_t t = a;
+        a = b;
+        b = t;
+    }
+    key = (uint64_t)a << 32 | b;
+    r = g_hash_table_lookup(lunions, GSIZE_TO_POINTER(key));
+    if (r) {
+        return GPOINTER_TO_UINT(r) - 1;
+    }
+    const LSet *x = g_ptr_array_index(lsets, a), *y = g_ptr_array_index(lsets, b);
+    g_autofree uint32_t *v = g_new(uint32_t, x->n + y->n);
+    uint32_t i = 0, j = 0, n = 0, id;
+
+    while (i < x->n || j < y->n) {
+        if (j == y->n || (i < x->n && x->v[i] < y->v[j])) {
+            v[n++] = x->v[i++];
+        } else if (i == x->n || y->v[j] < x->v[i]) {
+            v[n++] = y->v[j++];
+        } else {
+            v[n++] = x->v[i++];
+            j++;
+        }
+    }
+    id = lset_intern(v, n);
+    g_hash_table_insert(lunions, GSIZE_TO_POINTER(key), GUINT_TO_POINTER(id + 1));
+    return id;
+}
+
+static uint32_t *labfile(CPUState *cpu)
+{
+    return (uint32_t *)((uint8_t *)cpu->taint_senv + lab_off);
+}
+
+static uint8_t *stage(CPUState *cpu)
+{
+    return (uint8_t *)cpu->taint_senv + stage_off;
+}
+
+static void ram_lab_alloc(void)
+{
+    if (ram_lab && ram_lab_size >= ram_shadow_size) {
+        return;
+    }
+    if (ram_lab) {
+        munmap(ram_lab, ram_lab_size * sizeof(uint32_t));
+    }
+    ram_lab = mmap(NULL, ram_shadow_size * sizeof(uint32_t), PROT_READ | PROT_WRITE,
+                   MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+    if (ram_lab == MAP_FAILED) {
+        error_report("taint: cannot map the RAM label table");
+        abort();
+    }
+    ram_lab_size = ram_shadow_size;
+}
+
+/* The id of a RAM byte's labels, or 0 when the byte is clean. */
+static uint32_t ram_lab_at(uint64_t ra)
+{
+    return ra < ram_lab_size && ram_shadow[ra] ? ram_lab[ra] : 0;
+}
+
+/* LM_SHIFTV: a shift by a run-time amount (staged at STAGE_ADDR); map holds kind | width << 8 */
+enum { LM_BYTE, LM_PREFIX, LM_ALL, LM_MAP, LM_SHIFTV };
+enum { SH_SHL, SH_SHR, SH_SAR, SH_ROTL, SH_ROTR };
+
+/* The input bit that output bit @i of a @w-bit shift of kind @kind by @c comes from, or -1. */
+static int shift_src(int kind, int w, int c, int i)
+{
+    switch (kind) {
+    case SH_SHL: return i >= c ? i - c : -1;
+    case SH_SHR: return i + c < w ? i + c : -1;
+    case SH_SAR: return MIN(i + c, w - 1);
+    case SH_ROTL: return (i - c + w) % w;
+    default: return (i + c) % w;
+    }
+}
+
+static uint64_t shift_map(int kind, int w, int c)
+{
+    uint64_t map = 0;
+
+    for (int i = 0; i < w; i++) {
+        int src = shift_src(kind, w, c, i);
+
+        if (src >= 0) {
+            map |= 1ull << (8 * (i / 8) + src / 8);
+        }
+    }
+    return map;
+}
+enum { LOP_PLAIN, LOP_CALL, LOP_LD, LOP_ST, LOP_ENVLD, LOP_ENVST };
+
+typedef struct LabIn {
+    uint32_t slot;
+    uint8_t size, mode;
+    uint64_t map;           /* LM_MAP: bit 8*i + j means output byte i takes input byte j */
+} LabIn;
+
+typedef struct LabDesc {
+    uint8_t op, nd, nin, dsize, carry_out, dyn;
+    uint32_t off;           /* LOP_LD/ST: the MemOpIdx; ENV: the offset; CALL: region size */
+    uint32_t dslot[8];
+    uint8_t dsz[8];         /* LOP_CALL: bytes of each output */
+    LabIn in[STAGE_IN];
+} LabDesc;
+
+static GHashTable *lab_descs;
+
+static guint desc_hash(gconstpointer k)
+{
+    const uint8_t *b = k;
+    guint h = 2166136261u;
+
+    for (size_t i = 0; i < sizeof(LabDesc); i++) {
+        h = (h ^ b[i]) * 16777619u;
+    }
+    return h;
+}
+
+static gboolean desc_equal(gconstpointer a, gconstpointer b)
+{
+    return !memcmp(a, b, sizeof(LabDesc));
+}
+
+/* Descriptors are shared by every block that needs the same one, and never freed. */
+static const LabDesc *desc_intern(const LabDesc *d)
+{
+    LabDesc *k = g_hash_table_lookup(lab_descs, d);
+
+    if (!k) {
+        k = g_memdup2(d, sizeof(LabDesc));
+        g_hash_table_add(lab_descs, k);
+    }
+    return k;
+}
+
+static bool staged(const uint8_t *st, int k, int j)
+{
+    return st[k * 32 + j] != 0;
+}
+
+/* RAM label ids of a guest access, through the TLB (only reached when the access is tainted). */
+static uint32_t *ram_lab_ptr(CPUState *cpu, vaddr addr, int mmu_idx, MMUAccessType type)
+{
+    uint64_t ra;
+
+    if (!ram_lab || !tlb_peek_ram_addr(cpu, addr, mmu_idx, type, &ra) || ra >= ram_lab_size) {
+        return NULL;
+    }
+    return ram_lab + ra;
+}
+
+/* Run one label step with its inputs staged at @st. */
+static void lab_run(CPUState *cpu, const LabDesc *d, const uint8_t *st)
+{
+    uint32_t *lf = labfile(cpu);
+    uint32_t out[LSLOT], all = 0;
+
+    stats.lab_calls++;
+    switch (d->op) {
+    case LOP_LD: {
+        uint64_t addr = ldq_he_p(st + STAGE_ADDR);
+        MemOp mop = get_memop(d->off);
+        unsigned size = memop_size(mop);
+
+        for (unsigned i = 0; i < size; i++) {
+            unsigned m = guest_big_endian(mop) ? size - 1 - i : i;
+            uint32_t *rl;
+
+            /* the loaded shadow byte says whether the RAM byte's id is valid */
+            out[i] = st[STAGE_DST + i] &&
+                     (rl = ram_lab_ptr(cpu, addr + m, get_mmuidx(d->off), MMU_DATA_LOAD)) ? *rl : 0;
+        }
+        for (unsigned i = 0; i < d->dsize; i++) {
+            lf[d->dslot[0] + i] = out[MIN(i, size - 1)];
+        }
+        return;
+    }
+    case LOP_ST: {
+        uint64_t addr = ldq_he_p(st + STAGE_ADDR);
+        MemOp mop = get_memop(d->off);
+        unsigned size = memop_size(mop);
+
+        for (unsigned i = 0; i < size; i++) {
+            unsigned m = guest_big_endian(mop) ? size - 1 - i : i;
+            uint32_t *rl;
+
+            if (staged(st, 0, i) &&
+                (rl = ram_lab_ptr(cpu, addr + m, get_mmuidx(d->off), MMU_DATA_STORE))) {
+                *rl = lf[d->in[0].slot + i];
+            }
+        }
+        return;
+    }
+    case LOP_ENVLD:
+    case LOP_ENVST: {
+        uintptr_t off = d->off;
+        unsigned msize = d->in[0].size;
+
+        if (d->dyn & 1) {
+            off += (uintptr_t)ldq_he_p(st + STAGE_PTR) - (uintptr_t)cpu->taint_senv;
+        }
+        if (off + msize > env_size) {
+            return;
+        }
+        if (d->op == LOP_ENVLD) {
+            for (unsigned i = 0; i < d->dsize; i++) {
+                out[i] = lf[off + (i < msize ? i : (d->dyn & 2 ? i % msize : msize - 1))];
+            }
+            for (unsigned i = 0; i < d->dsize; i++) {
+                lf[d->dslot[0] + i] = out[i];
+            }
+        } else {
+            for (unsigned i = 0; i < msize; i++) {
+                if (staged(st, 0, i)) {
+                    lf[off + i] = lf[d->in[0].slot + i];
+                }
+            }
+        }
+        return;
+    }
+    default:
+        break;
+    }
+
+    for (int k = 0; k < d->nin; k++) {
+        if (d->in[k].slot != NOSLOT && (d->in[k].mode == LM_ALL || d->op == LOP_CALL)) {
+            for (int j = 0; j < d->in[k].size; j++) {
+                if (staged(st, k, j)) {
+                    all = lunion(all, lf[d->in[k].slot + j]);
+                }
+            }
+        }
+    }
+    if (d->op == LOP_CALL) {
+        /* pointer arguments into the CPU state: their regions join the union and receive it */
+        uint8_t *lo = cpu->taint_senv, *hi = lo + env_size;
+        bool any = all != 0;
+
+        for (int r = 0; r < 4; r++) {
+            uint8_t *ptr = (uint8_t *)(uintptr_t)ldq_he_p(st + STAGE_PTR + 8 * r);
+
+            if (ptr >= lo && ptr + d->off <= hi) {
+                for (uint32_t j = 0; j < d->off; j++) {
+                    if (ptr[j]) {
+                        any = true;
+                        all = lunion(all, lf[ptr - lo + j]);
+                    }
+                }
+            }
+        }
+        if (!any) {
+            return;
+        }
+        for (int r = 0; r < 4; r++) {
+            uint8_t *ptr = (uint8_t *)(uintptr_t)ldq_he_p(st + STAGE_PTR + 8 * r);
+
+            if (ptr >= lo && ptr + d->off <= hi) {
+                for (uint32_t j = 0; j < d->off; j++) {
+                    lf[ptr - lo + j] = all;
+                }
+            }
+        }
+    }
+    uint64_t emap[STAGE_IN];
+
+    for (int k = 0; d->op == LOP_PLAIN && k < d->nin; k++) {
+        const LabIn *in = &d->in[k];
+        int w = in->map >> 8;
+
+        emap[k] = in->mode != LM_SHIFTV ? in->map :
+                  shift_map(in->map & 0xff, w, ldq_he_p(st + STAGE_ADDR) & (w - 1));
+    }
+    for (int i = 0; i < d->dsize; i++) {
+        uint32_t u = all;
+
+        for (int k = 0; d->op == LOP_PLAIN && k < d->nin; k++) {
+            const LabIn *in = &d->in[k];
+
+            if (in->slot == NOSLOT) {
+                continue;
+            }
+            switch (in->mode) {
+            case LM_BYTE:
+                if (i < in->size && staged(st, k, i)) {
+                    u = lunion(u, lf[in->slot + i]);
+                }
+                break;
+            case LM_PREFIX:
+                for (int j = 0; j <= i && j < in->size; j++) {
+                    if (staged(st, k, j)) {
+                        u = lunion(u, lf[in->slot + j]);
+                    }
+                }
+                break;
+            case LM_MAP:
+            case LM_SHIFTV:
+                for (int j = 0; j < 8 && j < in->size; j++) {
+                    if (((emap[k] >> (8 * i + j)) & 1) && staged(st, k, j)) {
+                        u = lunion(u, lf[in->slot + j]);
+                    }
+                }
+                break;
+            }
+        }
+        out[i] = u;
+    }
+    for (int k = 0; k < d->nd; k++) {
+        if (d->dslot[k] != NOSLOT) {
+            int n = d->op == LOP_CALL ? d->dsz[k] : d->dsize;
+
+            for (int i = 0; i < n; i++) {
+                lf[d->dslot[k] + i] = out[MIN(i, d->dsize - 1)];
+            }
+        }
+    }
+    if (d->carry_out) {
+        lf[lab_carry] = out[d->dsize - 1];
+    }
+}
+
+static void taint_lab(CPUArchState *env, const void *d)
+{
+    lab_run(env_cpu(env), d, stage(env_cpu(env)));
+}
+
+/* A batched instruction's steps: each with its staging entry and output mask size (0: always). */
+typedef struct LabStep {
+    const LabDesc *d;
+    uint16_t idx;
+    uint8_t msize;
+} LabStep;
+
+typedef struct LabProg {
+    uint32_t n;
+    LabStep s[];
+} LabProg;
+
+static void taint_lab_prog(CPUArchState *env, const void *pp)
+{
+    const LabProg *prog = pp;
+    CPUState *cpu = env_cpu(env);
+
+    for (uint32_t i = 0; i < prog->n; i++) {
+        const LabStep *s = &prog->s[i];
+        const uint8_t *st = stage(cpu) + s->idx * STAGE_BYTES;
+        bool any = !s->msize;
+
+        for (int j = 0; j < s->msize && !any; j++) {
+            any = st[STAGE_DST + j] != 0;
+        }
+        if (any) {
+            lab_run(cpu, s->d, st);
+        }
+    }
+}
+
+static GHashTable *lab_progs;
+
+static const LabProg *prog_intern(const LabStep *steps, int n)
+{
+    size_t sz = sizeof(LabProg) + n * sizeof(LabStep);
+    g_autofree LabProg *k = g_malloc0(sz);
+    GBytes *key;
+    LabProg *v;
+
+    k->n = n;
+    for (int i = 0; i < n; i++) {
+        k->s[i] = steps[i];
+    }
+    key = g_bytes_new(k, sz);
+    v = g_hash_table_lookup(lab_progs, key);
+    if (v) {
+        g_bytes_unref(key);
+        return v;
+    }
+    v = (LabProg *)g_bytes_get_data(key, NULL);
+    g_hash_table_insert(lab_progs, key, v);
+    return v;
+}
+
+static TCGHelperInfo lab_info = {
+    .func = taint_lab, .name = "taint_lab", .flags = TCG_CALL_NO_RWG,
+    .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1) | dh_typemask(ptr, 2),
+};
+static TCGHelperInfo lab_prog_info = {
+    .func = taint_lab_prog, .name = "taint_lab_prog", .flags = TCG_CALL_NO_RWG,
+    .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1) | dh_typemask(ptr, 2),
+};
+
 /* ---------------------------------------------------------------- init */
+
+/*
+ * The PC's field in the CPU state: set it to a value that differs from the current one in every
+ * byte and see which bytes change (a 32-bit PC truncates), then restore the whole state.
+ */
+static void find_pc(CPUState *cpu)
+{
+    uint8_t *env = (uint8_t *)cpu_env(cpu);
+    g_autofree uint8_t *save = g_memdup2(env, env_size);
+    size_t lo = SIZE_MAX, hi = 0;
+
+    cpu->cc->set_pc(cpu, cpu->cc->get_pc(cpu) ^ 0x5a5a5a5a5a5a5a50ull);
+    for (size_t i = 0; i < env_size; i++) {
+        if (env[i] != save[i]) {
+            lo = MIN(lo, i);
+            hi = i;
+        }
+    }
+    memcpy(env, save, env_size);
+    if (lo == SIZE_MAX || hi - lo >= 8) {
+        warn_report("taint: cannot locate the PC in the CPU state; no indirect-jump events");
+        return;
+    }
+    pc_size = hi - lo < 4 ? 4 : 8;
+    pc_off = lo & ~(ptrdiff_t)(pc_size - 1);
+}
 
 void taint_tcg_init(CPUState *cpu)
 {
@@ -312,7 +879,10 @@ void taint_tcg_init(CPUState *cpu)
     env_size = object_class_get_instance_size(OBJECT_CLASS(cpu->cc)) -
                ((uintptr_t)cpu_env(cpu) - (uintptr_t)cpu);
     stlb_off = ROUND_UP(env_size, 64);
-    senv_bytes = stlb_off + sizeof(STLBEntry) * STLB_N * NB_MMU_MODES;
+    stage_off = ROUND_UP(stlb_off + sizeof(STLBEntry) * STLB_N * NB_MMU_MODES, 64);
+    lab_off = ROUND_UP(stage_off + STAGE_BYTES * (1 + LAB_BATCH), 64);
+    lab_carry = env_size + TCG_MAX_TEMPS * LSLOT;
+    senv_bytes = lab_off + (lab_carry + 1) * sizeof(uint32_t);
     senv_field_off = (uintptr_t)&cpu->taint_senv - (uintptr_t)cpu_env(cpu);
 
     nb_guest_globals = s->nb_globals;
@@ -338,6 +908,14 @@ void taint_tcg_init(CPUState *cpu)
         shadow_global[i] = temp_idx(sh);
     }
     h1_hits = g_hash_table_new(g_str_hash, g_str_equal);
+    lsets = g_ptr_array_new();
+    g_ptr_array_add(lsets, NULL);       /* 0: no labels */
+    g_ptr_array_add(lsets, NULL);       /* 1: LSET_MANY */
+    lset_ids = g_hash_table_new(lset_hash, lset_equal);
+    lunions = g_hash_table_new(NULL, NULL);
+    lab_descs = g_hash_table_new(desc_hash, desc_equal);
+    lab_progs = g_hash_table_new(g_bytes_hash, g_bytes_equal);
+    find_pc(cpu);
 }
 
 void taint_vcpu_init(CPUState *cpu)
@@ -367,6 +945,13 @@ typedef struct Pass {
     /* scratch outputs for untracked globals, per op (so repeated D() calls agree) */
     TCGTemp *dkey[4], *dval[4];
     int nd;
+    /* copies of aliased input shadows for the label step: TB temps, by type, reused per op */
+    TCGTemp *prepool[TCG_TYPE_COUNT][4];
+    bool batch;             /* this instruction's label steps are batched */
+    int nbatch;
+    struct LabStep bent[LAB_BATCH];
+    uint64_t pc;            /* insn_start word of the current guest instruction */
+    bool pcrel;
 } Pass;
 
 static TCGv_i64 pool(TCGv_i64 *slot)
@@ -713,6 +1298,578 @@ static void rule_shift(Pass *p, TCGOp *op, TCGType ty)
     g_or(ty, 0, D(p, d), t, m);
 }
 
+/* ---- tier B: label propagation code */
+
+/* The label slot of a temp: its CPU-state offset for a global, its own slot for a temp. */
+static uint32_t lslot(Pass *p, TCGTemp *ts)
+{
+    size_t i = temp_idx(ts);
+
+    switch (ts->kind) {
+    case TEMP_CONST:
+    case TEMP_FIXED:
+        return NOSLOT;
+    case TEMP_GLOBAL:
+        return i < nb_guest_globals && shadow_global[i] ? ts->mem_offset : NOSLOT;
+    default:
+        return i < p->nb_temps ? env_size + i * LSLOT : NOSLOT;
+    }
+}
+
+static void stage_put(Pass *p, TCGTemp *v, intptr_t off)
+{
+    TCGv_ptr b = temp_tcgv_ptr(senv_temp(p));
+
+    off += stage_off;
+    switch (v->type) {
+    case TCG_TYPE_I32: tcg_gen_st_i32(I32(v), b, off); break;
+    case TCG_TYPE_I64: tcg_gen_st_i64(I64(v), b, off); break;
+    default: tcg_gen_st_vec(VEC(v), b, off); break;
+    }
+}
+
+/* A label that the code branches to when shadow @m is zero; NULL if it is a constant zero. */
+static TCGLabel *lab_gate(Pass *p, TCGTemp *m)
+{
+    TCGLabel *skip;
+
+    if (m->kind == TEMP_CONST) {
+        return NULL;
+    }
+    skip = gen_new_label();
+    switch (m->type) {
+    case TCG_TYPE_I32:
+        tcg_gen_brcondi_i32(TCG_COND_EQ, I32(m), 0, skip);
+        break;
+    case TCG_TYPE_I64:
+        tcg_gen_brcondi_i64(TCG_COND_EQ, I64(m), 0, skip);
+        break;
+    default: {
+        TCGv_ptr b = temp_tcgv_ptr(senv_temp(p));
+        TCGv_i64 acc = s64(), t = s64();
+
+        stage_put(p, m, STAGE_DST);
+        tcg_gen_ld_i64(acc, b, stage_off + STAGE_DST);
+        for (int o = 8; o < tcg_type_size(m->type); o += 8) {
+            tcg_gen_ld_i64(t, b, stage_off + STAGE_DST + o);
+            tcg_gen_or_i64(acc, acc, t);
+        }
+        tcg_gen_brcondi_i64(TCG_COND_EQ, acc, 0, skip);
+        break;
+    }
+    }
+    return skip;
+}
+
+/*
+ * One label step. Normally: a branch on the output mask @m around a call, with the inputs staged
+ * in staging entry 0. In a batched instruction (one with many ops): no branch; the step's inputs
+ * and output mask go to their own staging entry, and one call at the end of the instruction (or
+ * before any guest branch or label in it) runs the steps whose output mask is nonzero, in order.
+ */
+typedef struct LabCtx {
+    intptr_t base;          /* the staging entry's offset in the staging area */
+    TCGLabel *skip;
+    int idx;
+    uint8_t msize;
+} LabCtx;
+
+static void lab_flush(Pass *p);
+
+/* False if there is nothing to do (@m is a constant zero). @m NULL: no gate. */
+static bool lab_begin(Pass *p, TCGTemp *m, LabCtx *c)
+{
+    if (m && m->kind == TEMP_CONST) {
+        return false;
+    }
+    if (!p->batch) {
+        c->base = 0;
+        c->skip = m ? lab_gate(p, m) : NULL;
+        return true;
+    }
+    if (p->nbatch == LAB_BATCH) {
+        lab_flush(p);
+    }
+    c->idx = 1 + p->nbatch;
+    c->base = c->idx * STAGE_BYTES;
+    c->skip = NULL;
+    c->msize = m ? tcg_type_size(m->type) : 0;
+    if (m) {
+        stage_put(p, m, c->base + STAGE_DST);
+    }
+    return true;
+}
+
+static void lab_put(Pass *p, LabCtx *c, TCGTemp *v, intptr_t off)
+{
+    stage_put(p, v, c->base + off);
+}
+
+static void lab_end(Pass *p, LabCtx *c, const LabDesc *d)
+{
+    if (p->batch) {
+        p->bent[p->nbatch++] = (LabStep){ desc_intern(d), c->idx, c->msize };
+        return;
+    }
+    tcg_gen_call2(taint_lab, &lab_info, NULL, tcgv_ptr_temp(tcg_env),
+                  tcg_constant_internal(TCG_TYPE_PTR, (uintptr_t)desc_intern(d)));
+    if (c->skip) {
+        gen_set_label(c->skip);
+    }
+}
+
+/* Run the batched steps so far (at the current emit position). */
+static void lab_flush(Pass *p)
+{
+    if (!p->nbatch) {
+        return;
+    }
+    tcg_gen_call2(taint_lab_prog, &lab_prog_info, NULL, tcgv_ptr_temp(tcg_env),
+                  tcg_constant_internal(TCG_TYPE_PTR,
+                                        (uintptr_t)prog_intern(p->bent, p->nbatch)));
+    p->nbatch = 0;
+}
+
+static int shift_kind(TCGOpcode opc)
+{
+    switch (opc) {
+    case INDEX_op_shl: return SH_SHL;
+    case INDEX_op_shr: return SH_SHR;
+    case INDEX_op_sar: return SH_SAR;
+    case INDEX_op_rotl: return SH_ROTL;
+    default: return SH_ROTR;
+    }
+}
+
+/*
+ * For ops that only move bits, with constant parameters: which input bytes each output byte's
+ * bits come from (bit 8*i + j: output byte i from input byte j). False for anything else.
+ */
+static bool byte_map(TCGOp *op, TCGType ty, int k, uint64_t *map)
+{
+    const TCGOpDef *def = &tcg_op_defs[op->opc];
+    int w = ty == TCG_TYPE_I32 ? 32 : 64, dw = w;
+    TCGTemp *b = def->nb_iargs > 1 ? arg_temp(op->args[def->nb_oargs + 1]) : NULL;
+    int src[64];
+
+    if (ty > TCG_TYPE_I64) {
+        return false;
+    }
+    switch (op->opc) {
+    case INDEX_op_shl: case INDEX_op_shr: case INDEX_op_sar:
+    case INDEX_op_rotl: case INDEX_op_rotr: {
+        if (k != 0 || b->kind != TEMP_CONST) {
+            return false;
+        }
+        *map = shift_map(shift_kind(op->opc), w, b->val & (w - 1));
+        return true;
+    }
+    case INDEX_op_extract: case INDEX_op_sextract: {
+        int pos = op->args[2], len = op->args[3];
+
+        for (int i = 0; i < w; i++) {
+            src[i] = i < len ? pos + i : op->opc == INDEX_op_sextract ? pos + len - 1 : -1;
+        }
+        break;
+    }
+    case INDEX_op_deposit: {
+        int pos = op->args[3], len = op->args[4];
+
+        for (int i = 0; i < w; i++) {
+            bool in = i >= pos && i < pos + len;
+
+            src[i] = in ? (k == 1 ? i - pos : -1) : (k == 0 ? i : -1);
+        }
+        break;
+    }
+    case INDEX_op_extract2: {
+        int pos = op->args[3];
+
+        for (int i = 0; i < w; i++) {
+            int j = pos + i;
+
+            src[i] = j < w ? (k == 0 ? j : -1) : (k == 1 ? j - w : -1);
+        }
+        break;
+    }
+    case INDEX_op_bswap16: case INDEX_op_bswap32: case INDEX_op_bswap64: {
+        int n = op->opc == INDEX_op_bswap16 ? 2 : op->opc == INDEX_op_bswap32 ? 4 : 8;
+        bool os = op->opc != INDEX_op_bswap64 && (op->args[2] & TCG_BSWAP_OS);
+
+        for (int i = 0; i < w; i++) {
+            int byte = i / 8;
+
+            src[i] = byte < n ? (n - 1 - byte) * 8 + i % 8 : os ? 7 : -1;
+        }
+        break;
+    }
+    case INDEX_op_ext_i32_i64: case INDEX_op_extu_i32_i64:
+        dw = 64;
+        for (int i = 0; i < 64; i++) {
+            src[i] = i < 32 ? i : op->opc == INDEX_op_ext_i32_i64 ? 31 : -1;
+        }
+        break;
+    case INDEX_op_extrl_i64_i32: case INDEX_op_extrh_i64_i32:
+        dw = 32;
+        for (int i = 0; i < 32; i++) {
+            src[i] = op->opc == INDEX_op_extrh_i64_i32 ? i + 32 : i;
+        }
+        break;
+    default:
+        return false;
+    }
+    *map = 0;
+    for (int i = 0; i < dw; i++) {
+        if (src[i] >= 0) {
+            *map |= 1ull << (8 * (i / 8) + src[i] / 8);
+        }
+    }
+    return true;
+}
+
+static int lab_mode(TCGOp *op, TCGType ty, int out, int k, uint64_t *map)
+{
+    switch (op->opc) {
+    case INDEX_op_mov: case INDEX_op_mov_vec: case INDEX_op_not: case INDEX_op_not_vec:
+    case INDEX_op_xor: case INDEX_op_xor_vec: case INDEX_op_eqv: case INDEX_op_eqv_vec:
+    case INDEX_op_and: case INDEX_op_and_vec: case INDEX_op_nand: case INDEX_op_nand_vec:
+    case INDEX_op_andc: case INDEX_op_andc_vec: case INDEX_op_or: case INDEX_op_or_vec:
+    case INDEX_op_nor: case INDEX_op_nor_vec: case INDEX_op_orc: case INDEX_op_orc_vec:
+    case INDEX_op_bitsel_vec:
+        return LM_BYTE;
+    case INDEX_op_add: case INDEX_op_add_vec: case INDEX_op_sub: case INDEX_op_sub_vec:
+    case INDEX_op_mul: case INDEX_op_mul_vec: case INDEX_op_neg: case INDEX_op_neg_vec:
+        return LM_PREFIX;
+    case INDEX_op_mulu2: case INDEX_op_muls2:
+        return out == 0 ? LM_PREFIX : LM_ALL;
+    case INDEX_op_movcond: case INDEX_op_cmpsel_vec:
+        return k >= 2 ? LM_BYTE : LM_ALL;
+    case INDEX_op_shl: case INDEX_op_shr: case INDEX_op_sar:
+    case INDEX_op_rotl: case INDEX_op_rotr:
+        if (k == 0 && ty <= TCG_TYPE_I64 &&
+            arg_temp(op->args[2])->kind != TEMP_CONST) {
+            *map = shift_kind(op->opc) | (ty == TCG_TYPE_I32 ? 32 : 64) << 8;
+            return LM_SHIFTV;
+        }
+        return byte_map(op, ty, k, map) ? LM_MAP : LM_ALL;
+    default:
+        return byte_map(op, ty, k, map) ? LM_MAP : LM_ALL;
+    }
+}
+
+/*
+ * Copies of the shadows of @op's inputs that are also its outputs, taken before the op's shadow
+ * code overwrites them: the label step needs the inputs' masks, not the output's.
+ */
+static void lab_save_aliased(Pass *p, TCGOp *op, int first_in, int nin, TCGTemp **pre)
+{
+    const TCGOpDef *def = &tcg_op_defs[op->opc];
+
+    for (int k = 0; k < nin; k++) {
+        TCGTemp *it = arg_temp(op->args[first_in + k]);
+
+        pre[k] = NULL;
+        for (int o = 0; o < def->nb_oargs; o++) {
+            if (arg_temp(op->args[o]) == it && lslot(p, it) != NOSLOT && k < 4) {
+                TCGTemp *si = S(p, it);
+                TCGTemp **slot = &p->prepool[si->type][k];
+
+                /* a TB temp: an op's later outputs are staged after an earlier one's label */
+                if (!*slot) {
+                    *slot = tcg_temp_new_internal(si->type, TEMP_TB);
+                }
+                pre[k] = *slot;
+                g_mov(si->type, pre[k], si);
+                break;
+            }
+        }
+    }
+}
+
+/*
+ * For and/or-type ops, the bits of input @k that reach the output (tier A's improvement rule:
+ * a clean 0 under and, or a clean 1 under or, blocks the other input). NULL for other ops.
+ */
+static TCGTemp *lab_contrib(Pass *p, TCGOp *op, TCGType ty, TCGTemp **pre, int k)
+{
+    bool is_and, inv_b;
+    unsigned vece = TCGOP_VECE(op);
+    TCGTemp *a, *b, *sa, *sb, *bv, *t, *c;
+
+    switch (op->opc) {
+    case INDEX_op_movcond: case INDEX_op_cmpsel_vec: {
+        /* only the selected value contributes byte-wise (the compared values count as ALL) */
+        TCGTemp *c1 = arg_temp(op->args[1]), *c2 = arg_temp(op->args[2]);
+        TCGTemp *sv = pre[k] ? pre[k] : S(p, arg_temp(op->args[1 + k]));
+        TCGTemp *z = op->opc == INDEX_op_movcond ? zero(ty) : NULL;
+        TCGCond cond = op->args[5];
+
+        if (k < 2) {
+            return NULL;
+        }
+        c = tmp(ty);
+        if (op->opc == INDEX_op_cmpsel_vec) {
+            z = tmp(ty);
+            tcg_gen_dupi_vec(vece, VEC(z), 0);
+            tcg_gen_cmpsel_vec(cond, vece, VEC(c), VEC(c1), VEC(c2),
+                               VEC(k == 2 ? sv : z), VEC(k == 2 ? z : sv));
+        } else if (ty == TCG_TYPE_I32) {
+            tcg_gen_movcond_i32(cond, I32(c), I32(c1), I32(c2), I32(k == 2 ? sv : z),
+                                I32(k == 2 ? z : sv));
+        } else {
+            tcg_gen_movcond_i64(cond, I64(c), I64(c1), I64(c2), I64(k == 2 ? sv : z),
+                                I64(k == 2 ? z : sv));
+        }
+        return c;
+    }
+    case INDEX_op_and: case INDEX_op_and_vec: case INDEX_op_nand: case INDEX_op_nand_vec:
+        is_and = true, inv_b = false;
+        break;
+    case INDEX_op_andc: case INDEX_op_andc_vec:
+        is_and = true, inv_b = true;
+        break;
+    case INDEX_op_or: case INDEX_op_or_vec: case INDEX_op_nor: case INDEX_op_nor_vec:
+        is_and = false, inv_b = false;
+        break;
+    case INDEX_op_orc: case INDEX_op_orc_vec:
+        is_and = false, inv_b = true;
+        break;
+    default:
+        return NULL;
+    }
+    a = arg_temp(op->args[1]);
+    b = arg_temp(op->args[2]);
+    sa = pre[0] ? pre[0] : S(p, a);
+    sb = pre[1] ? pre[1] : S(p, b);
+    /* the other input's value as the op sees it, and its shadow */
+    TCGTemp *ov = k == 0 ? b : a, *os = k == 0 ? sb : sa, *me = k == 0 ? sa : sb;
+
+    bv = ov;
+    if ((k == 0 && inv_b) != !is_and) {
+        bv = tmp(ty);
+        g_not(ty, bv, ov);      /* under or, a clean 0 of the other passes this input */
+    }
+    t = tmp(ty);
+    c = tmp(ty);
+    g_or(ty, vece, t, bv, os);
+    g_and(ty, vece, c, me, t);
+    return c;
+}
+
+/* Emit the label computation for each output of @op (after its shadow, before the op). */
+static void lab_op(Pass *p, TCGOp *op, TCGType ty, TCGTemp **pre)
+{
+    const TCGOpDef *def = &tcg_op_defs[op->opc];
+
+    for (int o = 0; o < def->nb_oargs; o++) {
+        TCGTemp *dt = arg_temp(op->args[o]);
+        TCGTemp *ins[STAGE_IN];
+        LabDesc d;
+        LabCtx c;
+
+        memset(&d, 0, sizeof(d));
+        d.op = LOP_PLAIN;
+        d.nd = 1;
+        d.dslot[0] = lslot(p, dt);
+        d.dsize = tcg_type_size(dt->type);
+        if (d.dslot[0] == NOSLOT || d.dsize > LSLOT) {
+            continue;
+        }
+        for (int k = 0; k < def->nb_iargs && d.nin < STAGE_IN; k++) {
+            TCGTemp *it = arg_temp(op->args[def->nb_oargs + k]);
+            LabIn *in = &d.in[d.nin];
+
+            in->slot = lslot(p, it);
+            in->size = MIN(tcg_type_size(it->type), LSLOT);
+            in->mode = lab_mode(op, ty, o, k, &in->map);
+            ins[d.nin++] = it;
+        }
+        if (!lab_begin(p, D(p, dt), &c)) {
+            continue;
+        }
+        for (int k = 0; k < d.nin; k++) {
+            if (d.in[k].slot != NOSLOT) {
+                TCGTemp *m = lab_contrib(p, op, ty, pre, k);
+
+                lab_put(p, &c, m ? m : pre[k] ? pre[k] : S(p, ins[k]), k * 32);
+            }
+            if (d.in[k].mode == LM_SHIFTV) {
+                lab_put(p, &c, arg_temp(op->args[2]), STAGE_ADDR);
+            }
+        }
+        lab_end(p, &c, &d);
+    }
+}
+
+/* Carry-chain ops: the sum's bytes from the lower input bytes, plus the carry flag's labels. */
+static void lab_carry_op(Pass *p, TCGOp *op, bool cin, bool cout, TCGTemp **pre)
+{
+    TCGTemp *dt = arg_temp(op->args[0]);
+    TCGTemp *ins[2] = { arg_temp(op->args[1]), arg_temp(op->args[2]) };
+    LabDesc d;
+    LabCtx c;
+
+    memset(&d, 0, sizeof(d));
+    d.op = LOP_PLAIN;
+    d.nd = 1;
+    d.dslot[0] = lslot(p, dt);
+    d.dsize = tcg_type_size(dt->type);
+    d.carry_out = cout;
+    if (d.dslot[0] == NOSLOT) {
+        return;
+    }
+    for (int k = 0; k < 2; k++) {
+        d.in[k] = (LabIn){ .slot = lslot(p, ins[k]), .size = tcg_type_size(ins[k]->type),
+                           .mode = LM_PREFIX };
+    }
+    d.nin = 2;
+    if (cin && p->scarry) {
+        d.in[2] = (LabIn){ .slot = lab_carry, .size = 1, .mode = LM_ALL };
+        d.nin = 3;
+    }
+    if (!lab_begin(p, D(p, dt), &c)) {
+        return;
+    }
+    for (int k = 0; k < 2; k++) {
+        if (d.in[k].slot != NOSLOT) {
+            lab_put(p, &c, pre[k] ? pre[k] : S(p, ins[k]), k * 32);
+        }
+    }
+    if (d.nin == 3) {
+        lab_put(p, &c, p->scarry, 2 * 32);
+    }
+    lab_end(p, &c, &d);
+}
+
+/* A guest load: the loaded value's labels from RAM (when its shadow @res is nonzero). */
+static void lab_ld(Pass *p, TCGTemp *v, TCGv_i64 res, TCGv_i64 a, MemOpIdx oi)
+{
+    LabDesc d;
+    LabCtx c;
+
+    memset(&d, 0, sizeof(d));
+    d.op = LOP_LD;
+    d.nd = 1;
+    d.dslot[0] = lslot(p, v);
+    d.dsize = MIN(tcg_type_size(v->type), 8);
+    d.off = oi;
+    if (d.dslot[0] == NOSLOT || !lab_begin(p, tcgv_i64_temp(res), &c)) {
+        return;
+    }
+    /* the loaded shadow, byte by byte, says which RAM label ids are valid */
+    lab_put(p, &c, tcgv_i64_temp(res), STAGE_DST);
+    lab_put(p, &c, tcgv_i64_temp(a), STAGE_ADDR);
+    lab_end(p, &c, &d);
+}
+
+/* A guest store: RAM labels from the value's, for the bytes whose shadow @sv is nonzero. */
+static void lab_st(Pass *p, TCGTemp *v, TCGv_i64 sv, TCGv_i64 a, MemOpIdx oi)
+{
+    LabDesc d;
+    LabCtx c;
+
+    memset(&d, 0, sizeof(d));
+    d.op = LOP_ST;
+    d.nin = 1;
+    d.in[0] = (LabIn){ .slot = lslot(p, v), .size = memop_size(get_memop(oi)) };
+    d.off = oi;
+    if (d.in[0].slot == NOSLOT || !lab_begin(p, tcgv_i64_temp(sv), &c)) {
+        return;
+    }
+    lab_put(p, &c, tcgv_i64_temp(sv), 0);
+    lab_put(p, &c, tcgv_i64_temp(a), STAGE_ADDR);
+    lab_end(p, &c, &d);
+}
+
+/* ld/st against the CPU state (a constant offset from env, or from a tracked pointer). */
+static void lab_env(Pass *p, TCGOp *op, bool load, TCGTemp *v, TCGTemp *sbase)
+{
+    LabDesc d;
+    LabCtx c;
+    unsigned msize;
+    TCGTemp *m;
+
+    switch (op->opc) {
+    case INDEX_op_ld8u: case INDEX_op_ld8s: case INDEX_op_st8: msize = 1; break;
+    case INDEX_op_ld16u: case INDEX_op_ld16s: case INDEX_op_st16: msize = 2; break;
+    case INDEX_op_ld32u: case INDEX_op_ld32s: case INDEX_op_st32: msize = 4; break;
+    case INDEX_op_dupm_vec: msize = 1 << TCGOP_VECE(op); break;
+    default: msize = tcg_type_size(v->type); break;
+    }
+    memset(&d, 0, sizeof(d));
+    d.op = load ? LOP_ENVLD : LOP_ENVST;
+    d.off = op->args[2];
+    d.dyn = (sbase != senv_temp(p)) | (op->opc == INDEX_op_dupm_vec ? 2 : 0);
+    d.in[0] = (LabIn){ .slot = load ? NOSLOT : lslot(p, v), .size = MIN(msize, LSLOT) };
+    d.nin = 1;
+    if (load) {
+        d.nd = 1;
+        d.dslot[0] = lslot(p, v);
+        d.dsize = MIN(tcg_type_size(v->type), LSLOT);
+        if (d.dslot[0] == NOSLOT) {
+            return;
+        }
+        m = D(p, v);
+    } else {
+        if (d.in[0].slot == NOSLOT) {
+            return;
+        }
+        m = S(p, v);
+    }
+    if (!lab_begin(p, m, &c)) {
+        return;
+    }
+    if (!load) {
+        lab_put(p, &c, m, 0);
+    }
+    if (d.dyn & 1) {
+        lab_put(p, &c, sbase, STAGE_PTR);
+    }
+    lab_end(p, &c, &d);
+}
+
+/*
+ * A helper call (H1): every output gets the union of all tainted input bytes, and of the regions
+ * that pointer arguments into the CPU state reach (which receive it too). @gate is the call's
+ * any-taint shadow; NULL for a call with such pointers, whose helper finds that out itself.
+ */
+static void lab_callop(Pass *p, TCGOp *op, TCGTemp **ins, int nin, TCGTemp **writes, int nw,
+                       TCGTemp **sps, int nsp, uint32_t size, TCGv_i64 gate)
+{
+    int no = TCGOP_CALLO(op);
+    LabDesc d;
+    LabCtx c;
+
+    memset(&d, 0, sizeof(d));
+    d.op = LOP_CALL;
+    d.dsize = 1;
+    d.off = nsp ? size : 0;
+    for (int i = 0; i < no + nw && d.nd < 8; i++) {
+        TCGTemp *o = i < no ? arg_temp(op->args[i]) : writes[i - no];
+
+        if (o->type <= TCG_TYPE_I64 && lslot(p, o) != NOSLOT) {
+            d.dslot[d.nd] = lslot(p, o);
+            d.dsz[d.nd++] = tcg_type_size(o->type);
+        }
+    }
+    for (int k = 0; k < nin && d.nin < STAGE_IN; k++) {
+        d.in[d.nin++] = (LabIn){ .slot = lslot(p, ins[k]), .size = tcg_type_size(ins[k]->type),
+                                 .mode = LM_ALL };
+    }
+    if ((!d.nd && !nsp) || !lab_begin(p, gate ? tcgv_i64_temp(gate) : NULL, &c)) {
+        return;
+    }
+    for (int k = 0; k < d.nin; k++) {
+        if (d.in[k].slot != NOSLOT) {
+            lab_put(p, &c, S(p, ins[k]), k * 32);
+        }
+    }
+    for (int r = 0; nsp && r < 4; r++) {
+        lab_put(p, &c, r < nsp ? sps[r] : tcg_constant_internal(TCG_TYPE_I64, 0), STAGE_PTR + 8 * r);
+    }
+    lab_end(p, &c, &d);
+}
+
 /* ---- guest memory */
 
 static TCGv_ptr senv_ptr(Pass *p)
@@ -872,8 +2029,14 @@ static void taint_qemu_ldst(Pass *p, TCGOp *op, TCGOp *next)
     if (!two) {
         if (op->opc == INDEX_op_qemu_ld) {
             set_from_i64(p, v0, shadow_load(p, a, oi, pool(&p->res)));
+            if (labels_on) {
+                lab_ld(p, v0, p->res, a, oi);
+            }
         } else {
             shadow_store(p, a, oi, as_i64(p, v0));
+            if (labels_on) {
+                lab_st(p, v0, p->sval, a, oi);
+            }
         }
         return;
     }
@@ -886,9 +2049,19 @@ static void taint_qemu_ldst(Pass *p, TCGOp *op, TCGOp *next)
     if (op->opc == INDEX_op_qemu_ld2) {
         set_from_i64(p, lo_ts, shadow_load(p, be ? a2 : a, half_oi(oi), pool(&p->res)));
         set_from_i64(p, hi_ts, shadow_load(p, be ? a : a2, half_oi(oi), pool(&p->res2)));
+        if (labels_on) {
+            lab_ld(p, lo_ts, p->res, be ? a2 : a, half_oi(oi));
+            lab_ld(p, hi_ts, p->res2, be ? a : a2, half_oi(oi));
+        }
     } else {
         shadow_store(p, be ? a2 : a, half_oi(oi), as_i64(p, lo_ts));
+        if (labels_on) {
+            lab_st(p, lo_ts, p->sval, be ? a2 : a, half_oi(oi));
+        }
         shadow_store(p, be ? a : a2, half_oi(oi), as_i64(p, hi_ts));
+        if (labels_on) {
+            lab_st(p, hi_ts, p->sval, be ? a : a2, half_oi(oi));
+        }
     }
 }
 
@@ -900,7 +2073,12 @@ static void taint_host_ldst(Pass *p, TCGOp *op, bool load)
     TCGArg args[TAINT_MAX_ARGS];
 
     if (is_env(base)) {
-        sbase = senv_temp(p);
+        /* CPUState fields (negative offsets, e.g. the icount decrementer) carry no guest data */
+        intptr_t off = op->args[2];
+
+        if (off >= 0 && off < env_size) {
+            sbase = senv_temp(p);
+        }
     } else if (temp_idx(base) < p->nb_temps && p->sptr[temp_idx(base)]) {
         sbase = p->sptr[temp_idx(base)];
     }
@@ -919,6 +2097,9 @@ static void taint_host_ldst(Pass *p, TCGOp *op, bool load)
         args[k] = op->args[k];
     }
     emit_clone(op, args);
+    if (labels_on) {
+        lab_env(p, op, load, v, sbase);
+    }
 }
 
 /* ---- calls */
@@ -987,6 +2168,12 @@ static void taint_call(Pass *p, TCGOp *op)
     int no = TCGOP_CALLO(op), ni = TCGOP_CALLI(op);
     TCGv_i64 acc = NULL;
     bool control = is_control(info->name);
+    TCGTemp *ins[STAGE_IN];
+    int nin = 0;
+
+    if (pc_fn && pc_off >= 0 && info->name && !strcmp(info->name, "lookup_tb_ptr")) {
+        tcg_gen_call1(taint_pc_ev, &pc_ev_info, NULL, tcgv_ptr_temp(tcg_env));
+    }
 
     if (!control) {
         for (int i = 0; i < ni; i++) {
@@ -1001,6 +2188,9 @@ static void taint_call(Pass *p, TCGOp *op)
                 stats.ptr_calls++;      /* points into env: no write-set model yet */
             }
             si = as_i64(p, ts);
+            if (nin < STAGE_IN) {
+                ins[nin++] = ts;
+            }
             if (!acc) {
                 acc = pool(&p->acc);
                 tcg_gen_mov_i64(acc, si);
@@ -1026,6 +2216,9 @@ static void taint_call(Pass *p, TCGOp *op)
                 }
                 tcg_gen_or_i64(acc, acc, as_i64(p, g));
                 writes[nw++] = g;
+                if (nin < STAGE_IN) {
+                    ins[nin++] = g;
+                }
             }
         }
     }
@@ -1050,6 +2243,9 @@ static void taint_call(Pass *p, TCGOp *op)
         TCGv_i64 any = pool(&p->any);
         TCGTemp *null = tcg_constant_internal(TCG_TYPE_PTR, 0);
 
+        if (labels_on) {
+            lab_callop(p, op, ins, nin, writes, nw, sps, nsp, size, NULL);
+        }
         tcg_gen_call7(taint_ptr_model, &ptr_model_info, tcgv_i64_temp(any),
                       tcgv_ptr_temp(tcg_env), sps[0] ? sps[0] : null, sps[1] ? sps[1] : null,
                       sps[2] ? sps[2] : null, sps[3] ? sps[3] : null,
@@ -1066,6 +2262,9 @@ static void taint_call(Pass *p, TCGOp *op)
         gen_set_label(skip);
         tcg_gen_negsetcondi_i64(TCG_COND_NE, acc, acc, 0);
         tcg_gen_andi_i64(acc, acc, result_mask(info->name));
+        if (labels_on && !nsp) {
+            lab_callop(p, op, ins, nin, writes, nw, sps, 0, 0, acc);
+        }
         for (int k = 0; k < nw; k++) {
             TCGTemp *sw = D(p, writes[k]);
 
@@ -1120,7 +2319,13 @@ static void taint_carry(Pass *p, TCGOp *op, TCGType ty)
     bool cin = op->opc == INDEX_op_addci || op->opc == INDEX_op_addcio ||
                op->opc == INDEX_op_subbi || op->opc == INDEX_op_subbio;
     bool cout = op->opc != INDEX_op_addci && op->opc != INDEX_op_subbi;
-    TCGTemp *t = tmp(ty);
+    TCGTemp *pre[2] = { NULL, NULL };
+    TCGTemp *t;
+
+    if (labels_on) {
+        lab_save_aliased(p, op, 1, 2, pre);
+    }
+    t = tmp(ty);
 
     g_or(ty, 0, t, S(p, a), S(p, b));
     if (cin && p->scarry) {
@@ -1147,6 +2352,9 @@ static void taint_carry(Pass *p, TCGOp *op, TCGType ty)
         }
     }
     g_lsmear(ty, 0, D(p, d), t);
+    if (labels_on) {
+        lab_carry_op(p, op, cin, cout, pre);
+    }
 }
 
 static void ptr_track(Pass *p, TCGOp *op, TCGType ty)
@@ -1191,6 +2399,20 @@ static void ptr_track(Pass *p, TCGOp *op, TCGType ty)
     p->sptr[di] = NULL;
 }
 
+/* A conditional branch: report it if either compared value is tainted. */
+static void taint_brcond(Pass *p, TCGTemp *a, TCGTemp *b)
+{
+    TCGv_i64 m = s64();
+    TCGLabel *skip = gen_new_label();
+
+    tcg_gen_or_i64(m, as_i64(p, a), as_i64(p, b));
+    tcg_gen_brcondi_i64(TCG_COND_EQ, m, 0, skip);
+    tcg_gen_call4(taint_branch_ev, &branch_ev_info, NULL, tcgv_ptr_temp(tcg_env),
+                  tcg_constant_internal(TCG_TYPE_I64, p->pc),
+                  tcg_constant_internal(TCG_TYPE_I32, p->pcrel), tcgv_i64_temp(m));
+    gen_set_label(skip);
+}
+
 static void taint_op(Pass *p, TCGOp *op, TCGOp *next)
 {
     TCGContext *s = p->s;
@@ -1217,11 +2439,32 @@ static void taint_op(Pass *p, TCGOp *op, TCGOp *next)
 
     switch (opc) {
     case INDEX_op_set_label:
+        lab_flush(p);
         memset(p->sptr, 0, sizeof(TCGTemp *) * p->nb_temps);
         return;
-    case INDEX_op_discard: case INDEX_op_br: case INDEX_op_brcond: case INDEX_op_mb:
-    case INDEX_op_insn_start: case INDEX_op_exit_tb: case INDEX_op_goto_tb:
-    case INDEX_op_goto_ptr: case INDEX_op_plugin_cb: case INDEX_op_plugin_mem_cb:
+    case INDEX_op_insn_start:
+        lab_flush(p);
+        p->pc = tcg_get_insn_start_param(op, 0);
+        if (labels_on) {
+            int n = 0;
+
+            for (TCGOp *o = next; o && o->opc != INDEX_op_insn_start; o = QTAILQ_NEXT(o, link)) {
+                n++;
+            }
+            p->batch = n > LAB_BATCH_OPS;
+        }
+        return;
+    case INDEX_op_brcond:
+        lab_flush(p);
+        if (branch_fn) {
+            taint_brcond(p, a, b);
+        }
+        return;
+    case INDEX_op_br: case INDEX_op_exit_tb: case INDEX_op_goto_tb: case INDEX_op_goto_ptr:
+        lab_flush(p);
+        return;
+    case INDEX_op_discard: case INDEX_op_mb:
+    case INDEX_op_plugin_cb: case INDEX_op_plugin_mem_cb:
         return;
     case INDEX_op_call:
         taint_call(p, op);
@@ -1246,6 +2489,11 @@ static void taint_op(Pass *p, TCGOp *op, TCGOp *next)
 
     ptr_track(p, op, ty);
 
+    TCGTemp *pre[TAINT_MAX_ARGS];
+
+    if (labels_on) {
+        lab_save_aliased(p, op, def->nb_oargs, MIN(def->nb_iargs, STAGE_IN), pre);
+    }
     if (a && a == b && (opc == INDEX_op_xor || opc == INDEX_op_sub || opc == INDEX_op_eqv ||
                         opc == INDEX_op_andc || opc == INDEX_op_xor_vec || opc == INDEX_op_sub_vec ||
                         opc == INDEX_op_eqv_vec || opc == INDEX_op_andc_vec)) {
@@ -1406,12 +2654,15 @@ static void taint_op(Pass *p, TCGOp *op, TCGOp *next)
         rule_pcast_all(p, op, ty, vece);
         break;
     }
+    if (labels_on) {
+        lab_op(p, op, ty, pre);
+    }
 }
 
 void taint_gen_tb(CPUState *cpu, TranslationBlock *tb)
 {
     TCGContext *s = tcg_ctx;
-    Pass p = { .s = s, .nb_temps = s->nb_temps };
+    Pass p = { .s = s, .nb_temps = s->nb_temps, .pcrel = tb_cflags(tb) & CF_PCREL };
     TCGOp *op, *next;
     const TCGOpcode *old_list = tcg_swap_vecop_list(NULL);
 
@@ -1557,7 +2808,11 @@ void taint_label_ram(uint64_t ram_addr, uint64_t len, uint8_t mask)
         ram_shadow_alloc();
     }
     if (ram_addr < ram_shadow_size) {
-        memset(ram_shadow + ram_addr, mask, MIN(len, ram_shadow_size - ram_addr));
+        len = MIN(len, ram_shadow_size - ram_addr);
+        memset(ram_shadow + ram_addr, mask, len);
+        if (ram_lab) {
+            memset(ram_lab + ram_addr, 0, len * sizeof(uint32_t));
+        }
     }
 }
 
@@ -1616,6 +2871,137 @@ uint64_t taint_va_to_ram(CPUState *cpu, uint64_t va)
     return ra;
 }
 
+int taint_label_reg(CPUState *cpu, int regno, uint8_t mask)
+{
+    ptrdiff_t off;
+    unsigned size;
+
+    if (!cpu->taint_senv || !tcg_register_location(cpu, regno, &off, &size) ||
+        off < 0 || off + size > env_size) {
+        return -1;
+    }
+    memset((uint8_t *)cpu->taint_senv + off, mask, size);
+    memset(labfile(cpu) + off, 0, size * sizeof(uint32_t));
+    return size;
+}
+
+int taint_query_reg(CPUState *cpu, int regno, uint8_t *out, int len)
+{
+    ptrdiff_t off;
+    unsigned size;
+
+    if (!cpu->taint_senv || !tcg_register_location(cpu, regno, &off, &size) ||
+        off < 0 || off + size > env_size) {
+        return -1;
+    }
+    memcpy(out, (uint8_t *)cpu->taint_senv + off, MIN(size, (unsigned)MAX(len, 0)));
+    return size;
+}
+
+bool taint_enable_labels(bool on)
+{
+    if (!senv_idx) {
+        return false;
+    }
+    if (on) {
+        ram_shadow_alloc();
+        ram_lab_alloc();
+    }
+    if (on != labels_on) {
+        labels_on = on;
+        if (taint_active) {
+            commit(true);
+        }
+    }
+    return true;
+}
+
+static int lset_expand(uint32_t id, uint32_t *out, int max)
+{
+    const LSet *set;
+
+    if (!id) {
+        return 0;
+    }
+    if (id == LSET_MANY) {
+        return -1;
+    }
+    set = g_ptr_array_index(lsets, id);
+    memcpy(out, set->v, MIN(set->n, (uint32_t)MAX(max, 0)) * sizeof(uint32_t));
+    return set->n;
+}
+
+void taint_label_ram_l(uint64_t ram_addr, uint64_t len, uint8_t mask, uint32_t label)
+{
+    uint32_t id = label ? lset_intern(&label, 1) : 0;
+
+    taint_label_ram(ram_addr, len, mask);
+    ram_lab_alloc();
+    for (uint64_t i = ram_addr; i < ram_addr + len && i < ram_lab_size; i++) {
+        ram_lab[i] = id;
+    }
+}
+
+int taint_query_ram_labels(uint64_t ram_addr, uint32_t *out, int max)
+{
+    return ram_shadow && ram_addr < ram_shadow_size ? lset_expand(ram_lab_at(ram_addr), out, max)
+                                                     : 0;
+}
+
+int taint_label_reg_l(CPUState *cpu, int regno, uint8_t mask, uint32_t label)
+{
+    ptrdiff_t off;
+    unsigned size;
+    uint32_t id = label ? lset_intern(&label, 1) : 0;
+
+    if (!cpu->taint_senv || !tcg_register_location(cpu, regno, &off, &size) ||
+        off < 0 || off + size > env_size) {
+        return -1;
+    }
+    memset((uint8_t *)cpu->taint_senv + off, mask, size);
+    for (unsigned i = 0; i < size; i++) {
+        labfile(cpu)[off + i] = id;
+    }
+    return size;
+}
+
+int taint_query_reg_labels(CPUState *cpu, int regno, int byte, uint32_t *out, int max)
+{
+    ptrdiff_t off;
+    unsigned size;
+
+    if (!cpu->taint_senv || !tcg_register_location(cpu, regno, &off, &size) ||
+        off < 0 || off + size > env_size || byte < 0 || byte >= size) {
+        return -1;
+    }
+    if (!((uint8_t *)cpu->taint_senv)[off + byte]) {
+        return 0;
+    }
+    return lset_expand(labfile(cpu)[off + byte], out, max);
+}
+
+/* Checks are emitted only while a function is set: re-translate when that changes. */
+static void set_event(TaintEventFn *slot, void **opq, TaintEventFn fn, void *opaque)
+{
+    bool changed = !*slot != !fn;
+
+    *slot = fn;
+    *opq = opaque;
+    if (changed && taint_active) {
+        commit(true);
+    }
+}
+
+void taint_set_branch_cb(TaintEventFn fn, void *opaque)
+{
+    set_event(&branch_fn, &branch_opaque, fn, opaque);
+}
+
+void taint_set_pc_cb(TaintEventFn fn, void *opaque)
+{
+    set_event(&pc_fn, &pc_opaque, fn, opaque);
+}
+
 void taint_stats(char *buf, size_t len)
 {
     GString *out = g_string_new(NULL);
@@ -1626,10 +3012,12 @@ void taint_stats(char *buf, size_t len)
         "tbs %" PRIu64 " ops %" PRIu64 " untracked_ld %" PRIu64 " untracked_st %" PRIu64
         " ptr_calls %" PRIu64 " ld_slow %" PRIu64 " st_slow %" PRIu64 " ram_oob %" PRIu64
         " unknown_ops %" PRIu64 " h1_tainted %" PRIu64 " device_writes %" PRIu64
-        " device_bytes %" PRIu64 " ptr_tainted %" PRIu64 "\n",
+        " device_bytes %" PRIu64 " ptr_tainted %" PRIu64 " branch_events %" PRIu64
+        " pc_events %" PRIu64 " lab_calls %" PRIu64 " lab_many %" PRIu64 " lab_sets %u\n",
         stats.tbs, stats.ops, stats.untracked_ld, stats.untracked_st, stats.ptr_calls,
         stats.ld_slow, stats.st_slow, stats.ram_oob, stats.unknown_ops, stats.h1_tainted,
-        stats.device_writes, stats.device_bytes, stats.ptr_tainted);
+        stats.device_writes, stats.device_bytes, stats.ptr_tainted, stats.branch_events,
+        stats.pc_events, stats.lab_calls, stats.lab_many, lsets ? lsets->len - 2 : 0);
     if (h1_hits) {
         g_hash_table_iter_init(&it, h1_hits);
         while (g_hash_table_iter_next(&it, &k, &v)) {

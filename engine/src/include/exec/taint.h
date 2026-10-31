@@ -42,6 +42,36 @@ uint64_t taint_va_to_ram(CPUState *cpu, uint64_t va);
 /* Called after the default clear on a device/DMA write into RAM; may label the range. */
 typedef void (*TaintDeviceWriteFn)(void *opaque, uint64_t ram_addr, uint64_t len);
 void taint_set_device_write_cb(TaintDeviceWriteFn fn, void *opaque);
+/*
+ * Guest registers by gdbstub number (general-purpose registers: see tcg_register_location).
+ * Call from a callback between blocks. Return the register's size in bytes, or -1 if it is not
+ * held in a single field of the CPU state.
+ */
+int taint_label_reg(CPUState *cpu, int regno, uint8_t mask);
+/* Copies up to @len shadow bytes of the register into @out, lowest-addressed byte first. */
+int taint_query_reg(CPUState *cpu, int regno, uint8_t *out, int len);
+/*
+ * Labels (tier B), opt-in: each tainted byte also carries a set of u32 labels (sources), up to
+ * 256 per byte; beyond that a query returns -1. Turn on before taint_enable (or code is
+ * re-translated). Labels follow data flow by byte; the mask still decides what is tainted.
+ */
+bool taint_enable_labels(bool on);
+/* Like taint_label_ram, and give the bytes the single label @label (0: none). */
+void taint_label_ram_l(uint64_t ram_addr, uint64_t len, uint8_t mask, uint32_t label);
+int taint_label_reg_l(CPUState *cpu, int regno, uint8_t mask, uint32_t label);
+/* Labels of a byte, up to @max into @out; returns how many it has (0 if clean, -1 if too many). */
+int taint_query_ram_labels(uint64_t ram_addr, uint32_t *out, int max);
+int taint_query_reg_labels(CPUState *cpu, int regno, int byte, uint32_t *out, int max);
+/*
+ * Events, opt-in: setting a function re-translates code so the checks exist only while one is
+ * set. @pc is the guest instruction's address (for PC-relative code, page-crossing blocks may
+ * report the start page); @mask is the shadow of the condition inputs or of the target.
+ *   branch: a conditional branch in translated code whose condition is tainted;
+ *   pc:     an indirect jump (to an address not known at translation) whose target is tainted.
+ */
+typedef void (*TaintEventFn)(void *opaque, CPUState *cpu, uint64_t pc, uint64_t mask);
+void taint_set_branch_cb(TaintEventFn fn, void *opaque);
+void taint_set_pc_cb(TaintEventFn fn, void *opaque);
 /* Counters: helper calls with tainted inputs that have no model (H1 fallback), etc. */
 void taint_stats(char *buf, size_t len);
 

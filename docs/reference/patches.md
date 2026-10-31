@@ -98,4 +98,4 @@ QEMU 11.1.2 plus 93 patches (`engine/patches/11.1.2/`). `engine/README.md` expla
 | 0090 | system: seal capabilities before startup side effects | [python](../features.md#python) | new | MIT |
 | 0091 | replay: serialize deferred analysis RAM writes as ordered async events | [recorded-ram-effects](../features.md#recorded-ram-effects) | new | GPL-2.0-or-later |
 | 0092 | replay: stub analysis register effects without TCG | [recorded-ram-effects](../features.md#recorded-ram-effects) | new | GPL-2.0-or-later |
-| 0093 | replay: log analysis guest writes at their instruction | [recorded-hypercall-answers](../features.md#recorded-hypercall-answers) | new | GPL-2.0-or-later |
+| 0093 | tcg: taint shadow pass hooks | [taint](../features.md#taint) | new | GPL-2.0-or-later |
