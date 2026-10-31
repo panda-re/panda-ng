@@ -238,7 +238,8 @@ CPU state, memory, the kernel and devices, bit by bit. A TCG pass adds shadow op
 translated block while taint is enabled; nothing is emitted, and nothing changes, for an engine
 started without the `taint` capability or a replay with taint off. Device and DMA writes into
 RAM clear the written bytes' taint, then a callback may label them; another may label loads from
-device registers (MMIO as a source). Optional label sets say which
+device registers (MMIO as a source). An opt-in address mode taints loads and stores
+through tainted addresses. Optional label sets say which
 sources (u32 labels) reach each byte; optional events report conditional branches on tainted
 data and indirect jumps to tainted targets.
 
@@ -249,7 +250,7 @@ memory (Arm MOPS, DC ZVA, RISC-V cbo.zero, x86 fxsave) are not modelled yet. Lab
 by byte; more than 256 labels on one byte collapse to "many". Control dependence (branches,
 table lookups) is not followed, only reported.
 
-**Use it:** `taint_enable`, `taint_disable`, `taint_label_ram`, `taint_query_ram`, `taint_va_to_ram`, `taint_label_reg`, `taint_query_reg`, `taint_enable_labels`, `taint_label_ram_l`, `taint_query_ram_labels`, `taint_label_reg_l`, `taint_query_reg_labels`, `taint_set_device_write_cb`, `taint_set_branch_cb`, `taint_set_pc_cb`, `taint_set_mmio_read_cb`, `taint_stats`, `TaintMixin.taint_enable`, `TaintMixin.taint_label_va`, `TaintMixin.taint_labels_va`, `TaintMixin.cb_taint_branch`, `TaintMixin.taint_device_write`, `TaintMixin.taint_mmio_read`
+**Use it:** `taint_enable`, `taint_disable`, `taint_label_ram`, `taint_query_ram`, `taint_va_to_ram`, `taint_label_reg`, `taint_query_reg`, `taint_enable_labels`, `taint_set_address_mode`, `taint_label_ram_l`, `taint_query_ram_labels`, `taint_label_reg_l`, `taint_query_reg_labels`, `taint_set_device_write_cb`, `taint_set_branch_cb`, `taint_set_pc_cb`, `taint_set_mmio_read_cb`, `taint_stats`, `TaintMixin.taint_enable`, `TaintMixin.taint_label_va`, `TaintMixin.taint_labels_va`, `TaintMixin.cb_taint_branch`, `TaintMixin.taint_device_write`, `TaintMixin.taint_mmio_read`, `TaintMixin.taint_address_mode`
 
 **Docs:** [docs/guides/record-replay.md](guides/record-replay.md)
 
