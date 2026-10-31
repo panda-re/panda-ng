@@ -7,7 +7,9 @@ The engine side of the taint capability (exec/taint.h, accel/tcg/taint.c
 in the overlay). With ANALYSIS_CAP_TAINT provisioned:
 
 - translator_loop runs taint_gen_tb() on a TB whose cflags carry the new
-  CF_TAINT bit, after plugin injection and before optimization;
+  CF_TAINT bit, after plugin injection and before optimization; a second
+  new bit, CF_TAINT_CHECK, marks the check-only variant of elastic taint,
+  and cpu_exec never chains a TB into one of the other variant;
 - tcg_exec_realizefn creates the shadow globals once the target's TCG
   globals exist (taint_tcg_init) and allocates each vCPU's shadow CPU
   state and shadow TLB (taint_vcpu_init, CPUState::taint_senv);
@@ -29,20 +31,20 @@ branch on TLB flushes, device writes and those helpers.
 SPDX-License-Identifier: GPL-2.0-or-later
 Origin: new
 ---
- accel/tcg/cpu-exec.c             |  7 +++++
+ accel/tcg/cpu-exec.c             | 11 ++++++++
  accel/tcg/cputlb.c               | 44 ++++++++++++++++++++++++++++++++
  accel/tcg/meson.build            |  1 +
  accel/tcg/translator.c           |  5 ++++
- include/exec/translation-block.h |  1 +
+ include/exec/translation-block.h |  2 ++
  include/hw/core/cpu.h            |  2 ++
  system/physmem.c                 |  5 ++++
  system/vl.c                      |  2 ++
  target/arm/tcg/helper-a64.c      | 29 +++++++++++++++++++++
  target/riscv/tcg/op_helper.c     |  4 +++
- 10 files changed, 100 insertions(+)
+ 10 files changed, 105 insertions(+)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index 543d5fb7961932ae9ede3ef2932a208bee31f2c8..816d0e836e1ee7a38cf0e279217f45b6bb4a5674 100644
+index 543d5fb7961932ae9ede3ef2932a208bee31f2c8..0a36eb4b30e2ce184d1805f265bc6c9dbfbf5ee5 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
 @@ -47,6 +47,7 @@
@@ -53,7 +55,18 @@ index 543d5fb7961932ae9ede3ef2932a208bee31f2c8..816d0e836e1ee7a38cf0e279217f45b6
  #if !defined(CONFIG_USER_ONLY)
  #include "accel/tcg/iommu.h"
  #endif
-@@ -1124,11 +1125,17 @@ bool tcg_exec_realizefn(CPUState *cpu, Error **errp)
+@@ -1053,6 +1054,10 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
+             if (last_tb && tb_pc_exact(tb) && !tb_pc_exact(last_tb)) {
+                 last_tb = NULL;
+             }
++            /* Taint's check and track variants never chain into each other. */
++            if (last_tb && ((tb_cflags(last_tb) ^ tb_cflags(tb)) & CF_TAINT_CHECK)) {
++                last_tb = NULL;
++            }
+             /* See if we can patch the calling TB. */
+             if (last_tb) {
+                 tb_add_jump(last_tb, tb_exit, tb);
+@@ -1124,11 +1129,17 @@ bool tcg_exec_realizefn(CPUState *cpu, Error **errp)
          assert(tcg_ops->get_tb_cpu_state);
          assert(tcg_ops->mmu_index);
          tcg_ops->initialize();
@@ -197,14 +210,15 @@ index 89a6d6f3481989471771236af7f2f4ba879b5ad2..991f5422d71cabae684953653a014e03
          && qemu_log_in_addr_range(db->pc_first)) {
          FILE *logfile = qemu_log_trylock();
 diff --git a/include/exec/translation-block.h b/include/exec/translation-block.h
-index 42c627f4ce64c28e7389397fab49c790cf403338..db136e595376ce82892bc0bda03ce9226396313b 100644
+index 42c627f4ce64c28e7389397fab49c790cf403338..9da843de64efa15c3e899aeb83feac296ad14a0a 100644
 --- a/include/exec/translation-block.h
 +++ b/include/exec/translation-block.h
-@@ -86,6 +86,7 @@ struct TranslationBlock {
+@@ -86,6 +86,8 @@ struct TranslationBlock {
  #define CF_BP_PAGE       0x00040000 /* Breakpoint present in code page */
  #define CF_STEP_ATOMIC   0x00080000 /* Running in cpu_exec_step_atomic */
  #define CF_HOOKS         0x00100000 /* TCG address hooks are in use */
 +#define CF_TAINT         0x00200000 /* Taint shadow pass applied */
++#define CF_TAINT_CHECK   0x00400000 /* Taint: check-only variant (elastic) */
  #define CF_CLUSTER_MASK  0xff000000 /* Top 8 bits are cluster ID */
  #define CF_CLUSTER_SHIFT 24
  
