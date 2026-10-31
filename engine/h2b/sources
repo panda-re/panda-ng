@@ -1,0 +1,6 @@
+# H2b shadow helpers built with the engine: <arch> <helper sources...> (paths in the QEMU tree).
+# x86 lazy flags; aarch64 SHA/SM3/RAX1/AES (pauth, ptw and helper only so their callees inline);
+# riscv bitmanip. Oracle 1: engine/h2b/oracle1-<arch>-*.c (notes/phase3.md).
+x86_64 target/i386/tcg/cc_helper.c
+aarch64 target/arm/tcg/crypto_helper.c crypto/aes.c target/arm/tcg/pauth_helper.c target/arm/ptw.c target/arm/helper.c
+riscv64 target/riscv/tcg/bitmanip_helper.c

@@ -22,6 +22,7 @@
 #include "qemu/error-report.h"
 #include "qemu/log.h"
 #include "qemu/madvise.h"
+#include "qemu/target-info.h"
 #include "qemu/memalign.h"
 #include "qemu/main-loop.h"
 #include "qom/object.h"
@@ -77,6 +78,14 @@ static intptr_t senv_field_off;   /* env-relative offset of CPUState::taint_senv
 static int senv_idx;              /* temp index of the senv pointer global */
 static int nb_guest_globals;
 static uint16_t shadow_global[TCG_MAX_TEMPS];    /* guest global idx -> shadow global idx */
+/*
+ * The stack pointer's global(s): data flow only (address mode off) gives it no shadow. Its value is
+ * an address, and kernels move it with arithmetic that cancels out but taint cannot see cancel
+ * (arm64's VMAP_STACK check at exception entry: sp += x0; x0 = sp - x0; ...; sp -= x0), which with
+ * a tainted x0 tainted the kernel's stack pointer, and through it every frame and signed return
+ * address.
+ */
+static uint16_t sp_global[2];
 
 static uint8_t *ram_shadow;
 static uint64_t ram_shadow_size;
@@ -454,13 +463,29 @@ typedef struct H2bRow {
 static GHashTable *h2b_rows;    /* helper name -> const H2bRow * */
 static size_t h2b_off;          /* the staged arguments and shadows, in the shadow env */
 
+/*
+ * The shadow helpers: $PANDA_TAINT_H2B (empty: none), else the library the engine installs beside
+ * itself, <libpanda's dir>/panda-taint/libtaint-h2b-<target>.so (engine/h2b/build-all.sh), if any.
+ */
 static void h2b_load(void)
 {
     const char *path = getenv("PANDA_TAINT_H2B");
+    g_autofree char *def = NULL;
     const H2bRow *t;
+    Dl_info self;
     void *lib;
 
     h2b_rows = g_hash_table_new(g_str_hash, g_str_equal);
+    if (!path && dladdr((void *)h2b_load, &self) && self.dli_fname) {
+        g_autofree char *dir = g_path_get_dirname(self.dli_fname);
+        g_autofree char *name = g_strdup_printf("libtaint-h2b-%s.so", target_name());
+
+        def = g_build_filename(dir, "panda-taint", name, NULL);
+        if (!g_file_test(def, G_FILE_TEST_EXISTS)) {
+            return;
+        }
+        path = def;
+    }
     if (!path || !*path) {
         return;
     }
@@ -1265,6 +1290,16 @@ void taint_tcg_init(CPUState *cpu)
     senv_field_off = (uintptr_t)&cpu->taint_senv - (uintptr_t)cpu_env(cpu);
 
     nb_guest_globals = s->nb_globals;
+    /* the stack pointer's TCG global names (AArch32 code on aarch64 uses r13) */
+    const char *t = target_name();
+    static const char *const none[] = { NULL };
+    static const char *const a64[] = { "sp", "r13", NULL }, *const a32[] = { "r13", NULL };
+    static const char *const x64[] = { "rsp", NULL }, *const x32[] = { "esp", NULL };
+    static const char *const rv[] = { "x2/sp", NULL }, *const ppc[] = { "r1", NULL };
+    const char *const *sp_names = !strcmp(t, "aarch64") ? a64 : !strcmp(t, "arm") ? a32 :
+                                  !strcmp(t, "x86_64") ? x64 : !strcmp(t, "i386") ? x32 :
+                                  g_str_has_prefix(t, "riscv") ? rv :
+                                  g_str_has_prefix(t, "ppc") ? ppc : none;
     senv = tcg_global_mem_new_ptr(tcg_env, senv_field_off, "taint_senv");
     senv_idx = temp_idx(tcgv_ptr_temp(senv));
     for (int i = 0; i < nb_guest_globals; i++) {
@@ -1285,6 +1320,11 @@ void taint_tcg_init(CPUState *cpu)
                                                       g_strdup_printf("t_%s", ts->name)));
         }
         shadow_global[i] = temp_idx(sh);
+        for (int k = 0; sp_names[k]; k++) {
+            if (!strcmp(ts->name, sp_names[k]) && sp_global[1] == 0) {
+                sp_global[sp_global[0] ? 1 : 0] = i;
+            }
+        }
     }
     h1_hits = g_hash_table_new(g_str_hash, g_str_equal);
     h2b_load();
@@ -1361,6 +1401,15 @@ static bool is_env(TCGTemp *ts)
 
 static TCGTemp *tmp(TCGType ty);
 
+/* A guest global with a shadow the pass reads and writes. */
+static bool tracked_global(size_t i)
+{
+    if (i >= nb_guest_globals || !shadow_global[i]) {
+        return false;
+    }
+    return addr_taint || (i != sp_global[0] && i != sp_global[1]);
+}
+
 /* The shadow of @ts, allocating one for a temp that has none yet. */
 static TCGTemp *S(Pass *p, TCGTemp *ts)
 {
@@ -1371,7 +1420,7 @@ static TCGTemp *S(Pass *p, TCGTemp *ts)
     case TEMP_FIXED:
         return zero(ts->type);
     case TEMP_GLOBAL:
-        if (i < nb_guest_globals && shadow_global[i]) {
+        if (tracked_global(i)) {
             return &p->s->temps[shadow_global[i]];
         }
         return zero(ts->type);
@@ -1400,7 +1449,7 @@ static TCGTemp *D(Pass *p, TCGTemp *ts)
 {
     size_t i = temp_idx(ts);
 
-    if (ts->kind == TEMP_GLOBAL && !(i < nb_guest_globals && shadow_global[i])) {
+    if (ts->kind == TEMP_GLOBAL && !tracked_global(i)) {
         for (int k = 0; k < p->nd; k++) {
             if (p->dkey[k] == ts) {
                 return p->dval[k];
@@ -1773,7 +1822,7 @@ static uint32_t lslot(Pass *p, TCGTemp *ts)
     case TEMP_FIXED:
         return NOSLOT;
     case TEMP_GLOBAL:
-        return i < nb_guest_globals && shadow_global[i] ? ts->mem_offset : NOSLOT;
+        return tracked_global(i) ? ts->mem_offset : NOSLOT;
     default:
         return i < p->nb_temps ? env_size + i * LSLOT : NOSLOT;
     }
@@ -2820,6 +2869,19 @@ void taint_register_env_field_helper(const char *helper, TaintEnvFieldFn field, 
     h->field = field;
     h->write = write;
     g_hash_table_insert(env_field_helpers, (gpointer)helper, h);
+}
+
+void taint_env_copy(CPUState *cpu, ptrdiff_t dst, ptrdiff_t src, size_t len)
+{
+    uint8_t *s = cpu->taint_senv;
+
+    if (!s) {
+        return;
+    }
+    memmove(s + dst, s + src, len);
+    if (labels_on) {
+        memmove(labfile(cpu) + dst, labfile(cpu) + src, len * sizeof(uint32_t));
+    }
 }
 
 static void taint_env_field_set(CPUArchState *env, void *h, uint32_t regno, uint64_t sv,

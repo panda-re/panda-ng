@@ -84,7 +84,12 @@
               targets ? defaultTargets,
               # Portable to older glibc (the wheel's engine): see glibcCompat.
               portable ? false,
+              # Taint's H2b shadow helpers (engine/h2b): LLVM 21 at build time only.
+              taintH2b ? true,
             }:
+            let
+              llvm = pkgs.llvmPackages_21;
+            in
             pkgs.stdenv.mkDerivation {
               pname = "panda-engine" + lib.optionalString portable "-portable";
               inherit version;
@@ -154,6 +159,13 @@
                 # gdb embeds its own python3 (same nixpkgs); give it build.py's modules.
                 cp -r --no-preserve=mode ${libpanda-ng} ../libpanda-ng
                 (cd ../libpanda-ng && PYTHONPATH=${gdbPythonPath} bash run_all.sh $PWD/../source)
+              ''
+              + lib.optionalString taintH2b ''
+                # Shadow helpers from the targets' helper sources, with the engine's own flags.
+                H2B_CLANG=${llvm.clang}/bin/clang H2B_LLVM=${llvm.llvm}/bin H2B_LLVM_DEV=${llvm.llvm.dev} \
+                  bash ${./engine/h2b}/build-all.sh $PWD/build $PWD/h2b-out
+              ''
+              + ''
                 runHook postBuild
               '';
 
@@ -161,6 +173,11 @@
                 runHook preInstall
                 build/pyvenv/bin/meson install -C build --no-rebuild --quiet
                 cp build/contrib/plugins/libpanda_plugin_interface.so $out/lib/
+                # taint.c loads <libpanda's dir>/panda-taint/libtaint-h2b-<target>.so by default
+                if [ -d h2b-out ]; then
+                  mkdir -p $out/lib/panda-taint
+                  cp h2b-out/*.so $out/lib/panda-taint/
+                fi
                 # The board SDK: headers, per-target cflags, panda-board-cc (scripts/panda-sdk.sh).
                 bash scripts/panda-sdk.sh build $sdk
                 mkdir -p $out/include/panda-ng
