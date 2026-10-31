@@ -12,6 +12,16 @@
 // from panda_api.c
 
 /**
+ * panda_configure_capabilities() - Seal startup capabilities before extension loading.
+ * @requested: analysis-policy capability bits, not callback compatibility modes.
+ *
+ * Does not activate analysis. Repeating the same sealed request succeeds; a
+ * conflicting request fails without changing policy. Call before callbacks or
+ * plugin loading, including before panda_init when embedding the engine.
+ */
+bool panda_configure_capabilities(uint32_t requested);
+
+/**
  * panda_init() - Initialize panda guest.
  * @argc: number of command line args
  * @argv: command line args

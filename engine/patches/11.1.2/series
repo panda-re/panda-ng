@@ -84,3 +84,7 @@
 11.1.2/0084-replay-guard-guest-state-against-analysis-mutations.patch
 11.1.2/0085-replay-coalesce-repeated-schedules-of-a-pending-BH.patch
 11.1.2/0086-system-cancel-transient-analysis-before-restore-and-.patch
+11.1.2/0087-system-provision-startup-capabilities-and-gate-guest.patch
+11.1.2/0088-system-gate-handoff-and-snapshot-clock-adaptations.patch
+11.1.2/0089-riscv-select-snapshot-version-policy-at-registration.patch
+11.1.2/0090-system-seal-capabilities-before-startup-side-effects.patch

@@ -156,6 +156,30 @@ _PLUGIN_DIR = None
 
 ACCELS = ("tcg", "kvm")
 MONITORS = ("qmp", "hmp", None)
+CAPABILITIES = ("analysis", "fuzz", "rr", "guest-hypercall", "handoff", "penguin")
+
+
+def _analysis_capabilities(capabilities, rr, accel):
+    if capabilities is None:
+        selected = {"analysis", "guest-hypercall"}
+        if rr:
+            selected.add("rr")
+    else:
+        names = capabilities.split(",") if isinstance(capabilities, str) else capabilities
+        selected = set(names)
+        if selected == {"vanilla"}:
+            selected.clear()
+        if selected - set(CAPABILITIES):
+            raise ValueError("capabilities must name analysis, fuzz, rr, guest-hypercall, handoff or penguin; vanilla must stand alone")
+        if rr and "rr" not in selected:
+            raise ValueError("rr=True requires the rr capability")
+    if "rr" in selected and not rr:
+        raise ValueError("the rr capability requires rr=True for recordable device setup")
+    if "rr" in selected and accel != "tcg":
+        raise ValueError("the rr capability requires TCG")
+    if selected & {"fuzz", "rr"}:
+        selected.add("analysis")
+    return tuple(name for name in CAPABILITIES if name in selected)
 _HOST_ARCH = {"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64", "arm64": "aarch64"}
 
 
@@ -217,6 +241,7 @@ class Panda():
             modules=None, # panda modules (external board/device .so files) to load: -module PATH each
             accel=None, # "tcg" (the default) or "kvm"
             monitor="qmp", # "qmp", "hmp" or None: the monitor run_monitor_cmd talks to
+            capabilities=None, # explicit combinable startup capabilities; "vanilla" selects none
             ):
         '''
         Construct a new `Panda` object. A process has at most one `Panda` per arch, for its whole
@@ -240,6 +265,12 @@ class Panda():
                     osi_isf and osi_linux unless given other arguments for them.
             mem: size of memory for machine (e.g. "128M", "1G"). Default: the image's with
                     generic=, else "128M". It must match the RAM of a snapshot you load.
+            capabilities: startup capability names (analysis, fuzz, rr, guest-hypercall, handoff,
+                    penguin), or "vanilla"/an empty sequence for zero capabilities. Default enables
+                    analysis and guest hypercalls for Panda compatibility (plus rr with rr=True).
+                    Any selection but vanilla also provisions handoff.
+                    Accelerator selection is separate. Full upstream vanilla parity is not yet
+                    implemented; this selector must not be treated as proof of that parity.
             rr: make the VM recordable (-accel tcg,thread=single,rr-ready=on). Pass it to a replay too: it needs the recording's command line.
                     Not with accel="kvm" (ValueError): record and replay need TCG.
             accel: the accelerator, "tcg" (the default) or "kvm". "kvm" runs the guest on the host
@@ -349,6 +380,9 @@ class Panda():
             if why:
                 raise ValueError(f'accel="kvm": {why}')
         self.accel = accel
+        if any(a.lstrip('-').split('=')[0] == 'analysis-capabilities' for a in extra_args):
+            raise ValueError("choose startup capabilities with capabilities= only")
+        self.capabilities = _analysis_capabilities(capabilities, rr, accel)
 
         self.arch_name = arch
         self.machine = machine
@@ -466,10 +500,16 @@ class Panda():
         self.libpanda = self.ffi.dlopen(self.libpanda_path, self.ffi.RTLD_NOW |
                                         (self.ffi.RTLD_GLOBAL if self._engine_global else self.ffi.RTLD_LOCAL))
         self.C = self.ffi.dlopen(None)
+        requested = sum(1 << CAPABILITIES.index(name) for name in self.capabilities)
+        if not self.libpanda.panda_configure_capabilities(requested):
+            raise ValueError("engine startup capabilities already sealed differently")
 
         # Setup argv for panda
-        self.panda_args = [self.panda]
-        if not self._engine_global:
+        self.panda_args = [self.panda, '-analysis-capabilities',
+                           ','.join(self.capabilities) or 'vanilla']
+        if 'analysis' not in self.capabilities:
+            self.plugin_interface = None
+        elif not self._engine_global:
             self.plugin_interface = self.ffi.dlopen(own_interface, self.ffi.RTLD_NOW | self.ffi.RTLD_LOCAL)
             self.panda_args.extend(["-plugin", own_interface])
         else:
@@ -719,9 +759,10 @@ class Panda():
         # [NEW] Check if osi_linux was loaded via command line args and cache result
         self._osi_linux_loaded = self._plugin_loaded("osi_linux")
 
-        # Register __main_loop_wait_callback
-        self.register_callback(self.callback.main_loop_wait,
-                self.callback.main_loop_wait(self.__main_loop_wait_cb), '__main_loop_wait', observe_only=True)
+        # Vanilla does not install the PANDA bridge or its queued-work callback.
+        if 'analysis' in self.capabilities:
+            self.register_callback(self.callback.main_loop_wait,
+                    self.callback.main_loop_wait(self.__main_loop_wait_cb), '__main_loop_wait', observe_only=True)
 
         self._initialized_panda = True
 
@@ -747,6 +788,7 @@ class Panda():
         Queue a function to run at the next main loop
         fn is a function we want to run, args are arguments to apss to it
         '''
+        self._require_analysis("queued main-loop work")
         self.main_loop_wait_fnargs.append((fn, args))
         self.libpanda.panda_main_loop_kick()  # the main loop may be asleep with the VM stopped
 
@@ -1224,6 +1266,10 @@ class Panda():
         name_c = self.ffi.new("char[]", bytes(name, "utf-8"))
         return self.libpanda.panda_get_plugin_by_name(name_c) != self.ffi.NULL
 
+    def _require_analysis(self, operation):
+        if 'analysis' not in self.capabilities:
+            raise RuntimeError(f"{operation} requires the analysis capability")
+
     def load_plugin(self, name, args={}):
         '''
         Load a C plugin, optionally with arguments. Before or during run().
@@ -1239,6 +1285,7 @@ class Panda():
         Returns:
             None.
         '''
+        self._require_analysis("plugin loading")
         image_arg = {"osi_linux": ("kconf_file", self.kconf_file), "osi_isf": ("isf", self.isf)}.get(name)
         if image_arg and image_arg[1]:
             key, value = image_arg
@@ -1292,6 +1339,7 @@ class Panda():
         DT_NEEDED finds panda_* only in the global scope. For such a plugin the engine is put in
         the global scope, as pandare2 used to load it, if it is the only engine in this process.
         '''
+        self._require_analysis("plugin binding")
         if self._engine_global or name in self.plugins:
             return
         path = pjoin(self.get_plugin_path(), f"libpanda-{name}_{self.arch_name}-{self.target}.{self.dll_extension}")
@@ -1543,6 +1591,7 @@ class Panda():
 
 
     def _load_plugin_library(self, name):
+        self._require_analysis("plugin library loading")
         if not name in self.plugins.keys():
             plugin = pjoin(*[self.get_plugin_path(), f"libpanda-{name}_{self.arch_name}-{self.target}.{self.dll_extension}"])
             if not isfile(plugin):
@@ -2738,6 +2787,7 @@ class Panda():
         # func = main_loop_wait_cb
         # name = main_loop_wait
 
+        self._require_analysis("callback registration")
         cb = self.callback_dictionary[callback]
         if cb.name in ABORTS:
             raise NotImplementedError(f"callback {cb.name}: {unavailable(cb.name)}")

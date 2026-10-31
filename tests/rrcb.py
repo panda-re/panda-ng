@@ -1,6 +1,7 @@
 """Record/replay with analysis callbacks: a replay sees what the recording saw.
 
 Run: panda-python tests/rrcb.py <dir>/debian-13-x86_64.json [workdir]
+Set RRCB_HANDOFF=1 only for fixtures whose snapshots contain handoff extensions.
 
 Records tests/programs/calls_<arch>.S (see tests/calls.py) with Panda.record_cmd, then replays it
 in fresh processes. The recording and the first replay run the same callbacks: between the
@@ -24,7 +25,10 @@ from testlib import Checks, MAGIC, hypercall_args, in_program, progress, upload
 
 def child(mode, image, name, out, with_cbs):
     from pandare2 import Panda
-    panda = Panda(generic=image, rr=True)
+    capabilities = None
+    if os.environ.get('RRCB_HANDOFF') == '1':
+        capabilities = ('analysis', 'rr', 'guest-hypercall', 'handoff')
+    panda = Panda(generic=image, rr=True, capabilities=capabilities)
     guard = with_cbs == "guard"
     legacy_pc = with_cbs == "legacy-pc"
     with_cbs = with_cbs != "0"
