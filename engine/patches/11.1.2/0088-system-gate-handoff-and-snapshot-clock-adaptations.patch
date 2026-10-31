@@ -1,0 +1,576 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 29 Oct 2026 19:00:00 -0400
+Subject: [PATCH] system: gate handoff and snapshot clock adaptations
+
+Require handoff for added x86/ARM migration conversions and ARM/GIC snapshot
+subsections. Preserve upstream TSS and cpreg-validation paths otherwise.
+Require RR for cross-icount clock and PMCEID adaptations and load-time timer
+deferral/stall handling, leaving stock expired-timer RR scheduling unchanged.
+Require analysis (which fuzz implies) for the snapshot tick-clamp rewind:
+panda_fast_restore and repeated loadvm need it without fuzz.
+
+This bounded gate does not restore whole-engine vanilla parity. RISC-V version11
+acceptance needs an early descriptor-selection/version-validation solution and
+is deliberately not approximated with post_load rejection here.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
+Origin: new
+---
+ hw/i386/pc.c                        |  4 ++-
+ hw/intc/arm_gic_common.c            | 22 +++++++++---
+ replay/replay-snapshot.c            |  9 +++--
+ replay/replay.c                     |  4 +++
+ system/cpu-timers.c                 | 41 ++++++++++++++-------
+ target/arm/helper.c                 |  4 ++-
+ target/arm/machine.c                | 55 +++++++++++++++++++++--------
+ target/i386/kvm/kvm.c               |  7 ++--
+ target/i386/machine.c               |  7 ++--
+ target/i386/tcg/system/seg_helper.c |  5 ++-
+ 10 files changed, 118 insertions(+), 40 deletions(-)
+
+diff --git a/hw/i386/pc.c b/hw/i386/pc.c
+index 982545cc1a65c5da9116a1798245253168ef55e9..0f4307cd7133d03847f2d10d50ed3f958bc73115 100644
+--- a/hw/i386/pc.c
++++ b/hw/i386/pc.c
+@@ -1931,5 +1931,7 @@ static const VMStateDescription kvmclock_sink_vmsd = {
+ 
+ void kvmclock_sink_register(void)
+ {
+-    vmstate_register(NULL, 0, &kvmclock_sink_vmsd, &kvmclock_sink);
++    if (analysis_policy_has(ANALYSIS_CAP_HANDOFF)) {
++        vmstate_register(NULL, 0, &kvmclock_sink_vmsd, &kvmclock_sink);
++    }
+ }
+diff --git a/hw/intc/arm_gic_common.c b/hw/intc/arm_gic_common.c
+index fe7fba5374877d760bc1469d10c06f68bddfb8df..483c42e0a2409864b73a3c8c726672c3d960bfbe 100644
+--- a/hw/intc/arm_gic_common.c
++++ b/hw/intc/arm_gic_common.c
+@@ -19,6 +19,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "system/analysis-policy.h"
+ #include "qapi/error.h"
+ #include "qemu/module.h"
+ #include "qemu/error-report.h"
+@@ -58,21 +59,30 @@ static bool gic_is_kvm(GICState *s)
+ 
+ static bool gic_kvm_cpuif_needed(void *opaque)
+ {
+-    return gic_is_kvm(opaque);
++    return analysis_policy_has(ANALYSIS_CAP_HANDOFF) && gic_is_kvm(opaque);
+ }
+ 
+ static int gic_kvm_cpuif_pre_save(void *opaque)
+ {
++    if (!analysis_policy_has(ANALYSIS_CAP_HANDOFF)) {
++        return -EINVAL;
++    }
+     ((GICState *)opaque)->kvm_cpuif_in = true;
+     return 0;
+ }
+ 
++static int handoff_subsection_pre_load(void *opaque)
++{
++    return analysis_policy_has(ANALYSIS_CAP_HANDOFF) ? 0 : -EINVAL;
++}
++
+ static const VMStateDescription vmstate_gic_kvm_cpuif = {
+     .name = "arm_gic/kvm-cpuif",
+     .version_id = 1,
+     .minimum_version_id = 1,
+     .needed = gic_kvm_cpuif_needed,
+     .pre_save = gic_kvm_cpuif_pre_save,
++    .pre_load = handoff_subsection_pre_load,
+     .fields = (const VMStateField[]) {
+         VMSTATE_BOOL(kvm_cpuif_in, GICState),
+         VMSTATE_END_OF_LIST()
+@@ -81,7 +91,9 @@ static const VMStateDescription vmstate_gic_kvm_cpuif = {
+ 
+ static int gic_pre_load(void *opaque)
+ {
+-    ((GICState *)opaque)->kvm_cpuif_in = false;
++    if (analysis_policy_has(ANALYSIS_CAP_HANDOFF)) {
++        ((GICState *)opaque)->kvm_cpuif_in = false;
++    }
+     return 0;
+ }
+ 
+@@ -124,7 +136,8 @@ static int gic_post_load(void *opaque, int version_id)
+     GICState *s = (GICState *)opaque;
+     ARMGICCommonClass *c = ARM_GIC_COMMON_GET_CLASS(s);
+ 
+-    if (s->kvm_cpuif_in != gic_is_kvm(s)) {
++    if (analysis_policy_has(ANALYSIS_CAP_HANDOFF) &&
++        s->kvm_cpuif_in != gic_is_kvm(s)) {
+         if (!s->security_extn && !s->virt_extn) {
+             gic_convert_cpuif(s, gic_is_kvm(s));
+         } else {
+@@ -134,7 +147,8 @@ static int gic_post_load(void *opaque, int version_id)
+         }
+     }
+ 
+-    if (getenv("ARM_HANDOFF_DEBUG")) {
++    if (analysis_policy_has(ANALYSIS_CAP_HANDOFF) &&
++        getenv("ARM_HANDOFF_DEBUG")) {
+         for (int cpu = 0; cpu < s->num_cpu; cpu++) {
+             fprintf(stderr, "gic cpu%d: in_kvm_form=%d ctlr=0x%x cpu_ctlr=0x%x "
+                     "pmr=0x%x rprio=0x%x apr=%x/%x/%x/%x\n", cpu,
+diff --git a/replay/replay-snapshot.c b/replay/replay-snapshot.c
+index bbd9faa9be506b6b25f96abfb4c5b23c304eb560..cfe480e3f4203a666f559c96c1645395ca377963 100644
+--- a/replay/replay-snapshot.c
++++ b/replay/replay-snapshot.c
+@@ -10,6 +10,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "system/analysis-policy.h"
+ #include "qapi/error.h"
+ #include "system/replay.h"
+ #include "replay-internal.h"
+@@ -225,7 +226,9 @@ bool replay_load_snapshot(const char *name, Error **errp)
+ 
+     replay_state.begin_start = false;
+     replay_loading = true;
+-    timer_replay_load_begin();
++    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++        timer_replay_load_begin();
++    }
+     ok = load_snapshot(name, NULL, false, NULL, errp);
+     /*
+      * The start snapshot of x-rr-begin-record: marked ("replay/begin"), or
+@@ -233,7 +236,9 @@ bool replay_load_snapshot(const char *name, Error **errp)
+      */
+     convert = replay_state.begin_start ||
+               (replay_snapshot_reloaded && !g_strcmp0(name, replay_snapshot));
+-    timer_replay_load_end(ok, convert);
++    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++        timer_replay_load_end(ok, convert);
++    }
+     replay_loading = false;
+     replay_state.begin_start = false;
+     return ok;
+diff --git a/replay/replay.c b/replay/replay.c
+index 707baeef1578afbaa4d63bea4037fbdbb522dc2a..fc5cc2f34471f8a490b1d971d58ef5aa0f0d0878 100644
+--- a/replay/replay.c
++++ b/replay/replay.c
+@@ -10,6 +10,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "system/analysis-policy.h"
+ #include "qapi/error.h"
+ #include "exec/icount.h"
+ #include "system/replay.h"
+@@ -353,6 +354,9 @@ void replay_check_timer_stall(void)
+     uint64_t now_icount;
+     int64_t now_ms;
+ 
++    if (!analysis_policy_has(ANALYSIS_CAP_RR)) {
++        return;
++    }
+     g_assert(replay_mutex_locked());
+     /*
+      * Not the caller's deadline: that one was taken before it ran the
+diff --git a/system/cpu-timers.c b/system/cpu-timers.c
+index e217a4e4ea24ace74d39471b76dbb2def190beb2..21f40bb698c2bef968d0b83698a4b3b6c3d1b683 100644
+--- a/system/cpu-timers.c
++++ b/system/cpu-timers.c
+@@ -23,6 +23,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "system/analysis-policy.h"
+ #include "qemu/cutils.h"
+ #include "migration/vmstate.h"
+ #include "qapi/error.h"
+@@ -156,14 +157,18 @@ bool cpu_timers_clock_domain_changed(void)
+ 
+ static int timers_pre_load(void *opaque)
+ {
+-    icount_state_loaded = false;
+-    clock_domain_changed = false;
++    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++        icount_state_loaded = false;
++        clock_domain_changed = false;
++    }
+     return 0;
+ }
+ 
+ static int icount_timers_post_load(void *opaque, int version_id)
+ {
+-    icount_state_loaded = true;
++    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++        icount_state_loaded = true;
++    }
+     return 0;
+ }
+ 
+@@ -204,7 +209,9 @@ static int warp_timer_pre_load(void *opaque)
+ {
+     TimersState *s = opaque;
+ 
+-    icount_scratch_set(&s->icount_warp_timer, 0);
++    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++        icount_scratch_set(&s->icount_warp_timer, 0);
++    }
+     return 0;
+ }
+ 
+@@ -212,7 +219,9 @@ static int warp_timer_post_load(void *opaque, int version_id)
+ {
+     TimersState *s = opaque;
+ 
+-    icount_scratch_drop(&s->icount_warp_timer, 0);
++    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++        icount_scratch_drop(&s->icount_warp_timer, 0);
++    }
+     return 0;
+ }
+ 
+@@ -220,8 +229,10 @@ static int adjust_timers_pre_load(void *opaque)
+ {
+     TimersState *s = opaque;
+ 
+-    icount_scratch_set(&s->icount_rt_timer, 1);
+-    icount_scratch_set(&s->icount_vm_timer, 2);
++    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++        icount_scratch_set(&s->icount_rt_timer, 1);
++        icount_scratch_set(&s->icount_vm_timer, 2);
++    }
+     return 0;
+ }
+ 
+@@ -229,8 +240,10 @@ static int adjust_timers_post_load(void *opaque, int version_id)
+ {
+     TimersState *s = opaque;
+ 
+-    icount_scratch_drop(&s->icount_rt_timer, 1);
+-    icount_scratch_drop(&s->icount_vm_timer, 2);
++    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++        icount_scratch_drop(&s->icount_rt_timer, 1);
++        icount_scratch_drop(&s->icount_vm_timer, 2);
++    }
+     return 0;
+ }
+ 
+@@ -238,7 +251,8 @@ static int timers_post_load(void *opaque, int version_id)
+ {
+     TimersState *s = opaque;
+ 
+-    if (!icount_enabled() && icount_state_loaded) {
++    if (analysis_policy_has(ANALYSIS_CAP_RR) &&
++        !icount_enabled() && icount_state_loaded) {
+         /*
+          * The saver's virtual clock was its icount time; cpu_clock_offset
+          * (the stopped clock here) kept counting host time beside it.
+@@ -249,7 +263,8 @@ static int timers_post_load(void *opaque, int version_id)
+         clock_domain_changed = true;
+     }
+ 
+-    if (icount_enabled() && !icount_state_loaded) {
++    if (analysis_policy_has(ANALYSIS_CAP_RR) &&
++        icount_enabled() && !icount_state_loaded) {
+         /*
+          * cpu_clock_offset holds the virtual time at which the saving VM
+          * stopped (cpu_disable_ticks).  Continue from there.
+@@ -284,7 +299,9 @@ static int timers_post_load(void *opaque, int version_id)
+      * (QEMU_CLOCK_VIRTUAL: HPET, PM timer, APIC timer) by the time run since
+      * the snapshot, and the guest catches all of it up on each restore.
+      */
+-    s->cpu_ticks_prev = s->cpu_ticks_enabled ? 0 : s->cpu_ticks_offset;
++    if (analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
++        s->cpu_ticks_prev = s->cpu_ticks_enabled ? 0 : s->cpu_ticks_offset;
++    }
+     return 0;
+ }
+ 
+diff --git a/target/arm/helper.c b/target/arm/helper.c
+index 25b850f17c1470ee05a012697e2049dfce2997a6..2ad10fa08fff2657d9975ed637395ee9839b350b 100644
+--- a/target/arm/helper.c
++++ b/target/arm/helper.c
+@@ -40,6 +40,7 @@
+ 
+ static void switch_mode(CPUARMState *env, int mode);
+ #ifndef CONFIG_USER_ONLY
++#include "system/analysis-policy.h"
+ static void gt_recalc_timer(ARMCPU *cpu, int timeridx);
+ #endif
+ 
+@@ -210,7 +211,8 @@ bool write_cpustate_to_list(ARMCPU *cpu, bool kvm_sync)
+ static bool cpreg_mismatch_is_icount_only(const ARMCPRegInfo *ri,
+                                           uint64_t want, uint64_t got)
+ {
+-    return (ri->type & ARM_CP_CONST) &&
++    return analysis_policy_has(ANALYSIS_CAP_RR) &&
++           (ri->type & ARM_CP_CONST) &&
+            (!strcmp(ri->name, "PMCEID0") || !strcmp(ri->name, "PMCEID0_EL0")) &&
+            (want ^ got) == (1ULL << 0x008);
+ }
+diff --git a/target/arm/machine.c b/target/arm/machine.c
+index 63941f9c28a58ad9fbf32a312b5b020ebef55f8e..302e8d2bd541e112a15afc0d6d6d913fc6dbf601 100644
+--- a/target/arm/machine.c
++++ b/target/arm/machine.c
+@@ -1,4 +1,5 @@
+ #include "qemu/osdep.h"
++#include "system/analysis-policy.h"
+ #include "cpu.h"
+ #include "cpregs.h"
+ #include "trace.h"
+@@ -382,7 +383,7 @@ static int wfxt_timer_pre_load(void *opaque)
+ {
+     ARMCPU *cpu = opaque;
+ 
+-    if (!cpu->wfxt_timer) {
++    if (!cpu->wfxt_timer && analysis_policy_has(ANALYSIS_CAP_HANDOFF)) {
+         cpu->wfxt_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                                        wfxt_timer_dummy_cb, cpu);
+     }
+@@ -393,7 +394,7 @@ static int wfxt_timer_post_load(void *opaque, int version_id)
+ {
+     ARMCPU *cpu = opaque;
+ 
+-    if (!tcg_enabled()) {
++    if (analysis_policy_has(ANALYSIS_CAP_HANDOFF) && !tcg_enabled()) {
+         timer_del(cpu->wfxt_timer);
+     }
+     return 0;
+@@ -408,7 +409,8 @@ static int wfxt_timer_post_load(void *opaque, int version_id)
+  */
+ static bool virt_count_needed(void *opaque)
+ {
+-    return tcg_enabled() && arm_feature(&((ARMCPU *)opaque)->env,
++    return analysis_policy_has(ANALYSIS_CAP_HANDOFF) &&
++           tcg_enabled() && arm_feature(&((ARMCPU *)opaque)->env,
+                                         ARM_FEATURE_AARCH64);
+ }
+ 
+@@ -423,10 +425,18 @@ static int virt_count_pre_save(void *opaque)
+ 
+ static int virt_count_post_load(void *opaque, int version_id)
+ {
++    if (!analysis_policy_has(ANALYSIS_CAP_HANDOFF)) {
++        return -EINVAL;
++    }
+     ((ARMCPU *)opaque)->handoff_vcnt_valid = true;
+     return 0;
+ }
+ 
++static int handoff_subsection_pre_load(void *opaque)
++{
++    return analysis_policy_has(ANALYSIS_CAP_HANDOFF) ? 0 : -EINVAL;
++}
++
+ static const VMStateDescription vmstate_virt_count = {
+     .name = "cpu/virt-count",
+     .version_id = 1,
+@@ -434,6 +444,7 @@ static const VMStateDescription vmstate_virt_count = {
+     .needed = virt_count_needed,
+     .pre_save = virt_count_pre_save,
+     .post_load = virt_count_post_load,
++    .pre_load = handoff_subsection_pre_load,
+     .fields = (const VMStateField[]) {
+         VMSTATE_UINT64(handoff_vcnt, ARMCPU),
+         VMSTATE_END_OF_LIST()
+@@ -1128,8 +1139,10 @@ static int cpu_pre_load(void *opaque)
+      * irq-line-state subsection in the incoming migration state.
+      */
+     env->irq_line_state = UINT32_MAX;
+-    cpu->handoff_vcnt_valid = false;
+-    cpu->handoff_in = false;
++    if (analysis_policy_has(ANALYSIS_CAP_HANDOFF)) {
++        cpu->handoff_vcnt_valid = false;
++        cpu->handoff_in = false;
++    }
+ 
+     if (tcg_enabled() || hvf_enabled()) {
+         pmu_op_start(env);
+@@ -1158,12 +1171,13 @@ static void handle_cpreg_missing_in_incoming_stream(ARMCPU *cpu, uint64_t kvmidx
+ {
+     g_autofree gchar *name = print_register_name(kvmidx);
+ 
+-    if (cpu->handoff_in && getenv("ARM_HANDOFF_DEBUG")) {
++    if (analysis_policy_has(ANALYSIS_CAP_HANDOFF) &&
++        cpu->handoff_in && getenv("ARM_HANDOFF_DEBUG")) {
+         fprintf(stderr, "handoff missing 0x%" PRIx64 "\n", kvmidx);
+     }
+     if (arm_cpu_match_cpreg_mig_tolerance(cpu, kvmidx,
+                                           0, 0, ToleranceNotOnBothEnds) ||
+-        cpu->handoff_in) {
++        (analysis_policy_has(ANALYSIS_CAP_HANDOFF) && cpu->handoff_in)) {
+         /* handoff: the destination's own (reset) value stands */
+         trace_tolerate_cpreg_missing_in_incoming_stream(name);
+         return;
+@@ -1378,7 +1392,8 @@ static void arm_cpu_handoff_vm_state(void *opaque, bool running,
+ {
+     ARMCPU *cpu = opaque;
+ 
+-    if (running && cpu->handoff_timer_resync && tcg_enabled()) {
++    if (analysis_policy_has(ANALYSIS_CAP_HANDOFF) && running &&
++        cpu->handoff_timer_resync && tcg_enabled()) {
+         cpu->handoff_timer_resync = false;
+         arm_gt_recalc_el1_timers(cpu);
+     }
+@@ -1411,7 +1426,9 @@ static int cpu_post_load(void *opaque, int version_id)
+              CPU_INTERRUPT_VIRQ | CPU_INTERRUPT_VFIQ);
+     }
+ 
+-    arm_cpu_handoff_translate(cpu);
++    if (analysis_policy_has(ANALYSIS_CAP_HANDOFF)) {
++        arm_cpu_handoff_translate(cpu);
++    }
+ 
+     /* Update the values list from the incoming migration data.
+      * Anything in the incoming data which we don't know about is
+@@ -1429,9 +1446,11 @@ static int cpu_post_load(void *opaque, int version_id)
+             continue;
+         }
+         if (cpu->cpreg_vmstate_indexes[v] < cpu->cpreg_indexes[i]) {
+-            fail |= handle_cpreg_only_in_incoming_stream(cpu,
++            bool reg_fail = handle_cpreg_only_in_incoming_stream(cpu,
+                                                         cpu->cpreg_vmstate_indexes[v],
+                                                         cpu->cpreg_vmstate_values[v]);
++            fail = analysis_policy_has(ANALYSIS_CAP_HANDOFF) ?
++                   fail | reg_fail : reg_fail;
+             v++;
+             continue;
+         }
+@@ -1454,9 +1473,11 @@ static int cpu_post_load(void *opaque, int version_id)
+      * still regs in the input stream, continue parsing the vmstate array
+      */
+     for ( ; v < cpu->cpreg_vmstate_array_len; v++) {
+-        fail |= handle_cpreg_only_in_incoming_stream(cpu,
++        bool reg_fail = handle_cpreg_only_in_incoming_stream(cpu,
+                                                     cpu->cpreg_vmstate_indexes[v],
+                                                     cpu->cpreg_vmstate_values[v]);
++        fail = analysis_policy_has(ANALYSIS_CAP_HANDOFF) ?
++               fail | reg_fail : reg_fail;
+     }
+     if (fail) {
+         return -1;
+@@ -1467,7 +1488,8 @@ static int cpu_post_load(void *opaque, int version_id)
+             return -1;
+         }
+     } else {
+-        if (!write_list_to_cpustate(cpu) && !cpu->handoff_in) {
++        if (!write_list_to_cpustate(cpu) &&
++            !(analysis_policy_has(ANALYSIS_CAP_HANDOFF) && cpu->handoff_in)) {
+             /*
+              * Under handoff a register both lists name can still be
+              * read-only here (e.g. a KVM-writable PMU or debug field TCG
+@@ -1475,7 +1497,8 @@ static int cpu_post_load(void *opaque, int version_id)
+              */
+             return -1;
+         }
+-        if (cpu->handoff_vcnt_valid &&
++        if (analysis_policy_has(ANALYSIS_CAP_HANDOFF) &&
++            cpu->handoff_vcnt_valid &&
+             !arm_feature(env, ARM_FEATURE_EL2)) {
+             /*
+              * No CNTVOFF_EL2 in the list without EL2: rebuild the offset so
+@@ -1485,7 +1508,8 @@ static int cpu_post_load(void *opaque, int version_id)
+             env->cp15.cntvoff_el2 = gt_get_countervalue(env) -
+                                     cpu->handoff_vcnt;
+         }
+-        if (getenv("ARM_HANDOFF_DEBUG")) {
++        if (analysis_policy_has(ANALYSIS_CAP_HANDOFF) &&
++            getenv("ARM_HANDOFF_DEBUG")) {
+             fprintf(stderr, "handoff timer: now=0x%" PRIx64 " vcnt=0x%" PRIx64
+                     " cntvoff=0x%" PRIx64 " vctl=0x%" PRIx64 " vcval=0x%" PRIx64
+                     " pctl=0x%" PRIx64 " pcval=0x%" PRIx64 " cntkctl=0x%" PRIx64
+@@ -1516,7 +1540,8 @@ static int cpu_post_load(void *opaque, int version_id)
+     if (tcg_enabled()) {
+         hw_breakpoint_update_all(cpu);
+         hw_watchpoint_update_all(cpu);
+-        if (cpu->handoff_in || cpu->handoff_vcnt_valid) {
++        if (analysis_policy_has(ANALYSIS_CAP_HANDOFF) &&
++            (cpu->handoff_in || cpu->handoff_vcnt_valid)) {
+             /*
+              * A KVM source leaves TCG's timer QEMUTimers unarmed, and its
+              * GIC state says nothing about the timer lines (KVM drives them
+diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
+index 57ef95b083d28cbc91b9a522e2b65a7f53839362..ae2f65ef66ee72ad7b4e045c3bde0a9f1d1dd64d 100644
+--- a/target/i386/kvm/kvm.c
++++ b/target/i386/kvm/kvm.c
+@@ -13,6 +13,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "system/analysis-policy.h"
+ #include "qapi/qapi-events-run-state.h"
+ #include "qapi/error.h"
+ #include "qapi/visitor.h"
+@@ -3955,7 +3956,8 @@ static int kvm_put_sregs(X86CPU *cpu)
+      * so a TCG snapshot has TR "available" (type 1/9); VMX entry requires a
+      * busy TSS (3/11) and fails with hardware error 0x80000021.
+      */
+-    if (sregs.tr.type == 1 || sregs.tr.type == 9) {
++    if (analysis_policy_has(ANALYSIS_CAP_HANDOFF) &&
++        (sregs.tr.type == 1 || sregs.tr.type == 9)) {
+         sregs.tr.type |= 2;
+     }
+     set_seg(&sregs.ldt, &env->ldt);
+@@ -4010,7 +4012,8 @@ static int kvm_put_sregs2(X86CPU *cpu)
+      * so a TCG snapshot has TR "available" (type 1/9); VMX entry requires a
+      * busy TSS (3/11) and fails with hardware error 0x80000021.
+      */
+-    if (sregs.tr.type == 1 || sregs.tr.type == 9) {
++    if (analysis_policy_has(ANALYSIS_CAP_HANDOFF) &&
++        (sregs.tr.type == 1 || sregs.tr.type == 9)) {
+         sregs.tr.type |= 2;
+     }
+     set_seg(&sregs.ldt, &env->ldt);
+diff --git a/target/i386/machine.c b/target/i386/machine.c
+index 33231a7a7c3d6c46c7d3e98c259f5d838f53ee6f..4f56e6c1b4c2f9339af916e9341d7b3a631abcdd 100644
+--- a/target/i386/machine.c
++++ b/target/i386/machine.c
+@@ -1,4 +1,5 @@
+ #include "qemu/osdep.h"
++#include "system/analysis-policy.h"
+ #include "cpu.h"
+ #include "exec/cputlb.h"
+ #include "hw/isa/isa.h"
+@@ -309,7 +310,8 @@ static int cpu_pre_save(void *opaque)
+     }
+ 
+     /* rrux: under TCG env->tsc is otherwise unused; save the guest TSC */
+-    if (tcg_enabled()) {
++    if (tcg_enabled() && (analysis_policy_has(ANALYSIS_CAP_RR) ||
++                          analysis_policy_has(ANALYSIS_CAP_HANDOFF))) {
+         env->tsc = cpu_get_tsc(env) + env->tsc_offset;
+     }
+ 
+@@ -328,7 +330,8 @@ static int cpu_post_load(void *opaque, int version_id)
+      * and this process runs TCG with icount: keep the guest TSC's value
+      * (env->tsc, written by the saver) continuous.
+      */
+-    if (tcg_enabled() && cpu_timers_clock_domain_changed()) {
++    if (tcg_enabled() && analysis_policy_has(ANALYSIS_CAP_RR) &&
++        cpu_timers_clock_domain_changed()) {
+         env->tsc_offset = env->tsc - cpu_get_tsc(env);
+     }
+ 
+diff --git a/target/i386/tcg/system/seg_helper.c b/target/i386/tcg/system/seg_helper.c
+index 8ed8460b236289ad8817ecd05e841d58c0abdd3b..27987c29750e0d129efa99b0d9ca95013d09d983 100644
+--- a/target/i386/tcg/system/seg_helper.c
++++ b/target/i386/tcg/system/seg_helper.c
+@@ -19,6 +19,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "system/analysis-policy.h"
+ #include "qemu/log.h"
+ #include "qemu/main-loop.h"
+ #include "cpu.h"
+@@ -286,7 +287,9 @@ void helper_check_io(CPUX86State *env, uint32_t addr, uint32_t size)
+      * loaded from a KVM snapshot is busy, as VMX requires.
+      */
+     if (!(env->tr.flags & DESC_P_MASK) ||
+-        (((env->tr.flags >> DESC_TYPE_SHIFT) & 0xf) | 2) != 11 ||
++        (((env->tr.flags >> DESC_TYPE_SHIFT) & 0xf) != 9 &&
++         !(analysis_policy_has(ANALYSIS_CAP_HANDOFF) &&
++           ((env->tr.flags >> DESC_TYPE_SHIFT) & 0xf) == 11)) ||
+         env->tr.limit < 103) {
+         goto fail;
+     }

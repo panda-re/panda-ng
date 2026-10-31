@@ -2,7 +2,7 @@
 
 # The engine patch series
 
-QEMU 11.1.2 plus 86 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
+QEMU 11.1.2 plus 90 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
@@ -92,3 +92,7 @@ QEMU 11.1.2 plus 86 patches (`engine/patches/11.1.2/`). `engine/README.md` expla
 | 0084 | replay: guard guest state against analysis mutations | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
 | 0085 | replay: coalesce repeated schedules of a pending BH | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
 | 0086 | system: cancel transient analysis before restore and reset | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later AND MIT |
+| 0087 | system: provision startup capabilities and gate guest hypercalls | [python](../features.md#python) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
+| 0088 | system: gate handoff and snapshot clock adaptations | [kvm-tcg](../features.md#kvm-tcg) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
+| 0089 | riscv: select snapshot version policy at registration | [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
+| 0090 | system: seal capabilities before startup side effects | [python](../features.md#python) | new | MIT |

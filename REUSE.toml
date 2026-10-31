@@ -44,6 +44,7 @@ SPDX-License-Identifier = "GPL-2.0-only"
 path = [
   "engine/patches/11.1.2/0084-replay-guard-guest-state-against-analysis-mutations.patch",
   "engine/patches/11.1.2/0085-replay-coalesce-repeated-schedules-of-a-pending-BH.patch",
+  "engine/patches/11.1.2/0089-riscv-select-snapshot-version-policy-at-registration.patch",
   "engine/patches/11.1.2/0002-build-emit-shared-libraries-for-the-Penguin-embeddin.patch",
   "engine/patches/11.1.2/0006-target-riscv-route-guest-hypercalls-into-Penguin.patch",
   "engine/patches/11.1.2/0007-target-loongarch-route-guest-hypercalls-into-Penguin.patch",
@@ -145,6 +146,7 @@ path = [
   "engine/patches/11.1.2/0061-panda-before_loadvm-hook-before-qemu_loadvm_state-lo.patch",
   "engine/patches/11.1.2/0075-block-qcow2-drop-the-active-VM-state-before-a-savevm.patch",
   "engine/patches/11.1.2/0076-system-cpu-timers-a-snapshot-load-resets-the-ticks-m.patch",
+  "engine/patches/11.1.2/0090-system-seal-capabilities-before-startup-side-effects.patch",
   "engine/patches/11.1.2/0081-migration-qemu-file-inline-the-in-buffer-case-of-the.patch",
 ]
 precedence = "override"
@@ -153,6 +155,8 @@ SPDX-License-Identifier = "MIT"
 
 [[annotations]]
 path = [
+  "engine/patches/11.1.2/0087-system-provision-startup-capabilities-and-gate-guest.patch",
+  "engine/patches/11.1.2/0088-system-gate-handoff-and-snapshot-clock-adaptations.patch",
   "engine/patches/11.1.2/0018-accel-tcg-translation-time-address-hooks-and-registe.patch",
   "engine/patches/11.1.2/0036-accel-tcg-address-hooks-keep-CF_PCREL-on-outside-hoo.patch",
   "engine/patches/11.1.2/0045-panda-guest_hypercall-on-penguin-s-hypercall-instruc.patch",

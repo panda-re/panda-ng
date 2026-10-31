@@ -1,6 +1,7 @@
 """Replay observers retain the recording's execution while mutation attempts fail.
 
 Run: panda-python tests/replay_guard.py <image.json> [workdir]
+Set RRCB_HANDOFF=1 only for fixtures whose snapshots contain handoff extensions.
 Uses rrcb's guest call graph and compares block/instruction/memory hashes and
 hypercall instruction counts against a clean replay. Attempts native writes,
 faulting reads, syscall skip/argument/return rewrites, late mutator registration
@@ -133,7 +134,10 @@ def live(image):
     """A live mutating hypercall keeps its result, even when it removes itself."""
     from pandare2 import Panda
     from testlib import MAGIC, hypercall_args, in_program, upload
-    panda = Panda(generic=image)
+    capabilities = None
+    if os.environ.get('RRCB_HANDOFF') == '1':
+        capabilities = ('analysis', 'guest-hypercall', 'handoff')
+    panda = Panda(generic=image, capabilities=capabilities)
     checks = Checks(panda.arch_name)
     reg = 'RAX' if panda.arch_name == 'x86_64' else 'X0'
     seen = {}

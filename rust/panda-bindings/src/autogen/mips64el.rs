@@ -44941,6 +44941,9 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    pub fn panda_configure_capabilities(requested: u32) -> bool;
+}
+unsafe extern "C" {
     pub fn panda_init(
         argc: ::std::os::raw::c_int,
         argv: *mut *mut ::std::os::raw::c_char,
