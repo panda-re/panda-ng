@@ -1521,6 +1521,87 @@ static void rule_or(Pass *p, TCGType ty, unsigned vece, TCGTemp *d,
 }
 
 /* d = OP(sa, b) | pcast(sb): a shift/rotate by a tainted amount taints everything. */
+/*
+ * Scalar mul: a change in a's tainted bits moves the product only from bit
+ * lowbit(sa) + ctz(any value b can take) up, i.e. from lowbit(sa) << ctz(b | sb); the same for b.
+ * left() of the two. Exact for a clean factor of 0 (x * 0 is clean), and never below the
+ * add-style rule's lowest bit, so sound where it is.
+ */
+static void rule_mul64(TCGv_i64 d, TCGv_i64 a, TCGv_i64 sa, TCGv_i64 b, TCGv_i64 sb)
+{
+    TCGv_i64 r = s64(), t = s64(), z = s64(), l = s64(), zero = tcg_constant_i64(0);
+    TCGv_i64 xs[2][3] = { { sa, b, sb }, { sb, a, sa } };
+
+    /* d may be the shadow of an input (mul t0, t0, t1): written only at the end */
+    tcg_gen_movi_i64(r, 0);
+    for (int i = 0; i < 2; i++) {
+        TCGv_i64 s = xs[i][0], v = xs[i][1], sv = xs[i][2];
+
+        tcg_gen_or_i64(z, v, sv);               /* bits the other factor can have set */
+        tcg_gen_ctzi_i64(t, z, 0);
+        tcg_gen_neg_i64(l, s);
+        tcg_gen_and_i64(l, l, s);               /* lowest tainted bit */
+        tcg_gen_shl_i64(t, l, t);
+        tcg_gen_movcond_i64(TCG_COND_EQ, t, z, zero, zero, t);
+        tcg_gen_or_i64(r, r, t);
+    }
+    tcg_gen_neg_i64(t, r);
+    tcg_gen_or_i64(d, r, t);
+}
+
+static void rule_mul(Pass *p, TCGType ty, TCGTemp *d, TCGTemp *a, TCGTemp *b)
+{
+    if (ty == TCG_TYPE_I64) {
+        rule_mul64(I64(D(p, d)), I64(a), I64(S(p, a)), I64(b), I64(S(p, b)));
+        return;
+    }
+    TCGv_i64 r = s64(), va = s64(), vb = s64(), wa = s64(), wb = s64();
+
+    tcg_gen_extu_i32_i64(va, I32(a));
+    tcg_gen_extu_i32_i64(vb, I32(b));
+    tcg_gen_extu_i32_i64(wa, I32(S(p, a)));
+    tcg_gen_extu_i32_i64(wb, I32(S(p, b)));
+    rule_mul64(r, va, wa, vb, wb);
+    tcg_gen_extrl_i64_i32(I32(D(p, d)), r);
+}
+
+/*
+ * mulu2/muls2: the low half as rule_mul (signed or not, the low half is the same product); the
+ * high half all ones when a tainted bit can reach the product at all, i.e. when a factor has a
+ * tainted bit and the other can be nonzero. Both computed before either output is written: the
+ * outputs may be the inputs.
+ */
+static void rule_mul2(Pass *p, TCGType ty, TCGTemp *d, TCGTemp *hi, TCGTemp *x, TCGTemp *y)
+{
+    TCGv_i64 a = s64(), b = s64(), sa = s64(), sb = s64(), lo = s64(), h = s64(), t = s64();
+
+    if (ty == TCG_TYPE_I64) {
+        tcg_gen_mov_i64(a, I64(x));
+        tcg_gen_mov_i64(b, I64(y));
+        tcg_gen_mov_i64(sa, I64(S(p, x)));
+        tcg_gen_mov_i64(sb, I64(S(p, y)));
+    } else {
+        tcg_gen_extu_i32_i64(a, I32(x));
+        tcg_gen_extu_i32_i64(b, I32(y));
+        tcg_gen_extu_i32_i64(sa, I32(S(p, x)));
+        tcg_gen_extu_i32_i64(sb, I32(S(p, y)));
+    }
+    rule_mul64(lo, a, sa, b, sb);
+    tcg_gen_or_i64(t, b, sb);
+    tcg_gen_movcond_i64(TCG_COND_NE, h, t, tcg_constant_i64(0), sa, tcg_constant_i64(0));
+    tcg_gen_or_i64(t, a, sa);
+    tcg_gen_movcond_i64(TCG_COND_NE, t, t, tcg_constant_i64(0), sb, tcg_constant_i64(0));
+    tcg_gen_or_i64(h, h, t);
+    tcg_gen_negsetcondi_i64(TCG_COND_NE, h, h, 0);
+    if (ty == TCG_TYPE_I64) {
+        tcg_gen_mov_i64(I64(D(p, hi)), h);
+        tcg_gen_mov_i64(I64(D(p, d)), lo);
+    } else {
+        tcg_gen_extrl_i64_i32(I32(D(p, hi)), h);
+        tcg_gen_extrl_i64_i32(I32(D(p, d)), lo);
+    }
+}
+
 static void rule_shift(Pass *p, TCGOp *op, TCGType ty)
 {
     TCGTemp *d = arg_temp(op->args[0]), *a = arg_temp(op->args[1]), *b = arg_temp(op->args[2]);
@@ -2958,7 +3039,13 @@ static void taint_op(Pass *p, TCGOp *op, TCGOp *next)
     case INDEX_op_orc: case INDEX_op_orc_vec:
         rule_or(p, ty, vece, d, a, b, true);
         break;
-    case INDEX_op_add: case INDEX_op_sub: case INDEX_op_mul:
+    case INDEX_op_mul:
+        if (ty <= TCG_TYPE_I64) {
+            rule_mul(p, ty, d, a, b);
+            break;
+        }
+        /* fall through */
+    case INDEX_op_add: case INDEX_op_sub:
     case INDEX_op_add_vec: case INDEX_op_sub_vec: case INDEX_op_mul_vec: {
         TCGTemp *t = tmp(ty);
 
@@ -3065,17 +3152,9 @@ static void taint_op(Pass *p, TCGOp *op, TCGOp *next)
         g_or(ty, vece, D(p, d), t, m);
         break;
     }
-    case INDEX_op_mulu2: case INDEX_op_muls2: {
-        /* lo: carry smear; hi: everything */
-        TCGTemp *hi = arg_temp(op->args[1]);
-        TCGTemp *x = arg_temp(op->args[2]), *y = arg_temp(op->args[3]);
-        TCGTemp *t = tmp(ty);
-
-        g_or(ty, 0, t, S(p, x), S(p, y));
-        g_pcast(ty, 0, D(p, hi), t);
-        g_lsmear(ty, 0, D(p, d), t);
+    case INDEX_op_mulu2: case INDEX_op_muls2:
+        rule_mul2(p, ty, d, arg_temp(op->args[1]), arg_temp(op->args[2]), arg_temp(op->args[3]));
         break;
-    }
     default:
         /* div/rem/mulh/clz/ctz/ctpop/abs/saturating/min/max and anything new */
         if (!(def->flags & TCG_OPF_VECTOR) &&
