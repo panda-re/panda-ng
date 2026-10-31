@@ -90,7 +90,7 @@ static unsigned pc_size;
 static struct {
     uint64_t tbs, ops, untracked_ld, untracked_st, ptr_calls, ld_slow, st_slow,
              ram_oob, unknown_ops, h1_tainted, device_writes, device_bytes,
-             ptr_tainted, branch_events, pc_events, lab_calls, lab_many, mmio_tainted;
+             ptr_tainted, branch_events, pc_events, lab_calls, lab_many, mmio_tainted, helper_mem_bytes;
 } stats;
 static GHashTable *h1_hits;     /* helper name -> tainted-call count */
 
@@ -2756,6 +2756,57 @@ void taint_device_write(uint64_t ram_addr, uint64_t len)
     }
 }
 
+/*
+ * Helpers that move guest memory themselves (aarch64 FEAT_MOPS CPY*, SET*) report each step:
+ * glibc's memcpy/memset are these instructions on a CPU that has them. A step never crosses a
+ * page on either side, and its pages are in the TLB (the helper just accessed them).
+ */
+void taint_helper_copy(CPUState *cpu, vaddr to, int to_idx, vaddr from, int from_idx,
+                       uint64_t len)
+{
+    uint8_t *d = ram_shadow_at(cpu, to, to_idx, MMU_DATA_STORE);
+    uint8_t *s = ram_shadow_at(cpu, from, from_idx, MMU_DATA_LOAD);
+
+    if (!d) {
+        return;     /* not RAM: a device's register keeps no shadow */
+    }
+    len = MIN(len, ram_shadow_size - (d - ram_shadow));
+    stats.helper_mem_bytes += len;
+    if (!s || s + len > ram_shadow + ram_shadow_size) {
+        memset(d, 0, len);  /* from a device: clean, as a load from it with no source cb */
+        return;
+    }
+    memmove(d, s, len);
+    if (ram_lab && d - ram_shadow + len <= ram_lab_size && s - ram_shadow + len <= ram_lab_size) {
+        memmove(ram_lab + (d - ram_shadow), ram_lab + (s - ram_shadow), len * sizeof(uint32_t));
+    }
+}
+
+/* ... and a fill of [to, to + len) with the low byte of the CPU-state field at @data_off
+ * (negative: a constant). */
+void taint_helper_fill(CPUState *cpu, vaddr to, int idx, uint64_t len, ptrdiff_t data_off)
+{
+    uint8_t *d = ram_shadow_at(cpu, to, idx, MMU_DATA_STORE);
+    uint8_t m = 0;
+    uint32_t id = 0;
+
+    if (!d) {
+        return;
+    }
+    len = MIN(len, ram_shadow_size - (d - ram_shadow));
+    stats.helper_mem_bytes += len;
+    if (data_off >= 0 && data_off < env_size) {
+        m = ((uint8_t *)cpu->taint_senv)[data_off];
+        id = m ? labfile(cpu)[data_off] : 0;
+    }
+    memset(d, m, len);
+    if (ram_lab && d - ram_shadow + len <= ram_lab_size) {
+        for (uint64_t i = 0; i < len; i++) {
+            ram_lab[d - ram_shadow + i] = id;
+        }
+    }
+}
+
 void taint_set_device_write_cb(TaintDeviceWriteFn fn, void *opaque)
 {
     device_write_fn = fn;
@@ -3066,12 +3117,12 @@ void taint_stats(char *buf, size_t len)
         " unknown_ops %" PRIu64 " h1_tainted %" PRIu64 " device_writes %" PRIu64
         " device_bytes %" PRIu64 " ptr_tainted %" PRIu64 " branch_events %" PRIu64
         " pc_events %" PRIu64 " lab_calls %" PRIu64 " lab_many %" PRIu64 " lab_sets %u"
-        " mmio_tainted %" PRIu64 "\n",
+        " mmio_tainted %" PRIu64 " helper_mem_bytes %" PRIu64 "\n",
         stats.tbs, stats.ops, stats.untracked_ld, stats.untracked_st, stats.ptr_calls,
         stats.ld_slow, stats.st_slow, stats.ram_oob, stats.unknown_ops, stats.h1_tainted,
         stats.device_writes, stats.device_bytes, stats.ptr_tainted, stats.branch_events,
         stats.pc_events, stats.lab_calls, stats.lab_many, lsets ? lsets->len - 2 : 0,
-        stats.mmio_tainted);
+        stats.mmio_tainted, stats.helper_mem_bytes);
     if (h1_hits) {
         g_hash_table_iter_init(&it, h1_hits);
         while (g_hash_table_iter_next(&it, &k, &v)) {
