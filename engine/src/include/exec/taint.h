@@ -35,6 +35,9 @@ void taint_helper_fill(CPUState *cpu, vaddr to, int idx, uint64_t len, ptrdiff_t
  * (env, regno) -> value. The shadow (and labels) move with the value.
  */
 typedef ptrdiff_t (*TaintEnvFieldFn)(void *env, uint32_t regno);
+/* Target C code copied @len bytes of the CPU state from env offset @src to @dst (a register bank
+ * switch, e.g. Arm's stack pointers on exception entry and return): the shadow follows. */
+void taint_env_copy(CPUState *cpu, ptrdiff_t dst, ptrdiff_t src, size_t len);
 void taint_register_env_field_helper(const char *helper, TaintEnvFieldFn field, bool write);
 /* cputlb.c: the ram_addr behind a TLB-mapped address, without filling or faulting. */
 bool tlb_peek_ram_addr(CPUState *cpu, vaddr addr, int mmu_idx,
