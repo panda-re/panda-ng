@@ -16,6 +16,8 @@
 #   pyplug penguin's own Syscalls plugin (apis/syscalls.py, backend=trap) and
 #          mem.py on penguin's qemu_compat, under penhost.py: sc-pen, sc-fault,
 #          sc-reap, native and 32-bit
+#   uapi   penguin's Syscalls with no kernel ISF (ISF=none: uapi numbers, no
+#          OSI identity): sc-pen's hooks without comm, scope or pid filters
 #   penbench   bench's rule sets as penguin_syscall_* hooks
 #   pybench    bench's rule sets as hooks of penguin's Syscalls (backend=trap)
 # trap mode needs QEMU syscall events: x86_64 and aarch64 so far
@@ -107,6 +109,9 @@ pyplug() { a=$1     # penguin's Syscalls with backend=trap, under penhost.py
   (export PENHOST=pen; one npen $a sc-pen -; one npen32 $a c32-sc-pen -
    PENHOST=fault one nfault $a sc-fault -; PENHOST=fault one nfault32 $a c32-sc-fault -
    PENHOST=reap one nreap $a sc-reap -; PENHOST=reap one nreap32 $a c32-sc-reap -); }
+uapi() { a=$1       # penguin's Syscalls with no kernel ISF: no identity, no filters on it
+  case " $TRAPARCHS " in *" $a "*) ;; *) return;; esac
+  (export PENHOST=uapi ISF=none; one nuapi $a sc-pen -; one nuapi32 $a c32-sc-pen -); }
 pybench() { a=$1    # bench's rule sets as hooks of penguin's Syscalls (backend=trap)
   case " $TRAPARCHS " in *" $a "*) ;; *) return;; esac
   for k in $(seq $REPS); do
