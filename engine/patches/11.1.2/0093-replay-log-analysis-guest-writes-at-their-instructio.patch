@@ -19,9 +19,18 @@ the next block. x86's hypercall is a port write, which already does.
 Without TCG there is no replay engine: the guest-write scope is stubbed out
 and refuses every write it would admit, env writes included.
 
+meson.build generates the guest-write layout map for each softmmu target from
+this build's debug info: panda/src/guest-layout-probe.c is compiled like the
+target's files with -g, and panda/scripts/guest_layout.py reads CPUArchState
+and the structs it points to from it with gdb, into
+guest-layout-<target>.h, which guest-write.c includes. The layout depends on
+the host (pthread sizes, which accelerators it builds), so no generated map
+is committed.
+
 SPDX-License-Identifier: GPL-2.0-or-later
 Origin: new
 ---
+ meson.build                                   | 21 ++++++++
  replay/replay-internal.h                      |  2 +
  replay/replay.c                               |  3 +-
  replay/stubs-system.c                         | 49 +++++++++++++++++++
@@ -31,8 +40,40 @@ Origin: new
  target/mips/tcg/translate.c                   |  1 +
  target/ppc/translate/fixedpoint-impl.c.inc    |  1 +
  target/riscv/tcg/translate.c                  |  1 +
- 9 files changed, 59 insertions(+), 1 deletion(-)
+ 10 files changed, 80 insertions(+), 1 deletion(-)
 
+diff --git a/meson.build b/meson.build
+index 9c77219b727a61279925c4cd52b85c574c348a98..14133903562ee7b8d2891b6b48f56b3b3411bf67 100644
+--- a/meson.build
++++ b/meson.build
+@@ -4421,6 +4421,27 @@ foreach target : target_dirs
+     lib_deps += dep.partial_dependency(compile_args: true, includes: true)
+   endforeach
+ 
++  if get_option('panda') and target.endswith('-softmmu') and 'CONFIG_TCG' in config_target
++    # panda/src/guest-write.c's layout map, from this build's debug info: the probe is
++    # compiled like the target's files, with -g, and gdb reads its types
++    # (panda/scripts/guest_layout.py). The layout depends on the host, so it isn't committed.
++    guest_layout_probe = static_library('guest-layout-probe-' + target,
++                 sources: [files('panda/src/guest-layout-probe.c'), config_target_h[target],
++                           config_devices_h[target]] + genh,
++                 dependencies: lib_deps,
++                 include_directories: target_inc,
++                 c_args: c_args + ['-g', '-fno-eliminate-unused-debug-types'],
++                 build_by_default: false)
++    arch_srcs += custom_target('guest-layout-' + target + '.h',
++                 input: guest_layout_probe,
++                 output: 'guest-layout-' + target + '.h',
++                 command: [python, files('panda/scripts/guest_layout.py'),
++                           find_program('gdb'), '@INPUT@', '@OUTPUT@'],
++                 install: true,
++                 install_dir: get_option('includedir') / 'panda' / 'guest-layout')
++    c_args += ['-DGUEST_LAYOUT_H="guest-layout-@0@.h"'.format(target)]
++  endif
++
+   lib = static_library('qemu-' + target,
+                  sources: arch_srcs + genh,
+                  dependencies: lib_deps,
 diff --git a/replay/replay-internal.h b/replay/replay-internal.h
 index fa94be90af6ae8c83bde51b47c63ec5713c6bfdb..7c8455c344791a93846cf96475f99f44343d8886 100644
 --- a/replay/replay-internal.h

@@ -1096,18 +1096,12 @@
             PANDA_SOURCE=${./.} bash ${./tests/static/syscalls_dispatch.sh} dispatch
             touch $out
           '';
-          # The guest-write layout map is what tools/guest-layout/gen.py makes from the bindings, and
-          # gcc lays out every struct it names the same way, on every arch (no guest).
-          guest-layout =
-            pkgs.runCommandCC "guest-layout-check"
-              {
-                nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
-                buildInputs = [ pkgs.glib ];
-              }
-              ''
-                python3 ${./.}/tests/static/guest_layout.py ${p.engine}/include/panda-ng ${p.engineSrc}
-                touch $out
-              '';
+          # The guest-write layout map the engine generated from its debug info agrees with the
+          # committed bindings, on every arch (no guest).
+          guest-layout = pkgs.runCommand "guest-layout-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            python3 ${./.}/tests/static/guest_layout.py ${p.engine}/include/panda/guest-layout
+            touch $out
+          '';
           # pandare2's env view turns field assignments into the engine's env writes (no engine).
           guest-view = pkgs.runCommand "guest-view-check" { } ''
             ${p.pandaPython}/bin/python3 ${./.}/tests/static/guest_view.py

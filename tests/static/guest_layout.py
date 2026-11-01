@@ -1,117 +1,91 @@
-"""Is the engine's guest-write layout map current, and does gcc agree with it? No guest.
+"""Does the layout map the engine build generated agree with the bindings? No guest.
 
-    python3 tests/static/guest_layout.py [<engine>/include/panda-ng [<patched engine source>]]
+    python3 tests/static/guest_layout.py <engine>/include/panda/guest-layout
 
-engine/src/panda/src/guest-layout.gen.h is generated from rust/panda-bindings/src/autogen by
-tools/guest-layout/gen.py. This regenerates it and fails if the checked-in copy differs. With the
-engine's per-arch headers it also compiles, for every arch, the map's checks (the compiler's
-offsetof and sizeof against the bindings' numbers, for every entry) against panda_c_<arch>.h,
-as the engine's own build does against its target on an x86_64 host. Needs gcc and glib's
-pkg-config for that part (the flake check `guest-layout` runs it). With the patched engine source
-it also checks gen.HOST_CONDITIONAL: every CPUArchState field the bindings have that QEMU's
-target/*/cpu.h puts under a host accelerator's #if must be listed there with that condition,
-because a host without that accelerator doesn't have the field.
+The engine generates panda/src/guest-write.c's layout map for each softmmu target from its own
+debug info (engine/src/panda/scripts/guest_layout.py, run by meson.build) and installs it as
+include/panda/guest-layout/guest-layout-<target>.h. This reads it back and compares it with
+what the committed bindgen bindings give (bindings_layout.py): two independent readings of
+CPUArchState and the structs it points to, on the x86_64 host both come from.
+
+They must list the same structs, with the same sizes, the same followable pointers and the same
+CPUArchState fields. The engine's host-pointer ranges must cover every range from the bindings;
+they may cover more, where bindgen gives a function pointer through a typedef that isn't one
+(QEMUTimer's cb).
 """
 import re
-import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'tools/guest-layout'))
-import gen  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import bindings_layout as bl  # noqa: E402
 
 
-def blocks(text):
-    """arch -> its #if block of the generated header."""
-    return {m.group(2): m.group(1) for m in re.finditer(
-        r'^#if .*?\n(.*?)^#endif /\* (\w+) \*/', text, re.M | re.S)}
+def parse(text):
+    """(types [(name, size)], host {i: [(offset, size)]}, follow {i: [...]}, fields)"""
+    types = [(n, int(s)) for n, s in re.findall(
+        r'^    \{ "(\w+)", (\d+), guest_layout_follow_\d+,', text, re.M)]
+    host, follow = {}, {}
+    for i, body in re.findall(r'guest_layout_host_(\d+)\[\] = \{\n(.*?)\};', text, re.S):
+        host[int(i)] = [(int(o), int(s)) for o, s in re.findall(r'\{ (\d+), (\d+) \},', body)]
+    for i, body in re.findall(r'guest_layout_follow_(\d+)\[\] = \{\n(.*?)\};', text, re.S):
+        follow[int(i)] = [(int(o), int(t), int(e), int(n), p) for o, t, e, n, p in re.findall(
+            r'\{ (\d+), (-?\d+), (\d+), (-?\d+) \}, /\* (\S+) \*/', body)]
+    fields = [(int(o), int(s), n) for o, s, n in re.findall(
+        r'^    \{ (\d+), (\d+), "(\w+)" \},', text, re.M)]
+    return types, host, follow, fields
 
 
-def probe(arch, block):
-    lines = ['#include "c_sys_includes.h"', f'#include "panda_c_{arch}.h"', '#include <stddef.h>']
-    for cond in re.findall(r'^QEMU_BUILD_BUG_ON\((.*)\);$', block, re.M):
-        lines.append(f'_Static_assert(!({cond}), "{cond}");')
-    return '\n'.join(lines) + '\n', len(lines) - 3
+def covered(ranges, off, size):
+    return any(o <= off and off + size <= o + s for o, s in ranges)
 
 
-# The preprocessor conditions that differ between the hosts the engine is built on
-HOST_MACROS = re.compile(r'CONFIG_(KVM|XEN|MSHV|HVF|WHPX|NVMM)\b|HOST_')
-TARGET_DIRS = {'aarch64': 'arm', 'arm': 'arm', 'x86_64': 'i386', 'i386': 'i386',
-               'loongarch64': 'loongarch', 'mips64': 'mips', 'mips': 'mips', 'ppc64': 'ppc',
-               'ppc': 'ppc', 'riscv64': 'riscv', 'riscv32': 'riscv'}
-
-
-def host_conditional(cpu_h):
-    """CPUArchState's fields under a host-dependent #if: field -> the #if's condition."""
-    m = re.search(r'^(typedef )?struct CPUArchState \{\n(.*?)^\}', cpu_h, re.M | re.S)
-    out, stack = {}, []
-    for line in m.group(2).splitlines():
-        d = re.match(r'\s*#\s*(if|ifdef|ifndef|elif|else|endif)\b(.*)', line)
-        if d:
-            kind, rest = d.group(1), d.group(2).strip()
-            if kind in ('if', 'ifdef', 'ifndef'):
-                stack.append(rest if kind != 'ifdef' else f'defined({rest})')
-            elif kind == 'endif':
-                stack.pop()
-            else:
-                stack[-1] = None    # #else/#elif: not one condition; flagged if host-dependent
-            continue
-        f = re.search(r'(\w+)\s*(\[[^]]*\])*\s*;', line)
-        conds = [c for c in stack if c is None or HOST_MACROS.search(c)]
-        if f and conds:
-            out[f.group(1)] = ' && '.join(c or '?' for c in conds)
-    return out
-
-
-def check_conditional(source):
+def compare(arch, text):
+    types, host, follow, fields = parse(text)
+    b = bl.Bindings((bl.AUTOGEN / f'{arch}.rs').read_text())
+    want, _, top = bl.layout(arch, b)
     bad = []
-    for arch, sub in TARGET_DIRS.items():
-        text = (Path(source) / f'target/{sub}/cpu.h').read_text()
-        fields = {gen.c_name(f) for f, _ in gen.Bindings((gen.AUTOGEN / f'{arch}.rs').read_text())
-                  .structs[gen.ROOT_TYPE][1]}
-        listed = gen.HOST_CONDITIONAL.get(arch, {})
-        for field, cond in host_conditional(text).items():
-            if field in fields and listed.get(field) != cond:
-                bad.append(f'{arch}: {field} is under #if {cond}; '
-                           f'HOST_CONDITIONAL has {listed.get(field)!r}')
-    if bad:
-        sys.exit('FAIL: gen.HOST_CONDITIONAL is out of date:\n  ' + '\n  '.join(bad))
-    print('PASS: every host-conditional CPUArchState field the bindings have is in '
-          'gen.HOST_CONDITIONAL')
+    if [(n, s) for n, s, _, _ in want] != types:
+        bad.append(f'structs differ:\n    bindings {[(n, s) for n, s, _, _ in want]}\n'
+                   f'    engine   {types}')
+        return bad, 0
+    extra = 0
+    for i, (name, size, wh, wf) in enumerate(want):
+        if list(wf) != follow.get(i, []):
+            bad.append(f'{name}: followable pointers differ:\n    bindings {wf}\n'
+                       f'    engine   {follow.get(i)}')
+        missing = [r for r in wh if not covered(host.get(i, []), *r)]
+        if missing:
+            bad.append(f'{name}: host pointers the engine map misses: {missing}')
+        extra += sum(1 for r in host.get(i, []) if not covered(wh, *r))
+    if sorted(top) != sorted(fields):
+        bad.append(f'CPUArchState fields differ: only in bindings '
+                   f'{sorted(set(top) - set(fields))[:6]}, only in engine '
+                   f'{sorted(set(fields) - set(top))[:6]}')
+    return bad, extra
 
 
 def main():
-    text = gen.generate()
-    if not gen.OUT.exists() or gen.OUT.read_text() != text:
-        sys.exit('FAIL: engine/src/panda/src/guest-layout.gen.h is stale: '
-                 'python3 tools/guest-layout/gen.py')
-    print('PASS: guest-layout.gen.h is what gen.py makes from the bindings')
-    if len(sys.argv) < 2:
-        return
-    incdir = sys.argv[1]
-    if len(sys.argv) > 2:
-        check_conditional(sys.argv[2])
-    glib = subprocess.check_output(['pkg-config', '--cflags', 'glib-2.0'], text=True).split()
-    found = blocks(text)
+    if len(sys.argv) != 2:
+        sys.exit(__doc__)
+    incdir = Path(sys.argv[1])
     failed = []
-    with tempfile.TemporaryDirectory() as tmp:
-        for arch in list(gen.TARGETS) + list(gen.TWINS):
-            source, n = probe(arch, found[gen.TWINS.get(arch, arch)])
-            c = Path(tmp) / f'{arch}.c'
-            c.write_text(source)
-            r = subprocess.run(['gcc', '-w', '-fsyntax-only', '-D_GNU_SOURCE', f'-I{incdir}',
-                                f'-I{gen.ROOT / "include"}', *glib, str(c)],
-                               capture_output=True, text=True)
-            if r.returncode:
-                failed.append(arch)
-                print(f'{arch}: {r.stderr[-3000:]}')
-            else:
-                print(f'{arch}: {n} layout checks hold')
+    for arch in bl.ARCHES:
+        header = incdir / f'guest-layout-{arch}-softmmu.h'
+        if not header.exists():
+            failed.append(arch)
+            print(f'{arch}: no {header}')
+            continue
+        bad, extra = compare(arch, header.read_text())
+        if bad:
+            failed.append(arch)
+            print(f'{arch}:\n  ' + '\n  '.join(bad))
+        else:
+            print(f'{arch}: the engine map agrees with the bindings'
+                  + (f' ({extra} more host-pointer ranges)' if extra else ''))
     if failed:
-        sys.exit(f'FAIL: the layout map disagrees with gcc on {" ".join(failed)}')
-    print('PASS: the layout map agrees with gcc on every arch')
+        sys.exit(f'FAIL: the generated layout map disagrees with the bindings on {" ".join(failed)}')
+    print('PASS: the generated layout map agrees with the bindings on every arch')
 
 
 if __name__ == '__main__':
