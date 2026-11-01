@@ -33379,6 +33379,7 @@ pub struct CPUState {
     pub halted: u32,
     pub exception_index: i32,
     pub tcg_hook_ra: usize,
+    pub taint_senv: *mut ::std::os::raw::c_void,
     pub panda_block_pending: bool,
     pub uaccess_pend: CPUState__bindgen_ty_5,
     pub syscall_kmmu: u32,
@@ -33391,6 +33392,7 @@ pub struct CPUState {
     pub ignore_memory_transaction_failures: bool,
     pub prctl_unalign_sigbus: bool,
     pub iommu_notifiers: *mut GArray,
+    pub __bindgen_padding_0: [u8; 8usize],
     pub neg_align: __IncompleteArrayField<::std::os::raw::c_char>,
     pub neg: CPUNegativeOffsetState,
 }
@@ -33479,7 +33481,7 @@ const _: () = {
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUState"][::std::mem::size_of::<CPUState>() - 16576usize];
+    ["Size of CPUState"][::std::mem::size_of::<CPUState>() - 16592usize];
     ["Alignment of CPUState"][::std::mem::align_of::<CPUState>() - 16usize];
     ["Offset of field: CPUState::parent_obj"]
         [::std::mem::offset_of!(CPUState, parent_obj) - 0usize];
@@ -33572,32 +33574,34 @@ const _: () = {
         [::std::mem::offset_of!(CPUState, exception_index) - 704usize];
     ["Offset of field: CPUState::tcg_hook_ra"]
         [::std::mem::offset_of!(CPUState, tcg_hook_ra) - 712usize];
+    ["Offset of field: CPUState::taint_senv"]
+        [::std::mem::offset_of!(CPUState, taint_senv) - 720usize];
     ["Offset of field: CPUState::panda_block_pending"]
-        [::std::mem::offset_of!(CPUState, panda_block_pending) - 720usize];
+        [::std::mem::offset_of!(CPUState, panda_block_pending) - 728usize];
     ["Offset of field: CPUState::uaccess_pend"]
-        [::std::mem::offset_of!(CPUState, uaccess_pend) - 728usize];
+        [::std::mem::offset_of!(CPUState, uaccess_pend) - 736usize];
     ["Offset of field: CPUState::syscall_kmmu"]
-        [::std::mem::offset_of!(CPUState, syscall_kmmu) - 752usize];
+        [::std::mem::offset_of!(CPUState, syscall_kmmu) - 760usize];
     ["Offset of field: CPUState::syscall_inject_abis"]
-        [::std::mem::offset_of!(CPUState, syscall_inject_abis) - 756usize];
+        [::std::mem::offset_of!(CPUState, syscall_inject_abis) - 764usize];
     ["Offset of field: CPUState::syscall_current"]
-        [::std::mem::offset_of!(CPUState, syscall_current) - 760usize];
+        [::std::mem::offset_of!(CPUState, syscall_current) - 768usize];
     ["Offset of field: CPUState::vcpu_dirty"]
-        [::std::mem::offset_of!(CPUState, vcpu_dirty) - 768usize];
-    ["Offset of field: CPUState::accel"][::std::mem::offset_of!(CPUState, accel) - 776usize];
+        [::std::mem::offset_of!(CPUState, vcpu_dirty) - 776usize];
+    ["Offset of field: CPUState::accel"][::std::mem::offset_of!(CPUState, accel) - 784usize];
     ["Offset of field: CPUState::throttle_thread_scheduled"]
-        [::std::mem::offset_of!(CPUState, throttle_thread_scheduled) - 784usize];
+        [::std::mem::offset_of!(CPUState, throttle_thread_scheduled) - 792usize];
     ["Offset of field: CPUState::throttle_us_per_full"]
-        [::std::mem::offset_of!(CPUState, throttle_us_per_full) - 792usize];
+        [::std::mem::offset_of!(CPUState, throttle_us_per_full) - 800usize];
     ["Offset of field: CPUState::ignore_memory_transaction_failures"]
-        [::std::mem::offset_of!(CPUState, ignore_memory_transaction_failures) - 800usize];
+        [::std::mem::offset_of!(CPUState, ignore_memory_transaction_failures) - 808usize];
     ["Offset of field: CPUState::prctl_unalign_sigbus"]
-        [::std::mem::offset_of!(CPUState, prctl_unalign_sigbus) - 801usize];
+        [::std::mem::offset_of!(CPUState, prctl_unalign_sigbus) - 809usize];
     ["Offset of field: CPUState::iommu_notifiers"]
-        [::std::mem::offset_of!(CPUState, iommu_notifiers) - 808usize];
+        [::std::mem::offset_of!(CPUState, iommu_notifiers) - 816usize];
     ["Offset of field: CPUState::neg_align"]
-        [::std::mem::offset_of!(CPUState, neg_align) - 816usize];
-    ["Offset of field: CPUState::neg"][::std::mem::offset_of!(CPUState, neg) - 816usize];
+        [::std::mem::offset_of!(CPUState, neg_align) - 832usize];
+    ["Offset of field: CPUState::neg"][::std::mem::offset_of!(CPUState, neg) - 832usize];
 };
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -42429,134 +42433,134 @@ const _: () = {
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ArchCPU"][::std::mem::size_of::<ArchCPU>() - 33136usize];
+    ["Size of ArchCPU"][::std::mem::size_of::<ArchCPU>() - 33152usize];
     ["Alignment of ArchCPU"][::std::mem::align_of::<ArchCPU>() - 16usize];
     ["Offset of field: ArchCPU::parent_obj"][::std::mem::offset_of!(ArchCPU, parent_obj) - 0usize];
-    ["Offset of field: ArchCPU::env"][::std::mem::offset_of!(ArchCPU, env) - 16576usize];
-    ["Offset of field: ArchCPU::vmsentry"][::std::mem::offset_of!(ArchCPU, vmsentry) - 32080usize];
+    ["Offset of field: ArchCPU::env"][::std::mem::offset_of!(ArchCPU, env) - 16592usize];
+    ["Offset of field: ArchCPU::vmsentry"][::std::mem::offset_of!(ArchCPU, vmsentry) - 32096usize];
     ["Offset of field: ArchCPU::ucode_rev"]
-        [::std::mem::offset_of!(ArchCPU, ucode_rev) - 32088usize];
+        [::std::mem::offset_of!(ArchCPU, ucode_rev) - 32104usize];
     ["Offset of field: ArchCPU::hyperv_spinlock_attempts"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_spinlock_attempts) - 32096usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_spinlock_attempts) - 32112usize];
     ["Offset of field: ArchCPU::hyperv_vendor"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_vendor) - 32104usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_vendor) - 32120usize];
     ["Offset of field: ArchCPU::hyperv_features"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_features) - 32112usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_features) - 32128usize];
     ["Offset of field: ArchCPU::hyperv_passthrough"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_passthrough) - 32120usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_passthrough) - 32136usize];
     ["Offset of field: ArchCPU::hyperv_no_nonarch_cs"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_no_nonarch_cs) - 32124usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_no_nonarch_cs) - 32140usize];
     ["Offset of field: ArchCPU::hyperv_vendor_id"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_vendor_id) - 32128usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_vendor_id) - 32144usize];
     ["Offset of field: ArchCPU::hyperv_interface_id"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_interface_id) - 32140usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_interface_id) - 32156usize];
     ["Offset of field: ArchCPU::hyperv_limits"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_limits) - 32156usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_limits) - 32172usize];
     ["Offset of field: ArchCPU::hyperv_enforce_cpuid"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_enforce_cpuid) - 32168usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_enforce_cpuid) - 32184usize];
     ["Offset of field: ArchCPU::hyperv_ver_id_build"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_build) - 32172usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_build) - 32188usize];
     ["Offset of field: ArchCPU::hyperv_ver_id_major"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_major) - 32176usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_major) - 32192usize];
     ["Offset of field: ArchCPU::hyperv_ver_id_minor"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_minor) - 32178usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_minor) - 32194usize];
     ["Offset of field: ArchCPU::hyperv_ver_id_sp"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_sp) - 32180usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_sp) - 32196usize];
     ["Offset of field: ArchCPU::hyperv_ver_id_sb"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_sb) - 32184usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_sb) - 32200usize];
     ["Offset of field: ArchCPU::hyperv_ver_id_sn"]
-        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_sn) - 32188usize];
+        [::std::mem::offset_of!(ArchCPU, hyperv_ver_id_sn) - 32204usize];
     ["Offset of field: ArchCPU::check_cpuid"]
-        [::std::mem::offset_of!(ArchCPU, check_cpuid) - 32192usize];
+        [::std::mem::offset_of!(ArchCPU, check_cpuid) - 32208usize];
     ["Offset of field: ArchCPU::enforce_cpuid"]
-        [::std::mem::offset_of!(ArchCPU, enforce_cpuid) - 32193usize];
+        [::std::mem::offset_of!(ArchCPU, enforce_cpuid) - 32209usize];
     ["Offset of field: ArchCPU::force_features"]
-        [::std::mem::offset_of!(ArchCPU, force_features) - 32194usize];
+        [::std::mem::offset_of!(ArchCPU, force_features) - 32210usize];
     ["Offset of field: ArchCPU::expose_kvm"]
-        [::std::mem::offset_of!(ArchCPU, expose_kvm) - 32195usize];
+        [::std::mem::offset_of!(ArchCPU, expose_kvm) - 32211usize];
     ["Offset of field: ArchCPU::expose_tcg"]
-        [::std::mem::offset_of!(ArchCPU, expose_tcg) - 32196usize];
+        [::std::mem::offset_of!(ArchCPU, expose_tcg) - 32212usize];
     ["Offset of field: ArchCPU::migratable"]
-        [::std::mem::offset_of!(ArchCPU, migratable) - 32197usize];
+        [::std::mem::offset_of!(ArchCPU, migratable) - 32213usize];
     ["Offset of field: ArchCPU::migrate_smi_count"]
-        [::std::mem::offset_of!(ArchCPU, migrate_smi_count) - 32198usize];
+        [::std::mem::offset_of!(ArchCPU, migrate_smi_count) - 32214usize];
     ["Offset of field: ArchCPU::migrate_error_code"]
-        [::std::mem::offset_of!(ArchCPU, migrate_error_code) - 32199usize];
-    ["Offset of field: ArchCPU::apic_id"][::std::mem::offset_of!(ArchCPU, apic_id) - 32200usize];
+        [::std::mem::offset_of!(ArchCPU, migrate_error_code) - 32215usize];
+    ["Offset of field: ArchCPU::apic_id"][::std::mem::offset_of!(ArchCPU, apic_id) - 32216usize];
     ["Offset of field: ArchCPU::vmware_cpuid_freq"]
-        [::std::mem::offset_of!(ArchCPU, vmware_cpuid_freq) - 32204usize];
+        [::std::mem::offset_of!(ArchCPU, vmware_cpuid_freq) - 32220usize];
     ["Offset of field: ArchCPU::cache_info_passthrough"]
-        [::std::mem::offset_of!(ArchCPU, cache_info_passthrough) - 32205usize];
-    ["Offset of field: ArchCPU::mwait"][::std::mem::offset_of!(ArchCPU, mwait) - 32208usize];
+        [::std::mem::offset_of!(ArchCPU, cache_info_passthrough) - 32221usize];
+    ["Offset of field: ArchCPU::mwait"][::std::mem::offset_of!(ArchCPU, mwait) - 32224usize];
     ["Offset of field: ArchCPU::filtered_features"]
-        [::std::mem::offset_of!(ArchCPU, filtered_features) - 32224usize];
+        [::std::mem::offset_of!(ArchCPU, filtered_features) - 32240usize];
     ["Offset of field: ArchCPU::forced_on_features"]
-        [::std::mem::offset_of!(ArchCPU, forced_on_features) - 32608usize];
+        [::std::mem::offset_of!(ArchCPU, forced_on_features) - 32624usize];
     ["Offset of field: ArchCPU::enable_pmu"]
-        [::std::mem::offset_of!(ArchCPU, enable_pmu) - 32992usize];
-    ["Offset of field: ArchCPU::lbr_fmt"][::std::mem::offset_of!(ArchCPU, lbr_fmt) - 33000usize];
+        [::std::mem::offset_of!(ArchCPU, enable_pmu) - 33008usize];
+    ["Offset of field: ArchCPU::lbr_fmt"][::std::mem::offset_of!(ArchCPU, lbr_fmt) - 33016usize];
     ["Offset of field: ArchCPU::enable_lmce"]
-        [::std::mem::offset_of!(ArchCPU, enable_lmce) - 33008usize];
+        [::std::mem::offset_of!(ArchCPU, enable_lmce) - 33024usize];
     ["Offset of field: ArchCPU::enable_l3_cache"]
-        [::std::mem::offset_of!(ArchCPU, enable_l3_cache) - 33009usize];
+        [::std::mem::offset_of!(ArchCPU, enable_l3_cache) - 33025usize];
     ["Offset of field: ArchCPU::l1_cache_per_core"]
-        [::std::mem::offset_of!(ArchCPU, l1_cache_per_core) - 33010usize];
+        [::std::mem::offset_of!(ArchCPU, l1_cache_per_core) - 33026usize];
     ["Offset of field: ArchCPU::legacy_cache"]
-        [::std::mem::offset_of!(ArchCPU, legacy_cache) - 33011usize];
+        [::std::mem::offset_of!(ArchCPU, legacy_cache) - 33027usize];
     ["Offset of field: ArchCPU::consistent_cache"]
-        [::std::mem::offset_of!(ArchCPU, consistent_cache) - 33012usize];
+        [::std::mem::offset_of!(ArchCPU, consistent_cache) - 33028usize];
     ["Offset of field: ArchCPU::legacy_multi_node"]
-        [::std::mem::offset_of!(ArchCPU, legacy_multi_node) - 33013usize];
+        [::std::mem::offset_of!(ArchCPU, legacy_multi_node) - 33029usize];
     ["Offset of field: ArchCPU::enable_cpuid_0xb"]
-        [::std::mem::offset_of!(ArchCPU, enable_cpuid_0xb) - 33014usize];
+        [::std::mem::offset_of!(ArchCPU, enable_cpuid_0xb) - 33030usize];
     ["Offset of field: ArchCPU::force_cpuid_0x1f"]
-        [::std::mem::offset_of!(ArchCPU, force_cpuid_0x1f) - 33015usize];
+        [::std::mem::offset_of!(ArchCPU, force_cpuid_0x1f) - 33031usize];
     ["Offset of field: ArchCPU::vendor_cpuid_only"]
-        [::std::mem::offset_of!(ArchCPU, vendor_cpuid_only) - 33016usize];
+        [::std::mem::offset_of!(ArchCPU, vendor_cpuid_only) - 33032usize];
     ["Offset of field: ArchCPU::vendor_cpuid_only_v2"]
-        [::std::mem::offset_of!(ArchCPU, vendor_cpuid_only_v2) - 33017usize];
+        [::std::mem::offset_of!(ArchCPU, vendor_cpuid_only_v2) - 33033usize];
     ["Offset of field: ArchCPU::amd_topoext_features_only"]
-        [::std::mem::offset_of!(ArchCPU, amd_topoext_features_only) - 33018usize];
+        [::std::mem::offset_of!(ArchCPU, amd_topoext_features_only) - 33034usize];
     ["Offset of field: ArchCPU::fill_mtrr_mask"]
-        [::std::mem::offset_of!(ArchCPU, fill_mtrr_mask) - 33019usize];
+        [::std::mem::offset_of!(ArchCPU, fill_mtrr_mask) - 33035usize];
     ["Offset of field: ArchCPU::host_phys_bits"]
-        [::std::mem::offset_of!(ArchCPU, host_phys_bits) - 33020usize];
+        [::std::mem::offset_of!(ArchCPU, host_phys_bits) - 33036usize];
     ["Offset of field: ArchCPU::host_phys_bits_limit"]
-        [::std::mem::offset_of!(ArchCPU, host_phys_bits_limit) - 33021usize];
+        [::std::mem::offset_of!(ArchCPU, host_phys_bits_limit) - 33037usize];
     ["Offset of field: ArchCPU::kvm_pv_enforce_cpuid"]
-        [::std::mem::offset_of!(ArchCPU, kvm_pv_enforce_cpuid) - 33022usize];
+        [::std::mem::offset_of!(ArchCPU, kvm_pv_enforce_cpuid) - 33038usize];
     ["Offset of field: ArchCPU::arch_cap_always_on"]
-        [::std::mem::offset_of!(ArchCPU, arch_cap_always_on) - 33023usize];
+        [::std::mem::offset_of!(ArchCPU, arch_cap_always_on) - 33039usize];
     ["Offset of field: ArchCPU::pdcm_on_even_without_pmu"]
-        [::std::mem::offset_of!(ArchCPU, pdcm_on_even_without_pmu) - 33024usize];
+        [::std::mem::offset_of!(ArchCPU, pdcm_on_even_without_pmu) - 33040usize];
     ["Offset of field: ArchCPU::phys_bits"]
-        [::std::mem::offset_of!(ArchCPU, phys_bits) - 33028usize];
+        [::std::mem::offset_of!(ArchCPU, phys_bits) - 33044usize];
     ["Offset of field: ArchCPU::guest_phys_bits"]
-        [::std::mem::offset_of!(ArchCPU, guest_phys_bits) - 33032usize];
+        [::std::mem::offset_of!(ArchCPU, guest_phys_bits) - 33048usize];
     ["Offset of field: ArchCPU::apic_state"]
-        [::std::mem::offset_of!(ArchCPU, apic_state) - 33040usize];
+        [::std::mem::offset_of!(ArchCPU, apic_state) - 33056usize];
     ["Offset of field: ArchCPU::cpu_as_root"]
-        [::std::mem::offset_of!(ArchCPU, cpu_as_root) - 33048usize];
+        [::std::mem::offset_of!(ArchCPU, cpu_as_root) - 33064usize];
     ["Offset of field: ArchCPU::cpu_as_mem"]
-        [::std::mem::offset_of!(ArchCPU, cpu_as_mem) - 33056usize];
-    ["Offset of field: ArchCPU::smram"][::std::mem::offset_of!(ArchCPU, smram) - 33064usize];
+        [::std::mem::offset_of!(ArchCPU, cpu_as_mem) - 33072usize];
+    ["Offset of field: ArchCPU::smram"][::std::mem::offset_of!(ArchCPU, smram) - 33080usize];
     ["Offset of field: ArchCPU::machine_done"]
-        [::std::mem::offset_of!(ArchCPU, machine_done) - 33072usize];
+        [::std::mem::offset_of!(ArchCPU, machine_done) - 33088usize];
     ["Offset of field: ArchCPU::kvm_msr_buf"]
-        [::std::mem::offset_of!(ArchCPU, kvm_msr_buf) - 33096usize];
-    ["Offset of field: ArchCPU::node_id"][::std::mem::offset_of!(ArchCPU, node_id) - 33104usize];
+        [::std::mem::offset_of!(ArchCPU, kvm_msr_buf) - 33112usize];
+    ["Offset of field: ArchCPU::node_id"][::std::mem::offset_of!(ArchCPU, node_id) - 33120usize];
     ["Offset of field: ArchCPU::socket_id"]
-        [::std::mem::offset_of!(ArchCPU, socket_id) - 33108usize];
-    ["Offset of field: ArchCPU::die_id"][::std::mem::offset_of!(ArchCPU, die_id) - 33112usize];
+        [::std::mem::offset_of!(ArchCPU, socket_id) - 33124usize];
+    ["Offset of field: ArchCPU::die_id"][::std::mem::offset_of!(ArchCPU, die_id) - 33128usize];
     ["Offset of field: ArchCPU::module_id"]
-        [::std::mem::offset_of!(ArchCPU, module_id) - 33116usize];
-    ["Offset of field: ArchCPU::core_id"][::std::mem::offset_of!(ArchCPU, core_id) - 33120usize];
+        [::std::mem::offset_of!(ArchCPU, module_id) - 33132usize];
+    ["Offset of field: ArchCPU::core_id"][::std::mem::offset_of!(ArchCPU, core_id) - 33136usize];
     ["Offset of field: ArchCPU::thread_id"]
-        [::std::mem::offset_of!(ArchCPU, thread_id) - 33124usize];
+        [::std::mem::offset_of!(ArchCPU, thread_id) - 33140usize];
     ["Offset of field: ArchCPU::hv_max_vps"]
-        [::std::mem::offset_of!(ArchCPU, hv_max_vps) - 33128usize];
+        [::std::mem::offset_of!(ArchCPU, hv_max_vps) - 33144usize];
     ["Offset of field: ArchCPU::xen_vapic"]
-        [::std::mem::offset_of!(ArchCPU, xen_vapic) - 33132usize];
+        [::std::mem::offset_of!(ArchCPU, xen_vapic) - 33148usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

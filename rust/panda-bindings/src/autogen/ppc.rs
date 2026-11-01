@@ -33374,6 +33374,7 @@ pub struct CPUState {
     pub halted: u32,
     pub exception_index: i32,
     pub tcg_hook_ra: usize,
+    pub taint_senv: *mut ::std::os::raw::c_void,
     pub panda_block_pending: bool,
     pub uaccess_pend: CPUState__bindgen_ty_5,
     pub syscall_kmmu: u32,
@@ -33386,6 +33387,7 @@ pub struct CPUState {
     pub ignore_memory_transaction_failures: bool,
     pub prctl_unalign_sigbus: bool,
     pub iommu_notifiers: *mut GArray,
+    pub __bindgen_padding_0: [u8; 8usize],
     pub neg_align: __IncompleteArrayField<::std::os::raw::c_char>,
     pub neg: CPUNegativeOffsetState,
 }
@@ -33474,7 +33476,7 @@ const _: () = {
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUState"][::std::mem::size_of::<CPUState>() - 16576usize];
+    ["Size of CPUState"][::std::mem::size_of::<CPUState>() - 16592usize];
     ["Alignment of CPUState"][::std::mem::align_of::<CPUState>() - 16usize];
     ["Offset of field: CPUState::parent_obj"]
         [::std::mem::offset_of!(CPUState, parent_obj) - 0usize];
@@ -33567,32 +33569,34 @@ const _: () = {
         [::std::mem::offset_of!(CPUState, exception_index) - 704usize];
     ["Offset of field: CPUState::tcg_hook_ra"]
         [::std::mem::offset_of!(CPUState, tcg_hook_ra) - 712usize];
+    ["Offset of field: CPUState::taint_senv"]
+        [::std::mem::offset_of!(CPUState, taint_senv) - 720usize];
     ["Offset of field: CPUState::panda_block_pending"]
-        [::std::mem::offset_of!(CPUState, panda_block_pending) - 720usize];
+        [::std::mem::offset_of!(CPUState, panda_block_pending) - 728usize];
     ["Offset of field: CPUState::uaccess_pend"]
-        [::std::mem::offset_of!(CPUState, uaccess_pend) - 728usize];
+        [::std::mem::offset_of!(CPUState, uaccess_pend) - 736usize];
     ["Offset of field: CPUState::syscall_kmmu"]
-        [::std::mem::offset_of!(CPUState, syscall_kmmu) - 752usize];
+        [::std::mem::offset_of!(CPUState, syscall_kmmu) - 760usize];
     ["Offset of field: CPUState::syscall_inject_abis"]
-        [::std::mem::offset_of!(CPUState, syscall_inject_abis) - 756usize];
+        [::std::mem::offset_of!(CPUState, syscall_inject_abis) - 764usize];
     ["Offset of field: CPUState::syscall_current"]
-        [::std::mem::offset_of!(CPUState, syscall_current) - 760usize];
+        [::std::mem::offset_of!(CPUState, syscall_current) - 768usize];
     ["Offset of field: CPUState::vcpu_dirty"]
-        [::std::mem::offset_of!(CPUState, vcpu_dirty) - 768usize];
-    ["Offset of field: CPUState::accel"][::std::mem::offset_of!(CPUState, accel) - 776usize];
+        [::std::mem::offset_of!(CPUState, vcpu_dirty) - 776usize];
+    ["Offset of field: CPUState::accel"][::std::mem::offset_of!(CPUState, accel) - 784usize];
     ["Offset of field: CPUState::throttle_thread_scheduled"]
-        [::std::mem::offset_of!(CPUState, throttle_thread_scheduled) - 784usize];
+        [::std::mem::offset_of!(CPUState, throttle_thread_scheduled) - 792usize];
     ["Offset of field: CPUState::throttle_us_per_full"]
-        [::std::mem::offset_of!(CPUState, throttle_us_per_full) - 792usize];
+        [::std::mem::offset_of!(CPUState, throttle_us_per_full) - 800usize];
     ["Offset of field: CPUState::ignore_memory_transaction_failures"]
-        [::std::mem::offset_of!(CPUState, ignore_memory_transaction_failures) - 800usize];
+        [::std::mem::offset_of!(CPUState, ignore_memory_transaction_failures) - 808usize];
     ["Offset of field: CPUState::prctl_unalign_sigbus"]
-        [::std::mem::offset_of!(CPUState, prctl_unalign_sigbus) - 801usize];
+        [::std::mem::offset_of!(CPUState, prctl_unalign_sigbus) - 809usize];
     ["Offset of field: CPUState::iommu_notifiers"]
-        [::std::mem::offset_of!(CPUState, iommu_notifiers) - 808usize];
+        [::std::mem::offset_of!(CPUState, iommu_notifiers) - 816usize];
     ["Offset of field: CPUState::neg_align"]
-        [::std::mem::offset_of!(CPUState, neg_align) - 816usize];
-    ["Offset of field: CPUState::neg"][::std::mem::offset_of!(CPUState, neg) - 816usize];
+        [::std::mem::offset_of!(CPUState, neg_align) - 832usize];
+    ["Offset of field: CPUState::neg"][::std::mem::offset_of!(CPUState, neg) - 832usize];
 };
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -41690,24 +41694,24 @@ pub struct ArchCPU {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ArchCPU"][::std::mem::size_of::<ArchCPU>() - 91248usize];
+    ["Size of ArchCPU"][::std::mem::size_of::<ArchCPU>() - 91264usize];
     ["Alignment of ArchCPU"][::std::mem::align_of::<ArchCPU>() - 16usize];
     ["Offset of field: ArchCPU::parent_obj"][::std::mem::offset_of!(ArchCPU, parent_obj) - 0usize];
-    ["Offset of field: ArchCPU::env"][::std::mem::offset_of!(ArchCPU, env) - 16576usize];
-    ["Offset of field: ArchCPU::vcpu_id"][::std::mem::offset_of!(ArchCPU, vcpu_id) - 90672usize];
+    ["Offset of field: ArchCPU::env"][::std::mem::offset_of!(ArchCPU, env) - 16592usize];
+    ["Offset of field: ArchCPU::vcpu_id"][::std::mem::offset_of!(ArchCPU, vcpu_id) - 90688usize];
     ["Offset of field: ArchCPU::compat_pvr"]
-        [::std::mem::offset_of!(ArchCPU, compat_pvr) - 90676usize];
-    ["Offset of field: ArchCPU::vhyp"][::std::mem::offset_of!(ArchCPU, vhyp) - 90680usize];
+        [::std::mem::offset_of!(ArchCPU, compat_pvr) - 90692usize];
+    ["Offset of field: ArchCPU::vhyp"][::std::mem::offset_of!(ArchCPU, vhyp) - 90696usize];
     ["Offset of field: ArchCPU::vhyp_class"]
-        [::std::mem::offset_of!(ArchCPU, vhyp_class) - 90688usize];
+        [::std::mem::offset_of!(ArchCPU, vhyp_class) - 90704usize];
     ["Offset of field: ArchCPU::machine_data"]
-        [::std::mem::offset_of!(ArchCPU, machine_data) - 90696usize];
-    ["Offset of field: ArchCPU::node_id"][::std::mem::offset_of!(ArchCPU, node_id) - 90704usize];
+        [::std::mem::offset_of!(ArchCPU, machine_data) - 90712usize];
+    ["Offset of field: ArchCPU::node_id"][::std::mem::offset_of!(ArchCPU, node_id) - 90720usize];
     ["Offset of field: ArchCPU::hash64_opts"]
-        [::std::mem::offset_of!(ArchCPU, hash64_opts) - 90712usize];
+        [::std::mem::offset_of!(ArchCPU, hash64_opts) - 90728usize];
     ["Offset of field: ArchCPU::rtas_stopped_state"]
-        [::std::mem::offset_of!(ArchCPU, rtas_stopped_state) - 90720usize];
-    ["Offset of field: ArchCPU::opcodes"][::std::mem::offset_of!(ArchCPU, opcodes) - 90728usize];
+        [::std::mem::offset_of!(ArchCPU, rtas_stopped_state) - 90736usize];
+    ["Offset of field: ArchCPU::opcodes"][::std::mem::offset_of!(ArchCPU, opcodes) - 90744usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
