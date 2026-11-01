@@ -1,0 +1,79 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Sat, 31 Oct 2026 22:26:32 -0400
+Subject: [PATCH] target/ppc: rebuild BookE/40x exception vectors on load
+
+excp_prefix and excp_vectors[] are caches that only the guest's writes
+to IVPR/IVORn (BookE) or EVPR (40x) fill, through
+spr_write_excp_prefix/_vector. Only spr[] is migrated, so after a load
+every interrupt vectors to 0: on ppce500 a savevm followed by -loadvm in
+a new process runs from NIP 0 at the first interrupt.
+
+Rebuild both caches from spr[] in cpu_post_load, masked the way the
+write paths mask them, for each IVOR the CPU registers.
+
+This fixes plain snapshot reload. It does NOT fix ppc32 record/replay:
+with it the replay gets further (icount 163389 instead of 0) and then
+waits on a CLOCK_VIRTUAL checkpoint that never comes, with an external
+interrupt pending. That is still unsolved.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+
+Origin: new
+---
+ target/ppc/machine.c | 35 +++++++++++++++++++++++++++++++++++
+ 1 file changed, 35 insertions(+)
+
+diff --git a/target/ppc/machine.c b/target/ppc/machine.c
+index 569536bd02d84ce09d5ff6904234627a054798b4..95981d29856d73d918f85e752ea89413617e9580 100644
+--- a/target/ppc/machine.c
++++ b/target/ppc/machine.c
+@@ -180,6 +180,40 @@ static bool pvr_match(PowerPCCPU *cpu, uint32_t pvr)
+     return pcc->pvr_match(pcc, pvr, true);
+ }
+ 
++/*
++ * The exception vector base and the BookE vectors are cached outside spr[]
++ * when the guest writes IVPR/EVPR/IVORn (spr_write_excp_prefix/_vector);
++ * spr[] is what migrates, so rebuild the cache from it.
++ */
++static void post_load_update_excp_vectors(CPUPPCState *env)
++{
++    static const struct { int first, last, excp; } ivors[] = {
++        { SPR_BOOKE_IVOR0, SPR_BOOKE_IVOR15, 0 },
++        { SPR_BOOKE_IVOR32, SPR_BOOKE_IVOR37, 32 },
++        { SPR_BOOKE_IVOR38, SPR_BOOKE_IVOR42, 38 },
++    };
++    int i, sprn;
++
++    switch (env->excp_model) {
++    case POWERPC_EXCP_40x:
++        env->excp_prefix = env->spr[SPR_40x_EVPR] & env->ivpr_mask;
++        break;
++    case POWERPC_EXCP_BOOKE:
++        env->excp_prefix = env->spr[SPR_BOOKE_IVPR] & env->ivpr_mask;
++        for (i = 0; i < ARRAY_SIZE(ivors); i++) {
++            for (sprn = ivors[i].first; sprn <= ivors[i].last; sprn++) {
++                if (env->spr_cb[sprn].name) {
++                    env->excp_vectors[ivors[i].excp + sprn - ivors[i].first] =
++                        env->spr[sprn] & env->ivor_mask;
++                }
++            }
++        }
++        break;
++    default:
++        break;
++    }
++}
++
+ static int cpu_post_load(void *opaque, int version_id)
+ {
+     PowerPCCPU *cpu = opaque;
+@@ -298,6 +332,7 @@ static int cpu_post_load(void *opaque, int version_id)
+     }
+ 
+     post_load_update_msr(env);
++    post_load_update_excp_vectors(env);
+ 
+     if (tcg_enabled()) {
+         /* Re-set breaks based on regs */

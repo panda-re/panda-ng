@@ -1,0 +1,120 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Sat, 31 Oct 2026 22:26:31 -0400
+Subject: [PATCH] target/mips: move the Random register's generator state into
+ CPUMIPSState
+
+cpu_mips_get_random() (tlbwr, reads of CP0 Random) kept its LCG seed and
+the previous index in function statics, under an "XXX: do not use a
+global" comment. Neither was part of the CPU state, so a guest restored
+from a snapshot drew a different sequence of TLB slots than the run that
+saved it: record/replay diverged about a million instructions in on all
+four MIPS targets (mips32 looping on TLBL, mips64 on RI).
+
+Keep both in CPUMIPSState, reset them with the CPU, and migrate them in
+a "cpu/random" subsection. A snapshot without the subsection still
+loads; the generator keeps its reset value, as before. The subsection is
+always sent, so a QEMU without this change refuses the new snapshots.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+
+Origin: new
+---
+ target/mips/cpu.c                   |  2 ++
+ target/mips/cpu.h                   |  3 +++
+ target/mips/system/machine.c        | 16 ++++++++++++++++
+ target/mips/tcg/system/cp0_helper.c | 11 ++++-------
+ 4 files changed, 25 insertions(+), 7 deletions(-)
+
+diff --git a/target/mips/cpu.c b/target/mips/cpu.c
+index 4e665c8ac019bd039a662452b1c399b2844c3338..2ac92a0ccd62295a818fd60abbe88e18bc752c7f 100644
+--- a/target/mips/cpu.c
++++ b/target/mips/cpu.c
+@@ -348,6 +348,8 @@ static void mips_cpu_reset_hold(Object *obj, ResetType type)
+     }
+     env->active_tc.PC = env->exception_base;
+     env->CP0_Random = env->tlb->nb_tlb - 1;
++    env->random_seed = 1;
++    env->random_prev_idx = 0;
+     env->tlb->tlb_in_use = env->tlb->nb_tlb;
+     env->CP0_Wired = 0;
+     env->CP0_GlobalNumber = (cs->cpu_index & 0xFF) << CP0GN_VPId;
+diff --git a/target/mips/cpu.h b/target/mips/cpu.h
+index 319147a948cecf2576bd7d9642858f5a8b7e4fca..3beea4e3988e245dac56b9fe2a225dba989978a5 100644
+--- a/target/mips/cpu.h
++++ b/target/mips/cpu.h
+@@ -600,6 +600,9 @@ typedef struct CPUArchState {
+  * CP0 Register 1
+  */
+     int32_t CP0_Random;
++    /* State of the generator behind cpu_mips_get_random (tlbwr, Random). */
++    uint32_t random_seed;
++    uint32_t random_prev_idx;
+     int32_t CP0_VPEControl;
+ #define CP0VPECo_YSI    21
+ #define CP0VPECo_GSI    20
+diff --git a/target/mips/system/machine.c b/target/mips/system/machine.c
+index bd1e4002cfde895ceeb984647561ef129bf80855..d9c731ac1f55020a42a72ff1f36b2867457ad991 100644
+--- a/target/mips/system/machine.c
++++ b/target/mips/system/machine.c
+@@ -372,6 +372,21 @@ static const VMStateDescription mips_vmstate_octeon_crypto = {
+     }
+ };
+ 
++/*
++ * The generator behind tlbwr's random index: without it a restored guest
++ * replaces different TLB entries than the one that was saved would have.
++ */
++static const VMStateDescription mips_vmstate_random = {
++    .name = "cpu/random",
++    .version_id = 1,
++    .minimum_version_id = 1,
++    .fields = (const VMStateField[]) {
++        VMSTATE_UINT32(env.random_seed, MIPSCPU),
++        VMSTATE_UINT32(env.random_prev_idx, MIPSCPU),
++        VMSTATE_END_OF_LIST()
++    }
++};
++
+ const VMStateDescription vmstate_mips_cpu = {
+     .name = "cpu",
+     .version_id = 21,
+@@ -490,6 +505,7 @@ const VMStateDescription vmstate_mips_cpu = {
+         &mips_vmstate_timer,
+         &mips_vmstate_octeon_multiplier,
+         &mips_vmstate_octeon_crypto,
++        &mips_vmstate_random,
+         NULL
+     }
+ };
+diff --git a/target/mips/tcg/system/cp0_helper.c b/target/mips/tcg/system/cp0_helper.c
+index 1cccf7ea149fc632a525a81008a4feba0acd419a..3fd42d7584e743a937390b92f919e4f6e0ea903e 100644
+--- a/target/mips/tcg/system/cp0_helper.c
++++ b/target/mips/tcg/system/cp0_helper.c
+@@ -202,11 +202,8 @@ static void sync_c0_entryhi(CPUMIPSState *cpu, int tc)
+     *tcst |= asid;
+ }
+ 
+-/* XXX: do not use a global */
+ uint32_t cpu_mips_get_random(CPUMIPSState *env)
+ {
+-    static uint32_t seed = 1;
+-    static uint32_t prev_idx;
+     uint32_t idx;
+     uint32_t nb_rand_tlb = env->tlb->nb_tlb - env->CP0_Wired;
+ 
+@@ -220,10 +217,10 @@ uint32_t cpu_mips_get_random(CPUMIPSState *env)
+          * Use a simple algorithm of Linear Congruential Generator
+          * from ISO/IEC 9899 standard.
+          */
+-        seed = 1103515245 * seed + 12345;
+-        idx = (seed >> 16) % nb_rand_tlb + env->CP0_Wired;
+-    } while (idx == prev_idx);
+-    prev_idx = idx;
++        env->random_seed = 1103515245 * env->random_seed + 12345;
++        idx = (env->random_seed >> 16) % nb_rand_tlb + env->CP0_Wired;
++    } while (idx == env->random_prev_idx);
++    env->random_prev_idx = idx;
+     return idx;
+ }
+ 

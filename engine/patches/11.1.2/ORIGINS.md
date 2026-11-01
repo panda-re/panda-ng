@@ -21,7 +21,7 @@ The trailers are part of each commit message in an `import-series.sh` tree, so
 `export-series.sh` keeps them. Add both to a new patch, and update this table when the series
 changes (the export does not rewrite this file). "Uncertain" in a note marks a judgement call.
 
-Counts: new 57, penguin 26, panda-re/qemu 6, ac88u 2.
+Counts: new 63, penguin 26, panda-re/qemu 6, ac88u 2.
 
 | # | subject | origin | license | note |
 |---|---|---|---|---|
@@ -119,3 +119,6 @@ Counts: new 57, penguin 26, panda-re/qemu 6, ac88u 2.
 | 0092 | replay: stub analysis register effects without TCG | new | GPL-2.0-or-later | no-TCG linkage for the register effect request |
 | 0093 | tcg: taint shadow pass hooks | new | GPL-2.0-or-later | CF_TAINT pass call site, shadow TLB hooks, device-write clear, reports from memory-writing helpers (MOPS, DC ZVA, cbo.zero), Arm user-bank register helpers, CF_TAINT_CHECK + no cross-variant chaining; cap-gated |
 | 0094 | migration/savevm: reset load_section_id at the start of qemu_loadvm_state | new | MIT | a second load matched part/end sections by the previous stream's ids (pseries rr begin with blkreplay); not taint-specific |
+| 0095 | target/mips: move the Random register's generator state into CPUMIPSState | new | GPL-2.0-or-later AND LGPL-2.1-or-later | static LCG state made restored guests pick different TLB slots; MIPS rr diverged ~1M insns in; not taint-specific; manager allocation 0096 |
+| 0096 | target/loongarch: migrate the constant timer | new | GPL-2.0-or-later | the timer's QEMUTimer was not in vmstate, so a loaded guest idles forever; not taint-specific; manager allocation 0097 |
+| 0097 | target/ppc: rebuild BookE/40x exception vectors on load | new | GPL-2.0-or-later | fixes ppce500 savevm/loadvm (NIP 0 at the first interrupt); does NOT fix ppc32 rr, which is still unsolved; not taint-specific; manager allocation 0098 |
