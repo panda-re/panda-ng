@@ -149,9 +149,10 @@ and turns each assignment into an env write: `env.regs[0] = 1`, `env.cp15.ttbr0_
 A pointer field gives a view of what it points to, and writes through it are logged as a
 path, because host addresses differ between the recording and replay processes:
 `env.pmsav7.drbar[3] = x`. The engine checks each path step and range against a layout map
-generated from the bindgen bindings (`tools/guest-layout/gen.py`). It refuses a range that
-overlaps a host pointer, an unknown pointer, and repointing. A recording that wrote env
-replays only on an engine with the same layout.
+that each build generates from its own debug info (`panda/scripts/guest_layout.py`), so it
+holds on that host. It refuses a range that overlaps a host pointer, an unknown pointer, and
+repointing. A recording that wrote env replays only on an engine with the same layout: the
+layout depends on the host, so a recording made on an x86_64 host may not replay on aarch64.
 
 Where writes are logged so far is guest hypercalls. Each hypercall is one event, answered or
 not. This covers Penguin's consumer (`set_penguin_guest_hypercall_callback`), mutating

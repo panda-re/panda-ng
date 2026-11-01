@@ -76,8 +76,8 @@ void replay_guest_write_log_reg(CPUState *cpu, int reg, const uint8_t *data,
 /*
  * The vCPU env's layout, for env writes: CPUArchState and the
  * structs reachable from it through pointer fields. Generated per target from
- * the bindgen bindings (tools/guest-layout/gen.py); registered by the target's
- * panda/src/guest-write.c.
+ * the build's debug info (panda/scripts/guest_layout.py); registered by the
+ * target's panda/src/guest-write.c.
  */
 typedef struct GuestLayoutRange {
     uint32_t offset, size;

@@ -1304,10 +1304,10 @@ vanilla_verified = false
 [[patch]]
 id = "0093"
 file = "engine/patches/11.1.2/0093-replay-log-analysis-guest-writes-at-their-instructio.patch"
-sha256 = "5354f1b32fdf8cc7546e5124a3ed6c936ef0a721abf008db0538d68c7d33c0d4"
+sha256 = "46526a92e882ce9d36c90372858c6eec0acc7c4e70873cbe6c63964bdab75016"
 class = "runtime-gate"
 capability = "rr-analysis-effects"
-paths = ["replay/replay-internal.h", "replay/replay.c", "replay/stubs-system.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c", "target/loongarch/tcg/insn_trans/trans_extra.c.inc", "target/mips/tcg/translate.c", "target/ppc/translate/fixedpoint-impl.c.inc", "target/riscv/tcg/translate.c"]
+paths = ["meson.build", "replay/replay-internal.h", "replay/replay.c", "replay/stubs-system.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c", "target/loongarch/tcg/insn_trans/trans_extra.c.inc", "target/mips/tcg/translate.c", "target/ppc/translate/fixedpoint-impl.c.inc", "target/riscv/tcg/translate.c"]
 functions = ["EVENT_GUEST_WRITE", "replay_event_name", "trans_PENGUIN", "gen_cond_move", "do_xori", "gen_logic_imm_fn", "trans_cpucfg", "replay_guest_write_begin"]
 hunk_contexts = ["EVENT_RANDOM", "REPLAY_VERSION", "gen_helper_penguin_guest_hypercall"]
 gate_status = "rr-guest-write-event-not-vanilla-verified"
@@ -1330,11 +1330,11 @@ vanilla_verified = false
 id = "guest-write-api"
 class = "runtime-gate"
 capability = "rr-analysis-effects"
-paths = ["engine/src/include/panda/guest-write.h", "engine/src/panda/src/guest-write.c", "engine/src/panda/src/guest-layout.gen.h"]
+paths = ["engine/src/include/panda/guest-write.h", "engine/src/panda/src/guest-write.c", "engine/src/panda/src/guest-layout-probe.c", "engine/src/panda/scripts/guest_layout.py"]
 functions = ["panda_guest_write_virt", "panda_guest_write_phys", "panda_guest_write_reg", "panda_guest_set_retval", "panda_guest_write_env", "panda_guest_write_env_path", "panda_guest_env_sync", "panda_guest_reg_lookup", "replay_guest_layout_register"]
 gate_status = "logged-guest-writes-standalone-tested-not-guest-verified"
-current_gate = "Without record/replay the calls write at once under PANDA's existing policy; during record/replay only inside a guest-write scope (hypercall sites), logged as EVENT_GUEST_WRITE and repeated by replay; env writes are checked against the generated layout map and the guard compares the vCPU's env after each recorded site."
-required_action = "Guest-verify record/replay of env, path, register and memory writes on each target; confirm the guard has no false positives (fields QEMU changes inside a site) on every target."
+current_gate = "Without record/replay the calls write at once under PANDA's existing policy; during record/replay only inside a guest-write scope (hypercall sites), logged as EVENT_GUEST_WRITE and repeated by replay; env writes are checked against the layout map each build generates from its own debug info. Writes outside the API are unsupported, not detected."
+required_action = "Guest-verify record/replay of env-path and register writes on each target (hypercall_rr covers memory and the return register on x86_64, aarch64 and riscv64)."
 vanilla_verified = false
 
 [[overlay]]
