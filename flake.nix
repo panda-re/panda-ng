@@ -1105,7 +1105,7 @@
                 buildInputs = [ pkgs.glib ];
               }
               ''
-                python3 ${./.}/tests/static/guest_layout.py ${p.engine}/include/panda-ng
+                python3 ${./.}/tests/static/guest_layout.py ${p.engine}/include/panda-ng ${p.engineSrc}
                 touch $out
               '';
           # pandare2's env view turns field assignments into the engine's env writes (no engine).
