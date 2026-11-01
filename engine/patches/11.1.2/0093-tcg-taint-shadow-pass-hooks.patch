@@ -33,13 +33,19 @@ in the overlay). With ANALYSIS_CAP_TAINT provisioned:
   it was (taint_helper_store_lane), and the pass stages the value's shadow
   before the call; ll and lld load in C, and the pass reads the result's
   shadow from RAM after the call as for a qemu_ld;
+- liveness_pass_2 creates a direct temporary only for the indirect
+  globals a TB uses, not for every one: the shadow globals are indirect
+  (based on taint_senv), and on MIPS64 one per guest global left too few
+  of TCG_MAX_TEMPS for a single instruction (an assertion in tb_gen_code).
+  Without taint no built target has indirect globals, so this pass does
+  not run there;
 - -analysis-capabilities accepts "taint".
 
 Every hook is behind taint_active (false unless taint is enabled in a
 replay) or the capability, so an engine without taint pays one predicted
 branch on TLB flushes, device writes and those helpers.
 
-SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
 Origin: new
 ---
  accel/tcg/cpu-exec.c             |  11 +++
@@ -59,7 +65,8 @@ Origin: new
  target/mips/tcg/tcg-internal.h   |   3 +
  target/mips/tcg/translate.c      |   3 +
  target/riscv/tcg/op_helper.c     |   4 ++
- 17 files changed, 250 insertions(+), 74 deletions(-)
+ tcg/tcg.c                        |  23 +++++-
+ 18 files changed, 271 insertions(+), 76 deletions(-)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
 index 543d5fb7961932ae9ede3ef2932a208bee31f2c8..0a36eb4b30e2ce184d1805f265bc6c9dbfbf5ee5 100644
@@ -851,3 +858,40 @@ index 10b7a7dd80c70904677095f4c8a6ed97bfbb029d..099c0f436b606d6b3f7362d9fbede5c6
      } else {
          /*
           * This means that we're dealing with an I/O page. Section 4.2
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index db43589fa2fba025804b29fcade3482724542a6c..475a5cec64b8a905fe7dc8ebe87a299f3ad02a95 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -4279,11 +4279,30 @@ liveness_pass_2(TCGContext *s)
+     int nb_temps, i;
+     bool changes = false;
+     TCGOp *op, *op_next;
++    TCGTempSet used;
+ 
+-    /* Create a temporary for each indirect global.  */
++    /*
++     * Only indirect globals that this TB uses get a temporary: a target or
++     * an analysis pass may register many indirect globals, and allocating
++     * one temporary for each in every TB can exhaust TCG_MAX_TEMPS.
++     */
++    memset(&used, 0, sizeof(used));
++    QTAILQ_FOREACH(op, &s->ops, link) {
++        int n = op->opc == INDEX_op_call
++                ? TCGOP_CALLO(op) + TCGOP_CALLI(op)
++                : tcg_op_defs[op->opc].nb_oargs + tcg_op_defs[op->opc].nb_iargs;
++        for (i = 0; i < n; i++) {
++            TCGTemp *ts = arg_temp(op->args[i]);
++            if (ts && ts->indirect_reg) {
++                set_bit(temp_idx(ts), used.l);
++            }
++        }
++    }
++
++    /* Create a temporary for each indirect global this TB uses.  */
+     for (i = 0; i < nb_globals; ++i) {
+         TCGTemp *its = &s->temps[i];
+-        if (its->indirect_reg) {
++        if (its->indirect_reg && test_bit(i, used.l)) {
+             TCGTemp *dts = tcg_temp_alloc(s);
+             dts->type = its->type;
+             dts->base_type = its->base_type;
