@@ -1,8 +1,9 @@
 /*
  * The guest-write API (include/panda/guest-write.h) for this target: admission
  * and logging are system/replay-effect.h's; this file has what depends on the
- * target, which is CPUArchState's layout map (guest-layout.gen.h, generated)
- * and the return register.
+ * target, which is CPUArchState's layout map (GUEST_LAYOUT_H, which meson
+ * generates from this build's debug info: panda/scripts/guest_layout.py) and
+ * the return register.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -13,9 +14,8 @@
 #include "exec/cputlb.h"
 #include "system/hw_accel.h"
 #include "system/replay-effect.h"
-#include "qemu/timer.h"     /* QEMUTimer: the map takes sizeof every type it lists */
 
-#include "guest-layout.gen.h"
+#include GUEST_LAYOUT_H
 
 static void guest_layout_sync(CPUState *cs)
 {

@@ -21,9 +21,10 @@
  *
  * Env writes copy bytes into the vCPU's CPUArchState at an offset
  * (offsetof(CPUArchState, ...)) or through pointer fields of it, by path. The
- * engine's layout map (panda/src/guest-layout.gen.h) checks every path step and
- * refuses a range that overlaps a host pointer: a host address means nothing
- * in another process. Replay needs a recording made with the same layout.
+ * engine's layout map, which the build generates from its own debug info,
+ * checks every path step and refuses a range that overlaps a host pointer: a
+ * host address means nothing in another process. Replay needs a recording
+ * made with the same layout.
  */
 #include <stddef.h>
 #include <stdint.h>
