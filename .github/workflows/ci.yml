@@ -3,7 +3,8 @@ name: CI
 # Every PR, whatever it touches (plugins/, python/, tests/, rust/, tools/, engine/, ...): build what
 # users run, check the flake, and start the engine once. Builds and checks only; nothing publishes.
 # engine.yml adds the series gates when engine/ changes; the guest suite (tests/run.sh)
-# needs images and hours of TCG and is not run here.
+# needs images and hours of TCG and is not run here, except its taint tests on small busybox guests
+# when a PR touches taint or record/replay (below).
 #
 #   build     nix build .#python (the 13-target engine, the plugins, pandare2), tests/smoke.py
 #             x86_64 (firmware boot, C plugins load, a Python callback runs), nix flake check
@@ -61,6 +62,44 @@ jobs:
         run: nix build -L --out-link result-python .#python
       - name: Smoke (x86_64 firmware, plugins, a Python callback)
         run: ./result-python/bin/python3 tests/smoke.py x86_64
+      # Taint and the record/replay under it on 11 arches (tests/busybox.sh: small busybox guests,
+      # about 3 minutes with the download), only when the PR touches what they depend on: the
+      # engine (TCG, record/replay, the targets' snapshot state), pandare2's taint and disk set-up,
+      # syscalls2, or the tests. Pushes to main always run it. The nightly guest suite runs it too.
+      - name: Does the change touch taint or record/replay?
+        id: busybox
+        run: |
+          if [ "${{ github.event_name }}" != pull_request ]; then echo run=1 >> "$GITHUB_OUTPUT"; exit 0; fi
+          # The checkout is the PR's merge commit; diffing its tree against the base's needs no history.
+          git fetch -q --depth=1 origin ${{ github.event.pull_request.base.sha }}
+          if git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD | grep -qE \
+              '^(engine/|flake\.(nix|lock)$|plugins/syscalls2/|python/core/pandare2/(taint|panda|qcows_internal)\.py$|tests/(taint|taint_mmio|mkbusybox)\.py$|tests/(busybox|run)\.sh$)'; then
+            echo run=1 >> "$GITHUB_OUTPUT"
+          else
+            echo "no taint or record/replay paths changed: skipping the busybox guests"
+          fi
+      - name: Restore the busybox-guest downloads
+        if: steps.busybox.outputs.run
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/panda-busybox
+          key: panda-busybox-${{ hashFiles('tests/busybox.sh') }}
+      - name: Taint and record/replay on 11 arches (busybox guests)
+        if: steps.busybox.outputs.run
+        env:
+          PANDA_PYTHON: ${{ github.workspace }}/result-python/bin/python3
+          OUT: ${{ github.workspace }}/busybox-out
+          IMAGES: ${{ runner.temp }}/busybox-images
+        run: tests/busybox.sh
+      - name: Busybox-guest logs
+        if: failure() && steps.busybox.outputs.run
+        uses: actions/upload-artifact@v4
+        with:
+          name: busybox-guests
+          path: |
+            busybox-out/results
+            busybox-out/**/*.log
+          retention-days: 14
       - name: Flake check
         run: nix flake check -L
       # The documented consumer flake, pointed at this tree instead of GitHub.

@@ -332,6 +332,7 @@ class Panda(TaintMixin):
         self.cdrom = None
         self.isf = None         # the image's kernel symbols (generic=), for osi_isf and osi_linux
         self.kconf_file = None
+        disk_device = None      # the image's rr disk device, if it names one
         if generic:
             q = Qcows.get_qcow_info(generic)
             if arch is not None and arch != q.arch:
@@ -344,6 +345,7 @@ class Panda(TaintMixin):
             expect_prompt = q.prompt if expect_prompt is None else expect_prompt
             self.cdrom = q.cdrom
             self.isf, self.kconf_file = q.isf, q.kconf_file
+            disk_device = q.disk_device
             if q.extra_args:
                 image_args = q.extra_args
                 extra_args = (shlex_split(image_args) if isinstance(image_args, str)
@@ -532,6 +534,8 @@ class Panda(TaintMixin):
                    'ppc64': 'scsi-hd,bus=rr-vscsi.0,scsi-id=0,lun=0',
                    'mips64': 'virtio-blk-pci', 'mips64el': 'virtio-blk-pci',
                    'mips': 'virtio-blk-pci', 'mipsel': 'virtio-blk-pci', 'loongarch64': 'virtio-blk-pci'}
+        if disk_device:
+            rr_disk[self.arch_name] = disk_device
         if self.qcow and rr and self.arch_name in rr_disk:
             # Under record/replay, disk I/O completes asynchronously: blkreplay journals the
             # completions. -blockdev, so only the blkreplay node has a BlockBackend and savevm

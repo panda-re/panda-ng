@@ -1,8 +1,8 @@
 """Taint mode (CF_TAINT pass, capability "taint") on a recording, end to end.
 
 Run: panda-python tests/taint.py <dir>/debian-13-x86_64.json [workdir]
-(TAINT_TEST_CAPS adds capabilities: "handoff" for older snapshots, "guest-hypercall" for syscalls2
-on 32-bit Arm.)
+(TAINT_TEST_CAPS adds capabilities: "handoff" for older snapshots.) Images: pandare2.mkimage's, or
+tests/mkbusybox.py's for the other arches.
 
 Records, in one process, a command that writes a marker file, drops the page cache, then `cat`s the
 file (so its bytes come back from disk by DMA) through a pipe and a second `cat` (busybox's cat
@@ -39,7 +39,12 @@ MARKER = "taintmarker-4242"
 CLEAN = "cleanline-1764"
 CMD = ("echo taintmarker-$((2*2121)) > /root/taint.txt; sync; echo 3 > /proc/sys/vm/drop_caches; "
        "cat /root/taint.txt | cat; echo cleanline-$((42*42))")
-CAPS = ["analysis", "rr", "taint"] + os.environ.get("TAINT_TEST_CAPS", "").split()
+# pandare2's defaults (analysis, guest-hypercall, and rr for rr=True) plus taint: syscalls2 sees no
+# syscalls on Arm without guest-hypercall.
+CAPS = ["analysis", "guest-hypercall", "rr", "taint"] + os.environ.get("TAINT_TEST_CAPS", "").split()
+# loongarch64 has no syscalls2 profile: its syscalls are caught as the exception (EXCCODE_SYS).
+SYSCALL_EXC = {"loongarch64": 11}
+WRITE, WRITEV = 64, 66  # the generic syscall table's numbers (loongarch64)
 
 
 def child(mode, image, name, out):
@@ -83,13 +88,11 @@ def child(mode, image, name, out):
             seen["reg"] = [n, got == [0xA5] * n, panda.taint_query_reg(cpu, 1) == [0] * n]
             panda.disable_callback("first")
 
-    @panda.ppp("syscalls2", "on_sys_write_enter", observe_only=True)
     def write(cpu, pc, fd, buf, count):
         if fd == 1:
             one_write(cpu, buf, count)
 
     # musl's stdio (busybox guests) writes with writev
-    @panda.ppp("syscalls2", "on_sys_writev_enter", observe_only=True)
     def writev(cpu, pc, fd, iov, iovcnt):
         if fd != 1 or iovcnt > 64:
             return
@@ -103,6 +106,18 @@ def child(mode, image, name, out):
             n = int.from_bytes(raw[2 * w * i + w:2 * w * (i + 1)], panda.endianness)
             if n:
                 one_write(cpu, base, n)
+
+    if panda.arch_name in SYSCALL_EXC:
+        @panda.cb_before_handle_exception(observe_only=True)
+        def on_exc(cpu, index):
+            if index == SYSCALL_EXC[panda.arch_name]:
+                num, a0, a1, a2 = (panda.arch.get_arg(cpu, i, convention="syscall") for i in range(4))
+                if num in (WRITE, WRITEV):
+                    (write if num == WRITE else writev)(cpu, panda.arch.get_pc(cpu), a0, a1, a2)
+            return index
+    else:
+        panda.ppp("syscalls2", "on_sys_write_enter", observe_only=True)(write)
+        panda.ppp("syscalls2", "on_sys_writev_enter", observe_only=True)(writev)
 
     def one_write(cpu, buf, count):
         if count > 4096:
