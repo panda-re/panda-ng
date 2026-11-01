@@ -28,30 +28,38 @@ in the overlay). With ANALYSIS_CAP_TAINT provisioned:
   through set_user_reg); its register bank switches done in C (the
   stack pointers on AArch64 exception entry and return, AArch32's
   switch_mode) copy the shadow too (taint_env_copy);
+- target/mips's partial-word stores (swl, swr, sdl, sdr) store a register
+  a byte at a time in C: they report each byte and which byte of the value
+  it was (taint_helper_store_lane), and the pass stages the value's shadow
+  before the call; ll and lld load in C, and the pass reads the result's
+  shadow from RAM after the call as for a qemu_ld;
 - -analysis-capabilities accepts "taint".
 
 Every hook is behind taint_active (false unless taint is enabled in a
 replay) or the capability, so an engine without taint pays one predicted
 branch on TLB flushes, device writes and those helpers.
 
-SPDX-License-Identifier: GPL-2.0-or-later
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
 Origin: new
 ---
- accel/tcg/cpu-exec.c             | 11 ++++++++
- accel/tcg/cputlb.c               | 44 +++++++++++++++++++++++++++++
- accel/tcg/meson.build            |  1 +
- accel/tcg/translator.c           |  5 ++++
- include/exec/translation-block.h |  2 ++
- include/hw/core/cpu.h            |  2 ++
- system/physmem.c                 |  5 ++++
- system/vl.c                      |  2 ++
- target/arm/helper.c              | 18 ++++++------
- target/arm/internals.h           | 27 +++++++++++++++---
- target/arm/tcg/helper-a64.c      | 29 +++++++++++++++++++
- target/arm/tcg/op_helper.c       | 48 ++++++++++++++++++++------------
- target/arm/tcg/translate.c       |  3 ++
- target/riscv/tcg/op_helper.c     |  4 +++
- 14 files changed, 171 insertions(+), 30 deletions(-)
+ accel/tcg/cpu-exec.c             |  11 +++
+ accel/tcg/cputlb.c               |  44 ++++++++++++
+ accel/tcg/meson.build            |   1 +
+ accel/tcg/translator.c           |   5 ++
+ include/exec/translation-block.h |   2 +
+ include/hw/core/cpu.h            |   2 +
+ system/physmem.c                 |   5 ++
+ system/vl.c                      |   2 +
+ target/arm/helper.c              |  18 ++---
+ target/arm/internals.h           |  27 +++++--
+ target/arm/tcg/helper-a64.c      |  29 ++++++++
+ target/arm/tcg/op_helper.c       |  48 ++++++++-----
+ target/arm/tcg/translate.c       |   3 +
+ target/mips/tcg/ldst_helper.c    | 117 +++++++++++++++++++------------
+ target/mips/tcg/tcg-internal.h   |   3 +
+ target/mips/tcg/translate.c      |   3 +
+ target/riscv/tcg/op_helper.c     |   4 ++
+ 17 files changed, 250 insertions(+), 74 deletions(-)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
 index 543d5fb7961932ae9ede3ef2932a208bee31f2c8..0a36eb4b30e2ce184d1805f265bc6c9dbfbf5ee5 100644
@@ -571,6 +579,256 @@ index c09865a2d81636f9d355d7be0c32037863304b4d..76e3a8a4d3294fe3607f89aa8fc7b818
  }
  
  uint64_t asimd_imm_const(uint32_t imm, int cmode, int op)
+diff --git a/target/mips/tcg/ldst_helper.c b/target/mips/tcg/ldst_helper.c
+index 1b25466b496d1756b3e4f2b318fc0f58f1790497..420fda54b8f89dd1bc681259a6fece29aa4ef4a2 100644
+--- a/target/mips/tcg/ldst_helper.c
++++ b/target/mips/tcg/ldst_helper.c
+@@ -26,6 +26,7 @@
+ #include "accel/tcg/cpu-ldst.h"
+ #include "exec/memop.h"
+ #include "internal.h"
++#include "exec/taint.h"
+ 
+ #ifndef CONFIG_USER_ONLY
+ #include "accel/tcg/probe.h"
+@@ -73,28 +74,70 @@ static inline target_ulong get_lmask(CPUMIPSState *env,
+     return value;
+ }
+ 
++/*
++ * One byte of a partial-word store. Taint (when on) tracks which byte of the register it was:
++ * the TCG pass cannot see into these helpers.
++ */
++static inline void st_lane(CPUMIPSState *env, target_ulong base, target_ulong addr,
++                           target_ulong val, unsigned lane, int mem_idx, uintptr_t ra)
++{
++    cpu_stb_mmuidx_ra(env, addr, (uint8_t)(val >> (8 * lane)), mem_idx, ra);
++#ifndef CONFIG_USER_ONLY
++    if (unlikely(taint_active)) {
++        taint_helper_store_lane(env_cpu(env), base, addr, mem_idx, lane);
++    }
++#endif
++}
++
++static inline void lanes_done(void)
++{
++#ifndef CONFIG_USER_ONLY
++    if (unlikely(taint_active)) {
++        taint_helper_lanes_done();
++    }
++#endif
++}
++
++#ifndef CONFIG_USER_ONLY
++/*
++ * Taint: swl/swr/sdl/sdr store bytes of a register one at a time, and ll/lld load, in C: the
++ * TCG pass cannot see either.
++ */
++void mips_taint_init(void)
++{
++    taint_register_load_helper("ll");
++#if defined(TARGET_MIPS64)
++    taint_register_load_helper("lld");
++#endif
++    taint_register_lane_store_helper("swl");
++    taint_register_lane_store_helper("swr");
++#if defined(TARGET_MIPS64)
++    taint_register_lane_store_helper("sdl");
++    taint_register_lane_store_helper("sdr");
++#endif
++}
++#endif
++
+ void helper_swl(CPUMIPSState *env, target_ulong arg1, target_ulong arg2,
+                 int mem_idx)
+ {
+     target_ulong lmask = get_lmask(env, arg2, 32);
+     int dir = mips_env_is_bigendian(env) ? 1 : -1;
+ 
+-    cpu_stb_mmuidx_ra(env, arg2, (uint8_t)(arg1 >> 24), mem_idx, GETPC());
++    st_lane(env, arg2, arg2, arg1, 3, mem_idx, GETPC());
+ 
+     if (lmask <= 2) {
+-        cpu_stb_mmuidx_ra(env, arg2 + 1 * dir, (uint8_t)(arg1 >> 16),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 + 1 * dir, arg1, 2, mem_idx, GETPC());
+     }
+ 
+     if (lmask <= 1) {
+-        cpu_stb_mmuidx_ra(env, arg2 + 2 * dir, (uint8_t)(arg1 >> 8),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 + 2 * dir, arg1, 1, mem_idx, GETPC());
+     }
+ 
+     if (lmask == 0) {
+-        cpu_stb_mmuidx_ra(env, arg2 + 3 * dir, (uint8_t)arg1,
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 + 3 * dir, arg1, 0, mem_idx, GETPC());
+     }
++    lanes_done();
+ }
+ 
+ void helper_swr(CPUMIPSState *env, target_ulong arg1, target_ulong arg2,
+@@ -103,22 +146,20 @@ void helper_swr(CPUMIPSState *env, target_ulong arg1, target_ulong arg2,
+     target_ulong lmask = get_lmask(env, arg2, 32);
+     int dir = mips_env_is_bigendian(env) ? 1 : -1;
+ 
+-    cpu_stb_mmuidx_ra(env, arg2, (uint8_t)arg1, mem_idx, GETPC());
++    st_lane(env, arg2, arg2, arg1, 0, mem_idx, GETPC());
+ 
+     if (lmask >= 1) {
+-        cpu_stb_mmuidx_ra(env, arg2 - 1 * dir, (uint8_t)(arg1 >> 8),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 - 1 * dir, arg1, 1, mem_idx, GETPC());
+     }
+ 
+     if (lmask >= 2) {
+-        cpu_stb_mmuidx_ra(env, arg2 - 2 * dir, (uint8_t)(arg1 >> 16),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 - 2 * dir, arg1, 2, mem_idx, GETPC());
+     }
+ 
+     if (lmask == 3) {
+-        cpu_stb_mmuidx_ra(env, arg2 - 3 * dir, (uint8_t)(arg1 >> 24),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 - 3 * dir, arg1, 3, mem_idx, GETPC());
+     }
++    lanes_done();
+ }
+ 
+ #if defined(TARGET_MIPS64)
+@@ -133,42 +174,36 @@ void helper_sdl(CPUMIPSState *env, target_ulong arg1, target_ulong arg2,
+     target_ulong lmask = get_lmask(env, arg2, 64);
+     int dir = mips_env_is_bigendian(env) ? 1 : -1;
+ 
+-    cpu_stb_mmuidx_ra(env, arg2, (uint8_t)(arg1 >> 56), mem_idx, GETPC());
++    st_lane(env, arg2, arg2, arg1, 7, mem_idx, GETPC());
+ 
+     if (lmask <= 6) {
+-        cpu_stb_mmuidx_ra(env, arg2 + 1 * dir, (uint8_t)(arg1 >> 48),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 + 1 * dir, arg1, 6, mem_idx, GETPC());
+     }
+ 
+     if (lmask <= 5) {
+-        cpu_stb_mmuidx_ra(env, arg2 + 2 * dir, (uint8_t)(arg1 >> 40),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 + 2 * dir, arg1, 5, mem_idx, GETPC());
+     }
+ 
+     if (lmask <= 4) {
+-        cpu_stb_mmuidx_ra(env, arg2 + 3 * dir, (uint8_t)(arg1 >> 32),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 + 3 * dir, arg1, 4, mem_idx, GETPC());
+     }
+ 
+     if (lmask <= 3) {
+-        cpu_stb_mmuidx_ra(env, arg2 + 4 * dir, (uint8_t)(arg1 >> 24),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 + 4 * dir, arg1, 3, mem_idx, GETPC());
+     }
+ 
+     if (lmask <= 2) {
+-        cpu_stb_mmuidx_ra(env, arg2 + 5 * dir, (uint8_t)(arg1 >> 16),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 + 5 * dir, arg1, 2, mem_idx, GETPC());
+     }
+ 
+     if (lmask <= 1) {
+-        cpu_stb_mmuidx_ra(env, arg2 + 6 * dir, (uint8_t)(arg1 >> 8),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 + 6 * dir, arg1, 1, mem_idx, GETPC());
+     }
+ 
+     if (lmask <= 0) {
+-        cpu_stb_mmuidx_ra(env, arg2 + 7 * dir, (uint8_t)arg1,
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 + 7 * dir, arg1, 0, mem_idx, GETPC());
+     }
++    lanes_done();
+ }
+ 
+ void helper_sdr(CPUMIPSState *env, target_ulong arg1, target_ulong arg2,
+@@ -177,42 +212,36 @@ void helper_sdr(CPUMIPSState *env, target_ulong arg1, target_ulong arg2,
+     target_ulong lmask = get_lmask(env, arg2, 64);
+     int dir = mips_env_is_bigendian(env) ? 1 : -1;
+ 
+-    cpu_stb_mmuidx_ra(env, arg2, (uint8_t)arg1, mem_idx, GETPC());
++    st_lane(env, arg2, arg2, arg1, 0, mem_idx, GETPC());
+ 
+     if (lmask >= 1) {
+-        cpu_stb_mmuidx_ra(env, arg2 - 1 * dir, (uint8_t)(arg1 >> 8),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 - 1 * dir, arg1, 1, mem_idx, GETPC());
+     }
+ 
+     if (lmask >= 2) {
+-        cpu_stb_mmuidx_ra(env, arg2 - 2 * dir, (uint8_t)(arg1 >> 16),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 - 2 * dir, arg1, 2, mem_idx, GETPC());
+     }
+ 
+     if (lmask >= 3) {
+-        cpu_stb_mmuidx_ra(env, arg2 - 3 * dir, (uint8_t)(arg1 >> 24),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 - 3 * dir, arg1, 3, mem_idx, GETPC());
+     }
+ 
+     if (lmask >= 4) {
+-        cpu_stb_mmuidx_ra(env, arg2 - 4 * dir, (uint8_t)(arg1 >> 32),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 - 4 * dir, arg1, 4, mem_idx, GETPC());
+     }
+ 
+     if (lmask >= 5) {
+-        cpu_stb_mmuidx_ra(env, arg2 - 5 * dir, (uint8_t)(arg1 >> 40),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 - 5 * dir, arg1, 5, mem_idx, GETPC());
+     }
+ 
+     if (lmask >= 6) {
+-        cpu_stb_mmuidx_ra(env, arg2 - 6 * dir, (uint8_t)(arg1 >> 48),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 - 6 * dir, arg1, 6, mem_idx, GETPC());
+     }
+ 
+     if (lmask == 7) {
+-        cpu_stb_mmuidx_ra(env, arg2 - 7 * dir, (uint8_t)(arg1 >> 56),
+-                          mem_idx, GETPC());
++        st_lane(env, arg2, arg2 - 7 * dir, arg1, 7, mem_idx, GETPC());
+     }
++    lanes_done();
+ }
+ #endif /* TARGET_MIPS64 */
+ 
+diff --git a/target/mips/tcg/tcg-internal.h b/target/mips/tcg/tcg-internal.h
+index 950e6afc3f2709ec49c0865b66c6f07ab6d355dd..80bb5364e8666f1331e62a16170c5ec0db6328a7 100644
+--- a/target/mips/tcg/tcg-internal.h
++++ b/target/mips/tcg/tcg-internal.h
+@@ -16,6 +16,9 @@
+ #include "cpu.h"
+ 
+ void mips_tcg_init(void);
++#ifndef CONFIG_USER_ONLY
++void mips_taint_init(void);
++#endif
+ void mips_translate_code(CPUState *cs, TranslationBlock *tb,
+                          int *max_insns, vaddr pc, void *host_pc);
+ 
+diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
+index a402df7e55d504eb47a9627343e8c0bfcfa6ec5b..f75a0f75c46b1e24c1297a61186aa4d9efeeb148 100644
+--- a/target/mips/tcg/translate.c
++++ b/target/mips/tcg/translate.c
+@@ -15385,6 +15385,9 @@ void mips_tcg_init(void)
+     if (TARGET_LONG_BITS == 32) {
+         mxu_translate_init();
+     }
++#ifndef CONFIG_USER_ONLY
++    mips_taint_init();
++#endif
+ }
+ 
+ void mips_restore_state_to_opc(CPUState *cs,
 diff --git a/target/riscv/tcg/op_helper.c b/target/riscv/tcg/op_helper.c
 index 10b7a7dd80c70904677095f4c8a6ed97bfbb029d..099c0f436b606d6b3f7362d9fbede5c6c5a4577a 100644
 --- a/target/riscv/tcg/op_helper.c

@@ -99,6 +99,7 @@ path = [
   "engine/patches/11.1.2/0035-plugins-bind-a-CF_PCREL-block-to-its-virtual-address.patch",
   "engine/patches/11.1.2/0044-panda-asid_changed-on-x86-arm-and-mips.patch",
   "engine/patches/11.1.2/0095-target-mips-move-the-Random-register-s-generator-sta.patch",
+  "engine/patches/11.1.2/0093-tcg-taint-shadow-pass-hooks.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
