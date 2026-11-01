@@ -3,7 +3,7 @@
 # Overlay paths are repository-relative; hunk_contexts are evidence, not exhaustive symbols.
 schema_version = 1
 patch_series = "engine/patches/11.1.2/series"
-patch_range = "0001-0093"
+patch_range = "0001-0099"
 review_date = "2026-10-29"
 vanilla_parity_implemented = false
 source_audit = "../notes/mode-audit.md (historical0001-0081; read-only, findings rechecked against current series)"
@@ -1315,6 +1315,90 @@ current_gate = "Hypercall instructions start I/O unconditionally (their translat
 required_action = "Gate translator_io_start on the guest-hypercall capability's RR use, or show it is inert without icount; validate record/replay of answered hypercalls on each target."
 vanilla_verified = false
 
+[[patch]]
+id = "0094"
+file = "engine/patches/11.1.2/0094-tcg-taint-shadow-pass-hooks.patch"
+sha256 = "6ed3eeda13afdd1212826ab219717735d31f9a1c3e84b76151a2ee73fe8e84dd"
+class = "runtime-gate"
+capability = "taint"
+paths = ["accel/tcg/cpu-exec.c", "accel/tcg/cputlb.c", "accel/tcg/meson.build", "accel/tcg/translator.c", "include/exec/translation-block.h", "include/hw/core/cpu.h", "system/physmem.c", "system/vl.c", "target/arm/helper.c", "target/arm/internals.h", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c", "target/arm/tcg/translate.c", "target/mips/tcg/ldst_helper.c", "target/mips/tcg/tcg-internal.h", "target/mips/tcg/translate.c", "target/riscv/tcg/op_helper.c", "tcg/tcg.c"]
+functions = ["taint_gen_tb", "taint_tcg_init", "taint_vcpu_init", "tlb_set_page_full", "tlb_flush_page_locked", "invalidate_and_set_dirty", "liveness_pass_2", "user_reg_ptr", "configure_accelerators", "parse_analysis_capabilities"]
+hunk_contexts = ["bool tcg_exec_realizefn(CPUState *cpu, Error **errp)", "static void tlb_flush_one_mmuidx_locked(CPUState *cpu, int mmu_idx,", "static void tlb_flush_page_locked(CPUState *cpu, int midx, vaddr page)", "static void tlb_flush_range_locked(CPUState *cpu, int midx,", "void tlb_set_page_full(CPUState *cpu, int mmu_idx,", "static void notdirty_write(CPUState *cpu, vaddr mem_vaddr, unsigned size,", "user_ss.add(files(", "void translator_loop(CPUState *cpu, TranslationBlock *tb, int *max_insns,", "struct TranslationBlock {", "struct CPUState {", "static void invalidate_and_set_dirty(MemoryRegion *mr, hwaddr addr,", "static void configure_accelerators(const char *progname)"]
+gate_status = "taint-cap-gate-implemented-not-vanilla-verified"
+current_gate = "Translation hooks run only for CF_TAINT blocks (set by taint_enable, replay only); memory, TLB and helper hooks test taint_active; init hooks return without the taint capability; startup refuses the capability without TCG. Not gated: liveness_pass_2 creates direct temps only for indirect globals a TB uses (no built target has indirect globals without taint), Arm's get/set_user_reg share user_reg_ptr(), and Arm/MIPS register taint helper names at translator init."
+required_action = "Show the ungated liveness_pass_2 and user_reg_ptr changes are behavior-neutral in vanilla (or gate them), and measure the off-cost of the taint_active branches (engine-offcost)."
+vanilla_verified = false
+
+[[patch]]
+id = "0095"
+file = "engine/patches/11.1.2/0095-migration-savevm-reset-load_section_id-at-the-start-.patch"
+sha256 = "2db585c8de27aa8979a280595e267fef0d48c52ce1203331cfe86b0fc6f11df2"
+class = "upstream-fix-needs-off-path"
+capability = "rr-snapshot"
+paths = ["migration/savevm.c"]
+functions = ["qemu_loadvm_state"]
+hunk_contexts = ["int qemu_loadvm_state(QEMUFile *f, Error **errp)"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "None: load_section_id is reset at the start of every qemu_loadvm_state."
+required_action = "Keep an upstream path for vanilla, or show a fresh-process load is unchanged (it is: the reset only matters for a second load in one process)."
+vanilla_verified = false
+
+[[patch]]
+id = "0096"
+file = "engine/patches/11.1.2/0096-target-mips-move-the-Random-register-s-generator-sta.patch"
+sha256 = "f7841b75304ab76d9b245484531dbc4c437b63f97e7d0d37dea83fd2d74eea9c"
+class = "upstream-fix-needs-off-path"
+capability = "rr-snapshot"
+paths = ["target/mips/cpu.c", "target/mips/cpu.h", "target/mips/system/machine.c", "target/mips/tcg/system/cp0_helper.c"]
+functions = ["cpu_mips_get_random", "mips_cpu_reset_hold", "vmstate_mips_cpu"]
+hunk_contexts = ["static void mips_cpu_reset_hold(Object *obj, ResetType type)", "typedef struct CPUArchState {", "static const VMStateDescription mips_vmstate_octeon_crypto = {", "const VMStateDescription vmstate_mips_cpu = {", "static void sync_c0_entryhi(CPUMIPSState *cpu, int tc)", "uint32_t cpu_mips_get_random(CPUMIPSState *env)"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "None: the Random-register generator state moves into CPUMIPSState for every MIPS guest, and the cpu/random subsection is always sent (an unpatched QEMU refuses these snapshots)."
+required_action = "Keep upstream's static generator and snapshot format for vanilla, or send the subsection only under a capability."
+vanilla_verified = false
+
+[[patch]]
+id = "0097"
+file = "engine/patches/11.1.2/0097-target-loongarch-migrate-the-constant-timer.patch"
+sha256 = "f5d10cffaff8948f36a4c06e02c6c0eea8af4a797027088bb8a6a66a6a4a5b76"
+class = "upstream-fix-needs-off-path"
+capability = "rr-snapshot"
+paths = ["target/loongarch/machine.c"]
+functions = ["loongarch_cpu_vmstate", "cpu/timer subsection"]
+hunk_contexts = ["static const VMStateDescription vmstate_tlb = {", "const VMStateDescription vmstate_loongarch_cpu = {"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "None: the constant timer is migrated (cpu/timer subsection) whenever TCG is in use."
+required_action = "Keep upstream's snapshot format for vanilla, or send the subsection only under a capability."
+vanilla_verified = false
+
+[[patch]]
+id = "0098"
+file = "engine/patches/11.1.2/0098-target-ppc-rebuild-BookE-40x-exception-vectors-on-lo.patch"
+sha256 = "7538b65d2493be07d1df796a33195b68a72c83864dadcdf6bbd3e175fa68a29e"
+class = "upstream-fix-needs-off-path"
+capability = "rr-snapshot"
+paths = ["target/ppc/machine.c"]
+functions = ["cpu_post_load"]
+hunk_contexts = ["static bool pvr_match(PowerPCCPU *cpu, uint32_t pvr)", "static int cpu_post_load(void *opaque, int version_id)"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "None: BookE/40x excp_prefix and excp_vectors are rebuilt from spr[] on every load; the snapshot format is unchanged."
+required_action = "Keep upstream's load path for vanilla, or show the rebuild matches what the guest's IVPR/IVOR writes set."
+vanilla_verified = false
+
+[[patch]]
+id = "0099"
+file = "engine/patches/11.1.2/0099-hw-intc-openpic-restore-the-CPUs-external-proxy-mode.patch"
+sha256 = "57abaa9139cca948f9703148e76304064ad8a86eaa81d33c0035927b27884e58"
+class = "upstream-fix-needs-off-path"
+capability = "rr-snapshot"
+paths = ["hw/intc/openpic.c"]
+functions = ["openpic_post_load", "ppce500_set_mpic_proxy"]
+hunk_contexts = ["static int openpic_post_load(void *opaque, int version_id)"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "None: openpic_post_load sets the CPUs' external proxy mode from the loaded GCR on every load; the snapshot format is unchanged."
+required_action = "Keep upstream's load path for vanilla, or show it equals the state a guest GCR write sets."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
@@ -1575,3 +1659,14 @@ action = "Keep original upstream CLI record/replay event/mutex/log paths availab
 status = "suggested-not-implemented"
 command_shape = "python3 -I checker.py docs/vanilla-gates.toml"
 checks = ["Parse TOML with tomllib; reject invalid classes, missing fields, duplicate IDs or any vanilla_verified=true without linked evidence", "Compare patch IDs and filenames bijectively against non-comment series lines and directory patches; require exactly0001..0087 until range intentionally updated", "Recompute SHA256 and extracted +++ b/ paths/hunk contexts; reject stale inventory after any patch edit", "Require every engine/src file to appear in at least one overlay path list; compare executable C/JSON separately from ancillary headers/build files", "For future implementation require each runtime/startup/fix record to link gate symbol, upstream off-path location and positive/negative tests; coverage is not semantic correctness", "Run vanilla guest/snapshot/MMIO/exception/dirty/timer/CLI-RR comparisons only after separate approval; never treat this static checker as proof of parity"]
+
+[[overlay]]
+id = "taint"
+class = "runtime-gate"
+capability = "taint"
+paths = ["engine/src/accel/tcg/taint.c", "engine/src/include/exec/taint.h"]
+functions = ["taint_gen_tb", "taint_enable", "taint_unavailable", "taint_device_write", "taint_tlb_flush_page"]
+gate_status = "taint-cap-gate-implemented-not-vanilla-verified"
+current_gate = "Without the taint capability, init allocates nothing and taint_enable refuses; the pass runs only for CF_TAINT blocks during a replay."
+required_action = "Covered by 0094's obligations; nothing here runs unless taint is enabled in a replay."
+vanilla_verified = false
