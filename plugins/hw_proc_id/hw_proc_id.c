@@ -100,7 +100,11 @@ target_ulong get_id(CPUState * cpu) {
 bool init_plugin(void *self) {
 #if defined(TARGET_MIPS)
     panda_cb pcb = { .start_block_exec = r28_cache };
-    panda_register_callback(self, PANDA_CB_START_BLOCK_EXEC, pcb);
+    /* Observe-only: it reads r28; record/replay refuses mutating callbacks. */
+    if (!panda_register_callback_modes(self, PANDA_CB_START_BLOCK_EXEC, pcb,
+            panda_callback_supported_modes(PANDA_CB_START_BLOCK_EXEC), true)) {
+        return false;
+    }
 #endif
     return true;
 }
