@@ -13,6 +13,7 @@
 #include "exec/cputlb.h"
 #include "system/hw_accel.h"
 #include "system/replay-effect.h"
+#include "qemu/timer.h"     /* QEMUTimer: the map takes sizeof every type it lists */
 
 #include "guest-layout.gen.h"
 
@@ -23,8 +24,7 @@ static void guest_layout_sync(CPUState *cs)
 #endif
 }
 
-static const GuestLayout guest_layout = {
-    .hash = GUEST_LAYOUT_HASH,
+static GuestLayout guest_layout = {
     .types = guest_layout_types,
     .ntypes = ARRAY_SIZE(guest_layout_types),
     .fields = guest_layout_fields,
@@ -33,8 +33,48 @@ static const GuestLayout guest_layout = {
     .sync = guest_layout_sync,
 };
 
+/* FNV-1a over 32-bit words */
+static uint32_t guest_layout_mix(uint32_t hash, uint32_t word)
+{
+    for (int i = 0; i < 4; i++) {
+        hash = (hash ^ ((word >> (8 * i)) & 0xff)) * 16777619u;
+    }
+    return hash;
+}
+
+/*
+ * The map as this build compiled it: offsets and sizes depend on the host, so
+ * a recording replays only where the hash, and so the layout, is the same.
+ */
+static uint32_t guest_layout_hash(void)
+{
+    uint32_t hash = 2166136261u;
+
+    for (size_t i = 0; i < ARRAY_SIZE(guest_layout_types); i++) {
+        const GuestLayoutType *t = &guest_layout_types[i];
+
+        hash = guest_layout_mix(hash, t->size);
+        for (uint32_t j = 0; j < t->nhost; j++) {
+            hash = guest_layout_mix(hash, t->host[j].offset);
+            hash = guest_layout_mix(hash, t->host[j].size);
+        }
+        for (uint32_t j = 0; j < t->nfollow; j++) {
+            hash = guest_layout_mix(hash, t->follow[j].offset);
+            hash = guest_layout_mix(hash, t->follow[j].type);
+            hash = guest_layout_mix(hash, t->follow[j].elem_size);
+            hash = guest_layout_mix(hash, t->follow[j].length);
+        }
+    }
+    for (size_t i = 0; i < ARRAY_SIZE(guest_layout_fields); i++) {
+        hash = guest_layout_mix(hash, guest_layout_fields[i].offset);
+        hash = guest_layout_mix(hash, guest_layout_fields[i].size);
+    }
+    return hash;
+}
+
 static void __attribute__((constructor)) guest_layout_init(void)
 {
+    guest_layout.hash = guest_layout_hash();
     replay_guest_layout_register(&guest_layout);
 }
 

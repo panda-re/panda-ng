@@ -15,11 +15,15 @@ reachable from it through pointer fields (up to MAX_HOPS pointers away), the map
 - every followable pointer: one whose pointee is a struct in the map (one element) or an
   array of scalars whose element count LENGTHS gives. A write path may follow only these.
 
-The env-level entries carry offsetof() checks, so a target whose CPUArchState changed under
-a stale map fails to compile. --check exits 1 if the checked-in header is stale (nix run
-.#regen-rust-bindings first if the engine's headers changed).
+Every offset and size in the map is an offsetof() or sizeof expression, so the compiler of
+each build computes it for that host: the layout of CPUArchState and of the structs it points
+to depends on the host (pthread_mutex_t inside QemuMutex is 40 bytes on x86_64 glibc and 48 on
+aarch64) and on which accelerators the host builds (HOST_CONDITIONAL). The numbers bindgen
+gives are kept as checks that run on the host the bindings come from (x86_64 glibc), so a map
+stale against the engine's headers fails to compile there. The layout hash that recordings
+carry is computed at startup from the compiled map. --check exits 1 if the checked-in header
+is stale (nix run .#regen-rust-bindings first if the engine's headers changed).
 """
-import hashlib
 import re
 import sys
 from pathlib import Path
@@ -61,6 +65,24 @@ ARM_LENGTHS = {
     'sau.rlar': 'ARM_CPU(cs)->sau_sregion',
 }
 LENGTHS = {'aarch64': ARM_LENGTHS, 'arm': ARM_LENGTHS}
+
+# CPUArchState fields that exist only on some hosts: the condition target/i386/cpu.h puts them
+# under, per field. The bindings come from an x86_64 host, which builds KVM and MSHV for x86
+# targets; an aarch64 host builds neither. tests/static/guest_layout.py checks this against the
+# engine's source.
+X86_CONDITIONAL = {
+    **{f: 'defined(CONFIG_KVM)' for f in (
+        'nested_state', 'xen_vcpu_info_mr', 'xen_vcpu_info_hva', 'xen_vcpu_info_gpa',
+        'xen_vcpu_info_default_gpa', 'xen_vcpu_time_info_gpa', 'xen_vcpu_runstate_gpa',
+        'xen_vcpu_callback_vector', 'xen_callback_asserted', 'xen_virq',
+        'xen_singleshot_timer_ns', 'xen_singleshot_timer', 'xen_periodic_timer_period',
+        'xen_periodic_timer', 'xen_timers_lock')},
+    'regs_page': 'defined(CONFIG_MSHV)',
+    'emu_mmio_buf': 'defined(CONFIG_HVF) || defined(CONFIG_MSHV) || defined(CONFIG_WHPX)',
+}
+HOST_CONDITIONAL = {'x86_64': X86_CONDITIONAL, 'i386': X86_CONDITIONAL}
+# Where the bindings' numbers hold (the checks run only there)
+BINDINGS_HOST = 'defined(__x86_64__) && defined(__GLIBC__)'
 
 ROOT_TYPE = 'CPUArchState'
 MAX_HOPS = 4        # pointers a path may follow from CPUArchState (GUEST_WRITE_PATH_MAX)
@@ -233,25 +255,41 @@ def merge(ranges):
     return out
 
 
+def top_field(path):
+    return re.match(r'\w+', path).group(0)
+
+
 def layout(arch, b):
+    """[(name, reach, cond, size, host, follow)], length expressions, CPUArchState's fields.
+
+    reach is (parent type index, pointer path) for every type but CPUArchState; cond the C
+    condition under which the type is in the map (None: always); host [(offset, size, path,
+    cond)]; follow [(offset, type index or -1, element size, length entry, path, cond)].
+    """
     w = Walker(b)
     lengths = LENGTHS.get(arch, {})
-    types, index, queue = [], {}, [(ROOT_TYPE, 0)]
+    # a conditional field the bindings lack is off on the bindings' host too (MSHV for i386)
+    present = {c_name(f) for f, _ in b.structs[ROOT_TYPE][1]}
+    conditional = {f: c for f, c in HOST_CONDITIONAL.get(arch, {}).items() if f in present}
+    types, index, queue = [], {}, [(ROOT_TYPE, 0, None, None)]
     index[ROOT_TYPE] = 0
     length_exprs = []
     while queue:
-        name, hops = queue.pop(0)
+        name, hops, reach, cond = queue.pop(0)
         host, follow = [], []
         for off, size, path, pointee, in_union in w.fields(name):
-            host.append((off, size))
+            fcond = conditional.get(top_field(path)) if name == ROOT_TYPE else None
+            fcond = fcond or cond
+            host.append((off, size, path, fcond))
             if pointee is None or in_union or hops >= MAX_HOPS:
                 continue
             target = b.resolve(pointee)
             if target in b.structs and target in b.sizes and b.sizes[target]:
+                i = index[name]
                 if target not in index:
                     index[target] = len(types) + len(queue) + 1
-                    queue.append((target, hops + 1))
-                follow.append((off, index[target], b.sizes[target], -1, path))
+                    queue.append((target, hops + 1, (i, path), fcond))
+                follow.append((off, index[target], b.sizes[target], -1, path, fcond))
             elif name == ROOT_TYPE and path in lengths:
                 try:
                     elem = b.size(target)
@@ -260,40 +298,102 @@ def layout(arch, b):
                 if not elem:
                     continue
                 length_exprs.append(lengths[path])
-                follow.append((off, -1, elem, len(length_exprs) - 1, path))
-        types.append((name, b.sizes[name], merge(host), follow))
+                follow.append((off, -1, elem, len(length_exprs) - 1, path, fcond))
+        types.append((name, reach, cond, b.sizes[name], host, follow))
     # queue order assigned the indices; types were appended in the same order
     assert [t[0] for t in types] == sorted(index, key=index.get)
-    missing = set(lengths) - {f[4] for f in types[0][3]}
+    missing = set(lengths) - {f[4] for f in types[0][5]}
     if missing:
         raise SystemExit(f'{arch}: LENGTHS fields not found as scalar pointers: {sorted(missing)}')
-    top = [(b.offsets[(ROOT_TYPE, f)], b.size(t), c_name(f)) for f, t in b.structs[ROOT_TYPE][1]
+    top = [(b.offsets[(ROOT_TYPE, f)], b.size(t), c_name(f), conditional.get(c_name(f)))
+           for f, t in b.structs[ROOT_TYPE][1]
            if (ROOT_TYPE, f) in b.offsets and not f.startswith('__bindgen')]
     return types, length_exprs, top
 
 
+def runs(host):
+    """Touching and overlapping pointers joined, never across a host condition:
+    [(offset, size, first path, last path, cond)], sorted."""
+    out = []
+    for off, size, path, cond in sorted(host, key=lambda h: h[0]):
+        if out and out[-1][4] == cond and off <= out[-1][0] + out[-1][1]:
+            start, length, first, last, _ = out[-1]
+            if off + size > start + length:
+                length, last = off + size - start, path
+            out[-1] = (start, length, first, last, cond)
+        else:
+            out.append((off, size, path, path, cond))
+    return out
+
+
+def guarded(lines, cond, body):
+    if cond:
+        lines.append(f'#if {cond}')
+    lines += body
+    if cond:
+        lines.append('#endif')
+
+
 def emit(arch, cond, types, length_exprs, top):
-    tag = arch.upper()
-    digest = hashlib.sha256(repr((types, length_exprs, top)).encode()).hexdigest()
+    """The map as C, every offset and size computed by the compiler (see the docstring)."""
     lines = [f'#if {cond}', f'/* {arch}: {len(types)} types */']
-    lines.append(f'QEMU_BUILD_BUG_ON(sizeof(CPUArchState) != {types[0][1]});')
-    for off, _, _, _, path in types[0][3]:
-        lines.append(f'QEMU_BUILD_BUG_ON(offsetof(CPUArchState, {path}) != {off});')
-    for i, (name, size, host, follow) in enumerate(types):
+    texpr = []      # each type as a C type: CPUArchState, or the pointee of the field reaching it
+    for name, reach, tcond, size, host, follow in types:
+        texpr.append(ROOT_TYPE if reach is None else
+                     f'__typeof__(*(({texpr[reach[0]]} *)0)->{reach[1]})')
+
+    def at(i, path):
+        return f'offsetof({texpr[i]}, {path})'
+
+    def elem(i, path):
+        return f'sizeof(*(({texpr[i]} *)0)->{path})'
+
+    checks = []
+    for i, (name, reach, tcond, size, host, follow) in enumerate(types):
+        hosts = runs(host)
+        lines.append(f'/* {name} */')
+        if tcond:
+            lines.append(f'#if {tcond}')    # #else: empty tables keep the indices
         lines.append(f'static const GuestLayoutRange guest_layout_host_{i}[] = {{')
-        lines += [f'    {{ {o}, {s} }},' for o, s in host] or ['    { 0, 0 },']
+        for off, length, first, last, rcond in hosts:
+            guarded(lines, rcond if rcond != tcond else None,
+                    [f'    {{ {at(i, first)}, {at(i, last)} + sizeof(void *) - {at(i, first)} }},'])
+            body = [f'QEMU_BUILD_BUG_ON({at(i, first)} != {off});',
+                    f'QEMU_BUILD_BUG_ON({at(i, last)} + sizeof(void *) - {at(i, first)} != {length});']
+            checks.append((rcond if rcond != tcond else None, tcond, body))
+        lines.append('    { 0, 0 } /* end */')
         lines.append('};')
         lines.append(f'static const GuestLayoutPointer guest_layout_follow_{i}[] = {{')
-        lines += [f'    {{ {o}, {t}, {e}, {n} }}, /* {p} */' for o, t, e, n, p in follow] \
-            or ['    { 0, 0, 0, 0 },']
+        for off, t, esize, n, path, fcond in follow:
+            guarded(lines, fcond if fcond != tcond else None,
+                    [f'    {{ {at(i, path)}, {t}, {elem(i, path)}, {n} }}, /* {path} */'])
+            body = [f'QEMU_BUILD_BUG_ON({at(i, path)} != {off});',
+                    f'QEMU_BUILD_BUG_ON({elem(i, path)} != {esize});']
+            checks.append((fcond if fcond != tcond else None, tcond, body))
+        lines.append('    { 0, 0, 0, 0 } /* end */')
         lines.append('};')
+        checks.append((None, tcond, [f'QEMU_BUILD_BUG_ON(sizeof({texpr[i]}) != {size});']))
+        if tcond:
+            lines.append('#else')
+            lines.append(f'static const GuestLayoutRange guest_layout_host_{i}[] = {{ {{ 0, 0 }} }};')
+            lines.append(f'static const GuestLayoutPointer guest_layout_follow_{i}[] = '
+                         '{ { 0, 0, 0, 0 } };')
+            lines.append('#endif')
     lines.append('static const GuestLayoutType guest_layout_types[] = {')
-    for i, (name, size, host, follow) in enumerate(types):
-        lines.append(f'    {{ "{name}", {size}, guest_layout_follow_{i}, {len(follow)}, '
-                     f'guest_layout_host_{i}, {len(host)} }},')
+    for i, (name, reach, tcond, size, host, follow) in enumerate(types):
+        entry = (f'    {{ "{name}", %s, guest_layout_follow_{i}, '
+                 f'ARRAY_SIZE(guest_layout_follow_{i}) - 1, guest_layout_host_{i}, '
+                 f'ARRAY_SIZE(guest_layout_host_{i}) - 1 }},')
+        if tcond:
+            lines += [f'#if {tcond}', entry % f'sizeof({texpr[i]})', '#else',
+                      entry % '0' + ' /* not on this host */', '#endif']
+        else:
+            lines.append(entry % f'sizeof({texpr[i]})')
     lines.append('};')
     lines.append('static const GuestLayoutField guest_layout_fields[] = {')
-    lines += [f'    {{ {o}, {s}, "{n}" }},' for o, s, n in sorted(top)]
+    for off, size, name, fcond in sorted(top):
+        guarded(lines, fcond, [f'    {{ offsetof({ROOT_TYPE}, {name}), '
+                               f'sizeof((({ROOT_TYPE} *)0)->{name}), "{name}" }},'])
     lines.append('};')
     lines.append('static size_t guest_layout_length(CPUState *cs, int entry)')
     lines.append('{')
@@ -303,13 +403,19 @@ def emit(arch, cond, types, length_exprs, top):
         lines.append('    }')
     lines.append('    return 0;')
     lines.append('}')
-    lines.append(f'#define GUEST_LAYOUT_HASH 0x{digest[:8]}u /* {tag} */')
+    # The bindings' numbers, where they hold
+    present = sorted({c for _, c, _ in [(None, x[0], None) for x in checks] if c} |
+                     {f[3] for f in top if f[3]})
+    lines.append(f'#if {BINDINGS_HOST}' + ''.join(f' && ({c})' for c in present))
+    for rcond, tcond, body in checks:
+        guarded(lines, ' && '.join(f'({c})' for c in (tcond, rcond) if c) or None, body)
+    lines.append(f'#endif /* {BINDINGS_HOST} */')
     lines.append(f'#endif /* {arch} */')
     return lines
 
 
 def generate():
-    out = ['/* SPDX-License-Identifier: GPL-2.0-or-later */',
+    out = ['/* SPDX-' 'License-Identifier: GPL-2.0-or-later */',
            '/* Generated by tools/guest-layout/gen.py from rust/panda-bindings/src/autogen;',
            ' * do not edit. Included by panda/src/guest-write.c only. */', '']
     results = {}
