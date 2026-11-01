@@ -48,22 +48,33 @@ LENGTHS = {'arm': ARM_LENGTHS, 'aarch64': ARM_LENGTHS}
 
 
 def extract_member(archive, out):
-    """The first object in a static library (ar format)."""
+    """The first object in a static library: an ar archive, or a thin one (meson's default),
+    whose members are paths relative to the archive. Returns the object's path."""
     with open(archive, 'rb') as f:
         data = f.read()
-    if not data.startswith(b'!<arch>\n'):
+    thin = data.startswith(b'!<thin>\n')
+    if not thin and not data.startswith(b'!<arch>\n'):
         sys.exit(f'{archive}: not an ar archive')
-    pos = 8
+    pos, names = 8, b''
     while pos + 60 <= len(data):
         name = data[pos:pos + 16].decode().strip()
         size = int(data[pos + 48:pos + 58].decode().strip())
-        body = data[pos + 60:pos + 60 + size]
-        pos += 60 + size + (size & 1)
+        stored = not thin or name.startswith('/') and not name[1:2].isdigit()
+        body = data[pos + 60:pos + 60 + size] if stored else b''
+        pos += 60 + (size + (size & 1) if stored else 0)
+        if name == '//':
+            names = body        # long-name table
+            continue
         if name.startswith('/') and not name[1:2].isdigit():
-            continue        # symbol or long-name table
-        with open(out, 'wb') as f:
-            f.write(body)
-        return
+            continue            # symbol table
+        if not thin:
+            with open(out, 'wb') as f:
+                f.write(body)
+            return out
+        if name.startswith('/'):
+            start = int(name[1:])
+            name = names[start:names.index(b'\n', start)].decode()
+        return os.path.join(os.path.dirname(archive), name.rstrip('/'))
     sys.exit(f'{archive}: no object')
 
 
@@ -71,8 +82,7 @@ def main():
     gdb, archive, output = sys.argv[1:4]
     target = os.path.basename(output)[len('guest-layout-'):-len('.h')]
     with tempfile.TemporaryDirectory() as tmp:
-        obj = os.path.join(tmp, 'probe.o')
-        extract_member(archive, obj)
+        obj = extract_member(archive, os.path.join(tmp, 'probe.o'))
         cmd = [gdb, '-batch', '-nx', '-ex',
                f'python import sys; sys.argv = {[__file__, obj, output, target]!r}',
                '-x', __file__]
