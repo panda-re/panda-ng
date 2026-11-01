@@ -1,10 +1,11 @@
 '''Taint mode (the "taint" capability): Panda methods over the engine's taint API (exec/taint.h).
 
-Taint runs only in replay. Shadow values are bit masks: a set bit means that bit of guest data
+Taint runs only in replay, under TCG, with the "taint" capability; the calls raise RuntimeError
+saying which is missing (and before panda.run() has started the engine). Shadow values are bit masks: a set bit means that bit of guest data
 depends on a labelled source. RAM is addressed by ram_addr (see taint_va_to_ram); registers by
 gdbstub number.
 
-    panda = Panda(generic="x86_64", rr=True, capabilities=["analysis", "rr", "taint"])
+    panda = Panda(generic="x86_64", rr=True, capabilities=["analysis", "guest-hypercall", "taint"])  # taint brings rr
 
     @panda.cb_start_block_exec(observe_only=True)
     def first(cpu, tb):
@@ -17,6 +18,8 @@ gdbstub number.
 '''
 
 _CDEFS = """
+const char *taint_unavailable(void);
+const char *taint_last_error(void);
 bool taint_enable(void);
 void taint_disable(void);
 bool taint_enabled(void);
@@ -56,13 +59,36 @@ class TaintMixin:
             self._taint = (ffi, ffi.dlopen(self.libpanda_path), {})
         return self._taint
 
+    def _taint_api(self, what):
+        '''_taint_lib(), once taint can work in this process; raises RuntimeError saying why not.'''
+        t = self._taint_lib()
+        if not getattr(self, "_taint_ok", False):
+            if not getattr(self, "_initialized_panda", False):
+                raise RuntimeError(f"{what}: the engine is not running yet (call it from a "
+                                   f"callback, once panda.run() has started)")
+            why = t[1].taint_unavailable()
+            if why != t[0].NULL:
+                raise RuntimeError(f"{what}: {t[0].string(why).decode()}")
+            self._taint_ok = True       # the capability and the accelerator are fixed at startup
+        return t
+
+    def _taint_check(self, ok, what):
+        '''Raise RuntimeError with the engine's reason if a call that can refuse did.'''
+        if not ok:
+            ffi, lib, _ = self._taint_lib()
+            why = lib.taint_last_error()
+            raise RuntimeError(f"{what}: " + (ffi.string(why).decode() if why != ffi.NULL
+                                              else "refused"))
+        return True
+
     def _taint_cpu(self, cpu):
         ffi, _, _ = self._taint_lib()
         return ffi.cast("void *", int(self.ffi.cast("uintptr_t", cpu)))
 
     def taint_enable(self):
-        '''Turn taint on (replay only; translated code is flushed). False if it can't be.'''
-        return bool(self._taint_lib()[1].taint_enable())
+        '''Turn taint on (replay only; translated code is flushed). Raises RuntimeError saying
+        why if it can't be: no "taint" capability, not TCG, or not replaying.'''
+        return self._taint_check(self._taint_api("taint_enable")[1].taint_enable(), "taint_enable")
 
     def taint_disable(self):
         '''Turn taint off and drop all shadow state.'''
@@ -74,17 +100,19 @@ class TaintMixin:
     def taint_enable_labels(self, on=True):
         '''Turn label sets (which sources reach each byte) on or off; costs extra only while on.
         Call before taint_enable.'''
-        return bool(self._taint_lib()[1].taint_enable_labels(on))
+        lib = self._taint_api("taint_enable_labels")[1]
+        return self._taint_check(lib.taint_enable_labels(on), "taint_enable_labels")
 
     def taint_address_mode(self, on=True):
         '''Address mode on or off: a load through a tainted address is tainted, and so is a store
-        through one (table lookups, pointer chasing). Not with label sets: False if they are on.'''
-        return bool(self._taint_lib()[1].taint_set_address_mode(on))
+        through one (table lookups, pointer chasing). Not with label sets: RuntimeError if they are on.'''
+        lib = self._taint_api("taint_address_mode")[1]
+        return self._taint_check(lib.taint_set_address_mode(on), "taint_address_mode")
 
     def taint_label_ram(self, ram_addr, length=1, mask=0xFF, label=None):
         '''Set the shadow of RAM bytes [ram_addr, ram_addr + length) to mask (0 clears), and with
         labels on, give them the single label `label` (a nonzero u32).'''
-        lib = self._taint_lib()[1]
+        lib = self._taint_api("taint_label_ram")[1]
         if label is None:
             lib.taint_label_ram(ram_addr, length, mask)
         else:
@@ -93,7 +121,7 @@ class TaintMixin:
     def taint_labels_ram(self, ram_addr):
         '''The labels that reach a RAM byte: a sorted list (empty if clean), or None if more
         than the engine keeps per byte (256).'''
-        ffi, lib, _ = self._taint_lib()
+        ffi, lib, _ = self._taint_api("taint_labels_ram")
         buf = ffi.new("uint32_t[]", 256)
         n = lib.taint_query_ram_labels(ram_addr, buf, 256)
         return None if n < 0 else list(buf[0:n])
@@ -108,24 +136,24 @@ class TaintMixin:
 
     def taint_labels_reg(self, cpu, regno, byte=0):
         '''The labels that reach one byte of a register (gdbstub number), as taint_labels_ram.'''
-        ffi, lib, _ = self._taint_lib()
+        ffi, lib, _ = self._taint_api("taint_labels_reg")
         buf = ffi.new("uint32_t[]", 256)
         n = lib.taint_query_reg_labels(self._taint_cpu(cpu), regno, byte, buf, 256)
         return None if n < 0 else list(buf[0:n])
 
     def taint_query_ram(self, ram_addr, length=1):
         '''Shadow bytes of RAM from ram_addr: an int for length 1, else a list.'''
-        lib = self._taint_lib()[1]
+        lib = self._taint_api("taint_query_ram")[1]
         out = [lib.taint_query_ram(ram_addr + i) for i in range(length)]
         return out[0] if length == 1 else out
 
     def taint_count_ram(self):
         '''Number of tainted RAM bytes.'''
-        return self._taint_lib()[1].taint_count_ram()
+        return self._taint_api("taint_count_ram")[1].taint_count_ram()
 
     def taint_va_to_ram(self, cpu, va):
         '''The ram_addr of guest virtual address va through cpu's page tables, or None.'''
-        ra = self._taint_lib()[1].taint_va_to_ram(self._taint_cpu(cpu), va)
+        ra = self._taint_api("taint_va_to_ram")[1].taint_va_to_ram(self._taint_cpu(cpu), va)
         return None if ra == NO_RAM else ra
 
     def taint_label_va(self, cpu, va, length=1, mask=0xFF, label=None):
@@ -150,7 +178,7 @@ class TaintMixin:
     def taint_label_reg(self, cpu, regno, mask=0xFF, label=None):
         '''Label every byte of the register with gdbstub number regno (as taint_label_ram).
         Returns its size.'''
-        lib = self._taint_lib()[1]
+        lib = self._taint_api("taint_label_reg")[1]
         if label is None:
             n = lib.taint_label_reg(self._taint_cpu(cpu), regno, mask)
         else:
@@ -161,7 +189,7 @@ class TaintMixin:
 
     def taint_query_reg(self, cpu, regno):
         '''Shadow bytes of the register with gdbstub number regno, lowest-addressed first.'''
-        ffi, lib, _ = self._taint_lib()
+        ffi, lib, _ = self._taint_api("taint_query_reg")
         buf = ffi.new("uint8_t[]", 64)
         n = lib.taint_query_reg(self._taint_cpu(cpu), regno, buf, 64)
         if n < 0:

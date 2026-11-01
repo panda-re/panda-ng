@@ -10,7 +10,7 @@
 #   PANDA_PYTHON  Python with pandare2 (default: panda-python from PATH)
 #   DL            downloads: linux_builder's kernels, rehosting/busybox (default ~/.cache/panda-busybox)
 #   IMAGES        where the images are built (default $OUT/images)
-#   TESTS         default "taint taint_mmio"
+#   TESTS         default "taint taint_mmio taint_errors"
 #   OUT, JOBS     as for run.sh (JOBS default 4)
 # Arches: default all of mkbusybox's but powerpc (32-bit; its guest hangs on its first disk write
 # after loading a snapshot, so the tests can't run there yet).
@@ -28,7 +28,7 @@ PANDA_PYTHON=${PANDA_PYTHON:-panda-python}
 DL=${DL:-$HOME/.cache/panda-busybox}
 OUT=${OUT:-${TMPDIR:-/tmp}/panda-busybox-$(date +%Y%m%d-%H%M%S)}
 IMAGES=${IMAGES:-$OUT/images}
-export TESTS=${TESTS:-taint taint_mmio} JOBS=${JOBS:-4} OUT PANDA_PYTHON
+export TESTS=${TESTS:-taint taint_mmio taint_errors} JOBS=${JOBS:-4} OUT PANDA_PYTHON
 ARCHES=${*:-x86_64 aarch64 armel mipsel mipseb mips64el mips64eb powerpc64 powerpc64le riscv64 loongarch64}
 
 mkdir -p "$DL" "$IMAGES"

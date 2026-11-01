@@ -58,7 +58,15 @@ void taint_register_load_helper(const char *helper);
 bool tlb_peek_ram_addr(CPUState *cpu, vaddr addr, int mmu_idx,
                        MMUAccessType type, uint64_t *ram_addr);
 
-/* API (pandare2 and plugins). Valid only in replay; enable flushes translated code. */
+/*
+ * API (pandare2 and plugins). Valid only in replay; enable flushes translated code. Calls that
+ * refuse (taint_enable, taint_enable_labels, taint_set_address_mode) print why and return false;
+ * taint_last_error() returns that reason until the next refusal.
+ */
+/* Why taint can't run in this process at all (no taint capability, not TCG), or NULL. Labels
+ * and queries do nothing (queries say clean) when it is non-NULL. */
+const char *taint_unavailable(void);
+const char *taint_last_error(void);
 bool taint_enable(void);
 void taint_disable(void);
 bool taint_enabled(void);

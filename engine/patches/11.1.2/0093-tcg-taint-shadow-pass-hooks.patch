@@ -8,8 +8,10 @@ in the overlay). With ANALYSIS_CAP_TAINT provisioned:
 
 - translator_loop runs taint_gen_tb() on a TB whose cflags carry the new
   CF_TAINT bit, after plugin injection and before optimization; a second
-  new bit, CF_TAINT_CHECK, marks the check-only variant of elastic taint,
-  and cpu_exec never chains a TB into one of the other variant;
+  new bit, CF_TAINT_CHECK, marks the check-only variant of elastic taint
+  (the pass leaves a TB through cpu_loop_exit or TB_EXIT_REQUESTED
+  whenever it switches variant, so the two never chain and cpu_exec needs
+  no check of its own);
 - tcg_exec_realizefn creates the shadow globals once the target's TCG
   globals exist (taint_tcg_init) and allocates each vCPU's shadow CPU
   state and shadow TLB (taint_vcpu_init, CPUState::taint_senv);
@@ -39,23 +41,25 @@ in the overlay). With ANALYSIS_CAP_TAINT provisioned:
   of TCG_MAX_TEMPS for a single instruction (an assertion in tb_gen_code).
   Without taint no built target has indirect globals, so this pass does
   not run there;
-- -analysis-capabilities accepts "taint".
+- -analysis-capabilities accepts "taint", and configure_accelerators
+  refuses it without TCG (as it refuses -icount).
 
 Every hook is behind taint_active (false unless taint is enabled in a
 replay) or the capability, so an engine without taint pays one predicted
-branch on TLB flushes, device writes and those helpers.
+branch on TLB fills and flushes, device writes and those helpers, and
+nothing in cpu_exec or in translated code.
 
 SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
 Origin: new
 ---
- accel/tcg/cpu-exec.c             |  11 +++
+ accel/tcg/cpu-exec.c             |   7 ++
  accel/tcg/cputlb.c               |  44 ++++++++++++
  accel/tcg/meson.build            |   1 +
  accel/tcg/translator.c           |   5 ++
  include/exec/translation-block.h |   2 +
  include/hw/core/cpu.h            |   2 +
  system/physmem.c                 |   5 ++
- system/vl.c                      |   2 +
+ system/vl.c                      |   6 ++
  target/arm/helper.c              |  18 ++---
  target/arm/internals.h           |  27 +++++--
  target/arm/tcg/helper-a64.c      |  29 ++++++++
@@ -69,7 +73,7 @@ Origin: new
  18 files changed, 271 insertions(+), 76 deletions(-)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index 543d5fb7961932ae9ede3ef2932a208bee31f2c8..0a36eb4b30e2ce184d1805f265bc6c9dbfbf5ee5 100644
+index 543d5fb7961932ae9ede3ef2932a208bee31f2c8..816d0e836e1ee7a38cf0e279217f45b6bb4a5674 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
 @@ -47,6 +47,7 @@
@@ -80,18 +84,7 @@ index 543d5fb7961932ae9ede3ef2932a208bee31f2c8..0a36eb4b30e2ce184d1805f265bc6c9d
  #if !defined(CONFIG_USER_ONLY)
  #include "accel/tcg/iommu.h"
  #endif
-@@ -1053,6 +1054,10 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
-             if (last_tb && tb_pc_exact(tb) && !tb_pc_exact(last_tb)) {
-                 last_tb = NULL;
-             }
-+            /* Taint's check and track variants never chain into each other. */
-+            if (last_tb && ((tb_cflags(last_tb) ^ tb_cflags(tb)) & CF_TAINT_CHECK)) {
-+                last_tb = NULL;
-+            }
-             /* See if we can patch the calling TB. */
-             if (last_tb) {
-                 tb_add_jump(last_tb, tb_exit, tb);
-@@ -1124,11 +1129,17 @@ bool tcg_exec_realizefn(CPUState *cpu, Error **errp)
+@@ -1124,11 +1125,17 @@ bool tcg_exec_realizefn(CPUState *cpu, Error **errp)
          assert(tcg_ops->get_tb_cpu_state);
          assert(tcg_ops->mmu_index);
          tcg_ops->initialize();
@@ -284,10 +277,21 @@ index 6b5480f0bbf912af949eaa12003df8860ec83285..6b79a710ed56393bf10fa73bc557b36b
      /* No early return if dirty_log_mask is or becomes 0, because
       * physical_memory_set_dirty_range will still call
 diff --git a/system/vl.c b/system/vl.c
-index ecaa77c856d216ae9db3da542423e73e90fb4544..f56cfbe0bfd71ac6bec974ea70649423f607f702 100644
+index ecaa77c856d216ae9db3da542423e73e90fb4544..e78351c3f60aeefa325fa59b68c1a38827537fc0 100644
 --- a/system/vl.c
 +++ b/system/vl.c
-@@ -2810,6 +2810,8 @@ static bool parse_analysis_capabilities(const char *value, uint32_t *result,
+@@ -2576,6 +2576,10 @@ static void configure_accelerators(const char *progname)
+         error_report("-icount is not allowed with hardware virtualization");
+         exit(1);
+     }
++    if (analysis_policy_has(ANALYSIS_CAP_TAINT) && !tcg_enabled()) {
++        error_report("the taint capability needs TCG (-accel tcg)");
++        exit(1);
++    }
+ }
+ 
+ static void qemu_validate_options(const QDict *machine_opts)
+@@ -2810,6 +2814,8 @@ static bool parse_analysis_capabilities(const char *value, uint32_t *result,
              requested |= ANALYSIS_CAP_HANDOFF;
          } else if (!strcmp(*name, "penguin")) {
              requested |= ANALYSIS_CAP_PENGUIN;

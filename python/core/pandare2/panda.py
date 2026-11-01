@@ -173,10 +173,15 @@ def _analysis_capabilities(capabilities, rr, accel):
             selected.clear()
         if selected - set(CAPABILITIES):
             raise ValueError("capabilities must name analysis, fuzz, rr, guest-hypercall, handoff or taint; vanilla must stand alone")
+        if "taint" in selected:
+            # Taint runs only in replay: it brings rr (as the engine's policy does).
+            if not rr:
+                raise ValueError("the taint capability requires rr=True: taint runs only in replay")
+            if accel != "tcg":
+                raise ValueError("the taint capability requires TCG")
+            selected.add("rr")
         if rr and "rr" not in selected:
             raise ValueError("rr=True requires the rr capability")
-    if "taint" in selected:
-        selected.add("rr")      # taint runs only in replay
     if "rr" in selected and not rr:
         raise ValueError("the rr capability requires rr=True for recordable device setup")
     if "rr" in selected and accel != "tcg":

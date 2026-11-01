@@ -251,11 +251,11 @@ move its taint (Arm MOPS, DC ZVA, RISC-V cbo.zero); x86 fxsave/xsave do not yet.
 data by byte; more than 256 labels on one byte collapse to "many". Control dependence is not
 followed, only reported; table lookups are followed only in address mode.
 
-**Use it:** `taint_enable`, `taint_disable`, `taint_label_ram`, `taint_query_ram`, `taint_va_to_ram`, `taint_label_reg`, `taint_query_reg`, `taint_enable_labels`, `taint_set_address_mode`, `taint_label_ram_l`, `taint_query_ram_labels`, `taint_label_reg_l`, `taint_query_reg_labels`, `taint_set_device_write_cb`, `taint_set_branch_cb`, `taint_set_pc_cb`, `taint_set_mmio_read_cb`, `taint_stats`, `TaintMixin.taint_enable`, `TaintMixin.taint_label_va`, `TaintMixin.taint_labels_va`, `TaintMixin.cb_taint_branch`, `TaintMixin.taint_device_write`, `TaintMixin.taint_mmio_read`, `TaintMixin.taint_address_mode`
+**Use it:** `taint_enable`, `taint_disable`, `taint_label_ram`, `taint_query_ram`, `taint_va_to_ram`, `taint_label_reg`, `taint_query_reg`, `taint_enable_labels`, `taint_set_address_mode`, `taint_label_ram_l`, `taint_query_ram_labels`, `taint_label_reg_l`, `taint_query_reg_labels`, `taint_set_device_write_cb`, `taint_set_branch_cb`, `taint_set_pc_cb`, `taint_set_mmio_read_cb`, `taint_stats`, `taint_unavailable`, `taint_last_error`, `TaintMixin.taint_enable`, `TaintMixin.taint_label_va`, `TaintMixin.taint_labels_va`, `TaintMixin.cb_taint_branch`, `TaintMixin.taint_device_write`, `TaintMixin.taint_mmio_read`, `TaintMixin.taint_address_mode`
 
 **Docs:** [docs/guides/record-replay.md](guides/record-replay.md)
 
-**Tests:** `tests/taint.py`, `tests/taint_mmio.py`
+**Tests:** `tests/taint.py`, `tests/taint_mmio.py`, `tests/taint_errors.py`
 
 **Engine patches:** 0093 ([series](reference/patches.md))
 
