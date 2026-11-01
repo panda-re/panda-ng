@@ -530,7 +530,8 @@ class Panda(TaintMixin):
         rr_disk = {'x86_64': 'ide-hd,bus=ide.0,unit=0', 'i386': 'ide-hd,bus=ide.0,unit=0',
                    'aarch64': 'virtio-blk-pci', 'riscv64': 'virtio-blk-pci', 'arm': 'virtio-blk-device',
                    'ppc64': 'scsi-hd,bus=rr-vscsi.0,scsi-id=0,lun=0',
-                   'mips64': 'virtio-blk-pci', 'mips64el': 'virtio-blk-pci'}
+                   'mips64': 'virtio-blk-pci', 'mips64el': 'virtio-blk-pci',
+                   'mips': 'virtio-blk-pci', 'mipsel': 'virtio-blk-pci', 'loongarch64': 'virtio-blk-pci'}
         if self.qcow and rr and self.arch_name in rr_disk:
             # Under record/replay, disk I/O completes asynchronously: blkreplay journals the
             # completions. -blockdev, so only the blkreplay node has a BlockBackend and savevm

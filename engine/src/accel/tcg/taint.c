@@ -2970,6 +2970,160 @@ static bool taint_env_field(Pass *p, TCGOp *op, const EnvFieldHelper *h)
     return true;
 }
 
+/*
+ * Lane stores: a helper that stores bytes of a value one at a time in C (MIPS swl/swr/sdl/sdr).
+ * The pass stages the value's shadow (and labels) for the store's base address just before
+ * the call; the helper then reports each byte. The stage is used only for the address it was
+ * made for and is dropped when the helper returns, so a check-variant call (no stage: every
+ * register is clean) or one after a store that faulted part way stores clean bytes.
+ */
+static GHashTable *lane_store_helpers;     /* helper name set */
+
+static __thread struct {
+    bool on;
+    uint64_t base;
+    uint64_t sv;
+    uint32_t lab[8];
+} lane_stage;
+
+void taint_register_lane_store_helper(const char *helper)
+{
+    if (!lane_store_helpers) {
+        lane_store_helpers = g_hash_table_new(g_str_hash, g_str_equal);
+    }
+    g_hash_table_add(lane_store_helpers, (gpointer)helper);
+}
+
+static void taint_lane_stage(CPUArchState *env, uint64_t base, uint64_t sv, uint32_t slot,
+                             uint32_t n)
+{
+    lane_stage.on = true;
+    lane_stage.base = base;
+    lane_stage.sv = sv;
+    if (labels_on) {
+        uint32_t *lf = labfile(env_cpu(env));
+
+        for (int i = 0; i < 8; i++) {
+            lane_stage.lab[i] = slot == NOSLOT || i >= n ? 0 : lf[slot + i];
+        }
+    }
+}
+
+static TCGHelperInfo lane_stage_info = {
+    .func = taint_lane_stage, .name = "taint_lane_stage", .flags = TCG_CALL_NO_RWG,
+    .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1) | dh_typemask(i64, 2) |
+                dh_typemask(i64, 3) | dh_typemask(i32, 4) | dh_typemask(i32, 5),
+};
+
+void taint_helper_store_lane(CPUState *cpu, vaddr base, vaddr addr, int idx, unsigned lane)
+{
+    uint8_t *d = ram_shadow_at(cpu, addr, idx, MMU_DATA_STORE);
+    bool st = lane_stage.on && lane_stage.base == (uint64_t)base && lane < 8;
+    uint8_t m = st ? lane_stage.sv >> (8 * lane) : 0;
+    uint64_t off;
+
+    if (!d) {
+        return;     /* not RAM */
+    }
+    off = d - ram_shadow;
+    stats.helper_mem_bytes++;
+    if (m) {
+        ram_mark(off, 1);
+    } else if (ram_clean(off, 1)) {
+        return;     /* clean onto a clean page: leave its shadow uncommitted */
+    }
+    *d = m;
+    if (ram_lab && off < ram_lab_size) {
+        ram_lab[off] = m ? lane_stage.lab[lane] : 0;
+    }
+}
+
+void taint_helper_lanes_done(void)
+{
+    lane_stage.on = false;
+}
+
+/* (env, value, addr, mmu_idx): stage the value's shadow for the helper's lane reports. */
+static bool taint_lane_store(Pass *p, TCGOp *op)
+{
+    int no = TCGOP_CALLO(op), ni = TCGOP_CALLI(op);
+    TCGTemp *v, *a;
+    TCGv_i64 a64;
+    bool c;
+
+    if (no != 0 || ni != 4 || !is_env(arg_temp(op->args[0]))) {
+        return false;
+    }
+    v = arg_temp(op->args[1]);
+    a = arg_temp(op->args[2]);
+    c = v->kind == TEMP_CONST;
+    lab_flush(p);
+    if (a->type == TCG_TYPE_I32) {
+        a64 = s64();
+        tcg_gen_extu_i32_i64(a64, temp_tcgv_i32(a));
+    } else {
+        a64 = temp_tcgv_i64(a);
+    }
+    tcg_gen_call5(taint_lane_stage, &lane_stage_info, NULL, tcgv_ptr_temp(tcg_env),
+                  tcgv_i64_temp(a64),
+                  c ? tcg_constant_internal(TCG_TYPE_I64, 0) : tcgv_i64_temp(as_i64(p, v)),
+                  tcg_constant_internal(TCG_TYPE_I32, c || !labels_on ? NOSLOT : lslot(p, v)),
+                  tcg_constant_internal(TCG_TYPE_I32, v->type == TCG_TYPE_I32 ? 4 : 8));
+    return true;
+}
+
+/*
+ * Load helpers: (env, addr, MemOpIdx) -> value, a guest load done in C (MIPS ll/lld, which
+ * also record the link). The value's shadow is RAM's at the address, read after the call as
+ * for a qemu_ld (the call has filled the TLB).
+ */
+static GHashTable *load_helpers;           /* helper name set */
+
+void taint_register_load_helper(const char *helper)
+{
+    if (!load_helpers) {
+        load_helpers = g_hash_table_new(g_str_hash, g_str_equal);
+    }
+    g_hash_table_add(load_helpers, (gpointer)helper);
+}
+
+static bool taint_load_helper(Pass *p, TCGOp *op)
+{
+    TCGContext *s = p->s;
+    int no = TCGOP_CALLO(op), ni = TCGOP_CALLI(op);
+    TCGTemp *o, *addr, *oit;
+    TCGOp *next = QTAILQ_NEXT(op, link);
+    TCGv_i64 a, as = NULL, r;
+    MemOpIdx oi;
+
+    if (no != 1 || ni != 3 || !next || !is_env(arg_temp(op->args[no]))) {
+        return false;
+    }
+    o = arg_temp(op->args[0]);
+    addr = arg_temp(op->args[no + 1]);
+    oit = arg_temp(op->args[no + 2]);
+    if (oit->kind != TEMP_CONST) {
+        return false;
+    }
+    oi = oit->val;
+    lab_flush(p);
+    a = copy_addr(addr, pool(&p->addr));
+    if (addr_taint) {
+        as = pool(&p->ash);
+        tcg_gen_negsetcondi_i64(TCG_COND_NE, as, as_i64(p, addr), 0);
+    }
+    s->emit_before_op = next;
+    r = shadow_load(p, a, oi, pool(&p->res));
+    if (as) {
+        tcg_gen_or_i64(r, r, as);
+    }
+    set_from_i64(p, o, r);
+    if (labels_on) {
+        lab_ld(p, o, p->res, a, oi);
+    }
+    return true;
+}
+
 static const char *const control_prefixes[] = {
     "lookup_tb_ptr", "raise_exception", "exception", "panda_", "plugin_", "debug",
     "wfi", "wfe", "yield", "hlt", "pause", "rechecking_single_step", "check_bxj_trap",
@@ -3089,6 +3243,14 @@ static void taint_call(Pass *p, TCGOp *op)
     const EnvFieldHelper *ef = info->name && env_field_helpers ?
                                g_hash_table_lookup(env_field_helpers, info->name) : NULL;
     if (ef && taint_env_field(p, op, ef)) {
+        return;
+    }
+    if (info->name && lane_store_helpers &&
+        g_hash_table_contains(lane_store_helpers, info->name) && taint_lane_store(p, op)) {
+        return;
+    }
+    if (info->name && load_helpers && g_hash_table_contains(load_helpers, info->name) &&
+        taint_load_helper(p, op)) {
         return;
     }
 

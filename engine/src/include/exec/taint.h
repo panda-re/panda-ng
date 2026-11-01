@@ -39,6 +39,21 @@ typedef ptrdiff_t (*TaintEnvFieldFn)(void *env, uint32_t regno);
  * switch, e.g. Arm's stack pointers on exception entry and return): the shadow follows. */
 void taint_env_copy(CPUState *cpu, ptrdiff_t dst, ptrdiff_t src, size_t len);
 void taint_register_env_field_helper(const char *helper, TaintEnvFieldFn field, bool write);
+/*
+ * Target setup: helper @helper (its TCGHelperInfo name), (env, value, addr, mmu_idx) -> void,
+ * stores some bytes of @value one at a time in C (MIPS swl/swr/sdl/sdr). The pass stages the
+ * value's shadow before the call; the helper reports each byte it stores, and which byte of
+ * the value (lane 0 = least significant) it was, then says it is done. Without a stage for
+ * @base (the check variant: every register is clean) the bytes are stored clean.
+ */
+void taint_register_lane_store_helper(const char *helper);
+void taint_helper_store_lane(CPUState *cpu, vaddr base, vaddr addr, int idx, unsigned lane);
+void taint_helper_lanes_done(void);
+/*
+ * Target setup: helper @helper, (env, addr, MemOpIdx) -> value, is a guest load done in C (MIPS
+ * ll/lld). The value's shadow is read from RAM's at @addr after the call, as for a qemu_ld.
+ */
+void taint_register_load_helper(const char *helper);
 /* cputlb.c: the ram_addr behind a TLB-mapped address, without filling or faulting. */
 bool tlb_peek_ram_addr(CPUState *cpu, vaddr addr, int mmu_idx,
                        MMUAccessType type, uint64_t *ram_addr);
