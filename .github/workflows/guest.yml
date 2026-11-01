@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       tests:
-        description: "Tests to run (space-separated; empty: run.sh's default 20)"
+        description: "Tests to run (space-separated; empty: run.sh's defaults)"
         required: false
         default: ""
 
@@ -114,6 +114,63 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: guest-${{ matrix.image }}
+          path: |
+            out/results
+            out/**/*.log
+          retention-days: 14
+
+  # Taint and record/replay on the arches no cloud image covers (tests/busybox.sh: 11 arches on
+  # busybox guests, minutes). ci.yml runs the same on PRs that touch taint or record/replay.
+  busybox:
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'guest-suite')
+    runs-on: panda-arc
+    timeout-minutes: 120
+    env:
+      USER: runner
+      LOGNAME: runner
+      TMPDIR: /home/runner/_work/_temp
+      XDG_CACHE_HOME: /home/runner/_work/.cache
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare runner directories
+        run: mkdir -p "$TMPDIR" "$XDG_CACHE_HOME"
+      - name: Set up Nix
+        uses: rehosting/ci/actions/nix-setup@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-backend: cachix
+          cachix-name: pandare
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          enable-kvm: false
+      - name: Build pandare2's Python
+        run: nix build -L --out-link result-python .#python
+      - name: Restore the downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.XDG_CACHE_HOME }}/panda-busybox
+          key: panda-busybox-${{ hashFiles('tests/busybox.sh') }}
+      - name: Taint and record/replay on 11 arches
+        env:
+          PANDA_PYTHON: ${{ github.workspace }}/result-python/bin/python3
+          DL: ${{ env.XDG_CACHE_HOME }}/panda-busybox
+          OUT: ${{ github.workspace }}/out
+        run: tests/busybox.sh
+      - name: Results
+        if: always()
+        run: |
+          {
+            echo "### busybox guests"
+            echo '```'
+            cat out/results 2>/dev/null || echo "no results"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guest-busybox
           path: |
             out/results
             out/**/*.log

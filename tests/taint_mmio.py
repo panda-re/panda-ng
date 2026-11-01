@@ -1,6 +1,6 @@
 """Taint mode: a device register (MMIO) as the taint source, end to end.
 
-Run: panda-python tests/taint_mmio.py <dir>/debian-13-<arch>.json [workdir]   (aarch64, riscv64)
+Run: panda-python tests/taint_mmio.py <dir>/<image>.json [workdir]   (aarch64, riscv64; mkimage or mkbusybox)
 
 The console is a UART whose receive register the guest reads by MMIO (PL011 on Arm virt, 16550 on
 RISC-V virt), so every character typed at the console is an MMIO load. Records a typed echo and an
@@ -31,7 +31,9 @@ WORD = "typed-q7"
 CMD = f"echo {WORD}; uname -m"
 UART = {"aarch64": 0x09000000, "riscv64": 0x10000000}   # MMIO base of the console UART
 LABEL = 7
-CAPS = ["analysis", "rr", "taint"] + os.environ.get("TAINT_TEST_CAPS", "").split()
+# pandare2's defaults (analysis, guest-hypercall, rr) plus taint: syscalls2 sees no syscalls on Arm
+# without guest-hypercall.
+CAPS = ["analysis", "guest-hypercall", "rr", "taint"] + os.environ.get("TAINT_TEST_CAPS", "").split()
 
 
 def child(mode, image, name, out):
@@ -71,7 +73,26 @@ def child(mode, image, name, out):
 
     @panda.ppp("syscalls2", "on_sys_write_enter", observe_only=True)
     def write(cpu, pc, fd, buf, count):
-        if fd != 1 or not 0 < count <= 64:
+        if fd == 1:
+            one_write(cpu, buf, count)
+
+    # musl's stdio (busybox guests) writes with writev
+    @panda.ppp("syscalls2", "on_sys_writev_enter", observe_only=True)
+    def writev(cpu, pc, fd, iov, iovcnt):
+        if fd != 1 or iovcnt > 64:
+            return
+        w = panda.bits // 8
+        try:
+            raw = panda.virtual_memory_read(cpu, iov, 2 * w * iovcnt)
+        except ValueError:
+            return
+        for i in range(iovcnt):
+            base = int.from_bytes(raw[2 * w * i:2 * w * i + w], panda.endianness)
+            n = int.from_bytes(raw[2 * w * i + w:2 * w * (i + 1)], panda.endianness)
+            one_write(cpu, base, n)
+
+    def one_write(cpu, buf, count):
+        if not 0 < count <= 64:
             return
         try:
             text = panda.virtual_memory_read(cpu, buf, count).decode(errors="replace")

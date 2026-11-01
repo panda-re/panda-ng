@@ -8,7 +8,7 @@ import json
 from os import path
 from collections import namedtuple
 
-class Image(namedtuple('Image', ['arch', 'os', 'prompt', 'cdrom', 'snapshot', 'url', 'alternate_urls', 'extra_files', 'qcow', 'default_mem', 'extra_args', 'hashes', 'isf', 'kconf_file'])):
+class Image(namedtuple('Image', ['arch', 'os', 'prompt', 'cdrom', 'snapshot', 'url', 'alternate_urls', 'extra_files', 'qcow', 'default_mem', 'extra_args', 'hashes', 'isf', 'kconf_file', 'disk_device'])):
     '''
     The Image class stores information about a PANDA image
 
@@ -22,6 +22,7 @@ class Image(namedtuple('Image', ['arch', 'os', 'prompt', 'cdrom', 'snapshot', 'u
         extra_args (str or list): Extra arguments to pass to PANDA (e.g. "-display none")
         isf (str): the guest kernel's Volatility 3 ISF (osi_isf's isf), relative to the image file
         kconf_file (str): the guest kernel's osi_linux kernelinfo file, relative to the image file
+        disk_device (str): under rr, the -device for the qcow (default: the arch's, e.g. IDE on x86_64)
         url, alternate_urls, extra_files, hashes: unused (classic PANDA's image downloads)
     '''
 
