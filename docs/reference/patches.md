@@ -2,7 +2,7 @@
 
 # The engine patch series
 
-QEMU 11.1.2 plus 94 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
+QEMU 11.1.2 plus 97 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
@@ -100,3 +100,6 @@ QEMU 11.1.2 plus 94 patches (`engine/patches/11.1.2/`). `engine/README.md` expla
 | 0092 | replay: stub analysis register effects without TCG | [recorded-ram-effects](../features.md#recorded-ram-effects) | new | GPL-2.0-or-later |
 | 0093 | tcg: taint shadow pass hooks | [taint](../features.md#taint) | new | GPL-2.0-or-later |
 | 0094 | migration/savevm: reset load_section_id at the start of qemu_loadvm_state | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | MIT |
+| 0095 | target/mips: move the Random register's generator state into CPUMIPSState | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0096 | target/loongarch: migrate the constant timer | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
+| 0097 | target/ppc: rebuild BookE/40x exception vectors on load | [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
