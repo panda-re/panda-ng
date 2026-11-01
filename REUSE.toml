@@ -77,9 +77,9 @@ path = [
   "engine/patches/11.1.2/0077-panda-link-a-plugin-interface-per-target-against-its.patch",
   "engine/patches/11.1.2/0078-target-riscv-a-version-11-cpu-state-still-loads.patch",
   "engine/patches/11.1.2/0080-migration-vmstate-skip-per-field-vmdesc-bookkeeping-.patch",
-  "engine/patches/11.1.2/0096-target-loongarch-migrate-the-constant-timer.patch",
-  "engine/patches/11.1.2/0097-target-ppc-rebuild-BookE-40x-exception-vectors-on-lo.patch",
-  "engine/patches/11.1.2/0098-hw-intc-openpic-restore-the-CPUs-external-proxy-mode.patch",
+  "engine/patches/11.1.2/0097-target-loongarch-migrate-the-constant-timer.patch",
+  "engine/patches/11.1.2/0098-target-ppc-rebuild-BookE-40x-exception-vectors-on-lo.patch",
+  "engine/patches/11.1.2/0099-hw-intc-openpic-restore-the-CPUs-external-proxy-mode.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
@@ -99,7 +99,7 @@ path = [
   "engine/patches/11.1.2/0033-plugins-qemu_plugin_set_pc-from-a-syscall-entry-call.patch",
   "engine/patches/11.1.2/0035-plugins-bind-a-CF_PCREL-block-to-its-virtual-address.patch",
   "engine/patches/11.1.2/0044-panda-asid_changed-on-x86-arm-and-mips.patch",
-  "engine/patches/11.1.2/0095-target-mips-move-the-Random-register-s-generator-sta.patch",
+  "engine/patches/11.1.2/0096-target-mips-move-the-Random-register-s-generator-sta.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
@@ -154,7 +154,7 @@ path = [
   "engine/patches/11.1.2/0076-system-cpu-timers-a-snapshot-load-resets-the-ticks-m.patch",
   "engine/patches/11.1.2/0090-system-seal-capabilities-before-startup-side-effects.patch",
   "engine/patches/11.1.2/0081-migration-qemu-file-inline-the-in-buffer-case-of-the.patch",
-  "engine/patches/11.1.2/0094-migration-savevm-reset-load_section_id-at-the-start-.patch",
+  "engine/patches/11.1.2/0095-migration-savevm-reset-load_section_id-at-the-start-.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
@@ -169,7 +169,7 @@ path = [
   "engine/patches/11.1.2/0045-panda-guest_hypercall-on-penguin-s-hypercall-instruc.patch",
   "engine/patches/11.1.2/0047-plugins-memory-callbacks-before-the-access.patch",
   "engine/patches/11.1.2/0082-accel-tcg-no-PANDA-or-hook-calls-in-the-CPU-loop-whi.patch",
-  "engine/patches/11.1.2/0093-tcg-taint-shadow-pass-hooks.patch",
+  "engine/patches/11.1.2/0094-tcg-taint-shadow-pass-hooks.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
