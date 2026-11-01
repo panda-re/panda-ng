@@ -87,6 +87,10 @@ static int rr_request(int what, const char *name, const char *snapshot)
 {
     RRRequest *r;
 
+    /* Before the engine starts there is no main loop to run the request */
+    if (!qemu_get_aio_context()) {
+        return RRCTRL_EINVALID;
+    }
     if (qatomic_xchg(&rr_pending, true)) {
         return RRCTRL_EPENDING;
     }

@@ -87,6 +87,13 @@ class PandaArch():
         '''
         return self.panda.cpu_env(cpu)
 
+    def _env_w(self, cpu):
+        '''
+        cpu's CPUArchState for writing: assignments go through the guest-write API
+        (panda.guest.env), which record/replay logs.
+        '''
+        return self.panda.guest.env(cpu)
+
     def get_reg(self, cpu, reg):
         '''
         Return value in a `reg` which is either a register name or index (e.g., "R0" or 0)
@@ -112,7 +119,7 @@ class PandaArch():
         '''
         Set register `reg` to a value where `reg` is either a register name or index (e.g., "R0" or 0)
         '''
-        self.panda._check_guest_mutation("arch.set_reg")
+        self.panda._check_guest_mutation("arch.set_reg", cpu)
         if isinstance(reg, str):
             reg = reg.upper()
             if reg not in self.registers.keys():
@@ -128,7 +135,7 @@ class PandaArch():
         '''
         Virtual method. Must be implemented for each architecture to return contents of register specified by idx.
         '''
-        self.panda._check_guest_mutation("arch._set_reg_val")
+        self.panda._check_guest_mutation("arch._set_reg_val", cpu)
         raise NotImplementedError()
 
     def get_pc(self, cpu):
@@ -163,7 +170,7 @@ class PandaArch():
 
         Note for syscalls we define arg[0] as syscall number and then 1-index the actual args
         '''
-        self.panda._check_guest_mutation("arch.set_arg")
+        self.panda._check_guest_mutation("arch.set_arg", cpu)
         argloc = self._get_arg_loc(idx, convention)
 
         if self._is_stack_loc(argloc):
@@ -256,7 +263,7 @@ class PandaArch():
         Note the failure argument only used by subclasses that overload this function. It's provided
         in the signature here so it can be set by a caller without regard for the guest architecture.
         '''
-        self.panda._check_guest_mutation("arch.set_retval")
+        self.panda._check_guest_mutation("arch.set_retval", cpu)
         reg = self._get_ret_val_reg(cpu, convention)
         return self.set_reg(cpu, reg, val)
 
@@ -280,7 +287,7 @@ class PandaArch():
         '''
         Set the program counter. Must be overloaded if self.reg_pc is None
         '''
-        self.panda._check_guest_mutation("arch.set_pc")
+        self.panda._check_unlogged_mutation("arch.set_pc")
         if self.reg_pc:
             return self.set_reg(cpu, self.reg_pc, val)
         else:
@@ -368,8 +375,8 @@ class ArmArch(PandaArch):
         '''
         Set an arm register
         '''
-        self.panda._check_guest_mutation("arch._set_reg_val")
-        self.cpu_env(cpu).regs[reg] = val
+        self.panda._check_guest_mutation("arch._set_reg_val", cpu)
+        self._env_w(cpu).regs[reg] = val
 
     def get_return_value(self, cpu):
         '''
@@ -443,8 +450,8 @@ class Aarch64Arch(PandaArch):
         '''
         Overloaded function set AArch64 program counter
         '''
-        self.panda._check_guest_mutation("arch.set_pc")
-        self.cpu_env(cpu).pc = val
+        self.panda._check_unlogged_mutation("arch.set_pc")
+        self._env_w(cpu).pc = val
 
     def _get_reg_val(self, cpu, reg):
         '''
@@ -461,8 +468,8 @@ class Aarch64Arch(PandaArch):
         '''
         Set an aarch64 register
         '''
-        self.panda._check_guest_mutation("arch._set_reg_val")
-        self.cpu_env(cpu).xregs[reg] = val
+        self.panda._check_guest_mutation("arch._set_reg_val", cpu)
+        self._env_w(cpu).xregs[reg] = val
 
     def get_return_value(self, cpu):
         '''
@@ -537,9 +544,9 @@ class Loongarch64(PandaArch):
         '''
         Set an arm register
         '''
-        self.panda._check_guest_mutation("arch._set_reg_val")
+        self.panda._check_guest_mutation("arch._set_reg_val", cpu)
         if reg in self.registers:
-            self.cpu_env(cpu).gpr[self.registers[reg]] = val
+            self._env_w(cpu).gpr[self.registers[reg]] = val
         else:
             raise ValueError(f"Invalid register name {reg}")
 
@@ -599,8 +606,8 @@ class Riscv64Arch(PandaArch):
         '''
         Set the program counter
         '''
-        self.panda._check_guest_mutation("arch.set_pc")
-        self.panda.cpu_env(cpu).pc = val
+        self.panda._check_unlogged_mutation("arch.set_pc")
+        self._env_w(cpu).pc = val
     
     def _get_reg_val(self, cpu, reg):
         '''
@@ -612,8 +619,8 @@ class Riscv64Arch(PandaArch):
         '''
         Set a RISC-V register value
         '''
-        self.panda._check_guest_mutation("arch._set_reg_val")
-        self.cpu_env(cpu).gpr[reg] = val
+        self.panda._check_guest_mutation("arch._set_reg_val", cpu)
+        self._env_w(cpu).gpr[reg] = val
     
     def get_return_value(self, cpu):
         '''
@@ -722,8 +729,8 @@ class MipsArch(PandaArch):
         '''
         Overloaded function set the MIPS program counter
         '''
-        self.panda._check_guest_mutation("arch.set_pc")
-        self.cpu_env(cpu).active_tc.PC = val
+        self.panda._check_unlogged_mutation("arch.set_pc")
+        self._env_w(cpu).active_tc.PC = val
 
     def get_retval(self, cpu, convention='default'):
         '''
@@ -751,8 +758,8 @@ class MipsArch(PandaArch):
         '''
         Set a mips register
         '''
-        self.panda._check_guest_mutation("arch._set_reg_val")
-        self.cpu_env(cpu).active_tc.gpr[reg] = val
+        self.panda._check_guest_mutation("arch._set_reg_val", cpu)
+        self._env_w(cpu).active_tc.gpr[reg] = val
 
     def get_return_value(self, cpu, convention='default'):
         '''
@@ -782,7 +789,7 @@ class MipsArch(PandaArch):
         Otherwise, it will be set to 1
 
         '''
-        self.panda._check_guest_mutation("arch.set_retval")
+        self.panda._check_guest_mutation("arch.set_retval", cpu)
         if convention == 'syscall':
             # Set A3 register to indicate syscall success/failure
             self.set_reg(cpu, 'a3', failure)
@@ -854,8 +861,8 @@ class PowerPCArch(PandaArch):
         '''
         Overloaded function to set the ppc program counter
         '''
-        self.panda._check_guest_mutation("arch.set_pc")
-        self.cpu_env(cpu).nip = val
+        self.panda._check_unlogged_mutation("arch.set_pc")
+        self._env_w(cpu).nip = val
 
     def _get_reg_val(self, cpu, reg):
         '''
@@ -867,8 +874,8 @@ class PowerPCArch(PandaArch):
         '''
         Set an ppc register
         '''
-        self.panda._check_guest_mutation("arch._set_reg_val")
-        self.cpu_env(cpu).gpr[reg] = val
+        self.panda._check_guest_mutation("arch._set_reg_val", cpu)
+        self._env_w(cpu).gpr[reg] = val
 
     def get_reg(self, cpu, reg):
 
@@ -897,13 +904,14 @@ class PowerPCArch(PandaArch):
 
 
     def set_reg(self, cpu, reg, val):
-        self.panda._check_guest_mutation("arch.set_reg")
+        self.panda._check_guest_mutation("arch.set_reg", cpu)
         reg = reg.upper()
-        env = self.cpu_env(cpu)
+        raw = self.cpu_env(cpu)
+        env = self._env_w(cpu)
 
         if self.registers_spr is None:
             self.registers_spr = {}
-            for idx, spr_cb in enumerate(env.spr_cb):
+            for idx, spr_cb in enumerate(raw.spr_cb):
                 if spr_cb.name:
                     pystr = self.panda.ffi.string(spr_cb.name).decode('utf-8')
                     self.registers_spr['SPR_' + pystr] = idx
@@ -913,7 +921,8 @@ class PowerPCArch(PandaArch):
         elif reg == "CTR":
             env.ctr = val
         elif reg == "MSR":
-            self.panda.ppc_store_msr(env, val)
+            # ppc_store_msr's side effects (hflags, TLB) come with the target's setter
+            self.panda.guest.set_reg(cpu, "msr", val)
         elif reg in self.registers_crf: 
             env.crf[self.registers_crf.index(reg)] = val
         elif reg in self.registers_spr.keys():
@@ -997,8 +1006,8 @@ class X86_64Arch(PandaArch):
         '''
         Overloaded function to set the x86_64 program counter
         '''
-        self.panda._check_guest_mutation("arch.set_pc")
-        self.cpu_env(cpu).eip = val
+        self.panda._check_unlogged_mutation("arch.set_pc")
+        self._env_w(cpu).eip = val
 
     def _get_mmr_val(self, cpu, reg): 
         reg = reg.lower()
@@ -1009,7 +1018,7 @@ class X86_64Arch(PandaArch):
         self.panda._check_guest_mutation("arch._set_mmr_val")
         reg = reg.lower()
         selector, base, limit, flags = val 
-        sc = getattr(self.cpu_env(cpu), reg)
+        sc = getattr(self._env_w(cpu), reg)
         sc.selector = selector
         sc.base = base
         sc.limit = limit
@@ -1025,8 +1034,8 @@ class X86_64Arch(PandaArch):
         '''
         Set an x86_64 register
         '''
-        self.panda._check_guest_mutation("arch._set_reg_val")
-        self.cpu_env(cpu).regs[reg] = val
+        self.panda._check_guest_mutation("arch._set_reg_val", cpu)
+        self._env_w(cpu).regs[reg] = val
 
     def get_return_value(self, cpu):
         '''
@@ -1108,9 +1117,9 @@ class X86_64Arch(PandaArch):
             return super().get_reg(cpu, reg)
 
     def set_reg(self, cpu, reg, val):
-        self.panda._check_guest_mutation("arch.set_reg")
+        self.panda._check_guest_mutation("arch.set_reg", cpu)
         reg = reg.upper()
-        env = self.cpu_env(cpu)
+        env = self._env_w(cpu)
 
         if reg in self.reg_names_mmr: 
             return self._set_mmr_val(cpu, reg, val)

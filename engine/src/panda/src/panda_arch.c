@@ -1,5 +1,6 @@
 #include "panda/common.h"
 #include "panda/plugin.h"
+#include "panda/guest-write.h"
 
 /* (not kernel-doc)
  * panda_in_kernel_mode() - Determine if guest is in kernel.
@@ -210,7 +211,12 @@ target_ulong panda_get_retval(const CPUState *cpu) {
     // EAX for x86.
     return env->regs[R_EAX];
 #elif defined(TARGET_ARM)
-    // R0 on ARM.
+    // X0 in AArch64 state, R0 on ARM.
+#if defined(TARGET_AARCH64)
+    if (is_a64(env)) {
+        return env->xregs[0];
+    }
+#endif
     return env->regs[0];
 #elif defined(TARGET_PPC)
     // R3 on PPC.
@@ -230,33 +236,9 @@ target_ulong panda_get_retval(const CPUState *cpu) {
 #endif
 }
 
+/* Through the guest-write API: logged while recording, refused where it can't be */
 void panda_set_retval(CPUState *cpu, target_ulong value){
-    if (!panda_guest_mutation_allowed()) {
-        return;
-    }
-    CPUArchState *env = cpu_env((CPUState *)cpu);
-#if defined(TARGET_I386)
-    // EAX for x86.
-    env->regs[R_EAX] = value;
-#elif defined(TARGET_ARM)
-    // R0 on ARM.
-    env->regs[0] = value;
-#elif defined(TARGET_PPC)
-    // R3 on PPC.
-    env->gpr[3] = value;
-#elif defined(TARGET_MIPS)
-    // MIPS has 2 return registers v0 and v1. Here we choose v0.
-    env->active_tc.gpr[MIPS_V0] = value;
-#elif defined(TARGET_LOONGARCH)
-    // LoongArch uses a0 for return value.
-    env->gpr[4] = value;
-#elif defined(TARGET_RISCV)
-    // RISC-V uses a0 (x10) for return value
-    env->gpr[10] = value;
-#else
-#error "panda_get_retval() not implemented for target architecture."
-#endif
-
+    panda_guest_set_retval(cpu, value);
 }
 #if defined(TARGET_AARCH64)
     #define GPR(x) env->xregs[x]
@@ -309,13 +291,13 @@ target_ulong panda_get_syscall_arg(CPUState *cpu, int arg){
 }
 
 void panda_set_syscall_arg(CPUState *cpu, int arg, target_ulong value){
-    if (!panda_guest_mutation_allowed()) {
-        return;
-    }
      CPUArchState *env = cpu_env((CPUState *)cpu);
     if (arg < 0 || arg >= sizeof(regs) / sizeof(regs[0])) {
         printf("Error!!! Requested register %d. Target only has %ld registers available\n", arg, sizeof(regs) / sizeof(regs[0]));
         return;
     }
-    GPR(regs[arg]) = value;
+    /* Through the guest-write API, as panda_set_retval */
+    typeof(GPR(0)) field = value;
+    panda_guest_write_env(cpu, (uint8_t *)&GPR(regs[arg]) - (uint8_t *)env,
+                          &field, sizeof(field));
 }

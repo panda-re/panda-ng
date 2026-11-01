@@ -3,6 +3,8 @@
 #include "qapi/error.h"
 #include "system/replay.h"
 #include "system/replay-analysis.h"
+#include "system/replay-effect.h"
+#include "panda/guest-write.h"
 #include "system/penguin.h"
 #include "system/address-spaces.h"
 #include "system/memory.h"
@@ -74,14 +76,11 @@ penguin_guest_hypercall_registered(uint64_t nr)
            g_hash_table_contains(penguin_guest_hypercall_numbers, &nr);
 }
 
+/* Allowed during record/replay: its answers are logged (replay-effect.h). */
 void __attribute__((visibility("default")))
 set_penguin_guest_hypercall_callback(penguin_guest_hypercall_cb_t cb,
                                      void *opaque)
 {
-    if (cb && replay_mode != REPLAY_MODE_NONE) {
-        error_report("penguin hypercall consumer refused during record/replay");
-        return;
-    }
     penguin_guest_hypercall_cb = cb;
     penguin_guest_hypercall_opaque = opaque;
 }
@@ -98,8 +97,8 @@ set_kvm_penguin_hypercall_callback(kvm_penguin_hypercall_cb_t cb)
 
 bool penguin_hypercall_replay_safe(Error **errp)
 {
-    if (penguin_guest_hypercall_cb || kvm_penguin_hypercall_cb) {
-        error_setg(errp, "penguin hypercall consumers can mutate guest state; use an observe-only PANDA callback during record/replay");
+    if (kvm_penguin_hypercall_cb) {
+        error_setg(errp, "the KVM penguin hypercall consumer cannot be recorded");
         return false;
     }
     return true;
@@ -112,11 +111,11 @@ bool penguin_guest_hypercall_wanted(uint64_t nr)
            kvm_penguin_hypercall_cb;
 }
 
-bool penguin_handle_guest_hypercall(CPUState *cs, uint64_t nr,
-                                    uint64_t a0, uint64_t a1,
-                                    uint64_t a2, uint64_t a3,
-                                    uint64_t a4, uint64_t a5,
-                                    uint64_t *ret)
+static bool penguin_answer_guest_hypercall(CPUState *cs, uint64_t nr,
+                                           uint64_t a0, uint64_t a1,
+                                           uint64_t a2, uint64_t a3,
+                                           uint64_t a4, uint64_t a5,
+                                           uint64_t *ret)
 {
     if (penguin_guest_hypercall_cb &&
         penguin_guest_hypercall_registered(nr)) {
@@ -131,6 +130,32 @@ bool penguin_handle_guest_hypercall(CPUState *cs, uint64_t nr,
     }
 
     return false;
+}
+
+/*
+ * Every call is one hypercall event while recording, answered or not, so
+ * replay reads the answer without knowing which consumers the recording had.
+ */
+bool penguin_handle_guest_hypercall(CPUState *cs, uint64_t nr,
+                                    uint64_t a0, uint64_t a1,
+                                    uint64_t a2, uint64_t a3,
+                                    uint64_t a4, uint64_t a5,
+                                    uint64_t *ret)
+{
+    bool handled;
+
+    if (replay_mode == REPLAY_MODE_PLAY) {
+        return replay_guest_write_replay(cs, REPLAY_GUEST_SITE_HYPERCALL, ret);
+    }
+    if (!replay_guest_write_begin(cs, REPLAY_GUEST_SITE_HYPERCALL)) {
+        return penguin_answer_guest_hypercall(cs, nr, a0, a1, a2, a3, a4, a5,
+                                              ret);
+    }
+    *ret = 0;
+    handled = penguin_answer_guest_hypercall(cs, nr, a0, a1, a2, a3, a4, a5,
+                                             ret);
+    replay_guest_write_end(cs, handled, handled ? *ret : 0);
+    return handled;
 }
 
 static uint64_t penguin_mmio_read(void *opaque, hwaddr addr, unsigned size)
@@ -215,15 +240,19 @@ penguin_read_guest_reg(CPUState *cs, int regnum, uint8_t *buf, int buf_len)
 int __attribute__((visibility("default")))
 penguin_write_guest_reg(CPUState *cs, int regnum, const uint8_t *buf, int len)
 {
-    if (!replay_analysis_write_allowed() || !cs || !buf || len <= 0) {
+    bool ok;
+
+    if (!cs || !buf || len <= 0 ||
+        (!replay_analysis_write_allowed() &&
+         replay_guest_write_admitted(NULL, len) != GUEST_WRITE_OK)) {
         return -1;
     }
 
     cpu_synchronize_state(cs);
-    if (gdb_write_register(cs, (uint8_t *)buf, regnum) <= 0) {
-        return -1;
-    }
-    return 0;
+    ok = gdb_write_register(cs, (uint8_t *)buf, regnum) > 0;
+    replay_guest_write_log_reg(cs, regnum, buf, len,
+                               ok ? GUEST_WRITE_OK : GUEST_WRITE_EACCES);
+    return ok ? 0 : -1;
 }
 
 void __attribute__((visibility("default")))

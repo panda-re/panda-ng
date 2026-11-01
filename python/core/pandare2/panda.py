@@ -37,6 +37,7 @@ from .panda_expect import Expect
 from .asyncthread import AsyncThread
 from .qcows_internal import Qcows
 from .callbacks import unavailable, tcg_only, ABORTS, PASSTHROUGH
+from .guest import Guest, GuestWriteRefused
 from .arch import ArmArch, Aarch64Arch, Loongarch64, MipsArch, Mips64Arch, X86Arch, X86_64Arch, PowerPCArch, PowerPC64Arch, Riscv32Arch, Riscv64Arch
 from dataclasses import dataclass
 import logging
@@ -415,6 +416,7 @@ class Panda():
 
         # panda.arch is a subclass with architecture-specific functions
 
+        self.guest = Guest(self)  # guest writes: panda.guest.write_virt, .set_reg, .env(cpu), ...
         self.arch = None # Keep this with the following docstring such that pydoc generats good docs for it; this is a useful variable!
         """
         A reference to an auto-instantiated `pandare.arch.PandaArch` subclass (e.g., `pandare.arch.X86Arch`)
@@ -823,7 +825,7 @@ class Panda():
     def reset(self):
         """In the next main loop, reset to boot. During run() only."""
         self._needs_engine("reset")
-        self._check_guest_mutation("reset")
+        self._check_unlogged_mutation("reset")
         if debug:
             progress ("Resetting machine to start state")
 
@@ -1565,25 +1567,18 @@ class Panda():
 
     def _memory_write(self, cpu, addr, buf, physical=False):
         '''
-        Write a bytearray into memory at the specified physical/virtual address
+        Write a bytearray into memory at the specified physical/virtual address, through the
+        guest-write API (panda.guest): logged while recording, refused (GuestWriteRefused) where
+        record/replay can't log it, GuestWriteFault (a ValueError) where it doesn't translate.
         '''
-        self._needs_engine("writing guest memory")
-        self._check_guest_mutation("writing guest memory")
-        length = len(buf)
-        c_buf = self.ffi.new("char[]",buf)
-        buf_a = self.ffi.cast("char*", c_buf)
-        length_a = self.ffi.cast("int", length)
-
         if not hasattr(self, "_memcb"): # XXX: Why do we enable memcbs for memory writes?
+            self._needs_engine("writing guest memory")
             self.enable_memcb()
 
         if physical:
-            err = self.libpanda.panda_physical_memory_write_external(addr, buf_a, length_a)
+            self.guest.write_phys(addr, buf)
         else:
-            err = self.libpanda.panda_virtual_memory_write_external(cpu, addr, buf_a, length_a)
-
-        if err != 0:
-            raise ValueError(f"Memory write failed with err={err}") # TODO: make a PANDA Exn class
+            self.guest.write_virt(cpu, addr, buf)
 
     def _set_extra_plugin_path(self, path):
         pp = self.ffi.new("char[]", bytes(path, "utf-8"))
@@ -1640,7 +1635,7 @@ class Panda():
             RuntimeError: if the region could not be made (QEMU reports why)
         '''
 
-        self._check_guest_mutation("mapping guest memory")
+        self._check_unlogged_mutation("mapping guest memory")
         name_c = self.ffi.new("char[]", bytes(name, "utf-8"))
         size = ceil(size/4096)*4096 # Must be page-aligned
         if self.libpanda.map_memory(name_c, size, address) != 0:
@@ -2656,16 +2651,30 @@ class Panda():
         for hook, _ in self.hook_list:
             if hook.enabled and not self._hook_observers.get(hook, False):
                 raise ValueError("address hook: record/replay requires observe_only=True")
+        # @hypercall handlers may mutate: their writes are recorded and replayed. Each says which.
         for fun, info in self.hypercalls.items():
-            if len(info) < 3 or not info[2]:
-                raise ValueError(f"hypercall {fun.__name__!r}: record/replay requires observe_only=True")
+            if len(info) < 3:
+                raise ValueError(f"hypersyscall {fun.__name__!r}: not supported during record/replay")
+            if not info[2] and not (len(info) > 3 and info[3]):
+                raise ValueError(f"hypercall {fun.__name__!r}: record/replay requires observe_only=True "
+                                 "or mutates=True")
 
-    def _check_guest_mutation(self, operation):
-        if (not self.libpanda.panda_guest_mutation_allowed() or
-                getattr(self._callback_access, 'observers', 0)):
-            raise PermissionError(f"{operation}: guest mutation is forbidden during record/replay or an observe-only callback")
+    def _check_guest_mutation(self, operation, cpu=None, memory=False):
+        '''
+        Refuse a guest write from an observe-only Python callback, even live. Whether record/
+        replay can log a write is the engine's answer (panda.guest raises GuestWriteRefused).
+        '''
+        if getattr(self._callback_access, 'observers', 0):
+            raise GuestWriteRefused(operation, 1, "guest mutation is forbidden in an observe-only callback")
 
-    def _catching(self, fun, nargs, result=None, passthrough=False, observe_only=False):
+    def _check_unlogged_mutation(self, operation):
+        '''Refuse a change to the guest that record/replay cannot log (reset, map_memory, set_pc).'''
+        self._check_guest_mutation(operation)
+        if not self.libpanda.panda_guest_mutation_allowed():
+            raise GuestWriteRefused(operation, 1, "not supported during record/replay")
+
+    def _catching(self, fun, nargs, result=None, passthrough=False, observe_only=False,
+                  hypercall=False):
         '''
         The wrapper between C and every Python callback pandare2 registers (the cb_ decorators,
         ppp, hook, hypercall, hypersyscall): returns the function to give ffi.callback.
@@ -2678,7 +2687,8 @@ class Panda():
         (before_handle_exception/interrupt), which returns the index it was given: 0 is a
         different exception, which QEMU may abort on.
 
-        The policy wrapper rejects unlogged mutators during record/replay and tracks
+        The policy wrapper rejects unlogged mutators during record/replay (a hypercall
+        handler's answer is logged, so hypercall=True admits one) and tracks
         observe-only Python callbacks so guest-writing helpers reject their
         writes during live execution too. Native callers remain trusted: raw
         CPUState pointers are not a sandbox.
@@ -2689,11 +2699,12 @@ class Panda():
             kind = "bool"
         else:
             kind = "passthrough" if passthrough else "int"
-        if not observe_only and not self.libpanda.panda_guest_mutation_allowed():
+        mutator = not observe_only and not hypercall
+        if mutator and not self.libpanda.panda_guest_mutation_allowed():
             raise ValueError(f"callback {fun.__name__!r}: record/replay requires observe_only=True")
         original = fun
         def checked(*args):
-            if not observe_only and not self.libpanda.panda_guest_mutation_allowed():
+            if mutator and not self.libpanda.panda_guest_mutation_allowed():
                 raise PermissionError(f"callback {original.__name__!r}: record/replay requires observe_only=True")
             observers = getattr(self._callback_access, 'observers', 0)
             self._callback_access.observers = observers + bool(observe_only)
@@ -3092,16 +3103,26 @@ class Panda():
         return decorator
 
     # HYPERCALLS
-    def hypercall(self, magic, observe_only=False):
+    def hypercall(self, magic, observe_only=False, mutates=None):
         '''
         Decorate a function to run when the guest makes the PANDA hypercall `magic` (an int or a
         list of them): fun(cpu). Through the hypercaller plugin's guest_hypercall callback, so
         TCG only: under accel="kvm" it raises NotImplementedError.
+
+        During record/replay a handler must say what it does: observe_only=True, or mutates=True
+        for one that writes the guest (through panda.guest, or the memory and register helpers,
+        which use it). A recording logs a mutator's writes and replay repeats them without
+        calling it.
         '''
         self._needs_tcg("hypercall (hypercaller's guest_hypercall callback)")
+        if observe_only and mutates:
+            raise ValueError("hypercall: observe_only=True and mutates=True contradict each other")
+        if not observe_only and not mutates and not self.libpanda.panda_guest_mutation_allowed():
+            raise ValueError("hypercall: record/replay requires observe_only=True or mutates=True")
 
         def decorator(fun):
-            hook_cb_passed = self.ffi.callback("hypercall_t", self._catching(fun, 1, observe_only=observe_only))
+            hook_cb_passed = self.ffi.callback("hypercall_t", self._catching(fun, 1, observe_only=observe_only,
+                                                                               hypercall=True))
             if type(magic) not in (int, list):
                 raise TypeError("Magics must be either an int or list of ints")
             magics = [magic] if type(magic) is int else magic
@@ -3111,14 +3132,14 @@ class Panda():
             try:
                 for m in magics:
                     if not self.plugins['hypercaller'].register_hypercall_observer(m, hook_cb_passed, observe_only):
-                        raise ValueError("hypercall registration refused: duplicate magic or mutator during record/replay")
+                        raise ValueError("hypercall registration refused: duplicate magic")
                     registered.append(m)
             except Exception:
                 for m in registered:
                     self.plugins['hypercaller'].unregister_hypercall(m)
                 raise
 
-            self.hypercalls[fun] = [hook_cb_passed,magic,observe_only]
+            self.hypercalls[fun] = [hook_cb_passed,magic,observe_only,bool(mutates)]
             return fun
         return decorator
     

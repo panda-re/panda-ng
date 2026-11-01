@@ -155,6 +155,8 @@ class CapabilityAdmission(unittest.TestCase):
 #define PANDA_MODE_RR 4
 #define REPLAY_MODE_NONE 0
 #define error_report(...) ((void)0)
+typedef int panda_cb_type;
+#define PANDA_CB_GUEST_HYPERCALL 20
 static bool frozen, analysis, kvm;
 static int replay_mode, dlopens;
 static bool analysis_policy_is_frozen(void) {return frozen;}
@@ -166,13 +168,15 @@ int main(void) {
     for(int f=0;f<2;f++)for(int a=0;a<2;a++) {
         frozen=f;analysis=a;
         bool admitted=f && a;
-        assert(callback_mode_valid(7,true)==admitted);
+        assert(callback_mode_valid(0,7,true)==admitted);
         assert(_panda_load_plugin("plugin","plugin",true)==admitted);
         assert(dlopens==(admitted?1:0));dlopens=0;
     }
     frozen=analysis=true;
-    assert(callback_mode_valid(7,false)); /* sealed analysis before CPU init */
-    replay_mode=1;assert(!callback_mode_valid(7,false));assert(callback_mode_valid(7,true));
+    assert(callback_mode_valid(0,7,false)); /* sealed analysis before CPU init */
+    replay_mode=1;assert(!callback_mode_valid(0,7,false));assert(callback_mode_valid(0,7,true));
+    /* A hypercall answer is logged, so a mutating guest_hypercall callback is admitted. */
+    assert(callback_mode_valid(PANDA_CB_GUEST_HYPERCALL,7,false));
     return 0;
 }
 '''

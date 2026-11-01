@@ -17,6 +17,8 @@
 #include "system/tcg.h"
 #include "system/syscall-trap.h"
 #include "system/replay-analysis.h"
+#include "system/replay-effect.h"
+#include "panda/guest-write.h"
 #include "system/address-spaces.h"
 #ifdef CONFIG_TCG
 #include "accel/tcg/probe.h"
@@ -805,14 +807,10 @@ static void *sc_writable(CPUState *cpu, vaddr a, size_t size)
 }
 #endif
 
-bool syscall_trap_access(CPUState *cpu, vaddr addr, void *buf, size_t len,
-                         bool write, vaddr *bad)
+static bool sc_access(CPUState *cpu, vaddr addr, void *buf, size_t len,
+                      bool write, vaddr *bad)
 {
     size_t pg = qemu_target_page_size();
-    if (write && !replay_analysis_write_allowed()) {
-        *bad = addr & ~(vaddr)(pg - 1);
-        return false;
-    }
 
     if (!write) {
         for (size_t done = 0; done < len;) {
@@ -855,4 +853,26 @@ bool syscall_trap_access(CPUState *cpu, vaddr addr, void *buf, size_t len,
     *bad = addr & ~(vaddr)(pg - 1);
     return false;
 #endif
+}
+
+/*
+ * During record/replay a write goes ahead only inside a hypercall answer, which
+ * logs it here: replay repeats this same call (replay-effect.h).
+ */
+bool syscall_trap_access(CPUState *cpu, vaddr addr, void *buf, size_t len,
+                         bool write, vaddr *bad)
+{
+    bool ok;
+
+    if (write && !replay_analysis_write_allowed() &&
+        replay_guest_write_admitted(NULL, len) != GUEST_WRITE_OK) {
+        *bad = addr & ~(vaddr)(qemu_target_page_size() - 1);
+        return false;
+    }
+    ok = sc_access(cpu, addr, buf, len, write, bad);
+    if (write) {
+        replay_guest_write_log_vaddr(cpu, addr, buf, len,
+                                     ok ? GUEST_WRITE_OK : GUEST_WRITE_EFAULT);
+    }
+    return ok;
 }

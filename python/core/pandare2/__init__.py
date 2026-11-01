@@ -13,10 +13,14 @@ the script checks and how to run it.
 """
 
 from .panda import Panda, EngineInUseError, blocking
+from .guest import (GuestWriteError, GuestWriteRefused, GuestWriteInvalid, GuestWriteFault,
+                    GuestWriteDenied, GuestWriteTooBig)
 from .machine import MachineBuilder
 from .pyplugin import PyPlugin
 
-__all__ = ['Panda', 'EngineInUseError', 'Callbacks', 'PyPlugin', 'MachineBuilder']
+__all__ = ['Panda', 'EngineInUseError', 'Callbacks', 'PyPlugin', 'MachineBuilder',
+           'GuestWriteError', 'GuestWriteRefused', 'GuestWriteInvalid', 'GuestWriteFault',
+           'GuestWriteDenied', 'GuestWriteTooBig']
 
 class Callbacks:
     '''

@@ -3,7 +3,7 @@
 # Overlay paths are repository-relative; hunk_contexts are evidence, not exhaustive symbols.
 schema_version = 1
 patch_series = "engine/patches/11.1.2/series"
-patch_range = "0001-0092"
+patch_range = "0001-0093"
 review_date = "2026-10-29"
 vanilla_parity_implemented = false
 source_audit = "../notes/mode-audit.md (historical0001-0081; read-only, findings rechecked against current series)"
@@ -1300,6 +1300,21 @@ current_gate = "Adds a no-TCG stub that refuses register effect requests; no run
 required_action = "Verify no-TCG linkage in a TCG-disabled build."
 vanilla_verified = false
 
+
+[[patch]]
+id = "0093"
+file = "engine/patches/11.1.2/0093-replay-log-analysis-guest-writes-at-their-instructio.patch"
+sha256 = "5354f1b32fdf8cc7546e5124a3ed6c936ef0a721abf008db0538d68c7d33c0d4"
+class = "runtime-gate"
+capability = "rr-analysis-effects"
+paths = ["replay/replay-internal.h", "replay/replay.c", "replay/stubs-system.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c", "target/loongarch/tcg/insn_trans/trans_extra.c.inc", "target/mips/tcg/translate.c", "target/ppc/translate/fixedpoint-impl.c.inc", "target/riscv/tcg/translate.c"]
+functions = ["EVENT_GUEST_WRITE", "replay_event_name", "trans_PENGUIN", "gen_cond_move", "do_xori", "gen_logic_imm_fn", "trans_cpucfg", "replay_guest_write_begin"]
+hunk_contexts = ["EVENT_RANDOM", "REPLAY_VERSION", "gen_helper_penguin_guest_hypercall"]
+gate_status = "rr-guest-write-event-not-vanilla-verified"
+current_gate = "Hypercall instructions start I/O unconditionally (their translation blocks end after them under icount, in every mode); the guest-write event is written and read only in RECORD/PLAY. Outer replay version is bumped globally."
+required_action = "Gate translator_io_start on the guest-hypercall capability's RR use, or show it is inert without icount; validate record/replay of answered hypercalls on each target."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
@@ -1309,6 +1324,17 @@ functions = ["panda_analysis_ram_write", "panda_analysis_reg_write", "replay_ana
 gate_status = "bounded-request-admission-implemented-not-guest-verified"
 current_gate = "64 KiB bounded deferred writes, full-range RAM preflight, versioned payload and result replay validation. Raw RAM copies are avoided; standard address_space_write performs dirty/TB invalidation."
 required_action = "Prove scheduler/request locking and producer-free replay in a guest, validate malformed logs and integrated replay capability rejection. No register/syscall/device effects supported."
+vanilla_verified = false
+
+[[overlay]]
+id = "guest-write-api"
+class = "runtime-gate"
+capability = "rr-analysis-effects"
+paths = ["engine/src/include/panda/guest-write.h", "engine/src/panda/src/guest-write.c", "engine/src/panda/src/guest-layout.gen.h"]
+functions = ["panda_guest_write_virt", "panda_guest_write_phys", "panda_guest_write_reg", "panda_guest_set_retval", "panda_guest_write_env", "panda_guest_write_env_path", "panda_guest_env_sync", "panda_guest_reg_lookup", "replay_guest_layout_register"]
+gate_status = "logged-guest-writes-standalone-tested-not-guest-verified"
+current_gate = "Without record/replay the calls write at once under PANDA's existing policy; during record/replay only inside a guest-write scope (hypercall sites), logged as EVENT_GUEST_WRITE and repeated by replay; env writes are checked against the generated layout map and the guard compares the vCPU's env after each recorded site."
+required_action = "Guest-verify record/replay of env, path, register and memory writes on each target; confirm the guard has no false positives (fields QEMU changes inside a site) on every target."
 vanilla_verified = false
 
 [[overlay]]
