@@ -167,7 +167,7 @@
                 cp ../libpanda-ng/*.h $out/include/panda-ng/
                 # Additive APIs are not part of the generated flattened ABI headers.
                 mkdir -p $out/include/panda
-                cp include/panda/analysis-effect.h $out/include/panda/
+                cp include/panda/analysis-effect.h include/panda/guest-write.h $out/include/panda/
                 # libqemu-system-<name>.so (with penguin's alias names), libqemu-kvm-<target>.so and
                 # libpanda-<target>-softmmu.so are links of the same objects; only the soname differs,
                 # and all of them are dlopened by path. Keep libpanda-* and link the rest to it.
@@ -1094,6 +1094,23 @@
           # boundary: entry-only observers must not read unused arguments or track returns.
           syscalls2-dispatch = pkgs.runCommandCC "syscalls2-dispatch-check" { } ''
             PANDA_SOURCE=${./.} bash ${./tests/static/syscalls_dispatch.sh} dispatch
+            touch $out
+          '';
+          # The guest-write layout map is what tools/guest-layout/gen.py makes from the bindings, and
+          # gcc lays out every struct it names the same way, on every arch (no guest).
+          guest-layout =
+            pkgs.runCommandCC "guest-layout-check"
+              {
+                nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
+                buildInputs = [ pkgs.glib ];
+              }
+              ''
+                python3 ${./.}/tests/static/guest_layout.py ${p.engine}/include/panda-ng
+                touch $out
+              '';
+          # pandare2's env view turns field assignments into the engine's env writes (no engine).
+          guest-view = pkgs.runCommand "guest-view-check" { } ''
+            ${p.pandaPython}/bin/python3 ${./.}/tests/static/guest_view.py
             touch $out
           '';
           # Exercise the real Python RR admission/observer wrappers without an engine build.

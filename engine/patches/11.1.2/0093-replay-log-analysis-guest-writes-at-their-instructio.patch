@@ -1,0 +1,204 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Sat, 31 Oct 2026 10:55:48 -0400
+Subject: [PATCH] replay: log analysis guest writes at their instruction
+
+A guest write made by an analysis callback during record/replay is one
+EVENT_GUEST_WRITE in the log, at the instruction where the callback ran (the
+event, the guest-write API and its layout map are in the engine/src overlay:
+replay/replay-effect.c, panda/src/guest-write.c). Guest hypercalls are the
+first site: one event per hypercall, answered or not. The new event shifts the
+event numbering, so REPLAY_VERSION goes to 0xe02010.
+
+The hypercall instructions of arm, aarch64, loongarch, mips, ppc and riscv
+now start I/O (translator_io_start): under icount the instruction ends its
+translation block, so the event is logged and read at an exact instruction
+count, as for clock and random-number reads, and env changes take effect from
+the next block. x86's hypercall is a port write, which already does.
+
+Without TCG there is no replay engine: the guest-write scope is stubbed out
+and refuses every write it would admit, env writes included.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ replay/replay-internal.h                      |  2 +
+ replay/replay.c                               |  3 +-
+ replay/stubs-system.c                         | 49 +++++++++++++++++++
+ target/arm/tcg/translate-a64.c                |  1 +
+ target/arm/tcg/translate.c                    |  1 +
+ .../tcg/insn_trans/trans_extra.c.inc          |  1 +
+ target/mips/tcg/translate.c                   |  1 +
+ target/ppc/translate/fixedpoint-impl.c.inc    |  1 +
+ target/riscv/tcg/translate.c                  |  1 +
+ 9 files changed, 59 insertions(+), 1 deletion(-)
+
+diff --git a/replay/replay-internal.h b/replay/replay-internal.h
+index fa94be90af6ae8c83bde51b47c63ec5713c6bfdb..7c8455c344791a93846cf96475f99f44343d8886 100644
+--- a/replay/replay-internal.h
++++ b/replay/replay-internal.h
+@@ -56,6 +56,8 @@ enum ReplayEvents {
+     EVENT_AUDIO_IN,
+     /* for random number generator */
+     EVENT_RANDOM,
++    /* for guest writes made by analysis callbacks */
++    EVENT_GUEST_WRITE,
+     /* for clock read/writes */
+     /* some of greater codes are reserved for clocks */
+     EVENT_CLOCK,
+diff --git a/replay/replay.c b/replay/replay.c
+index 0f65e6b85a8822aa8bb8bbdec860808d618f2eb5..7d72b42fb24c24e830f2fdd07c0024c7b724b9be 100644
+--- a/replay/replay.c
++++ b/replay/replay.c
+@@ -26,7 +26,7 @@
+ 
+ /* Current version of the replay mechanism.
+    Increase it when file format changes. */
+-#define REPLAY_VERSION              0xe0200f
++#define REPLAY_VERSION              0xe02010
+ /* Size of replay log header */
+ #define HEADER_SIZE                 (sizeof(uint32_t) + sizeof(uint64_t))
+ 
+@@ -137,6 +137,7 @@ static const char *replay_event_name(enum ReplayEvents event)
+         EVENT(AUDIO_OUT);
+         EVENT(AUDIO_IN);
+         EVENT(RANDOM);
++        EVENT(GUEST_WRITE);
+ #undef EVENT
+     default:
+         if (event >= EVENT_ASYNC && event <= EVENT_ASYNC_LAST) {
+diff --git a/replay/stubs-system.c b/replay/stubs-system.c
+index 8e1ba878362c2869becbb6caf7d9869d895d6655..db2c4577001cbb7b5883ee4bd7290cf15018cf3d 100644
+--- a/replay/stubs-system.c
++++ b/replay/stubs-system.c
+@@ -1,5 +1,6 @@
+ #include "qemu/osdep.h"
+ #include "system/replay-effect.h"
++#include "panda/guest-write.h"
+ #include "system/replay.h"
+ #include "ui/input.h"
+ 
+@@ -146,3 +147,51 @@ bool replay_analysis_reg_write_request(int cpu_index, int reg,
+ {
+     return false;
+ }
++
++bool replay_guest_write_begin(CPUState *cpu, ReplayGuestSite site)
++{
++    return false;
++}
++
++void replay_guest_write_end(CPUState *cpu, bool handled, uint64_t ret)
++{
++}
++
++bool replay_guest_write_replay(CPUState *cpu, ReplayGuestSite site, uint64_t *ret)
++{
++    return false;
++}
++
++int replay_guest_write_admitted(CPUState *cpu, size_t length)
++{
++    return GUEST_WRITE_EPERM;
++}
++
++void replay_guest_write_log_vaddr(CPUState *cpu, uint64_t address,
++                                  const void *data, size_t length, int result)
++{
++}
++
++void replay_guest_write_log_ram(uint64_t address, const void *data, size_t length)
++{
++}
++
++void replay_guest_write_log_reg(CPUState *cpu, int reg, const uint8_t *data,
++                                int length, int result)
++{
++}
++
++void replay_guest_layout_register(const GuestLayout *layout)
++{
++}
++
++int replay_guest_write_env(CPUState *cpu, const uint32_t *derefs, unsigned n,
++                           uint32_t offset, const void *data, uint32_t length)
++{
++    return GUEST_WRITE_EPERM;
++}
++
++int replay_guest_write_sync(CPUState *cpu)
++{
++    return GUEST_WRITE_EPERM;
++}
+diff --git a/target/arm/tcg/translate-a64.c b/target/arm/tcg/translate-a64.c
+index 7c8a865b3bc7424284f1bdba27c4c941524af37b..ac3d87f35d7347c7de18be29d8cf4f1d88418d77 100644
+--- a/target/arm/tcg/translate-a64.c
++++ b/target/arm/tcg/translate-a64.c
+@@ -3295,6 +3295,7 @@ static bool trans_PENGUIN(DisasContext *s, arg_PENGUIN *a)
+     if (!analysis_guest_hypercall_enabled()) {
+         return false; /* preserve upstream UNDEF decoding */
+     }
++    translator_io_start(&s->base);
+     gen_helper_penguin_guest_hypercall(cpu_reg(s, 0), tcg_env,
+                                        cpu_reg(s, 8), cpu_reg(s, 0),
+                                        cpu_reg(s, 1), cpu_reg(s, 2),
+diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
+index c09865a2d81636f9d355d7be0c32037863304b4d..caa9c54e2e3edd5d0cbc707dc63d09a4b60fd1dc 100644
+--- a/target/arm/tcg/translate.c
++++ b/target/arm/tcg/translate.c
+@@ -2376,6 +2376,7 @@ static bool trans_MCR(DisasContext *s, arg_MCR *a)
+         tcg_gen_extu_i32_i64(a2, load_reg(s, 2));
+         tcg_gen_extu_i32_i64(a3, load_reg(s, 3));
+         tcg_gen_extu_i32_i64(a4, load_reg(s, 4));
++        translator_io_start(&s->base);
+         gen_helper_penguin_guest_hypercall(ret64, tcg_env, nr, a0, a1, a2,
+                                            a3, a4);
+         tcg_gen_extrl_i64_i32(ret, ret64);
+diff --git a/target/loongarch/tcg/insn_trans/trans_extra.c.inc b/target/loongarch/tcg/insn_trans/trans_extra.c.inc
+index 9f0557857bdf95670ba1b9493e1bcb4b785d47ef..3c00d3ffbf569e422ef14268844ff0d31112441a 100644
+--- a/target/loongarch/tcg/insn_trans/trans_extra.c.inc
++++ b/target/loongarch/tcg/insn_trans/trans_extra.c.inc
+@@ -90,6 +90,7 @@ static bool trans_cpucfg(DisasContext *ctx, arg_cpucfg *a)
+     if (analysis_guest_hypercall_enabled() &&
+         a->rd == 0 && a->rj == 0) {
+         TCGv ret = tcg_temp_new();
++        translator_io_start(&ctx->base);
+         gen_helper_penguin_guest_hypercall(ret, tcg_env,
+                                            gpr_src(ctx, 11, EXT_NONE),
+                                            gpr_src(ctx, 4, EXT_NONE),
+diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
+index a402df7e55d504eb47a9627343e8c0bfcfa6ec5b..78de322a708f6e2d013d7c339cb3c2482d196cb3 100644
+--- a/target/mips/tcg/translate.c
++++ b/target/mips/tcg/translate.c
+@@ -2738,6 +2738,7 @@ static void gen_cond_move(DisasContext *ctx, uint32_t opc,
+ 
+     if (analysis_guest_hypercall_enabled() &&
+         opc == OPC_MOVZ && rd == 0 && rs == 0 && rt == 0) {
++        translator_io_start(&ctx->base);
+         gen_helper_penguin_guest_hypercall(cpu_gpr[2], tcg_env,
+                                            cpu_gpr[2], cpu_gpr[4],
+                                            cpu_gpr[5], cpu_gpr[6],
+diff --git a/target/ppc/translate/fixedpoint-impl.c.inc b/target/ppc/translate/fixedpoint-impl.c.inc
+index c28108670663faee02416634c53155dbc5fc88d7..5fc7894502e077068af0a3cca06c07428d801e7d 100644
+--- a/target/ppc/translate/fixedpoint-impl.c.inc
++++ b/target/ppc/translate/fixedpoint-impl.c.inc
+@@ -882,6 +882,7 @@ static bool do_xori(DisasContext *ctx, arg_D_ui *a, bool shift)
+     if (a->rt == a->ra && a->ui == 0) {
+         if (analysis_guest_hypercall_enabled() &&
+             !shift && a->rt == 10) {
++            translator_io_start(&ctx->base);
+             gen_helper_penguin_guest_hypercall(cpu_gpr[3], tcg_env,
+                                                cpu_gpr[0], cpu_gpr[3],
+                                                cpu_gpr[4], cpu_gpr[5],
+diff --git a/target/riscv/tcg/translate.c b/target/riscv/tcg/translate.c
+index 9234795c260fdb49d28514d549242e929c3a963a..f2f219d0ad04b01f3e187ae019acafa3f4086aff 100644
+--- a/target/riscv/tcg/translate.c
++++ b/target/riscv/tcg/translate.c
+@@ -882,6 +882,7 @@ static bool gen_logic_imm_fn(DisasContext *ctx, arg_i *a,
+         a->rs1 == 0 && a->rd == 0 && a->imm == 0 &&
+         func == tcg_gen_xori_tl) {
+         TCGv ret = tcg_temp_new();
++        translator_io_start(&ctx->base);
+         gen_helper_penguin_guest_hypercall(ret, tcg_env,
+                                            cpu_gpr[17], cpu_gpr[10],
+                                            cpu_gpr[11], cpu_gpr[12],

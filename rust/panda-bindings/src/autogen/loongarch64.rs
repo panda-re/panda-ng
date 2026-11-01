@@ -45237,6 +45237,70 @@ unsafe extern "C" {
         length: u32,
     ) -> bool;
 }
+pub const GUEST_WRITE_OK: GuestWriteResult = 0;
+pub const GUEST_WRITE_EPERM: GuestWriteResult = 1;
+pub const GUEST_WRITE_EINVAL: GuestWriteResult = 2;
+pub const GUEST_WRITE_EFAULT: GuestWriteResult = 3;
+pub const GUEST_WRITE_EACCES: GuestWriteResult = 4;
+pub const GUEST_WRITE_E2BIG: GuestWriteResult = 5;
+pub type GuestWriteResult = ::std::os::raw::c_uint;
+unsafe extern "C" {
+    pub fn panda_guest_write_virt(
+        cpu: *mut CPUState,
+        addr: u64,
+        buf: *const ::std::os::raw::c_void,
+        len: usize,
+    ) -> GuestWriteResult;
+}
+unsafe extern "C" {
+    pub fn panda_guest_write_phys(
+        addr: u64,
+        buf: *const ::std::os::raw::c_void,
+        len: usize,
+    ) -> GuestWriteResult;
+}
+unsafe extern "C" {
+    pub fn panda_guest_write_reg(
+        cpu: *mut CPUState,
+        regnum: ::std::os::raw::c_int,
+        buf: *const ::std::os::raw::c_void,
+        len: usize,
+    ) -> GuestWriteResult;
+}
+unsafe extern "C" {
+    pub fn panda_guest_set_retval(cpu: *mut CPUState, value: u64) -> GuestWriteResult;
+}
+unsafe extern "C" {
+    pub fn panda_guest_write_env(
+        cpu: *mut CPUState,
+        offset: usize,
+        buf: *const ::std::os::raw::c_void,
+        len: usize,
+    ) -> GuestWriteResult;
+}
+unsafe extern "C" {
+    pub fn panda_guest_write_env_path(
+        cpu: *mut CPUState,
+        derefs: *const u32,
+        n: usize,
+        offset: usize,
+        buf: *const ::std::os::raw::c_void,
+        len: usize,
+    ) -> GuestWriteResult;
+}
+unsafe extern "C" {
+    pub fn panda_guest_env_sync(cpu: *mut CPUState) -> GuestWriteResult;
+}
+unsafe extern "C" {
+    pub fn panda_guest_reg_lookup(
+        cpu: *mut CPUState,
+        name: *const ::std::os::raw::c_char,
+        len: *mut usize,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn panda_guest_write_strerror(result: GuestWriteResult) -> *const ::std::os::raw::c_char;
+}
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct panda_plugin {

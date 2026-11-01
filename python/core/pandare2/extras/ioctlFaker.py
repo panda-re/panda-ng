@@ -201,14 +201,9 @@ class IoctlFaker():
                 ioctl.original_ret_code in self.intercept_ret_vals and \
                         (ioctl.file_name, ioctl.cmd.bits.cmd_num) not in self.ignore: # Allow ignoring specific commands on specific files
 
-                if panda.arch_name == "mipsel" or panda.arch_name == "mips":
-                    cpu.env_ptr.active_tc.gpr[2] = 0
-                elif panda.arch_name == "aarch64":
-                    cpu.env_ptr.xregs[0] = 0
-                elif panda.arch_name == "ppc":
+                if panda.arch_name == "ppc":
                     raise RuntimeError("PPC currently unsupported!")
-                else: # x86/x64/ARM
-                    cpu.env_ptr.regs[0] = 0
+                panda.arch.set_retval(cpu, 0, convention='syscall')
 
                 self._forced_returns.add(ioctl)
 

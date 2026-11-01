@@ -16,6 +16,8 @@
 #include "panda/hooks.h"
 #include "exec/tb-flush.h"
 #include "panda/panda_api.h"
+#include "system/replay.h"
+#include "system/replay-effect.h"
 
 #define PCB(name) panda_callbacks_ ## name
 
@@ -307,9 +309,56 @@ bool panda_asid_reg_write(CPUState *cpu, void *reg, unsigned size, uint64_t val)
 }
 
 
-// target-i386/misc_helpers.c
-MAKE_CALLBACK(bool, GUEST_HYPERCALL, guest_hypercall,
-                    CPUState*, env);
+static bool guest_hypercall_run(CPUState *env, bool observers)
+{
+    bool any_true = false;
+    for (panda_cb_list *plist = panda_cbs[PANDA_CB_GUEST_HYPERCALL];
+         plist != NULL; plist = panda_cb_list_next(plist)) {
+        if (plist->enabled && panda_callback_observe_only(plist) == observers) {
+            bool result = plist->entry.guest_hypercall(plist->context, env);
+            any_true |= !observers && result;
+        }
+    }
+    return any_true;
+}
+
+/*
+ * Record/replay: observers run first and see the hypercall as the guest made
+ * it. Recording then logs the mutators' answer as one hypercall event, and
+ * replay applies that answer without running them (replay-effect.h).
+ */
+bool panda_callbacks_guest_hypercall(CPUState *env)
+{
+    uint64_t ret;
+    bool handled;
+
+    if (replay_mode == REPLAY_MODE_NONE) {
+        bool any_true = false;
+        for (panda_cb_list *plist = panda_cbs[PANDA_CB_GUEST_HYPERCALL];
+             plist != NULL; plist = panda_cb_list_next(plist)) {
+            if (plist->enabled) {
+                bool result = plist->entry.guest_hypercall(plist->context, env);
+                any_true |= !panda_callback_observe_only(plist) && result;
+            }
+        }
+        return any_true;
+    }
+    guest_hypercall_run(env, true);
+    if (replay_mode == REPLAY_MODE_PLAY) {
+        return replay_guest_write_replay(env, REPLAY_GUEST_SITE_HYPERCALL, &ret);
+    }
+    if (!replay_guest_write_begin(env, REPLAY_GUEST_SITE_HYPERCALL)) {
+        return guest_hypercall_run(env, false);
+    }
+    handled = guest_hypercall_run(env, false);
+    replay_guest_write_end(env, handled, 0);
+    return handled;
+}
+
+bool panda_cb_trampoline_guest_hypercall(void* context, CPUState *env)
+{
+    return (*(panda_cb*)context).guest_hypercall(env);
+}
 
 MAKE_CALLBACK(void, CPU_RESTORE_STATE, cpu_restore_state,
                     CPUState*, env, TranslationBlock*, tb);

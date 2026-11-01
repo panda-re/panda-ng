@@ -71,7 +71,9 @@ int penguin_write_guest_reg(CPUState *cs, int regnum, const uint8_t *buf,
  * a CPU (the layout contract validated in cpu-target.c); callers decode it
  * with the build-generated CPUArchState CFFI header. penguin_sync_cpu_state
  * must be called before env reads (and to make env writes stick) under
- * hardware accelerators; it is a no-op under TCG.
+ * hardware accelerators; it is a no-op under TCG. Writes through it are not
+ * logged and break record/replay: write registers with penguin_write_guest_reg
+ * or the guest-write API (panda/guest-write.h).
  */
 void *penguin_cpu_env(CPUState *cs);
 void penguin_sync_cpu_state(CPUState *cs);

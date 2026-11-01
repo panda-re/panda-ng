@@ -269,7 +269,7 @@ class FileFaker(FileHook):
                     self.ff_logger.error(f"Unable to store fake data after read to {hfd}")
                     return
 
-            cpu.env_ptr.regs[0] = data_len
+            self._panda.arch.set_retval(cpu, data_len, convention='syscall')
 
             self.ff_logger.info(f"Read - returning {data_len} bytes")
 
@@ -290,7 +290,7 @@ class FileFaker(FileHook):
                 return
 
             bytes_written = hfd.write(data)
-            cpu.env_ptr.regs[0] = bytes_written
+            self._panda.arch.set_retval(cpu, bytes_written, convention='syscall')
 
         elif syscall_name == "lseek": # LLSEEK?
             offset = args[2]

@@ -98,7 +98,12 @@ def exercise(panda, cpu, result):
     result['late_enable'] = rejected(lambda: panda.enable_callback('disabled_mutator'), ValueError)
     result['late_enable_stays_disabled'] = not panda.is_callback_enabled('disabled_mutator')
     result['late_mode_enable'] = rejected(lambda: panda.enable_callback('disabled_no_rr'), ValueError)
-    result['late_hypercall_registration'] = rejected(lambda: panda.hypercall(0x1234)(lambda cpu: None), ValueError)
+    # A hypercall handler may mutate during record/replay (its writes are logged) if it says so
+    result['late_hypercall_unspecified'] = rejected(lambda: panda.hypercall(0x1235)(lambda cpu: None),
+                                                    ValueError)
+    late = panda.hypercall(0x1234, mutates=True)(lambda cpu: None)
+    result['late_hypercall_registration'] = late in panda.hypercalls
+    panda.disable_hypercall(late)
     result['late_registration'] = rejected(lambda: panda.cb_asid_changed(name='late_mutator')(lambda *a: False), ValueError)
     cb = ffi.new('panda_cb *', {'after_loadvm': panda.callback.after_loadvm(lambda cpu: None)})
     # No Python policy wrapper: exercise the native registry directly.
@@ -162,7 +167,8 @@ def live(image):
             panda.enable_callback('ie')
             panda.disable_hypercall(mutate)
 
-    checks.check('native bridge refuses replay with a live mutator',
+    # A live hypercall mutator no longer blocks replay; before the engine runs, nothing starts one
+    checks.check('native bridge refuses replay before the engine runs',
                  panda.libpanda.panda_replay_begin(b'unused') != 0)
 
     @panda.queue_blocking

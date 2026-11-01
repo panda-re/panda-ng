@@ -44,3 +44,10 @@ include!("autogen/ppc.rs");
 
 #[cfg(feature = "x86_64")]
 include!("autogen/x86_64.rs");
+
+/// Guest writes through the engine's logged API (record/replay logs them).
+#[cfg(any(feature = "aarch64", feature = "arm", feature = "i386", feature = "loongarch64",
+          feature = "mips64el", feature = "mips64", feature = "mipsel", feature = "mips",
+          feature = "riscv32", feature = "riscv64", feature = "ppc64", feature = "ppc",
+          feature = "x86_64"))]
+pub mod guest;

@@ -11,6 +11,7 @@ specific_ss.add(
         'panda_mem.c',
         'panda_qemu_plugin_helpers.c',
         'rr_control.c',
+        'guest-write.c',
         'wrap_ops.c',
     )
 )

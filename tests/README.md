@@ -17,6 +17,8 @@ export PANDA_PYTHON=$PWD/result-python/bin/python3
 | static | `static/lifecycle.py` | Python, C compiler and GLib, no engine or guest: transient cancellation/reset-hook lifetime and fast-restore notification (`nix build .#checks.x86_64-linux.lifecycle`) |
 | static | `static/replay_bh.py <patched replay/replay-events.c>` | Python and a C compiler, no engine or guest: pending BH coalescing and reentrant event drains (`nix build .#checks.x86_64-linux.replay-bh`) |
 | static | `static/replay_native.py` | Python and a C compiler, no engine or guest: extracted native mutation guards and Penguin continuations (`nix build .#checks.x86_64-linux.replay-native`) |
+| static | `static/guest_layout.py [<engine>/include/panda-ng]` | Python (gcc and GLib with the headers), no engine or guest: the guest-write layout map is what `tools/guest-layout/gen.py` makes from the bindings, and gcc agrees with every offset and size it names (`nix build .#checks.x86_64-linux.guest-layout`) |
+| static | `static/guest_view.py` | Python with cffi, no engine or guest: pandare2's env view turns field assignments into the engine's env writes, through pointers by path (`nix build .#checks.x86_64-linux.guest-view`) |
 | static | `static/replay_policy.py` | Python only, no engine or guest: RR admission and observe-only wrapper policy (`nix build .#checks.x86_64-linux.replay-policy`) |
 | static | `bash static/syscalls_dispatch.sh <output binary>` | a C++ compiler, no engine or guest: generated syscalls2 dispatch and PPP subscriptions (`nix build .#checks.x86_64-linux.syscalls2-dispatch`) |
 | smoke | `smoke.py <arch>` | nothing: boots the firmware, loads C plugins (CI runs it on every PR) |
@@ -25,6 +27,7 @@ export PANDA_PYTHON=$PWD/result-python/bin/python3
 | reset/restore lifecycle | `lifecycle.py <image>` | real public owner reset-hook ordering, ordinary/fast restore notifications, rejection, unregister/re-register and hardware reset; `RRCB_HANDOFF=1` only for fixtures with handoff snapshot extensions; pending/held/injected slot and safe teardown cases are host-only in `static/lifecycle.py` and `static/penguin_detach.py` |
 | replay safety | `replay_guard.py <image> [workdir]` | record/replay observer and mutation refusal; `RRCB_HANDOFF=1` explicitly admits fixtures saved with handoff snapshot extensions |
 | recorded RAM effects | `replay_effect.py <x86_64 image> [workdir]` | deferred overlapping RAM writes, then two fresh producer-free replays |
+| guest writes | `hypercall_rr.py <x86_64, aarch64 or riscv64 image> [workdir]` | a `mutates=True` hypercall handler's memory and return-register writes (through the guest-write API) recorded, then replayed without the handler, with it registered (it must not run) and again |
 | malformed RAM effects | `replay_effect_invalid.py <x86_64 image> <recording prefix> [workdir]` | copies a passing `replay_effect.py` log; rejects unknown version, oversized length and truncated payload; retains original recording |
 | benchmark | `bench_cb.py <image>` | an image, and `PANDA_PLUGIN_DIR` from `nix build .#test-plugins` (the `tests/plugins/cbcount` C baseline): ns per callback in C, bare cffi and `@panda.cb_*` |
 | constructor | `construct.py [case...]` | nothing, no guest: the argv each `Panda(...)` form builds, which keyword wins over an image, and the errors (`nix build .#checks.x86_64-linux.pandare2-construct`) |

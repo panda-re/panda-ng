@@ -4,6 +4,8 @@
 #include "system/ramblock.h"
 #include "exec/translation-block.h"
 #include "panda/plugin.h"
+#include "system/replay-effect.h"
+#include "panda/guest-write.h"
 
 /* (not kernel-doc)
  * panda_physical_memory_rw() - Copy data between host and guest.
@@ -45,7 +47,9 @@ static void panda_physical_memory_written(MemoryRegion *mr, hwaddr addr1, hwaddr
 
 int panda_physical_memory_rw(hwaddr addr, uint8_t *buf, int len,
                                            bool is_write) {
-    if (is_write && !panda_guest_mutation_allowed()) {
+    /* During record/replay only where a guest-write scope logs it */
+    if (is_write && !panda_guest_mutation_allowed() &&
+        replay_guest_write_admitted(NULL, len) != GUEST_WRITE_OK) {
         return MEMTX_ACCESS_ERROR;
     }
     /*
@@ -70,6 +74,7 @@ int panda_physical_memory_rw(hwaddr addr, uint8_t *buf, int len,
         if (is_write) {
             memcpy(ram_ptr, buf, l);
             panda_physical_memory_written(mr, addr1, l);
+            replay_guest_write_log_ram(addr, buf, l);
         } else {
             memcpy(buf, ram_ptr, l);
         }
@@ -181,7 +186,8 @@ hwaddr panda_virt_to_phys(CPUState *env, target_ulong addr) {
  */
 int panda_virtual_memory_rw(CPUState *env, target_ulong addr,
                                           uint8_t *buf, int len, bool is_write) {
-    if (is_write && !panda_guest_mutation_allowed()) {
+    if (is_write && !panda_guest_mutation_allowed() &&
+        replay_guest_write_admitted(NULL, len) != GUEST_WRITE_OK) {
         return MEMTX_ACCESS_ERROR;
     }
     int l;

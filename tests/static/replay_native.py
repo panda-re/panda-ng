@@ -64,7 +64,7 @@ static int replay_mode;
 typedef uint64_t target_ulong;
 typedef uint64_t vaddr;
 typedef struct { uint64_t regs[8]; } CPUArchState;
-typedef struct { CPUArchState env; } CPUState;
+typedef struct CPUState { CPUArchState env; } CPUState;
 static int env_calls, syncs, writes, allocations, duplicates, inits, mappings;
 static int restores, observers, jumps, arch_calls, reads, refusals, reg_sets;
 static int hooks_checks, executions, holds, callbacks;
@@ -73,6 +73,23 @@ static target_ulong regs[] = {0, 1, 2};
 static void cpu_synchronize_state(CPUState *cpu) { (void)cpu; syncs++; }
 static int gdb_write_register(CPUState *cpu, uint8_t *buf, int n) {
     writes++; cpu->env.regs[n] = *buf; return 1;
+}
+/* Inside a recorded hypercall answer the logged write APIs are admitted. */
+#include "panda/guest-write.h"
+#define HOST_BIG_ENDIAN 0
+static void stq_le_p(void *p, uint64_t v) { memcpy(p, &v, 8); }
+static bool in_hypercall;
+static int logged;
+static int replay_guest_write_admitted(CPUState *cpu, size_t n) {
+    (void)cpu; (void)n; return in_hypercall ? GUEST_WRITE_OK : GUEST_WRITE_EPERM;
+}
+static void replay_guest_write_log_reg(CPUState *cpu, int reg, const uint8_t *buf, int len,
+                                       int result) { (void)cpu; (void)reg; (void)buf; (void)len; (void)result; logged++; }
+/* The env write itself (replay-effect.c): bytes at the offset, logged */
+static int replay_guest_write_env(CPUState *cpu, const uint32_t *d, unsigned n, uint32_t off,
+                                  const void *buf, uint32_t len) {
+    assert(!n && !d && off + len <= sizeof(cpu->env));
+    memcpy((uint8_t *)&cpu->env + off, buf, len); logged++; return GUEST_WRITE_OK;
 }
 static void *alloc_zero(size_t n) { allocations++; return calloc(1, n); }
 static char *g_strdup(const char *s) { duplicates++; return strdup(s); }
@@ -202,10 +219,18 @@ int main(int argc, char **argv) {
         panda_set_syscall_arg(&cpu, 1, 42);
         assert(cpu.env.regs[0] == (live ? 41 : 0));
         assert(cpu.env.regs[1] == (live ? 42 : 0));
-        assert(env_calls == (live ? 2 : 0));
+        assert(logged == (live ? 2 : 0));
         assert(penguin_write_guest_reg(&cpu, 2, &payload, 1) == (live ? 0 : -1));
         assert(syncs == live && writes == live);
         assert(cpu.env.regs[2] == (live ? payload : 0));
+    } else if (!strcmp(argv[2], "hypercall")) {
+        /* A hypercall answer's writes go ahead in every mode, and the API one is logged. */
+        in_hypercall = true;
+        panda_set_retval(&cpu, 41);
+        panda_set_syscall_arg(&cpu, 1, 42);
+        assert(cpu.env.regs[0] == 41 && cpu.env.regs[1] == 42);
+        assert(penguin_write_guest_reg(&cpu, 2, &payload, 1) == 0);
+        assert(writes == 1 && logged == 3 && cpu.env.regs[2] == payload);
     } else if (!strcmp(argv[2], "mmio")) {
         assert(penguin_qemu_add_mmio_region(4096, 4096, "test", penguin_mmio_read,
                                           NULL, NULL) == (live ? 0 : -1));
@@ -266,6 +291,18 @@ def harness():
     definitions = [
         ('panda/src/callbacks.c', 'panda_guest_mutation_allowed',
          'static bool panda_guest_mutation_allowed(void)'),
+        ('panda/src/guest-write.c', 'guest_admit',
+         'static int guest_admit(CPUState *cpu, size_t len)'),
+        ('panda/src/guest-write.c', 'panda_guest_write_env_path',
+         'GuestWriteResult panda_guest_write_env_path(CPUState *cpu, const uint32_t *derefs, '
+         'size_t n, size_t offset, const void *buf, size_t len)'),
+        ('panda/src/guest-write.c', 'panda_guest_write_env',
+         'GuestWriteResult panda_guest_write_env(CPUState *cpu, size_t offset, '
+         'const void *buf, size_t len)'),
+        ('panda/src/guest-write.c', 'guest_retval_field',
+         'static size_t guest_retval_field(CPUState *cpu, size_t *len)'),
+        ('panda/src/guest-write.c', 'panda_guest_set_retval',
+         'GuestWriteResult panda_guest_set_retval(CPUState *cpu, uint64_t value)'),
         ('panda/src/panda_arch.c', 'panda_set_retval',
          'static void panda_set_retval(CPUState *cpu, target_ulong value)'),
         ('panda/src/panda_arch.c', 'panda_set_syscall_arg',
@@ -303,10 +340,10 @@ class ReplayNative(unittest.TestCase):
             source.write_text(harness())
             command = shlex.split(os.environ.get('CC', 'cc'))
             subprocess.run(command + ['-std=gnu11', '-O0', '-Wall',
-                                      '-Werror=implicit-function-declaration',
+                                      '-Werror=implicit-function-declaration', '-I', str(SRC / 'include'),
                                       str(source), '-o', str(executable)], check=True)
             for mode, name in enumerate(('NONE', 'RECORD', 'PLAY')):
-                for case in ('setters', 'mmio', 'hook', 'guard', 'fault', 'commands'):
+                for case in ('setters', 'hypercall', 'mmio', 'hook', 'guard', 'fault', 'commands'):
                     with self.subTest(mode=name, case=case):
                         subprocess.run([str(executable), str(mode), case], check=True)
 
