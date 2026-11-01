@@ -10,6 +10,9 @@ name: CI
 #             (the series applies, the delta is in every library, each qemu-system-<arch> starts,
 #             wheel repair), and the examples/consumer flake against this tree (an out-of-tree
 #             plugin runs).
+#   build-arm64  nix build .#python on an aarch64 host (ubuntu-24.04-arm), as release.yaml does
+#             after the merge: the engine's layout depends on the host (pthread sizes, which
+#             accelerators it builds), and release.yaml runs only on main.
 #   rust      the checked-in bindings compile for every target feature.
 #   reuse     every file has its copyright and license (REUSE 3.3: LICENSES/, REUSE.toml, SPDX tags).
 #
@@ -65,6 +68,29 @@ jobs:
         working-directory: examples/consumer
         run: |
           nix flake check -L --no-write-lock-file --override-input panda-ng "git+file://$GITHUB_WORKSPACE"
+      - name: Disk
+        if: always()
+        run: df -h /
+
+  build-arm64:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Nix
+        uses: rehosting/ci/actions/nix-setup@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-backend: cachix
+          cachix-name: pandare
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          skip-push: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          extra-nix-config: |
+            min-free = 4294967296
+            max-free = 12884901888
+      - name: Build pandare2's Python (engine, plugins, pandare2) on aarch64
+        run: nix build -L --out-link result-python .#python
       - name: Disk
         if: always()
         run: df -h /
