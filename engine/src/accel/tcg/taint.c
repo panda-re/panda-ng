@@ -661,6 +661,13 @@ static void taint_track_tick(CPUArchState *env)
     if (!senv_any(cpu)) {
         stats.to_check++;
         cpu->tcg_cflags |= CF_TAINT_CHECK;  /* from the next block looked up */
+        /*
+         * Leave this block through TB_EXIT_REQUESTED, so cpu_exec doesn't chain it (a track
+         * block) to the check block it looks up next. cpu_handle_interrupt clears the request
+         * and stays in the loop; no guest instruction runs in between. Every other switch leaves
+         * through cpu_loop_exit or cpu_exit, so variants never chain and cpu_exec needn't check.
+         */
+        qatomic_set(&cpu->neg.icount_decr.u16.high, -1);
     }
 }
 
@@ -4043,13 +4050,43 @@ static void commit(bool on)
     }
 }
 
+/* Why the last call that refused did (taint.h). */
+static const char *last_error;
+
+static bool refuse(const char *what, const char *why)
+{
+    last_error = why;
+    error_report("taint: %s: %s", what, why);
+    return false;
+}
+
+const char *taint_last_error(void)
+{
+    return last_error;
+}
+
+const char *taint_unavailable(void)
+{
+    if (!analysis_policy_has(ANALYSIS_CAP_TAINT)) {
+        return "the taint capability was not provisioned at startup "
+               "(-analysis-capabilities ...,taint)";
+    }
+    if (!senv_idx) {
+        return "taint needs TCG";
+    }
+    return NULL;
+}
+
 bool taint_enable(void)
 {
     CPUState *cpu;
+    const char *why = taint_unavailable();
 
-    if (!analysis_policy_has(ANALYSIS_CAP_TAINT) || !senv_idx ||
-        replay_mode != REPLAY_MODE_PLAY) {
-        return false;
+    if (why) {
+        return refuse("can't enable", why);
+    }
+    if (replay_mode != REPLAY_MODE_PLAY) {
+        return refuse("can't enable", "taint runs only while replaying a recording");
     }
     if (taint_active) {
         return true;
@@ -4083,6 +4120,9 @@ bool taint_enabled(void)
 
 void taint_label_ram(uint64_t ram_addr, uint64_t len, uint8_t mask)
 {
+    if (taint_unavailable()) {
+        return;
+    }
     if (!ram_shadow) {
         ram_shadow_alloc();
     }
@@ -4189,8 +4229,13 @@ int taint_query_reg(CPUState *cpu, int regno, uint8_t *out, int len)
  */
 bool taint_set_address_mode(bool on)
 {
-    if (!senv_idx || (on && labels_on)) {
-        return false;
+    const char *why = taint_unavailable();
+
+    if (why) {
+        return refuse("can't set address mode", why);
+    }
+    if (on && labels_on) {
+        return refuse("can't set address mode", "address mode and label sets can't both be on");
     }
     if (on != addr_taint) {
         addr_taint = on;
@@ -4203,8 +4248,13 @@ bool taint_set_address_mode(bool on)
 
 bool taint_enable_labels(bool on)
 {
-    if (!senv_idx || (on && addr_taint)) {
-        return false;
+    const char *why = taint_unavailable();
+
+    if (why) {
+        return refuse("can't enable label sets", why);
+    }
+    if (on && addr_taint) {
+        return refuse("can't enable label sets", "label sets and address mode can't both be on");
     }
     if (on) {
         ram_shadow_alloc();
@@ -4236,8 +4286,12 @@ static int lset_expand(uint32_t id, uint32_t *out, int max)
 
 void taint_label_ram_l(uint64_t ram_addr, uint64_t len, uint8_t mask, uint32_t label)
 {
-    uint32_t id = label ? lset_intern(&label, 1) : 0;
+    uint32_t id;
 
+    if (taint_unavailable()) {
+        return;
+    }
+    id = label ? lset_intern(&label, 1) : 0;
     taint_label_ram(ram_addr, len, mask);
     ram_lab_alloc();
     for (uint64_t i = ram_addr; i < ram_addr + len && i < ram_lab_size; i++) {
