@@ -95,3 +95,4 @@
 11.1.2/0095-target-mips-move-the-Random-register-s-generator-sta.patch
 11.1.2/0096-target-loongarch-migrate-the-constant-timer.patch
 11.1.2/0097-target-ppc-rebuild-BookE-40x-exception-vectors-on-lo.patch
+11.1.2/0098-hw-intc-openpic-restore-the-CPUs-external-proxy-mode.patch

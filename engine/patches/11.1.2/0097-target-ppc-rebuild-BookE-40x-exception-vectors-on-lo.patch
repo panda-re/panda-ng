@@ -12,10 +12,9 @@ a new process runs from NIP 0 at the first interrupt.
 Rebuild both caches from spr[] in cpu_post_load, masked the way the
 write paths mask them, for each IVOR the CPU registers.
 
-This fixes plain snapshot reload. It does NOT fix ppc32 record/replay:
-with it the replay gets further (icount 163389 instead of 0) and then
-waits on a CLOCK_VIRTUAL checkpoint that never comes, with an external
-interrupt pending. That is still unsolved.
+This fixes plain snapshot reload. It is necessary but not sufficient
+for ppc32 record/replay: together with "hw/intc/openpic: restore the
+CPUs' external proxy mode on load", ppc32 rr passes.
 
 SPDX-License-Identifier: GPL-2.0-or-later
 

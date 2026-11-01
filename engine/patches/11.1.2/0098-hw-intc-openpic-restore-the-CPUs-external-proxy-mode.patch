@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Sun, 1 Nov 2026 01:08:38 -0400
+Subject: [PATCH] hw/intc/openpic: restore the CPUs' external proxy mode on
+ load
+
+On e500 the MPIC's external proxy mode (GCR mode bits = proxy) makes
+the core acknowledge the MPIC when it delivers an external interrupt,
+latching the vector in EPR. QEMU keeps that mode in each CPU's
+env->mpic_proxy, which only openpic_gcr_write sets. gcr is migrated but
+openpic_post_load never re-derives mpic_proxy, so after a load it is
+false: external interrupts are delivered without the IACK, the line
+stays asserted and EPR is stale.
+
+Repro without record/replay: boot Linux on ppce500 (it selects proxy
+mode), savevm, then -loadvm in a new process. The guest takes the same
+external interrupt forever (NIP stuck at its handler) and makes no
+progress. Under record/replay the replay diverged at the first external
+interrupt after the start snapshot, which is why ppc32 rr never
+finished.
+
+Set the proxy mode from the loaded GCR in openpic_post_load, the same
+call the GCR write makes. Snapshots are unchanged: one from an unfixed
+build loads (and now runs) in a fixed one, and a guest that never chose
+proxy mode gets false, as before. mac99, whose OpenPIC has no mode bits,
+still saves and loads.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+
+Origin: new
+---
+ hw/intc/openpic.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/hw/intc/openpic.c b/hw/intc/openpic.c
+index 99d2a1e65ec5868fa7fc7ebceca8debe45a14e60..6574c54b17fc6ab95e362295449f907201841793 100644
+--- a/hw/intc/openpic.c
++++ b/hw/intc/openpic.c
+@@ -1460,6 +1460,13 @@ static int openpic_post_load(void *opaque, int version_id)
+         write_IRQreg_ivpr(opp, i, opp->src[i].ivpr);
+     }
+ 
++    /*
++     * The CPUs' external proxy mode is set only by a GCR write: set it from
++     * the loaded GCR, or a restored guest that uses proxy mode gets external
++     * interrupts that are never acknowledged on delivery.
++     */
++    ppce500_set_mpic_proxy((opp->gcr & opp->mpic_mode_mask) == GCR_MODE_PROXY);
++
+     return 0;
+ }
+ 
