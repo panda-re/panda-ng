@@ -25,6 +25,7 @@ ubuntu-24.04 images (see
 | [Guest hypercalls](#hypercalls) | supported | TCG, KVM | x86_64, aarch64, riscv64 |
 | [Record and replay](#record-replay) | supported | TCG | x86_64, aarch64, riscv64 |
 | [Recorded analysis RAM and register effects](#recorded-ram-effects) | experimental | TCG | **untested** |
+| [Recorded guest writes](#recorded-hypercall-answers) | experimental | TCG | **untested** |
 | [Taint tracking (replay)](#taint) | experimental | TCG | **untested** |
 | [Snapshots](#snapshots) | supported | TCG, KVM | x86_64, aarch64, riscv64 |
 | [Fast restore](#fast-restore) | supported | TCG | x86_64, aarch64, riscv64 |
@@ -203,15 +204,15 @@ Record a whole-system execution and replay it deterministically, with compatible
 callbacks and plugins attached during recording and replay. Launch with `-accel tcg,rr-ready=on` (pandare2 does this) so a
 recording can start at any point.
 
-**Limits.** TCG, single-threaded. Only RR-compatible observe-only callbacks run during recording and replay; other callbacks are skipped, with a warning, and run again when it ends. Unlogged analysis mutations are refused during recording and replay; native raw pointers remain a trusted-code boundary. Snapshot loads are refused while recording.
+**Limits.** TCG, single-threaded. Callbacks require RR compatibility and observe-only access, except hypercall handlers, whose answers are recorded. Unlogged analysis mutations are refused during recording and replay; native raw pointers remain a trusted-code boundary. Snapshot loads are refused while recording.
 
 **Use it:** `Panda.record`, `Panda.record_cmd`, `Panda.end_record`, `Panda.run_replay`, `-accel tcg,rr-ready=on`
 
 **Docs:** [docs/guides/record-replay.md](guides/record-replay.md)
 
-**Tests:** `tests/rr.py`, `tests/rrcb.py`, `tests/rrstop.py`, `tests/rr_mutators.py`, `tests/rrload.py`, `tests/rr_blocks.py`, `tests/replay_guard.py`, `tests/static/replay_policy.py`, `tests/static/replay_native.py`, `tests/static/replay_bh.py`
+**Tests:** `tests/rr.py`, `tests/rrcb.py`, `tests/rrstop.py`, `tests/rrload.py`, `tests/rr_blocks.py`, `tests/replay_guard.py`, `tests/static/replay_policy.py`, `tests/static/replay_native.py`, `tests/static/replay_bh.py`
 
-**Engine patches:** 0025-0028, 0030, 0037-0040, 0050-0052, 0066-0068, 0072-0073, 0084-0085, 0094-0096, 0098 ([series](reference/patches.md))
+**Engine patches:** 0025-0028, 0030, 0037-0040, 0050-0052, 0066-0068, 0072-0073, 0084-0085, 0095-0097, 0099 ([series](reference/patches.md))
 
 <a id="recorded-ram-effects"></a>
 ## Recorded analysis RAM and register effects
@@ -229,6 +230,24 @@ requester. Registers are named by the CPU's gdbstub register number, so no PANDA
 **Tests:** `tests/static/replay_effect.py`, `tests/replay_effect.py`
 
 **Engine patches:** 0091-0092 ([series](reference/patches.md))
+
+<a id="recorded-hypercall-answers"></a>
+## Recorded guest writes
+
+Change the guest during a recording through the guest-write API: memory, registers, the return
+register and CPUArchState fields (through pointers too, by path). Each write is logged at the
+callback's instruction and replay repeats it without the callback. Guest hypercalls are the
+first site; writes made behind the API's back are a fatal error.
+
+**Limits.** TCG; KVM's hypercall consumer cannot be recorded. Writes are logged only inside hypercall handlers (Penguin's consumer, mutating guest_hypercall callbacks, @panda.hypercall with mutates=True); elsewhere during record/replay they are refused. Env paths follow only pointers the generated layout map lists. At most 16 MiB of writes per hypercall. Hypercall instructions end their translation block under icount. riscv64 and the other targets without a PANDA hypercall fallback answer only through Penguin's consumer.
+
+**Use it:** `set_penguin_guest_hypercall_callback`, `panda_guest_write_env_path`, `panda_guest_write_reg`, `Panda.hypercall`, `Guest.env`
+
+**Docs:** [docs/guides/record-replay.md](guides/record-replay.md), [docs/design/rr-guest-mutation-api.md](design/rr-guest-mutation-api.md)
+
+**Tests:** `tests/static/replay_effect.py`, `tests/static/guest_layout.py`, `tests/static/guest_view.py`, `tests/hypercall_rr.py`
+
+**Engine patches:** 0093 ([series](reference/patches.md))
 
 <a id="taint"></a>
 ## Taint tracking (replay)
@@ -257,7 +276,7 @@ followed, only reported; table lookups are followed only in address mode.
 
 **Tests:** `tests/taint.py`, `tests/taint_mmio.py`, `tests/taint_errors.py`
 
-**Engine patches:** 0093 ([series](reference/patches.md))
+**Engine patches:** 0094 ([series](reference/patches.md))
 
 <a id="snapshots"></a>
 ## Snapshots
@@ -272,7 +291,7 @@ and a savevm right after a loadvm takes as long as any other.
 
 **Tests:** `tests/reset.py`, `tests/api.py`
 
-**Engine patches:** 0061, 0063, 0074-0075, 0078, 0089, 0094-0098 ([series](reference/patches.md))
+**Engine patches:** 0061, 0063, 0074-0075, 0078, 0089, 0095-0099 ([series](reference/patches.md))
 
 <a id="fast-restore"></a>
 ## Fast restore

@@ -198,14 +198,14 @@ Record a whole-system execution and replay it deterministically, with compatible
 callbacks and plugins attached during recording and replay. Launch with `-accel tcg,rr-ready=on` (pandare2 does this) so a
 recording can start at any point.
 """
-limits = "TCG, single-threaded. Only RR-compatible observe-only callbacks run during recording and replay; other callbacks are skipped, with a warning, and run again when it ends. Unlogged analysis mutations are refused during recording and replay; native raw pointers remain a trusted-code boundary. Snapshot loads are refused while recording."
+limits = "TCG, single-threaded. Callbacks require RR compatibility and observe-only access, except hypercall handlers, whose answers are recorded. Unlogged analysis mutations are refused during recording and replay; native raw pointers remain a trusted-code boundary. Snapshot loads are refused while recording."
 api = ["py:Panda.record", "py:Panda.record_cmd", "py:Panda.end_record", "py:Panda.run_replay",
        "qemu:-accel tcg,rr-ready=on"]
 docs = ["docs/guides/record-replay.md"]
-tests = ["tests/rr.py", "tests/rrcb.py", "tests/rrstop.py", "tests/rr_mutators.py", "tests/rrload.py", "tests/rr_blocks.py",
+tests = ["tests/rr.py", "tests/rrcb.py", "tests/rrstop.py", "tests/rrload.py", "tests/rr_blocks.py",
          "tests/replay_guard.py", "tests/static/replay_policy.py", "tests/static/replay_native.py",
          "tests/static/replay_bh.py"]
-patches = ["0025-0028", "0030", "0037-0040", "0050-0052", "0066-0068", "0072", "0073", "0084", "0085", "0094", "0095", "0096", "0098"]
+patches = ["0025-0028", "0030", "0037-0040", "0050-0052", "0066-0068", "0072", "0073", "0084", "0085", "0095", "0096", "0097", "0099"]
 
 [[feature]]
 id = "recorded-ram-effects"
@@ -223,6 +223,24 @@ api = ["c:panda_analysis_ram_write", "c:panda_analysis_reg_write"]
 docs = ["docs/guides/record-replay.md"]
 tests = ["tests/static/replay_effect.py", "tests/replay_effect.py"]
 patches = ["0091", "0092"]
+
+[[feature]]
+id = "recorded-hypercall-answers"
+name = "Recorded guest writes"
+status = "experimental"
+accel = ["TCG"]
+tested_on = []
+summary = """
+Change the guest during a recording through the guest-write API: memory, registers, the return
+register and CPUArchState fields (through pointers too, by path). Each write is logged at the
+callback's instruction and replay repeats it without the callback. Guest hypercalls are the
+first site; writes made behind the API's back are a fatal error.
+"""
+limits = "TCG; KVM's hypercall consumer cannot be recorded. Writes are logged only inside hypercall handlers (Penguin's consumer, mutating guest_hypercall callbacks, @panda.hypercall with mutates=True); elsewhere during record/replay they are refused. Env paths follow only pointers the generated layout map lists. At most 16 MiB of writes per hypercall. Hypercall instructions end their translation block under icount. riscv64 and the other targets without a PANDA hypercall fallback answer only through Penguin's consumer."
+api = ["c:set_penguin_guest_hypercall_callback", "c:panda_guest_write_env_path", "c:panda_guest_write_reg", "py:Panda.hypercall", "py:Guest.env"]
+docs = ["docs/guides/record-replay.md", "docs/design/rr-guest-mutation-api.md"]
+tests = ["tests/static/replay_effect.py", "tests/static/guest_layout.py", "tests/static/guest_view.py", "tests/hypercall_rr.py"]
+patches = ["0093"]
 
 [[feature]]
 id = "taint"
@@ -260,7 +278,7 @@ api = ["c:taint_enable", "c:taint_disable", "c:taint_label_ram", "c:taint_query_
        "py:TaintMixin.taint_address_mode"]
 docs = ["docs/guides/record-replay.md"]
 tests = ["tests/taint.py", "tests/taint_mmio.py", "tests/taint_errors.py"]
-patches = ["0093"]
+patches = ["0094"]
 
 [[feature]]
 id = "snapshots"
@@ -276,7 +294,7 @@ and a savevm right after a loadvm takes as long as any other.
 api = ["py:Panda.snap", "py:Panda.revert_sync", "py:Panda.delvm"]
 docs = ["docs/guides/snapshots.md"]
 tests = ["tests/reset.py", "tests/api.py"]
-patches = ["0061", "0063", "0074", "0075", "0078", "0089", "0094", "0095", "0096", "0097", "0098"]
+patches = ["0061", "0063", "0074", "0075", "0078", "0089", "0095", "0096", "0097", "0098", "0099"]
 
 [[feature]]
 id = "fast-restore"

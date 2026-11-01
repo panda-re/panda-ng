@@ -277,7 +277,7 @@ index 6b5480f0bbf912af949eaa12003df8860ec83285..6b79a710ed56393bf10fa73bc557b36b
      /* No early return if dirty_log_mask is or becomes 0, because
       * physical_memory_set_dirty_range will still call
 diff --git a/system/vl.c b/system/vl.c
-index ecaa77c856d216ae9db3da542423e73e90fb4544..e78351c3f60aeefa325fa59b68c1a38827537fc0 100644
+index 49abf5010da4277443a4d89d586bd15c4cf6ae53..a8eccc40080942e3d98179a48991ac2bb4a404ef 100644
 --- a/system/vl.c
 +++ b/system/vl.c
 @@ -2576,6 +2576,10 @@ static void configure_accelerators(const char *progname)
@@ -291,10 +291,10 @@ index ecaa77c856d216ae9db3da542423e73e90fb4544..e78351c3f60aeefa325fa59b68c1a388
  }
  
  static void qemu_validate_options(const QDict *machine_opts)
-@@ -2810,6 +2814,8 @@ static bool parse_analysis_capabilities(const char *value, uint32_t *result,
+@@ -2808,6 +2812,8 @@ static bool parse_analysis_capabilities(const char *value, uint32_t *result,
+             requested |= ANALYSIS_CAP_GUEST_HYPERCALL;
+         } else if (!strcmp(*name, "handoff")) {
              requested |= ANALYSIS_CAP_HANDOFF;
-         } else if (!strcmp(*name, "penguin")) {
-             requested |= ANALYSIS_CAP_PENGUIN;
 +        } else if (!strcmp(*name, "taint")) {
 +            requested |= ANALYSIS_CAP_TAINT;
          } else {
@@ -577,7 +577,7 @@ index 493cb42fd2681d7c7590a41e75833b17e238ff9c..1e79fca8a59a293b6f7460fd025acabe
  {
      if ((env->uncached_cpsr & CPSR_M) == mode) {
 diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
-index c09865a2d81636f9d355d7be0c32037863304b4d..76e3a8a4d3294fe3607f89aa8fc7b818f487d925 100644
+index caa9c54e2e3edd5d0cbc707dc63d09a4b60fd1dc..5570d44f0cc63725b678948b718c5607ab2a9a4e 100644
 --- a/target/arm/tcg/translate.c
 +++ b/target/arm/tcg/translate.c
 @@ -91,6 +91,9 @@ void arm_translate_init(void)
@@ -827,10 +827,10 @@ index 950e6afc3f2709ec49c0865b66c6f07ab6d355dd..80bb5364e8666f1331e62a16170c5ec0
                           int *max_insns, vaddr pc, void *host_pc);
  
 diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
-index a402df7e55d504eb47a9627343e8c0bfcfa6ec5b..f75a0f75c46b1e24c1297a61186aa4d9efeeb148 100644
+index 78de322a708f6e2d013d7c339cb3c2482d196cb3..18fec1df4859a85334aa37d58d3dcafdb8aa6421 100644
 --- a/target/mips/tcg/translate.c
 +++ b/target/mips/tcg/translate.c
-@@ -15385,6 +15385,9 @@ void mips_tcg_init(void)
+@@ -15386,6 +15386,9 @@ void mips_tcg_init(void)
      if (TARGET_LONG_BITS == 32) {
          mxu_translate_init();
      }
