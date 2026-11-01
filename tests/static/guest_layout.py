@@ -8,10 +8,13 @@ include/panda/guest-layout/guest-layout-<target>.h. This reads it back and compa
 what the committed bindgen bindings give (bindings_layout.py): two independent readings of
 CPUArchState and the structs it points to, on the x86_64 host both come from.
 
-They must list the same structs, with the same sizes, the same followable pointers and the same
-CPUArchState fields. The engine's host-pointer ranges must cover every range from the bindings;
-they may cover more, where bindgen gives a function pointer through a typedef that isn't one
-(QEMUTimer's cb).
+Every struct the bindings reach must be in the engine's map with the same size and the same
+followable pointers, and CPUArchState must have the same fields. The engine's host-pointer
+ranges must cover every range from the bindings. The engine's map may see more than the
+bindings do:
+- more host-pointer ranges, where bindgen gives a function pointer through a typedef that
+  isn't one (QEMUTimer's cb);
+- more followable pointers, to structs that are opaque in the bindings (x86's Clock).
 """
 import re
 import sys
@@ -44,16 +47,28 @@ def compare(arch, text):
     types, host, follow, fields = parse(text)
     b = bl.Bindings((bl.AUTOGEN / f'{arch}.rs').read_text())
     want, _, top = bl.layout(arch, b)
-    bad = []
-    if [(n, s) for n, s, _, _ in want] != types:
-        bad.append(f'structs differ:\n    bindings {[(n, s) for n, s, _, _ in want]}\n'
-                   f'    engine   {types}')
-        return bad, 0
-    extra = 0
-    for i, (name, size, wh, wf) in enumerate(want):
-        if list(wf) != follow.get(i, []):
-            bad.append(f'{name}: followable pointers differ:\n    bindings {wf}\n'
-                       f'    engine   {follow.get(i)}')
+    engine = {n: i for i, (n, _) in enumerate(types)}
+    wanted = {n for n, _, _, _ in want}
+
+    def named(entries, names):
+        return [(o, names[t] if t >= 0 else None, e, n, p) for o, t, e, n, p in entries]
+
+    bad, extra, more = [], 0, set()
+    for name, size, wh, wf in want:
+        i = engine.get(name)
+        if i is None or types[i][1] != size:
+            bad.append(f'{name}: bindings size {size}, engine '
+                       f'{"missing" if i is None else types[i][1]}')
+            continue
+        theirs = named(follow.get(i, []), [n for n, _ in types])
+        ours = named(wf, [n for n, _, _, _ in want])
+        # the engine may follow pointers to structs the bindings have only as opaque
+        only = [f for f in theirs if f not in ours]
+        more |= {f[1] for f in only if f[1] not in wanted}
+        if [f for f in theirs if f[1] in wanted or f[1] is None] != ours or \
+                any(f[1] in wanted for f in only):
+            bad.append(f'{name}: followable pointers differ:\n    bindings {ours}\n'
+                       f'    engine   {theirs}')
         missing = [r for r in wh if not covered(host.get(i, []), *r)]
         if missing:
             bad.append(f'{name}: host pointers the engine map misses: {missing}')
@@ -62,7 +77,7 @@ def compare(arch, text):
         bad.append(f'CPUArchState fields differ: only in bindings '
                    f'{sorted(set(top) - set(fields))[:6]}, only in engine '
                    f'{sorted(set(fields) - set(top))[:6]}')
-    return bad, extra
+    return bad, extra, more
 
 
 def main():
@@ -76,13 +91,15 @@ def main():
             failed.append(arch)
             print(f'{arch}: no {header}')
             continue
-        bad, extra = compare(arch, header.read_text())
+        bad, extra, more = compare(arch, header.read_text())
         if bad:
             failed.append(arch)
             print(f'{arch}:\n  ' + '\n  '.join(bad))
         else:
+            notes = ([f'{extra} more host-pointer ranges'] if extra else []) + \
+                ([f'also follows {", ".join(sorted(more))}'] if more else [])
             print(f'{arch}: the engine map agrees with the bindings'
-                  + (f' ({extra} more host-pointer ranges)' if extra else ''))
+                  + (f' ({"; ".join(notes)})' if notes else ''))
     if failed:
         sys.exit(f'FAIL: the generated layout map disagrees with the bindings on {" ".join(failed)}')
     print('PASS: the generated layout map agrees with the bindings on every arch')
