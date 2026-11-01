@@ -33369,6 +33369,7 @@ pub struct CPUState {
     pub halted: u32,
     pub exception_index: i32,
     pub tcg_hook_ra: usize,
+    pub taint_senv: *mut ::std::os::raw::c_void,
     pub panda_block_pending: bool,
     pub uaccess_pend: CPUState__bindgen_ty_5,
     pub syscall_kmmu: u32,
@@ -33381,6 +33382,7 @@ pub struct CPUState {
     pub ignore_memory_transaction_failures: bool,
     pub prctl_unalign_sigbus: bool,
     pub iommu_notifiers: *mut GArray,
+    pub __bindgen_padding_0: [u8; 8usize],
     pub neg_align: __IncompleteArrayField<::std::os::raw::c_char>,
     pub neg: CPUNegativeOffsetState,
 }
@@ -33469,7 +33471,7 @@ const _: () = {
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUState"][::std::mem::size_of::<CPUState>() - 16576usize];
+    ["Size of CPUState"][::std::mem::size_of::<CPUState>() - 16592usize];
     ["Alignment of CPUState"][::std::mem::align_of::<CPUState>() - 16usize];
     ["Offset of field: CPUState::parent_obj"]
         [::std::mem::offset_of!(CPUState, parent_obj) - 0usize];
@@ -33562,32 +33564,34 @@ const _: () = {
         [::std::mem::offset_of!(CPUState, exception_index) - 704usize];
     ["Offset of field: CPUState::tcg_hook_ra"]
         [::std::mem::offset_of!(CPUState, tcg_hook_ra) - 712usize];
+    ["Offset of field: CPUState::taint_senv"]
+        [::std::mem::offset_of!(CPUState, taint_senv) - 720usize];
     ["Offset of field: CPUState::panda_block_pending"]
-        [::std::mem::offset_of!(CPUState, panda_block_pending) - 720usize];
+        [::std::mem::offset_of!(CPUState, panda_block_pending) - 728usize];
     ["Offset of field: CPUState::uaccess_pend"]
-        [::std::mem::offset_of!(CPUState, uaccess_pend) - 728usize];
+        [::std::mem::offset_of!(CPUState, uaccess_pend) - 736usize];
     ["Offset of field: CPUState::syscall_kmmu"]
-        [::std::mem::offset_of!(CPUState, syscall_kmmu) - 752usize];
+        [::std::mem::offset_of!(CPUState, syscall_kmmu) - 760usize];
     ["Offset of field: CPUState::syscall_inject_abis"]
-        [::std::mem::offset_of!(CPUState, syscall_inject_abis) - 756usize];
+        [::std::mem::offset_of!(CPUState, syscall_inject_abis) - 764usize];
     ["Offset of field: CPUState::syscall_current"]
-        [::std::mem::offset_of!(CPUState, syscall_current) - 760usize];
+        [::std::mem::offset_of!(CPUState, syscall_current) - 768usize];
     ["Offset of field: CPUState::vcpu_dirty"]
-        [::std::mem::offset_of!(CPUState, vcpu_dirty) - 768usize];
-    ["Offset of field: CPUState::accel"][::std::mem::offset_of!(CPUState, accel) - 776usize];
+        [::std::mem::offset_of!(CPUState, vcpu_dirty) - 776usize];
+    ["Offset of field: CPUState::accel"][::std::mem::offset_of!(CPUState, accel) - 784usize];
     ["Offset of field: CPUState::throttle_thread_scheduled"]
-        [::std::mem::offset_of!(CPUState, throttle_thread_scheduled) - 784usize];
+        [::std::mem::offset_of!(CPUState, throttle_thread_scheduled) - 792usize];
     ["Offset of field: CPUState::throttle_us_per_full"]
-        [::std::mem::offset_of!(CPUState, throttle_us_per_full) - 792usize];
+        [::std::mem::offset_of!(CPUState, throttle_us_per_full) - 800usize];
     ["Offset of field: CPUState::ignore_memory_transaction_failures"]
-        [::std::mem::offset_of!(CPUState, ignore_memory_transaction_failures) - 800usize];
+        [::std::mem::offset_of!(CPUState, ignore_memory_transaction_failures) - 808usize];
     ["Offset of field: CPUState::prctl_unalign_sigbus"]
-        [::std::mem::offset_of!(CPUState, prctl_unalign_sigbus) - 801usize];
+        [::std::mem::offset_of!(CPUState, prctl_unalign_sigbus) - 809usize];
     ["Offset of field: CPUState::iommu_notifiers"]
-        [::std::mem::offset_of!(CPUState, iommu_notifiers) - 808usize];
+        [::std::mem::offset_of!(CPUState, iommu_notifiers) - 816usize];
     ["Offset of field: CPUState::neg_align"]
-        [::std::mem::offset_of!(CPUState, neg_align) - 816usize];
-    ["Offset of field: CPUState::neg"][::std::mem::offset_of!(CPUState, neg) - 816usize];
+        [::std::mem::offset_of!(CPUState, neg_align) - 832usize];
+    ["Offset of field: CPUState::neg"][::std::mem::offset_of!(CPUState, neg) - 832usize];
 };
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -40619,6 +40623,8 @@ pub struct CPUArchState {
     pub CP0_Index: i32,
     pub CP0_VPControl: i32,
     pub CP0_Random: i32,
+    pub random_seed: u32,
+    pub random_prev_idx: u32,
     pub CP0_VPEControl: i32,
     pub CP0_VPEConf0: i32,
     pub CP0_VPEConf1: i32,
@@ -40724,6 +40730,7 @@ pub struct CPUArchState {
     pub tlb: *mut CPUMIPSTLBContext,
     pub irq: [qemu_irq; 8usize],
     pub itc_tag: *mut MemoryRegion,
+    pub __bindgen_padding_0: u64,
     pub iocsr: CPUArchState__bindgen_ty_2,
     pub cpu_model: *const mips_def_t,
     pub timer: *mut QEMUTimer,
@@ -40759,7 +40766,7 @@ const _: () = {
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of CPUArchState"][::std::mem::size_of::<CPUArchState>() - 9392usize];
+    ["Size of CPUArchState"][::std::mem::size_of::<CPUArchState>() - 9408usize];
     ["Alignment of CPUArchState"][::std::mem::align_of::<CPUArchState>() - 16usize];
     ["Offset of field: CPUArchState::active_tc"]
         [::std::mem::offset_of!(CPUArchState, active_tc) - 0usize];
@@ -40785,220 +40792,224 @@ const _: () = {
         [::std::mem::offset_of!(CPUArchState, CP0_VPControl) - 1356usize];
     ["Offset of field: CPUArchState::CP0_Random"]
         [::std::mem::offset_of!(CPUArchState, CP0_Random) - 1360usize];
+    ["Offset of field: CPUArchState::random_seed"]
+        [::std::mem::offset_of!(CPUArchState, random_seed) - 1364usize];
+    ["Offset of field: CPUArchState::random_prev_idx"]
+        [::std::mem::offset_of!(CPUArchState, random_prev_idx) - 1368usize];
     ["Offset of field: CPUArchState::CP0_VPEControl"]
-        [::std::mem::offset_of!(CPUArchState, CP0_VPEControl) - 1364usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_VPEControl) - 1372usize];
     ["Offset of field: CPUArchState::CP0_VPEConf0"]
-        [::std::mem::offset_of!(CPUArchState, CP0_VPEConf0) - 1368usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_VPEConf0) - 1376usize];
     ["Offset of field: CPUArchState::CP0_VPEConf1"]
-        [::std::mem::offset_of!(CPUArchState, CP0_VPEConf1) - 1372usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_VPEConf1) - 1380usize];
     ["Offset of field: CPUArchState::CP0_YQMask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_YQMask) - 1376usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_YQMask) - 1384usize];
     ["Offset of field: CPUArchState::CP0_VPESchedule"]
-        [::std::mem::offset_of!(CPUArchState, CP0_VPESchedule) - 1380usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_VPESchedule) - 1388usize];
     ["Offset of field: CPUArchState::CP0_VPEScheFBack"]
-        [::std::mem::offset_of!(CPUArchState, CP0_VPEScheFBack) - 1384usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_VPEScheFBack) - 1392usize];
     ["Offset of field: CPUArchState::CP0_VPEOpt"]
-        [::std::mem::offset_of!(CPUArchState, CP0_VPEOpt) - 1388usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_VPEOpt) - 1396usize];
     ["Offset of field: CPUArchState::CP0_EntryLo0"]
-        [::std::mem::offset_of!(CPUArchState, CP0_EntryLo0) - 1392usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_EntryLo0) - 1400usize];
     ["Offset of field: CPUArchState::CP0_EntryLo1"]
-        [::std::mem::offset_of!(CPUArchState, CP0_EntryLo1) - 1400usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_EntryLo1) - 1408usize];
     ["Offset of field: CPUArchState::CP0_GlobalNumber"]
-        [::std::mem::offset_of!(CPUArchState, CP0_GlobalNumber) - 1408usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_GlobalNumber) - 1416usize];
     ["Offset of field: CPUArchState::CP0_Context"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Context) - 1412usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Context) - 1420usize];
     ["Offset of field: CPUArchState::CP0_MemoryMapID"]
-        [::std::mem::offset_of!(CPUArchState, CP0_MemoryMapID) - 1416usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_MemoryMapID) - 1424usize];
     ["Offset of field: CPUArchState::CP0_PageMask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_PageMask) - 1420usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_PageMask) - 1428usize];
     ["Offset of field: CPUArchState::CP0_PageGrain_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_PageGrain_rw_bitmask) - 1424usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_PageGrain_rw_bitmask) - 1432usize];
     ["Offset of field: CPUArchState::CP0_PageGrain"]
-        [::std::mem::offset_of!(CPUArchState, CP0_PageGrain) - 1428usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_PageGrain) - 1436usize];
     ["Offset of field: CPUArchState::CP0_SegCtl0"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SegCtl0) - 1432usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SegCtl0) - 1440usize];
     ["Offset of field: CPUArchState::CP0_SegCtl1"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SegCtl1) - 1436usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SegCtl1) - 1444usize];
     ["Offset of field: CPUArchState::CP0_SegCtl2"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SegCtl2) - 1440usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SegCtl2) - 1448usize];
     ["Offset of field: CPUArchState::CP0_PWBase"]
-        [::std::mem::offset_of!(CPUArchState, CP0_PWBase) - 1444usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_PWBase) - 1452usize];
     ["Offset of field: CPUArchState::CP0_PWField"]
-        [::std::mem::offset_of!(CPUArchState, CP0_PWField) - 1448usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_PWField) - 1456usize];
     ["Offset of field: CPUArchState::CP0_PWSize"]
-        [::std::mem::offset_of!(CPUArchState, CP0_PWSize) - 1452usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_PWSize) - 1460usize];
     ["Offset of field: CPUArchState::CP0_Wired"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Wired) - 1456usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Wired) - 1464usize];
     ["Offset of field: CPUArchState::CP0_PWCtl"]
-        [::std::mem::offset_of!(CPUArchState, CP0_PWCtl) - 1460usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_PWCtl) - 1468usize];
     ["Offset of field: CPUArchState::CP0_SRSConf0_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf0_rw_bitmask) - 1464usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf0_rw_bitmask) - 1472usize];
     ["Offset of field: CPUArchState::CP0_SRSConf0"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf0) - 1468usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf0) - 1476usize];
     ["Offset of field: CPUArchState::CP0_SRSConf1_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf1_rw_bitmask) - 1472usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf1_rw_bitmask) - 1480usize];
     ["Offset of field: CPUArchState::CP0_SRSConf1"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf1) - 1476usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf1) - 1484usize];
     ["Offset of field: CPUArchState::CP0_SRSConf2_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf2_rw_bitmask) - 1480usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf2_rw_bitmask) - 1488usize];
     ["Offset of field: CPUArchState::CP0_SRSConf2"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf2) - 1484usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf2) - 1492usize];
     ["Offset of field: CPUArchState::CP0_SRSConf3_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf3_rw_bitmask) - 1488usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf3_rw_bitmask) - 1496usize];
     ["Offset of field: CPUArchState::CP0_SRSConf3"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf3) - 1492usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf3) - 1500usize];
     ["Offset of field: CPUArchState::CP0_SRSConf4_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf4_rw_bitmask) - 1496usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf4_rw_bitmask) - 1504usize];
     ["Offset of field: CPUArchState::CP0_SRSConf4"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf4) - 1500usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SRSConf4) - 1508usize];
     ["Offset of field: CPUArchState::CP0_HWREna"]
-        [::std::mem::offset_of!(CPUArchState, CP0_HWREna) - 1504usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_HWREna) - 1512usize];
     ["Offset of field: CPUArchState::CP0_BadVAddr"]
-        [::std::mem::offset_of!(CPUArchState, CP0_BadVAddr) - 1508usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_BadVAddr) - 1516usize];
     ["Offset of field: CPUArchState::CP0_BadInstr"]
-        [::std::mem::offset_of!(CPUArchState, CP0_BadInstr) - 1512usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_BadInstr) - 1520usize];
     ["Offset of field: CPUArchState::CP0_BadInstrP"]
-        [::std::mem::offset_of!(CPUArchState, CP0_BadInstrP) - 1516usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_BadInstrP) - 1524usize];
     ["Offset of field: CPUArchState::CP0_BadInstrX"]
-        [::std::mem::offset_of!(CPUArchState, CP0_BadInstrX) - 1520usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_BadInstrX) - 1528usize];
     ["Offset of field: CPUArchState::CP0_Count"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Count) - 1524usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Count) - 1532usize];
     ["Offset of field: CPUArchState::CP0_EntryHi"]
-        [::std::mem::offset_of!(CPUArchState, CP0_EntryHi) - 1528usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_EntryHi) - 1536usize];
     ["Offset of field: CPUArchState::CP0_EntryHi_ASID_mask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_EntryHi_ASID_mask) - 1532usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_EntryHi_ASID_mask) - 1540usize];
     ["Offset of field: CPUArchState::CP0_Compare"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Compare) - 1536usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Compare) - 1544usize];
     ["Offset of field: CPUArchState::CP0_Status"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Status) - 1540usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Status) - 1548usize];
     ["Offset of field: CPUArchState::CP0_IntCtl"]
-        [::std::mem::offset_of!(CPUArchState, CP0_IntCtl) - 1544usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_IntCtl) - 1552usize];
     ["Offset of field: CPUArchState::CP0_SRSCtl"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SRSCtl) - 1548usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SRSCtl) - 1556usize];
     ["Offset of field: CPUArchState::CP0_SRSMap"]
-        [::std::mem::offset_of!(CPUArchState, CP0_SRSMap) - 1552usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_SRSMap) - 1560usize];
     ["Offset of field: CPUArchState::CP0_Cause"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Cause) - 1556usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Cause) - 1564usize];
     ["Offset of field: CPUArchState::CP0_EPC"]
-        [::std::mem::offset_of!(CPUArchState, CP0_EPC) - 1560usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_EPC) - 1568usize];
     ["Offset of field: CPUArchState::CP0_PRid"]
-        [::std::mem::offset_of!(CPUArchState, CP0_PRid) - 1564usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_PRid) - 1572usize];
     ["Offset of field: CPUArchState::CP0_EBase"]
-        [::std::mem::offset_of!(CPUArchState, CP0_EBase) - 1568usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_EBase) - 1576usize];
     ["Offset of field: CPUArchState::CP0_EBaseWG_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_EBaseWG_rw_bitmask) - 1572usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_EBaseWG_rw_bitmask) - 1580usize];
     ["Offset of field: CPUArchState::CP0_CMGCRBase"]
-        [::std::mem::offset_of!(CPUArchState, CP0_CMGCRBase) - 1576usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_CMGCRBase) - 1584usize];
     ["Offset of field: CPUArchState::CP0_Config0"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Config0) - 1580usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Config0) - 1588usize];
     ["Offset of field: CPUArchState::CP0_Config1"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Config1) - 1584usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Config1) - 1592usize];
     ["Offset of field: CPUArchState::CP0_Config2"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Config2) - 1588usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Config2) - 1596usize];
     ["Offset of field: CPUArchState::CP0_Config3"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Config3) - 1592usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Config3) - 1600usize];
     ["Offset of field: CPUArchState::CP0_Config4"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Config4) - 1596usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Config4) - 1604usize];
     ["Offset of field: CPUArchState::CP0_Config4_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Config4_rw_bitmask) - 1600usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Config4_rw_bitmask) - 1608usize];
     ["Offset of field: CPUArchState::CP0_Config5"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Config5) - 1604usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Config5) - 1612usize];
     ["Offset of field: CPUArchState::CP0_Config5_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Config5_rw_bitmask) - 1608usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Config5_rw_bitmask) - 1616usize];
     ["Offset of field: CPUArchState::CP0_Config6"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Config6) - 1612usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Config6) - 1620usize];
     ["Offset of field: CPUArchState::CP0_Config6_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Config6_rw_bitmask) - 1616usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Config6_rw_bitmask) - 1624usize];
     ["Offset of field: CPUArchState::CP0_Config7"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Config7) - 1620usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Config7) - 1628usize];
     ["Offset of field: CPUArchState::CP0_Config7_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Config7_rw_bitmask) - 1624usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Config7_rw_bitmask) - 1632usize];
     ["Offset of field: CPUArchState::CP0_LLAddr"]
-        [::std::mem::offset_of!(CPUArchState, CP0_LLAddr) - 1632usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_LLAddr) - 1640usize];
     ["Offset of field: CPUArchState::CP0_MAAR"]
-        [::std::mem::offset_of!(CPUArchState, CP0_MAAR) - 1640usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_MAAR) - 1648usize];
     ["Offset of field: CPUArchState::CP0_MAARI"]
-        [::std::mem::offset_of!(CPUArchState, CP0_MAARI) - 1768usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_MAARI) - 1776usize];
     ["Offset of field: CPUArchState::lladdr"]
-        [::std::mem::offset_of!(CPUArchState, lladdr) - 1772usize];
+        [::std::mem::offset_of!(CPUArchState, lladdr) - 1780usize];
     ["Offset of field: CPUArchState::llval"]
-        [::std::mem::offset_of!(CPUArchState, llval) - 1776usize];
+        [::std::mem::offset_of!(CPUArchState, llval) - 1784usize];
     ["Offset of field: CPUArchState::llval_wp"]
-        [::std::mem::offset_of!(CPUArchState, llval_wp) - 1784usize];
+        [::std::mem::offset_of!(CPUArchState, llval_wp) - 1792usize];
     ["Offset of field: CPUArchState::llnewval_wp"]
-        [::std::mem::offset_of!(CPUArchState, llnewval_wp) - 1792usize];
+        [::std::mem::offset_of!(CPUArchState, llnewval_wp) - 1800usize];
     ["Offset of field: CPUArchState::CP0_LLAddr_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_LLAddr_rw_bitmask) - 1800usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_LLAddr_rw_bitmask) - 1808usize];
     ["Offset of field: CPUArchState::CP0_LLAddr_shift"]
-        [::std::mem::offset_of!(CPUArchState, CP0_LLAddr_shift) - 1808usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_LLAddr_shift) - 1816usize];
     ["Offset of field: CPUArchState::CP0_WatchLo"]
-        [::std::mem::offset_of!(CPUArchState, CP0_WatchLo) - 1812usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_WatchLo) - 1820usize];
     ["Offset of field: CPUArchState::CP0_WatchHi"]
-        [::std::mem::offset_of!(CPUArchState, CP0_WatchHi) - 1848usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_WatchHi) - 1856usize];
     ["Offset of field: CPUArchState::CP0_XContext"]
-        [::std::mem::offset_of!(CPUArchState, CP0_XContext) - 1912usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_XContext) - 1920usize];
     ["Offset of field: CPUArchState::CP0_Framemask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Framemask) - 1916usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Framemask) - 1924usize];
     ["Offset of field: CPUArchState::CP0_Debug"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Debug) - 1920usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Debug) - 1928usize];
     ["Offset of field: CPUArchState::CP0_DEPC"]
-        [::std::mem::offset_of!(CPUArchState, CP0_DEPC) - 1924usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_DEPC) - 1932usize];
     ["Offset of field: CPUArchState::CP0_Performance0"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Performance0) - 1928usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Performance0) - 1936usize];
     ["Offset of field: CPUArchState::CP0_ErrCtl"]
-        [::std::mem::offset_of!(CPUArchState, CP0_ErrCtl) - 1932usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_ErrCtl) - 1940usize];
     ["Offset of field: CPUArchState::CP0_TagLo"]
-        [::std::mem::offset_of!(CPUArchState, CP0_TagLo) - 1936usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_TagLo) - 1944usize];
     ["Offset of field: CPUArchState::CP0_DataLo"]
-        [::std::mem::offset_of!(CPUArchState, CP0_DataLo) - 1944usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_DataLo) - 1952usize];
     ["Offset of field: CPUArchState::CP0_TagHi"]
-        [::std::mem::offset_of!(CPUArchState, CP0_TagHi) - 1948usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_TagHi) - 1956usize];
     ["Offset of field: CPUArchState::CP0_DataHi"]
-        [::std::mem::offset_of!(CPUArchState, CP0_DataHi) - 1952usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_DataHi) - 1960usize];
     ["Offset of field: CPUArchState::CP0_ErrorEPC"]
-        [::std::mem::offset_of!(CPUArchState, CP0_ErrorEPC) - 1956usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_ErrorEPC) - 1964usize];
     ["Offset of field: CPUArchState::CP0_DESAVE"]
-        [::std::mem::offset_of!(CPUArchState, CP0_DESAVE) - 1960usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_DESAVE) - 1968usize];
     ["Offset of field: CPUArchState::CP0_KScratch"]
-        [::std::mem::offset_of!(CPUArchState, CP0_KScratch) - 1964usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_KScratch) - 1972usize];
     ["Offset of field: CPUArchState::lcsr_cpucfg1"]
-        [::std::mem::offset_of!(CPUArchState, lcsr_cpucfg1) - 1988usize];
+        [::std::mem::offset_of!(CPUArchState, lcsr_cpucfg1) - 1996usize];
     ["Offset of field: CPUArchState::lcsr_cpucfg2"]
-        [::std::mem::offset_of!(CPUArchState, lcsr_cpucfg2) - 1992usize];
-    ["Offset of field: CPUArchState::tcs"][::std::mem::offset_of!(CPUArchState, tcs) - 2000usize];
-    ["Offset of field: CPUArchState::fpus"][::std::mem::offset_of!(CPUArchState, fpus) - 8272usize];
+        [::std::mem::offset_of!(CPUArchState, lcsr_cpucfg2) - 2000usize];
+    ["Offset of field: CPUArchState::tcs"][::std::mem::offset_of!(CPUArchState, tcs) - 2008usize];
+    ["Offset of field: CPUArchState::fpus"][::std::mem::offset_of!(CPUArchState, fpus) - 8280usize];
     ["Offset of field: CPUArchState::error_code"]
-        [::std::mem::offset_of!(CPUArchState, error_code) - 8808usize];
+        [::std::mem::offset_of!(CPUArchState, error_code) - 8816usize];
     ["Offset of field: CPUArchState::hflags"]
-        [::std::mem::offset_of!(CPUArchState, hflags) - 8812usize];
+        [::std::mem::offset_of!(CPUArchState, hflags) - 8820usize];
     ["Offset of field: CPUArchState::btarget"]
-        [::std::mem::offset_of!(CPUArchState, btarget) - 8816usize];
+        [::std::mem::offset_of!(CPUArchState, btarget) - 8824usize];
     ["Offset of field: CPUArchState::bcond"]
-        [::std::mem::offset_of!(CPUArchState, bcond) - 8820usize];
+        [::std::mem::offset_of!(CPUArchState, bcond) - 8828usize];
     ["Offset of field: CPUArchState::SYNCI_Step"]
-        [::std::mem::offset_of!(CPUArchState, SYNCI_Step) - 8824usize];
+        [::std::mem::offset_of!(CPUArchState, SYNCI_Step) - 8832usize];
     ["Offset of field: CPUArchState::CCRes"]
-        [::std::mem::offset_of!(CPUArchState, CCRes) - 8828usize];
+        [::std::mem::offset_of!(CPUArchState, CCRes) - 8836usize];
     ["Offset of field: CPUArchState::CP0_Status_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_Status_rw_bitmask) - 8832usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_Status_rw_bitmask) - 8840usize];
     ["Offset of field: CPUArchState::CP0_TCStatus_rw_bitmask"]
-        [::std::mem::offset_of!(CPUArchState, CP0_TCStatus_rw_bitmask) - 8836usize];
+        [::std::mem::offset_of!(CPUArchState, CP0_TCStatus_rw_bitmask) - 8844usize];
     ["Offset of field: CPUArchState::insn_flags"]
-        [::std::mem::offset_of!(CPUArchState, insn_flags) - 8840usize];
+        [::std::mem::offset_of!(CPUArchState, insn_flags) - 8848usize];
     ["Offset of field: CPUArchState::end_reset_fields"]
-        [::std::mem::offset_of!(CPUArchState, end_reset_fields) - 8848usize];
-    ["Offset of field: CPUArchState::tlb"][::std::mem::offset_of!(CPUArchState, tlb) - 8848usize];
-    ["Offset of field: CPUArchState::irq"][::std::mem::offset_of!(CPUArchState, irq) - 8856usize];
+        [::std::mem::offset_of!(CPUArchState, end_reset_fields) - 8856usize];
+    ["Offset of field: CPUArchState::tlb"][::std::mem::offset_of!(CPUArchState, tlb) - 8856usize];
+    ["Offset of field: CPUArchState::irq"][::std::mem::offset_of!(CPUArchState, irq) - 8864usize];
     ["Offset of field: CPUArchState::itc_tag"]
-        [::std::mem::offset_of!(CPUArchState, itc_tag) - 8920usize];
+        [::std::mem::offset_of!(CPUArchState, itc_tag) - 8928usize];
     ["Offset of field: CPUArchState::iocsr"]
-        [::std::mem::offset_of!(CPUArchState, iocsr) - 8928usize];
+        [::std::mem::offset_of!(CPUArchState, iocsr) - 8944usize];
     ["Offset of field: CPUArchState::cpu_model"]
-        [::std::mem::offset_of!(CPUArchState, cpu_model) - 9360usize];
+        [::std::mem::offset_of!(CPUArchState, cpu_model) - 9376usize];
     ["Offset of field: CPUArchState::timer"]
-        [::std::mem::offset_of!(CPUArchState, timer) - 9368usize];
+        [::std::mem::offset_of!(CPUArchState, timer) - 9384usize];
     ["Offset of field: CPUArchState::exception_base"]
-        [::std::mem::offset_of!(CPUArchState, exception_base) - 9376usize];
+        [::std::mem::offset_of!(CPUArchState, exception_base) - 9392usize];
 };
 pub type CPUMIPSState = CPUArchState;
 #[repr(C)]
@@ -41014,18 +41025,18 @@ pub struct ArchCPU {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ArchCPU"][::std::mem::size_of::<ArchCPU>() - 26016usize];
+    ["Size of ArchCPU"][::std::mem::size_of::<ArchCPU>() - 26048usize];
     ["Alignment of ArchCPU"][::std::mem::align_of::<ArchCPU>() - 16usize];
     ["Offset of field: ArchCPU::parent_obj"][::std::mem::offset_of!(ArchCPU, parent_obj) - 0usize];
-    ["Offset of field: ArchCPU::env"][::std::mem::offset_of!(ArchCPU, env) - 16576usize];
-    ["Offset of field: ArchCPU::clock"][::std::mem::offset_of!(ArchCPU, clock) - 25968usize];
+    ["Offset of field: ArchCPU::env"][::std::mem::offset_of!(ArchCPU, env) - 16592usize];
+    ["Offset of field: ArchCPU::clock"][::std::mem::offset_of!(ArchCPU, clock) - 26000usize];
     ["Offset of field: ArchCPU::count_clock"]
-        [::std::mem::offset_of!(ArchCPU, count_clock) - 25976usize];
+        [::std::mem::offset_of!(ArchCPU, count_clock) - 26008usize];
     ["Offset of field: ArchCPU::count_div"]
-        [::std::mem::offset_of!(ArchCPU, count_div) - 25984usize];
-    ["Offset of field: ArchCPU::mvp"][::std::mem::offset_of!(ArchCPU, mvp) - 25992usize];
+        [::std::mem::offset_of!(ArchCPU, count_div) - 26016usize];
+    ["Offset of field: ArchCPU::mvp"][::std::mem::offset_of!(ArchCPU, mvp) - 26024usize];
     ["Offset of field: ArchCPU::is_big_endian"]
-        [::std::mem::offset_of!(ArchCPU, is_big_endian) - 26000usize];
+        [::std::mem::offset_of!(ArchCPU, is_big_endian) - 26032usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
