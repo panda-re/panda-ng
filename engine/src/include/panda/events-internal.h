@@ -50,6 +50,19 @@ void panda_events_reevaluate(void);
  * after after_machine_init, and returns nonzero on false. A subscription that goes PENDING later
  * is logged when it does. */
 bool panda_events_startup_done(void);
+
+/*
+ * The machine exists: QEMU's machine-init-done notifier runs it (qemu_init has initialized the
+ * BQL, which QEMU's call_rcu thread takes to run callbacks). Before it, panda_events_call_rcu
+ * keeps the frees it is given; then they go to call_rcu. Idempotent. panda_events_up: whether it
+ * has run.
+ */
+void panda_events_machine_up(void);
+bool panda_events_up(void);
+/* call_rcu (qemu/rcu.h's call_rcu1), or kept until panda_events_machine_up: for what the engine
+ * frees after a grace period on a path that can run before the machine exists. */
+struct rcu_head;
+void panda_events_call_rcu(struct rcu_head *head, void (*func)(struct rcu_head *head));
 void panda_events_defer_startup_check(void);
 
 /* Parse a signature into its canonical forms. False, with a g_malloc'd reason, if malformed.

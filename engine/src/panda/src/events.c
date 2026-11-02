@@ -102,6 +102,15 @@ static PandaEvent **core_events;
 static int core_events_max = -1;
 static uint64_t sub_seq;
 static bool registry_up;                /* registry_init has run */
+/*
+ * RCU frees wait until the machine exists. QEMU's call_rcu thread takes the BQL to run
+ * callbacks, and the BQL is initialized in qemu_init: a free queued earlier (pandare2 subscribes
+ * before panda_init) would abort that thread. Until panda_events_machine_up, frees go on
+ * early_frees; then they go to call_rcu.
+ */
+static bool events_up;
+static GMutex early_lock;               /* static storage: usable before any init */
+static struct rcu_head *early_frees;
 static bool events_started;             /* panda_events_startup_done has run */
 static int events_strict = -1;          /* -1: not set, PANDA_EVENTS_STRICT decides */
 
@@ -544,6 +553,29 @@ static gint sub_order(gconstpointer a, gconstpointer b)
     return x->seq < y->seq ? -1 : x->seq > y->seq;
 }
 
+void panda_events_call_rcu(struct rcu_head *head, RCUCBFunc *func)
+{
+    if (qatomic_load_acquire(&events_up)) {
+        call_rcu1(head, func);
+        return;
+    }
+    g_mutex_lock(&early_lock);
+    if (qatomic_read(&events_up)) {
+        g_mutex_unlock(&early_lock);
+        call_rcu1(head, func);
+        return;
+    }
+    head->func = func;
+    head->next = early_frees;
+    early_frees = head;
+    g_mutex_unlock(&early_lock);
+}
+
+static void event_array_free(struct rcu_head *head)
+{
+    g_free(container_of(head, PandaSubArray, rcu));
+}
+
 static void event_publish(PandaEvent *ev)
 {
     GPtrArray *act = g_ptr_array_new();
@@ -568,7 +600,7 @@ static void event_publish(PandaEvent *ev)
     old = ev->active;
     qatomic_rcu_set(&ev->active, a);
     if (old) {
-        g_free_rcu(old, rcu);
+        panda_events_call_rcu(&old->rcu, event_array_free);
     }
 }
 
@@ -655,10 +687,15 @@ static void sub_free(PandaSub *s)
     g_free(s);
 }
 
+static void sub_free_rcu(struct rcu_head *head)
+{
+    sub_free(container_of(head, PandaSub, rcu));
+}
+
 static void sub_unref(PandaSub *s)
 {
     if (qatomic_fetch_dec(&s->refs) == 1) {
-        call_rcu(s, sub_free, rcu);
+        panda_events_call_rcu(&s->rcu, sub_free_rcu);
     }
 }
 
@@ -1204,6 +1241,31 @@ void panda_events_defer_startup_check(void)
     startup_deferred = true;
 }
 
+bool panda_events_up(void)
+{
+    return qatomic_load_acquire(&events_up);
+}
+
+void panda_events_machine_up(void)
+{
+    struct rcu_head *h;
+
+    g_mutex_lock(&early_lock);
+    if (qatomic_read(&events_up)) {
+        g_mutex_unlock(&early_lock);
+        return;
+    }
+    qatomic_store_release(&events_up, true);
+    h = early_frees;
+    early_frees = NULL;
+    g_mutex_unlock(&early_lock);
+    while (h) {
+        struct rcu_head *next = h->next;
+        call_rcu1(h, h->func);
+        h = next;
+    }
+}
+
 /*
  * The command line (qemu-system-<arch>, panda-qemu) has no panda_init: the check runs when the
  * machine is ready, after -plugin and the -M/-module panda modules have loaded. A failure there
@@ -1212,6 +1274,7 @@ void panda_events_defer_startup_check(void)
  */
 static void events_machine_ready(Notifier *notifier, void *data)
 {
+    panda_events_machine_up();
     /* No analysis provisioned: nothing at all. */
     if (!analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
         return;
