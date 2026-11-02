@@ -89,6 +89,20 @@ class EngineInUseError(RuntimeError):
     '''
 
 
+class EventsUnboundError(RuntimeError):
+    '''
+    Raised by run() when the engine refuses to start: an event subscription is still unbound
+    (PENDING or MISMATCH) after startup. That fails startup by default. PANDA_EVENTS_STRICT=0
+    makes it a warning instead, and a subscription marked optional never fails it. `report`
+    holds the engine's report: one line per subscription, with the reason.
+    '''
+
+    def __init__(self, report):
+        self.report = report
+        super().__init__("PANDA startup failed: event subscriptions are bound to nothing:\n" +
+                         report.rstrip())
+
+
 # The engines this process has loaded: arch -> {"panda": the Panda that owns it, "global": loaded
 # RTLD_GLOBAL}. An engine (libpanda-<arch>-softmmu.so) initializes QEMU once per process and is
 # never unloaded, so it backs one Panda for the life of the process. Engines of different arches
@@ -770,7 +784,8 @@ class Panda(TaintMixin):
         len_cargs = self.ffi.cast("int", len(self.panda_args))
         panda_args_ffi = [self.ffi.new("char[]", bytes(str(i),"utf-8")) for i in self.panda_args]
         self._engine_started = True     # its callbacks (after_machine_init) may call in already
-        self.libpanda.panda_init(len_cargs, panda_args_ffi, cenvp)
+        if self.libpanda.panda_init(len_cargs, panda_args_ffi, cenvp):
+            raise EventsUnboundError(self._events_startup_report())
         # Now we've run qemu init so we can connect to the sockets for the monitor and serial
         if self.serial_console and not self.serial_console.is_connected():
             self.serial_console.connect(self.serial_socket)
@@ -786,6 +801,14 @@ class Panda(TaintMixin):
                     self.callback.main_loop_wait(self.__main_loop_wait_cb), '__main_loop_wait', observe_only=True)
 
         self._initialized_panda = True
+
+    def _events_startup_report(self):
+        '''The engine's after-startup report of unbound event subscriptions
+        (panda_events_startup_report, declared here: events.h is not in the compiled bindings).'''
+        ffi = FFI()
+        ffi.cdef("const char *panda_events_startup_report(void);")
+        lib = ffi.dlopen(self.libpanda_path, ffi.RTLD_NOW | ffi.RTLD_NOLOAD)
+        return ffi.string(lib.panda_events_startup_report()).decode("utf-8", "replace")
 
     def __main_loop_wait_cb(self):
         '''

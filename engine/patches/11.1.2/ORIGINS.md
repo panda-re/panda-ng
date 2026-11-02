@@ -21,7 +21,7 @@ The trailers are part of each commit message in an `import-series.sh` tree, so
 `export-series.sh` keeps them. Add both to a new patch, and update this table when the series
 changes (the export does not rewrite this file). "Uncertain" in a note marks a judgement call.
 
-Counts: new 65, penguin 25, panda-re/qemu 6, ac88u 2.
+Counts: new 66, penguin 25, panda-re/qemu 6, ac88u 2.
 
 | # | subject | origin | license | note |
 |---|---|---|---|---|
@@ -125,3 +125,4 @@ Counts: new 65, penguin 25, panda-re/qemu 6, ac88u 2.
 | 0098 | hw/intc/openpic: restore the CPUs' external proxy mode on load | new | GPL-2.0-or-later | env->mpic_proxy was set only by a GCR write and not re-derived on load, so a loaded e500 guest in proxy mode got external interrupts never acknowledged (stuck in its handler); with 0097 ppc32 rr passes; not taint-specific |
 | 0099 | hw/pci-host/ppce500: rebuild the PCI windows on load | new | GPL-2.0-or-later | the outbound/inbound window aliases were built only on guest register writes, so a -loadvm'd ppce500 guest's PCI BARs were unreachable; not taint-specific |
 | 0100 | hw/pci-host/ppce500: migrate the host bridge's config space | new | GPL-2.0-or-later | the host bridge had no vmsd, so BAR0 (CCSR in PCI space, where MSIs reach MSIIR) was unassigned after any load and every MSI was lost (ppc32 virtio-blk hung on its first request); with 0099 tests/busybox.sh powerpc passes; not taint-specific |
+| 0101 | monitor: info panda-events lists the PANDA event registry | new | GPL-2.0-or-later | the info command for the event registry (panda/src/events-hmp.c has the handler) |

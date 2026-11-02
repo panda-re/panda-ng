@@ -2,7 +2,7 @@
 
 # The engine patch series
 
-QEMU 11.1.2 plus 100 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
+QEMU 11.1.2 plus 101 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
@@ -106,3 +106,4 @@ QEMU 11.1.2 plus 100 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0098 | hw/intc/openpic: restore the CPUs' external proxy mode on load | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
 | 0099 | hw/pci-host/ppce500: rebuild the PCI windows on load | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
 | 0100 | hw/pci-host/ppce500: migrate the host bridge's config space | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
+| 0101 | monitor: info panda-events lists the PANDA event registry | [plugins](../features.md#plugins) | new | GPL-2.0-or-later |
