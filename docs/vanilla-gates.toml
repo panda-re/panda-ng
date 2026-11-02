@@ -1462,9 +1462,9 @@ id = "syscall-trap-core"
 class = "runtime-gate"
 capability = "syscall-trap"
 paths = ["engine/src/system/syscall-trap.c"]
-functions = ["syscall_trap_enter", "syscall_trap_return", "syscall_trap_fault", "syscall_trap_access", "syscall_trap_set_consumer", "syscall_trap_watch", "syscall_trap_cancel_all", "syscall_trap_clear_consumer"]
+functions = ["syscall_trap_enter", "syscall_trap_return", "syscall_trap_fault", "syscall_trap_access", "syscall_trap_add_consumer", "syscall_trap_watch", "syscall_trap_cancel_all", "syscall_trap_remove_consumer"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "Enabled/pending flags and RR write restrictions exist; consumer/watch admission has no vanilla capability; live detach refuses injected states."
+current_gate = "Enabled/pending flags and RR write restrictions exist (every consumer observes only); consumer/watch admission has no vanilla capability; live removal refuses while the consumer has injected states."
 required_action = "Refuse all extension consumers/watches in vanilla; retain original target entry/return paths; keep rewind cancellation and live detach policy separate."
 vanilla_verified = false
 

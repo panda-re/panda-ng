@@ -4,8 +4,17 @@
  * The target calls syscall_trap_enter() when a user task traps for a
  * syscall, and syscall_trap_return() on every return to user mode while a
  * call is pending.  The core filters the traps by ABI and number, hands
- * them to one consumer (the TCG plugin API or Penguin's syscall hooks),
- * and pairs each call with its return.
+ * them to the consumers that watch them (Penguin's syscall hooks, the TCG
+ * plugin API, PANDA's syscall callbacks), and pairs each call with its
+ * return.
+ *
+ * Consumers are modifiers or observers.  Each call goes to the modifiers
+ * in the order they were added, each seeing the changes of those before
+ * it, then to the observers, which see the final call and change nothing
+ * in the guest.  A modifier that asks for a fault or an injected call
+ * holds the call: when the task is back, the call goes to that modifier
+ * again (resumed), then on to the consumers after it.  The task, data,
+ * want_return and keep fields are each consumer's own.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -50,6 +59,12 @@ typedef struct SyscallTrap {
     bool skip;              /* enter: do not enter the kernel; return ret */
     bool want_return;       /* enter: report the call's return */
     bool restart;           /* return: the kernel is restarting the call */
+    /*
+     * Return: no kernel call ran (a modifier skipped it), ret is the
+     * skip's value; reported to SYSCALL_TRAP_SKIPPED consumers, right
+     * after the entry.  Changes to it are ignored.
+     */
+    bool skipped;
     bool keep;              /* return: not the caller's; keep it pending */
     /*
      * Set by the core: the consumer asked for a fault at this trap, and
@@ -82,27 +97,50 @@ typedef struct SyscallTrap {
     void *data;             /* the consumer's, released through drop() */
 } SyscallTrap;
 
+typedef struct SyscallTrapConsumer SyscallTrapConsumer;
+
 typedef struct SyscallTrapOps {
     /* the vCPU is in user mode; CPUState.syscall_kmmu is set */
     void (*enter)(CPUState *cpu, SyscallTrap *sc, void *opaque);
     void (*ret)(CPUState *cpu, SyscallTrap *sc, void *opaque);
-    /* a pending call is discarded without its return (may be NULL) */
+    /*
+     * The call is done with the consumer's data (may be NULL): called when
+     * data is still set after the consumer's last callback of the call, or
+     * when the call is discarded without its return (the task forgotten,
+     * cancel_all, eviction, the consumer removed).  Never under the core's
+     * lock.
+     */
     void (*drop)(SyscallTrap *sc, void *opaque);
 } SyscallTrapOps;
 
-/* one consumer at a time; false if another one is set */
-bool syscall_trap_set_consumer(const SyscallTrapOps *ops, void *opaque);
-/* Main thread/BQL, vCPUs stopped: owner-checked drain before detaching.
- * Refuses without changes while injected calls still need register restoration. */
-bool syscall_trap_clear_consumer(const SyscallTrapOps *ops, void *opaque);
-void syscall_trap_watch(int abi, int64_t num, unsigned flags); /* num -1: all */
-void syscall_trap_unwatch_all(void);
+#define SYSCALL_TRAP_OBSERVER 1 /* add_consumer: changes nothing in the guest */
+#define SYSCALL_TRAP_SKIPPED 2  /* add_consumer: report skipped calls' returns */
+
+/*
+ * Add a consumer (any number; no fixed cap).  It watches nothing until
+ * syscall_trap_watch(), and sees no return of a call whose entry came
+ * before it was added.
+ */
+SyscallTrapConsumer *syscall_trap_add_consumer(const SyscallTrapOps *ops,
+                                               void *opaque, unsigned flags);
+/*
+ * Main thread/BQL, vCPUs stopped: drop the consumer's part of every call
+ * (through its drop()), then remove it.  A call it holds goes on to the
+ * consumers after it when the task comes back.  Refuses without changes
+ * while a call it injected still needs its registers restored.  Removing
+ * the last consumer cancels every call.
+ */
+bool syscall_trap_remove_consumer(SyscallTrapConsumer *c);
+/* @c's watch for @num of @abi (-1: all of them) */
+bool syscall_trap_watch(SyscallTrapConsumer *c, int abi, int64_t num,
+                        unsigned flags);
+void syscall_trap_unwatch_all(SyscallTrapConsumer *c);
 void syscall_trap_stats(uint64_t *pending, uint64_t *full, uint64_t *stale);
 uint64_t syscall_trap_faults(void);    /* faults raised for consumers */
 
 /*
- * The task is gone: drop its calls, pending or held (those whose
- * SyscallTrap.task is @task, not 0).  Returns how many.
+ * The task is gone: drop its calls, pending or held (those where a
+ * consumer's SyscallTrap.task is @task, not 0).  Returns how many.
  */
 unsigned syscall_trap_forget_task(uint64_t task);
 

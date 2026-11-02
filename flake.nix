@@ -859,15 +859,21 @@
             pname = "cbcount";
             src = ./tests/plugins/cbcount;
           };
+          # The syscall tests' event recorder (tests/syscall_cover.py, ...).
+          sctrace = p.buildPandaPlugin {
+            pname = "sctrace";
+            src = ./tests/plugins/sctrace;
+          };
         in
         {
-          inherit cbcount;
+          inherit cbcount sctrace;
           # panda-ng's plugins plus the test plugins, for PANDA_PLUGIN_DIR (lib/panda/plugins).
           test-plugins = nixpkgs.legacyPackages.${system}.symlinkJoin {
             name = "panda-test-plugins";
             paths = [
               p.plugins
               cbcount
+              sctrace
             ];
           };
           inherit (p)
@@ -1179,6 +1185,13 @@
             buildInputs = [ pkgs.glib ];
           } ''
             python3 ${./.}/tests/static/penguin_detach.py
+            touch $out
+          '';
+          syscall-consumers = pkgs.runCommandCC "syscall-consumers-check" {
+            nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
+            buildInputs = [ pkgs.glib ];
+          } ''
+            python3 ${./.}/tests/static/syscall_consumers.py
             touch $out
           '';
           lifecycle = pkgs.runCommandCC "analysis-lifecycle-check" {
