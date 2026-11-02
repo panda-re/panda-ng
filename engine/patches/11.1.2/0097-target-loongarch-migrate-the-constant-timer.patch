@@ -13,18 +13,26 @@ Migrate the QEMUTimer in a "cpu/timer" subsection, sent whenever TCG is
 in use. It is sent even when the timer is stopped, because loading a
 stopped timer must also stop a running one.
 
+The CPU's common state goes the same way: dc->vmsd is set, so
+vmstate_cpu_common is never registered for this CPU, and halted and
+interrupt_request are lost. A snapshot taken while an interrupt is
+pending loads with ESTAT showing it but no CPU_INTERRUPT_HARD request;
+the line is already high, nothing raises it again, and a guest in idle
+never wakes (a slow host takes snapshots in that window often). Migrate
+it too, in a "cpu/common" subsection under the same condition.
+
 SPDX-License-Identifier: GPL-2.0-or-later
 
 Origin: new
 ---
- target/loongarch/machine.c | 23 +++++++++++++++++++++++
- 1 file changed, 23 insertions(+)
+ target/loongarch/machine.c | 46 ++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 46 insertions(+)
 
 diff --git a/target/loongarch/machine.c b/target/loongarch/machine.c
-index 931a5ca5baa51102eb7a0db9e3afddafdc3325bb..60b619637be166792ded00f1e4e1876404a48207 100644
+index 931a5ca5baa51102eb7a0db9e3afddafdc3325bb..7e68b1a980a47919c81ea45ac37ef8736cf8e4b2 100644
 --- a/target/loongarch/machine.c
 +++ b/target/loongarch/machine.c
-@@ -205,6 +205,28 @@ static const VMStateDescription vmstate_tlb = {
+@@ -205,6 +205,50 @@ static const VMStateDescription vmstate_tlb = {
          VMSTATE_END_OF_LIST()
      }
  };
@@ -50,14 +58,37 @@ index 931a5ca5baa51102eb7a0db9e3afddafdc3325bb..60b619637be166792ded00f1e4e18764
 +        VMSTATE_END_OF_LIST()
 +    }
 +};
++
++/*
++ * dc->vmsd is set, so vmstate_cpu_common is not registered for this CPU and
++ * halted and interrupt_request were never migrated. ESTAT comes back with an
++ * interrupt pending but the CPU with no CPU_INTERRUPT_HARD request: the line
++ * is already high, nothing raises it again, and a guest in idle sleeps on.
++ */
++static bool common_needed(void *opaque)
++{
++    return tcg_enabled();
++}
++
++static const VMStateDescription vmstate_common = {
++    .name = "cpu/common",
++    .version_id = 1,
++    .minimum_version_id = 1,
++    .needed = common_needed,
++    .fields = (const VMStateField[]) {
++        VMSTATE_STRUCT(parent_obj, LoongArchCPU, 0, vmstate_cpu_common, CPUState),
++        VMSTATE_END_OF_LIST()
++    }
++};
  #endif
  
  /* LoongArch CPU state */
-@@ -285,6 +307,7 @@ const VMStateDescription vmstate_loongarch_cpu = {
+@@ -285,6 +329,8 @@ const VMStateDescription vmstate_loongarch_cpu = {
          &vmstate_lasx,
  #if defined(CONFIG_TCG) && !defined(CONFIG_USER_ONLY)
          &vmstate_tlb,
 +        &vmstate_timer,
++        &vmstate_common,
  #endif
          &vmstate_lbt,
          &vmstate_msgint,
