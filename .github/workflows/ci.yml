@@ -63,7 +63,7 @@ jobs:
         run: nix build -L --out-link result-python .#python
       - name: Smoke (x86_64 firmware, plugins, a Python callback)
         run: ./result-python/bin/python3 tests/smoke.py x86_64
-      # Taint and the record/replay under it on 11 arches (tests/busybox.sh: small busybox guests,
+      # Taint and the record/replay under it on 12 arches (tests/busybox.sh: small busybox guests,
       # about 3 minutes with the download), only when the PR touches what they depend on: the
       # engine (TCG, record/replay, the targets' snapshot state), pandare2's taint and disk set-up,
       # syscalls2, or the tests. Pushes to main always run it. The nightly guest suite runs it too.
@@ -85,7 +85,7 @@ jobs:
         with:
           path: ~/.cache/panda-busybox
           key: panda-busybox-${{ hashFiles('tests/busybox.sh') }}
-      - name: Taint and record/replay on 11 arches (busybox guests)
+      - name: Taint and record/replay on 12 arches (busybox guests)
         if: steps.busybox.outputs.run
         # Its busybox comes from the pandare cache (the busybox-dist job fills it); a miss means
         # cross-building 11 arches here, hours. Fail quickly instead and re-run once it's cached.
