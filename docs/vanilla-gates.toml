@@ -1499,6 +1499,17 @@ required_action = "Reject PANDA callback/plugin/mutating control activation in v
 vanilla_verified = false
 
 [[overlay]]
+id = "event-registry"
+class = "runtime-gate"
+capability = "analysis-callbacks"
+paths = ["engine/src/panda/src/events.c", "engine/src/panda/src/events-core.c", "engine/src/include/panda/events.h", "engine/src/include/panda/events-internal.h", "engine/src/include/panda/admission.h"]
+functions = ["panda_event_declare", "panda_subscribe", "panda_event_emit", "panda_event_open", "panda_admit", "panda_events_owner_gone"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Every subscription is admitted by panda_admit (frozen ANALYSIS provisioning, modes, KVM, rr); with none admitted, emitters see no subscribers. Core events are declared on first use of the registry, including in vanilla."
+required_action = "Vanilla must not declare or admit events; sources must test panda_event_wanted before building arguments."
+vanilla_verified = false
+
+[[overlay]]
 id = "analysis-lifecycle"
 class = "runtime-gate"
 capability = "analysis-lifecycle"

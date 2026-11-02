@@ -31,6 +31,7 @@ PANDAENDCOMMENT */
 #include "panda/common.h"
 #include "panda/callbacks/cb-trampolines.h"
 #include "panda/callbacks/cb-support.h"
+#include "panda/events-internal.h"
 #include "panda/panda_qemu_plugin_helpers.h"
 
 #include "qemu/rcu.h"
@@ -49,6 +50,7 @@ PANDAENDCOMMENT */
 #include "system/kvm.h"
 #include "system/analysis-policy.h"
 #include "qemu/error-report.h"
+#include "panda/admission.h"
 
 #define SOFTMMU_DIR "/" TARGET_NAME "-softmmu"
 #define LIBRARY_NAME "/libpanda-" TARGET_NAME ".so"
@@ -143,27 +145,36 @@ bool panda_guest_mutation_allowed(void)
     return replay_mode == REPLAY_MODE_NONE;
 }
 
-/* A guest_hypercall callback may mutate during record/replay: its answer is
- * logged while recording and replayed in its place (replay-effect.h). */
+/* The registry's admission (panda/admission.h). A guest_hypercall callback may mutate during
+ * record/replay: its answer is logged while recording and replayed in its place
+ * (replay-effect.h). */
+static PandaAdmit callback_admit(panda_cb_type type, uint32_t modes, bool observe_only)
+{
+    return panda_admit(panda_callback_supported_modes(type), 0,
+                       type == PANDA_CB_GUEST_HYPERCALL, modes, observe_only);
+}
+
 static bool callback_mode_valid(panda_cb_type type, uint32_t modes,
                                 bool observe_only)
 {
-    if (!analysis_policy_is_frozen() ||
-        !analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
-        return false;
-    }
-    if (kvm_enabled()) {
-        return modes & PANDA_MODE_KVM;
-    }
-    if (replay_mode != REPLAY_MODE_NONE && !(modes & PANDA_MODE_RR)) {
-        return false;
-    }
-    return replay_mode == REPLAY_MODE_NONE || observe_only ||
-           type == PANDA_CB_GUEST_HYPERCALL;
+    return callback_admit(type, modes, observe_only) == PANDA_ADMIT_OK;
+}
+
+static const char *callback_name(panda_cb_type type)
+{
+    panda_event_id ev = panda_core_event(type);
+    return ev ? panda_event_name(ev) : "(removed type)";
 }
 
 static bool panda_callbacks_rr_safe(bool replay, Error **errp)
 {
+    char *why = NULL;
+
+    if (!panda_events_rr_safe(replay, &why)) {
+        error_setg(errp, "%s", why);
+        g_free(why);
+        return false;
+    }
     QEMU_LOCK_GUARD(&panda_cbs_lock);
     for (int type = 0; type < PANDA_CB_LAST; type++) {
         for (panda_cb_list *cb = panda_cbs[type]; cb; cb = cb->next) {
@@ -171,8 +182,8 @@ static bool panda_callbacks_rr_safe(bool replay, Error **errp)
             if (cb->enabled &&
                 (!(entry->modes & PANDA_MODE_RR) ||
                  (!entry->observe_only && type != PANDA_CB_GUEST_HYPERCALL))) {
-                error_setg(errp, "PANDA callback %d requires RR compatibility and "
-                           "observe-only access for %s", type,
+                error_setg(errp, "PANDA callback %s requires RR compatibility and "
+                           "observe-only access for %s", callback_name(type),
                            replay ? "replay" : "recording (mutation effects are not logged)");
                 return false;
             }
@@ -351,6 +362,7 @@ static void dlclose_plugin(int plugin_idx) {
     bool exported_symbols = panda_plugins[plugin_idx].exported_symbols;
     /* init_plugin can register then fail without running uninit_plugin. */
     panda_unregister_transient_reset(plugin);
+    panda_events_owner_gone(plugin);
     panda_delete_plugin(plugin_idx);
     dlclose(plugin);
     if(exported_symbols) {
@@ -1031,12 +1043,21 @@ void panda_block_cbs_changed(void)
     panda_cb_list_changed(PANDA_CB_START_BLOCK_EXEC, true);
 }
 
+/* Why a legacy registration (all supported modes, mutating) was refused. */
+static G_NORETURN void callback_refused(panda_cb_type type)
+{
+    uint32_t supported = panda_callback_supported_modes(type);
+    error_report("PANDA callback %s: registration refused: %s", callback_name(type),
+                 supported ? panda_admit_reason(callback_admit(type, supported, false))
+                           : "this engine has no call site or trampoline for it");
+    exit(EXIT_FAILURE);
+}
+
 void panda_register_callback(void *plugin, panda_cb_type type, panda_cb cb)
 {
     if (!panda_register_callback_modes(plugin, type, cb,
                                       panda_callback_supported_modes(type), false)) {
-        error_report("PANDA callback %d: registration refused; declare modes and observe-only for replay", type);
-        exit(EXIT_FAILURE);
+        callback_refused(type);
     }
 }
 
@@ -1072,8 +1093,7 @@ void panda_register_callback_with_context(void *plugin, panda_cb_type type, pand
 {
     if (!panda_register_callback_with_context_modes(plugin, type, cb, context,
             panda_callback_supported_modes(type), false)) {
-        error_report("PANDA callback %d: registration refused; declare modes and observe-only for replay", type);
-        exit(EXIT_FAILURE);
+        callback_refused(type);
     }
 }
 
@@ -1240,7 +1260,9 @@ void panda_enable_callback_with_context(void *plugin, panda_cb_type type, panda_
                 found = true;
                 const PandaCallbackEntry *entry = (const PandaCallbackEntry *)plist;
                 if (!callback_mode_valid(type, entry->modes, entry->observe_only)) {
-                    error_report("PANDA callback %d: enabling refused in the active mode", type);
+                    error_report("PANDA callback %s: enabling refused: %s", callback_name(type),
+                                 panda_admit_reason(callback_admit(type, entry->modes,
+                                                                   entry->observe_only)));
                     return;
                 }
                 qatomic_set(&plist->enabled, true);
@@ -1289,6 +1311,29 @@ void panda_unregister_callbacks(void *plugin)
     }
 }
 
+const char *panda_event_owner_name(void *owner)
+{
+    for (int i = 0; i < nb_panda_plugins; i++) {
+        if (panda_plugins[i].plugin == owner) {
+            return panda_plugins[i].name;
+        }
+    }
+    return NULL;
+}
+
+/* A core callback list in an event listing: its subscribers are the registered callbacks. */
+void panda_core_event_describe_subs(int type, GString *out, bool json)
+{
+    QEMU_LOCK_GUARD(&panda_cbs_lock);
+    for (panda_cb_list *cb = panda_cbs[type]; cb; cb = cb->next) {
+        const PandaCallbackEntry *entry = (const PandaCallbackEntry *)cb;
+        const char *owner = panda_event_owner_name(cb->owner);
+        panda_events_describe_sub(out, json, owner ? owner : "?",
+                                  cb->enabled ? "active" : "disabled", "panda_register_callback",
+                                  entry->observe_only ? "observe" : "mutate", entry->modes);
+    }
+}
+
 /**
  * @brief Enables the specified plugin.
  *
@@ -1308,7 +1353,9 @@ void panda_enable_plugin(void *plugin)
                 if (callback_mode_valid(i, entry->modes, entry->observe_only)) {
                     qatomic_set(&plist->enabled, true);
                 } else {
-                    error_report("PANDA callback %d: enabling refused in the active mode", i);
+                    error_report("PANDA callback %s: enabling refused: %s", callback_name(i),
+                                 panda_admit_reason(callback_admit(i, entry->modes,
+                                                                   entry->observe_only)));
                 }
             }
             plist = plist->next;

@@ -23,6 +23,7 @@
 #include "migration/snapshot.h"
 #include "panda/plugin.h"
 #include "panda/hooks.h"
+#include "panda/events-internal.h"
 #include "system/penguin.h"
 
 enum { RR_REQ_RECORD, RR_REQ_RECORD_END, RR_REQ_REPLAY };
@@ -74,6 +75,9 @@ static void rr_request_run(void *opaque)
         }
         break;
     }
+    /* Admission depends on the mode: a subscription made while the request waited, or refused
+     * during the recording that just ended, is decided again. */
+    panda_events_reevaluate();
     if (err) {
         error_reportf_err(err, "PANDA record/replay %s: ", r->name ? r->name : "end");
     }
