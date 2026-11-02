@@ -12,8 +12,7 @@
 #   IMAGES        where the images are built (default $OUT/images)
 #   TESTS         default "taint taint_mmio taint_errors"
 #   OUT, JOBS     as for run.sh (JOBS default 4)
-# Arches: default all of mkbusybox's but powerpc (32-bit; its guest hangs on its first disk write
-# after loading a snapshot, so the tests can't run there yet).
+# Arches: default all of mkbusybox's.
 set -euo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -29,7 +28,7 @@ DL=${DL:-$HOME/.cache/panda-busybox}
 OUT=${OUT:-${TMPDIR:-/tmp}/panda-busybox-$(date +%Y%m%d-%H%M%S)}
 IMAGES=${IMAGES:-$OUT/images}
 export TESTS=${TESTS:-taint taint_mmio taint_errors} JOBS=${JOBS:-4} OUT PANDA_PYTHON
-ARCHES=${*:-x86_64 aarch64 armel mipsel mipseb mips64el mips64eb powerpc64 powerpc64le riscv64 loongarch64}
+ARCHES=${*:-x86_64 aarch64 armel mipsel mipseb mips64el mips64eb powerpc powerpc64 powerpc64le riscv64 loongarch64}
 
 mkdir -p "$DL" "$IMAGES"
 if [ ! -d "$DL/kernels/6.13" ]; then
