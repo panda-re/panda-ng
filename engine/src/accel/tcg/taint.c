@@ -3582,6 +3582,30 @@ static void chk_store(Pass *p, TCGv_i64 a, MemOpIdx oi)
     gen_set_label(done);
 }
 
+/*
+ * Elastic, check variant: a load helper (MIPS ll/lld) is a guest load done in C, so it is tested
+ * like a qemu_ld, before the call. Lane-store helpers need nothing here: with no stage they store
+ * clean bytes (taint_helper_store_lane), and helper copies and fills move memory's own shadow.
+ */
+static void chk_load_helper(Pass *p, TCGOp *op)
+{
+    const TCGHelperInfo *info = tcg_call_info(op);
+    int no = TCGOP_CALLO(op), ni = TCGOP_CALLI(op);
+    TCGTemp *oit;
+
+    if (!info->name || !load_helpers || !g_hash_table_contains(load_helpers, info->name) ||
+        no != 1 || ni != 3 || !is_env(arg_temp(op->args[no]))) {
+        return;
+    }
+    oit = arg_temp(op->args[no + 2]);
+    if (oit->kind != TEMP_CONST) {
+        return;
+    }
+    stats.ops++;
+    p->s->emit_before_op = op;
+    chk_load(p, copy_addr(arg_temp(op->args[no + 1]), pool(&p->addr)), oit->val);
+}
+
 /* The check variant instruments only guest memory: CPU state is clean while it runs. */
 static void check_op(Pass *p, TCGOp *op, TCGOp *next)
 {
@@ -3591,6 +3615,10 @@ static void check_op(Pass *p, TCGOp *op, TCGOp *next)
     TCGv_i64 a, a2 = NULL;
     MemOpIdx oi;
 
+    if (op->opc == INDEX_op_call) {
+        chk_load_helper(p, op);
+        return;
+    }
     if (!load && op->opc != INDEX_op_qemu_st && op->opc != INDEX_op_qemu_st2) {
         return;
     }
