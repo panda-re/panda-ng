@@ -167,7 +167,9 @@ jobs:
       - name: Build the busybox guests' busybox
         run: |
           rev=$(sed -n 's/^BUSYBOX_REV=//p' tests/busybox.sh)
-          nix build -L --no-link --print-out-paths "github:rehosting/busybox/$rev#dist"
+          # Eleven cross gccs at once get the pod OOM-killed; cachix pushes each path as it's built,
+          # so a re-run resumes.
+          nix build -L --no-link --print-out-paths --max-jobs 2 --cores 4 "github:rehosting/busybox/$rev#dist"
 
   rust:
     if: ${{ !github.event.pull_request.draft }}
