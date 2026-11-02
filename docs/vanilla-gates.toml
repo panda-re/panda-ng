@@ -1360,15 +1360,15 @@ vanilla_verified = false
 [[patch]]
 id = "0097"
 file = "engine/patches/11.1.2/0097-target-loongarch-migrate-the-constant-timer.patch"
-sha256 = "f5d10cffaff8948f36a4c06e02c6c0eea8af4a797027088bb8a6a66a6a4a5b76"
+sha256 = "e2c58dfa7618d7b344f110667c4ce5b5d8fd99abedcb8721d30cdf7d298c6d88"
 class = "upstream-fix-needs-off-path"
 capability = "rr-snapshot"
 paths = ["target/loongarch/machine.c"]
-functions = ["loongarch_cpu_vmstate", "cpu/timer subsection"]
+functions = ["loongarch_cpu_vmstate", "cpu/timer subsection", "cpu/common subsection"]
 hunk_contexts = ["static const VMStateDescription vmstate_tlb = {", "const VMStateDescription vmstate_loongarch_cpu = {"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "None: the constant timer is migrated (cpu/timer subsection) whenever TCG is in use."
-required_action = "Keep upstream's snapshot format for vanilla, or send the subsection only under a capability."
+current_gate = "None: the constant timer and the CPU's common state are migrated (cpu/timer and cpu/common subsections) whenever TCG is in use."
+required_action = "Keep upstream's snapshot format for vanilla, or send the subsections only under a capability."
 vanilla_verified = false
 
 [[patch]]
