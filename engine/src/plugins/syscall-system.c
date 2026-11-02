@@ -17,7 +17,7 @@ QEMU_BUILD_BUG_ON(QEMU_PLUGIN_SYSCALL_ENTER != SYSCALL_TRAP_ENTER);
 QEMU_BUILD_BUG_ON(QEMU_PLUGIN_SYSCALL_RETURN != SYSCALL_TRAP_RETURN);
 
 static qemu_plugin_id_t sc_id;
-static bool sc_registered;
+static SyscallTrapConsumer *sc_trap;    /* one plugin at a time */
 static qemu_plugin_syscall_event_cb_t sc_enter_cb, sc_return_cb;
 static void *sc_udata;
 
@@ -85,12 +85,13 @@ bool qemu_plugin_register_syscall_event_cb(qemu_plugin_id_t id,
                                            qemu_plugin_syscall_event_cb_t ret,
                                            void *userdata)
 {
-    if ((sc_registered && sc_id != id) ||
-        !syscall_trap_set_consumer(&sc_ops, NULL)) {
+    if (sc_trap && sc_id != id) {
         return false;
     }
+    if (!sc_trap) {
+        sc_trap = syscall_trap_add_consumer(&sc_ops, NULL, 0);
+    }
     sc_id = id;
-    sc_registered = true;
     sc_enter_cb = enter;
     sc_return_cb = ret;
     sc_udata = userdata;
@@ -101,15 +102,14 @@ bool qemu_plugin_syscall_watch(qemu_plugin_id_t id,
                                enum qemu_plugin_syscall_abi abi,
                                int64_t num, unsigned flags)
 {
-    if (!sc_registered || sc_id != id || abi >= QEMU_PLUGIN_SYSCALL_ABI_COUNT ||
+    if (!sc_trap || sc_id != id || abi >= QEMU_PLUGIN_SYSCALL_ABI_COUNT ||
         num < -1 || num >= SYSCALL_TRAP_NUMS) {
         return false;
     }
     if (!sc_return_cb) {
         flags &= ~QEMU_PLUGIN_SYSCALL_RETURN;
     }
-    syscall_trap_watch(abi, num, flags);
-    return true;
+    return syscall_trap_watch(sc_trap, abi, num, flags);
 }
 
 void qemu_plugin_syscall_stats(uint64_t *pending, uint64_t *full,

@@ -89,6 +89,7 @@ static struct penguin_sc_layout psc_layout = {
 };
 static uint64_t psc_next_id;
 static bool psc_consumer;
+static SyscallTrapConsumer *psc_trap;  /* while psc_consumer */
 static bool psc_detaching;
 static unsigned psc_kernel_hooks;
 
@@ -264,9 +265,10 @@ static void psc_rebuild(void)
                 }
             }
         }
-        syscall_trap_watch(abi, -1, t->all || t->unknown ? SYSCALL_TRAP_ENTER : 0);
+        syscall_trap_watch(psc_trap, abi, -1,
+                           t->all || t->unknown ? SYSCALL_TRAP_ENTER : 0);
         for (int nr = 0; nr < SYSCALL_TRAP_NUMS; nr++) {
-            syscall_trap_watch(abi, nr, nums && nums[nr].hooks ?
+            syscall_trap_watch(psc_trap, abi, nr, nums && nums[nr].hooks ?
                                         SYSCALL_TRAP_ENTER : 0);
         }
     }
@@ -284,7 +286,7 @@ static void psc_mark_dirty(void)
     qatomic_set(&psc_dirty, true);
     if (psc_consumer && !psc_detaching) {
         for (int abi = 0; abi < SYSCALL_ABI_COUNT; abi++) {
-            syscall_trap_watch(abi, -1, SYSCALL_TRAP_ENTER);
+            syscall_trap_watch(psc_trap, abi, -1, SYSCALL_TRAP_ENTER);
         }
     }
 }
@@ -1494,8 +1496,11 @@ bool __attribute__((visibility("default")))
 set_penguin_syscall_callback(penguin_syscall_cb_t cb, void *opaque)
 {
     QEMU_LOCK_GUARD(&psc_lock);
-    if (psc_detaching || !syscall_trap_set_consumer(&psc_ops, NULL)) {
+    if (psc_detaching) {
         return false;
+    }
+    if (!psc_trap) {
+        psc_trap = syscall_trap_add_consumer(&psc_ops, NULL, 0);
     }
     psc_cb_opaque = opaque;
     qatomic_set(&psc_cb, cb);
@@ -1537,11 +1542,12 @@ penguin_syscall_detach(void)
     /* Core refuses live injections before mutation. ABORT/free uses the old
      * callback and opaque outside both core and psc locks. Writers cannot
      * reacquire or publish watches while this drain is in progress. */
-    bool cleared = !owned || syscall_trap_clear_consumer(&psc_ops, NULL);
+    bool cleared = !owned || syscall_trap_remove_consumer(psc_trap);
 
     qemu_mutex_lock(&psc_lock);
     if (cleared) {
         qatomic_set(&psc_consumer, false);
+        psc_trap = NULL;
         qatomic_set(&psc_cb, NULL);
         psc_cb_opaque = NULL;
         qemu_mutex_lock(&psc_boot_lock);
