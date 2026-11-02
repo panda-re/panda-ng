@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Mon, 2 Nov 2026 10:58:02 -0500
+Subject: [PATCH] hw/pci-host/ppce500: rebuild the PCI windows on load
+
+The e500 PCI controller's outbound windows (CPU address -> PCI memory)
+and inbound windows (PCI address -> system memory) are memory region
+aliases built by e500_update_pow/_piw when the guest writes the window
+registers. The registers are migrated, but nothing rebuilds the aliases
+on load, so a guest started with -loadvm (or migrated to a fresh
+destination) has no outbound windows: its PCI BARs are unreachable and
+the first access to a PCI device goes nowhere.
+
+Repro: boot Linux on ppce500 with a virtio-blk-pci disk mounted, savevm,
+then -loadvm in a new process and write a file to the disk: the guest
+idles forever waiting for the request. (A loadvm in the same process
+keeps the windows the guest built before, so it needs the host bridge
+fix that follows to show.)
+
+Rebuild every window from the loaded registers in a post_load, the same
+calls the register writes make. The migration stream is unchanged.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+
+Origin: new
+---
+ hw/pci-host/ppce500.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/hw/pci-host/ppce500.c b/hw/pci-host/ppce500.c
+index 67180ba5f05078f5b5d6ebb33f0b1de36fdfa90c..b74b2649e8d5c4ec0627214ca57a211402b63c36 100644
+--- a/hw/pci-host/ppce500.c
++++ b/hw/pci-host/ppce500.c
+@@ -398,10 +398,30 @@ static const VMStateDescription vmstate_pci_inbound = {
+     }
+ };
+ 
++/*
++ * The windows' memory regions are built only when the guest writes their registers. Rebuild
++ * them from the loaded registers, or a loaded guest's PCI BARs (outbound) and its devices' DMA
++ * into RAM (inbound) go nowhere.
++ */
++static int ppce500_pci_post_load(void *opaque, int version_id)
++{
++    PPCE500PCIState *pci = opaque;
++    int i;
++
++    for (i = 0; i < PPCE500_PCI_NR_POBS; i++) {
++        e500_update_pow(pci, i);
++    }
++    for (i = 0; i < PPCE500_PCI_NR_PIBS; i++) {
++        e500_update_piw(pci, i);
++    }
++    return 0;
++}
++
+ static const VMStateDescription vmstate_ppce500_pci = {
+     .name = "ppce500_pci",
+     .version_id = 1,
+     .minimum_version_id = 1,
++    .post_load = ppce500_pci_post_load,
+     .fields = (const VMStateField[]) {
+         VMSTATE_STRUCT_ARRAY(pob, PPCE500PCIState, PPCE500_PCI_NR_POBS, 1,
+                              vmstate_pci_outbound, struct pci_outbound),

@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Mon, 2 Nov 2026 10:58:02 -0500
+Subject: [PATCH] hw/pci-host/ppce500: migrate the host bridge's config space
+
+The e500 host bridge's PCI function (e500-host-bridge) has no vmsd, so
+its config space is not migrated. Its BAR0 maps CCSR into PCI memory,
+which is where devices' MSI writes reach the MPIC's MSI registers
+(MSIIR). After any load BAR0 is unassigned (info pci: "not mapped"),
+every MSI is dropped, and a guest whose devices use MSI or MSI-X waits
+forever for their interrupts.
+
+Repro: boot Linux on ppce500 with a virtio-blk-pci disk mounted (Linux
+gives it MSI-X), savevm, loadvm (in the same process or with -loadvm,
+the latter also needing the previous patch), then write a file to the
+disk: the guest idles forever with the request completed and its
+interrupt lost.
+
+Give the bridge a vmsd with its PCI device state. A snapshot from an
+unfixed build still loads (the bridge keeps its reset state, as
+before); an unfixed build refuses a new snapshot (unknown section
+e500-host-bridge).
+
+SPDX-License-Identifier: GPL-2.0-or-later
+
+Origin: new
+---
+ hw/pci-host/ppce500.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/hw/pci-host/ppce500.c b/hw/pci-host/ppce500.c
+index b74b2649e8d5c4ec0627214ca57a211402b63c36..85c5fedb9dafcb24bd9ae315e98506255c36ccae 100644
+--- a/hw/pci-host/ppce500.c
++++ b/hw/pci-host/ppce500.c
+@@ -509,6 +509,21 @@ static void e500_pcihost_realize(DeviceState *dev, Error **errp)
+     pci_bus_set_route_irq_fn(b, e500_route_intx_pin_to_irq);
+ }
+ 
++/*
++ * The bridge's config space: BAR0 maps CCSR into PCI memory, where devices' MSI writes reach the
++ * interrupt controller's MSI registers. Without it a loaded guest's BAR0 is unassigned and every
++ * MSI is lost.
++ */
++static const VMStateDescription vmstate_e500_host_bridge = {
++    .name = "e500-host-bridge",
++    .version_id = 1,
++    .minimum_version_id = 1,
++    .fields = (const VMStateField[]) {
++        VMSTATE_PCI_DEVICE(parent, PPCE500PCIBridgeState),
++        VMSTATE_END_OF_LIST()
++    }
++};
++
+ static void e500_host_bridge_class_init(ObjectClass *klass, const void *data)
+ {
+     DeviceClass *dc = DEVICE_CLASS(klass);
+@@ -519,6 +534,7 @@ static void e500_host_bridge_class_init(ObjectClass *klass, const void *data)
+     k->device_id = PCI_DEVICE_ID_MPC8533E;
+     k->class_id = PCI_CLASS_PROCESSOR_POWERPC;
+     dc->desc = "Host bridge";
++    dc->vmsd = &vmstate_e500_host_bridge;
+     /*
+      * PCI-facing part of the host bridge, not usable without the
+      * host-facing part, which can't be device_add'ed, yet.
