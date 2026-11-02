@@ -92,6 +92,7 @@ headers (examples/consumer shows it).
 api = ["py:Panda.load_plugin", "flake:buildPandaPlugin", "plugin:cskeleton", "plugin:cppskeleton"]
 docs = ["docs/guides/plugins.md", "README.md"]
 tests = ["tests/guest.py"]
+patches = ["0102"]
 
 [[feature]]
 id = "multi-engine"

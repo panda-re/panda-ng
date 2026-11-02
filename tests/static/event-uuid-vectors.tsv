@@ -1,0 +1,36 @@
+# Event UUID vectors: UUIDv5(namespace, name + NUL + hashed signature).
+# Read by tests/static/events_registry.py (C and Python) and
+# rust/panda-bindings/tests/event_uuid_vectors.rs (Rust).
+# Tab-separated: namespace, name, signature as written, canonical hashed part, expected UUID.
+# The signature may be empty or hold spaces; the hashed part may be empty. Lines starting
+# with # are comments. Do not change a row's UUID: a change means identity moved.
+6ba7b810-9dad-11d1-80b4-00c04fd430c8	hooks.hit	cpu:ptr,pc:u64,hook:ptr	cpu:ptr,pc:u64,hook:ptr	13ac1261-5fea-5a29-84d2-8ddc820e619e
+40c975de-b1b1-4814-923b-7b613e2fef15	cb.before_block_exec	cpu:ptr,tb:ptr	cpu:ptr,tb:ptr	a9d4e506-b10c-54c5-bf4d-a40c481f3264
+40c975de-b1b1-4814-923b-7b613e2fef15	cb.after_block_exec	cpu:ptr,tb:ptr,exit_code:u8	cpu:ptr,tb:ptr,exit_code:u8	efb812f9-522a-5daa-a1b9-7904c3316744
+40c975de-b1b1-4814-923b-7b613e2fef15	cb.virt_mem_after_write	cpu:ptr,pc:u64,addr:u64,size:u64,buf:ptr	cpu:ptr,pc:u64,addr:u64,size:u64,buf:ptr	034ba1a8-5d85-5b78-8967-59a4d22cdfc9
+40c975de-b1b1-4814-923b-7b613e2fef15	cb.main_loop_wait			73c467f2-8007-5f2c-8805-4b3e614e8e3f
+40c975de-b1b1-4814-923b-7b613e2fef15	cb.before_handle_exception	cpu:ptr,exception_index:i32	cpu:ptr,exception_index:i32	e1f3e8d7-7462-58a4-85f9-25f6c3038a9f
+40c975de-b1b1-4814-923b-7b613e2fef15	syscall.enter	cpu:ptr,abi:u32,num:u64	cpu:ptr,abi:u32,num:u64	7a47c739-3097-5337-94a2-a30d572d9b5d
+40c975de-b1b1-4814-923b-7b613e2fef15	syscall.enter	cpu:ptr,abi:u32,num:u64|extra:u8	cpu:ptr,abi:u32,num:u64	7a47c739-3097-5337-94a2-a30d572d9b5d
+40c975de-b1b1-4814-923b-7b613e2fef15	syscall.enter	cpu:ptr,abi:u32,num:u32	cpu:ptr,abi:u32,num:u32	7cdf5c2e-7425-59ff-91fc-1075ca2b840b
+40c975de-b1b1-4814-923b-7b613e2fef15	syscall.enter	 cpu : ptr , abi:u32 ,num:u64 ,	cpu:ptr,abi:u32,num:u64	7a47c739-3097-5337-94a2-a30d572d9b5d
+6ba7b810-9dad-11d1-80b4-00c04fd430c8	a.x			f7f97a40-2163-524b-bb91-d6ab21a5181b
+6ba7b810-9dad-11d1-80b4-00c04fd430c8	x	a:u8,b:u64,	a:u8,b:u64	f7d6d002-8222-5f27-8183-6f644b63f7dc
+6ba7b810-9dad-11d1-80b4-00c04fd430c8	x	a:u8,b:u64|	a:u8,b:u64	f7d6d002-8222-5f27-8183-6f644b63f7dc
+6ba7b810-9dad-11d1-80b4-00c04fd430c8	types	a:u8,b:u16,c:u32,d:u64,e:i8,f:i16,g:i32,h:i64,p:ptr	a:u8,b:u16,c:u32,d:u64,e:i8,f:i16,g:i32,h:i64,p:ptr	f45f926a-9cb5-50f6-bc0a-a988660731b5
+6ba7b810-9dad-11d1-80b4-00c04fd430c8	ünïcode.name	a:u8	a:u8	1cbbcdb4-630d-5dd6-af23-6f7a2ff69806
+# The extended grammar: bool is u8 for identity; ptr<T>, ptr<str>, ptr<int[len]> and int[N]
+# hash as written (canonical: no spaces, N without leading zeros).
+40c975de-b1b1-4814-923b-7b613e2fef15	t.flags	cpu:ptr,taken:u8	cpu:ptr,taken:u8	77d9b2be-913b-57fa-affc-dda12c6bd4cc
+40c975de-b1b1-4814-923b-7b613e2fef15	t.flags	cpu:ptr,taken:bool	cpu:ptr,taken:u8	77d9b2be-913b-57fa-affc-dda12c6bd4cc
+40c975de-b1b1-4814-923b-7b613e2fef15	t.flags	 cpu:ptr , taken : bool ,	cpu:ptr,taken:u8	77d9b2be-913b-57fa-affc-dda12c6bd4cc
+40c975de-b1b1-4814-923b-7b613e2fef15	t.flags	cpu:ptr|taken:bool	cpu:ptr	4f8dc62d-17bd-5fa6-8c35-9576df88e083
+40c975de-b1b1-4814-923b-7b613e2fef15	cb.before_block_exec	cpu:ptr<CPUState>,tb:ptr<TranslationBlock>	cpu:ptr<CPUState>,tb:ptr<TranslationBlock>	5d72ac32-0425-5cfa-8bad-4e90ec14f744
+40c975de-b1b1-4814-923b-7b613e2fef15	cb.before_block_exec	cpu:ptr < CPUState >,tb:ptr	cpu:ptr<CPUState>,tb:ptr	57cd59df-b16f-5444-b32a-dcd109e9a00f
+40c975de-b1b1-4814-923b-7b613e2fef15	t.open	cpu:ptr<CPUState>,path:ptr<str>,flags:i32	cpu:ptr<CPUState>,path:ptr<str>,flags:i32	db2010fb-8ca4-5354-a10d-ed48d133068e
+40c975de-b1b1-4814-923b-7b613e2fef15	t.write	fd:i32,n:u64,buf:ptr<u8[n]>	fd:i32,n:u64,buf:ptr<u8[n]>	779d078a-bae7-53c6-acd6-72d2ab7da4d2
+40c975de-b1b1-4814-923b-7b613e2fef15	t.write	fd:i32,n:u64|buf:ptr<u8[n]>	fd:i32,n:u64	13b906ce-e181-57d2-a8a8-d90b15a2d69f
+40c975de-b1b1-4814-923b-7b613e2fef15	t.regs	cpu:ptr,regs:u64[4]	cpu:ptr,regs:u64[4]	78b8042b-07d2-5a9e-9da5-eb76791af67f
+40c975de-b1b1-4814-923b-7b613e2fef15	t.regs	cpu:ptr,regs : u64 [ 04 ]	cpu:ptr,regs:u64[4]	78b8042b-07d2-5a9e-9da5-eb76791af67f
+40c975de-b1b1-4814-923b-7b613e2fef15	t.regs	cpu:ptr,regs:u64[8]	cpu:ptr,regs:u64[8]	6ff1e3a4-ef7d-5227-b3fe-6857dd313635
+40c975de-b1b1-4814-923b-7b613e2fef15	t.mixed	a:bool,d:u8,b:i16[3],c:ptr<u32[d]>|e:bool,f:u8[2]	a:u8,d:u8,b:i16[3],c:ptr<u32[d]>	48aab041-c519-54e8-b374-f23c906115e9
