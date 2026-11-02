@@ -1399,6 +1399,34 @@ current_gate = "None: openpic_post_load sets the CPUs' external proxy mode from 
 required_action = "Keep upstream's load path for vanilla, or show it equals the state a guest GCR write sets."
 vanilla_verified = false
 
+[[patch]]
+id = "0100"
+file = "engine/patches/11.1.2/0100-hw-pci-host-ppce500-rebuild-the-PCI-windows-on-load.patch"
+sha256 = "3b082056e6d64e00a3e1c114422d4525f389d54b536c169089906a834fc62180"
+class = "upstream-fix-needs-off-path"
+capability = "rr-snapshot"
+paths = ["hw/pci-host/ppce500.c"]
+functions = ["ppce500_pci_post_load", "e500_update_pow", "e500_update_piw"]
+hunk_contexts = ["static const VMStateDescription vmstate_pci_inbound = {"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "None: the PCI outbound and inbound windows are rebuilt from the loaded registers on every load; the snapshot format is unchanged."
+required_action = "Keep upstream's load path for vanilla, or show the rebuild matches what the guest's window register writes set."
+vanilla_verified = false
+
+[[patch]]
+id = "0101"
+file = "engine/patches/11.1.2/0101-hw-pci-host-ppce500-migrate-the-host-bridge-s-config.patch"
+sha256 = "bc5d8a51536847182632ada40b57fa084d1fe1a64714b43835def890acfeeed2"
+class = "upstream-fix-needs-off-path"
+capability = "rr-snapshot"
+paths = ["hw/pci-host/ppce500.c"]
+functions = ["e500_host_bridge_class_init", "e500-host-bridge vmsd"]
+hunk_contexts = ["static void e500_pcihost_realize(DeviceState *dev, Error **errp)", "static void e500_host_bridge_class_init(ObjectClass *klass, const void *data)"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "None: the host bridge's PCI config space is migrated (section e500-host-bridge) on every save."
+required_action = "Keep upstream's snapshot format for vanilla, or send the section only under a capability."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"

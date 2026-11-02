@@ -212,7 +212,7 @@ recording can start at any point.
 
 **Tests:** `tests/rr.py`, `tests/rrcb.py`, `tests/rrstop.py`, `tests/rrload.py`, `tests/rr_blocks.py`, `tests/replay_guard.py`, `tests/static/replay_policy.py`, `tests/static/replay_native.py`, `tests/static/replay_bh.py`
 
-**Engine patches:** 0025-0028, 0030, 0037-0040, 0050-0052, 0066-0068, 0072-0073, 0084-0085, 0095-0097, 0099 ([series](reference/patches.md))
+**Engine patches:** 0025-0028, 0030, 0037-0040, 0050-0052, 0066-0068, 0072-0073, 0084-0085, 0095-0097, 0099-0101 ([series](reference/patches.md))
 
 <a id="recorded-ram-effects"></a>
 ## Recorded analysis RAM and register effects
@@ -291,7 +291,7 @@ and a savevm right after a loadvm takes as long as any other.
 
 **Tests:** `tests/reset.py`, `tests/api.py`
 
-**Engine patches:** 0061, 0063, 0074-0075, 0078, 0089, 0095-0099 ([series](reference/patches.md))
+**Engine patches:** 0061, 0063, 0074-0075, 0078, 0089, 0095-0101 ([series](reference/patches.md))
 
 <a id="fast-restore"></a>
 ## Fast restore
