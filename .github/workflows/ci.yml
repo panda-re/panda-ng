@@ -14,6 +14,7 @@ name: CI
 #   build-arm64  nix build .#python on an aarch64 host (ubuntu-24.04-arm), as release.yaml does
 #             after the merge: the engine's layout depends on the host (pthread sizes, which
 #             accelerators it builds), and release.yaml runs only on main.
+#   busybox-dist  tests/busybox.sh's busybox, built on panda-arc into the cache (below).
 #   rust      the checked-in bindings compile for every target feature.
 #   reuse     every file has its copyright and license (REUSE 3.3: LICENSES/, REUSE.toml, SPDX tags).
 #
@@ -86,6 +87,9 @@ jobs:
           key: panda-busybox-${{ hashFiles('tests/busybox.sh') }}
       - name: Taint and record/replay on 11 arches (busybox guests)
         if: steps.busybox.outputs.run
+        # Its busybox comes from the pandare cache (the busybox-dist job fills it); a miss means
+        # cross-building 11 arches here, hours. Fail quickly instead and re-run once it's cached.
+        timeout-minutes: 30
         env:
           PANDA_PYTHON: ${{ github.workspace }}/result-python/bin/python3
           OUT: ${{ github.workspace }}/busybox-out
@@ -133,6 +137,37 @@ jobs:
       - name: Disk
         if: always()
         run: df -h /
+
+  # tests/busybox.sh's busybox (rehosting/busybox #dist, 11 arches cross-built) is in no public
+  # cache, and cross-building it on a hosted runner takes hours. This builds it on panda-arc and,
+  # like the other jobs, pushes it to pandare, so the build job's busybox step pulls it in seconds;
+  # once cached, the job only pulls it. A new BUSYBOX_REV in tests/busybox.sh fills the cache here.
+  busybox-dist:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: panda-arc
+    timeout-minutes: 300
+    env:
+      USER: runner
+      LOGNAME: runner
+      TMPDIR: /home/runner/_work/_temp
+      XDG_CACHE_HOME: /home/runner/_work/.cache
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare runner directories
+        run: mkdir -p "$TMPDIR" "$XDG_CACHE_HOME"
+      - name: Set up Nix
+        uses: rehosting/ci/actions/nix-setup@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache-backend: cachix
+          cachix-name: pandare
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          skip-push: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          enable-kvm: false
+      - name: Build the busybox guests' busybox
+        run: |
+          rev=$(sed -n 's/^BUSYBOX_REV=//p' tests/busybox.sh)
+          nix build -L --no-link --print-out-paths "github:rehosting/busybox/$rev#dist"
 
   rust:
     if: ${{ !github.event.pull_request.draft }}
