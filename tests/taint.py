@@ -78,6 +78,10 @@ def child(mode, image, name, out):
 
         @panda.cb_start_block_exec(observe_only=True)
         def first(cpu, tb):
+            # run_replay only requests the replay; the vCPU can run a block from the boot state
+            # before it starts, and taint refuses anything but a replay.
+            if not panda.libpanda.rr_in_replay():
+                return
             if mode == "taint":
                 panda.taint_enable_labels()
             seen["enabled"] = panda.taint_enable() and panda.taint_enabled()
