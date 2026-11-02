@@ -39,6 +39,34 @@ def upload(panda, name, arch, path=None):
     return path
 
 
+def boot_from_disk(panda, prompt, timeout=3600):
+    """Boot the image from its disk to a root shell on the serial console, for a machine the
+    image's snapshot doesn't fit (another -cpu or -smp; run with -snapshot so nothing is written
+    back). Call from a queue_blocking function; then run_serial_cmd works as after a revert."""
+    from pandare2.panda_expect import TimeoutExpired
+    console = panda.serial_console
+    console.use_unansi = False
+    # The serial console may log root in by itself (it does on debian-13): a prompt ends the wait too.
+    console.update_expectation(f"(?:login: |{prompt})")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            console.expect(timeout=120)
+            break
+        except TimeoutExpired:
+            if time.monotonic() > deadline:
+                raise
+            console.send(b"\r")      # a getty that printed its prompt to a busy console
+    if "login" in console.last_prompt:
+        console.update_expectation(f"(?:{prompt}|Password: )")
+        console.sendline(b"root")
+        console.expect(timeout=300)
+    console.update_expectation(prompt)
+    console.sendline(b"bind 'set enable-bracketed-paste off'")
+    console.expect(timeout=120)
+    console.use_unansi = True
+
+
 def hypercall_args(panda, cpu):
     """(op, a, b, pc) of a test program's hypercall (MAGIC, op, a, b, pc)."""
     return [panda.arch.get_arg(cpu, i, convention="syscall") for i in range(2, 6)]
