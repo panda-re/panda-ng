@@ -1413,6 +1413,20 @@ current_gate = "None: the host bridge's PCI config space is migrated (section e5
 required_action = "Keep upstream's snapshot format for vanilla, or send the section only under a capability."
 vanilla_verified = false
 
+[[patch]]
+id = "0101"
+file = "engine/patches/11.1.2/0101-monitor-info-panda-events-lists-the-PANDA-event-regi.patch"
+sha256 = "ff139e2adde15b9a2a9625f864a705430ef970fd24012dae1ce2fab79337c369"
+class = "inert-in-vanilla"
+capability = "analysis-callbacks"
+paths = ["hmp-commands-info.hx", "monitor/hmp-cmds.c"]
+functions = ["info panda-events", "hmp_info_panda_events"]
+hunk_contexts = ["``info firmware-log``", "#include \"disas/disas.h\""]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Adds the info panda-events monitor command under CONFIG_PANDA; it runs only when typed and reads the registry without changing it."
+required_action = "Leave the command out of the info table for vanilla, or accept it as a monitor-only addition."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
@@ -1505,10 +1519,10 @@ vanilla_verified = false
 id = "event-registry"
 class = "runtime-gate"
 capability = "analysis-callbacks"
-paths = ["engine/src/panda/src/events.c", "engine/src/panda/src/events-core.c", "engine/src/include/panda/events.h", "engine/src/include/panda/events-internal.h", "engine/src/include/panda/admission.h"]
-functions = ["panda_event_declare", "panda_subscribe", "panda_event_emit", "panda_event_open", "panda_admit", "panda_events_owner_gone"]
+paths = ["engine/src/panda/src/events.c", "engine/src/panda/src/events-core.c", "engine/src/panda/src/events-hmp.c", "engine/src/include/panda/events.h", "engine/src/include/panda/events-internal.h", "engine/src/include/panda/admission.h"]
+functions = ["panda_event_declare", "panda_subscribe", "panda_event_emit", "panda_event_open", "panda_admit", "panda_events_owner_gone", "panda_events_startup_done", "events_machine_ready"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "Every subscription is admitted by panda_admit (frozen ANALYSIS provisioning, modes, KVM, rr); with none admitted, emitters see no subscribers. Core events are declared on first use of the registry, including in vanilla."
+current_gate = "Every subscription is admitted by panda_admit (frozen ANALYSIS provisioning, modes, KVM, rr); with none admitted, emitters see no subscribers. Core events are declared on first use of the registry, including in vanilla. A machine-init-done notifier (added when the library loads) runs the after-startup check: it returns at once unless analysis_policy_has(ANALYSIS_CAP_ANALYSIS), and the check returns without setting the registry up if nothing used it."
 required_action = "Vanilla must not declare or admit events; sources must test panda_event_wanted before building arguments."
 vanilla_verified = false
 

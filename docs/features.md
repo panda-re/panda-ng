@@ -105,6 +105,7 @@ headers (examples/consumer shows it).
 
 **Tests:** `tests/guest.py`
 
+**Engine patches:** 0101 ([series](reference/patches.md))
 
 <a id="multi-engine"></a>
 ## Several Pandas in one process

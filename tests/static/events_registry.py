@@ -15,9 +15,12 @@ unsubscribe, unload, and emit, open, close and drop, while the run moves between
 record, replay and KVM. A reader can hold a dispatch snapshot across changes and walk it before
 the grace period ends (ASan catches an early free). A failing sequence is shrunk and printed.
 
-Then directed cases: UUIDv5 against Python's uuid5 (and the 10-30 vector), signature parsing
-and the layout PANDA_EVENT_STRUCT gives, PANDA_EVENT_HAS, a subscriber removing a later one
-mid-dispatch, the JSON listing, and the rr check.
+Then directed cases: UUIDv5 against Python's uuid5 (and the 10-30 vector), the shared vectors
+in tests/static/event-uuid-vectors.tsv (which rust/panda-bindings/tests/event_uuid_vectors.rs
+also derives), signature parsing and the layout PANDA_EVENT_STRUCT gives, PANDA_EVENT_HAS, a
+subscriber removing a later one mid-dispatch, the JSON listing, the rr check, and strictness:
+PANDA_EVENTS_STRICT and panda_events_set_strict, and the after-startup report of PENDING and
+MISMATCH subscriptions (a warning, or an error and a false return when strict).
 
     python3 tests/static/events_registry.py [--seqs N] [--seed S]
     (nix build .#checks.x86_64-linux.events-registry)
@@ -44,11 +47,12 @@ OTHER_NS = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")    # uuid.NAMESPACE
 NSS = [PANDA_NS, OTHER_NS]
 ANALYSIS, FUZZ, RR, KVM = 1, 2, 4, 8
 MUTABLE, RR_MUTATE, INSTANCES = 1, 2, 4
-OBSERVE, MUTATE, ORIGINAL = 1, 2, 4
+OBSERVE, MUTATE, ORIGINAL, OPTIONAL = 1, 2, 4, 8
 STATES = ["active", "pending", "mismatch", "refused", "disabled"]
 ACTIVE, PENDING, MISMATCH, REFUSED, DISABLED = range(5)
 NAMES = ["a.x", "a.y", "cb.alpha"]
-SIGS = ["cpu:ptr,pc:u64", "cpu:ptr,pc:u32", "cpu:ptr,pc:u64|flags:u32", "cpu:ptr,pc:u64,"]
+SIGS = ["cpu:ptr,pc:u64", "cpu:ptr,pc:u32", "cpu:ptr,pc:u64|flags:u32", "cpu:ptr,pc:u64,",
+        "cpu:ptr,pc:u64,f:bool", "cpu:ptr,pc:u64,f:u8", "cpu:ptr<CPUState>,pc:u64"]
 CORE = (0, "cb.alpha", "cpu:ptr,pc:u64")        # the stub core table's one declared type
 
 STUBS = {
@@ -106,6 +110,7 @@ static inline QemuMutex *lock_take_(QemuMutex *m) { g_assert(!m->held); m->held 
 #pragma once
 #define error_report(...) (fprintf(stderr, "error: " __VA_ARGS__), fputc('\n', stderr))
 #define warn_report(...) (fprintf(stderr, "warn: " __VA_ARGS__), fputc('\n', stderr))
+#define info_report(...) (fprintf(stderr, "info: " __VA_ARGS__), fputc('\n', stderr))
 ''',
 "system/analysis-policy.h": r'''
 #pragma once
@@ -127,6 +132,13 @@ static inline bool kvm_enabled(void) { return env_kvm; }
 #pragma once
 enum { REPLAY_MODE_NONE, REPLAY_MODE_RECORD, REPLAY_MODE_PLAY };
 extern int replay_mode;
+''',
+"system/system.h": r'''
+#pragma once
+/* The machine-init-done notifiers: the harness records registrations and fires them ('n'). */
+typedef struct Notifier Notifier;
+struct Notifier { void (*notify)(Notifier *notifier, void *data); Notifier *next; };
+void qemu_add_machine_init_done_notifier(Notifier *notify);
 ''',
 "panda/plugin.h": r'''
 #pragma once
@@ -162,6 +174,41 @@ void panda_core_event_describe_subs(int type, GString *out, bool json)
                                   "observe", 7);
     }
 }
+
+static Notifier *machine_ready;
+static int machine_ready_adds;
+void qemu_add_machine_init_done_notifier(Notifier *notify)
+{
+    notify->next = machine_ready;
+    machine_ready = notify;
+    machine_ready_adds++;
+}
+static void machine_ready_fire(void)
+{
+    for (Notifier *n = machine_ready; n; n = n->next) {
+        n->notify(n, NULL);
+    }
+}
+
+/* panda_init (panda_api.c, appended by source()) on these: QEMU's init readies the machine. */
+static bool after_machine_init_ran;
+static bool kvm_at_init;
+static void qemu_init(int argc, char **argv)
+{
+    env_kvm = kvm_at_init;          /* the accelerator is chosen */
+    machine_ready_fire();
+}
+static void wrap_cpu_ops(void) { }
+static const panda_event_uuid NS[2];
+/* A plugin that after_machine_init loads publishes a.x (a subscriber waiting for it binds). */
+static void panda_callbacks_after_machine_init(void *cpu)
+{
+    panda_event_desc d = { sizeof(d), &NS[1], "a.x", "cpu:ptr", 16, 1, 0, 0 };
+    after_machine_init_ran = true;
+    panda_event_declare((void *)(uintptr_t)1, &d);
+}
+#define first_cpu NULL
+int panda_init(int argc, char **argv, char **envp);
 
 static void rcu_flush(void)
 {
@@ -436,12 +483,79 @@ int main(void)
             g_free(f);
             break;
         }
+        case 'I': {         /* uuid: ns-uuid TAB name TAB sig (the vector file's columns) */
+            char *f[3] = { rest + strspn(rest, " ") }, *nl = strchr(rest, '\n');
+            panda_event_uuid ns, u;
+            char *h = NULL, *why = NULL;
+            if (nl) {
+                *nl = 0;
+            }
+            for (int i = 1; i < 3; i++) {
+                f[i] = f[i - 1] ? strchr(f[i - 1], '\t') : NULL;
+                if (f[i]) {
+                    *f[i]++ = 0;
+                }
+            }
+            if (!f[2]) {
+                printf("bad");
+                break;
+            }
+            for (int i = 0, j = 0; i < 16; i++, j += 2) {
+                j += f[0][j] == '-';
+                sscanf(f[0] + j, "%2hhx", &ns.b[i]);
+            }
+            if (!panda_event_signature_parse(f[2], &h, NULL, NULL, &why)) {
+                printf("bad");
+                g_free(why);
+                break;
+            }
+            panda_event_uuid_derive(&ns, f[1], h, &u);
+            for (int i = 0; i < 16; i++) {
+                printf("%02x", u.b[i]);
+            }
+            g_free(h);
+            break;
+        }
+        case 'A':           /* strict on/off */
+            sscanf(rest, "%ld", &a[0]);
+            panda_events_set_strict(a[0]);
+            printf("%d", panda_events_strict());
+            break;
+        case 'T':           /* startup is over: the report */
+            printf("%d", panda_events_startup_done());
+            break;
+        case 'n':           /* the machine is ready (the command line's startup point) */
+            machine_ready_fire();
+            printf("%d", machine_ready_adds);
+            break;
+        case 'o': {         /* owner name: owner name|- */
+            sscanf(rest, "%ld %63s", &a[0], s1);
+            panda_events_set_owner_name((void *)(uintptr_t)a[0], strcmp(s1, "-") ? s1 : NULL);
+            printf("1");
+            break;
+        }
+        case 'k':           /* qemu_init (in 'p') turns KVM on */
+            sscanf(rest, "%ld", &a[0]);
+            kvm_at_init = a[0];
+            printf("1");
+            break;
+        case 'd':
+            panda_events_defer_startup_check();
+            printf("1");
+            break;
+        case 'p':           /* panda_init: its return, and whether after_machine_init ran first */
+            k = panda_init(0, NULL, NULL);
+            printf("%d %d", k, after_machine_init_ran);
+            break;
+        case 'B':           /* strictness as the environment sets it */
+            printf("%d", panda_events_strict());
+            break;
         default:
             fprintf(stderr, "bad op %c\n", op);
             return 2;
         }
         printf("\n");
-        if (op != 'J' && op != 'V' && op != 'Y') {
+        if (!strchr("JVYIABndko", op)) {
             printf("S");
             print_states();
             printf("\n");
@@ -456,19 +570,39 @@ int main(void)
 #define T2(F) F(a, u8) F(b, u64) F(c, u16)
 #define T3(F) F(a, u8)
 #define T3X(F) F(b, u32) F(c, i64)
+typedef struct CPUState CPUState;
+#define T4(F) PANDA_EVENT_PTR(F, cpu, CPUState) F(f, bool) PANDA_EVENT_ARRAY(F, regs, u16, 3) \
+    F(n, u32) PANDA_EVENT_BUF(F, buf, u8, n) PANDA_EVENT_STR(F, path)
+#define T5(F) F(a, u8)
+#define T5X(F) F(g, bool) PANDA_EVENT_ARRAY(F, r, i32, 5)
 PANDA_EVENT_STRUCT(t1, T1);
 PANDA_EVENT_STRUCT(t2, T2);
 PANDA_EVENT_STRUCT_EXT(t3, T3, T3X);
+PANDA_EVENT_STRUCT(t4, T4);
+PANDA_EVENT_STRUCT_EXT(t5, T5, T5X);
 const char *layout_sigs[] = { PANDA_EVENT_SIGNATURE(T1), PANDA_EVENT_SIGNATURE(T2),
-                              PANDA_EVENT_SIGNATURE_EXT(T3, T3X) };
-const unsigned layout_sizes[] = { sizeof(struct t1), sizeof(struct t2), sizeof(struct t3) };
+                              PANDA_EVENT_SIGNATURE_EXT(T3, T3X), PANDA_EVENT_SIGNATURE(T4),
+                              PANDA_EVENT_SIGNATURE_EXT(T5, T5X) };
+const unsigned layout_sizes[] = { sizeof(struct t1), sizeof(struct t2), sizeof(struct t3),
+                                  sizeof(struct t4), sizeof(struct t5) };
 '''
 
 # PandaSubArray is private to events.c: the harness is appended to it, so 'H'/'W' can read it.
 
 
+PANDA_API_C = SRC / "panda/src/panda_api.c"
+
+
+def panda_init_source():
+    """panda_init, as panda_api.c has it: the harness runs the real function on stubs."""
+    text = PANDA_API_C.read_text()
+    start = text.index("int panda_init(int argc, char **argv, char **envp) {")
+    end = text.index("\n}\n", start) + 3
+    return text[start:end]
+
+
 def source():
-    return EVENTS_C.read_text() + HARNESS
+    return EVENTS_C.read_text() + HARNESS + "\n" + panda_init_source()
 
 
 def build(out):
@@ -490,10 +624,12 @@ def build(out):
     return exe
 
 
-def run_c(exe, cmds):
+def run_c(exe, cmds, extra_env=None):
     text = "".join(c + "\n" for c in cmds)
     env = dict(os.environ, ASAN_OPTIONS="detect_leaks=1:abort_on_error=0",
                UBSAN_OPTIONS="print_stacktrace=1", G_DEBUG="")
+    env.pop("PANDA_EVENTS_STRICT", None)
+    env.update(extra_env or {})
     p = subprocess.run([str(exe)], input=text, capture_output=True, text=True, env=env)
     lines = p.stdout.splitlines()
     return lines, p.stderr, p.returncode
@@ -501,35 +637,85 @@ def run_c(exe, cmds):
 
 # --- the model -------------------------------------------------------------------------------
 
+INTS = dict(u8=1, u16=2, u32=4, u64=8, i8=1, i16=2, i32=4, i64=8)
+
+
+def parse_type(t, prior, appended):
+    """(canonical type, size, align, integer) or None: one field's type, whitespace dropped.
+    prior: {name: (appended, integer)} of the fields before it."""
+    import re
+    if t in INTS:
+        return t, INTS[t], INTS[t], True
+    if t == "bool":
+        return t, 1, 1, False
+    if t == "ptr":
+        return t, 8, 8, False
+    m = re.fullmatch(r"ptr<(.+)>", t)
+    if m:
+        inner = m.group(1)
+        b = re.fullmatch(r"([a-z0-9]+)\[([A-Za-z_][A-Za-z0-9_]*)\]", inner)
+        if b:
+            elem, ln = b.groups()
+            if elem not in INTS or ln not in prior or not prior[ln][1]:
+                return None
+            if prior[ln][0] and not appended:
+                return None
+        elif not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", inner):
+            return None
+        return t, 8, 8, False
+    m = re.fullmatch(r"([a-z0-9]+)\[([0-9]+)\]", t)
+    if m and m.group(1) in INTS and 1 <= int(m.group(2)) <= 65536:
+        elem, n = m.group(1), int(m.group(2))
+        return f"{elem}[{n}]", INTS[elem] * n, INTS[elem], False
+    return None
+
+
 def parse_sig(sig):
-    """(hashed, full, layout) or None: events.h's grammar."""
+    """(hashed, full, layout) or None: events.h's grammar. hashed spells bool as u8."""
     parts = sig.split("|")
     if len(parts) > 2:
         return None
-    sizes = dict(u8=1, u16=2, u32=4, u64=8, i8=1, i16=2, i32=4, i64=8, ptr=8)
-    canon, names, off, align = [], set(), 4, 4
-    for p in parts:
-        fields = []
-        for item in p.split(","):
+    hashed, full, prior, off, align = [], [[], []], {}, 4, 4
+    for p, part in enumerate(parts):
+        for item in part.split(","):
             item = item.strip()
             if not item:
                 continue
             if ":" not in item:
                 return None
-            n, t = (x.strip() for x in item.split(":", 1))
-            if not (n and (n[0].isalpha() or n[0] == "_") and all(c.isalnum() or c == "_" for c in n)):
+            n, t = item.split(":", 1)
+            n, t = n.strip(), "".join(t.split())
+            if not (n and n.isascii() and (n[0].isalpha() or n[0] == "_")
+                    and all(c.isalnum() or c == "_" for c in n)):
                 return None
-            if t not in sizes or n in names:
+            if n in prior:
                 return None
-            names.add(n)
-            fields.append(f"{n}:{t}")
-            sz = sizes[t]
-            off = -(-off // sz) * sz + sz
-            align = max(align, sz)
-        canon.append(",".join(fields))
-    hashed = canon[0]
-    full = hashed + ("|" + canon[1] if len(canon) > 1 and canon[1] else "")
-    return hashed, full, -(-off // align) * align
+            r = parse_type(t, prior, p == 1)
+            if r is None:
+                return None
+            canon, size, al, integer = r
+            prior[n] = (p == 1, integer)
+            full[p].append(f"{n}:{canon}")
+            if p == 0:
+                hashed.append(f"{n}:{'u8' if canon == 'bool' else canon}")
+            off = -(-off // al) * al + size
+            align = max(align, al)
+    h = ",".join(full[0])
+    return ",".join(hashed), h + ("|" + ",".join(full[1]) if full[1] else ""), -(-off // align) * align
+
+
+VECTORS = ROOT / "tests/static/event-uuid-vectors.tsv"
+
+
+def read_vectors():
+    """(namespace, name, signature, hashed, uuid) rows of the shared vector file."""
+    rows = []
+    for line in VECTORS.read_text(encoding="utf-8").splitlines():
+        if line and not line.startswith("#"):
+            cols = line.split("\t")
+            assert len(cols) == 5, f"{VECTORS}: {line!r}"
+            rows.append(tuple(cols))
+    return rows
 
 
 def uuid_of(ns, name, hashed):
@@ -663,7 +849,7 @@ class Model:
     def subscribe(self, owner, evi, modes, flags):
         sid = len(self.subs)
         kinds = flags & (OBSERVE | MUTATE | ORIGINAL)
-        if flags != kinds or not kinds or kinds & (kinds - 1):
+        if flags & ~(kinds | OPTIONAL) or not kinds or kinds & (kinds - 1):
             self.subs.append(None)
             return -1
         ev = self.order[evi]
@@ -809,7 +995,8 @@ def gen(rng, n):
         elif r < 0.38:
             owner, evi = rng.randint(1, 4), pick_ev()
             modes = rng.choice([1] * 6 + [0, 3, 5, 7, 9, 13, 15, 16])
-            flags = rng.choice([OBSERVE] * 4 + [MUTATE] * 4 + [ORIGINAL] * 2 + [OBSERVE | MUTATE, 0])
+            flags = rng.choice([OBSERVE] * 4 + [MUTATE] * 4 + [ORIGINAL] * 2 + [OBSERVE | MUTATE, 0] +
+                               [OBSERVE | OPTIONAL, MUTATE | OPTIONAL, OPTIONAL, 16])
             c = f"S {owner} {evi} {modes} {flags}"
             exp = m.subscribe(owner, evi, modes, flags)
         elif r < 0.42 and live_subs():
@@ -947,8 +1134,8 @@ def shrink(exe, cmds):
 def directed(exe):
     fails = []
 
-    def run(cmds):
-        lines, err, rc = run_c(exe, cmds)
+    def run(cmds, env=None):
+        lines, err, rc = run_c(exe, cmds, env)
         if rc:
             fails.append(f"exit {rc}: {cmds}\n{err[-3000:]}")
             lines = lines + [""] * (2 * len(cmds))         # a crash fails the checks, not the test
@@ -966,10 +1153,157 @@ def directed(exe):
         if got != uuid_of(NSS[ns], n, h).hex:
             fails.append(f"uuid {n} {s}: {got} != {uuid_of(NSS[ns], n, h).hex}")
 
+    # The shared vectors (C, Python, and rust/panda-bindings/tests/event_uuid_vectors.rs).
+    rows = read_vectors()
+    if len(rows) < 10:
+        fails.append(f"vectors: only {len(rows)} rows in {VECTORS}")
+    lines, _ = run([f"I {ns}\t{n}\t{s}" for ns, n, s, _, _ in rows])
+    for (ns, n, s, h, want), got in zip(rows, lines):
+        p = parse_sig(s)
+        if p is None or p[0] != h:
+            fails.append(f"vector {n} {s!r}: Python hashes {p and p[0]!r}, the file says {h!r}")
+        if uuid_of(uuid.UUID(ns), n, h) != uuid.UUID(want):
+            fails.append(f"vector {n} {s!r}: Python uuid5 {uuid_of(uuid.UUID(ns), n, h)} != {want}")
+        if got != uuid.UUID(want).hex:
+            fails.append(f"vector {n} {s!r}: C {got} != {want}")
+
+    # Owner names: an owner that is not a plugin is "?" until it is named; a name wins over the
+    # plugin's; "-" forgets it; unload forgets it.
+    lines, err = run(["F 1 a.x cpu:ptr", "S 7 0 1 1", "J", "o 7 pandare2", "o 2 py2", "S 2 0 1 1",
+                      "J", "o 7 -", "J"])
+    owners = lambda j: [s["owner"] for e in json.loads(j)["events"] for s in e["subscriptions"]
+                        if e["name"] == "a.x"]
+    if owners(lines[4]) != ["?"] or owners(lines[9]) != ["pandare2", "py2"] \
+            or owners(lines[11]) != ["?", "py2"]:
+        fails.append(f"owner names: {owners(lines[4])} {owners(lines[9])} {owners(lines[11])}")
+    lines, err = run(["o 2 py2", "G 2", "F 1 a.x cpu:ptr", "S 2 0 1 1", "J"])
+    if owners(lines[-1]) != ["p2"]:
+        fails.append(f"owner name after unload: {owners(lines[-1])}")
+
+    # The grammar's identity: a bool publisher and a u8 finder are one event, with no diff; a
+    # pointer's target is part of it, so another target is a MISMATCH naming it.
+    lines, err = run(["F 1 a.x cpu:ptr,f:u8", "S 2 0 1 1", "D 1 1 a.x cpu:ptr,f:bool 0 1 0"])
+    if lines[-1] != "S 0" or "published as" in err or lines[4] != "0":
+        fails.append(f"bool binds u8: {lines} {err[-500:]!r}")
+    lines, err = run(["F 1 a.y cpu:ptr<TranslationBlock>", "S 2 0 1 1",
+                      "D 1 1 a.y cpu:ptr<CPUState> 0 1 0"])
+    if lines[-1] != "S 2" or "field 0 (cpu) is ptr<CPUState>, was ptr<TranslationBlock>" not in err:
+        fails.append(f"ptr<T> mismatch: {lines} {err[-500:]!r}")
+
+    # Strictness: fatal by default; the environment, and the call over it.
+    for env, want in [(None, "1"), ("", "1"), ("0", "0"), ("warn", "0"),
+                      ("1", "1"), ("FATAL", "1"), ("maybe", "1")]:
+        lines, err = run(["B"], None if env is None else {"PANDA_EVENTS_STRICT": env})
+        if lines[0] != want or (env == "maybe") != ("expected 0, warn, 1 or fatal" in err):
+            fails.append(f"PANDA_EVENTS_STRICT={env}: strict {lines[0]!r}, want {want}")
+    lines, _ = run(["A 0", "B"], {"PANDA_EVENTS_STRICT": "1"})
+    if lines != ["0", "0"]:
+        fails.append(f"panda_events_set_strict(false) over the environment: {lines}")
+    lines, _ = run(["A 1", "B"], {"PANDA_EVENTS_STRICT": "0"})
+    if lines != ["1", "1"]:
+        fails.append(f"panda_events_set_strict(true) over the environment: {lines}")
+
+    # The report: one block naming each unbound subscription (pending: nobody publishes a.x;
+    # mismatch: a.y under another signature) with its reason; not the active or refused ones.
+    unbound = ["F 1 a.x cpu:ptr", "S 2 0 1 1", "D 1 1 a.y cpu:ptr,pc:u64 0 1 0",
+               "F 1 a.y cpu:ptr,pc:u32", "S 3 2 1 1", "S 4 1 1 1", "S 4 1 1 2"]
+    pend = ("  - a.x (cpu:ptr): p2's observe subscription is pending: a.x (cpu:ptr): no loaded "
+            "plugin publishes it")
+    for strict, want, kind, tail in [
+            (None, "0", "error: ", "Startup fails"),
+            ("0", "1", "warn: ", "PANDA_EVENTS_STRICT=0: continuing")]:
+        lines, err = run(unbound + ["T"], None if strict is None else {"PANDA_EVENTS_STRICT": strict})
+        if lines[-2] != want:
+            fails.append(f"strict={strict}: startup_done returned {lines[-2]!r}, want {want}")
+        head = f"{kind}PANDA events: 2 subscriptions bound to nothing after startup:"
+        if (err.count("bound to nothing after startup") != 1 or head not in err
+                or pend not in err or tail not in err
+                or "a.y (cpu:ptr,pc:u32): p3's observe subscription is mismatch" not in err
+                or "pc) is u64, was u32" not in err or "p4" in err.split(head)[1]):
+            fails.append(f"strict={strict}: report {err[-1500:]!r}")
+    # OPTIONAL: listed, never a failure; alone, the block says so. With OBSERVE|OPTIONAL (9)
+    # accepted and listed as observe+optional; OPTIONAL alone (8) is not a kind.
+    lines, err = run(["F 1 a.x cpu:ptr", "S 2 0 1 9", "S 2 0 1 8", "T"])
+    if lines[2] != "0" or lines[4] != "-1" or lines[6] != "1" or "(all optional)" not in err \
+            or "p2's observe+optional subscription is pending" not in err \
+            or "They are optional" not in err:
+        fails.append(f"optional only: {lines} {err[-800:]!r}")
+    lines, err = run(["F 1 a.x cpu:ptr", "S 2 0 1 9", "S 3 0 1 1", "T"])
+    if lines[6] != "0" or "(some optional)" not in err or "Startup fails" not in err:
+        fails.append(f"optional and not: {lines} {err[-800:]!r}")
+    lines, _ = run(["F 1 a.x cpu:ptr", "S 2 0 1 9", "J"])
+    if '"kind":"observe+optional"' not in lines[-1]:
+        fails.append("the listing does not mark an optional subscription")
+
+    # Nothing unbound: no report. After startup, a subscription that goes PENDING (its
+    # publisher unloads) is logged when it does.
+    lines, err = run(["D 1 1 a.x cpu:ptr 0 1 0", "S 2 0 1 1", "T", "G 1"])
+    if lines[4] != "1" or "after startup" in err:
+        fails.append(f"bound at startup: {lines[4]!r} {err!r}")
+    if "a.x: p2's subscription is pending: a.x: its publisher p1 was unloaded" not in err:
+        fails.append("after startup, a subscription going pending is not logged")
+    lines, err = run(["F 1 a.x cpu:ptr", "S 2 0 1 1"])
+    if "is pending" in err:
+        fails.append("before startup, a pending subscription is logged")
+
+    # The command line's startup point: one machine-ready notifier, added when the library
+    # loads. It reports once; a later check (or a second notification) does not report again.
+    unbound1 = ["F 1 a.x cpu:ptr", "S 2 0 1 1"]
+    warn_only = {"PANDA_EVENTS_STRICT": "0"}
+    lines, err = run(unbound1 + ["n", "n", "T"], warn_only)
+    if lines[4] != "1" or lines[5] != "1" or lines[6] != "1":
+        fails.append(f"machine ready: notifier added {lines[4]!r} times, check {lines[6]!r}")
+    if err.count("after startup") != 1:
+        fails.append(f"machine ready: {err.count('after startup')} reports, want 1")
+    # By default, on the command line: startup fails as QEMU's does, logged, exit status 1.
+    out, err, rc = run_c(exe, unbound1 + ["n"])
+    if rc != 1 or "error: PANDA events: 1 subscription bound to nothing after startup" not in err:
+        fails.append(f"strict machine ready: exit {rc}, {err[-500:]!r}")
+    # No analysis provisioned: the notifier does nothing, even with one unbound.
+    out, err, rc = run_c(exe, unbound1 + ["M 0 1 0 0 0 0", "n"])
+    if rc != 0 or "after startup" in err:
+        fails.append(f"no-analysis machine ready: exit {rc}, {err[-500:]!r}")
+    # Nothing used the registry: no report, and the registry is not set up for it.
+    lines, err = run(["n", "T", "F 1 a.x cpu:ptr", "S 2 0 1 1", "G 1"])
+    if lines[1] != "1" or "after startup" in err or "a.x: p2's subscription is pending" not in err:
+        fails.append(f"machine ready, registry unused: {lines[:2]} {err[-500:]!r}")
+    # panda_init defers the machine-ready check and runs it after after_machine_init: it returns
+    # nonzero under strict, without exiting, and the report holds the reasons.
+    # A publisher that after_machine_init loads binds its subscribers before the check.
+    for strict in ("0", "1"):
+        lines, err = run(unbound1 + ["p", "n"], {"PANDA_EVENTS_STRICT": strict})
+        if lines[4] != "0 1" or "after startup" in err:
+            fails.append(f"panda_init strict={strict}, bound by after_machine_init: {lines[4]!r} "
+                         f"{err[-500:]!r}")
+    unbound_z = ["F 1 a.z cpu:ptr", "S 2 0 1 1"]
+    for strict, want in [("0", "0 1"), ("1", "1 1")]:
+        lines, err = run(unbound_z + ["p", "n"], {"PANDA_EVENTS_STRICT": strict})
+        if lines[4] != want:
+            fails.append(f"panda_init strict={strict}: {lines[4]!r}, want {want!r}")
+        if err.count("bound to nothing after startup") != 1:
+            fails.append(f"panda_init strict={strict}: reported "
+                         f"{err.count('bound to nothing after startup')} times")
+    lines, err = run(["d", "n"] + unbound1 + ["T"], warn_only)
+    if "after startup" not in err:
+        fails.append("deferred: the explicit check did not report")
+    # panda_init re-decides admission after qemu_init: a subscription made before QEMU chose
+    # KVM was admitted with KVM off, and without PANDA_MODE_KVM it is refused once KVM is on.
+    lines, err = run(["D 1 1 a.k cpu:ptr 0 9 0", "S 2 0 1 1", "S 3 0 9 1", "k 1", "p"])
+    if lines[3] != "S 0" or lines[5] != "S 0 0" or lines[-1] != "S 3 0":
+        fails.append(f"panda_init re-evaluates admission after qemu_init: {lines}")
+
     # Parsing: canonical forms, layout, and refusals.
     sigs = ["cpu:ptr,pc:u64", " cpu : ptr , pc:u64 ,", "a:u8,b:u64,c:u16", "a:u8|b:u32,c:i64",
             "a:u8,", "a:u8|", "", "a:u8,a:u16", "a:f32", "a", "1a:u8", "a:u8|b:u8|c:u8",
-            "a:u8|a:u8", "x:i8,y:i16,z:i32,w:i64,p:ptr"]
+            "a:u8|a:u8", "x:i8,y:i16,z:i32,w:i64,p:ptr",
+            # the extended grammar: bool, ptr<T>, ptr<str>, ptr<int[len]>, int[N]
+            "f:bool,x:u64", "cpu:ptr<CPUState>,pc:u64", "cpu : ptr < CPUState > ,p:ptr< str >",
+            "n:u32,buf:ptr<u8[n]>", "buf:ptr<u8[n]>,n:u32", "f:bool,buf:ptr<u8[f]>",
+            "n:u32|buf:ptr<u8[n]>", "a:u8|n:u32,buf:ptr<i16[n]>", "a:u8,buf:ptr<u8[n]>|n:u32",
+            "regs:u64[4],a:u8", "r:u8[ 0016 ],x:u16", "r:u8[0]", "r:u8[65537]", "r:u8[65536]",
+            "r:bool[2]", "r:ptr[2]", "r:u8[-1]", "r:u8[x]", "p:ptr<>", "p:ptr<1x>",
+            "p:ptr<CPUState", "p:ptr<a,b>", "p:ptr<u8[n]>", "n:u32,p:ptr<f32[n]>",
+            "n:u32,p:ptr<u8[n][2]>", "a:u8|f:bool,r:i32[3]"]
     lines, _ = run([f"Y {s}" if s else "Y " for s in sigs])
     for s, got in zip(sigs, lines):
         p = parse_sig(s)
@@ -980,14 +1314,15 @@ def directed(exe):
     # The macros' structs have the size the parser computes (layout_sigs/sizes in the harness).
     src = source()
     for sig, size in [("cpu:ptr,pc:u64,hook:ptr,", 32), ("a:u8,b:u64,c:u16,", 24),
-                      ("a:u8,|b:u32,c:i64,", 24)]:
+                      ("a:u8,|b:u32,c:i64,", 24), ("f:bool,r:u16[3],", 12),
+                      ("a:u8,r:u64[2],", 24)]:
         if parse_sig(sig)[2] != size:
             fails.append(f"layout model {sig}: {parse_sig(sig)[2]} != {size}")
     probe = Path(tempfile.mkdtemp(prefix="events-layout-")) / "p.c"
     probe.write_text('#include <stdio.h>\n#include <stdint.h>\n#include <stddef.h>\n'
                      '#include "panda/events.h"\n'
-                     + src[src.index("/* The field-list macros"):]
-                     + '\nint main(void){for(int i=0;i<3;i++)printf("%s %u\\n",layout_sigs[i],'
+                     + src[src.index("/* The field-list macros"):src.index(panda_init_source())]
+                     + '\nint main(void){for(int i=0;i<5;i++)printf("%s %u\\n",layout_sigs[i],'
                        'layout_sizes[i]);\nstruct t3 v={.size=offsetof(struct t3,b)};'
                        'printf("%d",PANDA_EVENT_HAS(&v,b));v.size=sizeof v;'
                        'printf("%d\\n",PANDA_EVENT_HAS(&v,c));return 0;}\n')
@@ -995,12 +1330,12 @@ def directed(exe):
                     str(SRC / "include"), str(probe), "-o", str(probe.with_suffix(""))], check=True)
     out = subprocess.run([str(probe.with_suffix(""))], capture_output=True, text=True,
                          check=True).stdout.splitlines()
-    for line in out[:3]:
+    for line in out[:5]:
         sig, size = line.rsplit(" ", 1)
         if parse_sig(sig)[2] != int(size):
             fails.append(f"PANDA_EVENT_STRUCT {sig}: sizeof {size}, parser {parse_sig(sig)[2]}")
-    if out[3] != "01":
-        fails.append(f"PANDA_EVENT_HAS: {out[3]}")
+    if out[5] != "01":
+        fails.append(f"PANDA_EVENT_HAS: {out[5]}")
 
     # A subscriber removing a later one mid-dispatch: the later one is not called.
     lines, _ = run(["D 1 1 a.x cpu:ptr,pc:u64 0 1 0", "S 2 0 1 1", "S 3 0 1 1", "S 4 0 1 1",

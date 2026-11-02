@@ -1,0 +1,61 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Mon, 2 Nov 2026 12:03:22 -0500
+Subject: [PATCH] monitor: info panda-events lists the PANDA event registry
+
+Add "info panda-events" to the human monitor in PANDA builds.  It prints
+panda_events_describe(false): every event in the registry with its UUID,
+publisher, signature and namespace, and each subscription with its owner,
+state, kind, modes and the reason for its state, the same reasons the
+after-startup report logs.  The handler, hmp_info_panda_events, is in
+PANDA's sources (panda/src/events-hmp.c, declared in
+panda/events-internal.h); this patch only adds the command to the info
+table, both under CONFIG_PANDA.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ hmp-commands-info.hx | 18 ++++++++++++++++++
+ monitor/hmp-cmds.c   |  3 +++
+ 2 files changed, 21 insertions(+)
+
+diff --git a/hmp-commands-info.hx b/hmp-commands-info.hx
+index 82134eb6c21dabf8a73ea2212332b83e16d47c57..d5fa34c5b54139d8357fef0e6e7469cec4b51ee4 100644
+--- a/hmp-commands-info.hx
++++ b/hmp-commands-info.hx
+@@ -993,3 +993,21 @@ SRST
+   ``info firmware-log``
+     Show the firmware (ovmf) debug log.
+ ERST
++
++#if defined(CONFIG_PANDA)
++    {
++        .name       = "panda-events",
++        .args_type  = "",
++        .params     = "",
++        .help       = "show the PANDA events and their subscriptions",
++        .cmd        = hmp_info_panda_events,
++    },
++#endif
++
++SRST
++  ``info panda-events``
++    Show the PANDA event registry: every event with its UUID, publisher,
++    signature and namespace, and each subscription to it with its owner,
++    state (active, pending, mismatch, refused or disabled), kind, modes
++    and the reason for its state.
++ERST
+diff --git a/monitor/hmp-cmds.c b/monitor/hmp-cmds.c
+index e9fb8d827a0cb7481b80f884f51aff1812c8e9f1..1c8fcc577631590dcf7bdf46af9c1607e5111e6a 100644
+--- a/monitor/hmp-cmds.c
++++ b/monitor/hmp-cmds.c
+@@ -40,6 +40,9 @@
+ #include "system/memory.h"
+ #include "system/system.h"
+ #include "disas/disas.h"
++#ifdef CONFIG_PANDA
++#include "panda/events-internal.h"     /* hmp_info_panda_events */
++#endif
+ 
+ /* Please update hmp-commands.hx when adding or changing commands */
+ static HMPCommand hmp_info_cmds[] = {

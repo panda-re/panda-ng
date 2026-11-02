@@ -27,6 +27,7 @@
 #include "panda/wrap_ops.h"
 #include "accel/tcg/hooks.h"
 #include "hw/core/panda-modules.h"
+#include "panda/events-internal.h"
 
 bool panda_configure_capabilities(uint32_t requested)
 {
@@ -38,11 +39,22 @@ void panda_mark_hook_address(target_ulong pc)
     tcg_hooks_mark_pc(pc);
 }
 
-// call main_aux and run everything up to and including panda_callbacks_after_machine_init
+// call main_aux and run everything up to and including panda_callbacks_after_machine_init.
+// Returns 0, or 1 if startup failed: a subscription is unbound, and strictness (the default)
+// is on (panda_events_startup_report has why). The library does not exit: pandare2 raises.
 int panda_init(int argc, char **argv, char **envp) {
+    /* The command line's machine-ready check would run inside qemu_init, before the plugins
+     * after_machine_init loads: run it here instead, once they are in. */
+    panda_events_defer_startup_check();
     qemu_init(argc, argv);
+    /* Admission depends on the accelerator: a subscription made before qemu_init chose KVM
+     * was decided with KVM off. */
+    panda_events_reevaluate();
     wrap_cpu_ops();
     panda_callbacks_after_machine_init(first_cpu);
+    if (!panda_events_startup_done()) {
+        return 1;
+    }
     return 0;
 }
 

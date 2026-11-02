@@ -20,6 +20,7 @@
 #include "system/analysis-policy.h"
 #include "system/kvm.h"
 #include "system/replay.h"
+#include "system/system.h"
 #include "panda/plugin.h"
 #include "panda/admission.h"
 #include "panda/events-internal.h"
@@ -96,11 +97,16 @@ struct PandaEventInstance {
 static QemuMutex events_lock;
 static GHashTable *events_by_uuid;
 static GPtrArray *events_all;           /* in creation order, for listings and name lookups */
+static GHashTable *owner_labels;         /* owner -> name: panda_events_set_owner_name */
 static PandaEvent **core_events;
 static int core_events_max = -1;
 static uint64_t sub_seq;
+static bool registry_up;                /* registry_init has run */
+static bool events_started;             /* panda_events_startup_done has run */
+static int events_strict = -1;          /* -1: not set, PANDA_EVENTS_STRICT decides */
 
 static void events_declare_core(void);
+static const char *sub_kind(const PandaSub *s);
 
 static guint uuid_hash(gconstpointer p)
 {
@@ -121,32 +127,49 @@ static void registry_init(void)
         qemu_mutex_init(&events_lock);
         events_by_uuid = g_hash_table_new(uuid_hash, uuid_equal);
         events_all = g_ptr_array_new();
+        owner_labels = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
         events_declare_core();
+        qatomic_set(&registry_up, true);
         g_once_init_leave(&done, 1);
     }
 }
 
 /* --- Signatures and identity ---------------------------------------------------------------- */
 
+/*
+ * The grammar (events.h; docs/design/event-signature-grammar.md):
+ *
+ *   type := int | bool | ptr | ptr<T> | ptr<str> | ptr<int[len]> | int[N]
+ *   int  := u8 | u16 | u32 | u64 | i8 | i16 | i32 | i64
+ *
+ * T is an identifier (a C type the bindings know); len names an earlier integer field (a
+ * hashed one if the buffer is hashed); N is 1..65536. Whitespace inside a type is dropped and N
+ * is written without leading zeros. bool is u8 for identity: the hashed form spells it u8, the
+ * full form keeps bool. Everything else hashes as written, so a bare ptr hashes as before.
+ */
 static const struct {
     const char *name;
     uint32_t size;
-} sig_types[] = {
+} sig_ints[] = {
     { "u8", 1 }, { "u16", 2 }, { "u32", 4 }, { "u64", 8 },
     { "i8", 1 }, { "i16", 2 }, { "i32", 4 }, { "i64", 8 },
-    { "ptr", sizeof(void *) },
 };
+
+#define SIG_ARRAY_MAX 65536
 
 typedef struct SigField {
     char *name;
-    const char *type;
+    char *type;                 /* canonical, as the full signature spells it */
+    uint32_t size, align;
     bool appended;
+    bool integer;               /* a scalar integer: may size a ptr<int[len]> */
 } SigField;
 
 static void sig_fields_free(GArray *fields)
 {
     for (guint i = 0; i < fields->len; i++) {
         g_free(g_array_index(fields, SigField, i).name);
+        g_free(g_array_index(fields, SigField, i).type);
     }
     g_array_free(fields, true);
 }
@@ -162,6 +185,111 @@ static bool sig_ident(const char *s)
         }
     }
     return true;
+}
+
+static uint32_t sig_int_size(const char *type)
+{
+    for (size_t t = 0; t < G_N_ELEMENTS(sig_ints); t++) {
+        if (!strcmp(type, sig_ints[t].name)) {
+            return sig_ints[t].size;
+        }
+    }
+    return 0;
+}
+
+/* The identity spelling of a canonical type: what the UUID hashes. */
+static const char *sig_identity(const char *type)
+{
+    return strcmp(type, "bool") ? type : "u8";
+}
+
+/*
+ * Parse one field's type (whitespace already dropped) into @f. @fields are the fields before
+ * it. False with *@what saying what is wrong.
+ */
+static bool sig_type(const char *t, SigField *f, GArray *fields, const char **what)
+{
+    size_t n = strlen(t);
+    uint32_t sz;
+
+    if ((sz = sig_int_size(t))) {
+        f->type = g_strdup(t);
+        f->size = f->align = sz;
+        f->integer = true;
+        return true;
+    }
+    if (!strcmp(t, "bool")) {
+        f->type = g_strdup(t);
+        f->size = f->align = 1;
+        return true;
+    }
+    if (!strcmp(t, "ptr")) {
+        f->type = g_strdup(t);
+        f->size = f->align = sizeof(void *);
+        return true;
+    }
+    if (g_str_has_prefix(t, "ptr<") && n > 5 && t[n - 1] == '>') {
+        g_autofree char *inner = g_strndup(t + 4, n - 5);
+        char *br = strchr(inner, '[');
+        if (!br) {
+            if (!sig_ident(inner)) {
+                *what = "a pointer target must be a type name, str, or int[len]";
+                return false;
+            }
+        } else {
+            size_t m = strlen(br);
+            *br = 0;
+            if (m < 3 || br[m - 1] != ']' || !sig_int_size(inner)) {
+                *what = "a buffer target is int[len], with u8..u64 or i8..i64";
+                return false;
+            }
+            br[m - 1] = 0;
+            const char *len = br + 1;
+            SigField *lf = NULL;
+            for (guint j = 0; j < fields->len; j++) {
+                if (!strcmp(g_array_index(fields, SigField, j).name, len)) {
+                    lf = &g_array_index(fields, SigField, j);
+                }
+            }
+            if (!lf || !lf->integer) {
+                *what = "a buffer's length must be an earlier integer field";
+                return false;
+            }
+            if (lf->appended && !f->appended) {
+                *what = "a hashed buffer's length must be hashed too";
+                return false;
+            }
+            *br = '[';
+            br[m - 1] = ']';
+        }
+        f->type = g_strdup(t);
+        f->size = f->align = sizeof(void *);
+        return true;
+    }
+    const char *br = strchr(t, '[');
+    if (br && n > 2 && t[n - 1] == ']') {
+        g_autofree char *elem = g_strndup(t, br - t);
+        g_autofree char *num = g_strndup(br + 1, n - (br - t) - 2);
+        char *end = NULL;
+        unsigned long count;
+        uint32_t esz = sig_int_size(elem);
+        if (!esz) {
+            *what = "an array's elements are u8..u64 or i8..i64";
+            return false;
+        }
+        if (!*num || !g_ascii_isdigit(*num) || (count = strtoul(num, &end, 10), *end) ||
+            count < 1 || count > SIG_ARRAY_MAX) {
+            *what = "an array's length is a number from 1 to 65536";
+            return false;
+        }
+        f->type = g_strdup_printf("%s[%lu]", elem, count);
+        f->size = esz * count;
+        f->align = esz;
+        return true;
+    }
+    *what = "known types are u8..u64, i8..i64, bool, ptr, ptr<T>, ptr<str>, ptr<int[len]> "
+            "and int[N]";
+    return false;
 }
 
 /* Fields in order; NULL with a reason if malformed. */
@@ -184,26 +312,16 @@ static GArray *sig_split(const char *sig, char **why)
             }
             char *colon = strchr(item, ':');
             SigField f = { .appended = p == 1 };
+            const char *what = NULL;
             if (!colon) {
                 *why = g_strdup_printf("signature \"%s\": field \"%s\" has no type", sig, item);
                 ok = false;
                 break;
             }
             *colon = 0;
-            const char *name = g_strstrip(item), *type = g_strstrip(colon + 1);
+            const char *name = g_strstrip(item);
             if (!sig_ident(name)) {
                 *why = g_strdup_printf("signature \"%s\": \"%s\" is not a field name", sig, name);
-                ok = false;
-                break;
-            }
-            for (size_t t = 0; t < G_N_ELEMENTS(sig_types); t++) {
-                if (!strcmp(type, sig_types[t].name)) {
-                    f.type = sig_types[t].name;
-                }
-            }
-            if (!f.type) {
-                *why = g_strdup_printf("signature \"%s\": field %s has unknown type \"%s\" "
-                                       "(u8..u64, i8..i64, ptr)", sig, name, type);
                 ok = false;
                 break;
             }
@@ -213,10 +331,25 @@ static GArray *sig_split(const char *sig, char **why)
                     ok = false;
                 }
             }
-            if (ok) {
-                f.name = g_strdup(name);
-                g_array_append_val(fields, f);
+            if (!ok) {
+                break;
             }
+            GString *t = g_string_new(NULL);
+            for (const char *c = colon + 1; *c; c++) {
+                if (!g_ascii_isspace(*c)) {
+                    g_string_append_c(t, *c);
+                }
+            }
+            if (!sig_type(t->str, &f, fields, &what)) {
+                *why = g_strdup_printf("signature \"%s\": field %s has unknown type \"%s\" (%s)",
+                                       sig, name, t->str, what);
+                g_string_free(t, true);
+                ok = false;
+                break;
+            }
+            g_string_free(t, true);
+            f.name = g_strdup(name);
+            g_array_append_val(fields, f);
         }
         g_strfreev(items);
     }
@@ -226,16 +359,6 @@ static GArray *sig_split(const char *sig, char **why)
         return NULL;
     }
     return fields;
-}
-
-static uint32_t sig_type_size(const char *type)
-{
-    for (size_t t = 0; t < G_N_ELEMENTS(sig_types); t++) {
-        if (!strcmp(type, sig_types[t].name)) {
-            return sig_types[t].size;
-        }
-    }
-    g_assert_not_reached();
 }
 
 bool panda_event_signature_parse(const char *sig, char **hashed, char **full,
@@ -250,24 +373,29 @@ bool panda_event_signature_parse(const char *sig, char **hashed, char **full,
         return false;
     }
 
-    GString *h = g_string_new(NULL), *a = g_string_new(NULL);
+    /* @h: the hashed part in identity spelling; @hf and @a: as the full signature spells it */
+    GString *h = g_string_new(NULL), *hf = g_string_new(NULL), *a = g_string_new(NULL);
     uint32_t off = sizeof(uint32_t), align = sizeof(uint32_t);     /* the size field */
     for (guint i = 0; i < fields->len; i++) {
         SigField *f = &g_array_index(fields, SigField, i);
-        GString *out = f->appended ? a : h;
-        uint32_t sz = sig_type_size(f->type);
+        GString *out = f->appended ? a : hf;
         g_string_append_printf(out, "%s%s:%s", out->len ? "," : "", f->name, f->type);
-        off = ROUND_UP(off, sz) + sz;
-        align = MAX(align, sz);
+        if (!f->appended) {
+            g_string_append_printf(h, "%s%s:%s", h->len ? "," : "", f->name,
+                                   sig_identity(f->type));
+        }
+        off = ROUND_UP(off, f->align) + f->size;
+        align = MAX(align, f->align);
     }
     sig_fields_free(fields);
     if (layout_size) {
         *layout_size = ROUND_UP(off, align);
     }
     if (full) {
-        *full = a->len ? g_strdup_printf("%s|%s", h->str, a->str) : g_strdup(h->str);
+        *full = a->len ? g_strdup_printf("%s|%s", hf->str, a->str) : g_strdup(hf->str);
     }
     g_string_free(a, true);
+    g_string_free(hf, true);
     if (hashed) {
         *hashed = g_string_free(h, false);
     } else {
@@ -312,7 +440,8 @@ static char *sig_diff(const char *have, const char *want)
     for (guint i = 0; h && w && i < MAX(h->len, w->len); i++) {
         SigField *hf = i < h->len ? &g_array_index(h, SigField, i) : NULL;
         SigField *wf = i < w->len ? &g_array_index(w, SigField, i) : NULL;
-        if (hf && wf && !strcmp(hf->name, wf->name) && strcmp(hf->type, wf->type)) {
+        if (hf && wf && !strcmp(hf->name, wf->name) &&
+            strcmp(sig_identity(hf->type), sig_identity(wf->type))) {
             g_string_append_printf(d, "; field %u (%s) is %s, was %s", i, hf->name, hf->type,
                                    wf->type);
         } else if (hf && wf && strcmp(hf->name, wf->name)) {
@@ -369,10 +498,29 @@ static PandaEvent *event_rival(PandaEvent *ev)
     return NULL;
 }
 
+/* Under events_lock (or before anything else runs): a name given with
+ * panda_events_set_owner_name, else the plugin's, else "?". */
 static const char *owner_name(void *owner)
 {
-    const char *name = owner ? panda_event_owner_name(owner) : NULL;
+    const char *name = owner && owner_labels ? g_hash_table_lookup(owner_labels, owner) : NULL;
+    if (!name && owner) {
+        name = panda_event_owner_name(owner);
+    }
     return name ? name : "?";
+}
+
+void panda_events_set_owner_name(void *owner, const char *name)
+{
+    if (!owner) {
+        return;
+    }
+    registry_init();
+    QEMU_LOCK_GUARD(&events_lock);
+    if (name && *name) {
+        g_hash_table_replace(owner_labels, owner, g_strdup(name));
+    } else {
+        g_hash_table_remove(owner_labels, owner);
+    }
 }
 
 /* --- Subscriptions ------------------------------------------------------------------------- */
@@ -435,7 +583,9 @@ static void sub_set(PandaSub *s, panda_sub_state state, char *reason)
     g_ptr_array_add(s->reasons, reason);
     qatomic_set(&s->reason, reason);
     qatomic_set(&s->state, state);
-    if (state == PANDA_SUB_MISMATCH || state == PANDA_SUB_REFUSED) {
+    /* PENDING is normal while plugins load; after startup it is worth a line too. */
+    if (state == PANDA_SUB_MISMATCH || state == PANDA_SUB_REFUSED ||
+        (state == PANDA_SUB_PENDING && events_started)) {
         warn_report("PANDA event %s: %s's subscription is %s: %s", s->ev->name,
                     owner_name(s->owner), panda_sub_state_name(state), reason);
     }
@@ -794,9 +944,10 @@ panda_sub panda_subscribe(void *owner, panda_event_id ev, panda_event_fn fn, voi
     uint32_t kind = flags & (PANDA_SUB_OBSERVE | PANDA_SUB_MUTATE | PANDA_SUB_OBSERVE_ORIGINAL);
     PandaSub *s;
 
-    if (!ev || !fn || flags != kind || !kind || (kind & (kind - 1))) {
+    if (!ev || !fn || (flags & ~(kind | PANDA_SUB_OPTIONAL)) || !kind || (kind & (kind - 1))) {
         error_report("PANDA event %s: subscribe needs an event, a function, and exactly one of "
-                     "OBSERVE, OBSERVE_ORIGINAL and MUTATE", ev ? ev->name : "(none)");
+                     "OBSERVE, OBSERVE_ORIGINAL and MUTATE (and OPTIONAL or not)",
+                     ev ? ev->name : "(none)");
         return NULL;
     }
     registry_init();
@@ -893,6 +1044,7 @@ void panda_events_owner_gone(void *owner)
     }
     registry_init();
     QEMU_LOCK_GUARD(&events_lock);
+    g_hash_table_remove(owner_labels, owner);
     for (guint i = 0; i < events_all->len; i++) {
         PandaEvent *ev = g_ptr_array_index(events_all, i);
         for (guint j = 0; j < ev->subs->len;) {
@@ -949,6 +1101,133 @@ void panda_events_reevaluate(void)
     }
 }
 
+/* --- Strictness and the after-startup report ------------------------------------------------ */
+
+void panda_events_set_strict(bool strict)
+{
+    qatomic_set(&events_strict, strict);
+}
+
+bool panda_events_strict(void)
+{
+    int strict = qatomic_read(&events_strict);
+    const char *env;
+
+    if (strict >= 0) {
+        return strict;
+    }
+    env = g_getenv("PANDA_EVENTS_STRICT");
+    if (env && (!g_ascii_strcasecmp(env, "0") || !g_ascii_strcasecmp(env, "warn"))) {
+        return false;
+    }
+    if (env && *env && g_ascii_strcasecmp(env, "1") && g_ascii_strcasecmp(env, "fatal")) {
+        warn_report("PANDA_EVENTS_STRICT=%s: expected 0, warn, 1 or fatal; using fatal", env);
+    }
+    return true;                        /* the default: an unbound subscription fails startup */
+}
+
+static bool startup_deferred;           /* panda_init runs the check, after after_machine_init */
+static int startup_result = -1;         /* -1 not run yet, else what the check returned */
+static GString *startup_report;         /* its lines, for panda_events_startup_report */
+
+bool panda_events_startup_done(void)
+{
+    bool strict = panda_events_strict();
+    unsigned unbound = 0;
+
+    if (!qatomic_read(&registry_up)) {
+        /* Nothing used the registry, so nothing is unbound, and a run without analysis must
+         * not set it up. */
+        events_started = true;
+        startup_result = 1;
+        return true;
+    }
+    QEMU_LOCK_GUARD(&events_lock);
+    if (startup_result >= 0) {
+        return startup_result;          /* once per run, whichever path gets here first */
+    }
+    events_started = true;
+    startup_report = g_string_new(NULL);
+    GString *list = g_string_new(NULL);
+    unsigned optional = 0;
+    for (guint i = 0; i < events_all->len; i++) {
+        PandaEvent *ev = g_ptr_array_index(events_all, i);
+        for (guint j = 0; j < ev->subs->len; j++) {
+            PandaSub *s = g_ptr_array_index(ev->subs, j);
+            if (s->state != PANDA_SUB_PENDING && s->state != PANDA_SUB_MISMATCH) {
+                continue;
+            }
+            if (s->flags & PANDA_SUB_OPTIONAL) {
+                optional++;
+            } else {
+                unbound++;
+            }
+            g_string_append_printf(list, "  - %s (%s): %s's %s subscription is %s: %s\n",
+                                   ev->name, ev->full ? ev->full : "", owner_name(s->owner),
+                                   sub_kind(s), panda_sub_state_name(s->state), s->reason);
+        }
+    }
+    startup_result = !(unbound && strict);
+    if (unbound || optional) {
+        g_string_append_printf(startup_report,
+            "PANDA events: %u subscription%s bound to nothing after startup%s:\n%s",
+            unbound + optional, unbound + optional == 1 ? "" : "s",
+            optional ? (unbound ? " (some optional)" : " (all optional)") : "", list->str);
+        if (!startup_result) {
+            g_string_append(startup_report,
+                "Startup fails: an unbound subscription never runs. Load its publisher, mark a "
+                "conditional one PANDA_SUB_OPTIONAL, or set PANDA_EVENTS_STRICT=0 to only "
+                "warn.\n");
+            error_report("%s", startup_report->str);
+        } else if (unbound) {
+            g_string_append(startup_report,
+                "PANDA_EVENTS_STRICT=0: continuing, but these subscriptions never run until "
+                "their publishers load.\n");
+            warn_report("%s", startup_report->str);
+        } else {
+            g_string_append(startup_report,
+                "They are optional: they run if their publishers load later.\n");
+            info_report("%s", startup_report->str);
+        }
+    }
+    g_string_free(list, true);
+    return startup_result;
+}
+
+const char *panda_events_startup_report(void)
+{
+    return startup_report ? startup_report->str : "";
+}
+
+void panda_events_defer_startup_check(void)
+{
+    startup_deferred = true;
+}
+
+/*
+ * The command line (qemu-system-<arch>, panda-qemu) has no panda_init: the check runs when the
+ * machine is ready, after -plugin and the -M/-module panda modules have loaded. A failure there
+ * fails startup the way QEMU does, with the reasons logged. panda_init (pandare2) defers the
+ * check before qemu_init and runs it itself once after_machine_init has run.
+ */
+static void events_machine_ready(Notifier *notifier, void *data)
+{
+    /* No analysis provisioned: nothing at all. */
+    if (!analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
+        return;
+    }
+    if (!startup_deferred && !panda_events_startup_done()) {
+        exit(1);
+    }
+}
+
+static Notifier events_machine_ready_notifier = { .notify = events_machine_ready };
+
+static void __attribute__((constructor)) events_startup_hook(void)
+{
+    qemu_add_machine_init_done_notifier(&events_machine_ready_notifier);
+}
+
 const char *panda_sub_state_name(panda_sub_state state)
 {
     switch (state) {
@@ -1001,8 +1280,12 @@ void panda_events_describe_sub(GString *out, bool json, const char *owner, const
 
 static const char *sub_kind(const PandaSub *s)
 {
-    return (s->flags & PANDA_SUB_MUTATE) ? "mutate"
-         : (s->flags & PANDA_SUB_OBSERVE_ORIGINAL) ? "observe-original" : "observe";
+    bool opt = s->flags & PANDA_SUB_OPTIONAL;
+
+    return (s->flags & PANDA_SUB_MUTATE) ? (opt ? "mutate+optional" : "mutate")
+         : (s->flags & PANDA_SUB_OBSERVE_ORIGINAL)
+             ? (opt ? "observe-original+optional" : "observe-original")
+             : (opt ? "observe+optional" : "observe");
 }
 
 char *panda_events_describe(bool json)

@@ -19,9 +19,12 @@
  *     ev = panda_event_find(&HOOKS_NS, "hooks.hit", PANDA_EVENT_SIGNATURE(HOOKS_HIT_ARGS));
  *     sub = panda_subscribe(self, ev, on_hit, ctx, PANDA_MODE_ANALYSIS, PANDA_SUB_OBSERVE);
  *
- * Signature grammar: comma-separated name:type fields, types u8..u64, i8..i64 and ptr, laid out
- * with natural alignment after `size`. Fields after a `|` are appended: they are not hashed, and a
- * consumer reads one only if PANDA_EVENT_HAS(args, field).
+ * Signature grammar: comma-separated name:type fields, laid out with natural alignment after
+ * `size`. Types: u8..u64 and i8..i64; bool (1 byte; u8 for identity, so the two bind to each
+ * other); ptr (opaque), ptr<T> (a T *, T hashed), ptr<str> (a NUL-terminated string) and
+ * ptr<int[len]> (a buffer of the earlier integer field len's elements); int[N] (an inline array,
+ * N hashed). Fields after a `|` are appended: they are not hashed, and a consumer reads one only
+ * if PANDA_EVENT_HAS(args, field). docs/design/event-signature-grammar.md has the reasons.
  *
  * Core callbacks (panda_register_callback) are declared here as "cb.<type>" events in the PANDA
  * namespace, and the core callback lists are their subscribers; their dispatch is unchanged.
@@ -68,11 +71,14 @@ typedef struct panda_event_desc {
     uint32_t flags;                 /* PANDA_EVENT_* */
 } panda_event_desc;
 
-/* panda_subscribe flags: exactly one of OBSERVE, OBSERVE_ORIGINAL and MUTATE. */
+/* panda_subscribe flags: exactly one of OBSERVE, OBSERVE_ORIGINAL and MUTATE, and OPTIONAL if
+ * the subscription is conditional. */
 enum {
     PANDA_SUB_OBSERVE          = 1u << 0,   /* runs after the mutators, sees the final arguments */
     PANDA_SUB_MUTATE           = 1u << 1,   /* runs in priority, then subscription, order */
     PANDA_SUB_OBSERVE_ORIGINAL = 1u << 2,   /* an observer that runs before the mutators */
+    PANDA_SUB_OPTIONAL         = 1u << 3,   /* used only if its publisher loads: unbound after
+                                               startup is reported, never a failure */
 };
 
 typedef enum panda_sub_state {
@@ -121,6 +127,25 @@ bool panda_sub_set_priority(panda_sub sub, int priority);       /* mutators; low
 bool panda_sub_set_data_size(panda_sub sub, size_t size);       /* INSTANCES events only */
 bool panda_unsubscribe(panda_sub sub);
 
+/*
+ * Strictness. Once startup is over, every subscription still PENDING or MISMATCH is reported
+ * with its reason, in one block. Startup is over when the machine is ready on the command line,
+ * and when panda_init has run after_machine_init under pandare2. By default (strict) an unbound
+ * subscription fails startup: the command line exits, and panda_init returns nonzero (pandare2
+ * raises EventsUnboundError with the report). Not strict, the block is a warning and the run
+ * goes on. A PANDA_SUB_OPTIONAL subscription is listed but never fails it. Set strictness
+ * before startup, with this call or the environment variable PANDA_EVENTS_STRICT (0 or "warn"
+ * to only warn, 1 or "fatal" for the default); the call wins over the variable.
+ */
+void panda_events_set_strict(bool strict);
+bool panda_events_strict(void);
+/* The after-startup report ("" before startup, or if nothing was unbound). */
+const char *panda_events_startup_report(void);
+
+/* The name listings and reasons give an owner that is not a plugin (pandare2 names its
+ * subscriptions this way); NULL or "" forgets it. A plugin owner is named after the plugin. */
+void panda_events_set_owner_name(void *owner, const char *name);
+
 /* Every event and subscription, as text or JSON (g_free the result). */
 char *panda_events_describe(bool json);
 const char *panda_sub_state_name(panda_sub_state state);
@@ -136,9 +161,31 @@ const char *panda_sub_state_name(panda_sub_state state);
 #define PANDA_EVENT_CTYPE_i32 int32_t
 #define PANDA_EVENT_CTYPE_i64 int64_t
 #define PANDA_EVENT_CTYPE_ptr void *
+#define PANDA_EVENT_CTYPE_bool bool
 
 #define PANDA_EVENT_FIELD_(name, type) PANDA_EVENT_CTYPE_##type name;
 #define PANDA_EVENT_SIGF_(name, type) #name ":" #type ","
+
+/*
+ * In a field list, beside F(name, type) for u8..i64, bool and ptr:
+ *   PANDA_EVENT_ARRAY(F, name, type, n)   type name[n];             "name:type[n]"
+ *   PANDA_EVENT_PTR(F, name, T)           T *name;                  "name:ptr<T>"
+ *   PANDA_EVENT_STR(F, name)              const char *name;         "name:ptr<str>"
+ *   PANDA_EVENT_BUF(F, name, type, len)   type *name;               "name:ptr<type[len]>"
+ * (len is an earlier integer field). F is the list's parameter; these paste a suffix onto it.
+ */
+#define PANDA_EVENT_ARRAY(F, name, type, n) F##A(name, type, n)
+#define PANDA_EVENT_PTR(F, name, T) F##P(name, T)
+#define PANDA_EVENT_STR(F, name) F##S(name)
+#define PANDA_EVENT_BUF(F, name, type, len) F##B(name, type, len)
+#define PANDA_EVENT_FIELD_A(name, type, n) PANDA_EVENT_CTYPE_##type name[n];
+#define PANDA_EVENT_SIGF_A(name, type, n) #name ":" #type "[" #n "],"
+#define PANDA_EVENT_FIELD_P(name, T) T *name;
+#define PANDA_EVENT_SIGF_P(name, T) #name ":ptr<" #T ">,"
+#define PANDA_EVENT_FIELD_S(name) const char *name;
+#define PANDA_EVENT_SIGF_S(name) #name ":ptr<str>,"
+#define PANDA_EVENT_FIELD_B(name, type, len) PANDA_EVENT_CTYPE_##type *name;
+#define PANDA_EVENT_SIGF_B(name, type, len) #name ":ptr<" #type "[" #len "]>,"
 
 /* struct tag { uint32_t size; <fields> }; and its signature ("a:u8,b:u64," - the parser
  * ignores the trailing comma). The _EXT forms add appended (unhashed) fields after `|`. */

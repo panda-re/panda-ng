@@ -6,6 +6,7 @@ specific_ss.add(
         'cb-support.c',
         'events.c',
         'events-core.c',
+        'events-hmp.c',
         'panda_api.c',
         'panda_arch.c',
         'panda_cov.c',
