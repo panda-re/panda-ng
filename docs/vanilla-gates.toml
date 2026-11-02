@@ -3,7 +3,7 @@
 # Overlay paths are repository-relative; hunk_contexts are evidence, not exhaustive symbols.
 schema_version = 1
 patch_series = "engine/patches/11.1.2/series"
-patch_range = "0001-0099"
+patch_range = "0001-0100"
 review_date = "2026-10-29"
 vanilla_parity_implemented = false
 source_audit = "../notes/mode-audit.md (historical0001-0081; read-only, findings rechecked against current series)"
@@ -1397,6 +1397,20 @@ hunk_contexts = ["static int openpic_post_load(void *opaque, int version_id)"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "None: openpic_post_load sets the CPUs' external proxy mode from the loaded GCR on every load; the snapshot format is unchanged."
 required_action = "Keep upstream's load path for vanilla, or show it equals the state a guest GCR write sets."
+vanilla_verified = false
+
+[[patch]]
+id = "0100"
+file = "engine/patches/11.1.2/0100-target-i386-key-an-int-0x80-syscall-on-the-whole-sta.patch"
+sha256 = "a63f454f69a7a16c45c91ee5f51810a72e5a051c0f607976a11ae77ccbb66daf"
+class = "runtime-gate"
+capability = "syscall-trap"
+paths = ["target/i386/tcg/seg_helper.c"]
+functions = ["x86_sc_i386"]
+hunk_contexts = ["bool x86_sc_i386(CPUX86State *env, target_ulong next, unsigned len,"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Runs only inside 0019's x86_sc_i386, which the trap reaches only while syscall_trap_enabled(); it changes the task key of an int 0x80 call, nothing in the guest."
+required_action = "Covered by 0019's gate: x86_sc_i386 is unreachable when the syscall trap is off."
 vanilla_verified = false
 
 [[overlay]]

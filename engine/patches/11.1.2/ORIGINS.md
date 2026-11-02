@@ -21,7 +21,7 @@ The trailers are part of each commit message in an `import-series.sh` tree, so
 `export-series.sh` keeps them. Add both to a new patch, and update this table when the series
 changes (the export does not rewrite this file). "Uncertain" in a note marks a judgement call.
 
-Counts: new 65, penguin 26, panda-re/qemu 6, ac88u 2.
+Counts: new 66, penguin 26, panda-re/qemu 6, ac88u 2.
 
 | # | subject | origin | license | note |
 |---|---|---|---|---|
@@ -124,3 +124,4 @@ Counts: new 65, penguin 26, panda-re/qemu 6, ac88u 2.
 | 0097 | target/loongarch: migrate the constant timer | new | GPL-2.0-or-later | the timer's QEMUTimer, and the CPU's halted and interrupt_request (dc->vmsd skips vmstate_cpu_common), were not in vmstate, so a loaded guest idles forever; not taint-specific |
 | 0098 | target/ppc: rebuild BookE/40x exception vectors on load | new | GPL-2.0-or-later | fixes ppce500 savevm/loadvm (NIP 0 at the first interrupt); necessary but not sufficient for ppc32 rr, which passes together with 0099; not taint-specific |
 | 0099 | hw/intc/openpic: restore the CPUs' external proxy mode on load | new | GPL-2.0-or-later | env->mpic_proxy was set only by a GCR write and not re-derived on load, so a loaded e500 guest in proxy mode got external interrupts never acknowledged (stuck in its handler); with 0098 ppc32 rr passes; not taint-specific |
+| 0100 | target/i386: key an int 0x80 syscall on the whole stack pointer | new | LGPL-2.1-or-later | a 64-bit task's int 0x80 was keyed on the 32-bit stack pointer and returned with the 64-bit one, so its return never matched |

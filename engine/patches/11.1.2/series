@@ -97,3 +97,4 @@
 11.1.2/0097-target-loongarch-migrate-the-constant-timer.patch
 11.1.2/0098-target-ppc-rebuild-BookE-40x-exception-vectors-on-lo.patch
 11.1.2/0099-hw-intc-openpic-restore-the-CPUs-external-proxy-mode.patch
+11.1.2/0100-target-i386-key-an-int-0x80-syscall-on-the-whole-sta.patch

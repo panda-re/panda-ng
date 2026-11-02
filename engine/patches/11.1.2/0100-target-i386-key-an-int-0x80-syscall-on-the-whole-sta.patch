@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Sun, 1 Nov 2026 23:33:21 -0500
+Subject: [PATCH] target/i386: key an int 0x80 syscall on the whole stack
+ pointer
+
+x86_sc_i386() kept the user stack pointer in a uint32_t and gave it to
+the syscall trap as the task key, but the return (x86_sc_return) looks
+the call up with the whole rsp.  For an int 0x80 from a 64-bit task the
+two never matched: every such call lost its return, and its pending
+entry was dropped as stale when the next call came (found by
+tests/syscall_cover.py and tests/syscall_truth.py).  Key int 0x80 on the
+whole register.  The vDSO's fast paths (sysenter, and syscall from a
+32-bit task) keep the 32-bit value: the kernel returns them with a
+zero-extended one.
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
+---
+ target/i386/tcg/seg_helper.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/target/i386/tcg/seg_helper.c b/target/i386/tcg/seg_helper.c
+index 007a7122273df7296a87b1ed6b9d3b8f1e6b3a13..e75bd32d9c7677e6898b369b1b49e664fe2ab4c4 100644
+--- a/target/i386/tcg/seg_helper.c
++++ b/target/i386/tcg/seg_helper.c
+@@ -1257,6 +1257,12 @@ bool x86_sc_i386(CPUX86State *env, target_ulong next, unsigned len,
+     CPUState *cs = env_cpu(env);
+     uint64_t args[6], ret, pc = env->segs[R_CS].base + next;
+     uint32_t sp = env->regs[usp], arg6 = 0;
++    /*
++     * The task key: the stack pointer as the call returns with it.  An
++     * int 0x80 returns with the whole register (a 64-bit task's rsp), the
++     * vDSO's fast paths with a 32-bit one.
++     */
++    uint64_t usp_key = fast ? sp : env->regs[usp];
+     int r;
+ 
+     for (int i = 0; i < 6; i++) {
+@@ -1281,7 +1287,7 @@ bool x86_sc_i386(CPUX86State *env, target_ulong next, unsigned len,
+     cs->syscall_inject_abis = 1u << SYSCALL_ABI_X86_64;   /* not an i386 task's */
+     while ((r = syscall_trap_enter(cs, SYSCALL_ABI_I386,
+                                    (uint32_t)env->regs[R_EAX], args, pc, len,
+-                                   x86_sc_key(env), sp, x86_sc_percpu(env),
++                                   x86_sc_key(env), usp_key, x86_sc_percpu(env),
+                                    X86_SC_KMMU, &ret)) & SYSCALL_TRAP_FAULT) {
+         syscall_trap_fault(cs, 0);
+     }
