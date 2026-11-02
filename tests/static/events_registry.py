@@ -18,7 +18,8 @@ the grace period ends (ASan catches an early free). A failing sequence is shrunk
 Then directed cases: UUIDv5 against Python's uuid5 (and the 10-30 vector), the shared vectors
 in tests/static/event-uuid-vectors.tsv (which rust/panda-bindings/tests/event_uuid_vectors.rs
 also derives), signature parsing and the layout PANDA_EVENT_STRUCT gives, PANDA_EVENT_HAS, a
-subscriber removing a later one mid-dispatch, the JSON listing, the rr check, and strictness:
+subscriber removing a later one mid-dispatch, the JSON listing, the rr check, frees made before
+the machine is up (kept until it is: the stub call_rcu asserts the machine is up), and strictness:
 PANDA_EVENTS_STRICT and panda_events_set_strict, and the after-startup report of PENDING and
 MISMATCH subscriptions (a warning, or an error and a false return when strict).
 
@@ -80,18 +81,29 @@ STUBS = {
 #define qatomic_fetch_dec(p) ((*(p))--)
 #define qatomic_rcu_read(p) (*(p))
 #define qatomic_rcu_set(p, v) (*(p) = (v))
+#define qatomic_load_acquire(p) (*(p))
+#define qatomic_store_release(p, v) (*(p) = (v))
 ''',
 "qemu/rcu.h": r'''
 #pragma once
 /* Frees wait for the harness's grace period ("flush"), so a held snapshot stays readable. */
-struct rcu_head { struct rcu_head *next; void (*func)(void *); };
+struct rcu_head;
+typedef void RCUCBFunc(struct rcu_head *head);
+struct rcu_head { struct rcu_head *next; RCUCBFunc *func; };
 extern struct rcu_head *rcu_deferred;
-static inline void call_rcu1(struct rcu_head *h, void (*f)(void *))
+/* QEMU's call_rcu thread takes the BQL to run callbacks, and qemu_init initializes it: a call
+ * before the machine is up (stub_machine_up) aborts there in the engine, and here. */
+extern bool stub_machine_up;
+static inline void call_rcu1(struct rcu_head *h, RCUCBFunc *f)
 {
+    g_assert(stub_machine_up);
     h->func = f; h->next = rcu_deferred; rcu_deferred = h;
 }
-#define call_rcu(head, func, field) call_rcu1(&(head)->field, (void (*)(void *))(func))
-#define g_free_rcu(obj, field) call_rcu1(&(obj)->field, g_free)
+#define call_rcu(head, func, field) call_rcu1(&(head)->field, (RCUCBFunc *)(func))
+#define g_free_rcu(obj, field) call_rcu1(&(obj)->field, (RCUCBFunc *)g_free)
+#ifndef container_of
+#define container_of(ptr, type, member) ((type *)((char *)(ptr) - offsetof(type, member)))
+#endif
 ''',
 "qemu/thread.h": r'''
 #pragma once
@@ -150,6 +162,7 @@ HARNESS = r'''
 #include "panda/events-internal.h"
 
 struct rcu_head *rcu_deferred;
+bool stub_machine_up;
 bool env_frozen = true, env_analysis = true, env_kvm;
 uint32_t env_caps;
 int replay_mode;
@@ -185,6 +198,7 @@ void qemu_add_machine_init_done_notifier(Notifier *notify)
 }
 static void machine_ready_fire(void)
 {
+    stub_machine_up = true;         /* qemu_init has initialized the BQL */
     for (Notifier *n = machine_ready; n; n = n->next) {
         n->notify(n, NULL);
     }
@@ -308,6 +322,10 @@ int main(void)
 
     calls = g_string_new(NULL);
     setvbuf(stdout, NULL, _IOLBF, 0);
+    if (!getenv("STUB_EARLY")) {    /* STUB_EARLY: the machine is up at 'n' (or in 'p') */
+        stub_machine_up = true;
+        panda_events_machine_up();
+    }
     while (fgets(line, sizeof(line), stdin)) {
         char op = line[0], *rest = line + 1;
         long a[8] = { 0 };
@@ -1291,6 +1309,21 @@ def directed(exe):
     lines, err = run(["D 1 1 a.k cpu:ptr 0 9 0", "S 2 0 1 1", "S 3 0 9 1", "k 1", "p"])
     if lines[3] != "S 0" or lines[5] != "S 0 0" or lines[-1] != "S 3 0":
         fails.append(f"panda_init re-evaluates admission after qemu_init: {lines}")
+
+    # Before the machine is up (pandare2 subscribes before panda_init), nothing reaches call_rcu
+    # (the stub asserts it, as QEMU's call_rcu thread aborts on the uninitialized BQL): the
+    # registry keeps its frees until the machine-ready notifier, then they run after a grace
+    # period. Publish, instance data, unsubscribe, then the machine comes up.
+    early = {"STUB_EARLY": "1"}
+    lines, err = run(["D 1 1 a.e cpu:ptr 0 1 4", "S 2 0 1 1", "Z 0 16", "O 0", "C 0 0",
+                      "S 3 0 1 1", "U 0", "X 0", "L", "n", "L", "X 0", "U 1", "X 0", "L"], early)
+    if lines[14] != "1 1:-" or lines[21] != "1 1:-" or lines[25] != "0":
+        fails.append(f"before the machine is up: {lines}")
+    # The same through panda_init: qemu_init brings the machine up.
+    lines, err = run(["F 1 a.x cpu:ptr", "S 2 0 1 1", "S 3 0 1 1", "U 0", "p", "L", "X 0"],
+                     dict(early, PANDA_EVENTS_STRICT="0"))
+    if lines[-2:] != ["1 1:-", "S x 0"]:
+        fails.append(f"before panda_init: {lines}")
 
     # Parsing: canonical forms, layout, and refusals.
     sigs = ["cpu:ptr,pc:u64", " cpu : ptr , pc:u64 ,", "a:u8,b:u64,c:u16", "a:u8|b:u32,c:i64",
