@@ -353,6 +353,7 @@ def drive():
     panda.run_monitor_cmd("delvm api-test")
     seen["snapshots"] = panda.run_monitor_cmd("info snapshots")
     # --8<-- [end:snapshots]
+    seen["events_info"] = panda.run_monitor_cmd("info panda-events")
     # map_memory: new RAM past the guest's, read back through physical memory.
     panda.map_memory("api-test-ram", 0x10000, MAP_ADDR)
     panda.physical_memory_write(MAP_ADDR + 0x100, b"MAPPEDOK")
@@ -418,6 +419,9 @@ check("map_memory adds RAM that physical memory r/w reaches", seen.get("mapped")
       seen.get("mapped"))
 check("unload_plugin unloads it (by hypercall 2)", seen.get("unloaded"))
 check("delvm removes the snapshot", "api-test" not in seen.get("snapshots", "api-test"))
+info = seen.get("events_info", "")
+check("info panda-events lists the core events and this script's subscriptions",
+      "start_block_exec" in info and "panda_register_callback" in info, info[:400])
 
 print(f"API arch={arch} counts={dict(counts)}")
 failed = False
