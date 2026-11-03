@@ -141,6 +141,9 @@ class CapabilityAdmission(unittest.TestCase):
                 depth -= 1
                 if not depth: break
         policy = text[match.start():end + 1]
+        # callback_mode_valid is panda/admission.h's policy for the core types.
+        admit = text[text.index('static PandaAdmit callback_admit('):match.start()]
+        admission = (ROOT / 'engine/src/include/panda/admission.h').read_text()
         load_start = text.index('static bool _panda_load_plugin(')
         load_end = text.index('    // static bool libpanda_loaded', load_start)
         load_guard = text[load_start:load_end] + '\n    dlopens++; return true;\n}\n'
@@ -162,8 +165,9 @@ static int replay_mode, dlopens;
 static bool analysis_policy_is_frozen(void) {return frozen;}
 static bool analysis_policy_has(int cap) {(void)cap;return analysis;}
 static bool kvm_enabled(void) {return kvm;}
+static uint32_t panda_callback_supported_modes(panda_cb_type type) {(void)type;return 7;}
 '''
-        c += policy + '\n' + load_guard + r'''
+        c += admission + admit + policy + '\n' + load_guard + r'''
 int main(void) {
     for(int f=0;f<2;f++)for(int a=0;a<2;a++) {
         frozen=f;analysis=a;

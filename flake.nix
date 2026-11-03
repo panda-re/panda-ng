@@ -184,7 +184,8 @@
                 cp ../libpanda-ng/*.h $out/include/panda-ng/
                 # Additive APIs are not part of the generated flattened ABI headers.
                 mkdir -p $out/include/panda
-                cp include/panda/analysis-effect.h include/panda/guest-write.h $out/include/panda/
+                cp include/panda/analysis-effect.h include/panda/guest-write.h include/panda/events.h \
+                  $out/include/panda/
                 # libqemu-system-<name>.so (with penguin's alias names), libqemu-kvm-<target>.so and
                 # libpanda-<target>-softmmu.so are links of the same objects; only the soname differs,
                 # and all of them are dlopened by path. Keep libpanda-* and link the rest to it.
@@ -1179,6 +1180,13 @@
             buildInputs = [ pkgs.glib ];
           } ''
             python3 ${./.}/tests/static/penguin_detach.py
+            touch $out
+          '';
+          events-registry = pkgs.runCommandCC "events-registry-check" {
+            nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
+            buildInputs = [ pkgs.glib ];
+          } ''
+            python3 ${./.}/tests/static/events_registry.py
             touch $out
           '';
           lifecycle = pkgs.runCommandCC "analysis-lifecycle-check" {

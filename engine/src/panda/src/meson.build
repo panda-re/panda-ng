@@ -4,6 +4,8 @@ specific_ss.add(
         'analysis-effect.c',
         'callbacks.c',
         'cb-support.c',
+        'events.c',
+        'events-core.c',
         'panda_api.c',
         'panda_arch.c',
         'panda_cov.c',

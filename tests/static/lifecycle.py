@@ -93,6 +93,8 @@ hooks = callbacks[callbacks.index('typedef struct PandaTransientReset'):callback
 # Failed initialization and normal unload share this central removal path.
 close = function(callbacks, 'dlclose_plugin')
 assert close.index('panda_unregister_transient_reset(plugin)') < close.index('panda_delete_plugin(plugin_idx)') < close.index('dlclose(plugin)')
+# The registry drops the plugin's subscriptions (functions in its code) before the dlclose.
+assert close.index('panda_events_owner_gone(plugin)') < close.index('dlclose(plugin)')
 checks = r'''
 static int panda_main_walk_depth;
 static unsigned unloads, closed;
@@ -105,6 +107,7 @@ static void panda_delete_plugin(int i)
     nb_panda_plugins--;
 }
 static int dlclose(void *plugin) { closed++; return 0; }
+static void panda_events_owner_gone(void *owner) { (void)owner; }
 #define LOG_ERROR(...) ((void)0)
 '''
 # Exercise the actual central removal body, not merely its source ordering.
