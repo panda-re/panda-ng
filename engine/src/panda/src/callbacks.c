@@ -982,7 +982,8 @@ panda_cb_with_context panda_get_cb_trampoline(panda_cb_type type) {
  * publish a new entry fully built (qatomic_rcu_set) and unlink an entry without touching its own
  * next pointer, so a walker standing on it continues down the list. An unlinked entry is freed after
  * an RCU grace period, by the call_rcu thread, which holds the BQL while it frees: so neither a vCPU
- * nor a main-loop walk can still be on it. Readers pay nothing for this.
+ * nor a main-loop walk can still be on it (panda_events_call_rcu: an entry unlinked before the
+ * machine is up waits until it is). Readers pay nothing for this.
  */
 
 static void __attribute__((constructor)) panda_cbs_lock_init(void)
@@ -995,8 +996,10 @@ typedef struct PandaCbRetired {
     panda_cb_list *node;
 } PandaCbRetired;
 
-static void panda_cb_retired_free(PandaCbRetired *r)
+static void panda_cb_retired_free(struct rcu_head *head)
 {
+    PandaCbRetired *r = container_of(head, PandaCbRetired, rcu);
+
     g_free(r->node);
     g_free(r);
 }
@@ -1006,7 +1009,7 @@ static void panda_cb_retire(panda_cb_list *node)
     PandaCbRetired *r = g_new(PandaCbRetired, 1);
     qatomic_set(&node->enabled, false);     /* a walker still on it doesn't call it again */
     r->node = node;
-    call_rcu(r, panda_cb_retired_free, rcu);
+    panda_events_call_rcu(&r->rcu, panda_cb_retired_free);
 }
 
 /* Block-entry/end code is selected from enabled callbacks. First enable and

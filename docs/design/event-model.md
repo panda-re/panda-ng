@@ -139,3 +139,42 @@ Tests: `tests/static/events_registry.py` compiles the real `events.c` against a 
 ASan/UBSan (flake check `events-registry`), with directed cases and random sequences.
 `capability_admission.py` and `lifecycle.py` are updated, and `docs/vanilla-gates.toml` covers the
 new files.
+
+## E1 finish as built
+
+- **`info panda-events`.** The handler is `panda/src/events-hmp.c`, which prints
+  `panda_events_describe(false)`. Engine patch 0102 adds the command to `hmp-commands-info.hx`
+  under `CONFIG_PANDA`.
+  `panda.events()` reads the JSON form.
+- **Unbound subscriptions fail startup.** Once startup is over, every subscription still
+  PENDING or MISMATCH is reported in one block, one line per subscription, giving its event,
+  signature, owner, kind, state and reason. The block names the way out. It runs once per run.
+  - `PANDA_EVENTS_STRICT=0` (or `warn`), or `panda_events_set_strict(false)` before startup,
+    turns the block into a warning, and the run goes on. The call wins over the variable. An
+    unrecognized value warns and means fatal.
+  - `PANDA_SUB_OPTIONAL`, combined with the kind flag, marks a subscription that uses a
+    publisher only if it is loaded. Optional subscriptions are listed but never fail the
+    check, and the listing shows their kind as `<kind>+optional`. pandare2 has
+    `@panda.event(..., optional=True)`.
+  - **Command line** (`qemu-system-<arch>` and `panda-qemu`, with no `panda_init`): a
+    machine-init-done notifier, added by `events.c` when the library loads, runs the check
+    after `-plugin` and the panda modules have loaded. A failure is logged with `error_report`,
+    then `exit(1)`. The notifier returns at once unless analysis is provisioned, so runs without
+    it are untouched. If nothing has used the registry, the check returns without setting it
+    up.
+  - **pandare2:** `panda_init` defers the notifier (`panda_events_defer_startup_check()`
+    before `qemu_init`) and calls `panda_events_reevaluate()` after `qemu_init`, because a
+    subscription made before QEMU chose KVM was admitted with KVM off. It runs the check after
+    `after_machine_init`, so plugins loaded there count, and returns 1 on failure without
+    exiting. pandare2 then raises `EventsUnboundError` with the report
+    (`panda_events_startup_report()`). A MISMATCH from `@panda.event` raises at subscribe time.
+  - A subscription that becomes PENDING after startup (its publisher unloads) is logged when
+    that happens. Only the startup check fails a run.
+- **Owner names.** `panda_events_set_owner_name(owner, name)` names an owner that is not a
+  plugin, such as pandare2's subscriptions, in listings and reasons. A registered name wins over
+  the plugin's, and an unload forgets it.
+- **UUID vectors.** `tests/static/event-uuid-vectors.tsv` lists namespace, name, signature,
+  hashed part and UUID. `events_registry.py` checks the vectors against `events.c` and Python's
+  `uuid5`, and `rust/panda-bindings/tests/event_uuid_vectors.rs` derives them in Rust.
+- **Signature grammar:** `bool`, `ptr<T>` and `int[N]`, described in
+  `event-signature-grammar.md`.
