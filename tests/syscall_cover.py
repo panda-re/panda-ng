@@ -4,11 +4,11 @@ the return paths that are not a plain return.
 
 Run: PANDA_PLUGIN_DIR=<test-plugins>/lib/panda/plugins panda-python tests/syscall_cover.py \\
          <images>/busybox-<arch>.json [--intel]
-(x86_64 and aarch64; images from tests/mkbusybox.py, the sctrace plugin from
+(busybox-x86_64, -aarch64 and -armel; images from tests/mkbusybox.py, the sctrace plugin from
 `nix build .#test-plugins`). It runs on a tests/testmachine.py machine (built and snapshotted the
-first time, a few seconds); programs go in and their output comes out through the agent. --intel
-makes the x86 CPU GenuineIntel, whose 32-bit vDSO enters through sysenter (the default, qemu64, is
-AMD: syscall). About 10 s per arch once the machine exists.
+first time, 4-6 s); programs go in and their output comes out through the agent. --intel makes
+the x86 CPU GenuineIntel, whose 32-bit vDSO enters through sysenter (the default, qemu64, is AMD:
+syscall). About 2 s per arch once the machine exists.
 
 The events come from the trap through the QEMU plugin syscall API (tests/sctrace.py).
 
@@ -20,6 +20,7 @@ entry instruction its task has, and writes back what each call returned (see the
 - i386 (a 32-bit task on the x86_64 guest): 0..599 through `int 0x80` and through the vDSO's
   __kernel_vsyscall (sysenter or syscall), and specials;
 - aarch64: 0..599 through `svc #0` and `svc #0x5a`, and specials.
+(arm has no sweep program yet: there, only the return paths.)
 Checks, per program:
 - the program ran to the end and every sweep call returned -1234 to it;
 - the events are exactly the program's calls in order: prctl, seccomp, the sweeps, write,
@@ -29,7 +30,8 @@ Checks, per program:
 - per entry instruction: each call has exactly one return, with its enter's pc and the value the
   program saw; exit_group has none;
 - nothing was lost (the event buffer was large enough).
-Then tests/programs/scpaths.c makes calls whose return is not the plain one (see its header):
+Then tests/programs/scpaths.c makes calls whose return is not the plain one (see its header; on
+aarch64 also its arm build, a 32-bit task on the compat ABI):
 iret with TF set (x86_64), a restarted read, -EINTR, restart_syscall after a stop, fork, vfork,
 a thread, clone3, clone3 with CLONE_VM | CLONE_VFORK (the child returns from the parent's call at
 its pc on its stack), a thread and the main thread blocked in read at the same instruction, and

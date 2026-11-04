@@ -8,10 +8,10 @@ trip of a 9 MiB file through the agent; TESTMACHINE PASS at the end).
 A machine is a tests/mkbusybox.py image's kernel and machine arguments with an initramfs of its
 own: the image's busybox and the agent (tests/programs/agent.c) as /init. The agent mounts /dev,
 /proc, /sys, tracefs and /tmp, installs busybox's applets and polls the host; the snapshot "agent"
-is taken at its first poll. Building it is one boot (2-10 s under TCG); it is cached under the
+is taken at its first poll. Building it is one boot (3-6 s under TCG); it is cached under the
 image's directory (machines/<arch>-smp<N>-<key>/, the key a hash of everything it was built
-from), or $TESTMACHINE_CACHE. A test copies the snapshot and reverts to it, so it starts in about
-a second, and tests can run in parallel.
+from), or $TESTMACHINE_CACHE. A test copies the snapshot and reverts to it (0.3-0.6 s), so it
+starts in about a second, and tests can run in parallel.
 
     from testmachine import Agent, Machine
     m = Machine(sys.argv[1], smp=2)         # builds the snapshot the first time
@@ -27,9 +27,10 @@ a second, and tests can run in parallel.
 
 The guest console goes to console.log in the machine's private directory (Machine.tmp).
 
-An arch needs (tests/README.md, "Test machines"): the agent built for it (AGENT_ARCH, from
-tests/programs/sys.h's system layer and build.sh), and a mkbusybox image. The hypercall is
-penguin's per-arch instruction, which the engine routes to PANDA's guest_hypercall.
+Machines exist for x86_64, aarch64 and arm (busybox-armel). An arch needs (tests/README.md, "Test
+machines"): the agent built for it (AGENT_ARCH, from tests/programs/sys.h's system layer and
+build.sh), and a mkbusybox image. The hypercall is penguin's per-arch instruction, which the
+engine routes to PANDA's guest_hypercall.
 """
 import argparse
 import gzip

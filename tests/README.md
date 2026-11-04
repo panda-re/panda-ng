@@ -26,6 +26,8 @@ export PANDA_PYTHON=$PWD/result-python/bin/python3
 | guest suite | `guest api osi_isf blocks block_activation callbacks calls mem mmio late reset teardown asidstory tbpc hookalias rr rrcb rrstop rrload fuzz fastrestore fastcov syscalls taint taint_mmio taint_errors` | an image (below); `run.sh` runs them |
 | every arch | `busybox.sh [arch...]` | nix and network: builds `mkbusybox.py` images (a linux_builder kernel, a busybox initramfs, an ext2 disk) for 12 arches and runs `taint taint_mmio taint_errors` on them through `run.sh`, about 3 minutes. CI runs it on PRs that touch taint or record/replay, and nightly |
 | more guest tests | `kpti physmem rr_blocks fastrestore_guards fastrestore_hotplug fastrestore_vsock` | an image; not in `run.sh`'s default list (x86_64-only, or need extra host tools: see each docstring) |
+| test machines | `testmachine.py <busybox json> [--smp N] [--intel]` | a `mkbusybox.py` image: builds and checks its test machine (below) |
+| syscall trap | `syscall_cover.py <busybox json> [--intel]`, `syscall_truth.py <busybox json> [--smp N] [--intel]` | a `mkbusybox.py` image (x86_64, aarch64, armel) and `PANDA_PLUGIN_DIR` from `nix build .#test-plugins` (the `tests/plugins/sctrace` observer): every number through every entry instruction and the hard return paths (cover); the trap's events against the guest kernel's `raw_syscalls` ftrace (truth). 2-10 s each on a test machine; `TESTS="testmachine syscall_cover syscall_truth" tests/busybox.sh x86_64 aarch64 armel` |
 | reset/restore lifecycle | `lifecycle.py <image>` | real public owner reset-hook ordering, ordinary/fast restore notifications, rejection, unregister/re-register and hardware reset; `RRCB_HANDOFF=1` only for fixtures with handoff snapshot extensions; pending/held/injected slot and safe teardown cases are host-only in `static/lifecycle.py` and `static/penguin_detach.py` |
 | replay safety | `replay_guard.py <image> [workdir]` | record/replay observer and mutation refusal; `RRCB_HANDOFF=1` explicitly admits fixtures saved with handoff snapshot extensions |
 | recorded RAM effects | `replay_effect.py <x86_64 image> [workdir]` | deferred overlapping RAM writes, then two fresh producer-free replays |
@@ -55,6 +57,71 @@ kernel's vmlinux is extracted there, its debug package (1-1.8 GB) can be deleted
 boot under TCG plus symbol extraction: on a 2026 x86_64 server, all five in parallel, 5-6 min
 each for debian-13, 11 min for ubuntu x86_64 and 21 min for ubuntu aarch64, downloads included.
 `debian-13-ppc64` is also a recipe; the suite isn't run on it yet.
+
+## Test machines
+
+`testmachine.py` turns a `mkbusybox.py` image into a machine for tests that run guest programs:
+the image's kernel and machine arguments with an initramfs of the image's busybox and the guest
+agent (`programs/agent.c`) as `/init`, snapshotted at the agent's first poll (one boot, 3-6 s) and
+cached next to the image (`machines/`, or `$TESTMACHINE_CACHE`). A test copies the snapshot,
+reverts to it (0.3-0.6 s) and moves files and commands through the agent's hypercalls and guest
+memory (`Agent.put`, `run`, `get`): no boot and no serial console. The agent mounts `/dev`,
+`/proc`, `/sys`, tracefs and `/tmp`.
+
+Machines exist for x86_64, aarch64 and arm (busybox-armel). The syscall tests run on them:
+
+```sh
+nix build .#python -o result-python && nix build .#test-plugins -o result-plugins
+export PANDA_PYTHON=$PWD/result-python/bin/python3 PANDA_PLUGIN_DIR=$PWD/result-plugins/lib/panda/plugins
+DL=~/.cache/panda-busybox      # busybox.sh's downloads (it fetches them on its first run)
+$PANDA_PYTHON tests/mkbusybox.py x86_64 aarch64 armel -o ~/panda-busybox --kernels $DL/kernels --busybox $DL/busybox
+$PANDA_PYTHON tests/syscall_cover.py ~/panda-busybox/busybox-x86_64.json
+$PANDA_PYTHON tests/syscall_truth.py ~/panda-busybox/busybox-aarch64.json --smp 4
+```
+
+They observe the trap through `tests/sctrace.py`, a QEMU plugin on the plugin syscall API
+(`qemu_plugin_register_syscall_event_cb`); swapping that module for another observer moves them
+to it. Known trap bugs are listed in each test as gaps (`testlib.Checks`): GAP while they fail,
+XPASS (a failure) once fixed.
+
+### Adding an arch
+
+The machine and both tests are parametrised by arch; an arch supplies:
+
+1. **An image**: `mkbusybox.py <arch>` (all 12 of its arches have one).
+2. **The system layer** in `programs/sys.h`, under the compiler's arch macro:
+   - `NR_<name>` for the calls the programs make (riscv64 and loongarch64 use the asm-generic
+     numbers aarch64 has; mips o32 numbers start at 4000);
+   - `sc(n, a, b, c, d, e, f)`: a system call returning `-errno` on error (mips: the error is a
+     positive value with `a3` set, and o32 arguments 5 and 6 go on the user stack; ppc `sc`: the
+     error is positive with `cr0.SO` set; both must be turned into `-errno` here);
+   - `hc(op, a, b, c)`: penguin's hypercall instruction with the magic in the number register and
+     in argument 0, op, a, b and c in arguments 1-4, the host's answer in the return register.
+     The instructions the engine decodes (engine patches 0003-0008): x86 `out %eax, $0x88`
+     (after `ioperm`), aarch64 `.inst 0xd500501f`, arm `mcr p7, 0, r0, c0, c0, 0` (number in
+     r7), riscv `xori x0, x0, 0` (number in a7, a0-a4), loongarch `cpucfg $zero, $zero` (number
+     in a7, a0-a4), ppc `xori r10, r10, 0` (number in r0, r3-r7), mips `movz $0, $0, $0`
+     (number in v0, but only a0-a3: the agent's REPLY passes its status in argument 4, so on mips
+     the status has to move into the reply buffer);
+   - `hc_setup()`, `clone_fn(flags, stack, ctid, fn)` (mind the arch's clone argument order:
+     x86_64 takes the child tid before tls, arm and arm64 after it: the kernel's
+     `CONFIG_CLONE_BACKWARDS`), `SIGRETURN_ASM` (end it with a
+     trapping instruction, so no handler starts just past the call) and `_start`;
+   - in `programs/scpaths.c`, `vfork_exit` and `clone3_exit` (the child exits without touching
+     memory).
+3. **The build**: the arch in `programs/build.sh`'s lists for `agent`, `scpaths` and `scwork` (its
+   nixpkgs `pkgsCross` name and flags), then `sh tests/programs/build.sh agent scpaths scwork`.
+4. **The machine**: its pandare2 arch in `testmachine.AGENT_ARCH`.
+5. **The observer**: the target in the flake's `sctrace` package (`targets`).
+6. **The tests**: in `syscall_cover.py`, a `PROGRAMS` entry and the scpaths numbers in `NR` (and,
+   for the every-number sweep, a `programs/sccover_<arch>.S` with the arch's `AUDIT_ARCH_*` in
+   its seccomp filter, its trap instruction in `sites()` and its calls in `expected()`); in
+   `syscall_truth.py`, a `WORKLOADS` entry and the ABI's rows in `NO_EXIT`, `SIGRETURN`,
+   `EXECVE`, `VFORK`, `CLONE`, `ABI_GROUP` and `mask_of`. A 32-bit ABI on a 64-bit kernel (i386
+   on x86_64, arm on aarch64) runs the 32-bit build on the 64-bit machine.
+7. **The engine**: the trap's target hooks for the arch (`system/syscall-trap.c`'s
+   `syscall_trap_enter` and `syscall_trap_return`). The engine has them for x86 and arm only so
+   far; on another arch the machine works but the trap reports nothing.
 
 ## Running the suite
 

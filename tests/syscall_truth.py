@@ -4,11 +4,12 @@ order.
 
 Run: PANDA_PLUGIN_DIR=<test-plugins>/lib/panda/plugins panda-python tests/syscall_truth.py \\
          <images>/busybox-<arch>.json [--smp N] [--intel]
-(x86_64 and aarch64; images from tests/mkbusybox.py, the sctrace plugin from
+(busybox-x86_64, -aarch64 and -armel; images from tests/mkbusybox.py, the sctrace plugin from
 `nix build .#test-plugins`). It runs on a tests/testmachine.py machine (built and snapshotted the
-first time, a few seconds) with N vCPUs (default 1); --intel makes the x86 CPU GenuineIntel, whose
-32-bit vDSO enters through sysenter (the default, qemu64, is AMD: syscall). Programs go in and
-the kernel's trace comes out through the agent. About 30-60 s per arch.
+first time, 4-6 s) with N vCPUs (default 1); --intel makes the x86 CPU GenuineIntel, whose 32-bit
+vDSO enters through sysenter (the default, qemu64, is AMD: syscall). Programs go in and the
+kernel's trace comes out through the agent. 5-10 s per arch once the machine exists (15 s at
+--smp 4). On aarch64 the arm builds of the programs also run, as 32-bit tasks.
 
 The events come from the trap through the QEMU plugin syscall API (tests/sctrace.py).
 
