@@ -393,12 +393,15 @@ hit), and read registers through stable pointers instead of the register API.
 
 Trap guest system calls in the engine, serve them on the host (penguin's syscall engine), read
 process state host-side from the kernel's symbols, and redirect the guest from a syscall entry.
+The trap has several consumers at once, in order: PANDA's `syscall.enter` and `syscall.return`
+events (observers that see the original call, mutators, observers), penguin's syscall engine and
+the QEMU-plugin syscall API.
 
-**Limits.** Native syscall trap events require TCG; symbol presence does not establish KVM support. Penguin's explicit detach requires main-thread/BQL stopped-vCPU quiescence and no public kernel hooks or live injected calls. Persistent profile/internal hooks survive; this is not full unload or profile reconfiguration. Checked lifetime/child-birth correlation and current consumer admission remain incomplete.
+**Limits.** Native syscall trap events require TCG; symbol presence does not establish KVM support. Syscall event mutators are refused during record/replay: their effects are not logged yet. Penguin's explicit detach requires main-thread/BQL stopped-vCPU quiescence and no public kernel hooks or live injected calls. Persistent profile/internal hooks survive; this is not full unload or profile reconfiguration. Checked lifetime/child-birth correlation and current consumer admission remain incomplete.
 
-**Use it:** `qemu_plugin_set_pc`, `penguin_syscall_detach`
+**Use it:** `qemu_plugin_set_pc`, `penguin_syscall_detach`, `panda_syscall_watch`
 
-**Tests:** `engine/tests/guest/sctest.sh`, `engine/tests/guest/ositest.sh`, `engine/tests/guest/setpctest.sh`, `tests/static/penguin_detach.py`
+**Tests:** `engine/tests/guest/sctest.sh`, `engine/tests/guest/ositest.sh`, `engine/tests/guest/setpctest.sh`, `tests/static/penguin_detach.py`, `tests/static/syscall_trap.py`, `tests/syscall_events.py`
 
 **Engine patches:** 0019, 0021, 0033 ([series](reference/patches.md))
 

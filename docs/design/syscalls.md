@@ -159,6 +159,74 @@ bool panda_syscall_inject(PandaSyscall *sc, int64_t num, const uint64_t args[6])
 - **Other consumers.** The QEMU-plugin syscall bridge (`plugins/syscall-system.c`) is one more
   trap consumer, ordered as an observer.
 
+### Multi-consumer trap and L1, as built
+
+Overlay only, with no engine patch and no target change.
+
+**The trap** (`system/syscall-trap.h`) takes any number of consumers:
+`syscall_trap_consumer_add(ops, opaque, order, priority)`, with order classes
+`SYSCALL_TRAP_OBSERVE_ORIGINAL`, `_MUTATE` and `_OBSERVE`, then priority, then age.
+- **Watches.** Each consumer has its own watch bitmaps. The trap's bitmap is their OR, kept per
+  entry on each watch change and recomputed in full when a consumer goes. `syscall_trap_on` is
+  set while any entry is set, or while a call is held.
+- **Per-call state.** A call's own fields (arguments, return value, skip, fault, inject) are
+  shared, so each consumer sees what the ones before it changed. `want_return`, `keep`, `task`,
+  `data`, `resumed` and `injected` belong to each consumer. They live in a table with one
+  column per consumer beside the pending-call slots. A dispatch copies a slot's row into
+  per-thread scratch, runs the consumers without the lock, and stores back what is still
+  needed. The first 16 consumers need no allocation.
+- **Holds.** A held call resumes at its holder (`resumed`), then reaches the consumers after it.
+  The consumers before it keep their state from the first pass.
+- **Drops** reach each consumer with data on a call exactly once, outside the lock.
+  `forget_task` matches any consumer's task.
+- **Removal** (`syscall_trap_consumer_remove`) drops the consumer's data on every call. A call
+  it held for a fault resumes at the consumers after it. Removal is refused, with no change, while
+  a call it holds is running an injected call. Removing the last consumer resets the core as the
+  old `clear_consumer` did.
+- **`SyscallTrap.id`** is a call id, the same at entry and return.
+- **`SYSCALL_TRAP_OPS_SKIPPED_RETURN`.** A consumer with this flag gets the return of a skipped
+  call, right after its entry. Penguin and the plugin bridge don't set it, so they behave as
+  before.
+- **`syscall_trap_set_arch(word)` / `syscall_trap_arch()`** carry a target word from a call's
+  entry to its return (PPC `sc`/`scv`, MIPS o32 stack slot).
+- **A dispatch abandoned by longjmp.** `qemu_plugin_set_pc` from an entry callback leaves the
+  dispatch by longjmp. The next dispatch on that thread drops what the consumers before the one
+  that left had on the call.
+- **Penguin and the plugin bridge** are two consumers and can be active together. Penguin is
+  `_MUTATE` at priority 0. The bridge is `_OBSERVE` at `INT_MAX`, last, because of the longjmp
+  above. It is still allowed to change the call.
+
+**L1** (`panda/src/syscall-events.c`, `include/panda/syscall-events.h`):
+- **Events.** `syscall.enter` and `syscall.return` are declared at startup with
+  `PANDA_SYSCALL_SIGNATURE`, `MUTABLE` and `INSTANCES`, for analysis, fuzz and rr modes (not KVM).
+- **Dispatch.** The registry tells L1 when an event's active subscriptions change
+  (`panda_event_set_watcher`, in `events-internal.h`). L1 keeps one RCU snapshot and one trap
+  consumer per kind (early observers, mutators, observers). A kind's consumer exists only while
+  it has an active subscription.
+- **Watches.** A subscription is called only for the numbers it watches. A `syscall.enter`
+  subscription may watch returns too, and is then called at both, with the same instance data
+  and `PANDA_SC_AT_RETURN` set. A `syscall.return` subscription watches returns only.
+- **Call records.** A call keeps the snapshot it started with, and its instance data, until it
+  returns. The records come from a per-thread pool.
+- **Refusals.** Mutator calls are refused with a reason (`panda_syscall_refusal()`) from an
+  observer, outside the call's own callback, in the wrong phase, under KVM, while the analysis
+  write policy forbids writes, and during record/replay.
+- **Record/replay.** Syscall mutations are not logged. The events are declared without
+  `RR_MUTATE`, so a mutator subscription is refused under record/replay. It is re-admitted after
+  replay ends.
+- **Exit calls.** `exit` and `exit_group`, per ABI number in L1, arm no return unless the
+  subscription watches with `PANDA_SC_NORETURN_TOO`.
+- **Skipped calls.** A skipped call's return reaches the subscriptions that want it, with
+  `PANDA_SC_SKIPPED` and the value the mutator set.
+- **Before vCPUs exist.** Plugins subscribe from `init_plugin`, before `qemu_init`. QEMU's RCU
+  thread can't run callbacks then, so until the machine has vCPUs, the registry, L1 and the trap
+  free what they replace at once (`panda_events_rcu_ready`).
+
+Tests: `tests/static/syscall_trap.py` (flake check `syscall-trap`) runs the trap core against a
+Python model, plus directed trap and L1 cases, under ASan and UBSan. `tests/static/penguin_detach.py`
+checks Penguin's detach on the real core. `tests/syscall_events.py` runs C plugins on a busybox
+x86_64 guest.
+
 ## L2: the `syscalls` plugin
 
 - **core.** Tables per ABI, generated from syscalls2's `generated-in/*_prototypes.txt`: name,
