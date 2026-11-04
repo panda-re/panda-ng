@@ -148,6 +148,8 @@ const PandaCoreEventDef panda_core_events[] = {
 };
 const size_t panda_core_events_count = 2;
 uint32_t panda_core_event_modes(int type) { return type == 0 ? 7 : 0; }
+/* the machine has vCPUs: frees wait for the harness's grace period */
+bool panda_events_rcu_ready(void) { return true; }
 
 static const char *owner_names[] = { "?", "p1", "p2", "p3", "p4" };
 const char *panda_event_owner_name(void *owner)

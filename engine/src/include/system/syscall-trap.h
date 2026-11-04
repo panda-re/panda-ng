@@ -4,8 +4,8 @@
  * The target calls syscall_trap_enter() when a user task traps for a
  * syscall, and syscall_trap_return() on every return to user mode while a
  * call is pending.  The core filters the traps by ABI and number, hands
- * them to one consumer (the TCG plugin API or Penguin's syscall hooks),
- * and pairs each call with its return.
+ * them to its consumers in order (the PANDA syscall events, Penguin's
+ * syscall hooks, the TCG plugin API), and pairs each call with its return.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -35,11 +35,18 @@ enum {
 #define SYSCALL_TRAP_ENTER  1           /* watch flags */
 #define SYSCALL_TRAP_RETURN 2
 
+/*
+ * One call as a consumer sees it.  The call's own fields are shared: a
+ * consumer sees what the consumers before it changed.  want_return, keep,
+ * resumed, injected, inject_ret, task and data are each consumer's own,
+ * kept for it with a pending or held call.
+ */
 typedef struct SyscallTrap {
     int abi;
     int64_t num;
     uint64_t args[6];
     uint64_t pc;            /* the address past the trap instruction */
+    uint64_t id;            /* the core's: unique per call, the same at its return */
     int64_t ret;            /* return: the value; enter: with skip */
     /*
      * The kernel's per-CPU base while the task is in user mode (x86: the
@@ -48,19 +55,21 @@ typedef struct SyscallTrap {
      */
     uint64_t percpu;
     bool skip;              /* enter: do not enter the kernel; return ret */
-    bool want_return;       /* enter: report the call's return */
+    bool want_return;       /* enter: report the call's return to this consumer */
     bool restart;           /* return: the kernel is restarting the call */
-    bool keep;              /* return: not the caller's; keep it pending */
+    bool keep;              /* return: not this consumer's; keep it pending for it */
     /*
-     * Set by the core: the consumer asked for a fault at this trap, and
-     * this is the same call coming back after the guest handled it.
+     * Set by the core for the consumer that asked for a fault at this trap
+     * (the holder): this is the same call coming back after the guest
+     * handled it.
      */
     bool resumed;
     /*
      * Set by the consumer: make the guest take the fault a user access to
      * fault_addr would take, then deliver this event again (resumed) once
      * the task comes back to the same trap.  The call is held meanwhile,
-     * with task and data.
+     * with every consumer's task and data; the consumers after the holder
+     * see the call only when it resumes.
      */
     bool fault;
     bool fault_write;
@@ -70,7 +79,7 @@ typedef struct SyscallTrap {
      * (inject_num, of the event's ABI), then deliver this event again
      * (resumed, injected set, inject_ret its return value) once the task is
      * back at the trap with its registers as they were.  The call is held
-     * meanwhile, with task and data.  The injected call reaches no consumer:
+     * meanwhile, as for a fault.  The injected call reaches no consumer:
      * not its entry, not its return, not a restart of it.
      */
     bool inject;
@@ -86,29 +95,70 @@ typedef struct SyscallTrapOps {
     /* the vCPU is in user mode; CPUState.syscall_kmmu is set */
     void (*enter)(CPUState *cpu, SyscallTrap *sc, void *opaque);
     void (*ret)(CPUState *cpu, SyscallTrap *sc, void *opaque);
-    /* a pending call is discarded without its return (may be NULL) */
+    /*
+     * The consumer's data on a call is released: the call is discarded
+     * without the consumer's return, or the consumer is done with it and
+     * left data set (may be NULL).  Never called with the core's lock held,
+     * and once per consumer and call.
+     */
     void (*drop)(SyscallTrap *sc, void *opaque);
+    unsigned flags;         /* SYSCALL_TRAP_OPS_* */
 } SyscallTrapOps;
 
-/* one consumer at a time; false if another one is set */
-bool syscall_trap_set_consumer(const SyscallTrapOps *ops, void *opaque);
-/* Main thread/BQL, vCPUs stopped: owner-checked drain before detaching.
- * Refuses without changes while injected calls still need register restoration. */
-bool syscall_trap_clear_consumer(const SyscallTrapOps *ops, void *opaque);
-void syscall_trap_watch(int abi, int64_t num, unsigned flags); /* num -1: all */
-void syscall_trap_unwatch_all(void);
+/*
+ * A skipped call (skip set at the entry, by this consumer or another one)
+ * is also reported to this consumer's ret() if it wanted the return, right
+ * after the entry: skip is set, ret is the value the task gets, and ret()
+ * may change it (nothing else).  Without the flag a skipped call has no
+ * return.
+ */
+#define SYSCALL_TRAP_OPS_SKIPPED_RETURN 1
+
+/*
+ * Consumers.  A call reaches the consumers in order: order class, then
+ * priority (lower first), then the order they were added in.  A held call
+ * resumes at its holder, then the consumers after it.
+ */
+enum {
+    SYSCALL_TRAP_OBSERVE_ORIGINAL,  /* observers that see the call as the task made it */
+    SYSCALL_TRAP_MUTATE,            /* consumers that may change, skip or hold it */
+    SYSCALL_TRAP_OBSERVE,           /* observers that see the final values */
+};
+
+typedef struct SyscallTrapConsumer SyscallTrapConsumer;
+
+/* NULL without ops or on a bad order class. */
+SyscallTrapConsumer *syscall_trap_consumer_add(const SyscallTrapOps *ops, void *opaque,
+                                               int order, int priority);
+/*
+ * Its data on every pending or held call is dropped, outside the lock (from
+ * its own callback: the call in flight's, once the callback returns); a
+ * call it holds for a fault resumes at the consumers after it.  Refused, without changes, while a call it holds
+ * runs an injected call: the task needs its registers back through it.
+ * When the last consumer goes, the core is reset as by
+ * syscall_trap_cancel_all() and no watch is left: then the caller must have
+ * stopped the vCPUs (main thread/BQL).
+ */
+bool syscall_trap_consumer_remove(SyscallTrapConsumer *c);
+/* @num -1: all of @abi.  The core watches the OR of its consumers' watches. */
+void syscall_trap_consumer_watch(SyscallTrapConsumer *c, int abi, int64_t num,
+                                 unsigned flags);
+void syscall_trap_consumer_unwatch_all(SyscallTrapConsumer *c);
+unsigned syscall_trap_consumers(void);
 void syscall_trap_stats(uint64_t *pending, uint64_t *full, uint64_t *stale);
 uint64_t syscall_trap_faults(void);    /* faults raised for consumers */
 
 /*
- * The task is gone: drop its calls, pending or held (those whose
- * SyscallTrap.task is @task, not 0).  Returns how many.
+ * The task is gone: drop its calls, pending or held (those where a
+ * consumer's SyscallTrap.task is @task, not 0), for every consumer with
+ * data on them.  Returns how many.
  */
 unsigned syscall_trap_forget_task(uint64_t task);
 
 /* Stopped-vCPU restore/reset boundary: abandon pending/held analysis, without
- * restoring old registers. Drops run outside sc_lock. Watches and the consumer
- * remain installed; a return whose entry predates the snapshot is not rebuilt. */
+ * restoring old registers. Drops run outside sc_lock, once per consumer with
+ * data. Watches and consumers remain installed; a return whose entry predates
+ * the snapshot is not rebuilt. */
 unsigned syscall_trap_cancel_all(void);
 
 /*
@@ -197,6 +247,17 @@ int syscall_trap_enter(CPUState *cpu, int abi, int64_t num, uint64_t args[6],
 int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
                         uint64_t percpu, uint32_t kmmu, uint64_t *ret,
                         SyscallTrapRewind *rw);
+
+/*
+ * The target's own word for a call (PPC: sc or scv; MIPS o32: where the
+ * stack arguments are).  Set before syscall_trap_enter(), on the same
+ * thread: the call keeps it while it is pending or held, and a
+ * syscall_trap_return() that finds the call sets syscall_trap_arch() to it
+ * (0 when it found none).  Each syscall_trap_enter() consumes the word set
+ * before it.
+ */
+void syscall_trap_set_arch(uint64_t word);
+uint64_t syscall_trap_arch(void);
 
 /*
  * Raise the fault the consumer asked for, as a user-mode load or store at

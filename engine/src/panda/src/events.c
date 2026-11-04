@@ -61,6 +61,8 @@ struct PandaEvent {
     int core_type;              /* the panda_cb_type of a core event, or -1 */
     GPtrArray *subs;            /* every live subscription, any state, in subscription order */
     PandaSubArray *active;      /* RCU: the ACTIVE ones, in dispatch order */
+    panda_event_watcher_fn watcher;     /* the publisher's, told when `active` changes */
+    void *watcher_opaque;
 };
 
 struct PandaSub {
@@ -419,8 +421,13 @@ static void event_publish(PandaEvent *ev)
     g_ptr_array_free(act, true);
     old = ev->active;
     qatomic_rcu_set(&ev->active, a);
-    if (old) {
+    if (old && panda_events_rcu_ready()) {
         g_free_rcu(old, rcu);
+    } else {
+        g_free(old);
+    }
+    if (ev->watcher) {
+        ev->watcher(ev, ev->watcher_opaque);
     }
 }
 
@@ -508,7 +515,11 @@ static void sub_free(PandaSub *s)
 static void sub_unref(PandaSub *s)
 {
     if (qatomic_fetch_dec(&s->refs) == 1) {
-        call_rcu(s, sub_free, rcu);
+        if (panda_events_rcu_ready()) {
+            call_rcu(s, sub_free, rcu);
+        } else {
+            sub_free(s);
+        }
     }
 }
 
@@ -585,7 +596,7 @@ panda_event_id panda_event_declare(void *owner, const panda_event_desc *desc)
 {
     registry_init();
     QEMU_LOCK_GUARD(&events_lock);
-    return event_declare(owner, owner_name(owner), desc);
+    return event_declare(owner, owner ? owner_name(owner) : "panda", desc);
 }
 
 static void events_declare_core(void)
@@ -912,6 +923,64 @@ void panda_events_owner_gone(void *owner)
             event_eval_rivals(ev);
         }
     }
+}
+
+void panda_event_set_watcher(panda_event_id ev, panda_event_watcher_fn fn, void *opaque)
+{
+    registry_init();
+    QEMU_LOCK_GUARD(&events_lock);
+    ev->watcher = fn;
+    ev->watcher_opaque = opaque;
+    if (fn) {
+        fn(ev, opaque);
+    }
+}
+
+unsigned panda_event_active_subs(panda_event_id ev, panda_sub *out, unsigned max)
+{
+    PandaSubArray *a = ev->active;
+    unsigned n = 0;
+
+    for (unsigned i = 0; a && i < a->n; i++) {
+        if (n < max) {
+            out[n] = a->s[i].sub;
+        }
+        n++;
+    }
+    return n;
+}
+
+void panda_sub_info(panda_sub sub, PandaSubInfo *out)
+{
+    *out = (PandaSubInfo) {
+        .fn = sub->fn, .ctx = sub->ctx, .flags = sub->flags, .priority = sub->priority,
+        .seq = sub->seq, .data_size = sub->data_size, .owner = sub->owner,
+    };
+}
+
+bool panda_event_has_sub(panda_event_id ev, panda_sub sub)
+{
+    for (guint i = 0; i < ev->subs->len; i++) {
+        if (g_ptr_array_index(ev->subs, i) == sub) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool panda_sub_with_lock(panda_sub sub, void (*fn)(panda_sub, panda_event_id, void *),
+                         void *opaque)
+{
+    if (!sub) {
+        return false;
+    }
+    registry_init();
+    QEMU_LOCK_GUARD(&events_lock);
+    if (!sub->live) {
+        return false;
+    }
+    fn(sub, sub->ev, opaque);
+    return true;
 }
 
 bool panda_events_rr_safe(bool replay, char **why)

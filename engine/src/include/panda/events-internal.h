@@ -33,6 +33,11 @@ void panda_events_describe_sub(GString *out, bool json, const char *owner, const
 
 panda_event_id panda_core_event(int type);      /* NULL for an undeclared (removed) type */
 
+/* Provided by callbacks.c: false before the machine has vCPUs. Then nothing dispatches, and
+ * QEMU's RCU thread cannot run callbacks yet (it takes the BQL, not initialized before
+ * qemu_init): what would be freed after a grace period is freed at once. */
+bool panda_events_rcu_ready(void);
+
 /* The declaring or subscribing plugin is going away: its subscriptions are removed, and the
  * events it declared become undeclared (their subscribers PENDING). */
 void panda_events_owner_gone(void *owner);
@@ -42,6 +47,33 @@ void panda_events_owner_gone(void *owner);
  * active, and the other way round). */
 bool panda_events_rr_safe(bool replay, char **why);
 void panda_events_reevaluate(void);
+
+/*
+ * For publishers that dispatch themselves, with their own per-subscription filters (the syscall
+ * events, syscall-events.c). The watcher runs with the registry locked whenever @ev's active
+ * subscriptions change (subscribe, unsubscribe, enable, priority, data size, admission), and once
+ * when it is set; it must not call back into the registry's locking calls.
+ */
+typedef void (*panda_event_watcher_fn)(panda_event_id ev, void *opaque);
+void panda_event_set_watcher(panda_event_id ev, panda_event_watcher_fn fn, void *opaque);
+
+typedef struct PandaSubInfo {
+    panda_event_fn fn;
+    void *ctx;
+    uint32_t flags;             /* PANDA_SUB_* */
+    int priority;
+    uint64_t seq;               /* subscription order, across events */
+    size_t data_size;
+    void *owner;
+} PandaSubInfo;
+
+/* With the registry locked (in a watcher, or panda_sub_with_lock's @fn): */
+unsigned panda_event_active_subs(panda_event_id ev, panda_sub *out, unsigned max);
+void panda_sub_info(panda_sub sub, PandaSubInfo *out);
+bool panda_event_has_sub(panda_event_id ev, panda_sub sub);     /* subscribed, any state */
+/* Run @fn with the registry locked if @sub is still subscribed; false if it is not. */
+bool panda_sub_with_lock(panda_sub sub, void (*fn)(panda_sub, panda_event_id, void *),
+                         void *opaque);
 
 /* Parse a signature into its canonical forms. False, with a g_malloc'd reason, if malformed.
  * @hashed is the part before `|`, @full the whole; @layout_size the struct size it implies. */

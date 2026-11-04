@@ -18,6 +18,7 @@ QEMU_BUILD_BUG_ON(QEMU_PLUGIN_SYSCALL_RETURN != SYSCALL_TRAP_RETURN);
 
 static qemu_plugin_id_t sc_id;
 static bool sc_registered;
+static SyscallTrapConsumer *sc_trap;
 static qemu_plugin_syscall_event_cb_t sc_enter_cb, sc_return_cb;
 static void *sc_udata;
 
@@ -85,9 +86,20 @@ bool qemu_plugin_register_syscall_event_cb(qemu_plugin_id_t id,
                                            qemu_plugin_syscall_event_cb_t ret,
                                            void *userdata)
 {
-    if ((sc_registered && sc_id != id) ||
-        !syscall_trap_set_consumer(&sc_ops, NULL)) {
+    if (sc_registered && sc_id != id) {
         return false;
+    }
+    /*
+     * One trap consumer, ordered as an observer and after the others: a
+     * plugin that calls qemu_plugin_set_pc() from its entry callback leaves
+     * the dispatch by longjmp.
+     */
+    if (!sc_trap) {
+        sc_trap = syscall_trap_consumer_add(&sc_ops, NULL, SYSCALL_TRAP_OBSERVE,
+                                            INT_MAX);
+        if (!sc_trap) {
+            return false;
+        }
     }
     sc_id = id;
     sc_registered = true;
@@ -108,7 +120,7 @@ bool qemu_plugin_syscall_watch(qemu_plugin_id_t id,
     if (!sc_return_cb) {
         flags &= ~QEMU_PLUGIN_SYSCALL_RETURN;
     }
-    syscall_trap_watch(abi, num, flags);
+    syscall_trap_consumer_watch(sc_trap, abi, num, flags);
     return true;
 }
 

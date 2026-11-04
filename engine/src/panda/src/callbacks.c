@@ -1311,6 +1311,11 @@ void panda_unregister_callbacks(void *plugin)
     }
 }
 
+bool panda_events_rcu_ready(void)
+{
+    return first_cpu != NULL;
+}
+
 const char *panda_event_owner_name(void *owner)
 {
     for (int i = 0; i < nb_panda_plugins; i++) {

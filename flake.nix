@@ -185,7 +185,7 @@
                 # Additive APIs are not part of the generated flattened ABI headers.
                 mkdir -p $out/include/panda
                 cp include/panda/analysis-effect.h include/panda/guest-write.h include/panda/events.h \
-                  $out/include/panda/
+                  include/panda/syscall-events.h $out/include/panda/
                 # libqemu-system-<name>.so (with penguin's alias names), libqemu-kvm-<target>.so and
                 # libpanda-<target>-softmmu.so are links of the same objects; only the soname differs,
                 # and all of them are dlopened by path. Keep libpanda-* and link the rest to it.
@@ -1187,6 +1187,14 @@
             buildInputs = [ pkgs.glib ];
           } ''
             python3 ${./.}/tests/static/events_registry.py
+            touch $out
+          '';
+          # The syscall trap's consumers (model and directed) and the syscall events on it.
+          syscall-trap = pkgs.runCommandCC "syscall-trap-check" {
+            nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
+            buildInputs = [ pkgs.glib ];
+          } ''
+            python3 ${./.}/tests/static/syscall_trap.py
             touch $out
           '';
           lifecycle = pkgs.runCommandCC "analysis-lifecycle-check" {

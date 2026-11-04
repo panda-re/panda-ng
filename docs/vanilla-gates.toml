@@ -1476,7 +1476,7 @@ id = "syscall-trap-core"
 class = "runtime-gate"
 capability = "syscall-trap"
 paths = ["engine/src/system/syscall-trap.c"]
-functions = ["syscall_trap_enter", "syscall_trap_return", "syscall_trap_fault", "syscall_trap_access", "syscall_trap_set_consumer", "syscall_trap_watch", "syscall_trap_cancel_all", "syscall_trap_clear_consumer"]
+functions = ["syscall_trap_enter", "syscall_trap_return", "syscall_trap_fault", "syscall_trap_access", "syscall_trap_consumer_add", "syscall_trap_consumer_watch", "syscall_trap_cancel_all", "syscall_trap_consumer_remove"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "Enabled/pending flags and RR write restrictions exist; consumer/watch admission has no vanilla capability; live detach refuses injected states."
 required_action = "Refuse all extension consumers/watches in vanilla; retain original target entry/return paths; keep rewind cancellation and live detach policy separate."
@@ -1535,6 +1535,17 @@ functions = ["panda_event_declare", "panda_subscribe", "panda_event_emit", "pand
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "Every subscription is admitted by panda_admit (frozen ANALYSIS provisioning, modes, KVM, rr); with none admitted, emitters see no subscribers. Core events are declared on first use of the registry, including in vanilla."
 required_action = "Vanilla must not declare or admit events; sources must test panda_event_wanted before building arguments."
+vanilla_verified = false
+
+[[overlay]]
+id = "syscall-events"
+class = "runtime-gate"
+capability = "analysis-callbacks"
+paths = ["engine/src/panda/src/syscall-events.c", "engine/src/include/panda/syscall-events.h"]
+functions = ["panda_syscall_event", "panda_syscall_watch", "panda_syscall_skip", "panda_syscall_fault", "panda_syscall_inject"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "syscall.enter and syscall.return are declared at startup. A trap consumer exists only while an admitted subscription of its kind exists, and the trap is on only while one watches a number; mutators are refused under KVM and record/replay."
+required_action = "Vanilla must not declare the events or add trap consumers."
 vanilla_verified = false
 
 [[overlay]]
