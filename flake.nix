@@ -849,6 +849,28 @@
             mkdir $out
             cp -r syscalls2/generated-in syscalls2/generated $out/
           '';
+      # plugins/syscalls's tables (tables/generated-in: the Linux ABIs syscalls2 has no table for;
+      # tables/generated: the C tables), as plugins/syscalls/tables/regen.sh makes them from the
+      # pinned kernel and syscalls2's prototype files as syscalls2Generated makes them.
+      syscallsTablesGenerated =
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        pkgs.runCommand "syscalls-tables-linux-${pkgs.linux_latest.version}"
+          {
+            nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.jinja2 ])) ];
+          }
+          ''
+            mkdir -p root/plugins
+            cp -r --no-preserve=mode ${./plugins/syscalls} root/plugins/syscalls
+            cp -r --no-preserve=mode ${./plugins/syscalls2} root/plugins/syscalls2
+            rm -r root/plugins/syscalls2/generated-in
+            cp -r --no-preserve=mode ${syscalls2Generated system}/generated-in root/plugins/syscalls2/
+            PYTHON=python3 bash root/plugins/syscalls/tables/regen.sh ${pkgs.linux_latest.src}
+            mkdir $out
+            cp -r root/plugins/syscalls/tables/generated-in root/plugins/syscalls/tables/generated $out/
+          '';
     in
     {
       packages = forAllSystems (
@@ -918,7 +940,8 @@
           python = app p.dist "panda-python" "Python with pandare2 (the PANDA engine and plugins)";
           # `nix run .#regen-docs` from the repository root: rewrite the generated pages.
           # `nix run .#regen-syscalls` from the repository root: syscalls2's Linux tables and
-          # generated code from the pinned kernel (plugins/syscalls2/MAINTENANCE.md).
+          # generated code from the pinned kernel (plugins/syscalls2/MAINTENANCE.md), and the
+          # syscalls plugin's tables (plugins/syscalls/tables/README.md).
           regen-syscalls =
             app
               (nixpkgs.legacyPackages.${system}.writeShellScriptBin "regen-syscalls" ''
@@ -930,9 +953,15 @@
                 rm -f "$d"/generated/*
                 install -m 644 $g/generated/* "$d"/generated/
                 echo "regenerated $d/generated-in/linux_*_prototypes.txt and $d/generated from $g"
+                t=plugins/syscalls/tables
+                g=${syscallsTablesGenerated system}
+                install -m 644 $g/generated-in/linux_*_prototypes.txt "$t"/generated-in/
+                rm -f "$t"/generated/*
+                install -m 644 $g/generated/* "$t"/generated/
+                echo "regenerated $t/generated-in and $t/generated from $g"
               '')
               "regen-syscalls"
-              "Regenerate syscalls2's Linux tables and generated code from the pinned kernel";
+              "Regenerate syscalls2's Linux tables and generated code, and the syscalls plugin's tables, from the pinned kernel";
           regen-docs =
             app
               (nixpkgs.legacyPackages.${system}.writeShellScriptBin "regen-docs" ''
@@ -1106,6 +1135,27 @@
                 exit 1
               fi
             done
+            touch $out
+          '';
+          # plugins/syscalls's tables are what the pinned kernel and syscalls2's prototype files
+          # give (nix run .#regen-syscalls).
+          syscalls-tables = pkgs.runCommand "syscalls-tables-check" { } ''
+            g=${syscallsTablesGenerated system}
+            for d in generated-in generated; do
+              if ! diff -ru ${./plugins/syscalls/tables}/$d $g/$d > diff; then
+                head -n 80 diff
+                echo "plugins/syscalls/tables/$d is stale: nix run .#regen-syscalls" >&2
+                exit 1
+              fi
+            done
+            touch $out
+          '';
+          # The syscalls plugin's tables, compiled with their lookup code, equal the prototype
+          # files and syscalls2's generated info and callback signatures (no engine, no guest).
+          syscalls-tables-test = pkgs.runCommandCC "syscalls-tables-test" {
+            nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.jinja2 ])) ];
+          } ''
+            python3 ${./.}/tests/static/syscalls_tables.py
             touch $out
           '';
           # Compile the real generated dispatcher and PPP registry against a counted engine
