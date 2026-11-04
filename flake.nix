@@ -860,15 +860,28 @@
             pname = "cbcount";
             src = ./tests/plugins/cbcount;
           };
+          # tests/syscall_cover.py and tests/syscall_truth.py's trap observer: a QEMU plugin on
+          # the plugin syscall API (loaded with -plugin), read through cffi.
+          sctrace = p.buildPandaPlugin {
+            pname = "sctrace";
+            src = ./tests/plugins/sctrace;
+            targets = [
+              "x86_64"
+              "aarch64"
+              "arm"
+            ];
+            extraCFlags = "-I${p.engine}/include";
+          };
         in
         {
-          inherit cbcount;
+          inherit cbcount sctrace;
           # panda-ng's plugins plus the test plugins, for PANDA_PLUGIN_DIR (lib/panda/plugins).
           test-plugins = nixpkgs.legacyPackages.${system}.symlinkJoin {
             name = "panda-test-plugins";
             paths = [
               p.plugins
               cbcount
+              sctrace
             ];
           };
           inherit (p)
