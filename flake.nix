@@ -870,6 +870,8 @@
             PYTHON=python3 bash root/plugins/syscalls/tables/regen.sh ${pkgs.linux_latest.src}
             mkdir $out
             cp -r root/plugins/syscalls/tables/generated-in root/plugins/syscalls/tables/generated $out/
+            mkdir $out/compat
+            cp -r root/plugins/syscalls/compat/generated $out/compat/
           '';
     in
     {
@@ -959,6 +961,11 @@
                 rm -f "$t"/generated/*
                 install -m 644 $g/generated/* "$t"/generated/
                 echo "regenerated $t/generated-in and $t/generated from $g"
+                c=plugins/syscalls/compat
+                mkdir -p "$c"/generated
+                rm -f "$c"/generated/*
+                install -m 644 $g/compat/generated/* "$c"/generated/
+                echo "regenerated $c/generated from $g"
               '')
               "regen-syscalls"
               "Regenerate syscalls2's Linux tables and generated code, and the syscalls plugin's tables, from the pinned kernel";
@@ -1148,6 +1155,11 @@
                 exit 1
               fi
             done
+            if ! diff -ru ${./plugins/syscalls/compat}/generated $g/compat/generated > diff; then
+              head -n 80 diff
+              echo "plugins/syscalls/compat/generated is stale: nix run .#regen-syscalls" >&2
+              exit 1
+            fi
             touch $out
           '';
           # The syscalls plugin's tables, compiled with their lookup code, equal the prototype
@@ -1156,6 +1168,13 @@
             nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.jinja2 ])) ];
           } ''
             python3 ${./.}/tests/static/syscalls_tables.py
+            touch $out
+          '';
+          # The syscalls plugin's syscalls2 callback declarations equal syscalls2's (no engine).
+          syscalls-compat-test = pkgs.runCommand "syscalls-compat-test" {
+            nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.jinja2 ])) ];
+          } ''
+            python3 ${./.}/tests/static/syscalls_compat.py
             touch $out
           '';
           # Compile the real generated dispatcher and PPP registry against a counted engine
