@@ -8,7 +8,7 @@
 # A <name>.c program is freestanding (no libc; tests/programs/sys.h is its system layer), built
 # with gcc -nostdlib for each arch in its list below; a <name>_<arch>.S is assembled for each arch
 # it exists for. i386 is a 32-bit task on the x86_64 guest.
-# The ELFs are static, text at 0x400000, stripped. Arguments: the names to build (default: all).
+# The ELFs are static, text at 0x400000 (the agent's at 0x10000000), stripped. Arguments: the names to build (default: all).
 set -e
 cd "$(dirname "$0")"
 names=${*:-api blocks mem calls procs adbits mmio fastcov syscalls answers agent sccover scpaths sctruth scwork}
@@ -16,6 +16,8 @@ names=${*:-api blocks mem calls procs adbits mmio fastcov syscalls answers agent
 NIX="nix build --no-link --print-out-paths --max-jobs 1 --cores 8"
 for name in $names; do
   out=${name}_programs.py
+  # The agent away from the programs (testlib.PROGRAM_BASE), so that its calls are never theirs.
+  text=0x400000; [ $name = agent ] && text=0x10000000
   case $name in
     agent | scpaths | scwork) archs="x86_64 aarch64" src=${name}.c ;;
     sccover) archs="x86_64 i386 aarch64" src="${name}_<arch>.S" ;;
@@ -34,7 +36,7 @@ for name in $names; do
       ccname=$(ls $cc/bin | grep -m1 'gcc$')
       $cc/bin/$ccname -Os -static -nostdlib -ffreestanding -fno-stack-protector -fno-pie -no-pie \
         -fcf-protection=none -fno-asynchronous-unwind-tables -fno-builtin -s \
-        -Wl,-z,noseparate-code -Wl,-Ttext-segment=0x400000 -Wl,--build-id=none ${name}.c -o $tmp/p
+        -Wl,-z,noseparate-code -Wl,-Ttext-segment=$text -Wl,--build-id=none -Wl,-z,max-page-size=4096 ${name}.c -o $tmp/p
     else
       bin=$($NIX "nixpkgs#pkgsCross.$cross.buildPackages.binutils-unwrapped^out")
       # Unprefixed when the target is the build machine's own arch.
