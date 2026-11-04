@@ -28,6 +28,8 @@ enum {
     SYSCALL_ABI_RISCV64,
     SYSCALL_ABI_RISCV32,
     SYSCALL_ABI_LOONGARCH64,
+    SYSCALL_ABI_MIPS_N32,
+    SYSCALL_ABI_MIPS_N64,
     SYSCALL_ABI_COUNT
 };
 
@@ -97,6 +99,12 @@ bool syscall_trap_set_consumer(const SyscallTrapOps *ops, void *opaque);
 bool syscall_trap_clear_consumer(const SyscallTrapOps *ops, void *opaque);
 void syscall_trap_watch(int abi, int64_t num, unsigned flags); /* num -1: all */
 void syscall_trap_unwatch_all(void);
+/*
+ * True if a trap of @abi/@num reaches the core: a consumer watches it, or a
+ * call is held (it may be this one coming back).  For targets that must do
+ * work (guest memory reads) to build the arguments or the task key.
+ */
+bool syscall_trap_wants(int abi, int64_t num);
 void syscall_trap_stats(uint64_t *pending, uint64_t *full, uint64_t *stale);
 uint64_t syscall_trap_faults(void);    /* faults raised for consumers */
 
@@ -194,6 +202,13 @@ static inline bool syscall_trap_waiting(void)
 int syscall_trap_enter(CPUState *cpu, int abi, int64_t num, uint64_t args[6],
                        uint64_t pc, unsigned len, uint64_t k1, uint64_t k2,
                        uint64_t percpu, uint32_t kmmu, uint64_t *ret);
+/*
+ * Prototype hook: a target may describe its task-key candidates for a
+ * trace consumer (syscall-trap-selftest.c).  NULL if it does not.
+ */
+extern void (*syscall_trap_debug_keys)(CPUState *cpu, char *buf, size_t n);
+
+/* SYSCALL_TRAP_RET: rw->abi is the call's ABI */
 int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
                         uint64_t percpu, uint32_t kmmu, uint64_t *ret,
                         SyscallTrapRewind *rw);

@@ -1,0 +1,727 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 4 Nov 2026 16:11:36 -0500
+Subject: [PATCH] WIP: target/mips: the syscall trap
+
+The syscall trap (system/syscall-trap.c) on MIPS, for o32, n32 and n64.
+
+Entry: the syscall exception from user mode, outside a delay slot,
+before it is delivered (mips_cpu_do_interrupt).  The ABI is the number's
+range, as the kernel dispatches it: 4000-4999 o32, 5000-5999 n64,
+6000-6999 n32; a 32-bit target only has o32.  o32 arguments 5 and 6
+are read from the user stack (sp + 16, sp + 20) only when the number is
+watched (syscall_trap_wants()).  The return address is the syscall
+instruction + 4, where Linux returns.
+
+Return: eret and eretnc back to user mode (exception_return), behind
+syscall_trap_waiting().  The value is v0, negated when a3 is set; the
+target writes v0 and a3 back for a changed return.
+
+Task key: Linux's kernelsp[cpu], the current task's kernel stack top,
+read from RAM at entry and at return.  Its address is found once per
+vCPU by interpreting the kernel's own exception path from the general
+exception vector (except_vec3_generic, SAVE_SOME) up to its load of the
+stack pointer.  If that fails, the key is the ASID (or MMID).  The user
+stack pointer is the second key word.
+
+Fault, inject, rewind and restore as on the other targets.  o32 stack
+arguments written by an injection or put back by a rewind fall back to
+the RAM address seen at the entry when the stack page has left the
+software-managed TLB.
+
+The plugin ABI enum gains MIPS_N32 and MIPS_N64.  system/meson.build
+builds the overlay's syscall-trap-selftest.c, a test consumer enabled by
+SYSCALL_TRAP_SELFTEST.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+
+Origin: new
+---
+ include/plugins/qemu-plugin.h           |   5 +-
+ system/meson.build                      |   1 +
+ target/mips/internal.h                  |   2 +
+ target/mips/tcg/system/special_helper.c |   7 +
+ target/mips/tcg/system/tlb_helper.c     | 587 ++++++++++++++++++++++++
+ 5 files changed, 601 insertions(+), 1 deletion(-)
+
+diff --git a/include/plugins/qemu-plugin.h b/include/plugins/qemu-plugin.h
+index 698914ea3d5a3e8c2c51e49b57dd7a171e40ee71..8e23ce36d31de7cd2aa47d0ecaa20708b28ee5e4 100644
+--- a/include/plugins/qemu-plugin.h
++++ b/include/plugins/qemu-plugin.h
+@@ -1553,7 +1553,8 @@ qemu_plugin_hook_insert_cond(qemu_plugin_id_t id, uint64_t vaddr,
+  * The ABI follows from the trap and the CPU state at the trap: x86 int 0x80
+  * against syscall, an AArch32 task under an AArch64 kernel, an ARM OABI
+  * swi.  MIPS reports the number as the task passed it; the o32, n64 and n32
+- * numbers start at 4000, 5000 and 6000.
++ * numbers start at 4000, 5000 and 6000, and the ABI is the number's range
++ * (MIPS for o32, MIPS_N32, MIPS_N64), as the kernel decides it.
+  */
+ enum qemu_plugin_syscall_abi {
+     QEMU_PLUGIN_SYSCALL_ABI_X86_64,
+@@ -1567,6 +1568,8 @@ enum qemu_plugin_syscall_abi {
+     QEMU_PLUGIN_SYSCALL_ABI_RISCV64,
+     QEMU_PLUGIN_SYSCALL_ABI_RISCV32,
+     QEMU_PLUGIN_SYSCALL_ABI_LOONGARCH64,
++    QEMU_PLUGIN_SYSCALL_ABI_MIPS_N32,
++    QEMU_PLUGIN_SYSCALL_ABI_MIPS_N64,
+     QEMU_PLUGIN_SYSCALL_ABI_COUNT,
+ };
+ 
+diff --git a/system/meson.build b/system/meson.build
+index bf30ad65891e716154b97467a68c43a4c0359323..276d6611a2d9af6a5ed295c7db0af4d703af1cc9 100644
+--- a/system/meson.build
++++ b/system/meson.build
+@@ -25,6 +25,7 @@ system_ss.add(files(
+   'qdev-monitor.c',
+   'qtest.c',
+   'syscall-trap.c',
++  'syscall-trap-selftest.c',
+   'rtc.c',
+   'runstate-action.c',
+   'runstate-hmp-cmds.c',
+diff --git a/target/mips/internal.h b/target/mips/internal.h
+index c5c286872ebd16d0c74036e478bc6a5f4f9ced44..57b168ed22e184ae14aa303dfd43d4e362e70adc 100644
+--- a/target/mips/internal.h
++++ b/target/mips/internal.h
+@@ -160,6 +160,8 @@ struct CPUMIPSTLBContext {
+ };
+ 
+ void sync_c0_status(CPUMIPSState *env, CPUMIPSState *cpu, int tc);
++/* the syscall trap's return to user mode (tlb_helper.c) */
++void mips_sc_return(CPUMIPSState *env);
+ void cpu_mips_store_status(CPUMIPSState *env, target_ulong val);
+ void cpu_mips_store_cause(CPUMIPSState *env, target_ulong val);
+ 
+diff --git a/target/mips/tcg/system/special_helper.c b/target/mips/tcg/system/special_helper.c
+index b54cbe88a3838e7ceca92db4fc4b03edc8153ccf..53807a9d515339245992adeee212f2fbb8c31907 100644
+--- a/target/mips/tcg/system/special_helper.c
++++ b/target/mips/tcg/system/special_helper.c
+@@ -24,6 +24,7 @@
+ #include "exec/helper-proto.h"
+ #include "exec/translation-block.h"
+ #include "internal.h"
++#include "system/syscall-trap.h"
+ 
+ /* Specials */
+ target_ulong helper_di(CPUMIPSState *env)
+@@ -113,6 +114,12 @@ static inline void exception_return(CPUMIPSState *env)
+     }
+     compute_hflags(env);
+     debug_post_eret(env);
++    /* back in user mode: the syscall trap's return */
++    if (syscall_trap_waiting() &&
++        (env->hflags & (MIPS_HFLAG_KSU | MIPS_HFLAG_DM | MIPS_HFLAG_ERL)) ==
++        MIPS_HFLAG_UM) {
++        mips_sc_return(env);
++    }
+ }
+ 
+ void helper_eret(CPUMIPSState *env)
+diff --git a/target/mips/tcg/system/tlb_helper.c b/target/mips/tcg/system/tlb_helper.c
+index 4398c6f80b45712ba2771b4bf77a0d422dba5306..e0a121a34f1dbd72caecb5921bfc1283700b5563 100644
+--- a/target/mips/tcg/system/tlb_helper.c
++++ b/target/mips/tcg/system/tlb_helper.c
+@@ -1036,6 +1036,582 @@ static inline void set_badinstr_registers(CPUMIPSState *env)
+     }
+ }
+ 
++/*
++ * The syscall trap (system/syscall-trap.c) on MIPS.
++ *
++ * Entry: the syscall exception from user mode, before it is delivered.  The
++ * ABI is the number's range, as the kernel decides it: o32 4000-4999, n64
++ * 5000-5999, n32 6000-6999 (a 32-bit target only has o32).  o32 passes
++ * arguments 5 and 6 at the user stack pointer + 16 and + 20.
++ *
++ * Return: eret (or eretnc) to user mode.  The kernel returns the value in
++ * v0, and a3 = 1 when v0 is a positive errno; the trap sees -errno.  A
++ * restart is the kernel moving EPC back to the syscall instruction (v0 is
++ * the number again, a3 the fourth argument).
++ *
++ * The task: no register identifies it in user mode (the kernel has
++ * restored every user register before eret, and the ASID belongs to the
++ * address space and the vCPU and is reallocated).  Linux keeps the current
++ * task's kernel stack top in kernelsp[cpu], loaded by the exception
++ * handler's first instructions.  The trap finds that variable by running
++ * those instructions (a small interpreter, once per vCPU), and reads it at
++ * entry and at return: it is per task, the same on every vCPU the task
++ * runs on, and differs for a vfork or clone child.
++ */
++#include "system/syscall-trap.h"
++#include "accel/tcg/probe.h"
++#include "exec/tlb-flags.h"
++#include "system/memory.h"
++#include "qemu/log.h"
++
++#define MIPS_SC_CPUS 64
++#define MIPS_SC_KMMU (1u << MIPS_HFLAG_KM)
++
++static struct {
++    target_ulong addr;          /* &kernelsp[cpu] */
++    uint8_t size;               /* 4 or 8 */
++    int8_t state;               /* 0 unknown, 1 found, -1 not found */
++} mips_sc_ksp[MIPS_SC_CPUS];
++
++/* a kernel virtual address that needs no TLB (kseg0/kseg1, xkphys) */
++static bool mips_sc_kphys(target_ulong va, hwaddr *pa)
++{
++#ifdef TARGET_MIPS64
++    if ((int64_t)va >= (int64_t)0xffffffff80000000ULL &&
++        (int64_t)va < (int64_t)0xffffffffc0000000ULL) {
++        *pa = va & 0x1fffffff;
++        return true;
++    }
++    if ((va >> 62) == 2) {
++        *pa = va & 0x07ffffffffffffffULL;
++        return true;
++    }
++    return false;
++#else
++    if (va >= 0x80000000 && va < 0xc0000000) {
++        *pa = va & 0x1fffffff;
++        return true;
++    }
++    return false;
++#endif
++}
++
++static bool mips_sc_load(CPUMIPSState *env, target_ulong va, int size,
++                         uint64_t *v, bool debug)
++{
++    uint8_t b[8];
++    hwaddr pa;
++    bool be = mips_env_is_bigendian(env);
++
++    if (mips_sc_kphys(va, &pa)) {
++        if (address_space_read(env_cpu(env)->as, pa, MEMTXATTRS_UNSPECIFIED,
++                               b, size) != MEMTX_OK) {
++            return false;
++        }
++    } else if (!debug ||
++               cpu_memory_rw_debug(env_cpu(env), va, b, size, false)) {
++        return false;
++    }
++    if (size == 4) {
++        *v = be ? (uint32_t)ldl_be_p(b) : (uint32_t)ldl_le_p(b);
++    } else {
++        *v = be ? ldq_be_p(b) : ldq_le_p(b);
++    }
++    return true;
++}
++
++static inline target_ulong sext32(uint64_t v)
++{
++    return (target_long)(int32_t)v;
++}
++
++static bool mips_sc_cp0(CPUMIPSState *env, int reg, int sel, uint64_t *v)
++{
++    switch (reg << 3 | sel) {
++    case 4 << 3 | 0: *v = env->CP0_Context; return true;
++    case 4 << 3 | 2: *v = env->active_tc.CP0_UserLocal; return true;
++    case 8 << 3 | 0: *v = env->CP0_BadVAddr; return true;
++    case 10 << 3 | 0: *v = env->CP0_EntryHi; return true;
++    case 12 << 3 | 0: *v = env->CP0_Status | (1 << CP0St_EXL); return true;
++    case 13 << 3 | 0:
++        *v = (env->CP0_Cause & ~(0x1f << CP0Ca_EC)) | (8 << CP0Ca_EC);
++        return true;
++    case 14 << 3 | 0: *v = env->active_tc.PC; return true;
++    case 15 << 3 | 1: *v = env->CP0_EBase; return true;
++#ifdef TARGET_MIPS64
++    case 20 << 3 | 0: *v = env->CP0_XContext; return true;
++#endif
++    }
++    if (reg == 31 && sel >= 2) {
++        *v = env->CP0_KScratch[sel - 2];
++        return true;
++    }
++    return false;
++}
++
++/*
++ * Run the kernel's syscall exception path, from the vector, on a copy of
++ * the registers until it loads the stack pointer: that load's address is
++ * &kernelsp[cpu].  Only the instructions Linux's except_vec3_generic and
++ * SAVE_SOME use are known; anything else gives up.
++ */
++static bool mips_sc_learn(CPUMIPSState *env, target_ulong *addr, int *size)
++{
++    target_ulong r[32], pc, dtarget = 0;
++    bool in_delay = false;
++
++    memcpy(r, env->active_tc.gpr, sizeof(r));
++    if (env->CP0_Status & (1 << CP0St_BEV)) {
++        pc = env->exception_base + 0x200 + 0x180;
++    } else {
++        pc = (env->CP0_EBase & ~0xfff) + 0x180;
++    }
++    for (int n = 0; n < 96; n++) {
++        uint64_t insn, v;
++        unsigned op, rs, rt, rd, sa, fn;
++        int16_t imm;
++        target_ulong next = pc + 4, tgt = 0;
++        bool br = false, taken = false;
++
++        if (!mips_sc_load(env, pc, 4, &insn, true)) {
++            return false;
++        }
++        op = insn >> 26;
++        rs = (insn >> 21) & 31;
++        rt = (insn >> 16) & 31;
++        rd = (insn >> 11) & 31;
++        sa = (insn >> 6) & 31;
++        fn = insn & 63;
++        imm = insn & 0xffff;
++        r[0] = 0;
++        switch (op) {
++        case 0:                                 /* SPECIAL */
++            switch (fn) {
++            case 0x00: r[rd] = sext32((uint32_t)r[rt] << sa); break;
++            case 0x02: r[rd] = sext32((uint32_t)r[rt] >> sa); break;
++            case 0x03: r[rd] = sext32((int32_t)r[rt] >> sa); break;
++            case 0x05: r[rd] = sext32((r[rs] << (sa + 1)) + r[rt]); break;
++            case 0x08: br = taken = true; tgt = r[rs]; break;
++            case 0x09: r[rd] = pc + 8; br = taken = true; tgt = r[rs]; break;
++            case 0x0f: break;                   /* sync */
++            case 0x21: r[rd] = sext32(r[rs] + r[rt]); break;
++            case 0x23: r[rd] = sext32(r[rs] - r[rt]); break;
++            case 0x24: r[rd] = r[rs] & r[rt]; break;
++            case 0x25: r[rd] = r[rs] | r[rt]; break;
++            case 0x26: r[rd] = r[rs] ^ r[rt]; break;
++            case 0x27: r[rd] = ~(r[rs] | r[rt]); break;
++#ifdef TARGET_MIPS64
++            case 0x15: r[rd] = (r[rs] << (sa + 1)) + r[rt]; break;
++            case 0x2d: r[rd] = r[rs] + r[rt]; break;
++            case 0x2f: r[rd] = r[rs] - r[rt]; break;
++            case 0x38: r[rd] = r[rt] << sa; break;
++            case 0x3a: r[rd] = (uint64_t)r[rt] >> sa; break;
++            case 0x3b: r[rd] = (int64_t)r[rt] >> sa; break;
++            case 0x3c: r[rd] = r[rt] << (sa + 32); break;
++            case 0x3e: r[rd] = (uint64_t)r[rt] >> (sa + 32); break;
++            case 0x3f: r[rd] = (int64_t)r[rt] >> (sa + 32); break;
++#endif
++            default: return false;
++            }
++            break;
++        case 1:                                 /* REGIMM */
++            if (rt != 0 && rt != 1) {
++                return false;
++            }
++            br = true;
++            taken = ((target_long)r[rs] < 0) == (rt == 0);
++            tgt = pc + 4 + ((target_long)imm << 2);
++            break;
++        case 2:                                 /* j */
++            br = taken = true;
++            tgt = ((pc + 4) & ~(target_ulong)0x0fffffff) |
++                  ((insn & 0x3ffffff) << 2);
++            break;
++        case 4: case 5: case 6: case 7:         /* beq bne blez bgtz */
++            br = true;
++            taken = op == 4 ? r[rs] == r[rt] :
++                    op == 5 ? r[rs] != r[rt] :
++                    op == 6 ? (target_long)r[rs] <= 0 : (target_long)r[rs] > 0;
++            tgt = pc + 4 + ((target_long)imm << 2);
++            break;
++        case 9: r[rt] = sext32(r[rs] + imm); break;
++        case 0xc: r[rt] = r[rs] & (uint16_t)imm; break;
++        case 0xd: r[rt] = r[rs] | (uint16_t)imm; break;
++        case 0xe: r[rt] = r[rs] ^ (uint16_t)imm; break;
++        case 0xf: r[rt] = sext32((uint32_t)(uint16_t)imm << 16); break;
++        case 0x10:                              /* COP0 */
++            if (rs == 0 || rs == 1) {
++                if (!mips_sc_cp0(env, rd, insn & 7, &v)) {
++                    return false;
++                }
++                r[rt] = rs == 0 ? sext32(v) : (target_ulong)v;
++            } else if (rs != 4 && rs != 5) {    /* mtc0: no effect here */
++                return false;
++            }
++            break;
++#ifdef TARGET_MIPS64
++        case 0x19: r[rt] = r[rs] + imm; break;
++#endif
++        case 0x1f:                              /* SPECIAL3 */
++            if (fn == 0) {                      /* ext */
++                r[rt] = sext32(((uint32_t)r[rs] >> sa) &
++                               (uint32_t)MAKE_64BIT_MASK(0, rd + 1));
++            } else if (fn == 3) {               /* dext */
++                r[rt] = ((uint64_t)r[rs] >> sa) & MAKE_64BIT_MASK(0, rd + 1);
++            } else {
++                return false;
++            }
++            break;
++        case 0x23: case 0x37:                   /* lw ld */
++            if (rt == 29) {
++                *addr = r[rs] + imm;
++                *size = op == 0x23 ? 4 : 8;
++                return true;
++            }
++            if (!mips_sc_load(env, r[rs] + imm, op == 0x23 ? 4 : 8, &v, true)) {
++                return false;
++            }
++            r[rt] = op == 0x23 ? sext32(v) : (target_ulong)v;
++            break;
++        case 0x2b: case 0x3f:                   /* sw sd: no effect here */
++            break;
++        default:
++            return false;
++        }
++        if (in_delay) {
++            if (br) {
++                return false;
++            }
++            next = dtarget;
++            in_delay = false;
++        } else if (br) {
++            in_delay = true;
++            dtarget = taken ? tgt : pc + 8;
++        }
++        pc = next;
++    }
++    return false;
++}
++
++/*
++ * The task key: the current task's kernel stack (kernelsp[cpu]), or, if the
++ * kernel's entry path is not one the interpreter knows, the ASID (MMID).
++ */
++static uint64_t mips_sc_key(CPUMIPSState *env)
++{
++    unsigned i = env_cpu(env)->cpu_index;
++    uint64_t v;
++
++    if (i < MIPS_SC_CPUS && mips_sc_ksp[i].state == 0) {
++        target_ulong a;
++        int size;
++        hwaddr pa;
++
++        if (mips_sc_learn(env, &a, &size) && mips_sc_kphys(a, &pa)) {
++            mips_sc_ksp[i].addr = a;
++            mips_sc_ksp[i].size = size;
++            mips_sc_ksp[i].state = 1;
++        } else {
++            mips_sc_ksp[i].state = -1;
++            qemu_log_mask(LOG_UNIMP, "syscall trap: vCPU %u: no kernelsp "
++                          "found from the exception vector; keying by ASID\n",
++                          i);
++        }
++    }
++    if (i < MIPS_SC_CPUS && mips_sc_ksp[i].state == 1 &&
++        mips_sc_load(env, mips_sc_ksp[i].addr, mips_sc_ksp[i].size, &v,
++                     false)) {
++        return mips_sc_ksp[i].size == 4 ? (uint64_t)sext32(v) : v;
++    }
++    if ((env->CP0_Config5 >> CP0C5_MI) & 1) {
++        return (uint32_t)env->CP0_MemoryMapID;
++    }
++    return env->CP0_EntryHi & env->CP0_EntryHi_ASID_mask;
++}
++
++static int mips_sc_abi(int64_t num)
++{
++#ifdef TARGET_MIPS64
++    if (num >= 4000 && num < 5000) {
++        return SYSCALL_ABI_MIPS;
++    }
++    if (num >= 6000 && num < 7000) {
++        return SYSCALL_ABI_MIPS_N32;
++    }
++    return SYSCALL_ABI_MIPS_N64;
++#else
++    return SYSCALL_ABI_MIPS;
++#endif
++}
++
++#define MIPS_SC_ABIS ((1u << SYSCALL_ABI_MIPS) | (1u << SYSCALL_ABI_MIPS_N32) | \
++                      (1u << SYSCALL_ABI_MIPS_N64))
++
++/*
++ * o32's stack arguments, where they are in RAM: at the entry the page is in
++ * the TLB (the task just stored them), but at the call's return or an
++ * injected call's it may not be, and MIPS has no page walker to refill it.
++ * Writes there (inject, rewind, restore) fall back to RAM.  Keyed by the
++ * call (task, user sp, return address); a cache, lossy.
++ */
++static struct {
++    uint64_t key, usp, pc;
++    hwaddr pa;
++} mips_sc_o32st[64];
++
++static unsigned mips_sc_o32st_slot(uint64_t key, uint64_t usp, uint64_t pc)
++{
++    uint64_t h = key * 0x9e3779b97f4a7c15ULL ^ usp * 31 ^ pc;
++    return (h ^ h >> 29) & 63;
++}
++
++/* o32: arguments 5 and 6 on the user stack */
++static bool mips_sc_ustack(CPUMIPSState *env, uint64_t a[2], bool write,
++                           uint64_t key, uint64_t pc)
++{
++    CPUState *cs = env_cpu(env);
++    target_ulong at = (uint32_t)env->active_tc.gpr[29] + 16;
++    bool be = mips_env_is_bigendian(env);
++    unsigned slot = mips_sc_o32st_slot(key, env->active_tc.gpr[29], pc);
++    uint8_t b[8];
++    vaddr bad;
++
++    if (write) {
++        uint8_t old[8];
++        hwaddr pa = 0;
++        bool ram = false;
++
++        if (mips_sc_o32st[slot].key == key && mips_sc_o32st[slot].pc == pc &&
++            mips_sc_o32st[slot].usp == env->active_tc.gpr[29]) {
++            pa = mips_sc_o32st[slot].pa;
++        }
++        if (!syscall_trap_access(cs, at, old, 8, false, &bad)) {
++            if (!pa || address_space_read(cs->as, pa, MEMTXATTRS_UNSPECIFIED,
++                                          old, 8) != MEMTX_OK) {
++                return false;
++            }
++            ram = true;
++        }
++        for (int i = 0; i < 2; i++) {
++            if (be) {
++                stl_be_p(b + 4 * i, a[i]);
++            } else {
++                stl_le_p(b + 4 * i, a[i]);
++            }
++        }
++        /* only what changed: an unchanged stack is not a guest write */
++        if (!memcmp(old, b, 8)) {
++            return true;
++        }
++        if (!ram && syscall_trap_access(cs, at, b, 8, true, &bad)) {
++            return true;
++        }
++        /* not in the TLB: RAM (not logged for record/replay: prototype) */
++        qemu_log_mask(LOG_UNIMP, "syscall trap: o32 stack arguments at "
++                      TARGET_FMT_lx " not in the TLB (%s); RAM %" HWADDR_PRIx "\n",
++                      at, ram ? "read and write" : "write", pa);
++        return pa && address_space_write(cs->as, pa, MEMTXATTRS_UNSPECIFIED,
++                                         b, 8) == MEMTX_OK;
++    }
++    if (!syscall_trap_access(cs, at, b, 8, false, &bad)) {
++        a[0] = a[1] = 0;
++        return false;
++    }
++    {
++        CPUTLBEntryFull *full;
++        void *host;
++        int fl = probe_access_full_mmu(env, at, 8, MMU_DATA_LOAD,
++                                       mips_env_mmu_index(env), &host, &full);
++
++        if (!(fl & (TLB_INVALID_MASK | TLB_MMIO))) {
++            mips_sc_o32st[slot].key = key;
++            mips_sc_o32st[slot].usp = env->active_tc.gpr[29];
++            mips_sc_o32st[slot].pc = pc;
++            mips_sc_o32st[slot].pa = full->phys_addr |
++                                     (at & ~TARGET_PAGE_MASK);
++        }
++    }
++    for (int i = 0; i < 2; i++) {
++        a[i] = be ? (uint32_t)ldl_be_p(b + 4 * i) : (uint32_t)ldl_le_p(b + 4 * i);
++    }
++    return true;
++}
++
++static void mips_sc_get_args(CPUMIPSState *env, int abi, uint64_t args[6],
++                             uint64_t key, uint64_t pc)
++{
++    target_ulong *g = env->active_tc.gpr;
++
++    if (abi == SYSCALL_ABI_MIPS) {
++        for (int i = 0; i < 4; i++) {
++            args[i] = (uint32_t)g[4 + i];
++        }
++        mips_sc_ustack(env, args + 4, false, key, pc);
++    } else {
++        for (int i = 0; i < 6; i++) {
++            args[i] = g[4 + i];
++        }
++    }
++}
++
++/* registers a0-a3 (from @first), and o32's stack arguments or a4-a5 */
++static void mips_sc_set_args(CPUMIPSState *env, int abi, const uint64_t args[6],
++                             int first, bool a3, uint64_t key, uint64_t pc)
++{
++    target_ulong *g = env->active_tc.gpr;
++
++    for (int i = first; i < 4; i++) {
++        if (i == 3 && !a3) {
++            continue;
++        }
++        g[4 + i] = abi == SYSCALL_ABI_MIPS ? sext32(args[i]) : args[i];
++    }
++    if (abi == SYSCALL_ABI_MIPS) {
++        uint64_t st[2] = { (uint32_t)args[4], (uint32_t)args[5] };
++        mips_sc_ustack(env, st, true, key, pc);
++    } else {
++        g[8] = args[4];
++        g[9] = args[5];
++    }
++}
++
++/* -errno on error, whatever the ABI */
++static uint64_t mips_sc_get_ret(CPUMIPSState *env)
++{
++    target_long v0 = env->active_tc.gpr[2];
++
++    return env->active_tc.gpr[7] ? -(int64_t)v0 : (int64_t)v0;
++}
++
++static void mips_sc_set_ret(CPUMIPSState *env, int abi, uint64_t ret)
++{
++    int64_t v = abi == SYSCALL_ABI_MIPS ? (int32_t)ret : (int64_t)ret;
++
++    if (v < 0 && v >= -4095) {
++        env->active_tc.gpr[2] = -v;
++        env->active_tc.gpr[7] = 1;
++    } else {
++        env->active_tc.gpr[2] = abi == SYSCALL_ABI_MIPS ? sext32(v) : v;
++        env->active_tc.gpr[7] = 0;
++    }
++}
++
++/* prototype trace: MIPS_SC_TRACE=<pid offset>,<thread size> (cosi task offsets) */
++static int mips_sc_pidoff = -1, mips_sc_tsize;
++
++static void mips_sc_debug_keys(CPUState *cs, char *buf, size_t n)
++{
++    CPUMIPSState *env = cpu_env(cs);
++    uint64_t ksp = mips_sc_key(env), task = 0, pid = 0;
++    unsigned i = cs->cpu_index;
++
++    if (mips_sc_pidoff >= 0 && mips_sc_tsize &&
++        mips_sc_load(env, ksp & ~(uint64_t)(mips_sc_tsize - 1),
++                     mips_sc_ksp[i].size ?: 4, &task, false)) {
++        if (mips_sc_ksp[i].size == 4) {
++            task = sext32(task);
++        }
++        mips_sc_load(env, task + mips_sc_pidoff, 4, &pid, false);
++    }
++    snprintf(buf, n, "cpu=%u ksp=%" PRIx64 " kspaddr=" TARGET_FMT_lx
++             " tid=%" PRIu64 " asid=" TARGET_FMT_lx " ctx=" TARGET_FMT_lx
++#ifdef TARGET_MIPS64
++             " xctx=" TARGET_FMT_lx
++#endif
++             " ulocal=" TARGET_FMT_lx " ks0=" TARGET_FMT_lx " usp=" TARGET_FMT_lx
++             " status=%08x",
++             i, ksp, i < MIPS_SC_CPUS ? mips_sc_ksp[i].addr : 0, pid,
++             env->CP0_EntryHi & env->CP0_EntryHi_ASID_mask, env->CP0_Context,
++#ifdef TARGET_MIPS64
++             env->CP0_XContext,
++#endif
++             env->active_tc.CP0_UserLocal, env->CP0_KScratch[0], env->active_tc.gpr[29],
++             env->CP0_Status);
++}
++
++static void __attribute__((constructor)) mips_sc_init(void)
++{
++    const char *t = getenv("MIPS_SC_TRACE");
++
++    if (t) {
++        sscanf(t, "%d,%d", &mips_sc_pidoff, &mips_sc_tsize);
++        syscall_trap_debug_keys = mips_sc_debug_keys;
++    }
++}
++
++/* syscall from user mode: true if the consumer skipped it */
++static bool mips_sc_enter(CPUMIPSState *env)
++{
++    CPUState *cs = env_cpu(env);
++    target_ulong *g = env->active_tc.gpr;
++    int64_t num = (target_long)g[2];
++    int abi = mips_sc_abi(num);
++    uint64_t args[6], ret = 0, key;
++    /* the kernel returns past the syscall instruction (Linux: EPC + 4) */
++    uint64_t pc = env->active_tc.PC + 4;
++    int r;
++
++    if (!syscall_trap_wants(abi, num)) {
++        return false;
++    }
++    key = mips_sc_key(env);
++    mips_sc_get_args(env, abi, args, key, pc);
++    cs->syscall_inject_abis = MIPS_SC_ABIS;
++    while ((r = syscall_trap_enter(cs, abi, num, args, pc, 4, key, g[29], key,
++                                   MIPS_SC_KMMU, &ret)) & SYSCALL_TRAP_FAULT) {
++        /* the PC is at the syscall: the fault returns there, and it traps again */
++        syscall_trap_fault(cs, 0);
++    }
++    if (r & (SYSCALL_TRAP_ARGS | SYSCALL_TRAP_INJECT)) {
++        mips_sc_set_args(env, abi, args, 0, true, key, pc);
++    }
++    if (r & SYSCALL_TRAP_INJECT) {
++        g[2] = ret;                     /* the call the kernel runs */
++    }
++    if (r & SYSCALL_TRAP_SKIP) {
++        mips_sc_set_ret(env, abi, ret);
++        env->active_tc.PC += 4;
++        return true;
++    }
++    return false;
++}
++
++/* eret to user mode while a call is pending */
++void mips_sc_return(CPUMIPSState *env)
++{
++    CPUState *cs = env_cpu(env);
++    target_ulong *g = env->active_tc.gpr;
++
++    for (;;) {
++        uint64_t ret = mips_sc_get_ret(env), key = mips_sc_key(env);
++        SyscallTrapRewind rw;
++        int r = syscall_trap_return(cs, env->active_tc.PC, key, g[29], key,
++                                    MIPS_SC_KMMU, &ret, &rw);
++
++        if ((r & SYSCALL_TRAP_REWIND) && (MIPS_SC_ABIS & (1u << rw.abi))) {
++            /* an injected call is back: the task's own call, again */
++            g[2] = rw.num;
++            mips_sc_set_args(env, rw.abi, rw.args, 0, true, key,
++                             env->active_tc.PC);
++            env->active_tc.PC -= rw.len;
++            return;
++        }
++        if ((r & SYSCALL_TRAP_RESTORE) && (MIPS_SC_ABIS & (1u << rw.abi))) {
++            /* back from a call injected at the return: a0-a2 and a4-a5 (a3 is the flag) */
++            mips_sc_set_args(env, rw.abi, rw.args, 0, false, key,
++                             env->active_tc.PC);
++        }
++        if (r & SYSCALL_TRAP_RET) {
++            mips_sc_set_ret(env, rw.abi, ret);
++        }
++        if (!(r & SYSCALL_TRAP_FAULT)) {
++            return;
++        }
++        /* the state is exact: the task is back in user mode */
++        syscall_trap_fault(cs, 0);
++    }
++}
++
+ void mips_cpu_do_interrupt(CPUState *cs)
+ {
+     MIPSCPU *cpu = MIPS_CPU(cs);
+@@ -1056,6 +1632,17 @@ void mips_cpu_do_interrupt(CPUState *cs)
+         (env->hflags & MIPS_HFLAG_DM)) {
+         cs->exception_index = EXCP_DINT;
+     }
++    /*
++     * A syscall from user mode, not in a delay slot (Linux returns to
++     * EPC + 4 and does not support one there).
++     */
++    if (cs->exception_index == EXCP_SYSCALL && syscall_trap_enabled() &&
++        (env->hflags & (MIPS_HFLAG_KSU | MIPS_HFLAG_DM | MIPS_HFLAG_ERL |
++                        MIPS_HFLAG_BMASK)) == MIPS_HFLAG_UM &&
++        mips_sc_enter(env)) {
++        cs->exception_index = EXCP_NONE;
++        return;
++    }
+     offset = 0x180;
+     switch (cs->exception_index) {
+     case EXCP_SEMIHOST:
+-- 
+2.34.1
+

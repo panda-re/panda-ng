@@ -29,6 +29,7 @@
 #define SC_SLOTS 4096           /* pending calls; a power of two */
 
 bool syscall_trap_on;
+void (*syscall_trap_debug_keys)(CPUState *cpu, char *buf, size_t n);
 uint32_t syscall_trap_pending;
 
 static const SyscallTrapOps *sc_ops;
@@ -566,6 +567,7 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
     sc_drop(&sc);
     if (!restart && sc.ret != v) {
         *ret = sc_is32[sc.abi] ? (uint32_t)sc.ret : (uint64_t)sc.ret;
+        rw->abi = sc.abi;       /* for targets whose return depends on it */
         return SYSCALL_TRAP_RET;
     }
     return 0;
@@ -699,6 +701,17 @@ void syscall_trap_watch(int abi, int64_t num, unsigned flags)
     if (flags) {
         qatomic_set(&syscall_trap_on, true);
     }
+}
+
+bool syscall_trap_wants(int abi, int64_t num)
+{
+    if (!qatomic_read(&sc_ops)) {
+        return false;
+    }
+    if (qatomic_read(&sc_held) || sc_watch_all[abi]) {
+        return true;
+    }
+    return num >= 0 && num < SYSCALL_TRAP_NUMS && sc_watch[abi][num];
 }
 
 void syscall_trap_unwatch_all(void)

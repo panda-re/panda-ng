@@ -99,3 +99,5 @@
 11.1.2/0099-hw-intc-openpic-restore-the-CPUs-external-proxy-mode.patch
 11.1.2/0100-hw-pci-host-ppce500-rebuild-the-PCI-windows-on-load.patch
 11.1.2/0101-hw-pci-host-ppce500-migrate-the-host-bridge-s-config.patch
+# 11.1.2/NNNN-WIP-target-mips-syscall-trap.patch: prototype, not applied by import-series.sh
+#   (git am it on top of an imported tree; number assigned later)
