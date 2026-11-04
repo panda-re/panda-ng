@@ -34,10 +34,12 @@ Then tests/programs/scpaths.c makes calls whose return is not the plain one (see
 aarch64 also its arm build, a 32-bit task on the compat ABI):
 iret with TF set (x86_64), a restarted read, -EINTR, restart_syscall after a stop, fork, vfork,
 a thread, clone3, clone3 with CLONE_VM | CLONE_VFORK (the child returns from the parent's call at
-its pc on its stack), a thread and the main thread blocked in read at the same instruction, and
-execve failing and succeeding. The checks are that each returns as the kernel defines it: once,
-restarted, or never (exit, exit_group, execve, rt_sigreturn), that a child's return is never
-reported as the parent's, and that same-site calls of two threads each get their own return.
+its pc on its stack), a thread and the main thread blocked in read at the same instruction, a
+signal handler whose first instruction is the one after its rt_sigreturn, and execve failing and
+succeeding. The checks are that each returns as the kernel defines it: once, restarted, or never
+(exit, exit_group, execve, rt_sigreturn), that a child's return is never reported as the
+parent's, that same-site calls of two threads each get their own return, and that a return to
+user mode at a call's pc that is not that call's return (a handler's entry) is not reported.
 Known trap bugs are GAPs (testlib.Checks), listed below with their cause.
 """
 import argparse
@@ -76,18 +78,7 @@ PROGRAMS = {"x86_64": (["x86_64", "i386"], ["x86_64"]), "aarch64": (["aarch64"],
             "arm": ([], ["arm"])}
 
 # Known trap bugs: GAP while they fail, XPASS (a failure) once fixed, so this list stays true.
-_X86_VFORK = ("the x86 trap keys a call by (CR3, user sp, pc): a vfork child returns from the "
-              "parent's call at its pc, on its stack and in its address space, so the child's "
-              "return (0) is taken as the parent's and the parent's is never reported")
-GAPS = {
-    "x86_64: int 0x80: each has one return with its pc and the value the program saw":
-        "int 0x80 from a 64-bit task: the x86 trap keys the entry by the 32-bit user sp and the "
-        "return by the 64-bit one, so no return matches",
-    "x86_64 return paths: 6 vfork: one return, in the parent, with the child's id (the child's "
-    "return is not reported)": _X86_VFORK,
-    "x86_64 return paths: 9 clone3 vfork: one return, in the parent, with the child's id (the "
-    "child's return is not reported)": _X86_VFORK,
-}
+GAPS = {}
 
 machine = Machine(opt.image, intel=opt.intel)
 arch = machine.arch
@@ -298,13 +289,13 @@ def check(prog, rc, events, lost, raw):
 
 NR = {"x86_64": {"read": 0, "write": 1, "rt_sigreturn": 15, "getpid": 39, "nanosleep": 35,
                  "clone": 56, "vfork": 58, "execve": 59, "exit": 60, "wait4": 61,
-                 "restart_syscall": 219, "exit_group": 231, "clone3": 435},
+                 "restart_syscall": 219, "exit_group": 231, "clone3": 435, "kill": 62},
       "aarch64": {"read": 63, "write": 64, "rt_sigreturn": 139, "getpid": 172, "nanosleep": 101,
                   "clone": 220, "vfork": 220, "execve": 221, "exit": 93, "wait4": 260,
-                  "restart_syscall": 128, "exit_group": 94, "clone3": 435},
+                  "restart_syscall": 128, "exit_group": 94, "clone3": 435, "kill": 129},
       "arm": {"read": 3, "write": 4, "rt_sigreturn": 173, "getpid": 20, "nanosleep": 162,
               "clone": 120, "vfork": 190, "execve": 11, "exit": 1, "wait4": 114,
-              "restart_syscall": 0, "exit_group": 248, "clone3": 435}}
+              "restart_syscall": 0, "exit_group": 248, "clone3": 435, "kill": 37}}
 EINTR, ENOENT, EBADF = 4, 2, 9
 
 
@@ -390,15 +381,20 @@ def check_paths(prog, rc, events, lost, raw):
           "each once", len(reads) == 2 and reads[0][0].pc == reads[1][0].pc and
           rets(reads[0]) == [(1, 0)] and rets(reads[1]) == [(2, 0)],
           [(r[0].args[0], hex(r[0].pc), rets(r)) for r in reads])
-    check(11, "execve of a missing file returns -ENOENT", rets(one(11, "execve")) == [(-ENOENT, 0)],
-          rets(one(11, "execve")))
-    ex = one(12, "execve")
-    check(12, "execve(/bin/true) enters and never returns", ex[0] is not None and not rets(ex),
+    kills, sigrets = of(11, "kill"), of(11, "rt_sigreturn")
+    check(11, "handler past rt_sigreturn: each kill returns 0 once, and none of the 3 rt_sigreturns "
+          "returns (each handler entry is at an rt_sigreturn's pc)",
+          len(kills) == 2 and all(rets(k) == [(0, 0)] for k in kills) and len(sigrets) == 3 and
+          not any(rets(c) for c in sigrets), ([rets(k) for k in kills], [rets(c) for c in sigrets]))
+    check(12, "execve of a missing file returns -ENOENT", rets(one(12, "execve")) == [(-ENOENT, 0)],
+          rets(one(12, "execve")))
+    ex = one(13, "execve")
+    check(13, "execve(/bin/true) enters and never returns", ex[0] is not None and not rets(ex),
           rets(ex))
     marks = [e.args[2] for e in events if e.kind == ENTER and e.num == nr["write"] and
              e.args[0] == neg1]
-    C.check(p + "the markers are 1..12 in order, each returning -EBADF once",
-            marks == list(range(1, 13)) and all(rets(calls[e.id]) == [(-EBADF, 0)] for e in events
+    C.check(p + "the markers are 1..13 in order, each returning -EBADF once",
+            marks == list(range(1, 14)) and all(rets(calls[e.id]) == [(-EBADF, 0)] for e in events
                                                 if e.kind == ENTER and e.num == nr["write"] and
                                                 e.args[0] == neg1), marks)
     return len(events)

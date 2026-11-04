@@ -107,16 +107,7 @@ WORKLOADS = {
 }
 
 # Known trap bugs: GAP while they fail, XPASS (a failure) once fixed.
-_X86_VFORK = ("the x86 trap keys a call by (CR3, user sp, pc): a vfork child's return is taken "
-              "as the parent's (tests/syscall_cover.py, return paths 6 and 9)")
-GAPS = {
-    "x86_64 program: int 0x80 from a 64-bit task: each call's return is the kernel's":
-        "the x86 trap keys the entry by the 32-bit user sp and the return by the 64-bit one",
-    "return paths: vfork: each call's return is the kernel's": _X86_VFORK,
-    "return paths: clone3: each call's return is the kernel's": _X86_VFORK + " (clone3's flags "
-        "are in memory: its fork and its vfork are one group)",
-    "pipelines: vfork: each call's return is the kernel's": _X86_VFORK + " (busybox xargs vforks)",
-}
+GAPS = {}
 machine = Machine(opt.image, smp=opt.smp, intel=opt.intel)
 arch = machine.arch
 KERNEL_RESTART = arch == "arm"

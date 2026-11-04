@@ -229,6 +229,7 @@ __asm__(".text\n.arm\n.globl _start\n_start:\n mov fp, #0\n mov r0, sp\n bic r1,
 #define AT_FDCWD (-100)
 #define WNOHANG 1
 #define SIGTRAP 5
+#define SIGUSR1 10
 #define SIGALRM 14
 #define SIGCHLD 17
 #define SIGCONT 18

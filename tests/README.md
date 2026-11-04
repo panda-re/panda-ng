@@ -106,9 +106,10 @@ The machine and both tests are parametrised by arch; an arch supplies:
    - `hc_setup()`, `clone_fn(flags, stack, ctid, fn)` (mind the arch's clone argument order:
      x86_64 takes the child tid before tls, arm and arm64 after it: the kernel's
      `CONFIG_CLONE_BACKWARDS`), `SIGRETURN_ASM` (end it with a
-     trapping instruction, so no handler starts just past the call) and `_start`;
+     trapping instruction: nothing runs past the call) and `_start`;
    - in `programs/scpaths.c`, `vfork_exit` and `clone3_exit` (the child exits without touching
-     memory).
+     memory), and `restorer_open` with `on_usr1_past`, the handler that starts at the instruction
+     after its restorer's `rt_sigreturn` (case 11).
 3. **The build**: the arch in `programs/build.sh`'s lists for `agent`, `scpaths` and `scwork` (its
    nixpkgs `pkgsCross` name and flags), then `sh tests/programs/build.sh agent scpaths scwork`.
 4. **The machine**: its pandare2 arch in `testmachine.AGENT_ARCH`.
@@ -120,8 +121,11 @@ The machine and both tests are parametrised by arch; an arch supplies:
    `EXECVE`, `VFORK`, `CLONE`, `ABI_GROUP` and `mask_of`. A 32-bit ABI on a 64-bit kernel (i386
    on x86_64, arm on aarch64) runs the 32-bit build on the 64-bit machine.
 7. **The engine**: the trap's target hooks for the arch (`system/syscall-trap.c`'s
-   `syscall_trap_enter` and `syscall_trap_return`). The engine has them for x86 and arm only so
-   far; on another arch the machine works but the trap reports nothing.
+   `syscall_trap_enter` and `syscall_trap_return`), with a task key that is the same at a call's
+   entry and its return and differs between live tasks (the kernel stack: arm's banked SP, x86's
+   per-CPU top of stack), and the ABI's sigreturn and execve numbers in `sc_replaces_context`.
+   The engine has them for x86 and arm only so far; on another arch the machine works but the
+   trap reports nothing.
 
 ## Running the suite
 

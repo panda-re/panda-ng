@@ -22,8 +22,14 @@
  *                instruction (site_read), the thread on pipe A, the main thread on pipe B; a
  *                forked writer writes 2 bytes to B, then 1 byte to A: the main thread's read
  *                returns 2, then the thread's returns 1
- *  11 execve -ENOENT: execve("/nonexistent-panda-scpaths")
- *  12 execve:    execve("/bin/true"): no return
+ *  11 handler past rt_sigreturn: a SIGUSR1 handler whose first instruction is the one after its
+ *                restorer's rt_sigreturn (restorer_open), so that each handler entry is a return
+ *                to user mode at an rt_sigreturn's pc, on the same task and stack: SIGALRM with
+ *                the same handler while the program spins (the rt_sigreturn returns to the
+ *                loop), then kill(getpid(), SIGUSR1) twice (it returns past the kill); each kill
+ *                returns 0 once, and no rt_sigreturn returns
+ *  12 execve -ENOENT: execve("/nonexistent-panda-scpaths")
+ *  13 execve:    execve("/bin/true"): no return
  * Exit status (only if execve("/bin/true") fails): 100 + case.
  * Built by tests/programs/build.sh: freestanding, static, no libc (tests/programs/sys.h). */
 #include "sys.h"
@@ -106,6 +112,29 @@ static long clone3_exit(void *args, long size)
     return r0;
 }
 #endif
+
+/* case 11: rt_sigreturn, and at once the handler, which sets usr1_seen */
+volatile int usr1_seen;
+void restorer_open(void);
+void on_usr1_past(int sig, void *info, void *uc);
+#if defined(__x86_64__)
+__asm__(".text\n.globl restorer_open\nrestorer_open:\n mov $15, %eax\n syscall\n"
+        ".globl on_usr1_past\non_usr1_past:\n movl $1, usr1_seen(%rip)\n ret\n");
+#elif defined(__aarch64__)
+__asm__(".text\n.globl restorer_open\nrestorer_open:\n mov x8, #139\n svc #0\n"
+        ".globl on_usr1_past\non_usr1_past:\n adrp x9, usr1_seen\n mov w10, #1\n"
+        " str w10, [x9, #:lo12:usr1_seen]\n ret\n");
+#elif defined(__arm__)
+__asm__(".text\n.arm\n.globl restorer_open\nrestorer_open:\n mov r7, #173\n svc #0\n"
+        ".globl on_usr1_past\non_usr1_past:\n ldr r12, 1f\n mov r3, #1\n str r3, [r12]\n bx lr\n"
+        "1: .word usr1_seen\n");
+#endif
+
+static void handle_past(int sig)
+{
+    struct ksigaction a = { on_usr1_past, SA_RESTORER | SA_SIGINFO, restorer_open, 0 };
+    sc(NR_rt_sigaction, sig, (long)&a, 0, 8, 0, 0);
+}
 
 static void on_alarm_write(int sig) { sc(NR_write, pipefd[1], (long)"x", 1, 0, 0, 0); }
 
@@ -233,12 +262,26 @@ void _start_c(void *sp)
         if (thread_ret != 1 || sc(NR_wait4, writer, 0, 0, 0, 0, 0) != writer) die(10);
     }
 
-    marker(11);                                     /* execve -ENOENT */
+    marker(11);                                     /* a handler just past rt_sigreturn */
+    {
+        long pid = sc(NR_getpid, 0, 0, 0, 0, 0, 0);
+        handle_past(SIGALRM);
+        handle_past(SIGUSR1);
+        alarm_in(20000, 0);
+        while (!usr1_seen) {
+        }
+        for (int i = 0; i < 2; i++) {
+            usr1_seen = 0;
+            if (sc(NR_kill, pid, SIGUSR1, 0, 0, 0, 0) != 0 || !usr1_seen) die(11);
+        }
+    }
+
+    marker(12);                                     /* execve -ENOENT */
     {
         char *argv[] = { "true", 0 };
-        if (sc(NR_execve, (long)"/nonexistent-panda-scpaths", (long)argv, 0, 0, 0, 0) != -2) die(11);
-        marker(12);                                 /* execve */
+        if (sc(NR_execve, (long)"/nonexistent-panda-scpaths", (long)argv, 0, 0, 0, 0) != -2) die(12);
+        marker(13);                                 /* execve */
         sc(NR_execve, (long)"/bin/true", (long)argv, 0, 0, 0, 0);
     }
-    die(12);
+    die(13);
 }
