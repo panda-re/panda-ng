@@ -56,7 +56,7 @@ OP_PUT, OP_RUN, OP_GET = 1, 2, 3
 REQ = struct.Struct("<IIIIQQ")          # op, mode, flags, pathlen, datalen, offset
 SNAPSHOT = "agent"
 # pandare2 arch: the agent's key in agent_programs.PROGRAMS
-AGENT_ARCH = {"x86_64": "x86_64", "aarch64": "aarch64"}
+AGENT_ARCH = {"x86_64": "x86_64", "aarch64": "aarch64", "arm": "arm"}
 
 
 def agent_binary(arch):

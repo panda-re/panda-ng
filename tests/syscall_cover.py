@@ -68,8 +68,10 @@ SPECIALS = {"x86_64": [-1, 0x100000000, 0x7fffffff, 0x80000000, 0xffffffff, 0x80
             "aarch64": [-1, 0x100000000, 0x7fffffff, 0x80000000, 0xffffffff, 0x8000000000000000]}
 MARK64, MARK32 = 0x5afe5afe << 32, 0x5afe5afe
 
-# guest arch: the cover programs (sccover_<prog>) and the return-path program's build (scpaths)
-PROGRAMS = {"x86_64": (["x86_64", "i386"], "x86_64"), "aarch64": (["aarch64"], "aarch64")}
+# guest arch: the cover programs (sccover_<prog>) and the return-path program's builds (scpaths;
+# arm on aarch64: a 32-bit task, the compat ABI)
+PROGRAMS = {"x86_64": (["x86_64", "i386"], ["x86_64"]), "aarch64": (["aarch64"], ["aarch64", "arm"]),
+            "arm": ([], ["arm"])}
 
 # Known trap bugs: GAP while they fail, XPASS (a failure) once fixed, so this list stays true.
 _X86_VFORK = ("the x86 trap keys a call by (CR3, user sp, pc): a vfork child returns from the "
@@ -297,7 +299,10 @@ NR = {"x86_64": {"read": 0, "write": 1, "rt_sigreturn": 15, "getpid": 39, "nanos
                  "restart_syscall": 219, "exit_group": 231, "clone3": 435},
       "aarch64": {"read": 63, "write": 64, "rt_sigreturn": 139, "getpid": 172, "nanosleep": 101,
                   "clone": 220, "vfork": 220, "execve": 221, "exit": 93, "wait4": 260,
-                  "restart_syscall": 128, "exit_group": 94, "clone3": 435}}
+                  "restart_syscall": 128, "exit_group": 94, "clone3": 435},
+      "arm": {"read": 3, "write": 4, "rt_sigreturn": 173, "getpid": 20, "nanosleep": 162,
+              "clone": 120, "vfork": 190, "execve": 11, "exit": 1, "wait4": 114,
+              "restart_syscall": 0, "exit_group": 248, "clone3": 435}}
 EINTR, ENOENT, EBADF = 4, 2, 9
 
 
@@ -305,11 +310,12 @@ def check_paths(prog, rc, events, lost, raw):
     """scpaths: the return paths (see its header). Events by case, split at the markers."""
     p = f"{prog} return paths: "
     nr = NR[prog]
+    neg1 = M32 if prog == "arm" else M64      # the markers' fd, -1
     C.check(p + "the program ran to the end (execve(/bin/true): rc=0)", rc == 0, rc)
     C.check(p + "nothing was lost", lost == 0, lost)
     cases, cur = {}, None
     for e in events:
-        if e.kind == ENTER and e.num == nr["write"] and e.args[0] == M64:
+        if e.kind == ENTER and e.num == nr["write"] and e.args[0] == neg1:
             cur = e.args[2]
         cases.setdefault(cur, []).append(e)
     calls = {}                  # id: (enter, [returns])
@@ -350,9 +356,18 @@ def check_paths(prog, rc, events, lost, raw):
           rets(reads[0]) == [(-EINTR, 0)], [rets(r) for r in reads])
     sleeps = [c for c in of(4, "nanosleep") if rets(c) and rets(c)[-1][1] == 1]
     rs = of(4, "restart_syscall")
-    check(4, "restart_syscall: the stopped nanosleep returns restarted, restart_syscall enters at its "
-          "pc and returns 0", len(sleeps) == 1 and len(rs) == 1 and rs[0][0].pc == sleeps[0][0].pc
-          and rets(rs[0]) == [(0, 0)], (len(sleeps), [(hex(r[0].pc), rets(r)) for r in rs]))
+    if arch == "arm":
+        # A 32-bit arm kernel restarts a call that no handler interrupted without going back to
+        # user mode (entry-common.S, local_restart): the trap sees one call and one return.
+        sleeps = of(4, "nanosleep")
+        check(4, "restart_syscall: (the kernel restarts it in kernel mode) each nanosleep returns 0 "
+              "once, not restarted, and there is no restart_syscall", len(sleeps) == 2 and not rs and
+              all(rets(c) == [(0, 0)] for c in sleeps), ([rets(c) for c in sleeps], len(rs)))
+    else:
+        check(4, "restart_syscall: the stopped nanosleep returns restarted, restart_syscall enters at "
+              "its pc and returns 0", len(sleeps) == 1 and len(rs) == 1 and
+              rs[0][0].pc == sleeps[0][0].pc and rets(rs[0]) == [(0, 0)],
+              (len(sleeps), [(hex(r[0].pc), rets(r)) for r in rs]))
     for case, name in ((5, "clone"), (6, "vfork"), (7, "clone"), (8, "clone3"), (9, "clone3")):
         c = one(case, name)
         waited = [rets(w)[0][0] for w in of(case, "wait4") if rets(w)]
@@ -379,11 +394,11 @@ def check_paths(prog, rc, events, lost, raw):
     check(12, "execve(/bin/true) enters and never returns", ex[0] is not None and not rets(ex),
           rets(ex))
     marks = [e.args[2] for e in events if e.kind == ENTER and e.num == nr["write"] and
-             e.args[0] == M64]
+             e.args[0] == neg1]
     C.check(p + "the markers are 1..12 in order, each returning -EBADF once",
             marks == list(range(1, 13)) and all(rets(calls[e.id]) == [(-EBADF, 0)] for e in events
                                                 if e.kind == ENTER and e.num == nr["write"] and
-                                                e.args[0] == M64), marks)
+                                                e.args[0] == neg1), marks)
     return len(events)
 
 
@@ -397,7 +412,8 @@ def drive():
     R["cpu"] = agent.run("grep -m1 vendor_id /proc/cpuinfo; uname -m")[1].decode()
     for prog in progs:
         R[prog] = run("sccover", prog, follow=prog == "i386")
-    R["paths"] = run("scpaths", paths)
+    for prog in paths:
+        R["paths", prog] = run("scpaths", prog)
     panda.end_analysis()
 
 
@@ -413,9 +429,10 @@ for prog in progs:
         events = window(events, 252, MARK32)
     n_calls, n_events = check(prog, rc, events, lost, raw)
     summary.append(f"{prog} calls={n_calls} events={n_events}")
-if "paths" in R:
-    summary.append(f"paths events={check_paths(paths, *R['paths'])}")
-else:
-    C.check(f"{paths} return paths: ran", False, "the guest stopped before it")
+for prog in paths:
+    if ("paths", prog) in R:
+        summary.append(f"{prog}_paths events={check_paths(prog, *R['paths', prog])}")
+    else:
+        C.check(f"{prog} return paths: ran", False, "the guest stopped before it")
 print("guest:", " ".join(R.get("cpu", "?").split()))
 sys.exit(C.report(f"SYSCALL_COVER arch={arch} " + " ".join(summary)))

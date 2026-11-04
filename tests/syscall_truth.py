@@ -43,7 +43,7 @@ from collections import defaultdict
 from testlib import Checks, progress
 from testmachine import Agent, Machine
 import sctrace
-from sctrace import ABI_X86_64, ABI_I386, ABI_AARCH64, ENTER, RETURN
+from sctrace import ABI_X86_64, ABI_I386, ABI_AARCH64, ABI_ARM, ENTER, RETURN
 
 ap = argparse.ArgumentParser()
 ap.add_argument("image")
@@ -57,14 +57,19 @@ RESTART = {-512, -513, -514, -516}      # ERESTARTSYS, ERESTARTNOINTR, ERESTARTN
 EINTR = 4
 # Per ABI: calls the kernel never ends (no exit event), calls that don't return past the call
 # (rt_sigreturn), calls that don't return when they succeed (execve), vfork, and clone.
-NO_EXIT = {ABI_X86_64: {60, 231}, ABI_I386: {1, 252}, ABI_AARCH64: {93, 94}}
-SIGRETURN = {ABI_X86_64: {15}, ABI_I386: {119, 173}, ABI_AARCH64: {139}}
-EXECVE = {ABI_X86_64: {59, 322}, ABI_I386: {11, 358}, ABI_AARCH64: {221, 281}}
-VFORK = {ABI_X86_64: {58}, ABI_I386: {190}, ABI_AARCH64: set()}
-CLONE = {ABI_X86_64: 56, ABI_I386: 120, ABI_AARCH64: 220}
+NO_EXIT = {ABI_X86_64: {60, 231}, ABI_I386: {1, 252}, ABI_AARCH64: {93, 94}, ABI_ARM: {1, 248}}
+SIGRETURN = {ABI_X86_64: {15}, ABI_I386: {119, 173}, ABI_AARCH64: {139}, ABI_ARM: {119, 173}}
+EXECVE = {ABI_X86_64: {59, 322}, ABI_I386: {11, 358}, ABI_AARCH64: {221, 281}, ABI_ARM: {11, 387}}
+VFORK = {ABI_X86_64: {58}, ABI_I386: {190}, ABI_AARCH64: set(), ABI_ARM: {190}}
+CLONE = {ABI_X86_64: 56, ABI_I386: 120, ABI_AARCH64: 220, ABI_ARM: 120}
 CLONE3 = 435
 CLONE_VFORK = 0x4000
-ABI_GROUP = {ABI_X86_64: "x86_64 ABI", ABI_I386: "i386 ABI", ABI_AARCH64: "aarch64 ABI"}
+# A 32-bit arm kernel restarts a call no handler interrupted without going back to user mode
+# (entry-common.S, local_restart): ftrace has a second enter (restart_syscall, or the call again)
+# that the trap can't see, and the call's return carries the restarted call's value.
+KERNEL_RESTART = False
+ABI_GROUP = {ABI_X86_64: "x86_64 ABI", ABI_I386: "i386 ABI", ABI_AARCH64: "aarch64 ABI",
+             ABI_ARM: "arm ABI"}
 
 # Workloads: name, the guest programs it needs ((name, build), put at /tmp/<name>), the shell
 # command run inside the window. Each exits 0 but threads (3: its side thread's exit_group).
@@ -87,6 +92,16 @@ WORKLOADS = {
     ] + SHELL + [
         ("threads", [("scwork", "aarch64")], "/tmp/scwork threads"),
         ("signals", [("scwork", "aarch64")], "/tmp/scwork signals"),
+        # 32-bit tasks: the compat ABI
+        ("arm return paths", [("scpaths", "arm")], "/tmp/scpaths"),
+        ("arm threads", [("scwork", "arm")], "/tmp/scwork threads"),
+        ("arm signals", [("scwork", "arm")], "/tmp/scwork signals"),
+    ],
+    "arm": [
+        ("return paths", [("scpaths", "arm")], "/tmp/scpaths"),
+    ] + SHELL + [
+        ("threads", [("scwork", "arm")], "/tmp/scwork threads"),
+        ("signals", [("scwork", "arm")], "/tmp/scwork signals"),
     ],
 }
 
@@ -103,6 +118,7 @@ GAPS = {
 }
 machine = Machine(opt.image, smp=opt.smp, intel=opt.intel)
 arch = machine.arch
+KERNEL_RESTART = arch == "arm"
 C = Checks(arch, GAPS if arch == "x86_64" else {})
 if arch not in WORKLOADS:
     print(f"syscall_truth: no workloads for {arch} yet (tests/README.md, \"Test machines\")")
@@ -120,7 +136,7 @@ def program(name, build):
 
 
 def mask_of(abi):
-    return M32 if abi == ABI_I386 else M64
+    return M32 if abi in (ABI_I386, ABI_ARM) else M64
 
 
 def run(name, progs, cmd, ncpu):
@@ -218,11 +234,29 @@ def check(name, ftrace, trap, lost, overrun):
         else:
             by_id[e.id].append(e)
 
+    # Each task's events in time order.
+    tasks = defaultdict(list)
+    for c, evs in ftrace.items():
+        for f in evs:
+            tasks[f["pid"]].append(f)
+    for evs in tasks.values():
+        evs.sort(key=lambda f: (f["ts"], f["cpu"], f["i"]))
+        if KERNEL_RESTART:
+            # right after the task's -ERESTART* exit, an enter of restart_syscall or of the same
+            # call: the kernel restarting it without going back to user mode (no trap
+            # instruction). Anything else is a signal handler's first call.
+            for k in range(2, len(evs)):
+                call, prev, f = evs[k - 2], evs[k - 1], evs[k]
+                if (f["kind"] == "enter" and prev["kind"] == "exit" and prev["ret"] in RESTART and
+                        call["kind"] == "enter" and
+                        (f["nr"] == 0 or (f["nr"], f["args"]) == (call["nr"], call["args"]))):
+                    f["inkernel"] = True
+
     # Enters, CPU by CPU.
     trap_of = {}                                # (cpu, ftrace index): trap enter
     n_enters, enter_diffs = 0, []
     for c, evs in ftrace.items():
-        F = [f for f in evs if f["kind"] == "enter"]
+        F = [f for f in evs if f["kind"] == "enter" and not f.get("inkernel")]
         if not F:
             continue
         n_enters += len(F)
@@ -233,16 +267,11 @@ def check(name, ftrace, trap, lost, overrun):
     C.check(p + f"on every vCPU the kernel's {n_enters} enters are the trap's, in order",
             n_enters and not enter_diffs, enter_diffs[:10])
 
-    # Returns, call by call: each task's events in time order.
-    tasks = defaultdict(list)
-    for c, evs in ftrace.items():
-        for f in evs:
-            tasks[f["pid"]].append(f)
+    # Returns, call by call.
     bad, counted = defaultdict(list), defaultdict(int)
     for pid, evs in tasks.items():
-        evs.sort(key=lambda f: (f["ts"], f["cpu"], f["i"]))
         for k, f in enumerate(evs):
-            if f["kind"] != "enter":
+            if f["kind"] != "enter" or f.get("inkernel"):
                 continue
             t = trap_of.get((f["cpu"], f["i"]))
             if t is None:
@@ -260,6 +289,10 @@ def check(name, ftrace, trap, lost, overrun):
                 group = ABI_GROUP[abi]
             counted[group] += 1
             nxt = evs[k + 1] if k + 1 < len(evs) else None
+            while (nxt and nxt["kind"] == "exit" and k + 3 < len(evs) and
+                   evs[k + 2].get("inkernel")):
+                k += 2                          # restarted in the kernel: the restart's exit ends it
+                nxt = evs[k + 1]
             # A task's calls are serial: its next event is this call's exit. The exit's number can
             # differ: -1 for rt_sigreturn, the i386 one after an execve of a 32-bit program.
             exit_ = nxt if nxt and nxt["kind"] == "exit" else None
@@ -322,7 +355,7 @@ for name, _, _ in WORKLOADS[arch]:
         C.check(f"{name}: ran", False, "the guest stopped before it")
         continue
     ftrace, trap, lost, overrun, rc = R[name]
-    want = "3" if name == "threads" else "0"
+    want = "3" if name.endswith("threads") else "0"
     C.check(f"{name}: the workload exited {want}", rc == want, rc)
     n, per_cpu, moved = check(name, ftrace, trap, lost, overrun)
     summary.append(f"{name.replace(' ', '_')}={n}")

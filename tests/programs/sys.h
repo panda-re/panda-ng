@@ -17,7 +17,7 @@
 #ifndef PANDA_TEST_SYS_H
 #define PANDA_TEST_SYS_H
 
-typedef unsigned long u64;
+typedef unsigned long long u64;
 typedef unsigned int u32;
 
 #define MAGIC_AGENT 0x50416774
@@ -76,7 +76,7 @@ static inline long hc(long op, long a, long b, long c)
 static inline void hc_setup(void) { sc(NR_ioperm, 0x88, 4, 1, 0, 0, 0); }
 
 /* x86_64 clone: flags, stack, parent_tid, child_tid, tls */
-long clone_fn(u64 flags, void *stack, volatile int *ctid, void (*fn)(void));
+long clone_fn(unsigned long flags, void *stack, volatile int *ctid, void (*fn)(void));
 __asm__(".text\n.globl clone_fn\nclone_fn:\n"
         " mov %rcx, %r9\n mov %rdx, %r10\n xor %edx, %edx\n xor %r8d, %r8d\n"
         " mov $56, %eax\n syscall\n test %rax, %rax\n jnz 1f\n"
@@ -140,7 +140,7 @@ static inline long hc(long op, long a, long b, long c)
 static inline void hc_setup(void) {}
 
 /* arm64 clone: flags, stack, parent_tid, tls, child_tid */
-long clone_fn(u64 flags, void *stack, volatile int *ctid, void (*fn)(void));
+long clone_fn(unsigned long flags, void *stack, volatile int *ctid, void (*fn)(void));
 __asm__(".text\n.globl clone_fn\nclone_fn:\n"
         " mov x9, x3\n mov x4, x2\n mov x2, #0\n mov x3, #0\n mov x8, #220\n svc #0\n"
         " cbnz x0, 1f\n blr x9\n mov x0, #0\n mov x8, #93\n svc #0\n"
@@ -151,6 +151,70 @@ __asm__(".text\n.globl clone_fn\nclone_fn:\n"
 #define SIGRETURN_ASM " mov x8, #139\n svc #0\n brk #0\n"
 __asm__(".text\n.globl _start\n_start:\n mov x29, #0\n mov x0, sp\n and x1, x0, #-16\n mov sp, x1\n"
         " bl _start_c\n b .\n");
+
+#elif defined(__arm__)
+/* EABI, ARM state (build.sh: -marm, so r7 is free for the number) */
+#define NR_restart_syscall 0
+#define NR_exit 1
+#define NR_read 3
+#define NR_write 4
+#define NR_close 6
+#define NR_execve 11
+#define NR_lseek 19
+#define NR_getpid 20
+#define NR_mount 21
+#define NR_kill 37
+#define NR_getppid 64
+#define NR_setsid 66
+#define NR_munmap 91
+#define NR_setitimer 104
+#define NR_wait4 114
+#define NR_clone 120
+#define NR_nanosleep 162
+#define NR_rt_sigreturn 173
+#define NR_rt_sigaction 174
+#define NR_vfork 190
+#define NR_futex 240
+#define NR_exit_group 248
+#define NR_openat 322
+#define NR_mkdirat 323
+#define NR_dup3 358
+#define NR_pipe2 359
+#define NR_clone3 435
+
+static inline long sc(long n, long a, long b, long c, long d, long e, long f)
+{
+    register long r7 __asm__("r7") = n, r0 __asm__("r0") = a, r1 __asm__("r1") = b;
+    register long r2 __asm__("r2") = c, r3 __asm__("r3") = d, r4 __asm__("r4") = e;
+    register long r5 __asm__("r5") = f;
+    __asm__ volatile("svc #0" : "+r"(r0) : "r"(r7), "r"(r1), "r"(r2), "r"(r3), "r"(r4), "r"(r5)
+                     : "memory");
+    return r0;
+}
+
+/* penguin's arm hypercall instruction: mcr p7, 0, r0, c0, c0, 0 (the number in r7) */
+static inline long hc(long op, long a, long b, long c)
+{
+    register long r7 __asm__("r7") = MAGIC_AGENT, r0 __asm__("r0") = MAGIC_AGENT;
+    register long r1 __asm__("r1") = op, r2 __asm__("r2") = a, r3 __asm__("r3") = b;
+    register long r4 __asm__("r4") = c;
+    __asm__ volatile("mcr p7, 0, r0, c0, c0, 0" : "+r"(r0) : "r"(r7), "r"(r1), "r"(r2), "r"(r3),
+                     "r"(r4) : "memory");
+    return r0;
+}
+
+static inline void hc_setup(void) {}
+
+/* arm clone: flags, stack, parent_tid, tls, child_tid */
+long clone_fn(unsigned long flags, void *stack, volatile int *ctid, void (*fn)(void));
+__asm__(".text\n.arm\n.globl clone_fn\nclone_fn:\n"
+        " push {r4, r7}\n mov ip, r3\n mov r4, r2\n mov r2, #0\n mov r3, #0\n mov r7, #120\n"
+        " svc #0\n cmp r0, #0\n bne 1f\n blx ip\n mov r0, #0\n mov r7, #1\n svc #0\n"
+        "1: pop {r4, r7}\n bx lr\n");
+
+#define SIGRETURN_ASM " mov r7, #173\n svc #0\n udf #0\n"
+__asm__(".text\n.arm\n.globl _start\n_start:\n mov fp, #0\n mov r0, sp\n bic r1, r0, #7\n"
+        " mov sp, r1\n bl _start_c\n b .\n");
 
 #else
 #error "tests/programs/sys.h: no system layer for this arch"
@@ -226,15 +290,17 @@ static inline unsigned long str_len(const char *s)
     return n;
 }
 
-/* the kernel's struct sigaction (x86_64 and arm64 agree) */
-struct ksigaction { void *handler; u64 flags; void (*restorer)(void); u64 mask; };
+/* the kernel's struct sigaction for rt_sigaction (sigset_t: 8 bytes, of unsigned longs) */
+struct ksigaction { void *handler; unsigned long flags; void (*restorer)(void); unsigned long mask[2]; };
 
 void sc_restorer(void);
 __asm__(".text\n.globl sc_restorer\nsc_restorer:\n" SIGRETURN_ASM);
 
-static inline void handle(int sig, void *h, u64 flags)
+static inline void handle(int sig, void *h, unsigned long flags)
 {
-    struct ksigaction a = { h, flags | SA_RESTORER, sc_restorer, 0 };
+    /* SA_SIGINFO: an rt frame everywhere (arm sets up a non-rt one without it, which only
+     * sigreturn undoes) */
+    struct ksigaction a = { h, flags | SA_RESTORER | SA_SIGINFO, sc_restorer, 0 };
     sc(NR_rt_sigaction, sig, (long)&a, 0, 8, 0, 0);
 }
 

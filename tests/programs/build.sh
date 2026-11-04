@@ -19,7 +19,7 @@ for name in $names; do
   # The agent away from the programs (testlib.PROGRAM_BASE), so that its calls are never theirs.
   text=0x400000; [ $name = agent ] && text=0x10000000
   case $name in
-    agent | scpaths | scwork) archs="x86_64 aarch64" src=${name}.c ;;
+    agent | scpaths | scwork) archs="x86_64 aarch64 arm" src=${name}.c ;;
     sccover) archs="x86_64 i386 aarch64" src="${name}_<arch>.S" ;;
     sctruth) archs="x86_64 i386" src="${name}_<arch>.S" ;;
     *) archs="x86_64 aarch64 riscv64" src="${name}_<arch>.S" ;;
@@ -29,14 +29,15 @@ for name in $names; do
   for a in $archs; do
     asflags= ldflags= ccflags=
     case $a in x86_64) cross=gnu64;; i386) cross=gnu64 asflags=--32 ldflags="-m elf_i386";;
-      aarch64) cross=aarch64-multiplatform ccflags=-mno-outline-atomics;; riscv64) cross=riscv64;; esac
+      aarch64) cross=aarch64-multiplatform ccflags=-mno-outline-atomics;;
+      arm) cross=armv7l-hf-multiplatform ccflags=-marm;; riscv64) cross=riscv64;; esac
     tmp=$(mktemp -d)
     if [ -e ${name}.c ]; then
       cc=$($NIX "nixpkgs#pkgsCross.$cross.stdenv.cc^out")
       ccname=$(ls $cc/bin | grep -m1 'gcc$')
       $cc/bin/$ccname -Os -static -nostdlib -ffreestanding -fno-stack-protector -fno-pie -no-pie \
         -fcf-protection=none -fno-asynchronous-unwind-tables -fno-builtin -s $ccflags \
-        -Wl,-z,noseparate-code -Wl,-Ttext-segment=$text -Wl,--build-id=none -Wl,-z,max-page-size=4096 ${name}.c -o $tmp/p
+        -Wl,-z,noseparate-code -Wl,-Ttext-segment=$text -Wl,--build-id=none -Wl,-z,max-page-size=4096 ${name}.c -lgcc -o $tmp/p
     else
       bin=$($NIX "nixpkgs#pkgsCross.$cross.buildPackages.binutils-unwrapped^out")
       # Unprefixed when the target is the build machine's own arch.

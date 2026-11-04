@@ -88,6 +88,23 @@ static long clone3_exit(void *args, long size)
                      : "+r"(x0) : "r"(x1) : "x8", "memory");
     return x0;
 }
+#elif defined(__arm__)
+static long vfork_exit(void)
+{
+    register long r0 __asm__("r0");
+    __asm__ volatile("mov r7, #190; svc #0; cmp r0, #0; bne 1f; mov r0, #6; mov r7, #248; svc #0; 1:"
+                     : "=r"(r0) : : "r7", "memory");
+    return r0;
+}
+
+static long clone3_exit(void *args, long size)
+{
+    register long r0 __asm__("r0") = (long)args;
+    register long r1 __asm__("r1") = size;
+    __asm__ volatile("movw r7, #435; svc #0; cmp r0, #0; bne 1f; mov r0, #9; mov r7, #248; svc #0; 1:"
+                     : "+r"(r0) : "r"(r1) : "r7", "memory");
+    return r0;
+}
 #endif
 
 static void on_alarm_write(int sig) { sc(NR_write, pipefd[1], (long)"x", 1, 0, 0, 0); }
