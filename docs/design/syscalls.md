@@ -111,10 +111,22 @@ are appended and existing values are never renumbered.
 - **The task key** identifies the task at entry and at that call's return, whatever mode the
   task runs in. A 32-bit call from a 64-bit task uses the same width of key as a native call.
 - **vfork.** A child that returns from the parent's call is not reported as the parent's return.
-- **No call is assumed not to return.** `rt_sigreturn`, `exit` and `exit_group` can return under
-  seccomp or ptrace; their returns are paired like any other.
-- **A skipped call's return** reports the value the mutator set; the number register is not
-  reread.
+- **No call is assumed not to return, but exits are not tracked by default.** `rt_sigreturn`,
+  `exit` and `exit_group` can return under seccomp or ptrace. A pending `exit` would outlive its
+  task, and a later task that reuses its kernel stack (same key, pc and sp) would be paired as its
+  return. So the return of `exit` and `exit_group` is armed only for a subscription that asks for
+  it explicitly (`PANDA_SC_RETURN_NORETURN`).
+- **A pending call whose task returns to user mode elsewhere did not return.** When a task with a
+  pending call returns to user mode at a pc other than the call's return pc, and not as a restart
+  at the trap instruction, the call is dropped without a return event (`rt_sigreturn`, a
+  successful `execve`).
+- **A skipped call's return** is reported, with the value the mutator set; the number register
+  is not reread.
+- **Per-call target state.** The target may store one word with each pending call at entry and
+  gets it back at that call's return: PPC records `sc` or `scv` (different return conventions),
+  MIPS the physical address of the o32 stack arguments.
+- **Decode in two steps.** The number and ABI come first; the arguments, which for MIPS o32 means
+  reading the user stack, are read only for a watched number.
 - **Restarts** (`-ERESTART*`) are reported as a return with `restart` set, and the restarted call
   as a new entry.
 
