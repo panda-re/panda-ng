@@ -1,0 +1,817 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 4 Nov 2026 16:15:26 -0500
+Subject: [PATCH] WIP target/ppc: the syscall trap
+
+Prototype, not for merge as is (no series number; needs the vendored
+system/syscall-trap.c variant support in src/).
+
+sc and scv (LEV 0) from problem state are reported from powerpc_excp()
+before the per-model handlers, with NIP still at the instruction: number
+r0, arguments r3-r8, pc the address after it, len 4.  ABI PPC64 when
+MSR[SF] (or the BookE CM bit) is set, else PPC.  Returns are reported
+from do_rfi(), which every rfi/rfid/hrfid/rfscv/rfci/rfdi/rfmci
+form goes through, when the new MSR has PR set and a call is pending.
+
+Task key: k1 is paca->kstack on Book3S-64 Linux (the PACA from SPRG1, or
+HSPRG0 for a hypervisor kernel; the PACAKSAVE offset learnt from the
+kernel's first "ld r1,D(r13)" after a syscall entry), SPRG3
+(SPRN_SPRG_THREAD, &current->thread) otherwise; k2 is the user r1.
+
+Return values are normalized to -errno: sc reports an error as a
+positive r3 with cr0.SO set, scv as a negative r3.  CPUState gains
+syscall_variant (0 sc, 1 scv), kept with each pending call.
+
+target/ppc/sc-trap-dbg.c is a test consumer (SCTRAP_LOG=<file>), used
+with tests/ppc-sctrap.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+---
+ include/hw/core/cpu.h                      |   7 +
+ target/ppc/cpu.h                           |   3 +
+ target/ppc/excp_helper.c                   |  12 +
+ target/ppc/helper.h                        |   3 +
+ target/ppc/meson.build                     |   2 +
+ target/ppc/sc-trap-dbg.c                   | 306 +++++++++++++++++++++
+ target/ppc/sc-trap.h                       |  22 ++
+ target/ppc/syscall-trap.c                  | 283 +++++++++++++++++++
+ target/ppc/tcg-excp_helper.c               |   6 +
+ target/ppc/translate.c                     |   1 +
+ target/ppc/translate/fixedpoint-impl.c.inc |   7 +
+ 11 files changed, 652 insertions(+)
+ create mode 100644 target/ppc/sc-trap-dbg.c
+ create mode 100644 target/ppc/sc-trap.h
+ create mode 100644 target/ppc/syscall-trap.c
+
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index af772d026..49298cd6c 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -599,6 +599,13 @@ struct CPUState {
+      * See penguin_syscall_set_current_source().
+      */
+     uint64_t syscall_current;
++    /*
++     * Set by the target before syscall_trap_enter(): the trap flavour of
++     * this call where an ABI has more than one with different return
++     * conventions (PPC: 0 sc, 1 scv).  Kept with a pending call; see
++     * syscall_trap_variant().
++     */
++    uint8_t syscall_variant;
+ 
+     bool vcpu_dirty;
+     AccelCPUState *accel;
+diff --git a/target/ppc/cpu.h b/target/ppc/cpu.h
+index b788d7ccc..84cd8253a 100644
+--- a/target/ppc/cpu.h
++++ b/target/ppc/cpu.h
+@@ -1295,6 +1295,9 @@ struct CPUArchState {
+     target_ulong ca32;
+ 
+     target_ulong reserve_addr;   /* Reservation address */
++#if !defined(CONFIG_USER_ONLY)
++    bool sc_learn;               /* syscall trap: learning PACAKSAVE */
++#endif
+     target_ulong reserve_length; /* Reservation larx op size (bytes) */
+     target_ulong reserve_val;    /* Reservation value */
+ #if defined(TARGET_PPC64)
+diff --git a/target/ppc/excp_helper.c b/target/ppc/excp_helper.c
+index 6d05b8650..500494283 100644
+--- a/target/ppc/excp_helper.c
++++ b/target/ppc/excp_helper.c
+@@ -30,6 +30,8 @@
+ #include "qemu/plugin.h"
+ 
+ #include "trace.h"
++#include "system/syscall-trap.h"
++#include "sc-trap.h"
+ 
+ /*****************************************************************************/
+ /* Exception processing */
+@@ -1715,6 +1717,16 @@ void powerpc_excp(PowerPCCPU *cpu, int excp)
+ {
+     CPUPPCState *env = &cpu->env;
+ 
++#ifdef CONFIG_TCG
++    if ((excp == POWERPC_EXCP_SYSCALL ||
++         excp == POWERPC_EXCP_SYSCALL_VECTORED) &&
++        syscall_trap_enabled() && FIELD_EX64(env->msr, MSR, PR) &&
++        ppc_sc_enter(cpu, excp)) {
++        powerpc_reset_excp_state(cpu);
++        return;
++    }
++#endif
++
+     if (excp <= POWERPC_EXCP_NONE || excp >= POWERPC_EXCP_NB) {
+         cpu_abort(env_cpu(env), "Invalid PowerPC exception %d. Aborting\n",
+                   excp);
+diff --git a/target/ppc/helper.h b/target/ppc/helper.h
+index 1699c3348..787801578 100644
+--- a/target/ppc/helper.h
++++ b/target/ppc/helper.h
+@@ -13,6 +13,9 @@ DEF_HELPER_4(HASHCHKP, void, env, tl, tl, tl)
+ DEF_HELPER_2(store_msr, void, env, tl)
+ DEF_HELPER_1(ppc_maybe_interrupt, void, env)
+ DEF_HELPER_1(rfi, void, env)
++#if defined(TARGET_PPC64)
++DEF_HELPER_FLAGS_2(ppc_sc_ld_r1_r13, TCG_CALL_NO_RWG, void, env, i32)
++#endif
+ DEF_HELPER_1(40x_rfci, void, env)
+ DEF_HELPER_1(rfci, void, env)
+ DEF_HELPER_1(rfdi, void, env)
+diff --git a/target/ppc/meson.build b/target/ppc/meson.build
+index d4ebbaf0a..5d44af5e2 100644
+--- a/target/ppc/meson.build
++++ b/target/ppc/meson.build
+@@ -48,6 +48,8 @@ ppc_system_ss.add(files(
+ ))
+ ppc_system_ss.add(when: 'CONFIG_TCG', if_true: files(
+   'mmu_helper.c',
++  'syscall-trap.c',
++  'sc-trap-dbg.c',
+ ), if_false: files(
+   'tcg-stub.c',
+ ))
+diff --git a/target/ppc/sc-trap-dbg.c b/target/ppc/sc-trap-dbg.c
+new file mode 100644
+index 000000000..487633df8
+--- /dev/null
++++ b/target/ppc/sc-trap-dbg.c
+@@ -0,0 +1,306 @@
++/*
++ * PowerPC syscall trap: a test consumer for the prototype (not for merge).
++ *
++ * SCTRAP_LOG=<file> installs it at startup: every syscall of both PPC ABIs
++ * is watched (entry and return).  It checks each pairing against the
++ * kernel's own idea of the current task (pid read through the ISF offsets
++ * in SCTRAP_DIAG="pid_off,ppc32_thread_off,ppc64_paca_current_off"), and
++ * runs the test program's (tests/ppc-sctrap/sct.c) checks, which tag their
++ * calls with MAGIC in the sixth argument.
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++
++#include "qemu/osdep.h"
++#include "cpu.h"
++#include "system/syscall-trap.h"
++#include "system/address-spaces.h"
++#include "system/memory.h"
++#include "sc-trap.h"
++
++#define MAGIC 0x5ca11edull
++#define NR_READ 3
++#define NR_WRITE 4
++#define NR_GETPID 20
++#define NR_GETPPID 64
++#define NR_GETTID 207
++#define NR_FORK 2
++#define NR_VFORK 189
++#define NR_CLONE 120
++#define NR_CLONE3 435
++#define NR_SIGRETURN 172
++
++static FILE *dlog;
++static QemuMutex dlock;
++static int pid_off = -1, thread_off = -1, paca_cur_off = -1;
++
++static struct {
++    uint64_t enter[2][2], ret[2][2];        /* [abi is 64][variant] */
++    uint64_t magic_enter, magic_ret, restart, pid_bad, pid_ok, check_bad,
++             check_ok, pid_unknown, magic_restart, pid_bad_exit;
++    uint64_t inject_ok, inject_bad, fault_ok, fault_bad, fault_req;
++} st;
++
++static uint64_t kread(CPUState *cs, uint64_t va, unsigned n)
++{
++    uint8_t b[8];
++    uint64_t pa, v = 0;
++    PowerPCCPU *cpu = POWERPC_CPU(cs);
++    bool le;
++
++    if ((va >> 60) == 0xc) {
++        pa = va & 0x0fffffffffffffffull;
++    } else if (va >= 0xc0000000u && va <= 0xffffffffu) {
++        pa = va - 0xc0000000u;
++    } else {
++        return 0;
++    }
++    if (address_space_read(cs->as, pa, MEMTXATTRS_UNSPECIFIED, b, n)) {
++        return 0;
++    }
++    le = ppc_interrupts_little_endian(cpu, !!(cpu->env.msr & MSR_HVB));
++    for (unsigned i = 0; i < n; i++) {
++        v |= (uint64_t)b[le ? i : n - 1 - i] << (8 * i);
++    }
++    return v;
++}
++
++/* the pid of the kernel's current task on this vCPU, from SPRGs; 0 unknown */
++static uint32_t cur_pid(CPUState *cs)
++{
++    CPUPPCState *env = cpu_env(cs);
++    uint64_t task = 0;
++
++    if (pid_off < 0) {
++        return 0;
++    }
++#ifdef TARGET_PPC64
++    if (ppc_sc_books(env) && paca_cur_off >= 0) {
++        uint64_t paca = (env->msr & MSR_HVB) ? env->spr[SPR_HSPRG0] :
++                        env->spr[SPR_SPRG1];
++        task = kread(cs, paca + paca_cur_off, 8);
++    } else
++#endif
++    if (thread_off >= 0) {
++        task = (uint32_t)env->spr[SPR_SPRG3] - thread_off;
++    }
++    return task ? kread(cs, task + pid_off, 4) : 0;
++}
++
++static void dbg_enter(CPUState *cs, SyscallTrap *sc, void *opaque)
++{
++    CPUPPCState *env = cpu_env(cs);
++    bool is64 = sc->abi == SYSCALL_ABI_PPC64;
++    bool magic = sc->args[5] == MAGIC;
++    uint32_t pid = cur_pid(cs);
++    uint64_t k1, k2, pc;
++
++    ppc_sc_key(env, &k1, &k2, &pc);
++    qemu_mutex_lock(&dlock);
++    if (!sc->resumed) {
++        st.enter[is64][sc->variant]++;
++        st.magic_enter += magic;
++    }
++    sc->task = pid;
++    sc->want_return = true;
++    if (magic || sc->num == NR_VFORK || sc->num == NR_FORK ||
++        sc->num == NR_CLONE || sc->num == NR_CLONE3 || sc->num == 0) {
++        fprintf(dlog, "E cpu%d abi=%d v=%d num=%" PRId64 " a0=%#" PRIx64
++                " a4=%#" PRIx64 " pc=%#" PRIx64 " k1=%#" PRIx64 " k2=%#"
++                PRIx64 " pid=%u sprg0-3=%#" PRIx64 ",%#" PRIx64 ",%#" PRIx64
++                ",%#" PRIx64 "%s%s ksave=%d\n",
++                cs->cpu_index, sc->abi, sc->variant, sc->num, sc->args[0],
++                sc->args[4], sc->pc, k1, k2, pid,
++                (uint64_t)env->spr[SPR_SPRG0], (uint64_t)env->spr[SPR_SPRG1],
++                (uint64_t)env->spr[SPR_SPRG2], (uint64_t)env->spr[SPR_SPRG3],
++                sc->resumed ? " resumed" : "", sc->injected ? " injected" : "",
++#ifdef TARGET_PPC64
++                ppc_sc_ksave
++#else
++                -1
++#endif
++                );
++    }
++    if (magic && sc->num == NR_GETPPID && sc->args[4] == 0x1a1) {
++        /* inject gettid at the entry, then skip getppid with its value */
++        if (!sc->injected) {
++            sc->inject = true;
++            sc->inject_num = NR_GETTID;
++            memset(sc->inject_args, 0, sizeof(sc->inject_args));
++        } else {
++            bool ok = (uint32_t)sc->inject_ret == pid && sc->num == NR_GETPPID &&
++                      sc->args[5] == MAGIC;
++            st.inject_ok += ok;
++            st.inject_bad += !ok;
++            fprintf(dlog, "INJECT-ENTER back: inject_ret=%" PRId64
++                    " pid=%u args0=%#" PRIx64 " %s\n", sc->inject_ret, pid,
++                    sc->args[0], ok ? "ok" : "BAD");
++            sc->skip = true;
++            sc->ret = sc->inject_ret;
++        }
++    }
++    if (magic && sc->num == NR_WRITE && sc->args[4] == 0xfa1) {
++        uint8_t b;
++        bool r = syscall_trap_read(cs, sc->args[1], &b, 1);
++
++        static int tries;
++
++        if (!sc->resumed) {
++            tries = 0;
++        }
++        /*
++         * BookE: the first fault is the page fault; the kernel does not load
++         * the TLB entry, so the next access misses again (software refill).
++         */
++        if (!r && tries++ < 4) {
++            st.fault_req++;
++            sc->fault = true;
++            sc->fault_addr = sc->args[1];
++            sc->fault_write = false;
++            fprintf(dlog, "FAULT-ENTER request at %#" PRIx64 "\n",
++                    sc->args[1]);
++        } else {
++            st.fault_ok += sc->resumed && r;
++            st.fault_bad += !r;
++            fprintf(dlog, "FAULT-ENTER %s: readable=%d byte=%#x\n",
++                    sc->resumed ? "resumed" : "first", r, b);
++        }
++    }
++    qemu_mutex_unlock(&dlock);
++}
++
++static void dbg_ret(CPUState *cs, SyscallTrap *sc, void *opaque)
++{
++    bool is64 = sc->abi == SYSCALL_ABI_PPC64;
++    bool magic = sc->args[5] == MAGIC;
++    uint32_t pid = cur_pid(cs);
++    CPUPPCState *env = cpu_env(cs);
++    uint64_t k1, k2, pc;
++
++    ppc_sc_key(env, &k1, &k2, &pc);
++    qemu_mutex_lock(&dlock);
++    if (!sc->resumed) {
++        st.ret[is64][sc->variant]++;
++        st.magic_ret += magic;
++        st.restart += sc->restart;
++        st.magic_restart += magic && sc->restart;
++    }
++    if (!pid || !sc->task) {
++        st.pid_unknown++;
++    } else if (pid == sc->task) {
++        st.pid_ok++;
++    } else {
++        st.pid_bad++;
++        st.pid_bad_exit += sc->num == 1 || sc->num == 234;
++        fprintf(dlog, "PID-MISMATCH num=%" PRId64 " enter-pid=%" PRIu64
++                " return-pid=%u ret=%" PRId64 "\n", sc->num, sc->task, pid,
++                sc->ret);
++    }
++    if (magic && !sc->restart) {
++        int check = -1;
++
++        if (sc->num == NR_GETTID || sc->num == NR_GETPID) {
++            check = sc->ret == (int64_t)sc->args[0];
++        } else if (sc->num == NR_READ && sc->args[4] == 0) {
++            check = sc->ret == (int64_t)sc->args[2];
++        } else if (sc->num == NR_FORK || sc->num == NR_VFORK ||
++                   sc->num == NR_CLONE || sc->num == NR_CLONE3) {
++            check = sc->ret > 0;                     /* the parent's */
++        } else if (sc->num == NR_READ && sc->args[4] == 0xbad) {
++            check = sc->ret == -9;                   /* EBADF */
++        }
++        if (check >= 0) {
++            st.check_ok += check;
++            st.check_bad += !check;
++        }
++        if (check == 0) {
++            fprintf(dlog, "CHECK-BAD num=%" PRId64 " ret=%" PRId64
++                    " a0=%#" PRIx64 " a2=%#" PRIx64 "\n", sc->num, sc->ret,
++                    sc->args[0], sc->args[2]);
++        }
++    }
++    if (magic && sc->num == NR_GETPPID && sc->args[4] == 0x1a2) {
++        /* inject gettid at the return; the task sees its value */
++        if (!sc->injected) {
++            sc->inject = true;
++            sc->inject_num = NR_GETTID;
++            memset(sc->inject_args, 0, sizeof(sc->inject_args));
++        } else {
++            bool ok = (uint32_t)sc->inject_ret == pid;
++            st.inject_ok += ok;
++            st.inject_bad += !ok;
++            fprintf(dlog, "INJECT-RETURN back: inject_ret=%" PRId64
++                    " orig_ret=%" PRId64 " pid=%u %s\n", sc->inject_ret,
++                    sc->ret, pid, ok ? "ok" : "BAD");
++            sc->ret = sc->inject_ret + 1000000;
++        }
++    }
++    if (magic || sc->restart || sc->num == NR_VFORK || sc->num == NR_FORK ||
++        sc->num == NR_CLONE || sc->num == NR_CLONE3) {
++        fprintf(dlog, "R cpu%d abi=%d v=%d num=%" PRId64 " ret=%" PRId64
++                " a0=%#" PRIx64 " pc=%#" PRIx64 " k1=%#" PRIx64 " k2=%#"
++                PRIx64 " pid=%u enter-pid=%" PRIu64 "%s%s%s\n",
++                cs->cpu_index, sc->abi, sc->variant, sc->num, sc->ret,
++                sc->args[0], (uint64_t)env->nip, k1, k2, pid, sc->task,
++                sc->restart ? " RESTART" : "", sc->resumed ? " resumed" : "",
++                sc->injected ? " injected" : "");
++    }
++    qemu_mutex_unlock(&dlock);
++}
++
++static const SyscallTrapOps dbg_ops = { .enter = dbg_enter, .ret = dbg_ret };
++
++static void dbg_summary(void)
++{
++    uint64_t pending, full, stale;
++
++    syscall_trap_stats(&pending, &full, &stale);
++    fprintf(dlog, "SUMMARY enter ppc32/sc=%" PRIu64 " ppc64/sc=%" PRIu64
++            " ppc64/scv=%" PRIu64 " return ppc32/sc=%" PRIu64 " ppc64/sc=%"
++            PRIu64 " ppc64/scv=%" PRIu64 " restart=%" PRIu64 "\n",
++            st.enter[0][0], st.enter[1][0], st.enter[1][1], st.ret[0][0],
++            st.ret[1][0], st.ret[1][1], st.restart);
++    fprintf(dlog, "SUMMARY magic enter=%" PRIu64 " return=%" PRIu64
++            " (restart %" PRIu64 ") checks ok=%" PRIu64 " bad=%" PRIu64
++            " pid-pairing ok=%" PRIu64 " bad=%" PRIu64 " (exit/exit_group %"
++            PRIu64 ") unknown=%" PRIu64 "\n",
++            st.magic_enter, st.magic_ret, st.magic_restart, st.check_ok,
++            st.check_bad, st.pid_ok, st.pid_bad, st.pid_bad_exit,
++            st.pid_unknown);
++    fprintf(dlog, "SUMMARY inject ok=%" PRIu64 " bad=%" PRIu64 " fault req=%"
++            PRIu64 " resumed-ok=%" PRIu64 " bad=%" PRIu64
++            " trap pending=%" PRIu64 " full=%" PRIu64 " stale=%" PRIu64
++            " faults=%" PRIu64 "\n", st.inject_ok, st.inject_bad, st.fault_req,
++            st.fault_ok, st.fault_bad, pending, full, stale,
++            syscall_trap_faults());
++#ifdef TARGET_PPC64
++    fprintf(dlog, "SUMMARY ppc64 PACAKSAVE learnt=%d\n", ppc_sc_ksave);
++#endif
++    fclose(dlog);
++}
++
++static void __attribute__((constructor)) dbg_init(void)
++{
++    const char *f = getenv("SCTRAP_LOG"), *d = getenv("SCTRAP_DIAG");
++
++    if (!f) {
++        return;
++    }
++    dlog = fopen(f, "w");
++    if (!dlog) {
++        return;
++    }
++    setvbuf(dlog, NULL, _IOLBF, 0);
++    if (d) {
++        sscanf(d, "%d,%d,%d", &pid_off, &thread_off, &paca_cur_off);
++    }
++    qemu_mutex_init(&dlock);
++    syscall_trap_set_consumer(&dbg_ops, NULL);
++    if (!getenv("SCTRAP_OFF")) {
++        syscall_trap_watch(SYSCALL_ABI_PPC, -1,
++                           SYSCALL_TRAP_ENTER | SYSCALL_TRAP_RETURN);
++        syscall_trap_watch(SYSCALL_ABI_PPC64, -1,
++                           SYSCALL_TRAP_ENTER | SYSCALL_TRAP_RETURN);
++    }
++    atexit(dbg_summary);
++}
+diff --git a/target/ppc/sc-trap.h b/target/ppc/sc-trap.h
+new file mode 100644
+index 000000000..2cd6500ea
+--- /dev/null
++++ b/target/ppc/sc-trap.h
+@@ -0,0 +1,22 @@
++/*
++ * PowerPC syscall trap (system mode, TCG).  WIP prototype.
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++#ifndef PPC_SC_TRAP_H
++#define PPC_SC_TRAP_H
++
++#if !defined(CONFIG_USER_ONLY)
++#ifdef TARGET_PPC64
++extern int ppc_sc_ksave;
++bool ppc_sc_books(CPUPPCState *env);
++#endif
++int ppc_sc_abi(CPUPPCState *env);
++uint32_t ppc_sc_kmmu(CPUPPCState *env);
++void ppc_sc_key(CPUPPCState *env, uint64_t *k1, uint64_t *k2,
++                uint64_t *percpu);
++bool ppc_sc_enter(PowerPCCPU *cpu, int excp);
++void ppc_sc_return(CPUPPCState *env);
++#endif
++
++#endif /* PPC_SC_TRAP_H */
+diff --git a/target/ppc/syscall-trap.c b/target/ppc/syscall-trap.c
+new file mode 100644
+index 000000000..2f4ec9d4a
+--- /dev/null
++++ b/target/ppc/syscall-trap.c
+@@ -0,0 +1,283 @@
++/*
++ * PowerPC syscall trap: sc and scv from problem state, and the return to
++ * problem state (rfi, rfid, hrfid, rfscv and the BookE/40x variants, all
++ * through do_rfi).  WIP prototype.
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++
++#include "qemu/osdep.h"
++#include "cpu.h"
++#include "internal.h"
++#include "system/syscall-trap.h"
++#include "system/address-spaces.h"
++#include "system/memory.h"
++#include "exec/cpu-common.h"
++#include "exec/helper-proto.h"
++#include "sc-trap.h"
++
++#define PPC_SC 0                /* CPUState.syscall_variant */
++#define PPC_SCV 1
++#define PPC_SO 0x10000000u      /* cr0.SO in the CR image */
++#define PPC_MAX_ERRNO 4095
++
++#ifdef TARGET_PPC64
++/*
++ * The offset of the current task's kernel stack pointer in Linux's PACA
++ * (PACAKSAVE), learnt from the kernel's first "ld r1,D(r13)" after a
++ * syscall entry from problem state (system_call_common and
++ * system_call_vectored_common both start "mr r10,r1; ld r1,PACAKSAVE(r13)").
++ * -1 until then.
++ */
++int ppc_sc_ksave = -1;
++static uint64_t ppc_sc_ksave_seen, ppc_sc_ksave_other;
++#endif
++
++static bool ppc_sc_is64(CPUPPCState *env)
++{
++#ifdef TARGET_PPC64
++    return msr_is_64bit(env, env->msr);
++#else
++    return false;
++#endif
++}
++
++int ppc_sc_abi(CPUPPCState *env)
++{
++    return ppc_sc_is64(env) ? SYSCALL_ABI_PPC64 : SYSCALL_ABI_PPC;
++}
++
++uint32_t ppc_sc_kmmu(CPUPPCState *env)
++{
++    /* PR=0 with translation on: 1 (BookE: AS 0, GS 0); +4 hypervisor */
++    if (env->excp_model == POWERPC_EXCP_BOOKE) {
++        return 1u << 1;
++    }
++    return (1u << 1) | (1u << 5);
++}
++
++#ifdef TARGET_PPC64
++bool ppc_sc_books(CPUPPCState *env)
++{
++    switch (env->excp_model) {
++    case POWERPC_EXCP_970:
++    case POWERPC_EXCP_POWER7:
++    case POWERPC_EXCP_POWER8:
++    case POWERPC_EXCP_POWER9:
++    case POWERPC_EXCP_POWER10:
++    case POWERPC_EXCP_POWER11:
++        return true;
++    default:
++        return false;
++    }
++}
++
++/* Linux's PACA: SPRG1 for a guest kernel, HSPRG0 for a hypervisor kernel */
++static uint64_t ppc_sc_paca(CPUPPCState *env)
++{
++    return (env->msr & MSR_HVB) ? env->spr[SPR_HSPRG0] : env->spr[SPR_SPRG1];
++}
++
++static bool ppc_sc_kernel_le(CPUPPCState *env)
++{
++    PowerPCCPU *cpu = env_archcpu(env);
++
++    return ppc_interrupts_little_endian(cpu, !!(env->msr & MSR_HVB));
++}
++
++/* a 64-bit kernel linear-map address (0xc...): read it physically */
++static bool ppc_sc_kread64(CPUPPCState *env, uint64_t va, uint64_t *v)
++{
++    uint64_t x;
++
++    if ((va >> 60) != 0xc) {
++        return false;
++    }
++    if (address_space_read(env_cpu(env)->as, va & 0x0fffffffffffffffull,
++                           MEMTXATTRS_UNSPECIFIED, &x, 8) != MEMTX_OK) {
++        return false;
++    }
++    *v = ppc_sc_kernel_le(env) ? le64_to_cpu(x) : be64_to_cpu(x);
++    return true;
++}
++
++/* translate time: a privileged "ld r1,@d(r13)" */
++void helper_ppc_sc_ld_r1_r13(CPUPPCState *env, uint32_t d)
++{
++    if (!env->sc_learn) {
++        return;
++    }
++    env->sc_learn = false;
++    if (ppc_sc_ksave < 0) {
++        ppc_sc_ksave = d;
++    } else if (ppc_sc_ksave != (int)d) {
++        ppc_sc_ksave_other++;
++    } else {
++        ppc_sc_ksave_seen++;
++    }
++}
++#endif
++
++/*
++ * The task key.  ppc64 (Book3S Linux): k1 is the current task's kernel
++ * stack pointer, paca->kstack, which the kernel sets at every context
++ * switch; ppc32 Linux: SPRG3 (SPRN_SPRG_THREAD), &current->thread.  k2 is
++ * the user stack pointer.  percpu: ppc64 the PACA; ppc32 k1.
++ */
++void ppc_sc_key(CPUPPCState *env, uint64_t *k1, uint64_t *k2,
++                uint64_t *percpu)
++{
++    bool is64 = ppc_sc_is64(env);
++
++    *k2 = is64 ? env->gpr[1] : (uint32_t)env->gpr[1];
++#ifdef TARGET_PPC64
++    if (ppc_sc_books(env)) {
++        uint64_t paca = ppc_sc_paca(env), ks = 0;
++
++        *percpu = paca;
++        if (ppc_sc_ksave >= 0) {
++            ppc_sc_kread64(env, paca + ppc_sc_ksave, &ks);
++        }
++        *k1 = ks;
++        return;
++    }
++#endif
++    *k1 = (uint32_t)env->spr[SPR_SPRG3];
++    *percpu = *k1;
++}
++
++/* r3 and cr0.SO as the call's caller sees them, as -errno or a value */
++static int64_t ppc_sc_get_ret(CPUPPCState *env, bool is64, int variant)
++{
++    int64_t r3 = is64 ? (int64_t)env->gpr[3] : (int32_t)env->gpr[3];
++
++    if (variant == PPC_SC && (env->crf[0] & CRF_SO)) {
++        return -r3;
++    }
++    return r3;
++}
++
++static void ppc_sc_set_ret(CPUPPCState *env, bool is64, int variant,
++                           int64_t v)
++{
++    if (!is64) {
++        v = (int32_t)v;
++    }
++    if (variant == PPC_SC) {
++        if (v < 0 && v >= -PPC_MAX_ERRNO) {
++            v = -v;
++            env->crf[0] |= CRF_SO;
++        } else {
++            env->crf[0] &= ~CRF_SO;
++        }
++    }
++    env->gpr[3] = is64 ? (target_ulong)v : (target_ulong)(uint32_t)v;
++}
++
++static void ppc_sc_set_args(CPUPPCState *env, bool is64, const uint64_t *a,
++                            int from)
++{
++    for (int i = from; i < 6; i++) {
++        env->gpr[3 + i] = is64 ? a[i] : (uint32_t)a[i];
++    }
++}
++
++/*
++ * sc/scv from problem state, NIP still at the instruction: report it.
++ * True if the consumer skipped the call (NIP past it, r3/cr0 the result).
++ */
++bool ppc_sc_enter(PowerPCCPU *cpu, int excp)
++{
++    CPUPPCState *env = &cpu->env;
++    CPUState *cs = CPU(cpu);
++    bool is64 = ppc_sc_is64(env);
++    int variant = excp == POWERPC_EXCP_SYSCALL_VECTORED ? PPC_SCV : PPC_SC;
++    int abi = ppc_sc_abi(env), r;
++    uint64_t args[6], ret, k1, k2, percpu;
++    int64_t num;
++
++    if (env->error_code != 0) {
++        return false;           /* sc 1 / scv n: not a Linux syscall */
++    }
++#ifdef TARGET_PPC64
++    if (ppc_sc_books(env) && ppc_sc_ksave < 0) {
++        env->sc_learn = true;   /* the kernel's next ld r1,D(r13) */
++    }
++#endif
++    num = is64 ? (int64_t)env->gpr[0] : (uint32_t)env->gpr[0];
++    for (int i = 0; i < 6; i++) {
++        args[i] = is64 ? env->gpr[3 + i] : (uint32_t)env->gpr[3 + i];
++    }
++    ppc_sc_key(env, &k1, &k2, &percpu);
++    cs->syscall_variant = variant;
++#ifdef TARGET_PPC64
++    cs->syscall_inject_abis = (1u << SYSCALL_ABI_PPC64) |
++                              (1u << SYSCALL_ABI_PPC);
++#else
++    cs->syscall_inject_abis = 1u << SYSCALL_ABI_PPC;
++#endif
++    while ((r = syscall_trap_enter(cs, abi, num, args, env->nip + 4, 4,
++                                   k1, k2, percpu, ppc_sc_kmmu(env),
++                                   &ret)) & SYSCALL_TRAP_FAULT) {
++        /* NIP is at the sc: the fault returns there and it runs again */
++        syscall_trap_fault(cs, 0);
++    }
++    cs->syscall_variant = 0;
++    if (r & (SYSCALL_TRAP_ARGS | SYSCALL_TRAP_INJECT)) {
++        ppc_sc_set_args(env, is64, args, 0);
++    }
++    if (r & SYSCALL_TRAP_INJECT) {
++        env->gpr[0] = is64 ? ret : (uint32_t)ret;
++    }
++    if (r & SYSCALL_TRAP_SKIP) {
++        ppc_sc_set_ret(env, is64, variant, is64 ? (int64_t)ret : (int32_t)ret);
++        env->nip += 4;
++        return true;
++    }
++    return false;
++}
++
++/* do_rfi() to problem state with a call pending: NIP and MSR are the user's */
++void ppc_sc_return(CPUPPCState *env)
++{
++    CPUState *cs = env_cpu(env);
++    bool is64 = ppc_sc_is64(env);
++
++    while (syscall_trap_waiting()) {
++        uint64_t k1, k2, percpu, ret;
++        SyscallTrapRewind rw;
++        int variant, r;
++
++        ppc_sc_key(env, &k1, &k2, &percpu);
++        variant = syscall_trap_variant(env->nip, k1, k2);
++        if (variant < 0) {
++            return;             /* nothing of this task's at this address */
++        }
++        ret = ppc_sc_get_ret(env, is64, variant);
++        r = syscall_trap_return(cs, env->nip, k1, k2, percpu,
++                                ppc_sc_kmmu(env), &ret, &rw);
++        if ((r & SYSCALL_TRAP_REWIND) &&
++            (rw.abi == SYSCALL_ABI_PPC || rw.abi == SYSCALL_ABI_PPC64)) {
++            /* an injected call is back: the task's own call, at the sc */
++            env->gpr[0] = is64 ? rw.num : (uint32_t)rw.num;
++            ppc_sc_set_args(env, is64, rw.args, 0);
++            env->nip -= rw.len;
++            return;
++        }
++        if ((r & SYSCALL_TRAP_RESTORE) &&
++            (rw.abi == SYSCALL_ABI_PPC || rw.abi == SYSCALL_ABI_PPC64)) {
++            /* back from a call injected at the return: this call's r0, r4-r8 */
++            env->gpr[0] = is64 ? rw.num : (uint32_t)rw.num;
++            ppc_sc_set_args(env, is64, rw.args, 1);
++        }
++        if (r & SYSCALL_TRAP_RET) {
++            ppc_sc_set_ret(env, is64, variant,
++                           is64 ? (int64_t)ret : (int32_t)ret);
++        }
++        if (!(r & SYSCALL_TRAP_FAULT)) {
++            return;
++        }
++        /* the state is exact: the task is in problem state at NIP */
++        syscall_trap_fault(cs, 0);
++    }
++}
+diff --git a/target/ppc/tcg-excp_helper.c b/target/ppc/tcg-excp_helper.c
+index b04f07a63..870b5b130 100644
+--- a/target/ppc/tcg-excp_helper.c
++++ b/target/ppc/tcg-excp_helper.c
+@@ -30,6 +30,8 @@
+ #include "internal.h"
+ #include "cpu.h"
+ #include "trace.h"
++#include "system/syscall-trap.h"
++#include "sc-trap.h"
+ 
+ /*****************************************************************************/
+ /* Exceptions processing helpers */
+@@ -526,6 +528,10 @@ static void do_rfi(CPUPPCState *env, target_ulong nip, target_ulong msr)
+ 
+     /* Context synchronizing: check if TCG TLB needs flush */
+     check_tlb_flush(env, false);
++
++    if (unlikely(syscall_trap_waiting()) && FIELD_EX64(env->msr, MSR, PR)) {
++        ppc_sc_return(env);
++    }
+ }
+ 
+ void helper_rfi(CPUPPCState *env)
+diff --git a/target/ppc/translate.c b/target/ppc/translate.c
+index cabe5d6b4..1a73288d3 100644
+--- a/target/ppc/translate.c
++++ b/target/ppc/translate.c
+@@ -40,6 +40,7 @@ static inline bool analysis_guest_hypercall_enabled(void)
+ 
+ #include "exec/helper-proto.h"
+ #include "exec/helper-gen.h"
++#include "sc-trap.h"
+ 
+ #include "exec/translator.h"
+ #include "exec/translation-block.h"
+diff --git a/target/ppc/translate/fixedpoint-impl.c.inc b/target/ppc/translate/fixedpoint-impl.c.inc
+index 5fc789450..be1734d38 100644
+--- a/target/ppc/translate/fixedpoint-impl.c.inc
++++ b/target/ppc/translate/fixedpoint-impl.c.inc
+@@ -48,6 +48,13 @@ static bool do_ldst(DisasContext *ctx, int rt, int ra, TCGv displ, bool update,
+ static bool do_ldst_D(DisasContext *ctx, arg_D *a, bool update, bool store,
+                       MemOp mop)
+ {
++#if defined(TARGET_PPC64) && !defined(CONFIG_USER_ONLY)
++    /* the syscall trap's task key: Linux's ld r1,PACAKSAVE(r13) */
++    if (!ctx->pr && !store && !update && mop == MO_UQ && a->rt == 1 &&
++        a->ra == 13 && ppc_sc_ksave < 0) {
++        gen_helper_ppc_sc_ld_r1_r13(tcg_env, tcg_constant_i32(a->si));
++    }
++#endif
+     return do_ldst(ctx, a->rt, a->ra, tcg_constant_tl(a->si), update, store, mop);
+ }
+ 

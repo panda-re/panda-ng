@@ -78,6 +78,7 @@ typedef struct SyscallTrap {
     uint64_t inject_args[6];
     bool injected;
     int64_t inject_ret;
+    uint8_t variant;        /* CPUState.syscall_variant at the entry */
     uint64_t task;          /* the consumer's, kept with a pending call */
     void *data;             /* the consumer's, released through drop() */
 } SyscallTrap;
@@ -197,6 +198,14 @@ int syscall_trap_enter(CPUState *cpu, int abi, int64_t num, uint64_t args[6],
 int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
                         uint64_t percpu, uint32_t kmmu, uint64_t *ret,
                         SyscallTrapRewind *rw);
+
+/*
+ * The variant (CPUState.syscall_variant at its entry) of the call that a
+ * syscall_trap_return() with the same @pc, @k1 and @k2 would pair with,
+ * or -1 if none: for targets whose return value convention depends on
+ * how the call was made (PPC sc/scv).
+ */
+int syscall_trap_variant(uint64_t pc, uint64_t k1, uint64_t k2);
 
 /*
  * Raise the fault the consumer asked for, as a user-mode load or store at

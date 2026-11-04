@@ -339,6 +339,7 @@ int syscall_trap_enter(CPUState *cpu, int abi, int64_t num, uint64_t args[6],
 
     sc = (SyscallTrap) {
         .abi = abi, .num = num, .pc = pc, .percpu = percpu,
+        .variant = cpu->syscall_variant,
         .want_return = (w & SYSCALL_TRAP_RETURN) && ops->ret,
     };
     memcpy(sc.args, args, sizeof(sc.args));
@@ -569,6 +570,23 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
         return SYSCALL_TRAP_RET;
     }
     return 0;
+}
+
+int syscall_trap_variant(uint64_t pc, uint64_t k1, uint64_t k2)
+{
+    static const unsigned lens[] = { 0, 2, 4 };
+    int v = -1;
+
+    qemu_mutex_lock(&sc_lock);
+    for (int i = 0; i < ARRAY_SIZE(lens) && v < 0; i++) {
+        SCSlot *s = sc_find(k1, k2, pc + lens[i]);
+
+        if (s && s->pc && (!lens[i] || s->len == lens[i])) {
+            v = s->sc.variant;
+        }
+    }
+    qemu_mutex_unlock(&sc_lock);
+    return v;
 }
 
 void syscall_trap_fault(CPUState *cpu, uintptr_t ra)
