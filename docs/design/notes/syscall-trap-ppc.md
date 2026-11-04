@@ -3,7 +3,7 @@
 Status: prototype. The target hooks are in
 `engine/patches/11.1.2/NNNN-WIP-target-ppc-syscall-trap.patch` (not in `series`). The core change
 they need (a per-call variant, below) is in `engine/src/system/syscall-trap.c` and
-`engine/src/include/system/syscall-trap.h`. The guest test is `tests/ppc-sctrap/`.
+`engine/src/include/system/syscall-trap.h`. That core change reads `CPUState.syscall_variant`, which only the WIP patch adds, so the src/ overlay builds only with the WIP patch applied after the series. The guest test is `tests/ppc-sctrap/`.
 
 ## Setup
 
