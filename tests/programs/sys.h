@@ -146,7 +146,9 @@ __asm__(".text\n.globl clone_fn\nclone_fn:\n"
         " cbnz x0, 1f\n blr x9\n mov x0, #0\n mov x8, #93\n svc #0\n"
         "1: ret\n");
 
-#define SIGRETURN_ASM " mov x8, #139\n svc #0\n"
+/* brk: nothing (a signal handler) may start just past the svc, where the trap would take the
+ * kernel's return to it as rt_sigreturn's, which stays pending */
+#define SIGRETURN_ASM " mov x8, #139\n svc #0\n brk #0\n"
 __asm__(".text\n.globl _start\n_start:\n mov x29, #0\n mov x0, sp\n and x1, x0, #-16\n mov sp, x1\n"
         " bl _start_c\n b .\n");
 
