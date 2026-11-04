@@ -109,10 +109,20 @@ are appended and existing values are never renumbered.
 ### Rules every arch follows
 
 - **The task key** identifies the task at entry and at that call's return, whatever mode the
-  task runs in. A 32-bit call from a 64-bit task uses the same width of key as a native call.
+  task runs in, the entry instruction and the CPU. A 32-bit call from a 64-bit task uses the same
+  width of key as a native call. It is the task's kernel stack: on arm the kernel's banked stack
+  pointer, on x86 the top of stack the kernel keeps in its per-CPU area for the running task (the
+  word `entry_SYSCALL_64` loads RSP from; a 32-bit kernel: `TSS.sp1`). With it, the user stack
+  pointer and the pc.
 - **vfork.** A child that returns from the parent's call is not reported as the parent's return.
 - **No call is assumed not to return.** `rt_sigreturn`, `exit` and `exit_group` can return under
   seccomp or ptrace; their returns are paired like any other.
+- **The first return decides.** The task's first return to user mode after a call is its return
+  at the call's pc and a restart at the trap instruction. Anywhere else a signal handler runs
+  first: the call stays pending for the return `sigreturn` makes, unless it replaces the task's
+  context (`sigreturn`, `rt_sigreturn`, `execve`, `execveat`): then it did not return, and it is
+  dropped without a return. A call's return also drops the calls the task made after it (a
+  handler's `rt_sigreturn`).
 - **A skipped call's return** reports the value the mutator set; the number register is not
   reread.
 - **Restarts** (`-ERESTART*`) are reported as a return with `restart` set, and the restarted call

@@ -167,7 +167,7 @@ static void on_abort(CPUState *cpu, int *ev, struct penguin_sc_cmd *cmd, void *o
 static void add_run_at(unsigned index, int state, bool with_data)
 {
     uint64_t key = 1;
-    while (sc_home(key, 2, 0x4000) != index) {
+    while (sc_home(key) != index) {
         key++;
     }
     assert(!sc_slots[index].pc);

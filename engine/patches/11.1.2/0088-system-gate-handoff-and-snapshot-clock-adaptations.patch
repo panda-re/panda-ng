@@ -552,7 +552,7 @@ index 33231a7a7c3d6c46c7d3e98c259f5d838f53ee6f..4f56e6c1b4c2f9339af916e9341d7b3a
      }
  
 diff --git a/target/i386/tcg/system/seg_helper.c b/target/i386/tcg/system/seg_helper.c
-index 8ed8460b236289ad8817ecd05e841d58c0abdd3b..27987c29750e0d129efa99b0d9ca95013d09d983 100644
+index 0023fbd6395acb8330b5a05bb755fadfbef1dc16..38bcaee5d9aa8aff8448435d22b22dbc71dabcb9 100644
 --- a/target/i386/tcg/system/seg_helper.c
 +++ b/target/i386/tcg/system/seg_helper.c
 @@ -19,6 +19,7 @@

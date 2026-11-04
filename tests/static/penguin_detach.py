@@ -114,7 +114,7 @@ static unsigned watches(void) {
 }
 static void add_run_at(unsigned index,int state,bool with_data) {
     uint64_t key=1;
-    while(sc_home(key,2,0x4000)!=index) key++;
+    while(sc_home(key)!=index) key++;
     assert(!sc_slots[index].pc);
     PRun *r=with_data?g_new0(PRun,1):NULL;
     if(r) { r->running=true;r->wdata=g_malloc(8);r->rbuf=g_malloc(8); }

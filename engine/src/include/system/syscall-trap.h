@@ -90,6 +90,9 @@ typedef struct SyscallTrapOps {
     void (*drop)(SyscallTrap *sc, void *opaque);
 } SyscallTrapOps;
 
+/* in a target's task key: an address space, not a task (syscall_trap_enter) */
+#define SYSCALL_TRAP_KEY_AS 1ull
+
 /* one consumer at a time; false if another one is set */
 bool syscall_trap_set_consumer(const SyscallTrapOps *ops, void *opaque);
 /* Main thread/BQL, vCPUs stopped: owner-checked drain before detaching.
@@ -174,6 +177,11 @@ typedef struct SyscallTrapRewind {
 
 extern bool syscall_trap_on;
 extern uint32_t syscall_trap_pending;
+/*
+ * Advanced by syscall_trap_cancel_all(): a target drops what it learned of
+ * the guest kernel (the x86 task key's per-CPU address) when it changes.
+ */
+extern uint32_t syscall_trap_epoch;
 
 static inline bool syscall_trap_enabled(void)
 {
@@ -186,10 +194,29 @@ static inline bool syscall_trap_waiting(void)
 }
 
 /*
- * @k1/@k2 identify the task: the same at the trap and at the call's
- * return, different for any other task.  @len is the trap instruction's
- * length.  @kmmu: the kernel's MMU indexes, for syscall_trap_read() in the
- * callbacks.
+ * @k1 identifies the task: the same at the trap and at the call's return,
+ * whatever the entry instruction or the task's mode, different for any
+ * other live task.  @k2 is the user stack pointer, as wide as the task's
+ * mode: a signal handler's calls and the call it interrupted differ in it.
+ * @len is the trap instruction's length.  @kmmu: the kernel's MMU indexes,
+ * for syscall_trap_read() in the callbacks.
+ *
+ * A call is waiting for its return from its entry.  At the task's first
+ * return to user mode after it:
+ *  - at the call's pc (k1, k2 and pc as at the trap): its return;
+ *  - at the trap instruction: a restart;
+ *  - anywhere else: a signal handler, or the call did not return.  A call
+ *    that replaces the task's context (sigreturn, rt_sigreturn, execve,
+ *    execveat) did not return: it is dropped.  Any other call was
+ *    interrupted by the handler and stays waiting, for the return that
+ *    sigreturn makes at its pc or its trap instruction.
+ * A return that is a call's also ends the task's calls made after that
+ * call (a handler's, its rt_sigreturn): they did not return.  A task that
+ * enters a call has no call left waiting for a first return.
+ *
+ * A target that cannot tell the task passes the address space with
+ * SYSCALL_TRAP_KEY_AS set in @k1: calls are then paired by (k1, k2, pc)
+ * alone, and none of the rules above that need the task apply.
  */
 int syscall_trap_enter(CPUState *cpu, int abi, int64_t num, uint64_t args[6],
                        uint64_t pc, unsigned len, uint64_t k1, uint64_t k2,

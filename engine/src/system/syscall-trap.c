@@ -30,6 +30,7 @@
 
 bool syscall_trap_on;
 uint32_t syscall_trap_pending;
+uint32_t syscall_trap_epoch;
 
 static const SyscallTrapOps *sc_ops;
 static uint32_t sc_held;        /* calls held for a fault */
@@ -60,6 +61,8 @@ typedef struct {
     uint64_t k1, k2, pc;        /* pc 0: empty */
     uint8_t len;
     uint8_t state;              /* waiting for its return, or held */
+    /* SC_PENDING: its task's first return after it went to a signal handler */
+    bool signalled;
     uint64_t seq;               /* when it was added */
     SyscallTrap sc;
     int64_t num;                /* SC_INJECT*: the registers it replaced */
@@ -116,16 +119,20 @@ static void sc_forget(SCSlot *s)
     }
 }
 
-static inline unsigned sc_home(uint64_t k1, uint64_t k2, uint64_t pc)
+/* by task only: all of a task's calls are in the cluster at its home slot */
+static inline unsigned sc_home(uint64_t k1)
 {
-    uint64_t h = (k1 ^ (k2 * 0x9e3779b97f4a7c15ull) ^ (pc * 0xc2b2ae3d27d4eb4full));
-    return (h ^ h >> 29 ^ h >> 41) & (SC_SLOTS - 1);
+    uint64_t h = k1;
+
+    h = (h ^ h >> 30) * 0xbf58476d1ce4e5b9ull;
+    h = (h ^ h >> 27) * 0x94d049bb133111ebull;
+    return (h ^ h >> 31) & (SC_SLOTS - 1);
 }
 
 /* the slot holding the call, or the empty slot where it would go */
 static SCSlot *sc_find(uint64_t k1, uint64_t k2, uint64_t pc)
 {
-    unsigned i = sc_home(k1, k2, pc);
+    unsigned i = sc_home(k1);
 
     for (unsigned n = 0; n < SC_SLOTS; n++, i = (i + 1) & (SC_SLOTS - 1)) {
         SCSlot *s = &sc_slots[i];
@@ -147,7 +154,7 @@ static void sc_delete(SCSlot *s)
         if (!sc_slots[j].pc) {
             return;
         }
-        unsigned h = sc_home(sc_slots[j].k1, sc_slots[j].k2, sc_slots[j].pc);
+        unsigned h = sc_home(sc_slots[j].k1);
         if ((j > i && (h <= i || h > j)) || (j < i && h <= i && h > j)) {
             sc_slots[i] = sc_slots[j];
             sc_slots[j].pc = 0;
@@ -157,9 +164,9 @@ static void sc_delete(SCSlot *s)
 }
 
 /*
- * Calls whose return never comes back to the same task and address (a
- * successful execve) stay pending.  When the table is 3/4 full, drop the
- * calls added before the latest SC_SLOTS / 2.  Called with sc_lock held.
+ * Calls whose return never comes back (a handler that does not return, a
+ * task that dies in a call) stay pending.  When the table is 3/4 full, drop
+ * the calls added before the latest SC_SLOTS / 2.  Called with sc_lock held.
  */
 static void sc_evict(void)
 {
@@ -211,6 +218,7 @@ static SCSlot *sc_put(uint64_t k1, uint64_t k2, uint64_t pc, unsigned len,
         s->pc = pc;
         s->len = len;
         s->state = state;
+        s->signalled = false;
         s->seq = ++sc_seq;
         s->sc = *sc;
         if (state != SC_PENDING) {
@@ -225,6 +233,65 @@ static void sc_add(uint64_t k1, uint64_t k2, uint64_t pc, unsigned len,
 {
     qemu_mutex_lock(&sc_lock);
     sc_put(k1, k2, pc, len, sc, state);
+    sc_unlock();
+}
+
+/* sc_lock held: discard the call at @s, without its return */
+static void sc_remove(SCSlot *s)
+{
+    sc_forget(s);
+    sc_drop_later(&s->sc);
+    sc_delete(s);
+    qatomic_dec(&syscall_trap_pending);
+}
+
+/*
+ * sc_lock held: discard task @k1's calls waiting for their return for which
+ * @gone(slot, @arg) holds; the ones it returns false for may be changed by
+ * it.  Returns how many were discarded.
+ */
+static unsigned sc_task_calls(uint64_t k1, bool (*gone)(SCSlot *, uint64_t),
+                              uint64_t arg)
+{
+    unsigned i = sc_home(k1), n = 0;
+
+    if (k1 & SYSCALL_TRAP_KEY_AS) {
+        return 0;               /* not a task: its calls are not known */
+    }
+    for (unsigned seen = 0; sc_slots[i].pc && seen < SC_SLOTS; seen++) {
+        SCSlot *s = &sc_slots[i];
+
+        if (s->k1 == k1 && s->state == SC_PENDING && gone(s, arg)) {
+            sc_remove(s);       /* may move a later call into slot i */
+            n++;
+        } else {
+            i = (i + 1) & (SC_SLOTS - 1);
+        }
+    }
+    return n;
+}
+
+static bool sc_no_first_return(SCSlot *s, uint64_t arg)
+{
+    return !s->signalled;
+}
+
+static bool sc_newer(SCSlot *s, uint64_t seq)
+{
+    return s->seq > seq;
+}
+
+/*
+ * A call's entry, waiting for its return.  The task is in user mode: a call
+ * of its own still waiting for its first return never got it (the task
+ * died meanwhile, and this is a new task on its kernel stack).
+ */
+static void sc_add_call(uint64_t k1, uint64_t k2, uint64_t pc, unsigned len,
+                        SyscallTrap *sc)
+{
+    qemu_mutex_lock(&sc_lock);
+    sc_stale += sc_task_calls(k1, sc_no_first_return, 0);
+    sc_put(k1, k2, pc, len, sc, SC_PENDING);
     sc_unlock();
 }
 
@@ -370,7 +437,7 @@ deliver:
         }
     }
     if (sc.want_return && ops->ret) {
-        sc_add(k1, k2, pc, len, &sc, SC_PENDING);
+        sc_add_call(k1, k2, pc, len, &sc);
     } else {
         sc_drop(&sc);
     }
@@ -431,6 +498,46 @@ static int sc_ret_after(CPUState *cpu, uint64_t k1, uint64_t k2,
     return r;
 }
 
+/*
+ * The calls that replace the task's context (sigreturn, execve): when they
+ * do not fail, the task's next return to user mode is not past the call.
+ */
+static bool sc_replaces_context(int abi, int64_t num)
+{
+    switch (abi) {
+    case SYSCALL_ABI_X86_64:
+        /* rt_sigreturn, execve, execveat; and x32's */
+        return num == 15 || num == 59 || num == 322 ||
+               num == 0x40000000 + 513 || num == 0x40000000 + 520 ||
+               num == 0x40000000 + 545;
+    case SYSCALL_ABI_I386:
+        return num == 119 || num == 173 || num == 11 || num == 358;
+    case SYSCALL_ABI_AARCH64:
+        return num == 139 || num == 221 || num == 281;
+    case SYSCALL_ABI_ARM:
+    case SYSCALL_ABI_ARM_OABI:
+        return num == 119 || num == 173 || num == 11 || num == 387;
+    default:
+        return false;
+    }
+}
+
+/*
+ * A return to user mode that is none of the task's calls': the first return
+ * of its call waiting for one, if it has one, went elsewhere.
+ */
+static bool sc_first_return_elsewhere(SCSlot *s, uint64_t arg)
+{
+    if (s->signalled) {
+        return false;
+    }
+    if (sc_replaces_context(s->sc.abi, s->sc.num)) {
+        return true;            /* it did not return */
+    }
+    s->signalled = true;        /* a signal handler runs first */
+    return false;
+}
+
 int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
                         uint64_t percpu, uint32_t kmmu, uint64_t *ret,
                         SyscallTrapRewind *rw)
@@ -444,6 +551,9 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
 
     qemu_mutex_lock(&sc_lock);
     s = sc_find(k1, k2, pc);
+    if (s && !s->pc) {
+        s = NULL;
+    }
     if (!replay_analysis_write_allowed() && s && s->pc &&
         (s->state == SC_INJECT || s->state == SC_INJECT_RET)) {
         /* Host-side state from before a snapshot/replay transition must not
@@ -468,6 +578,7 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
         rw->num = s->num;
         memcpy(rw->args, s->args, sizeof(rw->args));
         rw->len = s->len;
+        sc_task_calls(k1, sc_newer, s->seq);
         sc_unlock();
         return SYSCALL_TRAP_REWIND;
     }
@@ -477,7 +588,7 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
          * answer, and the task its own call's registers and return value.
          */
         int64_t onum = s->num;
-        uint64_t oargs[6];
+        uint64_t oargs[6], seq = s->seq;
 
         sc = s->sc;
         memcpy(oargs, s->args, sizeof(oargs));
@@ -486,6 +597,7 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
         sc_forget(s);
         sc_delete(s);
         qatomic_dec(&syscall_trap_pending);
+        sc_task_calls(k1, sc_newer, seq);
         sc_unlock();
         if (!ops || !ops->ret) {
             sc_drop(&sc);
@@ -501,22 +613,30 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
         return sc_ret_after(cpu, k1, k2, key, len, &sc, onum, oargs, true,
                             ret, rw);
     }
-    if (!s || !s->pc || s->state == SC_HELD_ENTER) {
+    if (!s || s->state == SC_HELD_ENTER) {
         /*
          * The kernel rewound the task to the trap: a restart, or the
          * return from a fault raised at the trap (that call is held).
          */
         static const unsigned lens[] = { 2, 4 };
+        bool held = s != NULL;
+
         s = NULL;
         for (int i = 0; i < ARRAY_SIZE(lens) && !s; i++) {
             SCSlot *t = sc_find(k1, k2, pc + lens[i]);
-            if (t && t->pc && t->len == lens[i] &&
-                t->state != SC_HELD_ENTER && t->state != SC_INJECT &&
-                t->state != SC_INJECT_RET) {
-                s = t;
+            if (t && t->pc && t->len == lens[i]) {
+                if (t->state == SC_HELD_ENTER) {
+                    held = true;
+                } else if (t->state != SC_INJECT && t->state != SC_INJECT_RET) {
+                    s = t;
+                }
             }
         }
         if (!s) {
+            if (!held) {
+                /* none of the task's calls returns here */
+                sc_task_calls(k1, sc_first_return_elsewhere, 0);
+            }
             sc_unlock();
             return 0;
         }
@@ -526,9 +646,15 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
     sc = s->sc;
     len = s->len;
     key = s->pc;
-    sc_forget(s);
-    sc_delete(s);
-    qatomic_dec(&syscall_trap_pending);
+    {
+        uint64_t seq = s->seq;
+
+        sc_forget(s);
+        sc_delete(s);
+        qatomic_dec(&syscall_trap_pending);
+        /* the calls the task made after this one did not return */
+        sc_task_calls(k1, sc_newer, seq);
+    }
     sc_unlock();
     if (!ops || !ops->ret) {
         sc_drop(&sc);
@@ -633,6 +759,7 @@ unsigned syscall_trap_cancel_all(void)
     memset(sc_slots, 0, sizeof(sc_slots));
     qatomic_set(&syscall_trap_pending, 0);
     qatomic_set(&sc_held, 0);
+    qatomic_inc(&syscall_trap_epoch);   /* the guest kernel may be another */
     CPU_FOREACH(cpu) {
         cpu->syscall_current = 0;
         cpu->syscall_kmmu = 0;

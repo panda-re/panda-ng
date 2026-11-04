@@ -166,7 +166,7 @@ index 3a05a04d32a7075afc4e7bcf4cdf1512be8cecc8..3fcd927a0e9d021167b9984a1700c439
  
      sregs.idt.limit = env->idt.limit;
 diff --git a/target/i386/tcg/system/seg_helper.c b/target/i386/tcg/system/seg_helper.c
-index 3d705e294fa77ee5382c4bbcd0b3e057ac62dea2..8ed8460b236289ad8817ecd05e841d58c0abdd3b 100644
+index 6fee3385dbb5b8144fd0b3794a009d074fdafeff..0023fbd6395acb8330b5a05bb755fadfbef1dc16 100644
 --- a/target/i386/tcg/system/seg_helper.c
 +++ b/target/i386/tcg/system/seg_helper.c
 @@ -281,9 +281,12 @@ void helper_check_io(CPUX86State *env, uint32_t addr, uint32_t size)
