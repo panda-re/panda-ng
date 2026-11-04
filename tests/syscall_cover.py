@@ -4,7 +4,7 @@ the return paths that are not a plain return.
 
 Run: PANDA_PLUGIN_DIR=<test-plugins>/lib/panda/plugins panda-python tests/syscall_cover.py \\
          <images>/busybox-<arch>.json [--intel]
-(busybox-x86_64, -aarch64 and -armel; images from tests/mkbusybox.py, the sctrace plugin from
+(busybox-x86_64, -aarch64, -armel, -riscv64 and -loongarch64; images from tests/mkbusybox.py, the sctrace plugin from
 `nix build .#test-plugins`). It runs on a tests/testmachine.py machine (built and snapshotted the
 first time, 4-6 s); programs go in and their output comes out through the agent. --intel makes
 the x86 CPU GenuineIntel, whose 32-bit vDSO enters through sysenter (the default, qemu64, is AMD:
@@ -19,19 +19,24 @@ entry instruction its task has, and writes back what each call returned (see the
   out-of-range specials, and 0..599 through `int 0x80`;
 - i386 (a 32-bit task on the x86_64 guest): 0..599 through `int 0x80` and through the vDSO's
   __kernel_vsyscall (sysenter or syscall), and specials;
-- aarch64: 0..599 through `svc #0` and `svc #0x5a`, and specials.
+- aarch64: 0..599 through `svc #0` and `svc #0x5a`, and specials;
+- riscv64: 0..599 through `ecall`, and specials;
+- riscv32 (a 32-bit task on the riscv64 guest, the compat ABI): 0..599 through `ecall`, and
+  specials;
+- loongarch64: 0..599 through `syscall 0` and `syscall 0x5a`, and specials.
 (arm has no sweep program yet: there, only the return paths.)
 Checks, per program:
 - the program ran to the end and every sweep call returned -1234 to it;
 - the events are exactly the program's calls in order: prctl, seccomp, the sweeps, write,
-  exit_group; each enter with its ABI, number (i386: eax), all six arguments (i386: 32 bits; the
+  exit_group; each enter with its ABI, number (i386: eax), all six arguments (i386, riscv32: 32 bits; the
   vDSO's argument 2 from ebp or ecx and argument 6 from the stack), and pc (the address after the
   instruction, one per site; the vDSO's: within 64 bytes past AT_SYSINFO);
 - per entry instruction: each call has exactly one return, with its enter's pc and the value the
   program saw; exit_group has none;
 - nothing was lost (the event buffer was large enough).
 Then tests/programs/scpaths.c makes calls whose return is not the plain one (see its header; on
-aarch64 also its arm build, a 32-bit task on the compat ABI):
+aarch64 also its arm build, a 32-bit task on the compat ABI; riscv64 and loongarch64 have no
+vfork, so case 6 is clone(CLONE_VM | CLONE_VFORK) there, as on aarch64):
 iret with TF set (x86_64), a restarted read, -EINTR, restart_syscall after a stop, fork, vfork,
 a thread, clone3, clone3 with CLONE_VM | CLONE_VFORK (the child returns from the parent's call at
 its pc on its stack), a thread and the main thread blocked in read at the same instruction, and
@@ -49,7 +54,8 @@ import sys
 from testlib import Checks, PROGRAM_BASE, PROGRAM_END, progress
 from testmachine import Agent, Machine
 import sctrace
-from sctrace import ABI_X86_64, ABI_I386, ABI_AARCH64, ENTER, RETURN
+from sctrace import ABI_X86_64, ABI_I386, ABI_AARCH64, ABI_RISCV64, ABI_RISCV32, ABI_LOONGARCH64, \
+    ENTER, RETURN
 
 ap = argparse.ArgumentParser()
 ap.add_argument("image")
@@ -67,13 +73,16 @@ BASE32 = [0x11100000, 0x22200000, 0x33300000, 0x44400000, 0x55500000, 0x66600000
 SPECIALS = {"x86_64": [-1, 0x100000000, 0x7fffffff, 0x80000000, 0xffffffff, 0x8000000000000000,
                        0x3fffffff],
             "i386": [-1, 0x7fffffff, 0x80000000, 0x40000000],
-            "aarch64": [-1, 0x100000000, 0x7fffffff, 0x80000000, 0xffffffff, 0x8000000000000000]}
+            "aarch64": [-1, 0x100000000, 0x7fffffff, 0x80000000, 0xffffffff, 0x8000000000000000],
+            "riscv32": [-1, 0x7fffffff, 0x80000000, 0x40000000]}
+SPECIALS["riscv64"] = SPECIALS["loongarch64"] = SPECIALS["aarch64"]
 MARK64, MARK32 = 0x5afe5afe << 32, 0x5afe5afe
 
 # guest arch: the cover programs (sccover_<prog>) and the return-path program's builds (scpaths;
-# arm on aarch64: a 32-bit task, the compat ABI)
+# arm on aarch64, riscv32 on riscv64: a 32-bit task, the compat ABI)
 PROGRAMS = {"x86_64": (["x86_64", "i386"], ["x86_64"]), "aarch64": (["aarch64"], ["aarch64", "arm"]),
-            "arm": ([], ["arm"])}
+            "arm": ([], ["arm"]), "riscv64": (["riscv64", "riscv32"], ["riscv64"]),
+            "loongarch64": (["loongarch64"], ["loongarch64"])}
 
 # Known trap bugs: GAP while they fail, XPASS (a failure) once fixed, so this list stays true.
 _X86_VFORK = ("the x86 trap keys a call by (CR3, user sp, pc): a vfork child returns from the "
@@ -122,10 +131,15 @@ def sites(prog):
         if data[names + name:data.index(b"\0", names + name)] != b".text":
             continue
         text = data[off:off + size]
+        words = struct.unpack(f"<{len(text) // 4}I", text[:len(text) // 4 * 4])
         if prog == "aarch64":
-            words = struct.unpack(f"<{len(text) // 4}I", text[:len(text) // 4 * 4])
             return [(addr + 4 * i + 4, f"svc{(w >> 5) & 0xffff:#x}") for i, w in enumerate(words)
                     if w & 0xffe0001f == 0xd4000001]
+        if prog in ("riscv64", "riscv32"):          # assembled without compressed instructions
+            return [(addr + 4 * i + 4, "ecall") for i, w in enumerate(words) if w == 0x00000073]
+        if prog == "loongarch64":
+            return [(addr + 4 * i + 4, f"syscall{w & 0x7fff:#x}") for i, w in enumerate(words)
+                    if w & 0xffff8000 == 0x002b0000]
         found = [(i, kind) for kind, pat in (("syscall", b"\x0f\x05"), ("int80", b"\xcd\x80"))
                  for i in range(len(text) - 1) if text[i:i + 2] == pat]
         return [(addr + i + 2, kind) for i, kind in sorted(found)]
@@ -171,6 +185,42 @@ def expected(prog):
                   (ABI_I386, 252, [0, None, None, None, None, MARK32], "exit_group", 5)]
         kinds = ["int80"] * 6
         refused = ["int 0x80", "vDSO"]
+    elif prog == "riscv64":
+        calls += [(ABI_RISCV64, 167, [38, 1, 0, 0, 0, None], "prctl, seccomp", 0),
+                  (ABI_RISCV64, 277, [1, 0, None, None, None, None], "prctl, seccomp", 1)]
+        for nr in range(600):
+            sweep(ABI_RISCV64, nr, "ecall", 2, BASE64, M64)
+        for nr in SPECIALS[prog]:
+            sweep(ABI_RISCV64, nr, "ecall specials", 3, BASE64, M64)
+        calls += [(ABI_RISCV64, 64, [MARK64 | 1, None, 8 * seq[0], None, None, None], "write", 4),
+                  (ABI_RISCV64, 94, [MARK64, None, None, None, None, None], "exit_group", 5)]
+        kinds = ["ecall"] * 6
+        refused = ["ecall"]
+    elif prog == "riscv32":
+        calls += [(ABI_RISCV32, 167, [38, 1, 0, 0, 0, None], "prctl, seccomp", 0),
+                  (ABI_RISCV32, 277, [1, 0, None, None, None, None], "prctl, seccomp", 1)]
+        for nr in range(600):
+            sweep(ABI_RISCV32, nr, "ecall", 2, BASE32, M32)
+        for nr in SPECIALS[prog]:
+            sweep(ABI_RISCV32, nr, "ecall specials", 3, BASE32, M32)
+        calls += [(ABI_RISCV32, 64, [1, None, 4 * seq[0], None, None, MARK32], "write", 4),
+                  (ABI_RISCV32, 94, [0, None, None, None, None, MARK32], "exit_group", 5)]
+        kinds = ["ecall"] * 6
+        refused = ["ecall"]
+    elif prog == "loongarch64":
+        calls += [(ABI_LOONGARCH64, 167, [38, 1, 0, 0, 0, None], "prctl, seccomp", 0),
+                  (ABI_LOONGARCH64, 277, [1, 0, None, None, None, None], "prctl, seccomp", 1)]
+        for nr in range(600):
+            sweep(ABI_LOONGARCH64, nr, "syscall 0", 2, BASE64, M64)
+        for nr in range(600):
+            sweep(ABI_LOONGARCH64, nr, "syscall 0x5a", 3, BASE64, M64)
+        for nr in SPECIALS[prog]:
+            sweep(ABI_LOONGARCH64, nr, "syscall specials", 4, BASE64, M64)
+        calls += [(ABI_LOONGARCH64, 64, [MARK64 | 1, None, 8 * seq[0], None, None, None], "write",
+                   5),
+                  (ABI_LOONGARCH64, 94, [MARK64, None, None, None, None, None], "exit_group", 6)]
+        kinds = ["syscall0x0"] * 3 + ["syscall0x5a"] + ["syscall0x0"] * 3
+        refused = ["syscall 0", "syscall 0x5a"]
     else:
         calls += [(ABI_AARCH64, 167, [38, 1, 0, 0, 0, None], "prctl, seccomp", 0),
                   (ABI_AARCH64, 277, [1, 0, None, None, None, None], "prctl, seccomp", 1)]
@@ -225,6 +275,9 @@ def check(prog, rc, events, lost, raw):
         vsys = struct.unpack_from("<I", raw)[0] if len(raw) >= 4 else None
         rets = list(struct.unpack(f"<{len(raw) // 4 - 1}i", raw[4:len(raw) // 4 * 4])) if raw else []
         written = 4 + 4 * n_sweep
+    elif prog == "riscv32":
+        vsys, rets = None, list(struct.unpack(f"<{len(raw) // 4}i", raw[:len(raw) // 4 * 4]))
+        written = 4 * n_sweep
     else:
         vsys, rets = None, list(struct.unpack(f"<{len(raw) // 8}q", raw[:len(raw) // 8 * 8]))
         written = 8 * n_sweep
@@ -305,6 +358,17 @@ NR = {"x86_64": {"read": 0, "write": 1, "rt_sigreturn": 15, "getpid": 39, "nanos
       "arm": {"read": 3, "write": 4, "rt_sigreturn": 173, "getpid": 20, "nanosleep": 162,
               "clone": 120, "vfork": 190, "execve": 11, "exit": 1, "wait4": 114,
               "restart_syscall": 0, "exit_group": 248, "clone3": 435}}
+NR["riscv64"] = NR["loongarch64"] = NR["aarch64"]          # asm-generic
+# No SA_RESTORER: a handler returns through the vDSO's rt_sigreturn, outside the program. scpaths is
+# recorded whole there, and its events are the program's calls and the vDSO's rt_sigreturns.
+VDSO_SIGRETURN = {"riscv64", "loongarch64"}
+
+
+def vdso_window(events, sigreturn):
+    """A followed run's events of the calls at the program's pcs, and of rt_sigreturn."""
+    ids = {e.id for e in events if e.kind == ENTER and
+           (PROGRAM_BASE <= e.pc < PROGRAM_END or e.num == sigreturn)}
+    return [e for e in events if e.id in ids]
 EINTR, ENOENT, EBADF = 4, 2, 9
 
 
@@ -415,7 +479,7 @@ def drive():
     for prog in progs:
         R[prog] = run("sccover", prog, follow=prog == "i386")
     for prog in paths:
-        R["paths", prog] = run("scpaths", prog)
+        R["paths", prog] = run("scpaths", prog, follow=prog in VDSO_SIGRETURN)
     panda.end_analysis()
 
 
@@ -433,7 +497,10 @@ for prog in progs:
     summary.append(f"{prog} calls={n_calls} events={n_events}")
 for prog in paths:
     if ("paths", prog) in R:
-        summary.append(f"{prog}_paths events={check_paths(prog, *R['paths', prog])}")
+        rc, events, lost, raw = R["paths", prog]
+        if prog in VDSO_SIGRETURN:
+            events = vdso_window(events, NR[prog]["rt_sigreturn"])
+        summary.append(f"{prog}_paths events={check_paths(prog, rc, events, lost, raw)}")
     else:
         C.check(f"{prog} return paths: ran", False, "the guest stopped before it")
 print("guest:", " ".join(R.get("cpu", "?").split()))

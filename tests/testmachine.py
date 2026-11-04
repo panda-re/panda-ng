@@ -27,7 +27,7 @@ starts in about a second, and tests can run in parallel.
 
 The guest console goes to console.log in the machine's private directory (Machine.tmp).
 
-Machines exist for x86_64, aarch64 and arm (busybox-armel). An arch needs (tests/README.md, "Test
+Machines exist for x86_64, aarch64, arm (busybox-armel), riscv64 and loongarch64. An arch needs (tests/README.md, "Test
 machines"): the agent built for it (AGENT_ARCH, from tests/programs/sys.h's system layer and
 build.sh), and a mkbusybox image. The hypercall is penguin's per-arch instruction, which the
 engine routes to PANDA's guest_hypercall.
@@ -57,7 +57,8 @@ OP_PUT, OP_RUN, OP_GET = 1, 2, 3
 REQ = struct.Struct("<IIIIQQ")          # op, mode, flags, pathlen, datalen, offset
 SNAPSHOT = "agent"
 # pandare2 arch: the agent's key in agent_programs.PROGRAMS
-AGENT_ARCH = {"x86_64": "x86_64", "aarch64": "aarch64", "arm": "arm"}
+AGENT_ARCH = {"x86_64": "x86_64", "aarch64": "aarch64", "arm": "arm", "riscv64": "riscv64",
+              "loongarch64": "loongarch64"}
 
 
 def agent_binary(arch):
@@ -89,10 +90,14 @@ def arg_after(args, flag):
 class Machine:
     """A busybox image's machine with the agent as /init, and a cached snapshot at its start."""
 
-    def __init__(self, image, smp=1, intel=False, mem=None):
+    def __init__(self, image, smp=1, intel=False, mem=None, append=None):
+        """append: more kernel command line (a machine of its own)."""
         with open(image) as f:
             self.image = json.load(f)
         self.arch = self.image["arch"]
+        if append:
+            ea = self.image["extra_args"]
+            ea[ea.index("-append") + 1] += " " + append
         if self.arch not in AGENT_ARCH:
             raise NotImplementedError(f"testmachine: no agent for {self.arch} (tests/README.md, "
                                       "\"Test machines\")")
@@ -259,12 +264,13 @@ def _snap(spec):
     panda = Panda(generic=m.generic(os.path.join(m.dir, "snapshot.qcow2"),
                                     os.path.join(m.dir, "console.log")))
     agent = Agent(panda)
-    failed = []
+    failed, snapped = [], []
 
     @panda.queue_blocking
     def drive():
         if agent.ready.wait(600):
             panda.snap(SNAPSHOT)
+            snapped.append(True)
         else:
             failed.append(f"the agent never polled (console: {m.dir}/console.log)")
         panda.end_analysis()
@@ -272,6 +278,9 @@ def _snap(spec):
     panda.run()
     if failed:
         sys.exit(failed[0])
+    if not snapped:
+        # the guest stopped first (a panic with -no-reboot: init, the agent, died)
+        sys.exit(f"the guest stopped before the agent polled (console: {m.dir}/console.log)")
 
 
 def main():

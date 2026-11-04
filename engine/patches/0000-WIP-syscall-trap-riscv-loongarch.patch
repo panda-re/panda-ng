@@ -1,0 +1,402 @@
+diff --git a/target/loongarch/internals.h b/target/loongarch/internals.h
+index 0b670f946..4545eefe2 100644
+--- a/target/loongarch/internals.h
++++ b/target/loongarch/internals.h
+@@ -41,6 +41,8 @@ void cpu_loongarch_store_constant_timer_config(LoongArchCPU *cpu,
+                                                uint64_t value);
+ bool loongarch_cpu_has_work(CPUState *cs);
+ bool cpu_loongarch_hw_interrupts_pending(CPULoongArchState *env);
++/* the syscall trap's return to PLV3 (tcg/tcg_cpu.c) */
++void loongarch_sc_return(CPULoongArchState *env);
+ #endif /* !CONFIG_USER_ONLY */
+ 
+ uint64_t read_fcc(CPULoongArchState *env);
+diff --git a/target/loongarch/tcg/insn_trans/trans_privileged.c.inc b/target/loongarch/tcg/insn_trans/trans_privileged.c.inc
+index 6728ce5ec..01814d360 100644
+--- a/target/loongarch/tcg/insn_trans/trans_privileged.c.inc
++++ b/target/loongarch/tcg/insn_trans/trans_privileged.c.inc
+@@ -151,6 +151,15 @@ static bool trans_csrwr(DisasContext *ctx, arg_csrwr *a)
+         return false;
+     }
+     src1 = gpr_src(ctx, a->rd, EXT_NONE);
++    if (a->csr == LOONGARCH_CSR_ERA) {
++        /*
++         * The kernel's tp as it sets the return address: Linux's current
++         * thread_info, for the syscall trap's task key (tcg_cpu.c)
++         */
++        tcg_gen_st_tl(gpr_src(ctx, 2, EXT_NONE), tcg_env,
++                      offsetof(LoongArchCPU, parent_obj.syscall_current) -
++                      offsetof(LoongArchCPU, env));
++    }
+     writefn = (GenCSRWrite)csr->writefn;
+     if (writefn) {
+         dest = gpr_dst(ctx, a->rd, EXT_NONE);
+diff --git a/target/loongarch/tcg/op_helper.c b/target/loongarch/tcg/op_helper.c
+index d76ee0f63..47e2e09b3 100644
+--- a/target/loongarch/tcg/op_helper.c
++++ b/target/loongarch/tcg/op_helper.c
+@@ -17,6 +17,7 @@
+ #include "cpu-csr.h"
+ #include "system/penguin.h"
+ #include "panda/hooks.h"
++#include "system/syscall-trap.h"
+ 
+ /* Exceptions helpers */
+ void helper_raise_exception(CPULoongArchState *env, uint32_t exception)
+@@ -155,6 +156,10 @@ void helper_ertn(CPULoongArchState *env)
+     sys->CSR_CRMD = FIELD_DP64(sys->CSR_CRMD, CSR_CRMD, IE, csr_pie);
+ 
+     env->lladdr = 1;
++    /* back to PLV3: the syscall trap's return */
++    if (csr_pplv == MMU_PLV_USER && syscall_trap_waiting()) {
++        loongarch_sc_return(env);
++    }
+ }
+ 
+ void helper_idle(CPULoongArchState *env)
+diff --git a/target/loongarch/tcg/tcg_cpu.c b/target/loongarch/tcg/tcg_cpu.c
+index 339b84d62..24b747eb8 100644
+--- a/target/loongarch/tcg/tcg_cpu.c
++++ b/target/loongarch/tcg/tcg_cpu.c
+@@ -17,6 +17,8 @@
+ #include "tcg/debug-assert.h"
+ #include "tcg_loongarch.h"
+ #include "internals.h"
++#include "cpu-csr.h"
++#include "system/syscall-trap.h"
+ 
+ struct TypeExcp {
+     int32_t exccode;
+@@ -75,6 +77,113 @@ void G_NORETURN do_raise_exception(CPULoongArchState *env,
+ }
+ 
+ #ifndef CONFIG_USER_ONLY
++/*
++ * The syscall trap (system/syscall-trap.h).
++ *
++ * The task key: no register names the task while it runs at PLV3.  Linux
++ * keeps its thread_info in tp in the kernel and restores the user's tp
++ * only after it has written ERA on the way out (RESTORE_SOME), so the last
++ * kernel value of tp at a csrwr of ERA (trans_privileged.c.inc, into
++ * CPUState.syscall_current) is the task the CPU last returned to user
++ * mode: the same at a call's entry and at its return.  The user stack
++ * pointer is the second word.  Until the kernel has written ERA with a
++ * kernel tp (after a reset, or a snapshot restore until the next exception
++ * return), the key is the address space (PGDL).  percpu: the kernel's
++ * per-CPU base, which Linux keeps in KS3 (PERCPU_BASE_KS).
++ */
++#define LA_SC_KMMU (1u << MMU_KERNEL_IDX)
++#define LA_A0 4
++#define LA_A7 11
++#define LA_SP 3
++
++static uint64_t loongarch_sc_key(CPULoongArchState *env)
++{
++    uint64_t cur = env_cpu(env)->syscall_current;
++
++    return cur >> 63 ? cur : env_sys(env)->CSR_PGDL | 1;
++}
++
++static uint64_t loongarch_sc_percpu(CPULoongArchState *env)
++{
++    return env_sys(env)->CSR_SAVE[3];
++}
++
++/* syscall from PLV3: report it; true if the consumer skipped it */
++static bool loongarch_sc_enter(CPULoongArchState *env)
++{
++    CPUState *cs = env_cpu(env);
++    uint64_t args[6], ret;
++    int r;
++
++    memcpy(args, &env->gpr[LA_A0], sizeof(args));
++    cs->syscall_inject_abis = 1u << SYSCALL_ABI_LOONGARCH64;
++    /*
++     * Linux returns past the syscall (do_syscall: era += 4).  A fault: the
++     * PC is at the syscall, still at PLV3, so the fault returns there and
++     * the syscall traps again.
++     */
++    while ((r = syscall_trap_enter(cs, SYSCALL_ABI_LOONGARCH64,
++                                   (int64_t)env->gpr[LA_A7], args,
++                                   env->pc + 4, 4, loongarch_sc_key(env),
++                                   env->gpr[LA_SP], loongarch_sc_percpu(env),
++                                   LA_SC_KMMU, &ret)) & SYSCALL_TRAP_FAULT) {
++        syscall_trap_fault(cs, 0);
++    }
++    if (r & (SYSCALL_TRAP_ARGS | SYSCALL_TRAP_INJECT)) {
++        memcpy(&env->gpr[LA_A0], args, sizeof(args));
++    }
++    if (r & SYSCALL_TRAP_INJECT) {
++        env->gpr[LA_A7] = ret;
++    }
++    if (r & SYSCALL_TRAP_SKIP) {
++        env->gpr[LA_A0] = ret;
++        set_pc(env, env->pc + 4);
++        return true;
++    }
++    return false;
++}
++
++/*
++ * ertn back to PLV3 (helper_ertn: the PC and PLV are set) while a call is
++ * pending: report the return, and put back what an injection changed.
++ */
++void loongarch_sc_return(CPULoongArchState *env)
++{
++    CPUState *cs = env_cpu(env);
++
++    for (;;) {
++        uint64_t ret = env->gpr[LA_A0];
++        SyscallTrapRewind rw = { .abi = -1 };
++        int r = syscall_trap_return(cs, env->pc, loongarch_sc_key(env),
++                                    env->gpr[LA_SP], loongarch_sc_percpu(env),
++                                    LA_SC_KMMU, &ret, &rw);
++
++        if (rw.abi != SYSCALL_ABI_LOONGARCH64) {
++            r &= ~(SYSCALL_TRAP_REWIND | SYSCALL_TRAP_RESTORE);
++        }
++        if (r & SYSCALL_TRAP_REWIND) {
++            /* an injected call is back: the task's own call, again */
++            env->gpr[LA_A7] = rw.num;
++            memcpy(&env->gpr[LA_A0], rw.args, sizeof(rw.args));
++            set_pc(env, env->pc - rw.len);
++            return;
++        }
++        if (r & SYSCALL_TRAP_RESTORE) {
++            /* back from a call injected at the return: this call's registers */
++            env->gpr[LA_A7] = rw.num;
++            memcpy(&env->gpr[LA_A0 + 1], &rw.args[1], 5 * sizeof(rw.args[0]));
++        }
++        if (r & SYSCALL_TRAP_RET) {
++            env->gpr[LA_A0] = ret;
++        }
++        if (!(r & SYSCALL_TRAP_FAULT)) {
++            return;
++        }
++        /* the state is exact: the task is back at PLV3 */
++        syscall_trap_fault(cs, 0);
++    }
++}
++
+ static void loongarch_cpu_do_interrupt(CPUState *cs)
+ {
+     CPULoongArchState *env = cpu_env(cs);
+@@ -85,6 +194,12 @@ static void loongarch_cpu_do_interrupt(CPUState *cs)
+     uint32_t vec_size = FIELD_EX64(sys->CSR_ECFG, CSR_ECFG, VS);
+     uint64_t last_pc = env->pc;
+ 
++    if (cs->exception_index == EXCCODE_SYS && syscall_trap_enabled() &&
++        FIELD_EX64(sys->CSR_CRMD, CSR_CRMD, PLV) == MMU_PLV_USER &&
++        loongarch_sc_enter(env)) {
++        return;
++    }
++
+     if (cs->exception_index != EXCCODE_INT) {
+         qemu_log_mask(CPU_LOG_INT,
+                      "%s enter: pc " TARGET_FMT_lx " ERA " TARGET_FMT_lx
+diff --git a/target/riscv/internals.h b/target/riscv/internals.h
+index 2b2fb5aee..584880766 100644
+--- a/target/riscv/internals.h
++++ b/target/riscv/internals.h
+@@ -102,6 +102,12 @@ target_ulong fclass_h(uint64_t frs1);
+ target_ulong fclass_s(uint64_t frs1);
+ target_ulong fclass_d(uint64_t frs1);
+ 
++#ifndef CONFIG_USER_ONLY
++/* the syscall trap (tcg/cpu_helper.c) */
++uint64_t riscv_sc_key(CPURISCVState *env);
++target_ulong riscv_sc_return(CPURISCVState *env, target_ulong retpc);
++#endif
++
+ #ifndef CONFIG_USER_ONLY
+ extern const VMStateDescription vmstate_riscv_cpu;
+ const VMStateDescription *riscv_cpu_legacy_vmsd(CPUState *cpu);
+diff --git a/target/riscv/tcg/cpu_helper.c b/target/riscv/tcg/cpu_helper.c
+index 12e7761d8..77cf890a5 100644
+--- a/target/riscv/tcg/cpu_helper.c
++++ b/target/riscv/tcg/cpu_helper.c
+@@ -39,6 +39,8 @@
+ #include "target/riscv/tcg/debug.h"
+ #include "pmp.h"
+ #include "qemu/plugin.h"
++#include "cpu_user.h"
++#include "system/syscall-trap.h"
+ 
+ int riscv_env_mmu_index(CPURISCVState *env, bool ifetch)
+ {
+@@ -2048,6 +2050,129 @@ static void riscv_do_nmi(CPURISCVState *env, target_ulong cause, bool virt)
+     riscv_cpu_set_mode(env, PRV_M, false);
+ }
+ 
++/*
++ * The syscall trap (system/syscall-trap.h).
++ *
++ * The task key is sscratch: Linux writes the current task (tp) there on
++ * every return to user mode and swaps it back into tp at the next trap, so
++ * while a task runs in U-mode sscratch is that task's task_struct, the same
++ * at a call's entry and at its return, on any hart.  The user stack pointer
++ * is the second word.  A kernel that leaves sscratch 0 gets the address
++ * space (satp) instead.
++ */
++uint64_t riscv_sc_key(CPURISCVState *env)
++{
++    return env->sscratch ? env->sscratch : (env->satp | 1);
++}
++
++/* the kernel's MMU indexes, for reads from a callback in U-mode */
++#define RISCV_SC_KMMU ((1u << MMUIdx_S) | (1u << MMUIdx_S_SUM))
++
++static inline bool riscv_sc_is32(CPURISCVState *env)
++{
++    return riscv_cpu_xlen(env) == 32;
++}
++
++/* what a U-mode register holds for @v: sign-extended in a 32-bit task */
++static inline target_ulong riscv_sc_reg(CPURISCVState *env, uint64_t v)
++{
++    return riscv_sc_is32(env) ? (target_ulong)(int32_t)v : (target_ulong)v;
++}
++
++static uint32_t riscv_sc_inject_abis(CPURISCVState *env)
++{
++    return riscv_cpu_mxl(env) == MXL_RV32 ? 1u << SYSCALL_ABI_RISCV32 :
++           (1u << SYSCALL_ABI_RISCV64) | (1u << SYSCALL_ABI_RISCV32);
++}
++
++/* ecall from U-mode: report the syscall; true if the consumer skipped it */
++static bool riscv_sc_enter(CPURISCVState *env)
++{
++    CPUState *cs = env_cpu(env);
++    bool is32 = riscv_sc_is32(env);
++    int abi = is32 ? SYSCALL_ABI_RISCV32 : SYSCALL_ABI_RISCV64;
++    int64_t num = is32 ? (uint32_t)env->gpr[xA7] : (int64_t)env->gpr[xA7];
++    uint64_t args[6], ret;
++    int r;
++
++    for (int i = 0; i < 6; i++) {
++        args[i] = is32 ? (uint32_t)env->gpr[xA0 + i] : env->gpr[xA0 + i];
++    }
++    cs->syscall_inject_abis = riscv_sc_inject_abis(env);
++    /*
++     * Linux returns past the ecall (do_trap_ecall_u: epc += 4).  A fault:
++     * the PC is at the ecall, still in U-mode, so the fault returns there
++     * and the ecall traps again.
++     */
++    while ((r = syscall_trap_enter(cs, abi, num, args, env->pc + 4, 4,
++                                   riscv_sc_key(env), env->gpr[xSP],
++                                   env->sscratch, RISCV_SC_KMMU, &ret)) &
++           SYSCALL_TRAP_FAULT) {
++        syscall_trap_fault(cs, 0);
++    }
++    if (r & (SYSCALL_TRAP_ARGS | SYSCALL_TRAP_INJECT)) {
++        for (int i = 0; i < 6; i++) {
++            env->gpr[xA0 + i] = riscv_sc_reg(env, args[i]);
++        }
++    }
++    if (r & SYSCALL_TRAP_INJECT) {
++        env->gpr[xA7] = riscv_sc_reg(env, ret);
++    }
++    if (r & SYSCALL_TRAP_SKIP) {
++        env->gpr[xA0] = riscv_sc_reg(env, ret);
++        env->pc += 4;
++        return true;
++    }
++    return false;
++}
++
++/*
++ * sret or mret back to U-mode (not VU) at @retpc while a call is pending:
++ * report the return, and put back what an injection changed.  Returns the
++ * PC to resume at.
++ */
++target_ulong riscv_sc_return(CPURISCVState *env, target_ulong retpc)
++{
++    CPUState *cs = env_cpu(env);
++
++    for (;;) {
++        uint64_t ret = env->gpr[xA0];
++        SyscallTrapRewind rw;
++        int r = syscall_trap_return(cs, retpc, riscv_sc_key(env),
++                                    env->gpr[xSP], env->sscratch,
++                                    RISCV_SC_KMMU, &ret, &rw);
++
++        if ((r & (SYSCALL_TRAP_REWIND | SYSCALL_TRAP_RESTORE)) &&
++            rw.abi != SYSCALL_ABI_RISCV64 && rw.abi != SYSCALL_ABI_RISCV32) {
++            r &= ~(SYSCALL_TRAP_REWIND | SYSCALL_TRAP_RESTORE);
++        }
++        if (r & SYSCALL_TRAP_REWIND) {
++            /* an injected call is back: the task's own call, again */
++            env->gpr[xA7] = riscv_sc_reg(env, rw.num);
++            for (int i = 0; i < 6; i++) {
++                env->gpr[xA0 + i] = riscv_sc_reg(env, rw.args[i]);
++            }
++            return retpc - rw.len;
++        }
++        if (r & SYSCALL_TRAP_RESTORE) {
++            /* back from a call injected at the return: this call's registers */
++            env->gpr[xA7] = riscv_sc_reg(env, rw.num);
++            for (int i = 1; i < 6; i++) {
++                env->gpr[xA0 + i] = riscv_sc_reg(env, rw.args[i]);
++            }
++        }
++        if (r & SYSCALL_TRAP_RET) {
++            env->gpr[xA0] = riscv_sc_reg(env, ret);
++        }
++        if (!(r & SYSCALL_TRAP_FAULT)) {
++            return retpc;
++        }
++        /* the fault is taken in U-mode at the return address */
++        env->pc = retpc;
++        syscall_trap_fault(cs, 0);
++    }
++}
++
+ /*
+  * Handle Traps
+  *
+@@ -2096,6 +2221,11 @@ void riscv_cpu_do_interrupt(CPUState *cs)
+         return;
+     }
+ 
++    if (!async && cause == RISCV_EXCP_U_ECALL && env->priv == PRV_U &&
++        !env->virt_enabled && syscall_trap_enabled() && riscv_sc_enter(env)) {
++        return;
++    }
++
+     if (!async) {
+         /* set tval to badaddr for traps with address information */
+         switch (cause) {
+diff --git a/target/riscv/tcg/op_helper.c b/target/riscv/tcg/op_helper.c
+index 099c0f436..a19ea7de9 100644
+--- a/target/riscv/tcg/op_helper.c
++++ b/target/riscv/tcg/op_helper.c
+@@ -35,6 +35,7 @@
+ #include "trace.h"
+ #include "system/penguin.h"
+ #include "panda/hooks.h"
++#include "system/syscall-trap.h"
+ 
+ /* Exceptions processing helpers */
+ G_NORETURN void riscv_raise_exception(CPURISCVState *env,
+@@ -408,6 +409,10 @@ target_ulong helper_sret(CPURISCVState *env)
+                             src_priv, src_virt);
+     }
+ 
++    /* back to U-mode: the syscall trap's return */
++    if (env->priv == PRV_U && !env->virt_enabled && syscall_trap_waiting()) {
++        retpc = riscv_sc_return(env, retpc);
++    }
+     return retpc;
+ }
+ 
+@@ -494,6 +499,10 @@ target_ulong helper_mret(CPURISCVState *env)
+                             PRV_M, false);
+     }
+ 
++    /* an M-mode kernel back to U-mode: the syscall trap's return */
++    if (env->priv == PRV_U && !env->virt_enabled && syscall_trap_waiting()) {
++        retpc = riscv_sc_return(env, retpc);
++    }
+     return retpc;
+ }
+ 

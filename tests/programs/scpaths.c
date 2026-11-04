@@ -88,6 +88,44 @@ static long clone3_exit(void *args, long size)
                      : "+r"(x0) : "r"(x1) : "x8", "memory");
     return x0;
 }
+#elif defined(__riscv)
+static long vfork_exit(void)
+{
+    register long a0 __asm__("a0") = CLONE_VM | CLONE_VFORK | SIGCHLD;
+    __asm__ volatile("li a7, 220; li a1, 0; li a2, 0; li a3, 0; li a4, 0; ecall;"
+                     "bnez a0, 1f; li a0, 6; li a7, 94; ecall; 1:"
+                     : "+r"(a0) : : "a1", "a2", "a3", "a4", "a7", "memory");
+    return a0;
+}
+
+static long clone3_exit(void *args, long size)
+{
+    register long a0 __asm__("a0") = (long)args;
+    register long a1 __asm__("a1") = size;
+    __asm__ volatile("li a7, 435; ecall; bnez a0, 1f; li a0, 9; li a7, 94; ecall; 1:"
+                     : "+r"(a0) : "r"(a1) : "a7", "memory");
+    return a0;
+}
+#elif defined(__loongarch64)
+static long vfork_exit(void)
+{
+    register long a0 __asm__("$a0") = CLONE_VM | CLONE_VFORK | SIGCHLD;
+    __asm__ volatile("ori $a7, $zero, 220; move $a1, $zero; move $a2, $zero; move $a3, $zero;"
+                     "move $a4, $zero; syscall 0; bnez $a0, 1f; ori $a0, $zero, 6;"
+                     "ori $a7, $zero, 94; syscall 0; 1:"
+                     : "+r"(a0) : : "$a1", "$a2", "$a3", "$a4", "$a7", LA_CLOBBER);
+    return a0;
+}
+
+static long clone3_exit(void *args, long size)
+{
+    register long a0 __asm__("$a0") = (long)args;
+    register long a1 __asm__("$a1") = size;
+    __asm__ volatile("ori $a7, $zero, 435; syscall 0; bnez $a0, 1f; ori $a0, $zero, 9;"
+                     "ori $a7, $zero, 94; syscall 0; 1:"
+                     : "+r"(a0) : "r"(a1) : "$a7", LA_CLOBBER);
+    return a0;
+}
 #elif defined(__arm__)
 static long vfork_exit(void)
 {

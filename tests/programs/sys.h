@@ -216,6 +216,113 @@ __asm__(".text\n.arm\n.globl clone_fn\nclone_fn:\n"
 __asm__(".text\n.arm\n.globl _start\n_start:\n mov fp, #0\n mov r0, sp\n bic r1, r0, #7\n"
         " mov sp, r1\n bl _start_c\n b .\n");
 
+#elif (defined(__riscv) && __riscv_xlen == 64) || defined(__loongarch64)
+/* the asm-generic numbers (as aarch64) */
+#define NR_dup3 24
+#define NR_mkdirat 34
+#define NR_mount 40
+#define NR_openat 56
+#define NR_close 57
+#define NR_pipe2 59
+#define NR_lseek 62
+#define NR_read 63
+#define NR_write 64
+#define NR_exit 93
+#define NR_exit_group 94
+#define NR_futex 98
+#define NR_nanosleep 101
+#define NR_setitimer 103
+#define NR_restart_syscall 128
+#define NR_kill 129
+#define NR_rt_sigaction 134
+#define NR_rt_sigreturn 139
+#define NR_setsid 157
+#define NR_getpid 172
+#define NR_getppid 173
+#define NR_munmap 215
+#define NR_clone 220
+#define NR_execve 221
+#define NR_mmap 222
+#define NR_wait4 260
+#define NR_clone3 435
+/* no SA_RESTORER: signal handlers return through the vDSO's rt_sigreturn */
+#define SYS_NO_SA_RESTORER 1
+
+#if defined(__riscv)
+static inline long sc(long n, long a, long b, long c, long d, long e, long f)
+{
+    register long a7 __asm__("a7") = n, a0 __asm__("a0") = a, a1 __asm__("a1") = b;
+    register long a2 __asm__("a2") = c, a3 __asm__("a3") = d, a4 __asm__("a4") = e;
+    register long a5 __asm__("a5") = f;
+    __asm__ volatile("ecall" : "+r"(a0) : "r"(a7), "r"(a1), "r"(a2), "r"(a3), "r"(a4), "r"(a5)
+                     : "memory");
+    return a0;
+}
+
+/* penguin's riscv hypercall instruction: xori x0, x0, 0 (the number in a7) */
+static inline long hc(long op, long a, long b, long c)
+{
+    register long a7 __asm__("a7") = MAGIC_AGENT, a0 __asm__("a0") = MAGIC_AGENT;
+    register long a1 __asm__("a1") = op, a2 __asm__("a2") = a, a3 __asm__("a3") = b;
+    register long a4 __asm__("a4") = c;
+    __asm__ volatile(".4byte 0x00004013" : "+r"(a0) : "r"(a7), "r"(a1), "r"(a2), "r"(a3), "r"(a4)
+                     : "memory");
+    return a0;
+}
+
+/* riscv clone: flags, stack, parent_tid, tls, child_tid (as arm64); fn in a5, which the kernel
+ * keeps */
+long clone_fn(unsigned long flags, void *stack, volatile int *ctid, void (*fn)(void));
+__asm__(".text\n.globl clone_fn\nclone_fn:\n"
+        " mv a5, a3\n mv a4, a2\n li a2, 0\n li a3, 0\n li a7, 220\n ecall\n"
+        " bnez a0, 1f\n jalr a5\n li a0, 0\n li a7, 93\n ecall\n"
+        "1: ret\n");
+
+#define SIGRETURN_ASM " li a7, 139\n ecall\n unimp\n"
+/* gp: the linker relaxes accesses near __global_pointer$ to gp-relative ones */
+__asm__(".text\n.globl _start\n_start:\n .option push\n .option norelax\n"
+        " la gp, __global_pointer$\n .option pop\n li s0, 0\n mv a0, sp\n andi sp, sp, -16\n"
+        " call _start_c\n 1: j 1b\n");
+#else
+/* the kernel does not keep t0-t8 across a syscall */
+#define LA_CLOBBER "$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7", "$t8", "memory"
+static inline long sc(long n, long a, long b, long c, long d, long e, long f)
+{
+    register long a7 __asm__("$a7") = n, a0 __asm__("$a0") = a, a1 __asm__("$a1") = b;
+    register long a2 __asm__("$a2") = c, a3 __asm__("$a3") = d, a4 __asm__("$a4") = e;
+    register long a5 __asm__("$a5") = f;
+    __asm__ volatile("syscall 0" : "+r"(a0) : "r"(a7), "r"(a1), "r"(a2), "r"(a3), "r"(a4),
+                     "r"(a5) : LA_CLOBBER);
+    return a0;
+}
+
+/* penguin's loongarch hypercall instruction: cpucfg $zero, $zero (the number in a7) */
+static inline long hc(long op, long a, long b, long c)
+{
+    register long a7 __asm__("$a7") = MAGIC_AGENT, a0 __asm__("$a0") = MAGIC_AGENT;
+    register long a1 __asm__("$a1") = op, a2 __asm__("$a2") = a, a3 __asm__("$a3") = b;
+    register long a4 __asm__("$a4") = c;
+    __asm__ volatile(".word 0x00006c00" : "+r"(a0) : "r"(a7), "r"(a1), "r"(a2), "r"(a3), "r"(a4)
+                     : "memory");
+    return a0;
+}
+
+/* loongarch clone: flags, stack, parent_tid, child_tid, tls (as x86_64); fn in a5, which the
+ * kernel keeps */
+long clone_fn(unsigned long flags, void *stack, volatile int *ctid, void (*fn)(void));
+__asm__(".text\n.globl clone_fn\nclone_fn:\n"
+        " move $a5, $a3\n move $a3, $a2\n move $a2, $zero\n move $a4, $zero\n"
+        " ori $a7, $zero, 220\n syscall 0\n bnez $a0, 1f\n jirl $ra, $a5, 0\n"
+        " move $a0, $zero\n ori $a7, $zero, 93\n syscall 0\n"
+        "1: jr $ra\n");
+
+#define SIGRETURN_ASM " ori $a7, $zero, 139\n syscall 0\n break 0\n"
+__asm__(".text\n.globl _start\n_start:\n move $fp, $zero\n move $a0, $sp\n"
+        " bstrins.d $sp, $zero, 3, 0\n bl _start_c\n 1: b 1b\n");
+#endif
+
+static inline void hc_setup(void) {}
+
 #else
 #error "tests/programs/sys.h: no system layer for this arch"
 #endif
@@ -290,17 +397,25 @@ static inline unsigned long str_len(const char *s)
     return n;
 }
 
-/* the kernel's struct sigaction for rt_sigaction (sigset_t: 8 bytes, of unsigned longs) */
-struct ksigaction { void *handler; unsigned long flags; void (*restorer)(void); unsigned long mask[2]; };
-
 void sc_restorer(void);
 __asm__(".text\n.globl sc_restorer\nsc_restorer:\n" SIGRETURN_ASM);
+
+#ifdef SYS_NO_SA_RESTORER
+/* the kernel's struct sigaction for rt_sigaction (sigset_t: 8 bytes), without sa_restorer */
+struct ksigaction { void *handler; unsigned long flags; unsigned long mask[8 / sizeof(long)]; };
+#define KSA_RESTORER(a)
+#else
+/* the kernel's struct sigaction for rt_sigaction (sigset_t: 8 bytes, of unsigned longs) */
+struct ksigaction { void *handler; unsigned long flags; void (*restorer)(void); unsigned long mask[2]; };
+#define KSA_RESTORER(a) ((a).flags |= SA_RESTORER, (a).restorer = sc_restorer)
+#endif
 
 static inline void handle(int sig, void *h, unsigned long flags)
 {
     /* SA_SIGINFO: an rt frame everywhere (arm sets up a non-rt one without it, which only
      * sigreturn undoes) */
-    struct ksigaction a = { h, flags | SA_RESTORER | SA_SIGINFO, sc_restorer, 0 };
+    struct ksigaction a = { h, flags | SA_SIGINFO };
+    KSA_RESTORER(a);
     sc(NR_rt_sigaction, sig, (long)&a, 0, 8, 0, 0);
 }
 

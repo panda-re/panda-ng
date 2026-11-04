@@ -4,7 +4,7 @@ order.
 
 Run: PANDA_PLUGIN_DIR=<test-plugins>/lib/panda/plugins panda-python tests/syscall_truth.py \\
          <images>/busybox-<arch>.json [--smp N] [--intel]
-(busybox-x86_64, -aarch64 and -armel; images from tests/mkbusybox.py, the sctrace plugin from
+(busybox-x86_64, -aarch64, -armel, -riscv64 and -loongarch64; images from tests/mkbusybox.py, the sctrace plugin from
 `nix build .#test-plugins`). It runs on a tests/testmachine.py machine (built and snapshotted the
 first time, 4-6 s) with N vCPUs (default 1); --intel makes the x86 CPU GenuineIntel, whose 32-bit
 vDSO enters through sysenter (the default, qemu64, is AMD: syscall). Programs go in and the
@@ -44,7 +44,8 @@ from collections import defaultdict
 from testlib import Checks, progress
 from testmachine import Agent, Machine
 import sctrace
-from sctrace import ABI_X86_64, ABI_I386, ABI_AARCH64, ABI_ARM, ENTER, RETURN
+from sctrace import ABI_X86_64, ABI_I386, ABI_AARCH64, ABI_ARM, ABI_RISCV64, ABI_LOONGARCH64, \
+    ENTER, RETURN
 
 ap = argparse.ArgumentParser()
 ap.add_argument("image")
@@ -70,7 +71,11 @@ CLONE_VFORK = 0x4000
 # that the trap can't see, and the call's return carries the restarted call's value.
 KERNEL_RESTART = False
 ABI_GROUP = {ABI_X86_64: "x86_64 ABI", ABI_I386: "i386 ABI", ABI_AARCH64: "aarch64 ABI",
-             ABI_ARM: "arm ABI"}
+             ABI_ARM: "arm ABI", ABI_RISCV64: "riscv64 ABI", ABI_LOONGARCH64: "loongarch64 ABI"}
+# riscv64 and loongarch64: the asm-generic numbers, as aarch64
+for _abi in (ABI_RISCV64, ABI_LOONGARCH64):
+    for _t in (NO_EXIT, SIGRETURN, EXECVE, VFORK, CLONE):
+        _t[_abi] = _t[ABI_AARCH64]
 
 # Workloads: name, the guest programs it needs ((name, build), put at /tmp/<name>), the shell
 # command run inside the window. Each exits 0 but threads (3: its side thread's exit_group).
@@ -105,6 +110,13 @@ WORKLOADS = {
         ("signals", [("scwork", "arm")], "/tmp/scwork signals"),
     ],
 }
+for _arch in ("riscv64", "loongarch64"):
+    WORKLOADS[_arch] = [
+        ("return paths", [("scpaths", _arch)], "/tmp/scpaths"),
+    ] + SHELL + [
+        ("threads", [("scwork", _arch)], "/tmp/scwork threads"),
+        ("signals", [("scwork", _arch)], "/tmp/scwork signals"),
+    ]
 
 # Known trap bugs: GAP while they fail, XPASS (a failure) once fixed.
 _X86_VFORK = ("the x86 trap keys a call by (CR3, user sp, pc): a vfork child's return is taken "
@@ -117,7 +129,11 @@ GAPS = {
         "are in memory: its fork and its vfork are one group)",
     "pipelines: vfork: each call's return is the kernel's": _X86_VFORK + " (busybox xargs vforks)",
 }
-machine = Machine(opt.image, smp=opt.smp, intel=opt.intel)
+# A preemptible kernel can switch tasks between the trap and the sys_enter tracepoint (the entry
+# code enables interrupts before it), and the kernel's enters on a CPU would then not be in the
+# trap's order: the machine's kernel runs with preempt=none (PREEMPT_DYNAMIC kernels, such as
+# loongarch64's; others ignore it).
+machine = Machine(opt.image, smp=opt.smp, intel=opt.intel, append="preempt=none")
 arch = machine.arch
 KERNEL_RESTART = arch == "arm"
 C = Checks(arch, GAPS if arch == "x86_64" else {})
@@ -253,7 +269,9 @@ def check(name, ftrace, trap, lost, overrun):
                         (f["nr"] == 0 or (f["nr"], f["args"]) == (call["nr"], call["args"]))):
                     f["inkernel"] = True
 
-    # Enters, CPU by CPU.
+    # Enters, CPU by CPU. The kernel's CPU numbers need not be the vCPU indexes (riscv: the
+    # boot hart, which the firmware picks, is CPU 0): each kernel CPU is the vCPU its enters
+    # align with, its own number first.
     trap_of = {}                                # (cpu, ftrace index): trap enter
     n_enters, enter_diffs = 0, []
     for c, evs in ftrace.items():
@@ -261,10 +279,17 @@ def check(name, ftrace, trap, lost, overrun):
         if not F:
             continue
         n_enters += len(F)
-        pairs, diffs = align(F, enters.get(c, []))
+        for v in [c] + sorted(set(enters) - {c}):
+            pairs, diffs = align(F, enters.get(v, []))
+            if pairs:
+                break
+        else:
+            v = c
+        if v != c:
+            VCPU_OF[c] = v
         enter_diffs += [(c, *d) for d in diffs]
         for i, j in pairs.items():
-            trap_of[(c, F[i]["i"])] = enters[c][j]
+            trap_of[(c, F[i]["i"])] = enters[v][j]
     C.check(p + f"on every vCPU the kernel's {n_enters} enters are the trap's, in order",
             n_enters and not enter_diffs, enter_diffs[:10])
 
@@ -332,6 +357,7 @@ def check(name, ftrace, trap, lost, overrun):
 
 
 R = {}
+VCPU_OF = {}                                    # kernel CPU: vCPU, where they differ
 
 
 @panda.queue_blocking
@@ -343,6 +369,7 @@ def drive():
     agent.run(f"echo 0 > {T}/tracing_on; echo {32768 // ncpu} > {T}/buffer_size_kb; "
               f"echo global > {T}/trace_clock; echo 8192 > {T}/saved_cmdlines_size; "
               f"echo 1 > {T}/events/raw_syscalls/enable")
+
     for name, progs, cmd in WORKLOADS[arch]:
         R[name] = run(name, progs, cmd, ncpu)
     panda.end_analysis()
@@ -362,5 +389,6 @@ for name, _, _ in WORKLOADS[arch]:
     summary.append(f"{name.replace(' ', '_')}={n}")
     print(f"{name}: kernel enters {n}; trap enters per vCPU {per_cpu}; returns on another vCPU "
           f"{moved}")
-print("guest:", " ".join(R.get("cpu", "?").split()), "vCPUs:", R.get("ncpu", "?"))
+print("guest:", " ".join(R.get("cpu", "?").split()), "vCPUs:", R.get("ncpu", "?"),
+      "kernel CPU -> vCPU:", VCPU_OF or "-")
 sys.exit(C.report(f"SYSCALL_TRUTH arch={arch} smp={opt.smp} " + " ".join(summary)))
