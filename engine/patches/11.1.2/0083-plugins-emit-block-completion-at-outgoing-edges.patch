@@ -19,7 +19,7 @@ Origin: new
  6 files changed, 79 insertions(+), 14 deletions(-)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index ce658c93c3ce0423a2b1ee2f937ec890055448d7..0958cd1c3ba8da3934e47d3b8e9a69725b4cbff5 100644
+index 18729efa3faae05ab0bbb8c8075f2ae71f40fbbd..71750d8e6fefe0ed3335c251df655dd364705c95 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
 @@ -531,14 +531,6 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)

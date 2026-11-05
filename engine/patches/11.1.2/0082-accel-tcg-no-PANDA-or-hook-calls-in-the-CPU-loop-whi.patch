@@ -21,9 +21,12 @@ than stock QEMU.
 - cpu_tb_exec's after_block_exec and the longjmp hook run only while the
   vCPU has a block in flight (CPUState.panda_block_pending, set and cleared
   by PANDA's block start and end). before_handle_exception runs only then
-  or while such a callback is registered, and before_find_fast only while
-  a TB flush is pending: bits of PANDA's panda_loop_hooks word. The
-  before_block_exec call goes; it did nothing.
+  or while such a callback is registered (a bit of PANDA's
+  panda_loop_hooks word). The before_block_exec call goes; it did nothing.
+- TB flushes: panda_do_flush_tb() queues the flush as exclusive work on a
+  vCPU and asks every vCPU to leave its TB, so the flush still comes
+  before any more guest code runs. The loop no longer calls
+  before_find_fast before each lookup, nor tests for a pending flush.
 - CF_HOOKS: the address hooks put it in every vCPU's cflags at their first
   commit, which flushes, so tcg_hooks_cflags tests the cflags it is given
   instead of loading tcg_hooks_enabled.
@@ -32,12 +35,12 @@ SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
 Origin: new
 ---
  accel/tcg/cpu-exec-common.c      | 11 ++++++-----
- accel/tcg/cpu-exec.c             | 26 ++++++++++++++++----------
+ accel/tcg/cpu-exec.c             | 23 ++++++++++++-----------
  accel/tcg/icount-common.c        |  2 +-
  accel/tcg/tcg-accel-ops.c        |  2 ++
  include/exec/translation-block.h |  2 ++
  include/hw/core/cpu.h            |  2 ++
- 6 files changed, 29 insertions(+), 16 deletions(-)
+ 6 files changed, 25 insertions(+), 17 deletions(-)
 
 diff --git a/accel/tcg/cpu-exec-common.c b/accel/tcg/cpu-exec-common.c
 index 2a006fb20f04cf2c7c5df8471e120ff71c802f04..0729e07cd9a8f5cc00524adfe92ab30a4aba1a01 100644
@@ -76,7 +79,7 @@ index 2a006fb20f04cf2c7c5df8471e120ff71c802f04..0729e07cd9a8f5cc00524adfe92ab30a
  
      return cflags;
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index 77de1de36c37cc8161ace9da16c157aaa2d72894..ce658c93c3ce0423a2b1ee2f937ec890055448d7 100644
+index 77de1de36c37cc8161ace9da16c157aaa2d72894..18729efa3faae05ab0bbb8c8075f2ae71f40fbbd 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
 @@ -489,8 +489,6 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
@@ -128,19 +131,16 @@ index 77de1de36c37cc8161ace9da16c157aaa2d72894..ce658c93c3ce0423a2b1ee2f937ec890
      }
  
  #if defined(CONFIG_USER_ONLY)
-@@ -1052,8 +1056,10 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
+@@ -1052,9 +1056,6 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
                  break;
              }
  
 -            /* PANDA: pending plugin unloads and TB flushes (may leave the loop) */
 -            panda_callbacks_before_find_fast();
-+            /* PANDA: a pending TB flush (leaves the loop) */
-+            if (panda_loop_wants(PANDA_LOOP_FLUSH)) {
-+                panda_callbacks_before_find_fast();
-+            }
- 
+-
              tb = tb_lookup(cpu, s);
              if (tb == NULL) {
+                 CPUJumpCache *jc;
 diff --git a/accel/tcg/icount-common.c b/accel/tcg/icount-common.c
 index 3e8d226db72b6e2c684969c5fbb521407e175dd1..10d1740ce1a1ef33624071a3110a74c26faa73d4 100644
 --- a/accel/tcg/icount-common.c
