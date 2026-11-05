@@ -1,5 +1,6 @@
 plugin_list = run_command('cat', 'config.panda', check: true, capture: true).stdout().strip().split('\n')
-fake_libc_include = '../utils/fake_libc_include'
+# Absolute: the custom commands run in the build root, wherever that is.
+fake_libc_include = meson.project_source_root() / 'utils/fake_libc_include'
 plugin_ext = {}
 
 # First pass: Generate extension headers
@@ -19,7 +20,7 @@ foreach plugin: plugin_list
             # tracks and installs.
             command: [bin_sh, '-c', '"$1" "$2" "$3" "$4" "$5" && cp "$4" "$0"',
                 '@OUTPUT@',
-                python_exe, '../utils/scripts/apigen.py',
+                python_exe, meson.project_source_root() / 'utils/scripts/apigen.py',
                 '@INPUT@',
                 join_paths('plugins', plugin, out_h),
                 '-I' + fake_libc_include])}
