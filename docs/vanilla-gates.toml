@@ -1135,7 +1135,7 @@ vanilla_verified = false
 [[patch]]
 id = "0081"
 file = "engine/patches/11.1.2/0081-accel-tcg-no-PANDA-or-hook-calls-in-the-CPU-loop-whi.patch"
-sha256 = "b2d9c7994f28653c48884b02f9858458ce28025efbc773a5f09b01381dfb3e91"
+sha256 = "d69602af62ef5c982b38a34685271d4efd4a6ff454958aa632f52cffc34c5671"
 class = "runtime-gate"
 capability = "analysis-idle-path"
 paths = ["accel/tcg/cpu-exec-common.c", "accel/tcg/cpu-exec.c", "accel/tcg/icount-common.c", "accel/tcg/tcg-accel-ops.c", "include/exec/translation-block.h", "include/hw/core/cpu.h"]
@@ -1149,7 +1149,7 @@ vanilla_verified = false
 [[patch]]
 id = "0082"
 file = "engine/patches/11.1.2/0082-plugins-emit-block-completion-at-outgoing-edges.patch"
-sha256 = "20f4cf35b8459a29c179fd951453382e91532b8ea94c69c5c20bf3cb74b8e92e"
+sha256 = "a051138ae66572659be40d0ce15a4e27a07e9a5e1df6dec554cf5efd1eb2a6dd"
 class = "runtime-gate"
 capability = "analysis-block-completion"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/plugin-gen.c", "include/hw/core/cpu.h", "include/plugins/qemu-plugin.h", "include/qemu/plugin.h", "plugins/api.c"]
@@ -1304,7 +1304,7 @@ vanilla_verified = false
 [[patch]]
 id = "0093"
 file = "engine/patches/11.1.2/0093-tcg-taint-shadow-pass-hooks.patch"
-sha256 = "6b2faac19aba10522fa7311dc493b99448cd013ec7feab06d8132df7938250e2"
+sha256 = "019ee1fd58447112ae32fee8fe0c0176c2b481d817d773ca4f08367611c4d041"
 class = "runtime-gate"
 capability = "taint"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/cputlb.c", "accel/tcg/meson.build", "accel/tcg/translator.c", "include/exec/translation-block.h", "include/hw/core/cpu.h", "system/physmem.c", "system/vl.c", "target/arm/helper.c", "target/arm/internals.h", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c", "target/arm/tcg/translate.c", "target/mips/tcg/ldst_helper.c", "target/mips/tcg/tcg-internal.h", "target/mips/tcg/translate.c", "target/riscv/tcg/op_helper.c", "tcg/tcg.c"]
