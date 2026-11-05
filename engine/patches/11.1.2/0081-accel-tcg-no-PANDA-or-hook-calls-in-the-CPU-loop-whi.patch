@@ -76,10 +76,10 @@ index 2a006fb20f04cf2c7c5df8471e120ff71c802f04..0729e07cd9a8f5cc00524adfe92ab30a
  
      return cflags;
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index 40633766c5e5c84fce671e414cf04201af02bd86..8b1275950782c942df875cf9a5048775691e8f8c 100644
+index c3e58e83bb9b02a7c30a19c98867e3a1c6af4e69..3346dd79379e489ea4aafcf60fc97b04b24d95ed 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
-@@ -453,8 +453,6 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
+@@ -459,8 +459,6 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
          log_cpu_exec(log_pc(cpu, itb), cpu, itb);
      }
  
@@ -88,7 +88,7 @@ index 40633766c5e5c84fce671e414cf04201af02bd86..8b1275950782c942df875cf9a5048775
      qemu_thread_jit_execute();
      ret = tcg_qemu_tb_exec(cpu_env(cpu), tb_ptr);
      cpu->neg.can_do_io = true;
-@@ -501,7 +499,9 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
+@@ -507,7 +505,9 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
       * PANDA: after the PC is synchronized above. A TB that exited at its entry
       * never started; without CF_PCREL, chained code left the PC stale until then.
       */
@@ -99,7 +99,7 @@ index 40633766c5e5c84fce671e414cf04201af02bd86..8b1275950782c942df875cf9a5048775
  
      /*
       * If gdb single-step, and we haven't raised another exception,
-@@ -584,7 +584,9 @@ static void cpu_exec_longjmp_cleanup(CPUState *cpu)
+@@ -590,7 +590,9 @@ static void cpu_exec_longjmp_cleanup(CPUState *cpu)
      }
      assert_no_pages_locked();
      /* PANDA: the block this vCPU was running ends here (after_block_exec, exited early). */
@@ -110,7 +110,7 @@ index 40633766c5e5c84fce671e414cf04201af02bd86..8b1275950782c942df875cf9a5048775
  }
  
  void cpu_exec_step_atomic(CPUState *cpu)
-@@ -756,11 +758,13 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
+@@ -762,11 +764,13 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
          return true;
      }
      /* A PANDA plugin may rewrite the exception; re-dispatch the new one. */
@@ -128,7 +128,7 @@ index 40633766c5e5c84fce671e414cf04201af02bd86..8b1275950782c942df875cf9a5048775
      }
  
  #if defined(CONFIG_USER_ONLY)
-@@ -1017,8 +1021,10 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
+@@ -1023,8 +1027,10 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
                  break;
              }
  
