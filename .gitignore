@@ -266,3 +266,6 @@ local_packages/
 
 # ignore auto-generated pypanda build artifacts
 python/core/pandare2/autogen/
+
+# tools/dev/dev.sh: the local development build
+/.dev/

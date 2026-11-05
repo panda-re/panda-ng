@@ -31,6 +31,7 @@ nav:
       - Snapshots and fast restore: guides/snapshots.md
       - KVM: guides/kvm.md
       - Machines and modules: guides/machines.md
+      - Developing panda-ng: guides/development.md
   - Reference:
       - Python API: reference/python.md
       - Callbacks: reference/callbacks.md

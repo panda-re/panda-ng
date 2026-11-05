@@ -134,6 +134,10 @@ plugin against the engine, runs a pandare2 script that loads it, and re-exports 
 Checks: `nix flake check` applies the engine's series (`engine-src`) and runs `-version` and
 `-machine help` on every `qemu-system-<arch>`. `nix develop .#engine` is the engine's toolchain.
 
+For working on the engine, the plugins or pandare2, `tools/dev/dev.sh build --targets x86_64`
+keeps an incremental build of all three in `.dev/`, and `.dev/bin/python3` runs pandare2 from
+`python/core` on it ([docs/guides/development.md](docs/guides/development.md)).
+
 ## The engine
 
 [`engine/README.md`](engine/README.md): the layout (`base.json`, `patches/<version>/`, `src/`),

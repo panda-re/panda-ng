@@ -41,11 +41,15 @@ bin_cp = find_program(
 )
 
 # The plugins build against the headers libpanda-ng generates from the engine (panda-ng/). The
-# flake links them into local_packages/; without them the plugins are skipped rather than
-# failing the build.
+# flake links them into local_packages/ (tools/dev/dev.sh passes engine_includedir); without them
+# the plugins are skipped rather than failing the build.
 panda_ng_include = []
 panda_ng_dir = ''
-foreach d : ['local_packages', '/usr/local/include', '/usr/include']
+include_search = ['local_packages', '/usr/local/include', '/usr/include']
+if get_option('engine_includedir') != ''
+    include_search = [get_option('engine_includedir')]
+endif
+foreach d : include_search
     if panda_ng_include.length() == 0 and fs.exists(d / 'panda-ng')
         panda_ng_include = [include_directories(d)]
         panda_ng_dir = d / 'panda-ng'
