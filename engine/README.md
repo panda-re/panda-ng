@@ -56,6 +56,12 @@ and a last commit `VENDORED: src/` with the overlay. Build it like the flake doe
 (`nix develop .#engine`, then `../configure --enable-plugins --enable-panda --target-list=... &&
 ninja`), or point a test at it.
 
+`tools/dev/dev.sh build` (from the repository root) does this for you, incrementally: it keeps
+such a tree in `.dev/qemu`, copies `engine/src` edits into it, applies a changed series again,
+builds the engine for the chosen targets, then the headers, plugins and pandare2's bindings on it
+([docs/guides/development.md](../docs/guides/development.md)). Its tree is the import's; series
+work (commits, export) is done in a tree of your own as below.
+
 **Changing the series.** Commit on top of the dev tree (or `git rebase -i base-11.1.2` to amend a
 patch in place; keep each patch topical, not chronological). Then:
 
