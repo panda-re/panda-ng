@@ -491,7 +491,7 @@ vanilla_verified = false
 [[patch]]
 id = "0035"
 file = "engine/patches/11.1.2/0035-plugins-bind-a-CF_PCREL-block-to-its-virtual-address.patch"
-sha256 = "830328224f297361afdec7d983e93a365560df51603fe41d4c441319a64ccae2"
+sha256 = "8e0c285dcd115eba2fed8ee86176b6399e2230759fc21c8fb5ddba2efd3733fa"
 class = "runtime-gate"
 capability = "address-hooks"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/plugin-gen.c", "accel/tcg/tb-maint.c", "accel/tcg/translate-all.c", "include/exec/translation-block.h", "include/qemu/plugin.h", "plugins/api.c"]
@@ -505,7 +505,7 @@ vanilla_verified = false
 [[patch]]
 id = "0036"
 file = "engine/patches/11.1.2/0036-accel-tcg-address-hooks-keep-CF_PCREL-on-outside-hoo.patch"
-sha256 = "63325cd7fd9546d88d36d294e5b5a0d37e0f9647967596fa7531a8d0da599a2e"
+sha256 = "36d0c4279b6f7c4c934bc5db712918860d7759e876d71f56793cda858aea5944"
 class = "runtime-gate"
 capability = "address-hooks"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/tcg-accel-ops.c", "accel/tcg/translator.c"]
@@ -603,7 +603,7 @@ vanilla_verified = false
 [[patch]]
 id = "0043"
 file = "engine/patches/11.1.2/0043-panda-TCG-core-hooks.patch"
-sha256 = "45b992b954d4550a41cd0e5721238cf95378fb58a753477435e213e7953e8767"
+sha256 = "20355c5dbae6db1825d02623295a04904539ddbc4b3c026e0ea7586311ca5a52"
 class = "runtime-gate"
 capability = "analysis-callbacks"
 paths = ["accel/tcg/cpu-exec.c"]
@@ -673,7 +673,7 @@ vanilla_verified = false
 [[patch]]
 id = "0048"
 file = "engine/patches/11.1.2/0048-panda-before_find_fast-before-each-TB-lookup.patch"
-sha256 = "f7599aa07929932282034e148d2bf92112e090be29b6c4e54921ed077be234c6"
+sha256 = "6e8b024869aabec5bebe08838640f92f586254ea93c31185a78507b445d7a5f6"
 class = "runtime-gate"
 capability = "analysis-callbacks"
 paths = ["accel/tcg/cpu-exec.c"]
@@ -813,7 +813,7 @@ vanilla_verified = false
 [[patch]]
 id = "0058"
 file = "engine/patches/11.1.2/0058-panda-block-callbacks-learn-of-a-longjmp-out-of-the-.patch"
-sha256 = "97f1f12342e93623b4d860b1677c7f6d42edf8d8694702454ab54c5d7e77bacd"
+sha256 = "1f022b40e2769758b9b0667593964963fa5507576492ca59ea394469c119a463"
 class = "runtime-gate"
 capability = "analysis-block-completion"
 paths = ["accel/tcg/cpu-exec.c"]
@@ -827,7 +827,7 @@ vanilla_verified = false
 [[patch]]
 id = "0059"
 file = "engine/patches/11.1.2/0059-panda-after_block_exec-hook-after-the-PC-is-synchron.patch"
-sha256 = "0a546e7974285009ade20b9eff22f26af431a8a2c8c7f6f4dd76b928b7a1a622"
+sha256 = "e55418be0cb1418a50c563408cc0cc30ca2f906e43643438e1dd47ce9175dd67"
 class = "runtime-gate"
 capability = "analysis-block-completion"
 paths = ["accel/tcg/cpu-exec.c"]
@@ -869,7 +869,7 @@ vanilla_verified = false
 [[patch]]
 id = "0062"
 file = "engine/patches/11.1.2/0062-accel-tcg-cpu_exec_step_atomic-runs-in-an-RCU-read-s.patch"
-sha256 = "ac23ff3ce613ad54681d59a6b9c00b0d404d51dd3ec0dc56d50d128db032a435"
+sha256 = "5d78eb942311485c3245ade35feaac7bfba1c24b4b973b70adbcf6b112e45785"
 class = "upstream-fix-needs-off-path"
 capability = "tcg-atomic"
 paths = ["accel/tcg/cpu-exec.c"]
@@ -1149,7 +1149,7 @@ vanilla_verified = false
 [[patch]]
 id = "0082"
 file = "engine/patches/11.1.2/0082-accel-tcg-no-PANDA-or-hook-calls-in-the-CPU-loop-whi.patch"
-sha256 = "c342b701b6ab6fe73bda31343c00d217bb3506492160d212cc1701503506e130"
+sha256 = "b58d0f3400601fadda40bdf160e8de02e06c7923e850bdb0d8e7ef00fe86e13e"
 class = "runtime-gate"
 capability = "analysis-idle-path"
 paths = ["accel/tcg/cpu-exec-common.c", "accel/tcg/cpu-exec.c", "accel/tcg/icount-common.c", "accel/tcg/tcg-accel-ops.c", "include/exec/translation-block.h", "include/hw/core/cpu.h"]
@@ -1163,7 +1163,7 @@ vanilla_verified = false
 [[patch]]
 id = "0083"
 file = "engine/patches/11.1.2/0083-plugins-emit-block-completion-at-outgoing-edges.patch"
-sha256 = "8f2935775712cbb13bc2a49fdb0a9a4bd06aca36821f4f5daabbad8d865c7477"
+sha256 = "92df58497f503cd9d4d50351a1efd4acc17ea66793cb12b2f5e8ea8ea0406cb2"
 class = "runtime-gate"
 capability = "analysis-block-completion"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/plugin-gen.c", "include/hw/core/cpu.h", "include/plugins/qemu-plugin.h", "include/qemu/plugin.h", "plugins/api.c"]
@@ -1318,7 +1318,7 @@ vanilla_verified = false
 [[patch]]
 id = "0094"
 file = "engine/patches/11.1.2/0094-tcg-taint-shadow-pass-hooks.patch"
-sha256 = "6ed3eeda13afdd1212826ab219717735d31f9a1c3e84b76151a2ee73fe8e84dd"
+sha256 = "cab338a97549074cbaae6d0ccc2c5efa2e2185ffa30d160191aea2fa0ce4aef3"
 class = "runtime-gate"
 capability = "taint"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/cputlb.c", "accel/tcg/meson.build", "accel/tcg/translator.c", "include/exec/translation-block.h", "include/hw/core/cpu.h", "system/physmem.c", "system/vl.c", "target/arm/helper.c", "target/arm/internals.h", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c", "target/arm/tcg/translate.c", "target/mips/tcg/ldst_helper.c", "target/mips/tcg/tcg-internal.h", "target/mips/tcg/translate.c", "target/riscv/tcg/op_helper.c", "tcg/tcg.c"]
