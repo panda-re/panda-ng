@@ -34,6 +34,8 @@ static inline unsigned long tcg_hooks_page_bit(vaddr pc)
  * virtual address and gets its hooks.  Elsewhere CF_PCREL stays on.
  * CF_HOOKS is in every vCPU's cflags from the first commit on, which
  * flushes (or from its creation, if hooks were inserted before).
+ * tb_lookup() calls this after a jump-cache miss, and the paths that then
+ * translate call it again.
  */
 static inline uint32_t tcg_hooks_cflags(vaddr pc, uint32_t cflags)
 {

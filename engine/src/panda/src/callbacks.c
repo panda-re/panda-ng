@@ -48,6 +48,8 @@ PANDAENDCOMMENT */
 #include "system/replay.h"
 #include "system/replay-effect.h"
 #include "system/kvm.h"
+#include "system/tcg.h"
+#include "exec/tb-flush.h"
 #include "system/analysis-policy.h"
 #include "qemu/error-report.h"
 #include "panda/admission.h"
@@ -1415,22 +1417,35 @@ bool panda_break_exec(void) {
 
 }
 
-/* The flag goes before the request: a request made meanwhile leaves it set. */
+/* true (and cleared) if a flush was requested and has not run yet */
 bool panda_flush_tb(void)
 {
-    qatomic_and(&panda_loop_hooks, ~PANDA_LOOP_FLUSH);
     return qatomic_xchg(&panda_please_flush_tb, false);
 }
 
-/* Acted on at a vCPU's next TB lookup (before_find_fast). Chained TBs make no lookup, so the
- * vCPUs are also asked to leave their TBs: the flush then comes before any more guest code runs
- * (a callback registered from a hypercall sees the very next block instrumented). */
+/* Exclusive work: no vCPU is executing translated code. */
+static void panda_flush_tb_work(CPUState *cpu, run_on_cpu_data unused)
+{
+    if (panda_flush_tb()) {
+        tb_flush__exclusive_or_serial();
+    }
+}
+
+/* The flush runs as exclusive work queued on a vCPU, so the CPU loop checks nothing for it. The
+ * vCPUs are asked to leave their TBs: the flush then comes before any more guest code runs (a
+ * callback registered from a hypercall sees the very next block instrumented). A request made
+ * while one is queued is served by that one. Without a vCPU, or without TCG, nothing is
+ * translated and there is nothing to flush. */
 void panda_do_flush_tb(void)
 {
-    CPUState *cpu;
+    CPUState *cpu = current_cpu ? current_cpu : first_cpu;
 
-    qatomic_set(&panda_please_flush_tb, true);
-    qatomic_or(&panda_loop_hooks, PANDA_LOOP_FLUSH);
+    if (!cpu || !tcg_enabled()) {
+        return;
+    }
+    if (!qatomic_xchg(&panda_please_flush_tb, true)) {
+        async_safe_run_on_cpu(cpu, panda_flush_tb_work, RUN_ON_CPU_NULL);
+    }
     RCU_READ_LOCK_GUARD();
     CPU_FOREACH(cpu) {
         cpu_exit(cpu);

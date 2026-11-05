@@ -14,7 +14,6 @@
 
 /* Bits of panda_loop_hooks: what the CPU loop calls into PANDA for. Nothing set, no call. */
 #define PANDA_LOOP_EXCEPTION 1      /* a before_handle_exception callback is registered */
-#define PANDA_LOOP_FLUSH     2      /* panda_do_flush_tb() asked for a flush not yet done */
 
 #ifdef CONFIG_PANDA
 
@@ -51,8 +50,9 @@ bool panda_callbacks_guest_hypercall(CPUState *cpu);
  * CF_NO_GOTO_PTR in each vCPU's tcg_cflags). The block-exec callbacks don't need it (they run from
  * the block's own code); kept for plugins that want it. */
 bool panda_tb_chaining_enabled(void);
-/* Before each TB lookup: unload plugins that asked to be, and flush the TBs if panda_do_flush_tb()
- * asked (it leaves the CPU loop, which then looks the TB up again) */
+/* Flush the TBs if panda_do_flush_tb() asked and the flush has not run yet (it leaves the CPU loop,
+ * which then looks the TB up again). The CPU loop does not call it: panda_do_flush_tb() queues the
+ * flush as exclusive work. */
 void panda_callbacks_before_find_fast(void);
 /* Each main-loop iteration (pandare2 runs its queued snapshot/revert work here) */
 void panda_callbacks_main_loop_wait(void);
