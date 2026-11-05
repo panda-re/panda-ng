@@ -2,7 +2,7 @@
 
 # Callbacks
 
-52 callback types (`engine/src/include/panda/callbacks/cb-defs.h`). 26 fire; 16 are declared but have no call site in this engine yet, and 10 abort at registration. Register them from Python with the `@panda.cb_<name>` decorators, or from C with `panda_register_callback`. The decorator of a callback that doesn't fire raises NotImplementedError, saying why.
+54 callback types (`engine/src/include/panda/callbacks/cb-defs.h`). 28 fire; 16 are declared but have no call site in this engine yet, and 10 abort at registration. Register them from Python with the `@panda.cb_<name>` decorators, or from C with `panda_register_callback`. The decorator of a callback that doesn't fire raises NotImplementedError, saying why.
 
 The status comes from `pandare2.callbacks` (`python/core/pandare2/callbacks.py`); `tests/callbacks.py` registers every callback on each test image and fails if one listed as missing starts firing, so this table stays true.
 
@@ -62,6 +62,8 @@ Under KVM (`Panda(accel="kvm")`) only `after_loadvm`, `after_machine_init`, `mai
 | `before_handle_interrupt` | no call site (the cpu_exec_interrupt wrapper is commented out in wrap_ops.c) |  | Called just before we are about to handle an interrupt. |
 | `start_block_exec` | fires | raises | Runs at the block's entry, after the entry interrupt/icount check and before its first guest instruction. |
 | `end_block_exec` | fires | raises | Runs after normal completion of the block's guest operations and outgoing PC update, before a direct link, indirect link or dispatcher return. |
+| `syscall_enter` | fires (aarch64, arm, i386, x86_64 only) | raises | Runs when a user task traps for a syscall, before the kernel runs it, with the task's registers as it left them. |
+| `syscall_return` | fires (aarch64, arm, i386, x86_64 only) | raises | Runs when a call reported to syscall_enter returns to its task, with the same sc->id and the task back in user mode at sc->pc. |
 
 ## Signatures
 
@@ -117,3 +119,5 @@ Under KVM (`Panda(accel="kvm")`) only `after_loadvm`, `after_machine_init`, `mai
 - `before_handle_interrupt`: `int32_t (*before_handle_interrupt)(CPUState *cpu, int32_t interrupt_request);`
 - `start_block_exec`: `void (*start_block_exec)(CPUState *cpu, TranslationBlock* tb);`
 - `end_block_exec`: `void (*end_block_exec)(CPUState *cpu, TranslationBlock* tb);`
+- `syscall_enter`: `void (*syscall_enter)(CPUState *cpu, const struct panda_syscall *sc);`
+- `syscall_return`: `void (*syscall_return)(CPUState *cpu, const struct panda_syscall *sc);`

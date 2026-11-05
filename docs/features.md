@@ -391,7 +391,8 @@ hit), and read registers through stable pointers instead of the register API.
 <a id="syscall-trap"></a>
 ## Syscall trap and host-side introspection
 
-Trap guest system calls in the engine, serve them on the host (penguin's syscall engine), read
+Trap guest system calls in the engine, serve them on the host (penguin's syscall engine), report
+them as the syscall_enter and syscall_return PANDA callbacks (which syscalls2 uses on Linux), read
 process state host-side from the kernel's symbols, and redirect the guest from a syscall entry.
 
 **Limits.** Native syscall trap events require TCG; symbol presence does not establish KVM support. Penguin's explicit detach requires main-thread/BQL stopped-vCPU quiescence and no public kernel hooks or live injected calls. Persistent profile/internal hooks survive; this is not full unload or profile reconfiguration. Checked lifetime/child-birth correlation and current consumer admission remain incomplete.

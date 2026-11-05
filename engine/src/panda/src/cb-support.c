@@ -18,6 +18,7 @@
 #include "panda/panda_api.h"
 #include "system/replay.h"
 #include "system/replay-effect.h"
+#include "system/syscall-trap.h"
 
 #define PCB(name) panda_callbacks_ ## name
 
@@ -139,6 +140,66 @@ MAKE_CALLBACK(bool, AFTER_INSN_TRANSLATE, after_insn_translate,
 
 MAKE_CALLBACK(void, END_BLOCK_EXEC, end_block_exec,
                     CPUState*, env, TranslationBlock*, tb)
+
+MAKE_CALLBACK(void, SYSCALL_ENTER, syscall_enter,
+                    CPUState*, env, const struct panda_syscall*, sc)
+MAKE_CALLBACK(void, SYSCALL_RETURN, syscall_return,
+                    CPUState*, env, const struct panda_syscall*, sc)
+
+/* The engine's syscall trap (system/syscall-trap.h), seen through its observer */
+QEMU_BUILD_BUG_ON((int)PANDA_SYSCALL_ABI_X86_64 != SYSCALL_ABI_X86_64 ||
+                  (int)PANDA_SYSCALL_ABI_I386 != SYSCALL_ABI_I386 ||
+                  (int)PANDA_SYSCALL_ABI_AARCH64 != SYSCALL_ABI_AARCH64 ||
+                  (int)PANDA_SYSCALL_ABI_ARM != SYSCALL_ABI_ARM ||
+                  (int)PANDA_SYSCALL_ABI_ARM_OABI != SYSCALL_ABI_ARM_OABI ||
+                  (int)PANDA_SYSCALL_ABI_MIPS != SYSCALL_ABI_MIPS ||
+                  (int)PANDA_SYSCALL_ABI_PPC64 != SYSCALL_ABI_PPC64 ||
+                  (int)PANDA_SYSCALL_ABI_PPC != SYSCALL_ABI_PPC ||
+                  (int)PANDA_SYSCALL_ABI_RISCV64 != SYSCALL_ABI_RISCV64 ||
+                  (int)PANDA_SYSCALL_ABI_RISCV32 != SYSCALL_ABI_RISCV32 ||
+                  (int)PANDA_SYSCALL_ABI_LOONGARCH64 != SYSCALL_ABI_LOONGARCH64 ||
+                  (int)PANDA_SYSCALL_ABI_LOONGARCH64 + 1 != SYSCALL_ABI_COUNT);
+
+static void panda_syscall_from_trap(panda_syscall *p, const SyscallTrap *sc)
+{
+    *p = (panda_syscall) {
+        .abi = sc->abi, .num = sc->num, .pc = sc->pc, .len = sc->len,
+        .id = sc->obs_id, .ret = sc->ret, .restart = sc->restart,
+    };
+    memcpy(p->args, sc->args, sizeof(p->args));
+}
+
+static void panda_syscall_enter_obs(CPUState *cpu, const SyscallTrap *sc)
+{
+    panda_syscall p;
+
+    panda_syscall_from_trap(&p, sc);
+    p.ret = 0;
+    p.restart = false;
+    panda_callbacks_syscall_enter(cpu, &p);
+}
+
+static void panda_syscall_return_obs(CPUState *cpu, const SyscallTrap *sc)
+{
+    panda_syscall p;
+
+    panda_syscall_from_trap(&p, sc);
+    panda_callbacks_syscall_return(cpu, &p);
+}
+
+static const SyscallTrapObserver panda_syscall_observer = {
+    .enter = panda_syscall_enter_obs,
+    .ret = panda_syscall_return_obs,
+};
+
+/* the trap reports syscalls while a syscall callback is registered */
+void panda_syscall_cbs_changed(void)
+{
+    bool any = panda_cbs[PANDA_CB_SYSCALL_ENTER] ||
+               panda_cbs[PANDA_CB_SYSCALL_RETURN];
+
+    syscall_trap_set_observer(any ? &panda_syscall_observer : NULL);
+}
 
 // Non-macroized version for SBE - if panda_please_retranslate is set, we'll break
 void PCB(start_block_exec)(CPUState *cpu, TranslationBlock *tb) {

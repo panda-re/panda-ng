@@ -100,9 +100,38 @@ typedef enum panda_cb_type {
     PANDA_CB_BEFORE_HANDLE_INTERRUPT, // ditto, for interrupts
     PANDA_CB_START_BLOCK_EXEC,
     PANDA_CB_END_BLOCK_EXEC,
+    PANDA_CB_SYSCALL_ENTER,         // A user task's syscall, at the trap
+    PANDA_CB_SYSCALL_RETURN,        // Its return to the task
 
     PANDA_CB_LAST
 } panda_cb_type;
+
+/* The syscall ABIs of panda_syscall.abi */
+typedef enum panda_syscall_abi {
+    PANDA_SYSCALL_ABI_X86_64,
+    PANDA_SYSCALL_ABI_I386,
+    PANDA_SYSCALL_ABI_AARCH64,
+    PANDA_SYSCALL_ABI_ARM,
+    PANDA_SYSCALL_ABI_ARM_OABI,
+    PANDA_SYSCALL_ABI_MIPS,
+    PANDA_SYSCALL_ABI_PPC64,
+    PANDA_SYSCALL_ABI_PPC,
+    PANDA_SYSCALL_ABI_RISCV64,
+    PANDA_SYSCALL_ABI_RISCV32,
+    PANDA_SYSCALL_ABI_LOONGARCH64
+} panda_syscall_abi;
+
+/* A syscall, for syscall_enter and syscall_return */
+typedef struct panda_syscall {
+    int32_t abi;            /* panda_syscall_abi */
+    int64_t num;            /* the call's number (ARM OABI: without 0x900000) */
+    uint64_t args[6];       /* its arguments, as the kernel reads them */
+    uint64_t pc;            /* where the call returns to, past the trap */
+    uint32_t len;           /* the trap instruction's length */
+    uint64_t id;            /* the same at a call's enter and its return */
+    int64_t ret;            /* syscall_return: the value the task gets */
+    bool restart;           /* syscall_return: the kernel restarts the call */
+} panda_syscall;
 
 // Union of all possible callback function types
 typedef union panda_cb {
@@ -1206,6 +1235,53 @@ typedef union panda_cb {
         none
     */
     void (*end_block_exec)(CPUState *cpu, TranslationBlock* tb);
+
+    /* Callback ID: PANDA_CB_SYSCALL_ENTER
+
+       syscall_enter:
+        Runs when a user task traps for a syscall, before the kernel runs
+        it, with the task's registers as it left them. Every call is
+        reported, whatever its number. sc->pc - sc->len is the trap
+        instruction, except for an i386 call through the vDSO's sysenter
+        or syscall, which returns past the int 0x80 that follows it.
+        Registering it starts the engine's syscall trap; it costs nothing
+        while no syscall callback is registered. x86_64, i386, AArch64
+        and ARM only (no other target reports syscalls yet).
+
+       Arguments:
+        CPUState *cpu:           the current CPU state
+        const panda_syscall *sc: the call
+
+       Helper call location: the target's syscall trap (TCG)
+
+       Return value:
+        none
+    */
+    void (*syscall_enter)(CPUState *cpu, const struct panda_syscall *sc);
+
+    /* Callback ID: PANDA_CB_SYSCALL_RETURN
+
+       syscall_return:
+        Runs when a call reported to syscall_enter returns to its task,
+        with the same sc->id and the task back in user mode at sc->pc.
+        sc->ret is the value the task gets. Where another consumer of the
+        trap (Penguin's syscall hooks) skipped the call or changed its
+        return value, the registers do not hold it yet: read sc->ret.
+        sc->restart: the kernel restarts the call, and the task traps for
+        it again, as a new call. Some calls never return (exit, a
+        successful execve, a task that is killed) and a call can be
+        dropped without its return (snapshot restore, a full table).
+
+       Arguments:
+        CPUState *cpu:           the current CPU state
+        const panda_syscall *sc: the call; ret and restart are set
+
+       Helper call location: the target's return to user mode (TCG)
+
+       Return value:
+        none
+    */
+    void (*syscall_return)(CPUState *cpu, const struct panda_syscall *sc);
 
     /* cbaddr is a dummy union member.
 
@@ -2318,6 +2394,53 @@ typedef union panda_cb_with_context {
         none
     */
     void (*end_block_exec)(void* context, CPUState *cpu, TranslationBlock* tb);
+
+    /* Callback ID: PANDA_CB_SYSCALL_ENTER
+
+       syscall_enter:
+        Runs when a user task traps for a syscall, before the kernel runs
+        it, with the task's registers as it left them. Every call is
+        reported, whatever its number. sc->pc - sc->len is the trap
+        instruction, except for an i386 call through the vDSO's sysenter
+        or syscall, which returns past the int 0x80 that follows it.
+        Registering it starts the engine's syscall trap; it costs nothing
+        while no syscall callback is registered. x86_64, i386, AArch64
+        and ARM only (no other target reports syscalls yet).
+
+       Arguments:
+        CPUState *cpu:           the current CPU state
+        const panda_syscall *sc: the call
+
+       Helper call location: the target's syscall trap (TCG)
+
+       Return value:
+        none
+    */
+    void (*syscall_enter)(void* context, CPUState *cpu, const struct panda_syscall *sc);
+
+    /* Callback ID: PANDA_CB_SYSCALL_RETURN
+
+       syscall_return:
+        Runs when a call reported to syscall_enter returns to its task,
+        with the same sc->id and the task back in user mode at sc->pc.
+        sc->ret is the value the task gets. Where another consumer of the
+        trap (Penguin's syscall hooks) skipped the call or changed its
+        return value, the registers do not hold it yet: read sc->ret.
+        sc->restart: the kernel restarts the call, and the task traps for
+        it again, as a new call. Some calls never return (exit, a
+        successful execve, a task that is killed) and a call can be
+        dropped without its return (snapshot restore, a full table).
+
+       Arguments:
+        CPUState *cpu:           the current CPU state
+        const panda_syscall *sc: the call; ret and restart are set
+
+       Helper call location: the target's return to user mode (TCG)
+
+       Return value:
+        none
+    */
+    void (*syscall_return)(void* context, CPUState *cpu, const struct panda_syscall *sc);
 
     /* cbaddr is a dummy union member.
 

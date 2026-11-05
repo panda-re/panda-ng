@@ -43,7 +43,10 @@ COVERED_ELSEWHERE = {"before_block_exec", "after_block_exec", "start_block_exec"
                      "phys_mem_before_write", "virt_mem_after_read", "virt_mem_after_write",
                      "phys_mem_after_read", "phys_mem_after_write", "mmio_after_read", "mmio_before_write",
                      "guest_hypercall"}
-EXERCISED_ONLY_ON = {"unassigned_io_read": {"x86_64"}, "unassigned_io_write": {"x86_64"}}
+EXERCISED_ONLY_ON = {"unassigned_io_read": {"x86_64"}, "unassigned_io_write": {"x86_64"},
+                     # the targets whose syscall trap reports syscalls
+                     "syscall_enter": {"x86_64", "i386", "aarch64", "arm"},
+                     "syscall_return": {"x86_64", "i386", "aarch64", "arm"}}
 C = Checks(arch, {f"{n} fires": why for n, why in NO_CALL_SITE.items()})
 
 counts = Counter()

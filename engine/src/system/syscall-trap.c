@@ -3,7 +3,7 @@
  *
  * The target reports a user task's syscall trap and every return to user
  * mode while a call is pending; this file filters the traps by number,
- * calls the consumer, and pairs each call with its return.
+ * calls the consumer and the observer, and pairs each call with its return.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -32,6 +32,8 @@ bool syscall_trap_on;
 uint32_t syscall_trap_pending;
 
 static const SyscallTrapOps *sc_ops;
+static const SyscallTrapObserver *sc_obs;
+static uint64_t sc_obs_seq;
 static uint32_t sc_held;        /* calls held for a fault */
 static uint64_t sc_faults;
 static __thread uint64_t sc_fault_addr;
@@ -114,6 +116,29 @@ static void sc_forget(SCSlot *s)
     if (s->state != SC_PENDING) {
         qatomic_dec(&sc_held);
     }
+}
+
+static inline int64_t sc_value(int abi, uint64_t ret)
+{
+    return sc_is32[abi] ? (int32_t)ret : (int64_t)ret;
+}
+
+/* tell the observer the call is done: @value, what the task gets back */
+static void sc_observe_ret(CPUState *cpu, SyscallTrap *sc, uint32_t kmmu,
+                           int64_t value, bool restart)
+{
+    const SyscallTrapObserver *obs = qatomic_read(&sc_obs);
+
+    if (sc->obs_id && obs && obs->ret) {
+        SyscallTrap t = *sc;
+
+        t.ret = value;
+        t.restart = restart;
+        cpu->syscall_kmmu = kmmu;
+        obs->ret(cpu, &t);
+        cpu->syscall_kmmu = 0;
+    }
+    sc->obs_id = 0;
 }
 
 static inline unsigned sc_home(uint64_t k1, uint64_t k2, uint64_t pc)
@@ -307,11 +332,12 @@ int syscall_trap_enter(CPUState *cpu, int abi, int64_t num, uint64_t args[6],
                        uint64_t percpu, uint32_t kmmu, uint64_t *ret)
 {
     const SyscallTrapOps *ops = qatomic_read(&sc_ops);
-    unsigned w = sc_watch_all[abi];
+    const SyscallTrapObserver *obs = qatomic_read(&sc_obs);
+    unsigned w = ops ? sc_watch_all[abi] : 0;
     SyscallTrap sc;
     int r = 0;
 
-    if (!ops) {
+    if (!ops && !obs) {
         return 0;
     }
     int held = qatomic_read(&sc_held) ? sc_take_held(k1, k2, pc, &sc) : -1;
@@ -330,20 +356,29 @@ int syscall_trap_enter(CPUState *cpu, int abi, int64_t num, uint64_t args[6],
         }
         sc_drop(&sc);           /* another call at the same address */
     }
-    if (num >= 0 && num < SYSCALL_TRAP_NUMS) {
+    if (ops && num >= 0 && num < SYSCALL_TRAP_NUMS) {
         w |= sc_watch[abi][num];
     }
-    if (!w) {
+    if (!w && !obs) {
         return 0;
     }
 
     sc = (SyscallTrap) {
-        .abi = abi, .num = num, .pc = pc, .percpu = percpu,
-        .want_return = (w & SYSCALL_TRAP_RETURN) && ops->ret,
+        .abi = abi, .num = num, .pc = pc, .percpu = percpu, .len = len,
+        .want_return = (w & SYSCALL_TRAP_RETURN) && ops && ops->ret,
     };
     memcpy(sc.args, args, sizeof(sc.args));
+    if (obs) {
+        /* before the consumer: the call as the task made it */
+        sc.obs_id = qatomic_inc_fetch(&sc_obs_seq);
+        if (obs->enter) {
+            cpu->syscall_kmmu = kmmu;
+            obs->enter(cpu, &sc);
+            cpu->syscall_kmmu = 0;
+        }
+    }
 deliver:
-    if ((w & SYSCALL_TRAP_ENTER) && ops->enter) {
+    if ((w & SYSCALL_TRAP_ENTER) && ops && ops->enter) {
         cpu->syscall_kmmu = kmmu;
         ops->enter(cpu, &sc, sc_opaque);
         cpu->syscall_kmmu = 0;
@@ -364,12 +399,13 @@ deliver:
             r |= SYSCALL_TRAP_ARGS;
         }
         if (sc.skip) {
-            sc_drop(&sc);
             *ret = sc_is32[abi] ? (uint32_t)sc.ret : (uint64_t)sc.ret;
+            sc_observe_ret(cpu, &sc, kmmu, sc_value(abi, *ret), false);
+            sc_drop(&sc);
             return r | SYSCALL_TRAP_SKIP;
         }
     }
-    if (sc.want_return && ops->ret) {
+    if ((sc.want_return && ops && ops->ret) || sc.obs_id) {
         sc_add(k1, k2, pc, len, &sc, SC_PENDING);
     } else {
         sc_drop(&sc);
@@ -389,7 +425,7 @@ deliver:
 static int sc_ret_after(CPUState *cpu, uint64_t k1, uint64_t k2,
                         uint64_t key, unsigned len, SyscallTrap *sc,
                         int64_t onum, const uint64_t oargs[6], bool restore,
-                        uint64_t *ret, SyscallTrapRewind *rw)
+                        uint64_t *ret, SyscallTrapRewind *rw, uint32_t kmmu)
 {
     int r = 0;
 
@@ -414,10 +450,14 @@ static int sc_ret_after(CPUState *cpu, uint64_t k1, uint64_t k2,
             rw->len = len;
             return SYSCALL_TRAP_REWIND;
         }
-        sc_drop(sc);            /* the run is aborted */
+        /* the run is aborted */
     } else if (sc->fault) {
         r = sc_hold(k1, k2, key, len, sc, SC_HELD_RETURN);
-    } else {
+    }
+    if (!(r & SYSCALL_TRAP_FAULT)) {
+        sc_observe_ret(cpu, sc, kmmu,
+                       restore ? sc_value(sc->abi, sc->ret)
+                               : sc_value(sc->abi, *ret), false);
         sc_drop(sc);
     }
     if (restore) {
@@ -488,6 +528,7 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
         qatomic_dec(&syscall_trap_pending);
         sc_unlock();
         if (!ops || !ops->ret) {
+            sc_observe_ret(cpu, &sc, kmmu, sc_value(sc.abi, *ret), false);
             sc_drop(&sc);
             return 0;
         }
@@ -499,7 +540,7 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
         ops->ret(cpu, &sc, sc_opaque);
         cpu->syscall_kmmu = 0;
         return sc_ret_after(cpu, k1, k2, key, len, &sc, onum, oargs, true,
-                            ret, rw);
+                            ret, rw, kmmu);
     }
     if (!s || !s->pc || s->state == SC_HELD_ENTER) {
         /*
@@ -530,12 +571,8 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
     sc_delete(s);
     qatomic_dec(&syscall_trap_pending);
     sc_unlock();
-    if (!ops || !ops->ret) {
-        sc_drop(&sc);
-        return 0;
-    }
 
-    int64_t v = sc_is32[sc.abi] ? (int32_t)*ret : (int64_t)*ret;
+    int64_t v = sc_value(sc.abi, *ret);
     sc.ret = v;
     sc.percpu = percpu;
     if (!resumed) {
@@ -544,6 +581,12 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
     restart = sc.restart;
     sc.resumed = resumed;
     sc.keep = false;
+    if (!sc.want_return || !ops || !ops->ret) {
+        /* the observer's alone */
+        sc_observe_ret(cpu, &sc, kmmu, v, restart);
+        sc_drop(&sc);
+        return 0;
+    }
     cpu->syscall_kmmu = kmmu;
     ops->ret(cpu, &sc, sc_opaque);
     cpu->syscall_kmmu = 0;
@@ -553,7 +596,7 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
     }
     if (sc.inject) {
         return sc_ret_after(cpu, k1, k2, key, len, &sc, sc.num, sc.args,
-                            false, ret, rw);
+                            false, ret, rw, kmmu);
     }
     if (sc.fault) {
         return sc_hold(k1, k2, key, len, &sc, SC_HELD_RETURN);
@@ -563,6 +606,8 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
         sc_add(k1, k2, key, len, &sc, SC_PENDING);
         return 0;
     }
+    sc_observe_ret(cpu, &sc, kmmu, restart ? v : sc_value(sc.abi, sc.ret),
+                   restart);
     sc_drop(&sc);
     if (!restart && sc.ret != v) {
         *ret = sc_is32[sc.abi] ? (uint32_t)sc.ret : (uint64_t)sc.ret;
@@ -681,7 +726,20 @@ bool syscall_trap_clear_consumer(const SyscallTrapOps *ops, void *opaque)
     sc_opaque = NULL;
     qatomic_set(&sc_ops, NULL);
     sc_detaching = false;
+    if (qatomic_read(&sc_obs)) {
+        qatomic_set(&syscall_trap_on, true);
+    }
     return true;
+}
+
+void syscall_trap_set_observer(const SyscallTrapObserver *obs)
+{
+    qatomic_set(&sc_obs, obs);
+    if (obs) {
+        qatomic_set(&syscall_trap_on, true);
+    } else if (!qatomic_read(&sc_ops)) {
+        qatomic_set(&syscall_trap_on, false);
+    }
 }
 
 void syscall_trap_watch(int abi, int64_t num, unsigned flags)

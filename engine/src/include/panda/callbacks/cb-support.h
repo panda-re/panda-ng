@@ -53,6 +53,7 @@ exit 0
  ***************************************************************************/
 #include <stdbool.h>
 #include "panda/types.h"
+struct panda_syscall;   /* panda/callbacks/cb-defs.h */
 #ifndef EXEC_ALL_H // this covers struct TranslationBlock
 #ifndef QEMU_TYPEDEFS_H // this covers TranslationBlock
 // If this file is included from a file that doesn't define TranslationBlock (e.g., memory.c), we still need to be valid
@@ -159,5 +160,10 @@ void panda_callbacks_cpu_restore_state(CPUState *env, TranslationBlock *tb);
 void panda_callbacks_before_tcg_codegen(CPUState *env, TranslationBlock *tb);
 void panda_callbacks_start_block_exec(CPUState *env, TranslationBlock *tb);
 void panda_callbacks_end_block_exec(CPUState *env, TranslationBlock *tb);
+
+/* the syscall trap's observer, while a syscall callback is registered */
+void panda_callbacks_syscall_enter(CPUState *env, const struct panda_syscall *sc);
+void panda_callbacks_syscall_return(CPUState *env, const struct panda_syscall *sc);
+void panda_syscall_cbs_changed(void);
 
 void panda_install_block_callbacks(CPUState* cpu, TranslationBlock* tb);

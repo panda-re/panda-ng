@@ -5,7 +5,8 @@
  * syscall, and syscall_trap_return() on every return to user mode while a
  * call is pending.  The core filters the traps by ABI and number, hands
  * them to one consumer (the TCG plugin API or Penguin's syscall hooks),
- * and pairs each call with its return.
+ * tells the observer (PANDA's syscall callbacks) of every call, and pairs
+ * each call with its return.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -80,6 +81,9 @@ typedef struct SyscallTrap {
     int64_t inject_ret;
     uint64_t task;          /* the consumer's, kept with a pending call */
     void *data;             /* the consumer's, released through drop() */
+    /* set by the core */
+    unsigned len;           /* the trap instruction's length */
+    uint64_t obs_id;        /* the observer's id for the call; 0: none */
 } SyscallTrap;
 
 typedef struct SyscallTrapOps {
@@ -89,6 +93,26 @@ typedef struct SyscallTrapOps {
     /* a pending call is discarded without its return (may be NULL) */
     void (*drop)(SyscallTrap *sc, void *opaque);
 } SyscallTrapOps;
+
+/*
+ * The observer: told of every call a user task makes, whatever the
+ * consumer watches, and of its return, the value the task gets back.
+ * It cannot change either.  enter() runs before the consumer's, with the
+ * registers as the task left them; ret() once the call is done with,
+ * after the consumer's: sc->ret is the value the task gets (a consumer
+ * that skipped the call or changed its return value has not yet written
+ * it to the registers).  sc->restart: the kernel restarts the call; the
+ * task traps again, a new call.  sc->obs_id is the same at a call's
+ * enter and its return.  Some calls never return (exit, a successful
+ * execve, a task killed), and a call can be dropped without its return.
+ */
+typedef struct SyscallTrapObserver {
+    void (*enter)(CPUState *cpu, const SyscallTrap *sc);
+    void (*ret)(CPUState *cpu, const SyscallTrap *sc);
+} SyscallTrapObserver;
+
+/* NULL clears it; main thread/BQL */
+void syscall_trap_set_observer(const SyscallTrapObserver *obs);
 
 /* one consumer at a time; false if another one is set */
 bool syscall_trap_set_consumer(const SyscallTrapOps *ops, void *opaque);
