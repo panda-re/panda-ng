@@ -14,7 +14,7 @@ Origin: panda-re/qemu
  1 file changed, 28 insertions(+)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index 35971a3d0c176db4ebb1b16f8769d5ed735e3379..34603abe1046ef3bf936d8af436cb35061bb1363 100644
+index 41ecdb465ec03b07dbafbd6cedd9ea36fe4281a1..92ddf188ed290d84598f7c13901c439cebf3404e 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
 @@ -51,6 +51,8 @@
@@ -26,7 +26,7 @@ index 35971a3d0c176db4ebb1b16f8769d5ed735e3379..34603abe1046ef3bf936d8af436cb350
  /* -icount align implementation. */
  
  typedef struct SyncClocks {
-@@ -367,6 +369,18 @@ static inline bool check_for_breakpoints(CPUState *cpu, vaddr pc,
+@@ -373,6 +375,18 @@ static inline bool check_for_breakpoints(CPUState *cpu, vaddr pc,
          check_for_breakpoints_slow(cpu, pc, cflags);
  }
  
@@ -45,7 +45,7 @@ index 35971a3d0c176db4ebb1b16f8769d5ed735e3379..34603abe1046ef3bf936d8af436cb350
  /**
   * helper_lookup_tb_ptr: quick check for next tb
   * @env: current cpu state
-@@ -439,6 +453,8 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
+@@ -445,6 +459,8 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
          log_cpu_exec(log_pc(cpu, itb), cpu, itb);
      }
  
@@ -54,7 +54,7 @@ index 35971a3d0c176db4ebb1b16f8769d5ed735e3379..34603abe1046ef3bf936d8af436cb350
      qemu_thread_jit_execute();
      ret = tcg_qemu_tb_exec(cpu_env(cpu), tb_ptr);
      cpu->neg.can_do_io = true;
-@@ -454,6 +470,7 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
+@@ -460,6 +476,7 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
      last_tb = tcg_splitwx_to_rw((void *)(ret & ~TB_EXIT_MASK));
      *tb_exit = ret & TB_EXIT_MASK;
  
@@ -62,7 +62,7 @@ index 35971a3d0c176db4ebb1b16f8769d5ed735e3379..34603abe1046ef3bf936d8af436cb350
      trace_exec_tb_exit(last_tb, *tb_exit);
  
      if (*tb_exit > TB_EXIT_IDX1) {
-@@ -593,7 +610,9 @@ void cpu_exec_step_atomic(CPUState *cpu)
+@@ -599,7 +616,9 @@ void cpu_exec_step_atomic(CPUState *cpu)
          tb = tb_lookup(cpu, s);
          if (tb == NULL) {
              mmap_lock();
@@ -72,7 +72,7 @@ index 35971a3d0c176db4ebb1b16f8769d5ed735e3379..34603abe1046ef3bf936d8af436cb350
              mmap_unlock();
          }
  
-@@ -726,6 +745,13 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
+@@ -732,6 +751,13 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
          cpu->exception_index = -1;
          return true;
      }
@@ -86,7 +86,7 @@ index 35971a3d0c176db4ebb1b16f8769d5ed735e3379..34603abe1046ef3bf936d8af436cb350
  
  #if defined(CONFIG_USER_ONLY)
      /*
-@@ -987,7 +1013,9 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
+@@ -993,7 +1019,9 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
                  uint32_t h;
  
                  mmap_lock();

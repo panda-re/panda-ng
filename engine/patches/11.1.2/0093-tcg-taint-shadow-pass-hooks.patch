@@ -73,7 +73,7 @@ Origin: new
  18 files changed, 271 insertions(+), 76 deletions(-)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index 543d5fb7961932ae9ede3ef2932a208bee31f2c8..816d0e836e1ee7a38cf0e279217f45b6bb4a5674 100644
+index 76bb5f98de3524afd6c9155a5938fbb82f7fdcdb..0e993559b524d3fbf7dbd6826e55d7233cca4d6a 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
 @@ -47,6 +47,7 @@
@@ -84,7 +84,7 @@ index 543d5fb7961932ae9ede3ef2932a208bee31f2c8..816d0e836e1ee7a38cf0e279217f45b6
  #if !defined(CONFIG_USER_ONLY)
  #include "accel/tcg/iommu.h"
  #endif
-@@ -1124,11 +1125,17 @@ bool tcg_exec_realizefn(CPUState *cpu, Error **errp)
+@@ -1130,11 +1131,17 @@ bool tcg_exec_realizefn(CPUState *cpu, Error **errp)
          assert(tcg_ops->get_tb_cpu_state);
          assert(tcg_ops->mmu_index);
          tcg_ops->initialize();

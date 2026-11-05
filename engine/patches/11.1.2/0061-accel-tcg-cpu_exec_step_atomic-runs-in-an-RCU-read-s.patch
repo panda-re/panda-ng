@@ -17,10 +17,10 @@ Origin: new
  1 file changed, 3 insertions(+)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index 104366dd076df3bb657fc91e30dbd6b6a60a170e..40633766c5e5c84fce671e414cf04201af02bd86 100644
+index 3656f1e38ebf30b246b02aa504d273008c8f3ff9..c3e58e83bb9b02a7c30a19c98867e3a1c6af4e69 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
-@@ -592,6 +592,9 @@ void cpu_exec_step_atomic(CPUState *cpu)
+@@ -598,6 +598,9 @@ void cpu_exec_step_atomic(CPUState *cpu)
      TranslationBlock *tb;
      int tb_exit;
  
