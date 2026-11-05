@@ -1,5 +1,7 @@
 option('plugin_debug_rust', type : 'boolean', value : false,
        description : 'Enable debug symbols for Rust plugins')
+option('engine_includedir', type : 'string', value : '',
+       description : 'Directory with the engine\'s panda-ng/ and panda/ headers, relative to the source root if inside it (default: local_packages, /usr/local/include or /usr/include, the first with panda-ng/)')
 option('engine_libdir', type : 'string', value : '',
        description : 'Directory with libpanda-<target>.so to link the plugins against (default: the lib/ next to the panda-ng headers found)')
 option('targets', type : 'array',
