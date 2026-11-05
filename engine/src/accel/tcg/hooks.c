@@ -19,9 +19,11 @@
  * So a page that gains its first site needs no flush, though CF_PCREL
  * blocks for it stay cached: goto_tb only chains within the page a block
  * starts on, so the way into one is a lookup on that page, and the commit
- * (exclusive: every vCPU leaves cpu_exec) makes each vCPU look up again.
- * That depends on same-page goto_tb, the page stop and the exclusive
- * commit; keep all three.  hktest `late` tests it.
+ * (exclusive: every vCPU leaves cpu_exec) empties every vCPU's jump cache,
+ * so each looks up again.  A lookup asks for the page's cflags only after
+ * a jump-cache miss (tb_lookup), which keeps the check off the hit path.
+ * That depends on same-page goto_tb, the page stop, the exclusive commit
+ * and the emptied jump caches; keep all four.  hktest `late` tests it.
  *
  * New sites are invalidated in batches, in exclusive context: the first
  * batch flushes everything (blocks translated before hooks were in use
@@ -258,6 +260,11 @@ static void hooks_commit(CPUState *cpu, run_on_cpu_data unused)
         tb_flush__exclusive_or_serial();
     } else if (pcs->len) {
         g_autoptr(GPtrArray) tbs = g_ptr_array_new();
+
+        /* a jump-cache hit is not checked against the hooked pages */
+        CPU_FOREACH(c) {
+            tcg_flush_jmp_cache(c);
+        }
 
         qemu_mutex_lock(&index_lock);
         for (guint i = 0; i < pcs->len; i++) {
