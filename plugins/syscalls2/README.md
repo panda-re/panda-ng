@@ -16,10 +16,20 @@ The profile is selected from the guest OS name and the target. The OS name is `P
 * Windows (x86 and x86_64 only): `windows-32-xpsp2`, `windows-32-xpsp3`, `windows-32-2000`, `windows-32-7sp[01]`, `windows-64-7sp[01]`. No panda-ng test covers them.
 * FreeBSD: x86_64 only. No panda-ng test covers it.
 
+How it finds system calls
+-------------------------
+
+On Linux guests of the x86_64, i386, aarch64 and arm targets, the engine's syscall trap reports each system call to the plugin (the `syscall_enter` and `syscall_return` PANDA callbacks, `docs/reference/callbacks.md`). The engine pairs each call with its return to the task that made it, so a task's call is not confused with another task's at the same address. The calls that also return in a new task (`clone3`, and `fork` where the target has it) keep the old return detection described next, for both of their returns.
+
+Everywhere else (other targets, Windows and FreeBSD, or `legacy=true`), the plugin finds the system call instruction at the end of each translated block, and a call's return by hooking the block at its return address in the same address space.
+
+On the engine's trap, a call that Penguin's syscall hooks skipped, or whose return value they changed, is reported with the value the task gets: `get_syscall_retval()` returns it in the return callbacks, while the CPU registers do not hold it yet. Each return callback's `pc` is the address the call returns to; each enter callback's `pc` is that address less the trap instruction's length, which for an i386 call through the vDSO's `sysenter` or `syscall` is the `int 0x80` that follows it.
+
 Arguments
 ---------
 
 * `load-info`: boolean, defaults to `false`. Enables loading of system call information for the selected OS profile. This allows more generic processing of system call events, without having to implement individual hooks.
+* `legacy`: boolean, defaults to `false`. Find system calls by their instructions in translated blocks even where the engine's syscall trap reports them.
 * `abi`: string. Accepted but not used: on mips64 the ABI (o32, n64 or n32) of each system call is taken from its number (4000-4999, 5000-5999, 6000-6999).
 
 From Python:
@@ -31,7 +41,7 @@ panda.load_plugin("syscalls2", {"load-info": True})
 Dependencies
 ------------
 
-`hw_proc_id` and `hooks`, which it loads itself.
+`hw_proc_id` and `hooks`, which it loads itself (`hooks` only for the return detection by address).
 
 APIs and Callbacks
 ------------------

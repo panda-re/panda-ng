@@ -1446,11 +1446,117 @@ void syscall_callback(unsigned int vcpu_index, void *sysinfo){
 }
 
 
+/* ### The engine's syscall callbacks ################################### */
+/*
+ * On Linux x86 and ARM guests the engine reports each syscall at its trap
+ * (PANDA_CB_SYSCALL_ENTER) and its return to the task (PANDA_CB_SYSCALL_RETURN),
+ * which pairs them: syscalls2 runs the same generated switches from those
+ * instead of finding the system call instructions in each translated block and
+ * hooking the return address. The plugin argument legacy=true keeps the old way.
+ * The engine reports a call's return to the task that made it only; the calls
+ * that also return in a new task (double_return: fork, clone3) keep the
+ * return-address hook, for both returns.
+ */
+static bool use_engine;
+
+// Calls whose return a callback wants, by the engine's id for the call. Some never return
+// (exit, a successful execve, a task killed): the oldest go when there are too many.
+static std::map<uint64_t, syscall_ctx_t> engine_calls;
+static const size_t ENGINE_CALLS_MAX = 8192;
+
+// The call whose return callbacks are running: get_syscall_retval() is its value
+static thread_local const panda_syscall *engine_return;
+
+// The hook a generated enter switch adds on the return address, for the call it keeps
+static void (*hooks_real_add_hook)(struct hook*);
+static thread_local struct hook engine_hook;
+static thread_local bool engine_hook_set;
+
+static void engine_add_hook(struct hook *h) {
+    engine_hook = *h;
+    engine_hook_set = true;
+}
+
+static void engine_syscall_enter(CPUState *cpu, const panda_syscall *sc) {
+    enum ProfileType profile = default_profile;
+    int callno = -1;
+
+    switch (sc->abi) {
+#if defined(TARGET_X86_64)
+    case PANDA_SYSCALL_ABI_X86_64:
+        break;
+#endif
+#if defined(TARGET_I386)
+    case PANDA_SYSCALL_ABI_I386:
+        // the return address is past the 2-byte trap (for the vDSO's sysenter and syscall,
+        // the int 0x80 after it): what calc_retaddr_linux_x86_int80 computes
+        profile = PROFILE_LINUX_X86_INT80;
+        break;
+#endif
+#if defined(TARGET_AARCH64)
+    case PANDA_SYSCALL_ABI_AARCH64:
+        break;
+#endif
+#if defined(TARGET_ARM)
+    case PANDA_SYSCALL_ABI_ARM:
+        profile = PROFILE_LINUX_ARM;
+        break;
+    case PANDA_SYSCALL_ABI_ARM_OABI:
+        profile = PROFILE_LINUX_ARM;
+        callno = sc->num;       // in the instruction, not in r7
+        break;
+#endif
+    default:
+        return;
+    }
+    target_ulong pc = sc->pc - sc->len;
+    for (const auto callback : preExecCallbacks) {
+        callback(cpu, pc);
+    }
+    engine_hook_set = false;
+    profiles[profile].enter_switch(cpu, profile, pc, callno);
+    // the switch keeps the call (in running_syscalls) if a return callback wants it
+    if (!engine_hook_set) {
+        return;
+    }
+    auto it = running_syscalls.find(std::make_pair(engine_hook.addr, engine_hook.asid));
+    if (it == running_syscalls.end()) {
+        return;
+    }
+    if (it->second.double_return) {
+        hooks_real_add_hook(&engine_hook);
+        return;
+    }
+    engine_calls[sc->id] = it->second;
+    running_syscalls.erase(it);
+    if (engine_calls.size() > ENGINE_CALLS_MAX) {
+        engine_calls.erase(engine_calls.begin());
+    }
+}
+
+static void engine_syscall_return(CPUState *cpu, const panda_syscall *sc) {
+    auto it = engine_calls.find(sc->id);
+    if (it == engine_calls.end()) {
+        return;
+    }
+    syscall_ctx_t ctx = it->second;
+    engine_calls.erase(it);
+    if (sc->restart) {
+        return;                 // the task traps for it again: a new call
+    }
+    engine_return = sc;
+    profiles[ctx.profile].return_switch(cpu, sc->pc, &ctx);
+    engine_return = nullptr;
+}
+
 /* ### API calls ######################################################## */
 /*!
- * @brief Returns a pointer to the meta-information for the specified syscall.
+ * @brief Returns the return value of the system call whose return is being reported.
  */
 target_long get_syscall_retval(CPUState *cpu) {
+    if (engine_return) {
+        return (target_long)engine_return->ret;
+    }
     return profiles[default_profile].get_return_val(cpu);
 }
 
@@ -1489,6 +1595,7 @@ const syscall_meta_t *get_syscall_meta(void) {
 static void syscalls2_reset_transient(void *)
 {
     running_syscalls.clear();
+    engine_calls.clear();
 }
 
 bool init_plugin(void *self) {
@@ -1597,12 +1704,33 @@ bool init_plugin(void *self) {
     }
 
     // parse arguments and initialize callbacks & info api
+    bool legacy = panda_parse_bool_opt(plugin_args, "legacy",
+        "Find system calls by their instructions in translated blocks, not with the engine's syscall callbacks");
+#if defined(TARGET_I386) || defined(TARGET_ARM)
+    use_engine = !legacy && panda_os_familyno == OS_LINUX;
+#else
+    use_engine = false;
+#endif
     panda_cb pcb;
-    pcb.block_translate = block_translate;
-    if (!panda_register_callback_modes(self, PANDA_CB_BLOCK_TRANSLATE, pcb,
-            panda_callback_supported_modes(PANDA_CB_BLOCK_TRANSLATE), true)) {
-        panda_free_args(plugin_args);
-        return false;
+    if (use_engine) {
+        pcb.syscall_enter = engine_syscall_enter;
+        bool ok = panda_register_callback_modes(self, PANDA_CB_SYSCALL_ENTER, pcb,
+            panda_callback_supported_modes(PANDA_CB_SYSCALL_ENTER), true);
+        pcb.syscall_return = engine_syscall_return;
+        ok = ok && panda_register_callback_modes(self, PANDA_CB_SYSCALL_RETURN, pcb,
+            panda_callback_supported_modes(PANDA_CB_SYSCALL_RETURN), true);
+        if (!ok) {
+            panda_unregister_callbacks(self);
+            panda_free_args(plugin_args);
+            return false;
+        }
+    } else {
+        pcb.block_translate = block_translate;
+        if (!panda_register_callback_modes(self, PANDA_CB_BLOCK_TRANSLATE, pcb,
+                panda_callback_supported_modes(PANDA_CB_BLOCK_TRANSLATE), true)) {
+            panda_free_args(plugin_args);
+            return false;
+        }
     }
 
     // load system call info
@@ -1628,6 +1756,10 @@ bool init_plugin(void *self) {
 		hooks = panda_get_plugin_by_name("hooks");
 	}
     hooks_add_hook = (void(*)(struct hook*)) dlsym(hooks, "add_hook");
+    if (use_engine) {
+        hooks_real_add_hook = hooks_add_hook;
+        hooks_add_hook = engine_add_hook;
+    }
     if (!hooks_add_hook ||
         !panda_register_transient_reset(self, syscalls2_reset_transient, nullptr)) {
         std::cerr << PANDA_MSG "syscalls2 requires the hooks plugin and a transient reset registration" << std::endl;
@@ -1647,7 +1779,9 @@ bool init_plugin(void *self) {
     // Plugin is good to load - now let's clear the cache to make
     // sure there aren't any previously-translated TCG blocks
     // which already have (uninstrumented) syscalls.
-    panda_do_flush_tb();
+    if (!use_engine) {
+        panda_do_flush_tb();
+    }
     return true;
 }
 
@@ -1655,7 +1789,9 @@ void uninit_plugin(void *self) {
     syscalls2_reset_transient(nullptr);
     // if we don't clear tb's when this exits we have TBs which can call
     // into our exited plugin.
-    panda_do_flush_tb();
+    if (!use_engine) {
+        panda_do_flush_tb();
+    }
 #ifdef DEBUG
     std::cout << PANDA_MSG "DEBUG syscall count per asid:";
     for(const auto &asid_count : syscallCounter){

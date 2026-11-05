@@ -16,6 +16,9 @@ returned what it should (see its header). For the program's calls (pc in the pro
 On x86_64 the program loads xmm0 and xmm15 with known bytes before close_range: pandare2 reads them
 back at that call's enter (CPUX86State.xmm_regs through cffi; tests/static/layout.py checks the
 layout itself).
+On x86_64 and aarch64, syscalls2 runs on the engine's syscall_enter/syscall_return callbacks (its
+README); the test also registers those itself: each of the program's calls that returns does so
+once, with the id and number of its enter, and each of the calls above is among them.
 """
 import sys
 
@@ -32,7 +35,8 @@ XMM15 = int.from_bytes(bytes(range(0xf0, 0x100)), "little")
 panda = Panda(generic=sys.argv[1])
 arch = panda.arch_name
 C = Checks(arch)
-S = {"enter": [], "return": [], "unknown": [], "xmm": None, "on": False}
+S = {"enter": [], "return": [], "unknown": [], "xmm": None, "on": False, "sc_enter": {}, "sc_return": []}
+TRAP = arch in ("x86_64", "aarch64")    # the test images whose target reports syscalls
 
 
 def signed(v, bits=32):
@@ -116,6 +120,18 @@ def unknown_return(cpu, pc, callno):
         S["unknown"].append(("return", callno))
 
 
+if TRAP:
+    @panda.cb_syscall_enter
+    def sc_enter(cpu, sc):
+        if S["on"] and in_program(sc.pc - sc.len):
+            S["sc_enter"][sc.id] = sc.num
+
+    @panda.cb_syscall_return
+    def sc_return(cpu, sc):
+        if S["on"] and in_program(sc.pc):
+            S["sc_return"].append((sc.id, sc.num, bool(sc.restart)))
+
+
 @panda.queue_blocking
 def drive():
     panda.revert_sync("root")
@@ -145,6 +161,13 @@ for n, want in EXPECT.items():
         C.check(f"on_sys_{n}_return fires once, with the program's arguments and return value {rv_want}",
                 rets == [(want, rv_want)], rets)
 C.check("on_unknown_sys_enter/return never fire in the program", not S["unknown"], S["unknown"])
+if TRAP:
+    rets = S["sc_return"]
+    C.check("syscall_return: each of the program's returns has its enter's id and number, once",
+            rets and all(S["sc_enter"].get(i) == n for i, n, _ in rets) and
+            len({i for i, _, _ in rets}) == len(rets), rets)
+    C.check("syscall_enter: the program makes at least the calls above", len(S["sc_enter"]) >= len(EXPECT),
+            S["sc_enter"])
 if arch == "x86_64":
     C.check("pandare2 reads xmm0 and xmm15 as the program loaded them", S["xmm"] == (XMM0, XMM15),
             [hex(x) for x in S["xmm"]] if S["xmm"] else None)
