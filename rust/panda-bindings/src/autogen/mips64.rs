@@ -41220,8 +41220,48 @@ pub const PANDA_CB_BEFORE_HANDLE_EXCEPTION: panda_cb_type = 48;
 pub const PANDA_CB_BEFORE_HANDLE_INTERRUPT: panda_cb_type = 49;
 pub const PANDA_CB_START_BLOCK_EXEC: panda_cb_type = 50;
 pub const PANDA_CB_END_BLOCK_EXEC: panda_cb_type = 51;
-pub const PANDA_CB_LAST: panda_cb_type = 52;
+pub const PANDA_CB_SYSCALL_ENTER: panda_cb_type = 52;
+pub const PANDA_CB_SYSCALL_RETURN: panda_cb_type = 53;
+pub const PANDA_CB_LAST: panda_cb_type = 54;
 pub type panda_cb_type = ::std::os::raw::c_uint;
+pub const PANDA_SYSCALL_ABI_X86_64: panda_syscall_abi = 0;
+pub const PANDA_SYSCALL_ABI_I386: panda_syscall_abi = 1;
+pub const PANDA_SYSCALL_ABI_AARCH64: panda_syscall_abi = 2;
+pub const PANDA_SYSCALL_ABI_ARM: panda_syscall_abi = 3;
+pub const PANDA_SYSCALL_ABI_ARM_OABI: panda_syscall_abi = 4;
+pub const PANDA_SYSCALL_ABI_MIPS: panda_syscall_abi = 5;
+pub const PANDA_SYSCALL_ABI_PPC64: panda_syscall_abi = 6;
+pub const PANDA_SYSCALL_ABI_PPC: panda_syscall_abi = 7;
+pub const PANDA_SYSCALL_ABI_RISCV64: panda_syscall_abi = 8;
+pub const PANDA_SYSCALL_ABI_RISCV32: panda_syscall_abi = 9;
+pub const PANDA_SYSCALL_ABI_LOONGARCH64: panda_syscall_abi = 10;
+pub type panda_syscall_abi = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct panda_syscall {
+    pub abi: i32,
+    pub num: i64,
+    pub args: [u64; 6usize],
+    pub pc: u64,
+    pub len: u32,
+    pub id: u64,
+    pub ret: i64,
+    pub restart: bool,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of panda_syscall"][::std::mem::size_of::<panda_syscall>() - 104usize];
+    ["Alignment of panda_syscall"][::std::mem::align_of::<panda_syscall>() - 8usize];
+    ["Offset of field: panda_syscall::abi"][::std::mem::offset_of!(panda_syscall, abi) - 0usize];
+    ["Offset of field: panda_syscall::num"][::std::mem::offset_of!(panda_syscall, num) - 8usize];
+    ["Offset of field: panda_syscall::args"][::std::mem::offset_of!(panda_syscall, args) - 16usize];
+    ["Offset of field: panda_syscall::pc"][::std::mem::offset_of!(panda_syscall, pc) - 64usize];
+    ["Offset of field: panda_syscall::len"][::std::mem::offset_of!(panda_syscall, len) - 72usize];
+    ["Offset of field: panda_syscall::id"][::std::mem::offset_of!(panda_syscall, id) - 80usize];
+    ["Offset of field: panda_syscall::ret"][::std::mem::offset_of!(panda_syscall, ret) - 88usize];
+    ["Offset of field: panda_syscall::restart"]
+        [::std::mem::offset_of!(panda_syscall, restart) - 96usize];
+};
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union panda_cb {
@@ -41408,6 +41448,10 @@ pub union panda_cb {
         ::std::option::Option<unsafe extern "C" fn(cpu: *mut CPUState, tb: *mut TranslationBlock)>,
     pub end_block_exec:
         ::std::option::Option<unsafe extern "C" fn(cpu: *mut CPUState, tb: *mut TranslationBlock)>,
+    pub syscall_enter:
+        ::std::option::Option<unsafe extern "C" fn(cpu: *mut CPUState, sc: *const panda_syscall)>,
+    pub syscall_return:
+        ::std::option::Option<unsafe extern "C" fn(cpu: *mut CPUState, sc: *const panda_syscall)>,
     pub cbaddr: ::std::option::Option<unsafe extern "C" fn()>,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -41512,6 +41556,10 @@ const _: () = {
         [::std::mem::offset_of!(panda_cb, start_block_exec) - 0usize];
     ["Offset of field: panda_cb::end_block_exec"]
         [::std::mem::offset_of!(panda_cb, end_block_exec) - 0usize];
+    ["Offset of field: panda_cb::syscall_enter"]
+        [::std::mem::offset_of!(panda_cb, syscall_enter) - 0usize];
+    ["Offset of field: panda_cb::syscall_return"]
+        [::std::mem::offset_of!(panda_cb, syscall_return) - 0usize];
     ["Offset of field: panda_cb::cbaddr"][::std::mem::offset_of!(panda_cb, cbaddr) - 0usize];
 };
 #[repr(C)]
@@ -41889,6 +41937,20 @@ pub union panda_cb_with_context {
             tb: *mut TranslationBlock,
         ),
     >,
+    pub syscall_enter: ::std::option::Option<
+        unsafe extern "C" fn(
+            context: *mut ::std::os::raw::c_void,
+            cpu: *mut CPUState,
+            sc: *const panda_syscall,
+        ),
+    >,
+    pub syscall_return: ::std::option::Option<
+        unsafe extern "C" fn(
+            context: *mut ::std::os::raw::c_void,
+            cpu: *mut CPUState,
+            sc: *const panda_syscall,
+        ),
+    >,
     pub cbaddr: ::std::option::Option<unsafe extern "C" fn()>,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -42000,6 +42062,10 @@ const _: () = {
         [::std::mem::offset_of!(panda_cb_with_context, start_block_exec) - 0usize];
     ["Offset of field: panda_cb_with_context::end_block_exec"]
         [::std::mem::offset_of!(panda_cb_with_context, end_block_exec) - 0usize];
+    ["Offset of field: panda_cb_with_context::syscall_enter"]
+        [::std::mem::offset_of!(panda_cb_with_context, syscall_enter) - 0usize];
+    ["Offset of field: panda_cb_with_context::syscall_return"]
+        [::std::mem::offset_of!(panda_cb_with_context, syscall_return) - 0usize];
     ["Offset of field: panda_cb_with_context::cbaddr"]
         [::std::mem::offset_of!(panda_cb_with_context, cbaddr) - 0usize];
 };
@@ -44693,7 +44759,7 @@ unsafe extern "C" {
     pub static mut panda_use_memcb: bool;
 }
 unsafe extern "C" {
-    pub static mut panda_cbs: [*mut panda_cb_list; 52usize];
+    pub static mut panda_cbs: [*mut panda_cb_list; 54usize];
 }
 unsafe extern "C" {
     pub static mut panda_tb_chaining: bool;
