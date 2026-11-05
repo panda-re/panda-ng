@@ -13,9 +13,14 @@ Clear CF_PCREL per lookup instead, only on guest pages that hold a hook
 site (tcg_hooks_cflags: a hashed page bitmap, set when a site is created).
 Hooks are emitted only into blocks without CF_PCREL, and while hooks are
 in use a CF_PCREL block ends at its first page, so code on an unhooked
-page cannot run on into a hooked one.  Every path that looks up a block
-(the exec loop, including cflags_next_tb, lookup_tb_ptr, step_atomic) asks
-for the page's cflags, and the jump cache already compares cflags.
+page cannot run on into a hooked one.  tb_lookup asks for the page's
+cflags after a jump-cache miss and looks again with them, and the paths
+that translate after a miss (the exec loop, step_atomic) ask too.  A
+jump-cache hit needs no check: the cache compares cflags, and the commit
+that gives a page its first site empties every vCPU's jump cache, so it
+holds only blocks looked up with their page's cflags.  The lookup that
+finds the next block on an indirect branch costs nothing more while no
+hook is in use.
 
 The vCPU setup hook now only marks the pages of sites an embedder inserted
 before the page size was decided (tcg_hooks_vcpu_init); src/ carries the
@@ -24,13 +29,13 @@ hooks.c side.
 SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
 Origin: new
 ---
- accel/tcg/cpu-exec.c      |  6 ++++--
+ accel/tcg/cpu-exec.c      | 73 ++++++++++++++++++++++++++++-----------
  accel/tcg/tcg-accel-ops.c |  2 +-
- accel/tcg/translator.c    | 10 ++++++++++
- 3 files changed, 15 insertions(+), 3 deletions(-)
+ accel/tcg/translator.c    | 10 ++++++
+ 3 files changed, 64 insertions(+), 21 deletions(-)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index 5a8cd5725bfbeb3f60113e11b9160d7396797cfd..41ecdb465ec03b07dbafbd6cedd9ea36fe4281a1 100644
+index 5a8cd5725bfbeb3f60113e11b9160d7396797cfd..d7727680c96670201ff4bdc6109d0ee78f5694fd 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
 @@ -46,6 +46,7 @@
@@ -41,16 +46,91 @@ index 5a8cd5725bfbeb3f60113e11b9160d7396797cfd..41ecdb465ec03b07dbafbd6cedd9ea36
  #if !defined(CONFIG_USER_ONLY)
  #include "accel/tcg/iommu.h"
  #endif
-@@ -395,7 +396,7 @@ const void *HELPER(lookup_tb_ptr)(CPUArchState *env)
-     cpu->neg.can_do_io = true;
+@@ -227,25 +228,30 @@ static TranslationBlock *tb_htable_lookup(CPUState *cpu, TCGTBCPUState s)
+  *
+  * Returns: an existing translation block or NULL.
+  */
+-static inline TranslationBlock *tb_lookup(CPUState *cpu, TCGTBCPUState s)
++/*
++ * A jump-cache miss: the page's hook cflags, the hash table, and the
++ * jump-cache fill.  Out of line, so tb_lookup()'s hit path stays inlined
++ * into its callers as upstream's is.
++ */
++static TranslationBlock * __attribute__((noinline))
++tb_lookup_miss(CPUState *cpu, TCGTBCPUState s, TranslationBlock *tb,
++               CPUJumpCache *jc, uint32_t hash)
+ {
+-    TranslationBlock *tb;
+-    CPUJumpCache *jc;
+-    uint32_t hash;
+-
+-    /* we should never be trying to look up an INVALID tb */
+-    tcg_debug_assert(!(s.cflags & CF_INVALID));
+-
+-    hash = tb_jmp_cache_hash_func(s.pc);
+-    jc = cpu->tb_jmp_cache;
+-
+-    tb = qatomic_read(&jc->array[hash].tb);
+-    if (likely(tb &&
+-               jc->array[hash].pc == s.pc &&
+-               tb->cs_base == s.cs_base &&
+-               tb->flags == s.flags &&
+-               tb_cflags(tb) == s.cflags)) {
+-        goto hit;
++    /*
++     * Address hooks: a page that holds a hook site gets blocks translated
++     * for their virtual address (tcg_hooks_cflags).  The jump cache holds
++     * only blocks looked up with their page's cflags (a hooks commit
++     * empties it), so the hit in tb_lookup() needs no check of its own.
++     */
++    if (tcg_hooks_cflags(s.pc, s.cflags) != s.cflags) {
++        s.cflags = tcg_hooks_cflags(s.pc, s.cflags);
++        if (tb &&
++            jc->array[hash].pc == s.pc &&
++            tb->cs_base == s.cs_base &&
++            tb->flags == s.flags &&
++            tb_cflags(tb) == s.cflags) {
++            return tb;
++        }
+     }
  
-     TCGTBCPUState s = cpu->cc->tcg_ops->get_tb_cpu_state(cpu);
--    s.cflags = curr_cflags(cpu);
-+    s.cflags = tcg_hooks_cflags(s.pc, curr_cflags(cpu));
+     tb = tb_htable_lookup(cpu, s);
+@@ -261,8 +267,33 @@ static inline TranslationBlock *tb_lookup(CPUState *cpu, TCGTBCPUState s)
+     assert(!tb_pc_exact(tb) || tb->pc == s.pc);
+     jc->array[hash].pc = s.pc;
+     qatomic_set(&jc->array[hash].tb, tb);
++    return tb;
++}
++
++static inline TranslationBlock *tb_lookup(CPUState *cpu, TCGTBCPUState s)
++{
++    TranslationBlock *tb;
++    CPUJumpCache *jc;
++    uint32_t hash;
++
++    /* we should never be trying to look up an INVALID tb */
++    tcg_debug_assert(!(s.cflags & CF_INVALID));
++
++    hash = tb_jmp_cache_hash_func(s.pc);
++    jc = cpu->tb_jmp_cache;
++
++    tb = qatomic_read(&jc->array[hash].tb);
++    if (unlikely(!(tb &&
++                   jc->array[hash].pc == s.pc &&
++                   tb->cs_base == s.cs_base &&
++                   tb->flags == s.flags &&
++                   tb_cflags(tb) == s.cflags))) {
++        tb = tb_lookup_miss(cpu, s, tb, jc, hash);
++        if (tb == NULL) {
++            return NULL;
++        }
++    }
  
-     if (check_for_breakpoints(cpu, s.pc, &s.cflags)) {
-         cpu_loop_exit(cpu);
-@@ -580,7 +581,7 @@ void cpu_exec_step_atomic(CPUState *cpu)
+-hit:
+     /*
+      * As long as tb is not NULL, the contents are consistent.  Therefore,
+      * the virtual PC has to match for non-CF_PCREL translations.
+@@ -580,7 +611,7 @@ void cpu_exec_step_atomic(CPUState *cpu)
          cpu->running = true;
  
          TCGTBCPUState s = cpu->cc->tcg_ops->get_tb_cpu_state(cpu);
@@ -59,14 +139,15 @@ index 5a8cd5725bfbeb3f60113e11b9160d7396797cfd..41ecdb465ec03b07dbafbd6cedd9ea36
  
          /* Execute in a serial context. */
          s.cflags &= ~CF_PARALLEL;
-@@ -980,6 +981,7 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
-             } else {
-                 cpu->cflags_next_tb = -1;
-             }
-+            s.cflags = tcg_hooks_cflags(s.pc, s.cflags);
+@@ -990,6 +1021,8 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
+                 CPUJumpCache *jc;
+                 uint32_t h;
  
-             if (check_for_breakpoints(cpu, s.pc, &s.cflags)) {
-                 break;
++                /* tb_lookup() asked for these; translate with them */
++                s.cflags = tcg_hooks_cflags(s.pc, s.cflags);
+                 mmap_lock();
+                 tb = tb_gen_code(cpu, s);
+                 mmap_unlock();
 diff --git a/accel/tcg/tcg-accel-ops.c b/accel/tcg/tcg-accel-ops.c
 index eaf546dd68a1e6e950170e05dff7fcef21c79d71..7668e55254a462fd0b4539e85119ca632314a81c 100644
 --- a/accel/tcg/tcg-accel-ops.c

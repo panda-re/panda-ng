@@ -15,10 +15,10 @@ Origin: panda-re/qemu
  1 file changed, 3 insertions(+)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index 92ddf188ed290d84598f7c13901c439cebf3404e..ef7a6027f290405544d93241c4a30ae0a803c56e 100644
+index 5ab1284f32c018acca0b4ad82158b2ebfd10f34b..a8bb249ffa903fd6a7def35a1a26ebffe9bc1250 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
-@@ -1013,6 +1013,9 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
+@@ -1042,6 +1042,9 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
                  break;
              }
  
