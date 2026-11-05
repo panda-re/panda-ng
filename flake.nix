@@ -77,6 +77,27 @@
           # (engine/nix/source.nix, engine/README.md).
           engineSource = import ./engine/nix/source.nix { inherit pkgs; };
 
+          # What the engine builds with (besides its Python, which mkEngine and the dev shell each
+          # give with the modules they need).
+          engineTools = {
+            nativeBuildInputs = with pkgs; [
+              pkg-config
+              ninja
+              perl
+              git
+              gdb
+            ];
+            buildInputs = with pkgs; [
+              glib
+              pixman
+              zlib
+              zstd
+              libcap_ng
+              libslirp
+              dtc
+            ];
+          };
+
           # The engine. Keeps nothing of the build tree but what it installs, plus the headers
           # libpanda-ng generates from it (which need the tree, so they are made here).
           mkEngine =
@@ -100,15 +121,13 @@
                 "sdk"
               ];
 
-              nativeBuildInputs = with pkgs; [
+              nativeBuildInputs = [
                 # QEMU's bundled meson drops nix's rpaths at install; put them back.
-                autoPatchelfHook
-                pkg-config
-                ninja
-                perl
-                git
-                gdb
-                (python3.withPackages (ps: [
+                pkgs.autoPatchelfHook
+              ]
+              ++ engineTools.nativeBuildInputs
+              ++ [
+                (pkgs.python3.withPackages (ps: [
                   ps.setuptools
                   ps.wheel
                   ps.pip
@@ -117,15 +136,7 @@
                   ps.tree-sitter-grammars.tree-sitter-c
                 ]))
               ];
-              buildInputs = with pkgs; [
-                glib
-                pixman
-                zlib
-                zstd
-                libcap_ng
-                libslirp
-                dtc
-              ];
+              inherit (engineTools) buildInputs;
 
               # The source is read-only in the store; configure writes pyvenv/ and build/.
               unpackPhase = ''
@@ -756,6 +767,40 @@
             PYTHONPATH = gdbPythonPath;
           };
           plugins-shell = pkgs.mkShell (pluginTools // { NIX_CFLAGS_COMPILE = "-std=c++17"; });
+          # The local development build (tools/dev/dev.sh, docs/guides/development.md): the engine's
+          # and the plugins' toolchains, one Python with what QEMU's configure, the plugins,
+          # libpanda-ng and pandare2 need, LLVM 21 for the taint H2b helpers, and the release
+          # tarball the engine tree is imported from. No NIX_CFLAGS_COMPILE: the engine is C, and
+          # dev.sh gives the plugins their -std=c++17 itself.
+          dev-shell = pkgs.mkShell {
+            packages = [
+              (pkgs.python3.withPackages (ps: [
+                ps.setuptools
+                ps.wheel
+                ps.pip
+                ps.cffi
+                ps.pycparser
+                ps.pyyaml
+                ps.tree-sitter
+                ps.tree-sitter-grammars.tree-sitter-c
+              ]))
+            ]
+            ++ engineTools.nativeBuildInputs
+            ++ engineTools.buildInputs
+            ++ pluginTools.nativeBuildInputs
+            ++ (with pkgs; [
+              curl
+              nlohmann_json
+              xz
+            ]);
+            PANDA_DEV_QEMU_TARBALL = engineSource.tarball;
+            PANDA_DEV_QEMU_VERSION = engineSource.version;
+            # build.py runs in gdb's embedded Python: dev.sh gives it this PYTHONPATH.
+            PANDA_DEV_GDB_PYTHONPATH = gdbPythonPath;
+            H2B_CLANG = "${pkgs.llvmPackages_21.clang}/bin/clang";
+            H2B_LLVM = "${pkgs.llvmPackages_21.llvm}/bin";
+            H2B_LLVM_DEV = "${pkgs.llvmPackages_21.llvm.dev}";
+          };
           # A fast engine for iterating on the build: one target.
           engine-x86_64 = mkEngine { targets = [ "x86_64-softmmu" ]; };
         };
@@ -1245,6 +1290,8 @@
         libpanda-ng = (perSystem system).libpanda-ng-shell;
         # The plugins' toolchain without the engine: point local_packages/panda-ng at headers yourself.
         plugins = (perSystem system).plugins-shell;
+        # tools/dev/dev.sh's environment (it enters the shell itself).
+        dev = (perSystem system).dev-shell;
       });
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt-rfc-style);
     };

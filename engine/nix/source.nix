@@ -6,6 +6,7 @@
 #   engineSource = import ./engine/nix/source.nix { inherit pkgs; };
 #   engineSource.src            # the patched tree (a store path), what the engine builds from
 #   engineSource.version        # the upstream release, e.g. "11.1.2" (base.json's one key)
+#   engineSource.tarball        # the upstream release tarball (tools/dev imports it into a git tree)
 #
 # Two properties of QEMU release tarballs this relies on (verified against v11.1.0 and v11.1.2):
 # QEMU's .gitattributes has no export-ignore, so every file the series touches is identical in the
@@ -26,6 +27,11 @@ let
       throw "engine/base.json must have exactly one version, has: ${toString versions}";
   base = bases.${version};
 
+  tarball = pkgs.fetchurl {
+    url = base.url or "https://download.qemu.org/qemu-${base.tag}.tar.xz";
+    inherit (base) hash;
+  };
+
   # The series file, in order, ignoring blank lines and # comments (quilt convention). Each
   # entry is <version>/<name>.patch, relative to patches/.
   readSeries =
@@ -39,14 +45,16 @@ let
     map (l: "${patchesRoot}/${l}") (builtins.filter keep (map lib.trim lines));
 in
 {
-  inherit version base readSeries;
+  inherit
+    version
+    base
+    readSeries
+    tarball
+    ;
 
   src = pkgs.applyPatches {
     name = "qemu-${base.tag}-panda";
-    src = pkgs.fetchurl {
-      url = base.url or "https://download.qemu.org/qemu-${base.tag}.tar.xz";
-      inherit (base) hash;
-    };
+    src = tarball;
     patches = readSeries (root + "/patches") version;
     # The overlay: files we authored, copied rather than carried as add-file patches, which keeps
     # the invariant that no patch in the series references a file we created.
