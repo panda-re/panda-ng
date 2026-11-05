@@ -16,10 +16,10 @@ Origin: new
  1 file changed, 6 insertions(+), 1 deletion(-)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index 2c9570defa1090f734632d63cc98a40f9c47ee92..3656f1e38ebf30b246b02aa504d273008c8f3ff9 100644
+index 8a2a78683401a8895f1d20b3d05f6d82f7cd2230..ae7d29a4a218b66b0830a467d29b72598db32019 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
-@@ -476,7 +476,6 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
+@@ -506,7 +506,6 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
      last_tb = tcg_splitwx_to_rw((void *)(ret & ~TB_EXIT_MASK));
      *tb_exit = ret & TB_EXIT_MASK;
  
@@ -27,7 +27,7 @@ index 2c9570defa1090f734632d63cc98a40f9c47ee92..3656f1e38ebf30b246b02aa504d27300
      trace_exec_tb_exit(last_tb, *tb_exit);
  
      if (*tb_exit > TB_EXIT_IDX1) {
-@@ -504,6 +503,12 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
+@@ -534,6 +533,12 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
          }
      }
  

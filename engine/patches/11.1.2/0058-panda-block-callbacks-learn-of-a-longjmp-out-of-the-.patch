@@ -16,10 +16,10 @@ Origin: new
  1 file changed, 2 insertions(+)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index ef7a6027f290405544d93241c4a30ae0a803c56e..2c9570defa1090f734632d63cc98a40f9c47ee92 100644
+index a8bb249ffa903fd6a7def35a1a26ebffe9bc1250..8a2a78683401a8895f1d20b3d05f6d82f7cd2230 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
-@@ -584,6 +584,8 @@ static void cpu_exec_longjmp_cleanup(CPUState *cpu)
+@@ -614,6 +614,8 @@ static void cpu_exec_longjmp_cleanup(CPUState *cpu)
          bql_unlock();
      }
      assert_no_pages_locked();

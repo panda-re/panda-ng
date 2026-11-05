@@ -505,7 +505,7 @@ vanilla_verified = false
 [[patch]]
 id = "0036"
 file = "engine/patches/11.1.2/0036-accel-tcg-address-hooks-keep-CF_PCREL-on-outside-hoo.patch"
-sha256 = "36d0c4279b6f7c4c934bc5db712918860d7759e876d71f56793cda858aea5944"
+sha256 = "9308f34f69c9d02920d81d06f0d6801f37b1cd5bdbd290711a64bf5ad1e9ae99"
 class = "runtime-gate"
 capability = "address-hooks"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/tcg-accel-ops.c", "accel/tcg/translator.c"]
@@ -603,7 +603,7 @@ vanilla_verified = false
 [[patch]]
 id = "0043"
 file = "engine/patches/11.1.2/0043-panda-TCG-core-hooks.patch"
-sha256 = "20355c5dbae6db1825d02623295a04904539ddbc4b3c026e0ea7586311ca5a52"
+sha256 = "c355b43f5c01ffec2b6c20e175c3faf7a607a0068f56029b4e88d93ea928a310"
 class = "runtime-gate"
 capability = "analysis-callbacks"
 paths = ["accel/tcg/cpu-exec.c"]
@@ -673,7 +673,7 @@ vanilla_verified = false
 [[patch]]
 id = "0048"
 file = "engine/patches/11.1.2/0048-panda-before_find_fast-before-each-TB-lookup.patch"
-sha256 = "6e8b024869aabec5bebe08838640f92f586254ea93c31185a78507b445d7a5f6"
+sha256 = "1d67928c66cf4723fc6d7de8b23d5536ac66bac0ed2c2d98ab7c344627662dad"
 class = "runtime-gate"
 capability = "analysis-callbacks"
 paths = ["accel/tcg/cpu-exec.c"]
@@ -813,7 +813,7 @@ vanilla_verified = false
 [[patch]]
 id = "0058"
 file = "engine/patches/11.1.2/0058-panda-block-callbacks-learn-of-a-longjmp-out-of-the-.patch"
-sha256 = "1f022b40e2769758b9b0667593964963fa5507576492ca59ea394469c119a463"
+sha256 = "6b3f8ac32d99981173a5c6252152ad080233c9f31baec1443d889e28a94718cf"
 class = "runtime-gate"
 capability = "analysis-block-completion"
 paths = ["accel/tcg/cpu-exec.c"]
@@ -827,7 +827,7 @@ vanilla_verified = false
 [[patch]]
 id = "0059"
 file = "engine/patches/11.1.2/0059-panda-after_block_exec-hook-after-the-PC-is-synchron.patch"
-sha256 = "e55418be0cb1418a50c563408cc0cc30ca2f906e43643438e1dd47ce9175dd67"
+sha256 = "0b2b613eb3d7daadd5a5911f5afde77b42ec6048d84e37cba48a443ad57071de"
 class = "runtime-gate"
 capability = "analysis-block-completion"
 paths = ["accel/tcg/cpu-exec.c"]
@@ -869,7 +869,7 @@ vanilla_verified = false
 [[patch]]
 id = "0062"
 file = "engine/patches/11.1.2/0062-accel-tcg-cpu_exec_step_atomic-runs-in-an-RCU-read-s.patch"
-sha256 = "5d78eb942311485c3245ade35feaac7bfba1c24b4b973b70adbcf6b112e45785"
+sha256 = "560bce63a23f050f7f2804410a9a09593c58eafb93f7fc03cac5b5e296d7edfe"
 class = "upstream-fix-needs-off-path"
 capability = "tcg-atomic"
 paths = ["accel/tcg/cpu-exec.c"]
@@ -1149,7 +1149,7 @@ vanilla_verified = false
 [[patch]]
 id = "0082"
 file = "engine/patches/11.1.2/0082-accel-tcg-no-PANDA-or-hook-calls-in-the-CPU-loop-whi.patch"
-sha256 = "b58d0f3400601fadda40bdf160e8de02e06c7923e850bdb0d8e7ef00fe86e13e"
+sha256 = "e1d66685d4d00421b96ad470954b1f0353640fb0a8355c1ac96a7cbdf6d2cd85"
 class = "runtime-gate"
 capability = "analysis-idle-path"
 paths = ["accel/tcg/cpu-exec-common.c", "accel/tcg/cpu-exec.c", "accel/tcg/icount-common.c", "accel/tcg/tcg-accel-ops.c", "include/exec/translation-block.h", "include/hw/core/cpu.h"]
@@ -1163,7 +1163,7 @@ vanilla_verified = false
 [[patch]]
 id = "0083"
 file = "engine/patches/11.1.2/0083-plugins-emit-block-completion-at-outgoing-edges.patch"
-sha256 = "92df58497f503cd9d4d50351a1efd4acc17ea66793cb12b2f5e8ea8ea0406cb2"
+sha256 = "73e5330c49ff500a71a8f4a186495726ef0be617468492f9194e1ef13b582c17"
 class = "runtime-gate"
 capability = "analysis-block-completion"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/plugin-gen.c", "include/hw/core/cpu.h", "include/plugins/qemu-plugin.h", "include/qemu/plugin.h", "plugins/api.c"]
@@ -1318,7 +1318,7 @@ vanilla_verified = false
 [[patch]]
 id = "0094"
 file = "engine/patches/11.1.2/0094-tcg-taint-shadow-pass-hooks.patch"
-sha256 = "cab338a97549074cbaae6d0ccc2c5efa2e2185ffa30d160191aea2fa0ce4aef3"
+sha256 = "270422be3eabb8968f63a9c35a35bc65c9f8d1620d4671771ba68e70524dd32d"
 class = "runtime-gate"
 capability = "taint"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/cputlb.c", "accel/tcg/meson.build", "accel/tcg/translator.c", "include/exec/translation-block.h", "include/hw/core/cpu.h", "system/physmem.c", "system/vl.c", "target/arm/helper.c", "target/arm/internals.h", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c", "target/arm/tcg/translate.c", "target/mips/tcg/ldst_helper.c", "target/mips/tcg/tcg-internal.h", "target/mips/tcg/translate.c", "target/riscv/tcg/op_helper.c", "tcg/tcg.c"]
