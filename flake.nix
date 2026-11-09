@@ -1220,13 +1220,6 @@
             python3 ${./.}/tests/static/vanilla_inventory.py
             touch $out
           '';
-          penguin-detach = pkgs.runCommandCC "penguin-detach-check" {
-            nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
-            buildInputs = [ pkgs.glib ];
-          } ''
-            python3 ${./.}/tests/static/penguin_detach.py
-            touch $out
-          '';
           events-registry = pkgs.runCommandCC "events-registry-check" {
             nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
             buildInputs = [ pkgs.glib ];

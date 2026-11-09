@@ -185,7 +185,7 @@ Placement and ordering:
 |---|---|---|---|
 | Hypercall | `guest_hypercall`, Penguin hypercalls, `@panda.hypercall` | Synchronous event (slice H) | 1 |
 | Block boundary | `before_block_exec`, `start_block_exec`, `after_block_exec` | Synchronous event | 2 |
-| Syscall trap | Penguin syscall enter/return hooks, syscalls2 | Synchronous event | 2 |
+| Syscall trap | syscall-trap consumers, syscalls2 | Synchronous event | 2 |
 | Instruction | `insn_exec`, hooks plugin at an address | Synchronous event. The hook's instruction starts I/O, which ends the TB under icount, as slice H does for hypercalls. | 3 |
 | Mid-instruction | memory read/write callbacks, `before_handle_exception` | Refused permanently (`EPERM`). The instruction can fault and restart, so the point is not well-defined. | — |
 | Translation time | `before_block_translate`, `insn_translate` | Refused permanently. When translation happens depends on the TB cache, not on the guest. | — |
@@ -194,7 +194,7 @@ Placement and ordering:
 ## Refusals
 
 Intercepted writes, which the API refuses with an error:
-- every memory write path in `panda_mem.c` and `syscall-trap.c`, plus Penguin's `penguin_syscall_write_memory`;
+- every memory write path in `panda_mem.c` and `syscall-trap.c`;
 - every register setter in `panda_arch.c`, plus `penguin_write_guest_reg`;
 - `set_pc`, which is refused until phase 3 adds a PC op. Its semantics are fixed by the TB-exit rule above.
 
@@ -210,9 +210,8 @@ Penguin MMIO reads:
 ## Migration
 
 Penguin:
-- **Memory and register writes.** `penguin_syscall_write_memory` and `penguin_write_guest_reg` keep their signatures and route through the API. They already log in slice H.
+- **Register writes.** `penguin_write_guest_reg` keeps its signature and routes through the API. It already logs in slice H.
 - **`penguin_cpu_env` writes.** Penguin's register writes through `penguin_cpu_env` move to `penguin_write_guest_reg`, which adds `penguin_reg_lookup` by name.
-- **Syscall hooks** that skip a syscall or rewrite its return use the syscall-trap site and the API. Skip, inject and fault stay refused under record/replay.
 - **Registration.** Penguin's consumer registers as mutating explicitly.
 
 PANDA plugins:

@@ -257,7 +257,7 @@ void replay_analysis_effect_cancel(void *opaque)
 
 #define GUEST_WRITE_VERSION 1
 enum {
-    GUEST_OP_VADDR = 1, /* penguin_syscall_write_memory: syscall_trap_access */
+    GUEST_OP_VADDR = 1, /* syscall_trap_access */
     GUEST_OP_RAM,       /* PANDA physical/virtual write, by guest physical address */
     GUEST_OP_REG,       /* register setter, gdbstub register number */
     GUEST_OP_ENV,       /* bytes in env, or through pointers from it */

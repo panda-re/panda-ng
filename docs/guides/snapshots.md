@@ -97,8 +97,7 @@ successful `after_loadvm` notification of a full load is exactly once. `tests/li
 exercises the public hooks on real x86_64/aarch64 guests, including unregister,
 re-register, rejected operations and hardware reset. Mixed pending/held/injected
 slot cancellation and atomic detach refusal are tested separately by the actual-C-body
-host harnesses `tests/static/lifecycle.py` and `tests/static/penguin_detach.py`;
-these do not establish end-to-end injected-syscall guest conformance.
+host harness `tests/static/lifecycle.py`; it does not establish end-to-end injected-syscall guest conformance.
 
 ### Edge coverage
 

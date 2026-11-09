@@ -405,13 +405,12 @@ status = "engine"
 accel = ["TCG"]
 tested_on = ["x86_64", "aarch64"]
 summary = """
-Trap guest system calls in the engine, serve them on the host (penguin's syscall engine), read
-process state host-side from the kernel's symbols, and redirect the guest from a syscall entry.
+Trap guest system calls in the engine, serve them to a plugin consumer, read process state
+host-side from the kernel's symbols, and redirect the guest from a syscall entry.
 """
-limits = "Native syscall trap events require TCG; symbol presence does not establish KVM support. Penguin's explicit detach requires main-thread/BQL stopped-vCPU quiescence and no public kernel hooks or live injected calls. Persistent profile/internal hooks survive; this is not full unload or profile reconfiguration. Checked lifetime/child-birth correlation and current consumer admission remain incomplete."
-api = ["c:qemu_plugin_set_pc", "c:penguin_syscall_detach"]
-tests = ["engine/tests/guest/sctest.sh", "engine/tests/guest/ositest.sh", "engine/tests/guest/setpctest.sh",
-         "tests/static/penguin_detach.py"]
+limits = "Native syscall trap events require TCG; symbol presence does not establish KVM support. Checked lifetime/child-birth correlation and current consumer admission remain incomplete."
+api = ["c:qemu_plugin_set_pc"]
+tests = ["engine/tests/guest/sctest.sh", "engine/tests/guest/setpctest.sh"]
 patches = ["0019", "0021", "0033"]
 
 [[feature]]

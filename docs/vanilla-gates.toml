@@ -294,15 +294,15 @@ vanilla_verified = false
 
 [[patch]]
 id = "0021"
-file = "engine/patches/11.1.2/0021-system-build-the-penguin-syscall-engine-and-host-sid.patch"
-sha256 = "0420d114e83207886b4ce769bfe8b60e36c7ffa1bea3185965472b996da77faf"
+file = "engine/patches/11.1.2/0021-system-build-the-host-side-OSI.patch"
+sha256 = "db5ecad9882552fb40511c4998fdd97348ed5d17a8834725641127156f5e914f"
 class = "inert-in-vanilla"
-capability = "syscall-engine"
+capability = "host-osi"
 paths = ["system/meson.build"]
-functions = ["system_ss.add", "penguin_syscalls API"]
+functions = ["system_ss.add", "penguin_osi API"]
 hunk_contexts = ["system_ss.add(files("]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "Builds overlay engine/OSI; operational activation via API but constructors/admission still require vanilla review"
+current_gate = "Builds overlay host-side OSI; operational activation via API but constructors/admission still require vanilla review"
 required_action = "Reject extension activation in explicit vanilla before state publication; verify constructors, registration, translation and stream behavior remain upstream."
 vanilla_verified = false
 
@@ -1219,7 +1219,7 @@ vanilla_verified = false
 [[patch]]
 id = "0087"
 file = "engine/patches/11.1.2/0087-system-provision-startup-capabilities-and-gate-guest.patch"
-sha256 = "0bab82c2aeb363fcd60e6b6960a2c5bbd1a252bbb5fc6156f6639ba64f1886bf"
+sha256 = "54ebfecb6184d0350251f7c91703bb034e29d670fb9d548558f64df908079bbb"
 class = "startup-gate"
 capability = "startup-capability-policy-and-guest-hypercall"
 paths = ["hw/i386/pc.c", "qemu-options.hx", "system/meson.build", "system/vl.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c", "target/loongarch/tcg/insn_trans/trans_extra.c.inc", "target/loongarch/tcg/translate.c", "target/mips/tcg/translate.c", "target/ppc/translate.c", "target/ppc/translate/fixedpoint-impl.c.inc", "target/riscv/tcg/translate.c"]
@@ -1483,14 +1483,14 @@ required_action = "Refuse all extension consumers/watches in vanilla; retain ori
 vanilla_verified = false
 
 [[overlay]]
-id = "penguin-syscalls"
+id = "penguin-osi"
 class = "runtime-gate"
-capability = "syscall-injection"
-paths = ["engine/src/system/penguin-syscalls.c", "engine/src/system/penguin-osi.c"]
-functions = ["penguin_syscall_register", "penguin_syscall_detach", "psc_drop", "psc_run_abort", "psc_run_free"]
+capability = "host-osi"
+paths = ["engine/src/system/penguin-osi.c"]
+functions = ["penguin_osi_set_layout", "penguin_osi_proc", "penguin_osi_mappings"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "Explicit consumer initialization and callbacks activate interception/guest fault/injection; reads/OSI/raw handles require capability review."
-required_action = "Reject injection/fault/watch/task identity APIs in vanilla before owning consumer or changing registers; no unrelated profile inference."
+current_gate = "Host-side reads only, after a caller sets a layout; no interception, guest faults or injection."
+required_action = "Confirm reads stay off the vanilla path until a layout is set; no unrelated profile inference."
 vanilla_verified = false
 
 [[overlay]]
@@ -1651,7 +1651,7 @@ vanilla_verified = false
 id = "overlay-headers-and-build"
 class = "build-only"
 capability = "overlay-build-and-abi"
-paths = ["engine/src/accel/tcg/hooks-internal.h", "engine/src/include/accel/tcg/hooks.h", "engine/src/include/hw/core/configurable-cpu.h", "engine/src/include/hw/core/panda-modules.h", "engine/src/include/panda/callbacks/cb-defs.h", "engine/src/include/panda/callbacks/cb-helper-defs.h", "engine/src/include/panda/callbacks/cb-helper-impl.h", "engine/src/include/panda/callbacks/cb-macros.h", "engine/src/include/panda/callbacks/cb-support.h", "engine/src/include/panda/callbacks/cb-trampolines.h", "engine/src/include/panda/cheaders.h", "engine/src/include/panda/checkpoint.h", "engine/src/include/panda/common.h", "engine/src/include/panda/debug.h", "engine/src/include/panda/helper_runtime.h", "engine/src/include/panda/hooks.h", "engine/src/include/panda/network.h", "engine/src/include/panda/panda_api.h", "engine/src/include/panda/panda_qemu_plugin_helpers.h", "engine/src/include/panda/plugin.h", "engine/src/include/panda/plugin_plugin.h", "engine/src/include/panda/types.h", "engine/src/include/panda/wrap_ops.h", "engine/src/include/qemu/panda-module-info.h", "engine/src/include/qemu/panda-module.h", "engine/src/include/qemu/plugin-hw.h", "engine/src/include/system/penguin-osi.h", "engine/src/include/system/penguin-syscalls.h", "engine/src/include/system/penguin.h", "engine/src/include/system/syscall-trap.h", "engine/src/panda/meson.build", "engine/src/panda/src/meson.build", "engine/src/scripts/panda-abi.py", "engine/src/scripts/panda-sdk.sh"]
+paths = ["engine/src/accel/tcg/hooks-internal.h", "engine/src/include/accel/tcg/hooks.h", "engine/src/include/hw/core/configurable-cpu.h", "engine/src/include/hw/core/panda-modules.h", "engine/src/include/panda/callbacks/cb-defs.h", "engine/src/include/panda/callbacks/cb-helper-defs.h", "engine/src/include/panda/callbacks/cb-helper-impl.h", "engine/src/include/panda/callbacks/cb-macros.h", "engine/src/include/panda/callbacks/cb-support.h", "engine/src/include/panda/callbacks/cb-trampolines.h", "engine/src/include/panda/cheaders.h", "engine/src/include/panda/checkpoint.h", "engine/src/include/panda/common.h", "engine/src/include/panda/debug.h", "engine/src/include/panda/helper_runtime.h", "engine/src/include/panda/hooks.h", "engine/src/include/panda/network.h", "engine/src/include/panda/panda_api.h", "engine/src/include/panda/panda_qemu_plugin_helpers.h", "engine/src/include/panda/plugin.h", "engine/src/include/panda/plugin_plugin.h", "engine/src/include/panda/types.h", "engine/src/include/panda/wrap_ops.h", "engine/src/include/qemu/panda-module-info.h", "engine/src/include/qemu/panda-module.h", "engine/src/include/qemu/plugin-hw.h", "engine/src/include/system/penguin-osi.h", "engine/src/include/system/penguin.h", "engine/src/include/system/syscall-trap.h", "engine/src/panda/meson.build", "engine/src/panda/src/meson.build", "engine/src/scripts/panda-abi.py", "engine/src/scripts/panda-sdk.sh"]
 functions = ["CONFIG_PANDA hook stubs/declarations", "callback ABI and generated helper macros", "Meson overlay source/link selection", "public API inline/accessor contracts"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "Headers/build inputs grouped for coverage only; inline dispatch, ABI/layout, CONFIG_PANDA and linker effects are not exempt from strict upstream vanilla behavior."

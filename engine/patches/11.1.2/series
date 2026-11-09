@@ -18,7 +18,7 @@
 11.1.2/0018-accel-tcg-translation-time-address-hooks-and-registe.patch
 11.1.2/0019-system-target-i386-target-arm-the-syscall-trap.patch
 11.1.2/0020-plugins-address-hooks-register-pointers-TLB-first-re.patch
-11.1.2/0021-system-build-the-penguin-syscall-engine-and-host-sid.patch
+11.1.2/0021-system-build-the-host-side-OSI.patch
 11.1.2/0022-i386-resume-a-KVM-snapshot-under-TCG-and-a-TCG-snaps.patch
 11.1.2/0023-target-arm-kvm-penguin-hypercalls-under-arm64-KVM-SM.patch
 11.1.2/0024-target-arm-arm_gic-resume-an-aarch64-KVM-snapshot-un.patch

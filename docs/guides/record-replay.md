@@ -141,8 +141,8 @@ record/replay the same calls simply write. The design is in
 | `panda_guest_env_sync` | rebuilds what the target derives from env (arm hflags) and flushes the TLB |
 
 The older entry points are wrappers over these: `panda_virtual_memory_write`,
-`panda_physical_memory_write`, `panda_set_retval`, `panda_set_syscall_arg`,
-`penguin_write_guest_reg` and `penguin_syscall_write_memory`, and pandare2's
+`panda_physical_memory_write`, `panda_set_retval`, `panda_set_syscall_arg` and
+`penguin_write_guest_reg`, and pandare2's
 `virtual_memory_write`, `physical_memory_write` and `arch.set_reg`/`set_retval`/`set_arg`, whose
 register writes go through `panda.guest.env(cpu)`. That view of `CPUArchState` reads through
 and turns each assignment into an env write: `env.regs[0] = 1`, `env.cp15.ttbr0_el[1] = x`.
