@@ -7,7 +7,6 @@
 #   gen/initrd-*.gz  per arch: busybox, pagetest (native and, for x86_64 and
 #                    aarch64, a 32-bit build), init, the squashfs test data
 #   gen/syms-*.env   per kernel, gen/sysprof-*.txt per 6.13 kernel, from its ISF
-#   gen/ours-*       the takeover scenario's program (x86_64, aarch64)
 # Steps whose output exists are skipped; remove it to redo one.
 set -e
 H=$(cd "$(dirname "$0")" && pwd)
@@ -51,9 +50,5 @@ for a in $ARCHES; do
     # syscall profiles: the 6.13 kernels (sctest.sh's)
     [ $v = 4.10 ] || [ -f "$GEN/sysprof-$v-$a.txt" ] || python3 "$H/sysprof.py" $v $a
   done
-done
-for a in x86_64 aarch64; do
-  arch_facts $a 6.13
-  [ -f "$GEN/ours-$a" ] || $ZCC -target $ZT -static -Os "$H/ours.c" -o "$GEN/ours-$a"
 done
 echo ">>> ready: $GEN"
