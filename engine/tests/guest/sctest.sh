@@ -9,17 +9,6 @@
 #   sctrap guest sc-trap (signals, restarts, vfork, execve, threads) with
 #          sc-trap-rules.txt in trap mode, natively and from the 32-bit build
 #   trapbench  bench's rule sets in trap mode
-#   pen    the penguin_syscall_* hooks under pyhost.py: sc-func (1 and 2
-#          vCPUs), sc-trap, sc-pen, sc-fault (native and 32-bit; and natively
-#          with the callbacks on penguin's own apis/mem.py), sc-reap (native
-#          and 32-bit), 3500 execs
-#   pyplug penguin's own Syscalls plugin (apis/syscalls.py, backend=trap) and
-#          mem.py on penguin's qemu_compat, under penhost.py: sc-pen, sc-fault,
-#          sc-reap, native and 32-bit
-#   uapi   penguin's Syscalls with no kernel ISF (ISF=none: uapi numbers, no
-#          OSI identity): sc-pen's hooks without comm, scope or pid filters
-#   penbench   bench's rule sets as penguin_syscall_* hooks
-#   pybench    bench's rule sets as hooks of penguin's Syscalls (backend=trap)
 # trap mode needs QEMU syscall events: x86_64 and aarch64 so far
 # env: REPS (default 3)
 H=$(cd "$(dirname "$0")" && pwd); cd $H
@@ -35,10 +24,7 @@ REPS=${REPS:-3}
 one() {
   n=$1; a=$2; t=$3; r=$4
   s0=$(date +%s.%N)
-  if [ -n "$PYHOST$PENHOST" ]; then
-    SMP=${SMP:-1} PROF=$GEN/sysprof-6.13-$a.txt LOG=$O/$a-$n.log TMO=600 ./run.sh $a ${KVER:-6.13} $t \
-      < /dev/null > $O/$a-$n.con 2>&1
-  elif [ "$r" = none ]; then
+  if [ "$r" = none ]; then
     SMP=${SMP:-1} TMO=600 ./run.sh $a ${KVER:-6.13} $t < /dev/null > $O/$a-$n.con 2>&1
   else
     SMP=${SMP:-1} PLUGIN=$P LOG=$O/$a-$n.log TMO=600 ./run.sh $a ${KVER:-6.13} $t \
@@ -91,41 +77,6 @@ trapbench() { a=$1
     echo "$BENCH" | while IFS='|' read n rs; do
       N=200000; [ $n = log ] && N=20000
       MODE=trap one trapbench-$n-$k $a sc-bench:$N $O/rules-$n.txt
-    done
-  done; }
-
-pen() { a=$1
-  case " $TRAPARCHS " in *" $a "*) ;; *) return;; esac
-  (export PYHOST=func; one pfunc $a sc-func -; SMP=2 one pfunc-smp $a sc-func -
-   PYHOST=trap SMP=2 one ptrap $a sc-trap -; PYHOST=trap one ptrap32 $a c32-sc-trap -
-   PYHOST=pen one pen $a sc-pen -; PYHOST=pen one pen32 $a c32-sc-pen -
-   PYHOST=fault one pfault $a sc-fault -; PYHOST=fault one pfault32 $a c32-sc-fault -
-   PYHOST=pmem one pmem $a sc-fault -
-   PYHOST=reap one preap $a sc-reap -; PYHOST=reap one preap32 $a c32-sc-reap -
-   # the table's eviction: without the reaper, which drops each exec'd child's call
-   PYHOST=evict NOREAP=1 one pevict $a sc-execs:3500 -); }
-pyplug() { a=$1     # penguin's Syscalls with backend=trap, under penhost.py
-  case " $TRAPARCHS " in *" $a "*) ;; *) return;; esac
-  (export PENHOST=pen; one npen $a sc-pen -; one npen32 $a c32-sc-pen -
-   PENHOST=fault one nfault $a sc-fault -; PENHOST=fault one nfault32 $a c32-sc-fault -
-   PENHOST=reap one nreap $a sc-reap -; PENHOST=reap one nreap32 $a c32-sc-reap -); }
-uapi() { a=$1       # penguin's Syscalls with no kernel ISF: no identity, no filters on it
-  case " $TRAPARCHS " in *" $a "*) ;; *) return;; esac
-  (export PENHOST=uapi ISF=none; one nuapi $a sc-pen -; one nuapi32 $a c32-sc-pen -); }
-pybench() { a=$1    # bench's rule sets as hooks of penguin's Syscalls (backend=trap)
-  case " $TRAPARCHS " in *" $a "*) ;; *) return;; esac
-  for k in $(seq $REPS); do
-    echo "$BENCH" | while IFS='|' read n rs; do
-      N=200000; [ $n = log ] && N=20000
-      PENHOST=bench-$n one pybench-$n-$k $a sc-bench:$N -
-    done
-  done; }
-penbench() { a=$1
-  case " $TRAPARCHS " in *" $a "*) ;; *) return;; esac
-  for k in $(seq $REPS); do
-    echo "$BENCH" | while IFS='|' read n rs; do
-      N=200000; [ $n = log ] && N=20000
-      PYHOST=bench-$n one penbench-$n-$k $a sc-bench:$N -
     done
   done; }
 

@@ -59,12 +59,10 @@ def func(a, n):
     want = exp.get('open', [])
     check(len(en) == len(want) == 2 and len(rt) == 2,
           f'open: {len(en)} enters, {len(rt)} returns, want 2')
-    pen = n.startswith('pfunc')
     for i, w in enumerate(want[:len(en)]):
         check(en[i].get('a1') == '/data.sqsh', f"open {i}: path {en[i].get('a1')}")
-        # the engine faults the path in at the entry: never late
         late = en[i].get('late', '0')
-        check(late == ('0' if pen else w['late']), f"open {i}: late={late} want {w['late']}")
+        check(late == w['late'], f"open {i}: late={late} want {w['late']}")
         check(en[i].get('pid') == self_pid, f"open {i}: pid {en[i].get('pid')}")
         if i < len(rt):
             check(rt[i].get('ret') == w['fd'], f"open {i}: ret {rt[i].get('ret')} want {w['fd']}")
@@ -84,7 +82,7 @@ def func(a, n):
     # fork: the child's first return and the parent's
     w = exp.get('fork', [{}])[0]
     ch = [e for e in tagged('fork', 'child') if e.get('pid') == w.get('child')]
-    check(pen or (len(ch) == 1 and ch[0].get('ret') == '0'), f'fork child: {ch}')
+    check(len(ch) == 1 and ch[0].get('ret') == '0', f'fork child: {ch}')
     pr = [e for e in tagged('forkret', 'return') if e.get('ret') == w.get('child')]
     check(len(pr) == 1 and pr[0].get('pid') == w.get('parent'), f'fork parent return: {pr}')
 
@@ -103,20 +101,6 @@ def func(a, n):
     check(pend and pend.group(1) == '0' and pend.group(2) == '0', f'leftover: {pend and pend.group(0)}')
     if n.startswith('tfunc'):
         check('mode=trap' in log, 'not in trap mode')
-    if pen:
-        # igloo's dispatch: the first skip ends the entry, the return hooks see
-        # its value; arguments and return values chain from hook to hook
-        check('mode=pen' in log, 'not under pyhost')
-        check(c('override', 'enter') == 1 and c('afterskip', 'enter') == 0,
-              f'skip: later hook ran {c("afterskip", "enter")} times')
-        sr = tagged('skipret', 'return')
-        check(len(sr) == 1 and sr[0].get('ret') == '777', f'skip: return hooks saw {sr}')
-        a2 = tagged('setarg2', 'enter')
-        check(len(a2) == 1 and a2[0].get('a1') == '0x65', f'argument chain: {a2}')
-        r2 = tagged('setret', 'return')
-        check(len(r2) == 1 and r2[0].get('ret') == '54', f'return chain: {r2}')
-        check(c('allneg', 'enter') == 0, f'on_all comm filter: {c("allneg", "enter")}')
-
     extra = ''
     if boot:
         extra = f' (hooks {boot.group(2)}, inline {boot.group(3)})'
@@ -208,223 +192,6 @@ def sctrap(a, n):
     return 'PASS' if not fails else 'FAIL: ' + '; '.join(fails)
 
 
-def pen(a, n):
-    """sc-pen (pyhost.py): string filters, unregister from a callback, scope,
-    a pid filter registered at run time, skip, chains."""
-    con, log = read(f'{O}/{a}-{n}.con'), read(f'{O}/{a}-{n}.log') or ''
-    if con is None:
-        return None
-    fails = []
-
-    def check(ok, what):
-        if not ok:
-            fails.append(what)
-    rc = re.search(r'^RC (\d+)', con, re.M)
-    check(rc and rc.group(1) == '0', f'qemu exit {rc and rc.group(1)}')
-    exp = {}
-    for line in con.splitlines():
-        m = re.match(r'SC expect (\w+) (.*)', line)
-        if m:
-            exp[m.group(1)] = kv(m.group(2))
-    ev = [dict(kv(x), ev=x.split()[1]) for x in log.splitlines()
-          if x.startswith('SC ') and x.split()[1] in ('enter', 'return')]
-    cnt = {d['tag']: d for d in (kv(x) for x in log.splitlines() if x.startswith('SC count'))}
-
-    def c(tag, k='enter'):
-        return int(cnt.get(tag, {}).get(k, -1))
-    me = exp.get('self', {}).get('pid')
-    check(me, 'no guest expectations')
-    want32 = n.endswith('32')
-    abis = {e.get('abi') for e in ev}
-    check(abis == ({'i386'} if a == 'x86_64' else {'arm'}) if want32 else abis == {a},
-          f'abi {abis}')
-    for tag in ('sw', 'ct', 'ew'):
-        e = [x for x in ev if x.get('tag') == tag]
-        check(len(e) == 1 and e[0].get('a1') == '/proc/self/status' and e[0].get('pid') == me,
-              f'string filter {tag}: {e}')
-    check(c('exneg') == 0 and c('swneg') == 0,
-          f'string filters that must fail: exact {c("exneg")}, prefix {c("swneg")}')
-    check(c('unregister') == 3, f'unregister: {c("unregister")} events, want 3')
-    w = exp.get('scope', {})
-    check(w.get('status') == '0', f'scope: unshare failed {w}')
-    check(c('scope_in') == int(w.get('in', -1)) and
-          c('scope_all') == int(w.get('in', 0)) + int(w.get('out', 0)),
-          f'scope: in {c("scope_in")} all {c("scope_all")} want {w}')
-    pf = [x for x in ev if x.get('tag') == 'pidfilter']
-    check(len(pf) == 4 and all(x.get('pid') == me for x in pf), f'pid filter: {len(pf)} events')
-    for k in ('skip', 'retchain', 'argchain'):
-        w = exp.get(k, {})
-        check(w.get('got') is not None and w.get('got') == w.get('want'), f'{k}: {w}')
-    check(c('afterskip') == 0, f'skip: the later hook ran {c("afterskip")} times')
-    sr = [x for x in ev if x.get('tag') == 'skipret']
-    check(len(sr) == 1 and sr[0].get('ret') == '616', f'skip: return hooks saw {sr}')
-    r2 = [x for x in ev if x.get('tag') == 'ret2']
-    check(len(r2) == 1 and r2[0].get('ret') == '1', f'return chain: {r2}')
-    a2 = [x for x in ev if x.get('tag') == 'arg2']
-    check(len(a2) == 1 and a2[0].get('a1') == '0xc9', f'argument chain: {a2}')
-    check(c('allneg') == 0, f'on_all comm filter: {c("allneg")}')
-    pend = re.search(r'SC exit pending=(\d+) stale=(\d+)', log)
-    check(pend and pend.group(1) == '0' and pend.group(2) == '0', f'leftover: {pend and pend.group(0)}')
-    return 'PASS' if not fails else 'FAIL: ' + '; '.join(fails)
-
-
-def fault(a, n):
-    """sc-fault (pyhost.py "fault"): string filters and callbacks' commands on
-    pages the task has not touched, at both events; an address with no
-    mapping (refused, no signal); a write that has to copy the page."""
-    con, log = read(f'{O}/{a}-{n}.con'), read(f'{O}/{a}-{n}.log') or ''
-    if con is None:
-        return None
-    fails = []
-
-    def check(ok, what):
-        if not ok:
-            fails.append(what)
-    rc = re.search(r'^RC (\d+)', con, re.M)
-    check(rc and rc.group(1) == '0', f'qemu exit {rc and rc.group(1)}')
-    check('segfault' not in con, 'the guest reported a segfault')
-    exp = {}
-    for line in con.splitlines():
-        m = re.match(r'SC expect (\w+) (.*)', line)
-        if m:
-            exp[m.group(1)] = kv(m.group(2))
-    check(exp.get('self'), 'no guest expectations')
-    for k in ('fstr', 'fbad', 'fread'):
-        w = exp.get(k, {})
-        check(w.get('got') is not None and w.get('got') == w.get('want'), f'{k}: {w}')
-    w = exp.get('fwrite', {})
-    check(w.get('pipe') == 'COW-DONE' and w.get('mem') == 'COW-DONE' and
-          w.get('file') == 'cow-me-original', f'write: {w}')
-    data = {}
-    for x in log.splitlines():
-        if x.startswith('SC data'):
-            d = kv(x)
-            data.setdefault(d['tag'], []).append(d)
-    cnt = {d['tag']: d for d in (kv(x) for x in log.splitlines() if x.startswith('SC count'))}
-
-    def c(tag, k='enter'):
-        return int(cnt.get(tag, {}).get(k, -1))
-    check(c('fstr') == 1, f'string filter: {c("fstr")} events, want 1')
-    r = data.get('fread', [{}])
-    check(len(r) == 1 and r[0].get('direct') == '0' and r[0].get('data') == 'hello-from-page1'
-          and int(r[0].get('faults', 0)) >= 1, f'read at the entry: {r}')
-    r = data.get('fwrite', [{}])
-    check(len(r) == 1 and r[0].get('readback') == 'COW-DONE' and int(r[0].get('faults', 0)) >= 1,
-          f'write at the entry: {r}')
-    r = data.get('fret', [])
-    check(len(r) == 2 and r[0].get('a0') == 'page3-at-return' and
-          r[0].get('a1') == 'page4-at-return' and int(r[0].get('faults', 0)) >= 2 and
-          r[1].get('a0') == 'FAIL' and r[1].get('a1') == 'page3-at-return',
-          f'reads at the return: {r}')
-    # one run per callback, however many faults
-    check(c('fread') == 1 and c('fwrite') == 1 and c('fret', 'return') == 2,
-          f'runs: read {c("fread")} write {c("fwrite")} return {c("fret", "return")}')
-    ex = kv(re.search(r'SC exit .*', log).group(0)) if 'SC exit' in log else {}
-    check(int(ex.get('refused', 0)) >= 2 and ex.get('runs') == '0' and ex.get('pending') == '0',
-          f'exit: {ex}')
-    return 'PASS' if not fails else 'FAIL: ' + '; '.join(fails)
-
-
-def reap(a, n):
-    """sc-reap (pyhost.py "reap"): two tasks killed with their calls in the
-    engine, one held for a fault that never completes (FUSE), one waiting
-    for its return; the reaper (release_task) drops both, and the held
-    run's callback is told (ABORT)."""
-    con, log = read(f'{O}/{a}-{n}.con'), read(f'{O}/{a}-{n}.log') or ''
-    if con is None:
-        return None
-    fails = []
-
-    def check(ok, what):
-        if not ok:
-            fails.append(what)
-    rc = re.search(r'^RC (\d+)', con, re.M)
-    check(rc and rc.group(1) == '0', f'qemu exit {rc and rc.group(1)}')
-    w = kv(re.search(r'SC expect reap (.*)', con).group(1)) if 'SC expect reap' in con else {}
-    check(w.get('c1') == '9' and w.get('c2') == '9', f'children not killed: {w}')
-    check('SC stuck' not in con, 'a child did not go')
-    m = {d['at']: d for d in (kv(x) for x in log.splitlines()
-                              if x.startswith('SC data tag=mark'))}
-    b, e = m.get('9191', {}), m.get('9192', {})
-    held = [x for x in log.splitlines() if x.startswith('SC data tag=held')]
-    check(b.get('pending') == '2' and b.get('runs') == '1',
-          f'before the kills: {b}, want 2 calls in the table, one run suspended')
-    check(e.get('pending') == '0' and int(e.get('reaped', 0)) - int(b.get('reaped', 0)) == 2
-          and e.get('aborts') == '1' and e.get('runs') == '0' and e.get('stale') == '0',
-          f'after: {e}, want both reaped, the run aborted')
-    check(held == ['SC data tag=held start'], f'held callback: {held}')
-    return 'PASS' if not fails else 'FAIL: ' + '; '.join(fails)
-
-
-def uapi(a, n):
-    """sc-pen under penhost.py with no kernel ISF: the hooks that need no
-    identity (string filters, unregister, skip, chains). Events carry no
-    trusted pid here, so string filter events are matched by path alone."""
-    con, log = read(f'{O}/{a}-{n}.con'), read(f'{O}/{a}-{n}.log') or ''
-    if con is None:
-        return None
-    fails = []
-
-    def check(ok, what):
-        if not ok:
-            fails.append(what)
-    rc = re.search(r'^RC (\d+)', con, re.M)
-    check(rc and rc.group(1) == '0', f'qemu exit {rc and rc.group(1)}')
-    exp = {}
-    for line in con.splitlines():
-        m = re.match(r'SC expect (\w+) (.*)', line)
-        if m:
-            exp[m.group(1)] = kv(m.group(2))
-    ev = [dict(kv(x), ev=x.split()[1]) for x in log.splitlines()
-          if x.startswith('SC ') and x.split()[1] in ('enter', 'return')]
-    cnt = {d['tag']: d for d in (kv(x) for x in log.splitlines() if x.startswith('SC count'))}
-
-    def c(tag, k='enter'):
-        return int(cnt.get(tag, {}).get(k, -1))
-    check(exp.get('self', {}).get('pid'), 'no guest expectations')
-    for tag in ('sw', 'ct', 'ew'):
-        e = [x for x in ev if x.get('tag') == tag and x.get('a1') == '/proc/self/status']
-        check(len(e) >= 1, f'string filter {tag}: {e}')
-    check(c('exneg') == 0 and c('swneg') == 0,
-          f'string filters that must fail: exact {c("exneg")}, prefix {c("swneg")}')
-    check(c('unregister') == 3, f'unregister: {c("unregister")} events, want 3')
-    for k in ('skip', 'retchain', 'argchain'):
-        w = exp.get(k, {})
-        check(w.get('got') is not None and w.get('got') == w.get('want'), f'{k}: {w}')
-    check(c('afterskip') == 0, f'skip: the later hook ran {c("afterskip")} times')
-    sr = [x for x in ev if x.get('tag') == 'skipret']
-    check(len(sr) == 1 and sr[0].get('ret') == '616', f'skip: return hooks saw {sr}')
-    r2 = [x for x in ev if x.get('tag') == 'ret2']
-    check(len(r2) == 1 and r2[0].get('ret') == '1', f'return chain: {r2}')
-    a2 = [x for x in ev if x.get('tag') == 'arg2']
-    check(len(a2) == 1 and a2[0].get('a1') == '0xc9', f'argument chain: {a2}')
-    pend = re.search(r'SC exit pending=(\d+) stale=(\d+)', log)
-    check(pend and pend.group(1) == '0' and pend.group(2) == '0', f'leftover: {pend and pend.group(0)}')
-    return 'PASS' if not fails else 'FAIL: ' + '; '.join(fails)
-
-
-def penguin(judge, a, n):
-    """a run under penhost.py (penguin's Syscalls, trap backend): the judge's
-    verdict, every pt_regs consistent with its event, the prototypes from
-    igloo's syscall reports"""
-    v = judge(a, n)
-    log = read(f'{O}/{a}-{n}.log')
-    if v is None or log is None:
-        return v
-    fails = [] if v == 'PASS' else [v[len('FAIL: '):]]
-    regs = [x for x in log.splitlines() if x.startswith('SC regs')]
-    badr = [x for x in regs if 'ok=1' not in x]
-    if not regs or badr:
-        fails.append(f'pt_regs: {len(badr)} of {len(regs)} inconsistent {badr[:2]}')
-    ex = kv(re.search(r'SC exit .*', log).group(0)) if 'SC exit' in log else {}
-    if int(ex.get('protos', 0)) < 100:
-        fails.append(f'prototypes: {ex.get("protos")}')
-    err = re.search(r'SC error .*', log)
-    if err:
-        fails.append(err.group(0))
-    return 'PASS' if not fails else 'FAIL: ' + '; '.join(fails)
-
-
 def evict(a, n='evict'):
     """3500 successful execs, each leaving its call pending: the oldest are
     dropped when the table (4096) is 3/4 full."""
@@ -501,56 +268,6 @@ if trows:
     for a, r in trows:
         print(f'| {a} | ' + ' | '.join(r) + ' |')
 
-prows = []
-for a in ARCHS:
-    r = [func(a, 'pfunc'), func(a, 'pfunc-smp'), sctrap(a, 'ptrap'), sctrap(a, 'ptrap32'),
-         pen(a, 'pen'), pen(a, 'pen32'), fault(a, 'pfault'), fault(a, 'pfault32'),
-         fault(a, 'pmem'), reap(a, 'preap'), reap(a, 'preap32'), evict(a, 'pevict')]
-    if any(x is not None for x in r):
-        r = [x if x is not None else 'not run' for x in r]
-        bad += sum(1 for x in r if x.startswith('FAIL'))
-        prows.append((a, r))
-ns = []
-for a in ARCHS:
-    r = [penguin(pen, a, 'npen'), penguin(pen, a, 'npen32'), penguin(fault, a, 'nfault'),
-         penguin(fault, a, 'nfault32'), penguin(reap, a, 'nreap'), penguin(reap, a, 'nreap32')]
-    if any(x is not None for x in r):
-        r = [x if x is not None else 'not run' for x in r]
-        bad += sum(1 for x in r if x.startswith('FAIL'))
-        ns.append((a, r))
-us = []
-for a in ARCHS:
-    r = [penguin(uapi, a, 'nuapi'), penguin(uapi, a, 'nuapi32')]
-    if any(x is not None for x in r):
-        r = [x if x is not None else 'not run' for x in r]
-        bad += sum(1 for x in r if x.startswith('FAIL'))
-        us.append((a, r))
-if prows:
-    print('\n## penguin_syscall_* hooks (system/penguin-syscalls.c, hosted by pyhost.py)\n')
-    print('| arch | sc-func, 1 vCPU | sc-func, 2 vCPUs | sc-trap | sc-trap, 32-bit build '
-          '| sc-pen | sc-pen, 32-bit build | sc-fault | sc-fault, 32-bit build '
-          '| sc-fault, penguin\'s mem.py | sc-reap | sc-reap, 32-bit build '
-          '| 3500 execs (eviction) |')
-    print('|---|---|---|---|---|---|---|---|---|---|---|---|---|')
-    for a, r in prows:
-        print(f'| {a} | ' + ' | '.join(r) + ' |')
-
-if ns:
-    print('\n## penguin\'s Syscalls on the trap (backend=trap; penhost.py: qemu_compat, '
-          'apis/syscalls.py, apis/mem.py)\n')
-    print('| arch | sc-pen | sc-pen, 32-bit build | sc-fault | sc-fault, 32-bit build '
-          '| sc-reap | sc-reap, 32-bit build |')
-    print('|---|---|---|---|---|---|---|')
-    for a, r in ns:
-        print(f'| {a} | ' + ' | '.join(r) + ' |')
-
-if us:
-    print('\n## penguin\'s Syscalls with no kernel ISF (ISF=none: uapi numbers, no identity filters)\n')
-    print('| arch | sc-pen hooks without comm/scope/pid | the same, 32-bit build |')
-    print('|---|---|---|')
-    for a, r in us:
-        print(f'| {a} | ' + ' | '.join(r) + ' |')
-
 SETS = ['none', 'empty', 'one', 'ret', 'comm', 'all', 'allret', 'log', 'fail', 'pass']
 R = {a: {n: bench_runs(a, 'bench-' + n) for n in SETS} for a in ARCHS}
 for a in ARCHS:
@@ -623,9 +340,7 @@ if have:
         print(f'| {a} | {where} | {fmt(within(a, "fail", 1))} | {fmt(within(a, "pass", 1))} |')
 
     T = {a: {n: bench_runs(a, 'trapbench-' + n) for n in SETS if n != 'none'} for a in have}
-    PN = {a: {n: bench_runs(a, 'penbench-' + n) for n in SETS if n != 'none'} for a in have}
-    PS = {a: {n: bench_runs(a, 'pybench-' + n) for n in SETS if n != 'none'} for a in have}
-    tv = [a for a in have if any(T[a].values()) or any(PN[a].values()) or any(PS[a].values())]
+    tv = [a for a in have if any(T[a].values())]
     if tv:
         def within_src(src):
             def w(a, n, i):
@@ -638,8 +353,7 @@ if have:
             x = min([r[i] for r in runs], default=None)
             return None if x is None else x - base
 
-        print('\n## Handler hooks against QEMU syscall events (trap mode, and the '
-              'penguin_syscall_* engine with Python callbacks): ns added\n')
+        print('\n## Handler hooks against QEMU syscall events (trap mode): ns added\n')
         print('getppid columns: against getsid in the same boot; getsid and "*" columns: '
               'fastest boot against the fastest no-plugin boot\n')
         cols = [('one', 0, 'getppid count'), ('ret', 0, 'count + return'),
@@ -650,9 +364,7 @@ if have:
         print('|---|---|' + '---|' * (len(cols) + 3))
         for a in tv:
             b0, b2 = min(r[0] for r in R[a]['none']), min(r[2] for r in R[a]['none'])
-            for mode, src, w in (('handler', R[a], within), ('trap', T[a], within_t),
-                                 ('penguin', PN[a], within_src(PN)),
-                                 ("penguin's Syscalls", PS[a], within_src(PS))):
+            for mode, src, w in (('handler', R[a], within), ('trap', T[a], within_t)):
                 if not any(src.values()):
                     continue
                 cells = [fmt(w(a, n, i)) for n, i, _ in cols]

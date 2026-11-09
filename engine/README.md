@@ -22,8 +22,8 @@ engine/
   nix/source.nix        tarball + series + src/ -> the patched tree (`nix build .#engine-src`)
   scripts/              verify-series.sh (THE gate), import-series.sh, export-series.sh,
                         probe-versions.sh, offcost-gate.sh, check-delta-present.sh, lib-extract.sh
-  tests/guest/          the engine-level guest harness (address hooks, page-in, syscall trap/engine,
-                        OSI, rr, off-cost); not run in CI except through the off-cost gate
+  tests/guest/          the engine-level guest harness (address hooks, page-in, syscall trap, rr,
+                        off-cost); not run in CI except through the off-cost gate
   tests/modules/        panda modules and the configurable machine on an aarch64 engine build
                         (run.sh BUILD SDK, configurable.sh BUILD; ext-devices.c is also the
                         flake's `board-example`)
