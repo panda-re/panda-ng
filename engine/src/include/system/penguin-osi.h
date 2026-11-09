@@ -13,12 +13,9 @@
  * Each call reads the kernel as it is at that moment, and keeps the pages
  * it touched for the length of the call.  A task's user memory (arguments,
  * environment) is read through the task's page tables: a page that is not
- * present fails the read (no fault is taken here; the syscall engine's
- * commands take one for the current task).
+ * present fails the read (no fault is taken here).
  *
- * The same walks serve the syscall engine's filters (penguin-syscalls.h:
- * exe_filter, PENGUIN_SC_SUBJECT_FD_PATH) and Penguin's OSI calls.  Any
- * thread; the vCPU must not run during a call (callbacks, or a stopped VM).
+ * Any thread; the vCPU must not run during a call (callbacks, or a stopped VM).
  * 64-bit little-endian kernels (x86_64, AArch64).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
@@ -188,7 +185,7 @@ int penguin_osi_mappings(CPUState *cs, uint64_t task,
                          struct penguin_osi_vma *out, int max,
                          char *strs, uint32_t slen);
 
-/* how a name is matched: as the syscall filters' string types */
+/* how a name is matched */
 enum penguin_osi_match {
     PENGUIN_OSI_MATCH_EXACT,
     PENGUIN_OSI_MATCH_CONTAINS,
@@ -218,8 +215,7 @@ int penguin_osi_user_read(CPUState *cs, uint64_t task, uint64_t va,
 /*
  * Kernel memory by the kernel's own direct map and image (no TLB, no page
  * walk): false if @va..@va+@len is not all there, or the map is not known
- * yet (then read it another way).  The syscall engine's reads of the
- * current task use it.
+ * yet (then read it another way).
  */
 bool penguin_osi_kread(CPUState *cs, uint64_t va, void *buf, uint32_t len);
 

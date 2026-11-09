@@ -27,7 +27,6 @@ def function(text, name):
 
 core = (ROOT / 'engine/src/system/syscall-trap.c').read_text()
 callbacks = (ROOT / 'engine/src/panda/src/callbacks.c').read_text()
-penguin = (ROOT / 'engine/src/system/penguin-syscalls.c').read_text()
 header = (ROOT / 'engine/src/include/system/syscall-trap.h').read_text()
 trap = header[header.index('typedef struct SyscallTrap {'):header.index('/* one consumer')]
 slots = core[core.index('#define SC_SLOTS'):core.index('/*\n * Run the call the consumer')]
@@ -72,18 +71,37 @@ static struct { void *plugin; bool unload, exported_symbols; } panda_plugins[] =
 static int nb_panda_plugins = 3;
 #define CPU_FOREACH(cpu) for (cpu = cpus; cpu < cpus + 2; cpu++)
 '''
-# Penguin's existing drop -> ABORT -> free chain, with only its unrelated fields stubbed.
-psc_stubs = r'''
-#define PENGUIN_SC_OP_ABORT 9
-struct penguin_sc_cmd { int op; };
-typedef struct { bool running; struct penguin_sc_cmd cmd; int ev; void *wdata, *rbuf; } PRun;
-typedef void (*penguin_syscall_cb_t)(CPUState *, int *, struct penguin_sc_cmd *, void *);
-static penguin_syscall_cb_t psc_cb;
-static void *psc_cb_opaque;
+# A consumer's drop -> ABORT -> free chain: per-call data that owns buffers and tells its
+# callback the call is gone, as a syscall-trap consumer keeps it.
+consumer = r'''
+#define CONSUMER_OP_ABORT 9
+struct consumer_cmd { int op; };
+typedef struct { bool running; struct consumer_cmd cmd; int ev; void *wdata, *rbuf; } PRun;
+typedef void (*consumer_cb_t)(CPUState *, int *, struct consumer_cmd *, void *);
+static consumer_cb_t consumer_cb;
+static void *consumer_cb_opaque;
 static unsigned aborted, resolved;
-static void psc_fault_resolved(PRun *r) { resolved++; }
+static void consumer_run_free(PRun *r)
+{
+    if (r) {
+        resolved++;
+        g_free(r->wdata);
+        g_free(r->rbuf);
+        g_free(r);
+    }
+}
+static void consumer_drop(SyscallTrap *sc, void *opaque)
+{
+    PRun *r = sc->data;
+    consumer_cb_t cb = qatomic_read(&consumer_cb);
+
+    if (r && r->running && cb) {
+        r->cmd = (struct consumer_cmd) { .op = CONSUMER_OP_ABORT };
+        cb(NULL, &r->ev, &r->cmd, consumer_cb_opaque);
+    }
+    consumer_run_free(r);
+}
 '''
-psc = '\n'.join(function(penguin, n) for n in ['psc_run_free', 'psc_run_abort', 'psc_drop'])
 cancel = function(core, 'syscall_trap_cancel_all')
 release = ('void syscall_trap_unwatch_all(void);\n' + '\n'.join(
     function(core, n) for n in ['syscall_trap_set_consumer',
@@ -145,11 +163,11 @@ static void checked_drop(SyscallTrap *sc, void *opaque)
         assert(!syscall_trap_clear_consumer(expected_ops, &core_cookie));
     }
     drops++;
-    psc_drop(sc, opaque);
+    consumer_drop(sc, opaque);
 }
-static void on_abort(CPUState *cpu, int *ev, struct penguin_sc_cmd *cmd, void *opaque)
+static void on_abort(CPUState *cpu, int *ev, struct consumer_cmd *cmd, void *opaque)
 {
-    assert(!cpu && cmd->op == PENGUIN_SC_OP_ABORT && opaque == &callback_cookie);
+    assert(!cpu && cmd->op == CONSUMER_OP_ABORT && opaque == &callback_cookie);
     /* Every slot, counter and caller fault scratch is clear before the first ABORT. */
     assert(g_mutex_trylock(&sc_lock));
     static const SCSlot zero = {0};
@@ -207,8 +225,8 @@ int main(void)
     static const SyscallTrapOps ops = { .drop = checked_drop };
     expected_ops = &ops;
     assert(syscall_trap_set_consumer(&ops, &core_cookie));
-    psc_cb = on_abort;
-    psc_cb_opaque = &callback_cookie;
+    consumer_cb = on_abort;
+    consumer_cb_opaque = &callback_cookie;
     sc_watch[0][9] = 3;
     sc_watch_all[2] = 3;
     syscall_trap_on = true;
@@ -343,12 +361,12 @@ int main(void)
     assert(panda_register_transient_reset((void *)1, remove_later, (void *)1));
     panda_analysis_reset();
     assert(hooks_seen[1] == 2 && !panda_transient_resets);
-    puts("PASS: mixed pending/held/injected cancellation; late-injection refusal without partial changes; safe mixed drain with retained core/Penguin opaque outside locks; persistent watches, idempotence, reset hooks and deferred unload");
+    puts("PASS: mixed pending/held/injected cancellation; late-injection refusal without partial changes; safe mixed drain with retained core/consumer opaque outside locks; persistent watches, idempotence, reset hooks and deferred unload");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='lifecycle-static-') as temp:
     path = Path(temp)
-    (path / 'test.c').write_text(stubs + trap + slots + psc_stubs + psc + cancel + release + checks + hooks + tests)
+    (path / 'test.c').write_text(stubs + trap + slots + consumer + cancel + release + checks + hooks + tests)
     flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'glib-2.0'], text=True))
     subprocess.run([os.environ.get('CC', 'cc'), '-std=gnu11', '-O1', '-g',
                     str(path / 'test.c'), '-o', str(path / 'test'), *flags], check=True)

@@ -54,7 +54,7 @@ path = [
   "engine/patches/11.1.2/0016-plugins-kvm-x86-faulting-accesses-and-breakpoint-cal.patch",
   "engine/patches/11.1.2/0017-plugins-batched-faulting-accesses-qemu_plugin_access.patch",
   "engine/patches/11.1.2/0020-plugins-address-hooks-register-pointers-TLB-first-re.patch",
-  "engine/patches/11.1.2/0021-system-build-the-penguin-syscall-engine-and-host-sid.patch",
+  "engine/patches/11.1.2/0021-system-build-the-host-side-OSI.patch",
   "engine/patches/11.1.2/0023-target-arm-kvm-penguin-hypercalls-under-arm64-KVM-SM.patch",
   "engine/patches/11.1.2/0026-target-i386-keep-the-guest-TSC-continuous-across-a-c.patch",
   "engine/patches/11.1.2/0030-replay-declare-replay_mutex_locked-in-system-replay..patch",

@@ -53,10 +53,6 @@ STUBS = r'''
 #define qatomic_read(p) (*(p))
 #define qatomic_inc(p) (++*(p))
 #define qatomic_fetch_inc(p) ((*(p))++)
-#define PSC_FAULTS 4
-#define PSC_TRIES 3
-#define PENGUIN_SC_IO_MAX 4096
-#define PENGUIN_SC_STR_MAX 1024
 #define DEVICE_NATIVE_ENDIAN 0
 #define g_new0(t,n) ((t *)alloc_zero(sizeof(t) * (n)))
 enum { REPLAY_MODE_NONE, REPLAY_MODE_RECORD, REPLAY_MODE_PLAY };
@@ -66,8 +62,6 @@ typedef uint64_t vaddr;
 typedef struct { uint64_t regs[8]; } CPUArchState;
 typedef struct CPUState { CPUArchState env; } CPUState;
 static int env_calls, syncs, writes, allocations, duplicates, inits, mappings;
-static int restores, observers, jumps, arch_calls, reads, refusals, reg_sets;
-static int hooks_checks, executions, holds, callbacks;
 static CPUArchState *cpu_env(CPUState *cpu) { env_calls++; return &cpu->env; }
 static target_ulong regs[] = {0, 1, 2};
 static void cpu_synchronize_state(CPUState *cpu) { (void)cpu; syncs++; }
@@ -126,85 +120,7 @@ static void *get_system_memory(void) { return NULL; }
 static void memory_region_add_subregion_overlap(void *s, uint64_t a, int *mr, int p) {
     (void)s; (void)a; (void)mr; (void)p; mappings++;
 }
-static void tcg_hook_restore_state(CPUState *cpu) { (void)cpu; restores++; }
-static void tcg_hook_set_pc(CPUState *cpu, uint64_t pc) { (void)cpu; (void)pc; jumps++; }
-typedef struct { uint64_t (*cb)(CPUState *, uint64_t, void *); void *opaque; } PKHook;
-static uint64_t hook_observer(CPUState *cpu, uint64_t pc, void *opaque) {
-    (void)cpu; assert(opaque == &observers); observers++; return pc + 4;
-}
-static bool psc_x86 = true, psc_arm32;
-static int psc_arch(void) { arch_calls++; return 1; }
-static uint64_t psc_reg(CPUState *cpu, int n) { (void)cpu; (void)n; reads++; return 16; }
-static int cpu_memory_rw_debug(CPUState *cpu, uint64_t a, uint8_t *b, int n, bool w) {
-    (void)cpu; (void)a; (void)w; reads++; memset(b, 0, n); b[0] = 32; return 0;
-}
-static bool target_big_endian(void) { return false; }
-static uint32_t ldl_be_p(uint8_t *p) { return *p; }
-static uint32_t ldl_le_p(uint8_t *p) { return *p; }
-static uint64_t ldq_le_p(uint8_t *p) { return *p; }
-static bool psc_fault_refuse(uint64_t a) { (void)a; refusals++; return true; }
-static void psc_set_reg(CPUState *cpu, int n, uint64_t v) {
-    (void)cpu; (void)n; (void)v; reg_sets++;
-}
-enum { PENGUIN_SC_OP_NONE, PENGUIN_SC_OP_READ, PENGUIN_SC_OP_READ_STR,
-       PENGUIN_SC_OP_WRITE, PENGUIN_SC_OP_SYSCALL, PENGUIN_SC_FAIL = -1 };
-struct penguin_sc_cmd {
-    int op, status;
-    uint64_t addr, size;
-    void *data, *buf;
-    size_t len;
-    int64_t num, ret;
-};
-typedef struct {
-    uint64_t args[6], hook, call;
-    int64_t retval;
-    bool skip_syscall;
-} Event;
-typedef struct {
-    struct penguin_sc_cmd cmd;
-    unsigned total, budget, streak, nbad;
-    uint64_t fpage, bad[4];
-    void *wdata;
-    unsigned i, n;
-    uint64_t ids[1], args[6];
-    int phase;
-    bool running, skip;
-    int64_t ret;
-    Event ev;
-} PRun;
-typedef struct { uint64_t args[6]; } Trap;
-typedef struct { PRun *r; void *t; CPUState *cpu; Trap *sc; } PCtx;
-typedef struct { bool dead; uint64_t id; } PHook;
-typedef void (*penguin_syscall_cb_t)(CPUState *, Event *, struct penguin_sc_cmd *, void *);
-static penguin_syscall_cb_t psc_cb;
-static void *psc_cb_opaque;
-static unsigned psc_events, psc_next_call;
-static bool psc_guarded = true, psc_consumer = true;
-static bool psc_hooks_ok(void) { hooks_checks++; return true; }
-static size_t qemu_target_page_size(void) { return 4096; }
-static PHook test_hook = { .id = 1 };
-static const PHook *psc_find(void *t, uint64_t id) { (void)t; (void)id; return &test_hook; }
-static void psc_fill(PCtx *c, Event *e, const uint64_t *a, bool enter) {
-    (void)c; (void)enter; memset(e, 0, sizeof(*e)); memcpy(e->args, a, sizeof(e->args));
-}
-static bool psc_cmd(PCtx *c) { (void)c; executions++; return true; }
-static void psc_hold(PCtx *c, int phase) { (void)c; (void)phase; holds++; }
-static int command_op;
 static uint8_t payload = 7;
-static void command_observer(CPUState *cpu, Event *e, struct penguin_sc_cmd *cmd, void *p) {
-    (void)cpu; (void)e; (void)p;
-    if (callbacks++ == 0) {
-        *cmd = (struct penguin_sc_cmd){ .op = command_op, .size = 1,
-                                      .data = &payload, .num = 1, .ret = 99 };
-    } else {
-        if (replay_mode != REPLAY_MODE_NONE) {
-            assert(cmd->status == PENGUIN_SC_FAIL);
-            assert(cmd->data == &payload);
-            if (command_op == PENGUIN_SC_OP_SYSCALL) assert(cmd->ret == 0);
-        }
-        cmd->op = PENGUIN_SC_OP_NONE;
-    }
-}
 '''
 
 
@@ -237,50 +153,6 @@ int main(int argc, char **argv) {
         assert(allocations == live && duplicates == live);
         assert(inits == live && mappings == live);
         if (mapped) { free(mapped->name); free(mapped); }
-    } else if (!strcmp(argv[2], "hook")) {
-        PKHook hook = { hook_observer, &observers };
-        pkh_fn(&cpu, 4096, &hook);
-        assert(restores == 1 && observers == 1);
-        assert(jumps == live);
-    } else if (!strcmp(argv[2], "guard")) {
-        /* Detached internal hooks remain inert even outside record/replay. */
-        psc_consumer = false;
-        psc_guard_cb(&cpu, 4096, NULL);
-        psc_guard_cb(&cpu, 4096, (void *)1);
-        assert(!arch_calls && !reads && !refusals && !reg_sets && !jumps);
-        psc_consumer = true;
-        /* Both signal forms must reject before any guest lookup/bookkeeping. */
-        psc_guard_cb(&cpu, 4096, NULL);
-        psc_guard_cb(&cpu, 4096, (void *)1);
-        assert(arch_calls == (live ? 2 : 0));
-        assert(reads == (live ? 7 : 0));
-        assert(refusals == (live ? 2 : 0));
-        assert(reg_sets == (live ? 4 : 0));
-        assert(jumps == (live ? 2 : 0));
-    } else if (!strcmp(argv[2], "fault")) {
-        PCtx c = {0};
-        assert(psc_may_fault(&c, 4096) == live);
-        assert(hooks_checks == live);
-        PRun r = { .budget = 4 };
-        c.r = &r;
-        assert(psc_may_fault(&c, 4096) == live);
-        r.nbad = 1; r.bad[0] = 4096;
-        assert(!psc_may_fault(&c, 4096));
-    } else if (!strcmp(argv[2], "commands")) {
-        /* Exercise the real psc_run caller, not a reimplementation of its branch. */
-        for (int op = PENGUIN_SC_OP_WRITE; op <= PENGUIN_SC_OP_SYSCALL; op++) {
-            PRun r = { .n = 1, .ids = {1} };
-            Trap trap = {0};
-            PCtx c = { .r = &r, .cpu = &cpu, .sc = &trap };
-            command_op = op;
-            callbacks = executions = allocations = holds = 0;
-            psc_cb = command_observer;
-            assert(psc_run(&c, true));
-            assert(callbacks == 2 && holds == 0);
-            assert(executions == live);
-            assert(allocations == (live && op == PENGUIN_SC_OP_WRITE));
-            free(r.wdata);
-        }
     } else { assert(!"unknown case"); }
     return 0;
 }
@@ -312,16 +184,6 @@ def harness():
         ('system/penguin.c', 'penguin_qemu_add_mmio_region',
          'static int penguin_qemu_add_mmio_region(uint64_t base, uint64_t size, const char *name, '
          'penguin_mmio_read_cb_t read_cb, penguin_mmio_write_cb_t write_cb, void *opaque)'),
-        ('system/penguin-syscalls.c', 'pkh_fn',
-         'static void pkh_fn(CPUState *cpu, vaddr pc, void *opaque)'),
-        ('system/penguin-syscalls.c', 'psc_guard_cb',
-         'static void psc_guard_cb(CPUState *cpu, vaddr pc, void *opaque)'),
-        ('system/penguin-syscalls.c', 'psc_may_fault',
-         'static bool psc_may_fault(PCtx *c, uint64_t page)'),
-        ('system/penguin-syscalls.c', 'psc_cmd_take',
-         'static bool psc_cmd_take(PRun *r)'),
-        ('system/penguin-syscalls.c', 'psc_run',
-         'static bool psc_run(PCtx *c, bool is_enter)'),
     ]
     # replay-analysis.h is generated by the patch pipeline, not present in src.
     patch = (ROOT / 'engine/patches/11.1.2/0084-replay-guard-guest-state-against-analysis-mutations.patch').read_text()
@@ -343,7 +205,7 @@ class ReplayNative(unittest.TestCase):
                                       '-Werror=implicit-function-declaration', '-I', str(SRC / 'include'),
                                       str(source), '-o', str(executable)], check=True)
             for mode, name in enumerate(('NONE', 'RECORD', 'PLAY')):
-                for case in ('setters', 'hypercall', 'mmio', 'hook', 'guard', 'fault', 'commands'):
+                for case in ('setters', 'hypercall', 'mmio'):
                     with self.subTest(mode=name, case=case):
                         subprocess.run([str(executable), str(mode), case], check=True)
 

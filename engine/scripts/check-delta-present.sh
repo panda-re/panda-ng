@@ -34,13 +34,10 @@ CORE_SYMS=(
     penguin_handle_qmp
     penguin_invoke_reset_request_callback
 )
-# The pagein/syscall-engine sources (src/system/penguin-syscalls.c, penguin-osi.c,
-# syscall-trap.c, accel/tcg/hooks.c) and the plugin API patches: target-independent
-# system code, so in EVERY system library.
+# The pagein/syscall-trap sources (src/system/penguin-osi.c, syscall-trap.c,
+# accel/tcg/hooks.c) and the plugin API patches: target-independent system code,
+# so in EVERY system library.
 ENGINE_SYMS=(
-    set_penguin_syscall_callback
-    penguin_syscall_register
-    penguin_syscall_set_exec
     penguin_osi_set_layout
     syscall_trap_enter
     syscall_trap_return

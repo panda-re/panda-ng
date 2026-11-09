@@ -391,14 +391,14 @@ hit), and read registers through stable pointers instead of the register API.
 <a id="syscall-trap"></a>
 ## Syscall trap and host-side introspection
 
-Trap guest system calls in the engine, serve them on the host (penguin's syscall engine), read
-process state host-side from the kernel's symbols, and redirect the guest from a syscall entry.
+Trap guest system calls in the engine, serve them to a plugin consumer, read process state
+host-side from the kernel's symbols, and redirect the guest from a syscall entry.
 
-**Limits.** Native syscall trap events require TCG; symbol presence does not establish KVM support. Penguin's explicit detach requires main-thread/BQL stopped-vCPU quiescence and no public kernel hooks or live injected calls. Persistent profile/internal hooks survive; this is not full unload or profile reconfiguration. Checked lifetime/child-birth correlation and current consumer admission remain incomplete.
+**Limits.** Native syscall trap events require TCG; symbol presence does not establish KVM support. Checked lifetime/child-birth correlation and current consumer admission remain incomplete.
 
-**Use it:** `qemu_plugin_set_pc`, `penguin_syscall_detach`
+**Use it:** `qemu_plugin_set_pc`
 
-**Tests:** `engine/tests/guest/sctest.sh`, `engine/tests/guest/ositest.sh`, `engine/tests/guest/setpctest.sh`, `tests/static/penguin_detach.py`
+**Tests:** `engine/tests/guest/sctest.sh`, `engine/tests/guest/setpctest.sh`
 
 **Engine patches:** 0019, 0021, 0033 ([series](reference/patches.md))
 

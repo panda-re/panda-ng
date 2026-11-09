@@ -45,7 +45,7 @@ Counts: new 65, penguin 26, panda-re/qemu 6, ac88u 2.
 | 0018 | accel/tcg: translation-time address hooks and register pointers | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT | qemu_builder workspace/pagein |
 | 0019 | system, target/i386, target/arm: the syscall trap | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later | qemu_builder workspace/pagein |
 | 0020 | plugins: address hooks, register pointers, TLB-first reads, syscall events | penguin | GPL-2.0-or-later | qemu_builder workspace/pagein |
-| 0021 | system: build the penguin syscall engine and host-side OSI | penguin | GPL-2.0-or-later | qemu_builder workspace/pagein |
+| 0021 | system: build the host-side OSI | penguin | GPL-2.0-or-later | qemu_builder workspace/pagein |
 | 0022 | i386: resume a KVM snapshot under TCG and a TCG snapshot under KVM | penguin | GPL-2.0-only AND GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT | qemu_builder workspace/panda-next-kvmtcg; Patch-Set: igloo-core |
 | 0023 | target/arm/kvm: penguin hypercalls under arm64 KVM (SMCCC filter + mailbox doorbell) | penguin | GPL-2.0-or-later | qemu_builder workspace/panda-next-arm64kvm; from Jacques Becker's kvm_aarch64 patch |
 | 0024 | target/arm, arm_gic: resume an aarch64 KVM snapshot under TCG and a TCG snapshot under KVM | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later | qemu_builder workspace/panda-next-arm64kvm (UNCERTAIN: kvm/tcg handoff companion of 0022; could be new) |

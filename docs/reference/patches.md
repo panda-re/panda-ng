@@ -26,7 +26,7 @@ QEMU 11.1.2 plus 101 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0018 | accel/tcg: translation-time address hooks and register pointers | [engine-hooks](../features.md#engine-hooks) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
 | 0019 | system, target/i386, target/arm: the syscall trap | [syscall-trap](../features.md#syscall-trap) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
 | 0020 | plugins: address hooks, register pointers, TLB-first reads, syscall events | [engine-hooks](../features.md#engine-hooks) | penguin | GPL-2.0-or-later |
-| 0021 | system: build the penguin syscall engine and host-side OSI | [syscall-trap](../features.md#syscall-trap) | penguin | GPL-2.0-or-later |
+| 0021 | system: build the host-side OSI | [syscall-trap](../features.md#syscall-trap) | penguin | GPL-2.0-or-later |
 | 0022 | i386: resume a KVM snapshot under TCG and a TCG snapshot under KVM | [kvm-tcg](../features.md#kvm-tcg) | penguin | GPL-2.0-only AND GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
 | 0023 | target/arm/kvm: penguin hypercalls under arm64 KVM (SMCCC filter + mailbox doorbell) | [kvm](../features.md#kvm) | penguin | GPL-2.0-or-later |
 | 0024 | target/arm, arm_gic: resume an aarch64 KVM snapshot under TCG and a TCG snapshot under KVM | [kvm-tcg](../features.md#kvm-tcg) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
