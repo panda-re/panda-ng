@@ -30,7 +30,7 @@ Non-goals:
 - **KVM.** Record/replay is TCG only.
 - **Penguin MMIO reads.** Refused during record/replay for now; a later event records their answers ([Refusals](#refusals)).
 - **Syscall-trap control effects** (skip, inject, fault), reset and map_memory. These stay refused. If they are wanted later, each becomes its own op kind in the same event.
-- **Device MMIO writes from analysis.** Refused, as 0091 already does.
+- **Device MMIO writes from analysis.** Refused, as 0090 already does.
 
 ## Current state
 
@@ -38,9 +38,9 @@ There are four mechanisms in the stack today. They overlap, and none is the gene
 
 | Mechanism | Where | What it does | Limit |
 |---|---|---|---|
-| Guard | #33 (0084) | Refuses guest writes and mutating callbacks during record/replay. | Everything that mutates is refused. |
-| Deferred effects | #34/#35 (0091, 0092) | `panda_analysis_ram_write` and `panda_analysis_reg_write` queue a write from the main thread, with vCPUs stopped. The write is applied and logged at the next async checkpoint. | Can't be used from a vCPU callback. The write lands later, not at the callback's instruction. |
-| Hypercall event | Slice H (0093, allocated 0095) | One `EVENT_HYPERCALL` per hypercall. The handler's writes through `panda_mem`, `panda_write_guest_reg` and `panda_set_retval` are logged. Replay skips the handler and repeats the writes. | Hypercalls only. Writes made directly into CPU state are caught by diffing the 'g'-packet registers, which is implicit logging. |
+| Guard | #33 (0083) | Refuses guest writes and mutating callbacks during record/replay. | Everything that mutates is refused. |
+| Deferred effects | #34/#35 (0090, 0091) | `panda_analysis_ram_write` and `panda_analysis_reg_write` queue a write from the main thread, with vCPUs stopped. The write is applied and logged at the next async checkpoint. | Can't be used from a vCPU callback. The write lands later, not at the callback's instruction. |
+| Hypercall event | Slice H (0092, allocated 0095) | One `EVENT_HYPERCALL` per hypercall. The handler's writes through `panda_mem`, `panda_write_guest_reg` and `panda_set_retval` are logged. Replay skips the handler and repeats the writes. | Hypercalls only. Writes made directly into CPU state are caught by diffing the 'g'-packet registers, which is implicit logging. |
 | Skip mutators | #39 (held) | Replay doesn't run mutating callbacks. | Nothing is logged, so the replay diverges. This contradicts never-skip. |
 
 The proposal generalises slice H: its scope, event and replay path become the API's core. Slice H's register diff is dropped: writes outside the API are unsupported, not diffed.
@@ -80,8 +80,8 @@ void panda_guest_env_sync(CPUState *cpu);
 int panda_guest_reg_lookup(CPUState *cpu, const char *name, size_t *len);  /* -1 if unknown */
 ```
 
-- **Register names.** Registers are named by their gdbstub register number, as 0092 and the embedding API's `panda_write_guest_reg` already do. The gdbstub XML features cover core, FP/vector and SVE registers on every target, so no per-arch table is needed. `panda_guest_reg_lookup` maps a feature name such as `x0`, `xmm3` or `z7` to its number and size.
-- **System registers.** Not every target can write them through gdbstub: ARM system registers and aarch64 pointer-authentication keys refuse today, and x86 MSRs beyond the gdb set are missing. Phase 4 adds an engine-side writer for each target's listed system registers. Until then, those writes return `EACCES` and are logged as denied, as 0092 does.
+- **Register names.** Registers are named by their gdbstub register number, as 0091 and the embedding API's `panda_write_guest_reg` already do. The gdbstub XML features cover core, FP/vector and SVE registers on every target, so no per-arch table is needed. `panda_guest_reg_lookup` maps a feature name such as `x0`, `xmm3` or `z7` to its number and size.
+- **System registers.** Not every target can write them through gdbstub: ARM system registers and aarch64 pointer-authentication keys refuse today, and x86 MSRs beyond the gdb set are missing. Phase 4 adds an engine-side writer for each target's listed system registers. Until then, those writes return `EACCES` and are logged as denied, as 0091 does.
 - **Env writes: two levels.** There are two ways to write a register.
   - `write_reg` goes through QEMU's setter, so derived state stays consistent.
   - `write_env` copies bytes, as `panda_cpu_env` users and pandare2's `cpu.env_ptr` do today. QEMU's derived state (arm hflags, x86 lazy flags, softfloat status) is not updated unless the caller runs `panda_guest_env_sync`.
@@ -200,7 +200,7 @@ Intercepted writes, which the API refuses with an error:
 
 Writes that can't be intercepted are unsupported, not detected (decided 2026-10-31; see [Phase 1 as built](#phase-1-as-built)):
 - **Raw `CPUArchState` writes outside the API.** These come from `panda_cpu_env`, pandare2's cffi `env` fields, C plugins writing `env` directly, or target helpers that rewrite env. Nothing logs them, so a replay of that recording diverges. The API covers every write, with or without record/replay, so such a write is the caller's mistake.
-- **Host pointers into guest RAM** (`panda_map_memory`, `qemu_map_ram_ptr`). These stay refused during record/replay, as in 0084.
+- **Host pointers into guest RAM** (`panda_map_memory`, `qemu_map_ram_ptr`). These stay refused during record/replay, as in 0083.
 
 Penguin MMIO reads:
 - A Penguin MMIO region's read callback is answered by the plugin, which makes it a nondeterministic input.
@@ -231,7 +231,7 @@ Penguin's guest library (`guest-utils/native/hypercall.h`) uses each target's Li
 | ppc | r0 | r3 |
 | riscv64, loongarch64 | a7 | a0 |
 
-Checked 2026-11-01, question 5: hypercaller already matches. It reads the magic with `panda_get_syscall_arg(cpu, 0)`, whose index 0 is the syscall-number register in every target's table (`panda_arch.c`), plus r7 for AArch32 on aarch64. Since 0045, the guest's hypercall is Penguin's instruction on every target, and the helper returns Penguin's return register. The earlier table here, which listed syscall argument 0 as a0, was wrong; no register move is needed.
+Checked 2026-11-01, question 5: hypercaller already matches. It reads the magic with `panda_get_syscall_arg(cpu, 0)`, whose index 0 is the syscall-number register in every target's table (`panda_arch.c`), plus r7 for AArch32 on aarch64. Since 0044, the guest's hypercall is Penguin's instruction on every target, and the helper returns Penguin's return register. The earlier table here, which listed syscall argument 0 as a0, was wrong; no register move is needed.
 
 The check did find one bug, on the return side. On aarch64 in AArch64 state, `panda_guest_set_retval`, and so C's `panda_set_retval` and Rust's `GuestWriter::set_retval`, wrote `env->regs[0]`, the AArch32 view, not x0; `panda_get_retval` read it. A guest never saw the value. pandare2's `arch.set_retval` writes X0 by name, which is why `hypercall_rr` passed. Both now use x0 in AArch64 state, and `hypercall_rr` sets the return through both paths on alternate calls.
 
@@ -264,11 +264,11 @@ Independent of the plan:
 
 ## Phase 1 as built
 
-Slice H (hypercall answers) is folded in, and the whole is engine patch 0093. Where it differs from the design above:
+Slice H (hypercall answers) is folded in, and the whole is engine patch 0092. Where it differs from the design above:
 
 - **`panda_guest_env_sync` is logged.** It is a `SYNC` op, so replay repeats it.
 - **The layout hash travels in each event, not in a recording header.** Replay compares it when an event has env ops. The header site list waits for phase 2: the hypercall site always saves an event, so phase 1 has nothing to list.
-- **Each build generates the layout map from its own debug info.** The layout differs between hosts. `QemuMutex` holds a 40-byte `pthread_mutex_t` on x86_64 glibc and a 48-byte one on aarch64, and an aarch64 host builds no KVM for x86 targets, so `CPUX86State`'s KVM/Xen fields don't exist there. #48 committed a map of x86_64-host numbers, which broke the aarch64 release build. Now `meson.build` (patch 0093) compiles `panda/src/guest-layout-probe.c` like each softmmu target's files, with `-g`, and `panda/scripts/guest_layout.py` reads `CPUArchState` and the structs it points to from it with gdb, into `guest-layout-<target>.h`. Nothing generated is committed, and the map can't go stale. The flake check `guest-layout` compares the installed maps with the committed bindgen bindings (`tests/static/bindings_layout.py`): two independent readings that must agree. Reading the debug info also found a host pointer bindgen missed: `QEMUTimer`'s `cb`, a function-pointer typedef. The hash is computed at startup from the map, so a recording replays only on a host whose layout matches.
+- **Each build generates the layout map from its own debug info.** The layout differs between hosts. `QemuMutex` holds a 40-byte `pthread_mutex_t` on x86_64 glibc and a 48-byte one on aarch64, and an aarch64 host builds no KVM for x86 targets, so `CPUX86State`'s KVM/Xen fields don't exist there. #48 committed a map of x86_64-host numbers, which broke the aarch64 release build. Now `meson.build` (patch 0092) compiles `panda/src/guest-layout-probe.c` like each softmmu target's files, with `-g`, and `panda/scripts/guest_layout.py` reads `CPUArchState` and the structs it points to from it with gdb, into `guest-layout-<target>.h`. Nothing generated is committed, and the map can't go stale. The flake check `guest-layout` compares the installed maps with the committed bindgen bindings (`tests/static/bindings_layout.py`): two independent readings that must agree. Reading the debug info also found a host pointer bindgen missed: `QEMUTimer`'s `cb`, a function-pointer typedef. The hash is computed at startup from the map, so a recording replays only on a host whose layout matches.
 - **No guard.** The first build compared env (and the arrays it owns) at the end of each recorded site with what the logged writes explain, and stopped the recording on any other change. It was removed: writing guest state outside the API is documented as unsupported (guest-write.h, the record/replay guide, panda-embed.h), and the API is cheap enough to use everywhere (`PANDA_GUEST_ENV_SET` in C, `panda.guest.env(cpu)` in Python, `env_write!` in Rust), so a raw write is the caller's mistake, not something every recording pays to check. pandare2's bundled extras (`ioctlFaker`, `fileFaker`) moved off `env_ptr` writes. Penguin's `panda_cpu_env` writes move in phase 2.
 - **A malformed env path (`EINVAL`) is not logged.** It changes nothing and fails the same way in replay.
 - **Paths may follow up to four pointers** (`GUEST_WRITE_PATH_MAX`). The generated map lists every pointer reachable within four hops whose pointee bindgen knows (135 KB of C for all targets). A `void *` and bindgen's opaque types are never followed.
@@ -280,7 +280,7 @@ Slice H (hypercall answers) is folded in, and the whole is engine patch 0093. Wh
 
 1. ~~**Register raw-write guard.**~~ Decided: no guard; raw writes are unsupported.
 2. **Deferred requests.** Keep them as separately named calls (`*_request`), or merge them into the same calls with behaviour chosen by thread? I recommend separate names: one call should have one timing.
-3. **Unspecified registrations.** Refused during record/replay unless they declare `observe_only` or `mutates`? I recommend yes. The alternative keeps 0084's "legacy means mutating", which would let unlabelled plugins write during recordings.
+3. **Unspecified registrations.** Refused during record/replay unless they declare `observe_only` or `mutates`? I recommend yes. The alternative keeps 0083's "legacy means mutating", which would let unlabelled plugins write during recordings.
 4. **Mid-instruction and translation-time callbacks.** These are refused permanently. Is that acceptable as the boundary of "any callback"?
 5. ~~**Hypercaller's magic register**~~ Decided (2026-11-01): hypercaller uses Penguin's number and return registers on every target. On checking, it already did; the aarch64 return-register bug the check found is fixed.
 6. **Devices whose state struct is private to a `.c` file.** Leave them unreachable, or move their structs to headers as people need them? I recommend moving them on request, each as a small engine patch.

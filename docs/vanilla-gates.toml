@@ -3,10 +3,10 @@
 # Overlay paths are repository-relative; hunk_contexts are evidence, not exhaustive symbols.
 schema_version = 1
 patch_series = "engine/patches/11.1.2/series"
-patch_range = "0001-0099"
+patch_range = "0001-0098"
 review_date = "2026-10-29"
 vanilla_parity_implemented = false
-source_audit = "../notes/mode-audit.md (historical0001-0081; read-only, findings rechecked against current series)"
+source_audit = "../notes/mode-audit.md (historical0001-0080; read-only, findings rechecked against current series)"
 policy = "Explicit vanilla must retain strict upstream guest, snapshot, scheduling, plugin and device behavior. All changes, including bugfixes and optimizations, require an upstream off path; no upstream-quality exemption is inferred. Existing no-subscriber, feature, accelerator or RR checks are not proof of explicit vanilla parity."
 classification_note = "Each patch has one primary class; mixed patches retain secondary obligations in current_gate and required_action. Build-only means no independent runtime dispatch, not proven binary/layout/performance parity. Inert-in-vanilla is a proposed admission invariant, not an implemented mode."
 capability_note = "Capability strings are inventory group labels, not implemented flags or an approved final mode API."
@@ -49,8 +49,8 @@ capability = "guest-hypercall"
 paths = ["target/mips/helper.h", "target/mips/tcg/op_helper.c", "target/mips/tcg/translate.c"]
 functions = ["helper_guest_hypercall", "gen_cond_move", "gen_cp0"]
 hunk_contexts = ["target_ulong helper_bitswap(target_ulong rt)", "static void gen_cond_move(DisasContext *ctx, uint32_t opc,", "static void gen_cp0(CPUMIPSState *env, DisasContext *ctx, uint32_t opc,"]
-gate_status = "partial-recognition-gate-0087-not-parity-verified"
-current_gate = "0087 gates MIPS magic instruction recognition with immutable guest-hypercall capability; ordinary MOVZ decode continues without it. Helper/API admission and complete target vanilla parity remain unverified."
+gate_status = "partial-recognition-gate-0086-not-parity-verified"
+current_gate = "0086 gates MIPS magic instruction recognition with immutable guest-hypercall capability; ordinary MOVZ decode continues without it. Helper/API admission and complete target vanilla parity remain unverified."
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
@@ -62,9 +62,9 @@ class = "runtime-gate"
 capability = "guest-hypercall"
 paths = ["target/arm/tcg/a64.decode", "target/arm/tcg/helper-defs.h", "target/arm/tcg/op_helper.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c"]
 functions = ["trans_HYPERCALL", "valid_cp", "helper_guest_hypercall"]
-hunk_contexts = ["MSR_i_SVCR      1101 0101 0000 0 011 0100 0 mask:2 imm:1 011 11111", "DEF_HELPER_2(wfet, void, env, i32)", "void raise_exception_ra(CPUARMState *env, uint32_t excp, uint64_t syndrome,", "static bool trans_SYS(DisasContext *s, arg_SYS *a)", "static bool valid_cp(DisasContext *s, int cp)"]
-gate_status = "partial-recognition-gate-0087-not-parity-verified"
-current_gate = "0087 gates ARM64 trans_HYPERCALL (false/UNDEF when absent) and ARM32 magic MCR (upstream coprocessor decode follows). Recognition-only off path is host-tested; decoder/helper/API and complete guest parity remain unverified."
+hunk_contexts = ["MSR_i_SVCR      1101 0100 0000 0 011 0099 0 mask:2 imm:1 011 11111", "DEF_HELPER_2(wfet, void, env, i32)", "void raise_exception_ra(CPUARMState *env, uint32_t excp, uint64_t syndrome,", "static bool trans_SYS(DisasContext *s, arg_SYS *a)", "static bool valid_cp(DisasContext *s, int cp)"]
+gate_status = "partial-recognition-gate-0086-not-parity-verified"
+current_gate = "0086 gates ARM64 trans_HYPERCALL (false/UNDEF when absent) and ARM32 magic MCR (upstream coprocessor decode follows). Recognition-only off path is host-tested; decoder/helper/API and complete guest parity remain unverified."
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
@@ -77,8 +77,8 @@ capability = "guest-hypercall"
 paths = ["target/ppc/helper.h", "target/ppc/misc_helper.c", "target/ppc/translate/fixedpoint-impl.c.inc"]
 functions = ["helper_guest_hypercall", "xori translation"]
 hunk_contexts = ["DEF_HELPER_FLAGS_4(TW, TCG_CALL_NO_WG, void, env, tl, tl, i32)", "void helper_store_dump_spr(CPUPPCState *env, uint32_t sprn)", "static bool do_ori(DisasContext *ctx, arg_D_ui *a, bool shift)"]
-gate_status = "partial-recognition-gate-0087-not-parity-verified"
-current_gate = "0087 gates PPC magic XORI recognition; ordinary instruction path continues without guest-hypercall. Helper/API admission and complete target vanilla parity remain unverified."
+gate_status = "partial-recognition-gate-0086-not-parity-verified"
+current_gate = "0086 gates PPC magic XORI recognition; ordinary instruction path continues without guest-hypercall. Helper/API admission and complete target vanilla parity remain unverified."
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
@@ -91,8 +91,8 @@ capability = "guest-hypercall"
 paths = ["target/riscv/helper.h", "target/riscv/tcg/op_helper.c", "target/riscv/tcg/translate.c"]
 functions = ["trans_xori", "helper_guest_hypercall"]
 hunk_contexts = ["void helper_raise_exception(CPURISCVState *env, uint32_t exception)", "static int ex_rvc_shiftri(DisasContext *ctx, int imm)"]
-gate_status = "partial-recognition-gate-0087-not-parity-verified"
-current_gate = "0087 gates RISC-V magic XORI recognition; ordinary logical-immediate path continues without guest-hypercall. Helper/API admission and complete target vanilla parity remain unverified."
+gate_status = "partial-recognition-gate-0086-not-parity-verified"
+current_gate = "0086 gates RISC-V magic XORI recognition; ordinary logical-immediate path continues without guest-hypercall. Helper/API admission and complete target vanilla parity remain unverified."
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
@@ -105,8 +105,8 @@ capability = "guest-hypercall"
 paths = ["target/loongarch/tcg/helper.h", "target/loongarch/tcg/insn_trans/trans_extra.c.inc", "target/loongarch/tcg/op_helper.c"]
 functions = ["trans_cpucfg", "helper_guest_hypercall"]
 hunk_contexts = ["static bool trans_cpucfg(DisasContext *ctx, arg_cpucfg *a)", "void helper_raise_exception(CPULoongArchState *env, uint32_t exception)"]
-gate_status = "partial-recognition-gate-0087-not-parity-verified"
-current_gate = "0087 gates LoongArch magic CPUCFG recognition; ordinary CPUCFG operation remains without guest-hypercall. Helper/API admission and complete target vanilla parity remain unverified."
+gate_status = "partial-recognition-gate-0086-not-parity-verified"
+current_gate = "0086 gates LoongArch magic CPUCFG recognition; ordinary CPUCFG operation remains without guest-hypercall. Helper/API admission and complete target vanilla parity remain unverified."
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
@@ -119,8 +119,8 @@ capability = "guest-hypercall"
 paths = ["hw/i386/pc.c", "target/i386/tcg/misc_helper.c"]
 functions = ["panda_hypercall_io", "PC machine initialization"]
 hunk_contexts = ["static uint64_t ioport80_read(void *opaque, hwaddr addr, unsigned size)", "static const MemoryRegionOps ioport80_io_ops = {", "void pc_basic_device_init(struct PCMachineState *pcms,"]
-gate_status = "partial-recognition-gate-0087-not-parity-verified"
-current_gate = "0087 gates x86 port0x88 region allocation/init/add at startup with guest-hypercall. This does not gate KVM exit/capability handling (0009), ARM KVM filters (0023), or prove guest/port-overlap parity."
+gate_status = "partial-recognition-gate-0086-not-parity-verified"
+current_gate = "0086 gates x86 port0x88 region allocation/init/add at startup with guest-hypercall. This does not gate KVM exit/capability handling (0009), ARM KVM filters (0022), or prove guest/port-overlap parity."
 required_action = "Choose immutable capability before machine/accelerator/device/type realization; reject vanilla-incompatible options and retain original upstream realization/stream behavior."
 vanilla_verified = false
 
@@ -294,21 +294,7 @@ vanilla_verified = false
 
 [[patch]]
 id = "0021"
-file = "engine/patches/11.1.2/0021-system-build-the-host-side-OSI.patch"
-sha256 = "3d7ce675a5b801cebfb4f32289599af37924349b170f41aa94e9ebec8592f539"
-class = "inert-in-vanilla"
-capability = "host-osi"
-paths = ["system/meson.build"]
-functions = ["system_ss.add", "penguin_osi API"]
-hunk_contexts = ["system_ss.add(files("]
-gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "Builds overlay host-side OSI; operational activation via API but constructors/admission still require vanilla review"
-required_action = "Reject extension activation in explicit vanilla before state publication; verify constructors, registration, translation and stream behavior remain upstream."
-vanilla_verified = false
-
-[[patch]]
-id = "0022"
-file = "engine/patches/11.1.2/0022-i386-resume-a-KVM-snapshot-under-TCG-and-a-TCG-snaps.patch"
+file = "engine/patches/11.1.2/0021-i386-resume-a-KVM-snapshot-under-TCG-and-a-TCG-snaps.patch"
 sha256 = "2b19f4702bce0ddf227b42c7871692bf6eb1e0c15766e1f78fcbebfd49ef7b16"
 class = "startup-gate"
 capability = "accelerator-handoff"
@@ -321,8 +307,8 @@ required_action = "Choose immutable capability before machine/accelerator/device
 vanilla_verified = false
 
 [[patch]]
-id = "0023"
-file = "engine/patches/11.1.2/0023-target-arm-kvm-guest-hypercalls-under-arm64-KVM-SMCC.patch"
+id = "0022"
+file = "engine/patches/11.1.2/0022-target-arm-kvm-guest-hypercalls-under-arm64-KVM-SMCC.patch"
 sha256 = "8d74dac9ee3258ea6e9d2bd7bde5fd0e7c0c5bd052bfef432138c78dffd95549"
 class = "startup-gate"
 capability = "kvm-hypercall"
@@ -335,8 +321,8 @@ required_action = "Choose immutable capability before machine/accelerator/device
 vanilla_verified = false
 
 [[patch]]
-id = "0024"
-file = "engine/patches/11.1.2/0024-target-arm-arm_gic-resume-an-aarch64-KVM-snapshot-un.patch"
+id = "0023"
+file = "engine/patches/11.1.2/0023-target-arm-arm_gic-resume-an-aarch64-KVM-snapshot-un.patch"
 sha256 = "626d920c97a2eabd23769a98a9e873e7bc8c1e48b20319465de259f0f0113340"
 class = "startup-gate"
 capability = "accelerator-handoff"
@@ -349,8 +335,8 @@ required_action = "Choose immutable capability before machine/accelerator/device
 vanilla_verified = false
 
 [[patch]]
-id = "0025"
-file = "engine/patches/11.1.2/0025-system-cpu-timers-continue-the-virtual-clock-when-an.patch"
+id = "0024"
+file = "engine/patches/11.1.2/0024-system-cpu-timers-continue-the-virtual-clock-when-an.patch"
 sha256 = "ad2972535a2bd56fe031ff3a3fdf13cc145eb98fdd15a289f4a814020e4e205d"
 class = "runtime-gate"
 capability = "clock-domain-handoff"
@@ -363,8 +349,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0026"
-file = "engine/patches/11.1.2/0026-target-i386-keep-the-guest-TSC-continuous-across-a-c.patch"
+id = "0025"
+file = "engine/patches/11.1.2/0025-target-i386-keep-the-guest-TSC-continuous-across-a-c.patch"
 sha256 = "7ef2fe47f38de7296ddf74ea4c6d83da1a844bc8b858c76ffbb9c9a6acf8f3fe"
 class = "runtime-gate"
 capability = "clock-domain-handoff"
@@ -377,8 +363,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0027"
-file = "engine/patches/11.1.2/0027-accel-tcg-x-tsc-vclock-the-x86-TSC-from-the-virtual-.patch"
+id = "0026"
+file = "engine/patches/11.1.2/0026-accel-tcg-x-tsc-vclock-the-x86-TSC-from-the-virtual-.patch"
 sha256 = "e68513050dc5b52fc584cb2f22e07961bd179650783e66f481b4ea37d4346e8d"
 class = "inert-in-vanilla"
 capability = "virtual-tsc"
@@ -391,8 +377,8 @@ required_action = "Reject extension activation in explicit vanilla before state 
 vanilla_verified = false
 
 [[patch]]
-id = "0028"
-file = "engine/patches/11.1.2/0028-system-cpus-run_on_cpu-under-record-replay-release-t.patch"
+id = "0027"
+file = "engine/patches/11.1.2/0027-system-cpus-run_on_cpu-under-record-replay-release-t.patch"
 sha256 = "15bad273a81cbf742cdce4d5cb9b859f42efd8985a643c85f4dd485411e7cb7b"
 class = "upstream-fix-needs-off-path"
 capability = "rr-mutex"
@@ -405,8 +391,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0029"
-file = "engine/patches/11.1.2/0029-qapi-a-weak-default-panda_handle_qmp-so-the-tools-li.patch"
+id = "0028"
+file = "engine/patches/11.1.2/0028-qapi-a-weak-default-panda_handle_qmp-so-the-tools-li.patch"
 sha256 = "ecca18c00fd2f3226a63aa2202332388f2c2ca0a6ffb941fd1803c757f491dd4"
 class = "build-only"
 capability = "embedding-link"
@@ -419,9 +405,9 @@ required_action = "Audit build/link/layout changes against an upstream baseline;
 vanilla_verified = false
 
 [[patch]]
-id = "0030"
-file = "engine/patches/11.1.2/0030-replay-declare-replay_mutex_locked-in-system-replay..patch"
-sha256 = "1cd911ae26483d258b31f1021f5f414a0ff865831cc63235e9afccaaf5600f71"
+id = "0029"
+file = "engine/patches/11.1.2/0029-replay-declare-replay_mutex_locked-in-system-replay..patch"
+sha256 = "8a95c629a105bf7bd9da2c1223176578b92db23fc0d3c7226ee3f9d70b48b8f7"
 class = "build-only"
 capability = "rr-link"
 paths = ["include/system/replay.h", "replay/replay-internal.h"]
@@ -433,8 +419,8 @@ required_action = "Audit build/link/layout changes against an upstream baseline;
 vanilla_verified = false
 
 [[patch]]
-id = "0031"
-file = "engine/patches/11.1.2/0031-accel-tcg-forget-the-plugin-callback-s-return-addres.patch"
+id = "0030"
+file = "engine/patches/11.1.2/0030-accel-tcg-forget-the-plugin-callback-s-return-addres.patch"
 sha256 = "0dd8cdbd942dadd88d5870361f6087c30c00840df452fb2af4cc510da6b1e592"
 class = "upstream-fix-needs-off-path"
 capability = "plugin-continuation"
@@ -447,8 +433,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0032"
-file = "engine/patches/11.1.2/0032-plugins-targets-a-user-access-window-owned-by-the-ac.patch"
+id = "0031"
+file = "engine/patches/11.1.2/0031-plugins-targets-a-user-access-window-owned-by-the-ac.patch"
 sha256 = "1bf257d046961f21b82b6702162ee4f61c54fc1505caefb2b782f7e43b205248"
 class = "runtime-gate"
 capability = "faulting-access"
@@ -461,8 +447,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0033"
-file = "engine/patches/11.1.2/0033-plugins-qemu_plugin_set_pc-from-a-syscall-entry-call.patch"
+id = "0032"
+file = "engine/patches/11.1.2/0032-plugins-qemu_plugin_set_pc-from-a-syscall-entry-call.patch"
 sha256 = "4a08935702f782beb6843a4c8f393f8d1d4bdd6f99375862d8d1cce2609b2c3d"
 class = "runtime-gate"
 capability = "plugin-control-flow"
@@ -475,8 +461,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0034"
-file = "engine/patches/11.1.2/0034-i386-kvm-plugin-accesses-on-KVM-kernel-walk-declined.patch"
+id = "0033"
+file = "engine/patches/11.1.2/0033-i386-kvm-plugin-accesses-on-KVM-kernel-walk-declined.patch"
 sha256 = "adc1563811df1e6f110d6c458c1fd0febad7f8e7469e6bf91535d6d6659f71cd"
 class = "upstream-fix-needs-off-path"
 capability = "kvm-analysis"
@@ -489,8 +475,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0035"
-file = "engine/patches/11.1.2/0035-plugins-bind-a-CF_PCREL-block-to-its-virtual-address.patch"
+id = "0034"
+file = "engine/patches/11.1.2/0034-plugins-bind-a-CF_PCREL-block-to-its-virtual-address.patch"
 sha256 = "830328224f297361afdec7d983e93a365560df51603fe41d4c441319a64ccae2"
 class = "runtime-gate"
 capability = "address-hooks"
@@ -503,8 +489,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0036"
-file = "engine/patches/11.1.2/0036-accel-tcg-address-hooks-keep-CF_PCREL-on-outside-hoo.patch"
+id = "0035"
+file = "engine/patches/11.1.2/0035-accel-tcg-address-hooks-keep-CF_PCREL-on-outside-hoo.patch"
 sha256 = "63325cd7fd9546d88d36d294e5b5a0d37e0f9647967596fa7531a8d0da599a2e"
 class = "runtime-gate"
 capability = "address-hooks"
@@ -517,8 +503,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0037"
-file = "engine/patches/11.1.2/0037-accel-tcg-rr-ready-launch-a-VM-so-that-a-recording-c.patch"
+id = "0036"
+file = "engine/patches/11.1.2/0036-accel-tcg-rr-ready-launch-a-VM-so-that-a-recording-c.patch"
 sha256 = "482759b843b796178a062a6b5d693b98598dffd140421e74fc7730245d39f849"
 class = "startup-gate"
 capability = "rr-runtime-switch"
@@ -531,8 +517,8 @@ required_action = "Choose immutable capability before machine/accelerator/device
 vanilla_verified = false
 
 [[patch]]
-id = "0038"
-file = "engine/patches/11.1.2/0038-replay-write-the-log-header-first-and-flush-the-log-.patch"
+id = "0037"
+file = "engine/patches/11.1.2/0037-replay-write-the-log-header-first-and-flush-the-log-.patch"
 sha256 = "65413be99aad73b642899df9d8598808102f53c9c46b182865f5f52be86e2587"
 class = "upstream-fix-needs-off-path"
 capability = "rr-log"
@@ -545,9 +531,9 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0039"
-file = "engine/patches/11.1.2/0039-replay-x-rr-begin-record-and-x-rr-begin-replay-recor.patch"
-sha256 = "fcd76249e93a358a718aac9f950064f55776da26d988683f71e9f07a27b04c56"
+id = "0038"
+file = "engine/patches/11.1.2/0038-replay-x-rr-begin-record-and-x-rr-begin-replay-recor.patch"
+sha256 = "09fa2cafa15a93013511e90b93666460e7a0018402e739a7183478ddbc1c42a2"
 class = "runtime-gate"
 capability = "rr-runtime-switch"
 paths = ["accel/tcg/icount-common.c", "accel/tcg/tcg-accel-ops.c", "include/exec/icount.h", "qapi/replay.json", "replay/meson.build", "replay/replay-begin.c", "replay/replay-internal.h", "replay/replay.c", "replay/stubs-system.c", "stubs/icount.c"]
@@ -559,9 +545,9 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0040"
-file = "engine/patches/11.1.2/0040-replay-x-rr-end-record-end-a-recording-and-keep-runn.patch"
-sha256 = "85967be45ad10cee15f35729aa6993d516d0bb450b8d8cdea98691ff7591faef"
+id = "0039"
+file = "engine/patches/11.1.2/0039-replay-x-rr-end-record-end-a-recording-and-keep-runn.patch"
+sha256 = "daff929891ff75e9ce4dfefc4237b5c3f8f8b0121ee4dbe99df5b139ecad7830"
 class = "runtime-gate"
 capability = "rr-runtime-switch"
 paths = ["qapi/replay.json", "replay/replay-begin.c", "replay/stubs-system.c"]
@@ -573,8 +559,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0041"
-file = "engine/patches/11.1.2/0041-panda-enable-panda-builds-the-PANDA-API-and-libpanda.patch"
+id = "0040"
+file = "engine/patches/11.1.2/0040-panda-enable-panda-builds-the-PANDA-API-and-libpanda.patch"
 sha256 = "ec1aec4309d9db0a4893a084fe7cb26dcb0d8d56b3346c1d5fc48c34ee9716fb"
 class = "build-only"
 capability = "panda-build"
@@ -587,8 +573,8 @@ required_action = "Audit build/link/layout changes against an upstream baseline;
 vanilla_verified = false
 
 [[patch]]
-id = "0042"
-file = "engine/patches/11.1.2/0042-plugins-add-qemu_plugin_tb_size-and-qemu_plugin_tb_g.patch"
+id = "0041"
+file = "engine/patches/11.1.2/0041-plugins-add-qemu_plugin_tb_size-and-qemu_plugin_tb_g.patch"
 sha256 = "925734586af0cd71df39df047c8ea99d8b10c01c7ce49624fbda753195d1cd93"
 class = "inert-in-vanilla"
 capability = "plugin-extensions"
@@ -601,8 +587,8 @@ required_action = "Reject extension activation in explicit vanilla before state 
 vanilla_verified = false
 
 [[patch]]
-id = "0043"
-file = "engine/patches/11.1.2/0043-panda-TCG-core-hooks.patch"
+id = "0042"
+file = "engine/patches/11.1.2/0042-panda-TCG-core-hooks.patch"
 sha256 = "45b992b954d4550a41cd0e5721238cf95378fb58a753477435e213e7953e8767"
 class = "runtime-gate"
 capability = "analysis-callbacks"
@@ -610,13 +596,13 @@ paths = ["accel/tcg/cpu-exec.c"]
 functions = ["cpu_exec_loop", "tb_gen_code", "cpu_handle_exception"]
 hunk_contexts = ["static inline bool check_for_breakpoints(CPUState *cpu, vaddr pc,", "cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)", "void cpu_exec_step_atomic(CPUState *cpu)", "static inline bool cpu_handle_exception(CPUState *cpu, int *ret)", "cpu_exec_loop(CPUState *cpu, SyncClocks *sc)"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "Later0082/0083 reduce idle calls; no explicit vanilla capability admission/translation gate"
+current_gate = "Later0082/0082 reduce idle calls; no explicit vanilla capability admission/translation gate"
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
 [[patch]]
-id = "0044"
-file = "engine/patches/11.1.2/0044-panda-asid_changed-on-x86-arm-and-mips.patch"
+id = "0043"
+file = "engine/patches/11.1.2/0043-panda-asid_changed-on-x86-arm-and-mips.patch"
 sha256 = "b39eec865f0f44631fdbb9c8fed7699022212d53b5155e037abae3be861a4141"
 class = "runtime-gate"
 capability = "asid-observation"
@@ -629,8 +615,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0045"
-file = "engine/patches/11.1.2/0045-panda-guest_hypercall-on-the-guest-hypercall-instruc.patch"
+id = "0044"
+file = "engine/patches/11.1.2/0044-panda-guest_hypercall-on-the-guest-hypercall-instruc.patch"
 sha256 = "34354ef493bc003c3f73f0c2f0fe7a8721f2341d829e2e6bf16ed37ae9abcafa"
 class = "runtime-gate"
 capability = "guest-hypercall"
@@ -643,8 +629,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0046"
-file = "engine/patches/11.1.2/0046-panda-panda_disable_tb_chaining-turns-TB-chaining-of.patch"
+id = "0045"
+file = "engine/patches/11.1.2/0045-panda-panda_disable_tb_chaining-turns-TB-chaining-of.patch"
 sha256 = "71cdceb1b9f15a8b184ba030288a427a40c79f213ef66b0f10c13832d143584d"
 class = "runtime-gate"
 capability = "analysis-chaining"
@@ -652,13 +638,13 @@ paths = ["accel/tcg/cpu-exec-common.c"]
 functions = ["panda_disable_tb_chaining", "curr_cflags", "panda_vcpu_init_cflags"]
 hunk_contexts = ["uint32_t curr_cflags(CPUState *cpu)"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "0082 removes idle out-of-line lookup; per-vCPU cflags policy still admits extension without vanilla guard"
+current_gate = "0081 removes idle out-of-line lookup; per-vCPU cflags policy still admits extension without vanilla guard"
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
 [[patch]]
-id = "0047"
-file = "engine/patches/11.1.2/0047-plugins-memory-callbacks-before-the-access.patch"
+id = "0046"
+file = "engine/patches/11.1.2/0046-plugins-memory-callbacks-before-the-access.patch"
 sha256 = "c1e08387f0f1e67c08885976f49e26acd7c2ba2b50f767823f60c2aa7a73b5f7"
 class = "runtime-gate"
 capability = "memory-observation"
@@ -671,8 +657,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0048"
-file = "engine/patches/11.1.2/0048-panda-before_find_fast-before-each-TB-lookup.patch"
+id = "0047"
+file = "engine/patches/11.1.2/0047-panda-before_find_fast-before-each-TB-lookup.patch"
 sha256 = "f7599aa07929932282034e148d2bf92112e090be29b6c4e54921ed077be234c6"
 class = "runtime-gate"
 capability = "analysis-callbacks"
@@ -680,14 +666,14 @@ paths = ["accel/tcg/cpu-exec.c"]
 functions = ["panda_callbacks_before_find_fast", "cpu_exec_loop"]
 hunk_contexts = ["cpu_exec_loop(CPUState *cpu, SyncClocks *sc)"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "0082 loop bits skip inactive call; explicit vanilla must prevent registration and eliminate extension path"
+current_gate = "0081 loop bits skip inactive call; explicit vanilla must prevent registration and eliminate extension path"
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
 [[patch]]
-id = "0049"
-file = "engine/patches/11.1.2/0049-panda-asid_changed-on-riscv-satp-writes.patch"
-sha256 = "7fccf4e4a6fa044afa2de403609a6e335b1ea70464567cc32e1b5f2fbd9dac73"
+id = "0048"
+file = "engine/patches/11.1.2/0048-panda-asid_changed-on-riscv-satp-writes.patch"
+sha256 = "4f78054f19faa5dcfafe45ea5a65b33d93b53185d862a4a934f54ec3a90da47b"
 class = "runtime-gate"
 capability = "asid-observation"
 paths = ["target/riscv/tcg/csr.c"]
@@ -699,9 +685,9 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0050"
-file = "engine/patches/11.1.2/0050-replay-x-rr-begin-record-filter-ids-valid-for-nic-ne.patch"
-sha256 = "c9254231354c9fc27035019967308fc6a70c8f9ceb853ffd01f97e54ca5fa83e"
+id = "0049"
+file = "engine/patches/11.1.2/0049-replay-x-rr-begin-record-filter-ids-valid-for-nic-ne.patch"
+sha256 = "5a5f21ebdf2568741c9a5ff908415b78253a62852ba9d0d32c024a45f47c9379"
 class = "upstream-fix-needs-off-path"
 capability = "rr-network"
 paths = ["replay/replay-begin.c"]
@@ -713,8 +699,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0051"
-file = "engine/patches/11.1.2/0051-replay-no-frontend-room-while-a-recorded-chardev-rea.patch"
+id = "0050"
+file = "engine/patches/11.1.2/0050-replay-no-frontend-room-while-a-recorded-chardev-rea.patch"
 sha256 = "b2339b43b5e6579248f5da01df2aff9bbd381556405037b4975e0a6785be6c3c"
 class = "upstream-fix-needs-off-path"
 capability = "rr-chardev"
@@ -727,9 +713,9 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0052"
-file = "engine/patches/11.1.2/0052-replay-x-rr-begin-record-rewinds-the-log-to-the-star.patch"
-sha256 = "caac132ca855971e8e8fcd299e61b3a2d396b55eb97a542904b56e852aa81fe4"
+id = "0051"
+file = "engine/patches/11.1.2/0051-replay-x-rr-begin-record-rewinds-the-log-to-the-star.patch"
+sha256 = "b953702ce4838975c6c9d2eb68f7ac7ac8da1e055714f8c3611379cfc12f5949"
 class = "upstream-fix-needs-off-path"
 capability = "rr-runtime-switch"
 paths = ["replay/replay-begin.c"]
@@ -741,8 +727,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0053"
-file = "engine/patches/11.1.2/0053-panda-main_loop_wait-callback-at-each-main-loop-iter.patch"
+id = "0052"
+file = "engine/patches/11.1.2/0052-panda-main_loop_wait-callback-at-each-main-loop-iter.patch"
 sha256 = "78ed3c0e245ce0b772a497613f2674414da245c50a78a65f3e90cefa561206ac"
 class = "runtime-gate"
 capability = "analysis-main-loop"
@@ -755,8 +741,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0054"
-file = "engine/patches/11.1.2/0054-panda-after_loadvm-callback-when-load_snapshot-succe.patch"
+id = "0053"
+file = "engine/patches/11.1.2/0053-panda-after_loadvm-callback-when-load_snapshot-succe.patch"
 sha256 = "17bcce5e706f14dd404d092730f85a44484ef9f3ec6339d8fa624022d7028149"
 class = "runtime-gate"
 capability = "snapshot-notifications"
@@ -769,8 +755,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0055"
-file = "engine/patches/11.1.2/0055-hw-block-pflash_cfi01-one-post_load-state-handler-at.patch"
+id = "0054"
+file = "engine/patches/11.1.2/0054-hw-block-pflash_cfi01-one-post_load-state-handler-at.patch"
 sha256 = "3cdc091e763bca10c7d7d6929f9f347cd9c3ede330f3c1ee427c836941d9b650"
 class = "upstream-fix-needs-off-path"
 capability = "snapshot-device-fixes"
@@ -783,8 +769,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0056"
-file = "engine/patches/11.1.2/0056-hw-core-loader-rom_reset-logs-the-RAM-it-rewrites.patch"
+id = "0055"
+file = "engine/patches/11.1.2/0055-hw-core-loader-rom_reset-logs-the-RAM-it-rewrites.patch"
 sha256 = "db9608fdc0165bdad2d64f7c7fb7b8f8f43f02c37b0695f76e048d546c0b8fcd"
 class = "upstream-fix-needs-off-path"
 capability = "snapshot-dirty-tracking"
@@ -797,8 +783,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0057"
-file = "engine/patches/11.1.2/0057-target-arm-ptw-log-hardware-access-flag-and-dirty-st.patch"
+id = "0056"
+file = "engine/patches/11.1.2/0056-target-arm-ptw-log-hardware-access-flag-and-dirty-st.patch"
 sha256 = "172064def8f33521f6be000dd905d99d2c8de9b0be56497ade240449bbb33c40"
 class = "upstream-fix-needs-off-path"
 capability = "snapshot-dirty-tracking"
@@ -811,8 +797,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0058"
-file = "engine/patches/11.1.2/0058-panda-block-callbacks-learn-of-a-longjmp-out-of-the-.patch"
+id = "0057"
+file = "engine/patches/11.1.2/0057-panda-block-callbacks-learn-of-a-longjmp-out-of-the-.patch"
 sha256 = "97f1f12342e93623b4d860b1677c7f6d42edf8d8694702454ab54c5d7e77bacd"
 class = "runtime-gate"
 capability = "analysis-block-completion"
@@ -820,13 +806,13 @@ paths = ["accel/tcg/cpu-exec.c"]
 functions = ["cpu_exec_longjmp_cleanup", "panda_callbacks_block_longjmp"]
 hunk_contexts = ["static void cpu_exec_longjmp_cleanup(CPUState *cpu)"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "0083 supersedes callback delivery; inspect final edge/longjmp behavior rather than applying old audit literally"
+current_gate = "0082 supersedes callback delivery; inspect final edge/longjmp behavior rather than applying old audit literally"
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
 [[patch]]
-id = "0059"
-file = "engine/patches/11.1.2/0059-panda-after_block_exec-hook-after-the-PC-is-synchron.patch"
+id = "0058"
+file = "engine/patches/11.1.2/0058-panda-after_block_exec-hook-after-the-PC-is-synchron.patch"
 sha256 = "0a546e7974285009ade20b9eff22f26af431a8a2c8c7f6f4dd76b928b7a1a622"
 class = "runtime-gate"
 capability = "analysis-block-completion"
@@ -834,13 +820,13 @@ paths = ["accel/tcg/cpu-exec.c"]
 functions = ["cpu_tb_exec", "panda_callbacks_after_block_exec"]
 hunk_contexts = ["cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "0083 supersedes CPU-loop hook; final completion/PC synchronization path requires capability gating"
+current_gate = "0082 supersedes CPU-loop hook; final completion/PC synchronization path requires capability gating"
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
 [[patch]]
-id = "0060"
-file = "engine/patches/11.1.2/0060-vhost-don-t-turn-dirty-logging-on-in-a-device-that-c.patch"
+id = "0059"
+file = "engine/patches/11.1.2/0059-vhost-don-t-turn-dirty-logging-on-in-a-device-that-c.patch"
 sha256 = "50e384fd2bfa53902af8092e9bbe3f67dcf3cf2f79456456d9c419e0f4594f40"
 class = "upstream-fix-needs-off-path"
 capability = "snapshot-vhost"
@@ -853,8 +839,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0061"
-file = "engine/patches/11.1.2/0061-panda-before_loadvm-hook-before-qemu_loadvm_state-lo.patch"
+id = "0060"
+file = "engine/patches/11.1.2/0060-panda-before_loadvm-hook-before-qemu_loadvm_state-lo.patch"
 sha256 = "0cad81de34b934e9dc3f75458217b4c1f95a3df1041ab0f8916083f21f5fd854"
 class = "runtime-gate"
 capability = "snapshot-fast-tracking"
@@ -867,8 +853,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0062"
-file = "engine/patches/11.1.2/0062-accel-tcg-cpu_exec_step_atomic-runs-in-an-RCU-read-s.patch"
+id = "0061"
+file = "engine/patches/11.1.2/0061-accel-tcg-cpu_exec_step_atomic-runs-in-an-RCU-read-s.patch"
 sha256 = "ac23ff3ce613ad54681d59a6b9c00b0d404d51dd3ec0dc56d50d128db032a435"
 class = "upstream-fix-needs-off-path"
 capability = "tcg-atomic"
@@ -881,8 +867,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0063"
-file = "engine/patches/11.1.2/0063-target-arm-a-snapshot-loads-across-icount-on-off-PMC.patch"
+id = "0062"
+file = "engine/patches/11.1.2/0062-target-arm-a-snapshot-loads-across-icount-on-off-PMC.patch"
 sha256 = "0b03dd790ede6ba9bf60ef2fe8e1333f73f7c7f936c6f0b786cd08428a54ed98"
 class = "upstream-fix-needs-off-path"
 capability = "snapshot-compatibility"
@@ -895,8 +881,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0064"
-file = "engine/patches/11.1.2/0064-target-riscv-log-hardware-A-D-page-table-updates-as-.patch"
+id = "0063"
+file = "engine/patches/11.1.2/0063-target-riscv-log-hardware-A-D-page-table-updates-as-.patch"
 sha256 = "1672f14bb7981b6be65f75d6c10964f373b3ce147764cc3107035881e353378a"
 class = "upstream-fix-needs-off-path"
 capability = "snapshot-dirty-tracking"
@@ -909,8 +895,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0065"
-file = "engine/patches/11.1.2/0065-plugins-keep-the-access-direction-clear-of-the-MemOp.patch"
+id = "0064"
+file = "engine/patches/11.1.2/0064-plugins-keep-the-access-direction-clear-of-the-MemOp.patch"
 sha256 = "dafcf00e6de6d83c4305227d60df2eac3a2746a57dbd6d7b7fad97ca2d60691f"
 class = "upstream-fix-needs-off-path"
 capability = "plugin-memory-encoding"
@@ -923,9 +909,9 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0066"
-file = "engine/patches/11.1.2/0066-replay-the-replay-mutex-pairs-on-its-holder-not-on-r.patch"
-sha256 = "d5d9da73cbd19cba0fa7dfbe275eefc8587339129616f82a014cbe68ccbc8187"
+id = "0065"
+file = "engine/patches/11.1.2/0065-replay-the-replay-mutex-pairs-on-its-holder-not-on-r.patch"
+sha256 = "b3e8e6eaa0b0d07c3531d185777f217674285384b56096e9fbe361ae10e628cc"
 class = "upstream-fix-needs-off-path"
 capability = "rr-mutex"
 paths = ["replay/replay-internal.c", "replay/replay.c", "replay/trace-events"]
@@ -937,9 +923,9 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0067"
-file = "engine/patches/11.1.2/0067-accel-tcg-rr-vCPU-loop-takes-the-replay-mutex-if-rep.patch"
-sha256 = "113f008bb2c935536241aa7f34ac125e86dfc01dbcf3afa4119b252e3e74e94d"
+id = "0066"
+file = "engine/patches/11.1.2/0066-accel-tcg-rr-vCPU-loop-takes-the-replay-mutex-if-rep.patch"
+sha256 = "1e45d6d9165f81721d09988afefbeaf4b325ea172c653322f2d254aac4308315"
 class = "upstream-fix-needs-off-path"
 capability = "rr-mutex"
 paths = ["accel/tcg/tcg-accel-ops-rr.c", "accel/tcg/trace-events"]
@@ -951,9 +937,9 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0068"
-file = "engine/patches/11.1.2/0068-replay-the-replay-vmstate-registers-once-and-saves-w.patch"
-sha256 = "c97a41c53b93f208eed62f1944cbb66341cea0bdc6b8529aa683c2ed87623eb7"
+id = "0067"
+file = "engine/patches/11.1.2/0067-replay-the-replay-vmstate-registers-once-and-saves-w.patch"
+sha256 = "a5433dc397c93fb556b2e64f94bedb1dcece03b5b1905880187608bca4c44b6f"
 class = "runtime-gate"
 capability = "snapshot-rr-compatibility"
 paths = ["replay/replay-begin.c", "replay/replay-char.c", "replay/replay-snapshot.c", "replay/replay.c", "system/cpu-timers.c"]
@@ -965,8 +951,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0069"
-file = "engine/patches/11.1.2/0069-module-load-panda-modules-by-path-checked-against-th.patch"
+id = "0068"
+file = "engine/patches/11.1.2/0068-module-load-panda-modules-by-path-checked-against-th.patch"
 sha256 = "659b69135eb29190a7d1d4263f44cbaca335953172deb090748c3b3e414043ba"
 class = "startup-gate"
 capability = "dynamic-modules"
@@ -979,8 +965,8 @@ required_action = "Choose immutable capability before machine/accelerator/device
 vanilla_verified = false
 
 [[patch]]
-id = "0070"
-file = "engine/patches/11.1.2/0070-vl-M-PATH-NAME-and-module-PATH-load-panda-modules.patch"
+id = "0069"
+file = "engine/patches/11.1.2/0069-vl-M-PATH-NAME-and-module-PATH-load-panda-modules.patch"
 sha256 = "22ff1a4fca2f6b2c7b2123b9ce35ca5fa0a4737ccab24eea509ccafa306f02c8"
 class = "startup-gate"
 capability = "dynamic-modules"
@@ -993,8 +979,8 @@ required_action = "Choose immutable capability before machine/accelerator/device
 vanilla_verified = false
 
 [[patch]]
-id = "0071"
-file = "engine/patches/11.1.2/0071-hw-core-build-the-configurable-machine-and-its-QAPI-.patch"
+id = "0070"
+file = "engine/patches/11.1.2/0070-hw-core-build-the-configurable-machine-and-its-QAPI-.patch"
 sha256 = "13ba1beeebc7a00c5012f0adc4bb42f085381e7ae110211643c7e904799585ea"
 class = "startup-gate"
 capability = "configurable-machine"
@@ -1007,9 +993,9 @@ required_action = "Choose immutable capability before machine/accelerator/device
 vanilla_verified = false
 
 [[patch]]
-id = "0072"
-file = "engine/patches/11.1.2/0072-replay-a-snapshot-load-judges-its-virtual-timers-at-.patch"
-sha256 = "8e844adefcce61db1f871bec60c5f492a2434fd0aff97cd7713345866ab3c77a"
+id = "0071"
+file = "engine/patches/11.1.2/0071-replay-a-snapshot-load-judges-its-virtual-timers-at-.patch"
+sha256 = "f5bf220730ed18930b81b02295b54a2edba95fb15719efd6005c9368371ec1e2"
 class = "runtime-gate"
 capability = "snapshot-rr-timers"
 paths = ["accel/tcg/tcg-accel-ops-icount.c", "include/qemu/timer.h", "include/system/replay.h", "replay/replay-begin.c", "replay/replay-debugging.c", "replay/replay-internal.h", "replay/replay-snapshot.c", "replay/replay.c", "util/qemu-timer.c"]
@@ -1021,8 +1007,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0073"
-file = "engine/patches/11.1.2/0073-replay-mark-the-begin-record-start-snapshot-refuse-l.patch"
+id = "0072"
+file = "engine/patches/11.1.2/0072-replay-mark-the-begin-record-start-snapshot-refuse-l.patch"
 sha256 = "fd6442c1e7625213820bc463ebf34f8b8fb5617d9ffd009f141013aab45297aa"
 class = "runtime-gate"
 capability = "snapshot-rr-policy"
@@ -1035,8 +1021,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0074"
-file = "engine/patches/11.1.2/0074-physmem-size-a-resizeable-RAM-block-s-maximum-indepe.patch"
+id = "0073"
+file = "engine/patches/11.1.2/0073-physmem-size-a-resizeable-RAM-block-s-maximum-indepe.patch"
 sha256 = "a84a2799d342a84a1c8f27471c6e12ff4068ac661b54050d92f314653cf3e92f"
 class = "upstream-fix-needs-off-path"
 capability = "ram-layout"
@@ -1049,8 +1035,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0075"
-file = "engine/patches/11.1.2/0075-block-qcow2-drop-the-active-VM-state-before-a-savevm.patch"
+id = "0074"
+file = "engine/patches/11.1.2/0074-block-qcow2-drop-the-active-VM-state-before-a-savevm.patch"
 sha256 = "e6342e76687e7e9b7baa3311dd0803d11063ac7c8831123236259793c24a89e9"
 class = "upstream-fix-needs-off-path"
 capability = "snapshot-qcow2-layout"
@@ -1063,22 +1049,22 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0076"
-file = "engine/patches/11.1.2/0076-system-cpu-timers-a-snapshot-load-resets-the-ticks-m.patch"
+id = "0075"
+file = "engine/patches/11.1.2/0075-system-cpu-timers-a-snapshot-load-resets-the-ticks-m.patch"
 sha256 = "a09fcddfc2429c5ab2a278b4fc3aedcd7978d1a9b3e6f1260a3c92fab0ac473e"
 class = "upstream-fix-needs-off-path"
 capability = "snapshot-clock-rewind"
 paths = ["system/cpu-timers.c"]
 functions = ["timers_post_load", "cpu_ticks_prev"]
 hunk_contexts = ["static int timers_post_load(void *opaque, int version_id)"]
-gate_status = "gated-by-0088-not-guest-verified"
-current_gate = "0088 resets the tick clamp on load only with the analysis capability (fuzz implies it); vanilla keeps the upstream monotonic clamp, so the x86 TCG TSC does not rewind on load."
+gate_status = "gated-by-0087-not-guest-verified"
+current_gate = "0087 resets the tick clamp on load only with the analysis capability (fuzz implies it); vanilla keeps the upstream monotonic clamp, so the x86 TCG TSC does not rewind on load."
 required_action = "Keep an explicit upstream implementation/path for vanilla, including bugs or performance characteristics; apply the fix only under an opted-in capability."
 vanilla_verified = false
 
 [[patch]]
-id = "0077"
-file = "engine/patches/11.1.2/0077-panda-link-a-plugin-interface-per-target-against-its.patch"
+id = "0076"
+file = "engine/patches/11.1.2/0076-panda-link-a-plugin-interface-per-target-against-its.patch"
 sha256 = "5b1f56f23ba78031c42c50da20e66e9bc42dc698f2535f1131fa7be6f2c2e98e"
 class = "build-only"
 capability = "panda-plugin-link"
@@ -1091,8 +1077,8 @@ required_action = "Audit build/link/layout changes against an upstream baseline;
 vanilla_verified = false
 
 [[patch]]
-id = "0078"
-file = "engine/patches/11.1.2/0078-target-riscv-a-version-11-cpu-state-still-loads.patch"
+id = "0077"
+file = "engine/patches/11.1.2/0077-target-riscv-a-version-11-cpu-state-still-loads.patch"
 sha256 = "f11eb9ad6dac81ad65865f253473723fcb3e002ec9f2064a7b78821509bf6211"
 class = "upstream-fix-needs-off-path"
 capability = "snapshot-compatibility"
@@ -1105,8 +1091,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0079"
-file = "engine/patches/11.1.2/0079-hw-block-pflash-log-storage-writes-in-the-dirty-bitm.patch"
+id = "0078"
+file = "engine/patches/11.1.2/0078-hw-block-pflash-log-storage-writes-in-the-dirty-bitm.patch"
 sha256 = "32f94d8fc931abcfb3926fd22afe4170be683bbc8e247c36b43a91d627c6a1ab"
 class = "upstream-fix-needs-off-path"
 capability = "snapshot-dirty-tracking"
@@ -1119,8 +1105,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0080"
-file = "engine/patches/11.1.2/0080-migration-vmstate-skip-per-field-vmdesc-bookkeeping-.patch"
+id = "0079"
+file = "engine/patches/11.1.2/0079-migration-vmstate-skip-per-field-vmdesc-bookkeeping-.patch"
 sha256 = "853fafcda007ec759997ff6047df757184c83239e746c9128805c53803f35c2f"
 class = "upstream-fix-needs-off-path"
 capability = "snapshot-serialization"
@@ -1133,8 +1119,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0081"
-file = "engine/patches/11.1.2/0081-migration-qemu-file-inline-the-in-buffer-case-of-the.patch"
+id = "0080"
+file = "engine/patches/11.1.2/0080-migration-qemu-file-inline-the-in-buffer-case-of-the.patch"
 sha256 = "845e0f7aff997c4c256ac74454efb4b14256c6117dd3cc1caae51d9c2dfb23ed"
 class = "upstream-fix-needs-off-path"
 capability = "snapshot-deserialization"
@@ -1147,8 +1133,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0082"
-file = "engine/patches/11.1.2/0082-accel-tcg-no-PANDA-or-hook-calls-in-the-CPU-loop-whi.patch"
+id = "0081"
+file = "engine/patches/11.1.2/0081-accel-tcg-no-PANDA-or-hook-calls-in-the-CPU-loop-whi.patch"
 sha256 = "9e19df0c383c5769f7a11fbce41da0c3acc707458f5ee34ab07a3619847a5cde"
 class = "runtime-gate"
 capability = "analysis-idle-path"
@@ -1161,9 +1147,9 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0083"
-file = "engine/patches/11.1.2/0083-plugins-emit-block-completion-at-outgoing-edges.patch"
-sha256 = "b9edc3b5ee36f2937a10f11c5ad8918686cfcb0f5ee673886f4bdafbc1cc92d4"
+id = "0082"
+file = "engine/patches/11.1.2/0082-plugins-emit-block-completion-at-outgoing-edges.patch"
+sha256 = "63742e619fad1d8db0c7b0e2b10e766505a44a37edca84f2de20612734ad45df"
 class = "runtime-gate"
 capability = "analysis-block-completion"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/plugin-gen.c", "include/hw/core/cpu.h", "include/plugins/qemu-plugin.h", "include/qemu/plugin.h", "plugins/api.c"]
@@ -1175,9 +1161,9 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0084"
-file = "engine/patches/11.1.2/0084-replay-guard-guest-state-against-analysis-mutations.patch"
-sha256 = "86f54e237a10efcb280fa7895d386cff316a0264461a58cd565801b4b309e20b"
+id = "0083"
+file = "engine/patches/11.1.2/0083-replay-guard-guest-state-against-analysis-mutations.patch"
+sha256 = "b4abbb47924b38141a5313284ce4d51d063d1de69e097071d0767b5c615a9058"
 class = "runtime-gate"
 capability = "rr-analysis-policy"
 paths = ["include/plugins/qemu-plugin.h", "include/system/replay-analysis.h", "plugins/api-system.c", "plugins/api.c", "plugins/core.c", "replay/replay-begin.c", "replay/replay.c"]
@@ -1189,8 +1175,8 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0085"
-file = "engine/patches/11.1.2/0085-replay-coalesce-repeated-schedules-of-a-pending-BH.patch"
+id = "0084"
+file = "engine/patches/11.1.2/0084-replay-coalesce-repeated-schedules-of-a-pending-BH.patch"
 sha256 = "5966bde57b92cd41b15462eedac3953875145fef99336d8e4d6267abb1b6c3df"
 class = "upstream-fix-needs-off-path"
 capability = "rr-bottom-halves"
@@ -1203,8 +1189,8 @@ required_action = "Keep an explicit upstream implementation/path for vanilla, in
 vanilla_verified = false
 
 [[patch]]
-id = "0086"
-file = "engine/patches/11.1.2/0086-system-cancel-transient-analysis-before-restore-and-.patch"
+id = "0085"
+file = "engine/patches/11.1.2/0085-system-cancel-transient-analysis-before-restore-and-.patch"
 sha256 = "f253fd02209948c24ca19fb5e2dd4f703abe3d1aed3ad2524e823b6ae3758e8d"
 class = "runtime-gate"
 capability = "analysis-lifecycle"
@@ -1217,22 +1203,22 @@ required_action = "Guard capability admission and every changed execution/load/s
 vanilla_verified = false
 
 [[patch]]
-id = "0087"
-file = "engine/patches/11.1.2/0087-system-provision-startup-capabilities-and-gate-guest.patch"
-sha256 = "50a49e31c814a202fc41c20e88bc756ab0d42de5ff8b6e3048d349a7b1ea702a"
+id = "0086"
+file = "engine/patches/11.1.2/0086-system-provision-startup-capabilities-and-gate-guest.patch"
+sha256 = "35e4f163d37ae5942fabd7b04790f35dfda26dd4bdc5d0f3ff46ed78e87c932a"
 class = "startup-gate"
 capability = "startup-capability-policy-and-guest-hypercall"
 paths = ["hw/i386/pc.c", "qemu-options.hx", "system/meson.build", "system/vl.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c", "target/loongarch/tcg/insn_trans/trans_extra.c.inc", "target/loongarch/tcg/translate.c", "target/mips/tcg/translate.c", "target/ppc/translate.c", "target/ppc/translate/fixedpoint-impl.c.inc", "target/riscv/tcg/translate.c"]
 functions = ["parse_analysis_capabilities", "qemu_init_board", "analysis_policy_freeze", "analysis_guest_hypercall_enabled", "trans_HYPERCALL", "trans_MCR", "pc_basic_device_init", "gen_cond_move", "do_xori", "gen_logic_imm_fn", "trans_cpucfg"]
 hunk_contexts = ["void pc_basic_device_init(struct PCMachineState *pcms,", "SRST", "system_ss.add(files(", "static void qemu_init_displays(void)", "void qemu_init(int argc, char **argv)", "static bool trans_SYS(DisasContext *s, arg_SYS *a)", "static bool valid_cp(DisasContext *s, int cp)", "static bool trans_cpucfg(DisasContext *ctx, arg_cpucfg *a)", "static void gen_cond_move(DisasContext *ctx, uint32_t opc,", "static bool do_ori(DisasContext *ctx, arg_D_ui *a, bool shift)", "static int ex_rvc_shiftri(DisasContext *ctx, int imm)"]
 gate_status = "partial-startup-and-recognition-gates-not-parity-verified"
-current_gate = "CLI capability configuration/build wiring implemented; bare zero until 0090 seals the legacy CLI default, fuzz/RR normalize analysis, freeze before plugin/board realization and provisioned analysis startup activity. ARM/MIPS/PPC/RISC-V/LoongArch recognition and x86 port startup gated; user-only recognizers constant-off. No general callback admission, snapshot/device or KVM exit/filter gates implemented."
+current_gate = "CLI capability configuration/build wiring implemented; bare zero until 0089 seals the legacy CLI default, fuzz/RR normalize analysis, freeze before plugin/board realization and provisioned analysis startup activity. ARM/MIPS/PPC/RISC-V/LoongArch recognition and x86 port startup gated; user-only recognizers constant-off. No general callback admission, snapshot/device or KVM exit/filter gates implemented."
 required_action = "Complete earlier-series upstream off paths and extension admission, prove guest reserved-instruction/PIO and snapshot/CLI-RR parity, and validate supported builds. Do not infer whole-engine vanilla parity from zero policy or this bounded recognition patch."
 vanilla_verified = false
 
 [[patch]]
-id = "0088"
-file = "engine/patches/11.1.2/0088-system-gate-handoff-and-snapshot-clock-adaptations.patch"
+id = "0087"
+file = "engine/patches/11.1.2/0087-system-gate-handoff-and-snapshot-clock-adaptations.patch"
 sha256 = "25cef31eef66aa8bf87f261e0ce578c1680cf268c5652be6aaf80153c0ae8d20"
 class = "startup-gate"
 capability = "handoff-rr-fuzz-snapshot-adaptations"
@@ -1245,8 +1231,8 @@ required_action = "Complete RISC-V early version rejection and remaining snapsho
 vanilla_verified = false
 
 [[patch]]
-id = "0089"
-file = "engine/patches/11.1.2/0089-riscv-select-snapshot-version-policy-at-registration.patch"
+id = "0088"
+file = "engine/patches/11.1.2/0088-riscv-select-snapshot-version-policy-at-registration.patch"
 sha256 = "7f139c65adc5f49889a385ebbda88253159dbbe8be5cb5ca387b0a5f89c4bf04"
 class = "startup-gate"
 capability = "handoff-snapshot-version"
@@ -1259,8 +1245,8 @@ required_action = "Validate real loader/build behavior and guest snapshot compat
 vanilla_verified = false
 
 [[patch]]
-id = "0090"
-file = "engine/patches/11.1.2/0090-system-seal-capabilities-before-startup-side-effects.patch"
+id = "0089"
+file = "engine/patches/11.1.2/0089-system-seal-capabilities-before-startup-side-effects.patch"
 sha256 = "66ad17f34aa8b0fb0134669cbd477036ba75a24adfaac1621b81b2e74594da52"
 class = "startup-gate"
 capability = "sealed-startup-policy"
@@ -1273,8 +1259,8 @@ required_action = "Validate packaged constructor/preinit and command-line startu
 vanilla_verified = false
 
 [[patch]]
-id = "0091"
-file = "engine/patches/11.1.2/0091-replay-serialize-deferred-analysis-RAM-writes-as-ord.patch"
+id = "0090"
+file = "engine/patches/11.1.2/0090-replay-serialize-deferred-analysis-RAM-writes-as-ord.patch"
 sha256 = "865f25b4ebc06f36e056e207b026fbc5027da7d4fffbf6a7870d20f4ff35d608"
 class = "runtime-gate"
 capability = "rr-analysis-effects"
@@ -1287,8 +1273,8 @@ required_action = "Validate actual record/replay guest ordering, malformed/trunc
 vanilla_verified = false
 
 [[patch]]
-id = "0092"
-file = "engine/patches/11.1.2/0092-replay-stub-analysis-register-effects-without-TCG.patch"
+id = "0091"
+file = "engine/patches/11.1.2/0091-replay-stub-analysis-register-effects-without-TCG.patch"
 sha256 = "8757bb687c35b46d9c288523731bfc45381487b7d1b281b3f84b0fd21f8afd02"
 class = "build-only"
 capability = "rr-analysis-effects"
@@ -1302,8 +1288,8 @@ vanilla_verified = false
 
 
 [[patch]]
-id = "0093"
-file = "engine/patches/11.1.2/0093-replay-log-analysis-guest-writes-at-their-instructio.patch"
+id = "0092"
+file = "engine/patches/11.1.2/0092-replay-log-analysis-guest-writes-at-their-instructio.patch"
 sha256 = "9b7f5d4a61d63a3dd1f476768fe08228e426dc51019f2155e44466fcfdbcac3d"
 class = "runtime-gate"
 capability = "rr-analysis-effects"
@@ -1316,9 +1302,9 @@ required_action = "Gate translator_io_start on the guest-hypercall capability's 
 vanilla_verified = false
 
 [[patch]]
-id = "0094"
-file = "engine/patches/11.1.2/0094-tcg-taint-shadow-pass-hooks.patch"
-sha256 = "fbe06afbd40a2b114f20a2c02e8ae53050fa2d5f9edb23f143b5f406e88003c9"
+id = "0093"
+file = "engine/patches/11.1.2/0093-tcg-taint-shadow-pass-hooks.patch"
+sha256 = "42706e7b69fe365aed38b4ec86985bfd109f48047e1ccca94b92a5bff9082545"
 class = "runtime-gate"
 capability = "taint"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/cputlb.c", "accel/tcg/meson.build", "accel/tcg/translator.c", "include/exec/translation-block.h", "include/hw/core/cpu.h", "system/physmem.c", "system/vl.c", "target/arm/helper.c", "target/arm/internals.h", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c", "target/arm/tcg/translate.c", "target/mips/tcg/ldst_helper.c", "target/mips/tcg/tcg-internal.h", "target/mips/tcg/translate.c", "target/riscv/tcg/op_helper.c", "tcg/tcg.c"]
@@ -1330,8 +1316,8 @@ required_action = "Show the ungated liveness_pass_2 and user_reg_ptr changes are
 vanilla_verified = false
 
 [[patch]]
-id = "0095"
-file = "engine/patches/11.1.2/0095-migration-savevm-reset-load_section_id-at-the-start-.patch"
+id = "0094"
+file = "engine/patches/11.1.2/0094-migration-savevm-reset-load_section_id-at-the-start-.patch"
 sha256 = "4231af46889ff728c20a37e36dd1c7f66451f0b6308b687a6406257dd7fd3683"
 class = "upstream-fix-needs-off-path"
 capability = "rr-snapshot"
@@ -1344,8 +1330,8 @@ required_action = "Keep an upstream path for vanilla, or show a fresh-process lo
 vanilla_verified = false
 
 [[patch]]
-id = "0096"
-file = "engine/patches/11.1.2/0096-target-mips-move-the-Random-register-s-generator-sta.patch"
+id = "0095"
+file = "engine/patches/11.1.2/0095-target-mips-move-the-Random-register-s-generator-sta.patch"
 sha256 = "f7841b75304ab76d9b245484531dbc4c437b63f97e7d0d37dea83fd2d74eea9c"
 class = "upstream-fix-needs-off-path"
 capability = "rr-snapshot"
@@ -1358,8 +1344,8 @@ required_action = "Keep upstream's static generator and snapshot format for vani
 vanilla_verified = false
 
 [[patch]]
-id = "0097"
-file = "engine/patches/11.1.2/0097-target-loongarch-migrate-the-constant-timer.patch"
+id = "0096"
+file = "engine/patches/11.1.2/0096-target-loongarch-migrate-the-constant-timer.patch"
 sha256 = "e2c58dfa7618d7b344f110667c4ce5b5d8fd99abedcb8721d30cdf7d298c6d88"
 class = "upstream-fix-needs-off-path"
 capability = "rr-snapshot"
@@ -1372,8 +1358,8 @@ required_action = "Keep upstream's snapshot format for vanilla, or send the subs
 vanilla_verified = false
 
 [[patch]]
-id = "0098"
-file = "engine/patches/11.1.2/0098-target-ppc-rebuild-BookE-40x-exception-vectors-on-lo.patch"
+id = "0097"
+file = "engine/patches/11.1.2/0097-target-ppc-rebuild-BookE-40x-exception-vectors-on-lo.patch"
 sha256 = "7538b65d2493be07d1df796a33195b68a72c83864dadcdf6bbd3e175fa68a29e"
 class = "upstream-fix-needs-off-path"
 capability = "rr-snapshot"
@@ -1386,8 +1372,8 @@ required_action = "Keep upstream's load path for vanilla, or show the rebuild ma
 vanilla_verified = false
 
 [[patch]]
-id = "0099"
-file = "engine/patches/11.1.2/0099-hw-intc-openpic-restore-the-CPUs-external-proxy-mode.patch"
+id = "0098"
+file = "engine/patches/11.1.2/0098-hw-intc-openpic-restore-the-CPUs-external-proxy-mode.patch"
 sha256 = "57abaa9139cca948f9703148e76304064ad8a86eaa81d33c0035927b27884e58"
 class = "upstream-fix-needs-off-path"
 capability = "rr-snapshot"
@@ -1400,8 +1386,8 @@ required_action = "Keep upstream's load path for vanilla, or show it equals the 
 vanilla_verified = false
 
 [[patch]]
-id = "0100"
-file = "engine/patches/11.1.2/0100-hw-pci-host-ppce500-rebuild-the-PCI-windows-on-load.patch"
+id = "0099"
+file = "engine/patches/11.1.2/0099-hw-pci-host-ppce500-rebuild-the-PCI-windows-on-load.patch"
 sha256 = "3b082056e6d64e00a3e1c114422d4525f389d54b536c169089906a834fc62180"
 class = "upstream-fix-needs-off-path"
 capability = "rr-snapshot"
@@ -1414,8 +1400,8 @@ required_action = "Keep upstream's load path for vanilla, or show the rebuild ma
 vanilla_verified = false
 
 [[patch]]
-id = "0101"
-file = "engine/patches/11.1.2/0101-hw-pci-host-ppce500-migrate-the-host-bridge-s-config.patch"
+id = "0100"
+file = "engine/patches/11.1.2/0100-hw-pci-host-ppce500-migrate-the-host-bridge-s-config.patch"
 sha256 = "bc5d8a51536847182632ada40b57fa084d1fe1a64714b43835def890acfeeed2"
 class = "upstream-fix-needs-off-path"
 capability = "rr-snapshot"
@@ -1480,17 +1466,6 @@ functions = ["syscall_trap_enter", "syscall_trap_return", "syscall_trap_fault", 
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "Enabled/pending flags and RR write restrictions exist; consumer/watch admission has no vanilla capability; live detach refuses injected states."
 required_action = "Refuse all extension consumers/watches in vanilla; retain original target entry/return paths; keep rewind cancellation and live detach policy separate."
-vanilla_verified = false
-
-[[overlay]]
-id = "penguin-osi"
-class = "runtime-gate"
-capability = "host-osi"
-paths = ["engine/src/system/penguin-osi.c"]
-functions = ["penguin_osi_set_layout", "penguin_osi_proc", "penguin_osi_mappings"]
-gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "Host-side reads only, after a caller sets a layout; no interception, guest faults or injection."
-required_action = "Confirm reads stay off the vanilla path until a layout is set; no unrelated profile inference."
 vanilla_verified = false
 
 [[overlay]]
@@ -1651,7 +1626,7 @@ vanilla_verified = false
 id = "overlay-headers-and-build"
 class = "build-only"
 capability = "overlay-build-and-abi"
-paths = ["engine/src/accel/tcg/hooks-internal.h", "engine/src/include/accel/tcg/hooks.h", "engine/src/include/hw/core/configurable-cpu.h", "engine/src/include/hw/core/panda-modules.h", "engine/src/include/panda/callbacks/cb-defs.h", "engine/src/include/panda/callbacks/cb-helper-defs.h", "engine/src/include/panda/callbacks/cb-helper-impl.h", "engine/src/include/panda/callbacks/cb-macros.h", "engine/src/include/panda/callbacks/cb-support.h", "engine/src/include/panda/callbacks/cb-trampolines.h", "engine/src/include/panda/cheaders.h", "engine/src/include/panda/checkpoint.h", "engine/src/include/panda/common.h", "engine/src/include/panda/debug.h", "engine/src/include/panda/helper_runtime.h", "engine/src/include/panda/hooks.h", "engine/src/include/panda/network.h", "engine/src/include/panda/panda_api.h", "engine/src/include/panda/panda_qemu_plugin_helpers.h", "engine/src/include/panda/plugin.h", "engine/src/include/panda/plugin_plugin.h", "engine/src/include/panda/types.h", "engine/src/include/panda/wrap_ops.h", "engine/src/include/qemu/panda-module-info.h", "engine/src/include/qemu/panda-module.h", "engine/src/include/qemu/plugin-hw.h", "engine/src/include/system/penguin-osi.h", "engine/src/include/system/panda-embed.h", "engine/src/include/system/syscall-trap.h", "engine/src/panda/meson.build", "engine/src/panda/src/meson.build", "engine/src/scripts/panda-abi.py", "engine/src/scripts/panda-sdk.sh"]
+paths = ["engine/src/accel/tcg/hooks-internal.h", "engine/src/include/accel/tcg/hooks.h", "engine/src/include/hw/core/configurable-cpu.h", "engine/src/include/hw/core/panda-modules.h", "engine/src/include/panda/callbacks/cb-defs.h", "engine/src/include/panda/callbacks/cb-helper-defs.h", "engine/src/include/panda/callbacks/cb-helper-impl.h", "engine/src/include/panda/callbacks/cb-macros.h", "engine/src/include/panda/callbacks/cb-support.h", "engine/src/include/panda/callbacks/cb-trampolines.h", "engine/src/include/panda/cheaders.h", "engine/src/include/panda/checkpoint.h", "engine/src/include/panda/common.h", "engine/src/include/panda/debug.h", "engine/src/include/panda/helper_runtime.h", "engine/src/include/panda/hooks.h", "engine/src/include/panda/network.h", "engine/src/include/panda/panda_api.h", "engine/src/include/panda/panda_qemu_plugin_helpers.h", "engine/src/include/panda/plugin.h", "engine/src/include/panda/plugin_plugin.h", "engine/src/include/panda/types.h", "engine/src/include/panda/wrap_ops.h", "engine/src/include/qemu/panda-module-info.h", "engine/src/include/qemu/panda-module.h", "engine/src/include/qemu/plugin-hw.h", "engine/src/include/system/panda-embed.h", "engine/src/include/system/syscall-trap.h", "engine/src/panda/meson.build", "engine/src/panda/src/meson.build", "engine/src/scripts/panda-abi.py", "engine/src/scripts/panda-sdk.sh"]
 functions = ["CONFIG_PANDA hook stubs/declarations", "callback ABI and generated helper macros", "Meson overlay source/link selection", "public API inline/accessor contracts"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "Headers/build inputs grouped for coverage only; inline dispatch, ABI/layout, CONFIG_PANDA and linker effects are not exempt from strict upstream vanilla behavior."
@@ -1665,39 +1640,39 @@ class = "inert-in-vanilla"
 capability = "startup-capability-policy"
 paths = ["engine/src/include/system/analysis-policy.h", "engine/src/system/analysis-policy.c"]
 functions = ["analysis_policy_configure", "analysis_policy_freeze", "analysis_policy_has", "analysis_policy_set_analysis_active"]
-gate_status = "startup-cli-wired-0087-other-admission-gates-pending"
-current_gate = "New common policy defaults to zero/inactive, normalizes fuzz/RR prerequisites, freezes startup capabilities and independently tracks provisioned runtime analysis. 0087 now wires CLI configuration/freeze/startup activity and bounded guest-hypercall recognition/PIO gates; callback/API admission and other execution/snapshot off paths remain unwired."
+gate_status = "startup-cli-wired-0086-other-admission-gates-pending"
+current_gate = "New common policy defaults to zero/inactive, normalizes fuzz/RR prerequisites, freezes startup capabilities and independently tracks provisioned runtime analysis. 0086 now wires CLI configuration/freeze/startup activity and bounded guest-hypercall recognition/PIO gates; callback/API admission and other execution/snapshot off paths remain unwired."
 required_action = "Wire explicit startup configuration/freeze before realization, reject disallowed extension admission, and implement every upstream off path above. Activation callers must quiesce and invalidate affected TBs through existing mechanisms. Do not claim vanilla parity from policy state alone."
 vanilla_verified = false
 
 [[priority]]
 rank = 1
 focus = "Define explicit immutable vanilla admission before startup side effects"
-patches = ["0004", "0008", "0009", "0012", "0022", "0023", "0024", "0069", "0070", "0071", "0074"]
+patches = ["0004", "0008", "0009", "0012", "0021", "0022", "0023", "0068", "0069", "0070", "0073"]
 action = "Reject incompatible extension options/modules/registrations before realization; preserve reserved instructions, PIO, KVM filters/caps, PROM/RAM layout and snapshot sections. Do not infer capabilities from CPU, OS, accelerator or callback presence."
 
 [[priority]]
 rank = 2
 focus = "Restore exact upstream snapshot, timer, dirty logging and image layout paths"
-patches = ["0010", "0025", "0026", "0055", "0056", "0057", "0060", "0063", "0064", "0068", "0072", "0073", "0075", "0076", "0078", "0079", "0080", "0081", "0086"]
+patches = ["0010", "0024", "0025", "0054", "0055", "0056", "0059", "0062", "0063", "0067", "0071", "0072", "0074", "0075", "0077", "0078", "0079", "0080", "0085"]
 action = "Gate serializers, subsection needed predicates, load acceptance, clock clamp/domain transforms, dirty writes and qcow2 mutation independently; fixes and optimizations require upstream off paths too."
 
 [[priority]]
 rank = 3
 focus = "Close analysis admission and translation/control-flow paths"
-patches = ["0013", "0018", "0019", "0031", "0033", "0035", "0036", "0043", "0044", "0046", "0047", "0049", "0082", "0083", "0084"]
+patches = ["0013", "0018", "0019", "0030", "0032", "0034", "0035", "0042", "0043", "0045", "0046", "0048", "0081", "0082", "0083"]
 action = "Reject plugin/callback/watch/hook/mutation APIs in vanilla and select original translator, TB lookup/chaining, exception/ASID, memory and syscall entry/return paths. Idle subscriber bits alone are insufficient."
 
 [[priority]]
 rank = 4
 focus = "Preserve upstream RR scheduling and verify build/off-path policy"
-patches = ["0002", "0028", "0037", "0038", "0039", "0040", "0041", "0050", "0051", "0052", "0066", "0067", "0077", "0085"]
+patches = ["0002", "0027", "0036", "0037", "0038", "0039", "0040", "0049", "0050", "0051", "0065", "0066", "0076", "0084"]
 action = "Keep original upstream CLI record/replay event/mutex/log paths available in vanilla; extension runtime RR commands stay unavailable. Compare shared/PIC/link policies separately; do not claim parity from a build-only label."
 
 [coverage_checker_suggestion]
 status = "suggested-not-implemented"
 command_shape = "python3 -I checker.py docs/vanilla-gates.toml"
-checks = ["Parse TOML with tomllib; reject invalid classes, missing fields, duplicate IDs or any vanilla_verified=true without linked evidence", "Compare patch IDs and filenames bijectively against non-comment series lines and directory patches; require exactly0001..0087 until range intentionally updated", "Recompute SHA256 and extracted +++ b/ paths/hunk contexts; reject stale inventory after any patch edit", "Require every engine/src file to appear in at least one overlay path list; compare executable C/JSON separately from ancillary headers/build files", "For future implementation require each runtime/startup/fix record to link gate symbol, upstream off-path location and positive/negative tests; coverage is not semantic correctness", "Run vanilla guest/snapshot/MMIO/exception/dirty/timer/CLI-RR comparisons only after separate approval; never treat this static checker as proof of parity"]
+checks = ["Parse TOML with tomllib; reject invalid classes, missing fields, duplicate IDs or any vanilla_verified=true without linked evidence", "Compare patch IDs and filenames bijectively against non-comment series lines and directory patches; require exactly0001..0086 until range intentionally updated", "Recompute SHA256 and extracted +++ b/ paths/hunk contexts; reject stale inventory after any patch edit", "Require every engine/src file to appear in at least one overlay path list; compare executable C/JSON separately from ancillary headers/build files", "For future implementation require each runtime/startup/fix record to link gate symbol, upstream off-path location and positive/negative tests; coverage is not semantic correctness", "Run vanilla guest/snapshot/MMIO/exception/dirty/timer/CLI-RR comparisons only after separate approval; never treat this static checker as proof of parity"]
 
 [[overlay]]
 id = "taint"
@@ -1707,5 +1682,5 @@ paths = ["engine/src/accel/tcg/taint.c", "engine/src/include/exec/taint.h"]
 functions = ["taint_gen_tb", "taint_enable", "taint_unavailable", "taint_device_write", "taint_tlb_flush_page"]
 gate_status = "taint-cap-gate-implemented-not-vanilla-verified"
 current_gate = "Without the taint capability, init allocates nothing and taint_enable refuses; the pass runs only for CF_TAINT blocks during a replay."
-required_action = "Covered by 0094's obligations; nothing here runs unless taint is enabled in a replay."
+required_action = "Covered by 0093's obligations; nothing here runs unless taint is enabled in a replay."
 vanilla_verified = false

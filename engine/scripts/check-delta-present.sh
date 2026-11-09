@@ -34,11 +34,10 @@ CORE_SYMS=(
     panda_handle_qmp
     panda_invoke_reset_request_callback
 )
-# The pagein/syscall-trap sources (src/system/penguin-osi.c, syscall-trap.c,
-# accel/tcg/hooks.c) and the plugin API patches: target-independent system code,
-# so in EVERY system library.
+# The pagein/syscall-trap sources (src/system/syscall-trap.c, accel/tcg/hooks.c)
+# and the plugin API patches: target-independent system code, so in EVERY
+# system library.
 ENGINE_SYMS=(
-    penguin_osi_set_layout
     syscall_trap_enter
     syscall_trap_return
     qemu_plugin_hook_insert

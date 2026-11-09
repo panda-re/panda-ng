@@ -3,7 +3,7 @@ From: Luke Craig <lacraig3@gmail.com>
 Date: Thu, 22 Oct 2026 19:30:38 -0400
 Subject: [PATCH] panda: asid_changed on riscv satp writes
 
-satp writes go through panda_asid_reg_write, as CR3 and TTBR writes do (0044): asid_changed gets
+satp writes go through panda_asid_reg_write, as CR3 and TTBR writes do (0043): asid_changed gets
 process identifiers (the root page table's address, panda_current_asid) and may veto the write.
 
 SPDX-License-Identifier: GPL-2.0-or-later

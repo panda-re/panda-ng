@@ -17,7 +17,7 @@ Origin: new
  1 file changed, 18 insertions(+)
 
 diff --git a/replay/replay-begin.c b/replay/replay-begin.c
-index ec75bb0c8f42f955ff16aeece15f742a82d41483..a88b16186de4b23731bb17d72d38125898f673bf 100644
+index ff6de94cd83c174cc92acb8ec9b2c4ff7ba2e560..40cb71328619eda926318054d93b19e71937339f 100644
 --- a/replay/replay-begin.c
 +++ b/replay/replay-begin.c
 @@ -19,6 +19,7 @@

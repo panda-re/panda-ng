@@ -112,13 +112,6 @@ unsigned syscall_trap_cancel_all(void);
 bool syscall_trap_read(CPUState *cpu, vaddr addr, void *buf, size_t len);
 
 /*
- * The host address of the guest page at @page (page-aligned) if the vCPU's
- * TLB has it, at the current privilege or the kernel's; else NULL.  Valid
- * while the vCPU does not run.
- */
-const void *syscall_trap_host_page(CPUState *cpu, vaddr page);
-
-/*
  * Read or write it with the vCPU's permissions, user mode's first, then
  * the kernel's: a write never reaches a page the guest could not write
  * (read-only, copy-on-write).  True if all of it was accessed; otherwise

@@ -28,7 +28,7 @@ typedef enum PandaAdmit {
 /*
  * @supported: the modes the event can fire in. @capability: ANALYSIS_CAP_* it needs besides
  * analysis. @rr_mutate: the source logs what mutators do, so they are admitted in rr (today only
- * the hypercall site, 0093). @modes and @observe_only: what the subscriber declared.
+ * the hypercall site, 0092). @modes and @observe_only: what the subscriber declared.
  */
 static inline PandaAdmit panda_admit(uint32_t supported, uint32_t capability, bool rr_mutate,
                                      uint32_t modes, bool observe_only)

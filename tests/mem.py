@@ -53,7 +53,7 @@ ffi = panda.ffi
 C = Checks(arch, {"cpu_restore_state fires on the page fault":
                   "no call site for panda_callbacks_cpu_restore_state",
                   **{f"[run {n}] 16-byte accesses get before events":
-                     "128-bit TCG accesses have no before events (patch 0047)" for n in range(1, RUNS + 1)}})
+                     "128-bit TCG accesses have no before events (patch 0046)" for n in range(1, RUNS + 1)}})
 
 
 class Run:
@@ -294,7 +294,7 @@ def analyse(r):
         want = {"vb" + rw: (addr, size), "pb" + rw: (paddr, size), "va" + rw: (addr, size),
                 "pa" + rw: (paddr, size)}
         if size == 16:
-            # 128-bit accesses have no before events yet (patch 0047): a gap of its own.
+            # 128-bit accesses have no before events yet (patch 0046): a gap of its own.
             before16.append(sorted(k for k in kinds if k[1] == "b"))
             want = {k: v for k, v in want.items() if k[1] == "a"}
         if sorted(kinds) != sorted(want):

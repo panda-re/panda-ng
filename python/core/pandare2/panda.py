@@ -589,7 +589,7 @@ class Panda(TaintMixin):
 
         # Configure serial - if we have an expect_prompt set. Otherwise how can we know what guest cmds are outputting?
         # The first serial port, on a socket pair like the monitor's below. Its id starts with
-        # "serial": x-rr-begin-record journals the chardevs named serial* (engine patch 0039), so
+        # "serial": x-rr-begin-record journals the chardevs named serial* (engine patch 0038), so
         # the guest's console input is in a recording and its replay.
         if self.expect_prompt or (serial_kwargs is not None and serial_kwargs.get('expectation')):
             self.serial_socket, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)

@@ -132,13 +132,13 @@ index d7612217d6637a0177d2c4e42916dd227acf4fba..01d7f3f448d13254b78fa6332b97266d
 +
  #endif
 diff --git a/replay/replay-begin.c b/replay/replay-begin.c
-index fc2aef535d64e2cd9ebceece53a781287d8c2e22..39d85484dd4f228f02c2642e8c809bb1c2551494 100644
+index a899889597249c7c13a87ec82269128835369f5a..d5bd287c7e91c1cb809d7ae3ff81e3ecdf2f0f4f 100644
 --- a/replay/replay-begin.c
 +++ b/replay/replay-begin.c
 @@ -212,10 +212,16 @@ static void rr_register_chardevs(RrBeginRecordInfo *info)
   * synchronous vCPU work (x86 vapic_post_load -> run_on_cpu); a vCPU thread
   * that has run blocks on the replay mutex this (main-loop) thread holds, so
-  * run_on_cpu() hands the mutex over while it waits (0028).
+  * run_on_cpu() hands the mutex over while it waits (0027).
 + *
 + * Record and replay must leave the load with the same virtual timers armed
 + * and the same ones turned into vCPU work, although they load from

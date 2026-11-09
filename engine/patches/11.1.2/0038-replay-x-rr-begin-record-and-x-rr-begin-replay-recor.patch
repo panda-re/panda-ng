@@ -22,7 +22,7 @@ A begin that fails undoes itself (no log; icount switched off again if it
 switched it on), with icount_disable_runtime.
 
 Loading the start snapshot needs run_on_cpu() to hand the replay mutex to a
-waiting vCPU (x86 vapic_post_load), which 0028 does by dropping and
+waiting vCPU (x86 vapic_post_load), which 0027 does by dropping and
 retaking the BQL.
 
 From observe's rrux spike (replay/replay-begin.c), R3 of the panda-next
@@ -330,7 +330,7 @@ index 4b4175e8dd4c1cb4751e9c8d90f112451fc28c44..6f86061e40de66f91118653db3b22e24
  ), if_false: files('stubs-system.c'))
 diff --git a/replay/replay-begin.c b/replay/replay-begin.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..514bfee2dc64fb8099d33867b481619907aa2a16
+index 0000000000000000000000000000000000000000..580eb7405a9ad8480412a13e403fbbff866b39f9
 --- /dev/null
 +++ b/replay/replay-begin.c
 @@ -0,0 +1,350 @@
@@ -542,7 +542,7 @@ index 0000000000000000000000000000000000000000..514bfee2dc64fb8099d33867b4816199
 + * load_snapshot() of the start snapshot.  Some post_load hooks need
 + * synchronous vCPU work (x86 vapic_post_load -> run_on_cpu); a vCPU thread
 + * that has run blocks on the replay mutex this (main-loop) thread holds, so
-+ * run_on_cpu() hands the mutex over while it waits (0028).
++ * run_on_cpu() hands the mutex over while it waits (0027).
 + */
 +static bool rr_load_start(const char *snapshot, Error **errp)
 +{

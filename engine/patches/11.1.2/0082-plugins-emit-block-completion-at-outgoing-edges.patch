@@ -131,7 +131,7 @@ index 9e6430bd6af81efb49b18e54f47fab916050c344..d90f822e0b408d464c4163e9ebad408e
          ptb->mem_helper = false;
          ptb->vaddr_read = false;
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index 4f2e0d867c7c54e72b5d418eabd5a3bf760dc113..ec5faf76dd43796719880685978e42b7ac8647df 100644
+index 4f2e0d867c7c54e72b5d418eabd5a3bf760dc113..3bce74a74d250b725fe0cfc39ce16d8e0a185fb1 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
 @@ -565,7 +565,7 @@ struct CPUState {
@@ -139,7 +139,7 @@ index 4f2e0d867c7c54e72b5d418eabd5a3bf760dc113..ec5faf76dd43796719880685978e42b7
      /* host return address into the block while a TCG hook runs, or 0 */
      uintptr_t tcg_hook_ra;
 -    /* PANDA: a block's after_block_exec is still owed (panda/hooks.h) */
-+    /* Reserved for the 0082 CPUState ABI; no longer read or written. */
++    /* Reserved for the 0081 CPUState ABI; no longer read or written. */
      bool panda_block_pending;
      /*
       * A user-access window a plugin memory access opened and left open

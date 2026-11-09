@@ -42,11 +42,11 @@ SPDX-License-Identifier = "GPL-2.0-only"
 # engine/patches/11.1.2/ORIGINS.md). "override": the diffs quote other files' SPDX lines.
 [[annotations]]
 path = [
-  "engine/patches/11.1.2/0084-replay-guard-guest-state-against-analysis-mutations.patch",
-  "engine/patches/11.1.2/0085-replay-coalesce-repeated-schedules-of-a-pending-BH.patch",
-  "engine/patches/11.1.2/0091-replay-serialize-deferred-analysis-RAM-writes-as-ord.patch",
-  "engine/patches/11.1.2/0092-replay-stub-analysis-register-effects-without-TCG.patch",
-  "engine/patches/11.1.2/0089-riscv-select-snapshot-version-policy-at-registration.patch",
+  "engine/patches/11.1.2/0083-replay-guard-guest-state-against-analysis-mutations.patch",
+  "engine/patches/11.1.2/0084-replay-coalesce-repeated-schedules-of-a-pending-BH.patch",
+  "engine/patches/11.1.2/0090-replay-serialize-deferred-analysis-RAM-writes-as-ord.patch",
+  "engine/patches/11.1.2/0091-replay-stub-analysis-register-effects-without-TCG.patch",
+  "engine/patches/11.1.2/0088-riscv-select-snapshot-version-policy-at-registration.patch",
   "engine/patches/11.1.2/0002-build-emit-shared-libraries-for-the-embedding-API.patch",
   "engine/patches/11.1.2/0006-target-riscv-route-guest-hypercalls-to-the-embedding.patch",
   "engine/patches/11.1.2/0007-target-loongarch-route-guest-hypercalls-to-the-embed.patch",
@@ -54,34 +54,33 @@ path = [
   "engine/patches/11.1.2/0016-plugins-kvm-x86-faulting-accesses-and-breakpoint-cal.patch",
   "engine/patches/11.1.2/0017-plugins-batched-faulting-accesses-qemu_plugin_access.patch",
   "engine/patches/11.1.2/0020-plugins-address-hooks-register-pointers-TLB-first-re.patch",
-  "engine/patches/11.1.2/0021-system-build-the-host-side-OSI.patch",
-  "engine/patches/11.1.2/0023-target-arm-kvm-guest-hypercalls-under-arm64-KVM-SMCC.patch",
-  "engine/patches/11.1.2/0026-target-i386-keep-the-guest-TSC-continuous-across-a-c.patch",
-  "engine/patches/11.1.2/0030-replay-declare-replay_mutex_locked-in-system-replay..patch",
-  "engine/patches/11.1.2/0034-i386-kvm-plugin-accesses-on-KVM-kernel-walk-declined.patch",
-  "engine/patches/11.1.2/0038-replay-write-the-log-header-first-and-flush-the-log-.patch",
-  "engine/patches/11.1.2/0040-replay-x-rr-end-record-end-a-recording-and-keep-runn.patch",
-  "engine/patches/11.1.2/0041-panda-enable-panda-builds-the-PANDA-API-and-libpanda.patch",
-  "engine/patches/11.1.2/0042-plugins-add-qemu_plugin_tb_size-and-qemu_plugin_tb_g.patch",
-  "engine/patches/11.1.2/0049-panda-asid_changed-on-riscv-satp-writes.patch",
-  "engine/patches/11.1.2/0050-replay-x-rr-begin-record-filter-ids-valid-for-nic-ne.patch",
-  "engine/patches/11.1.2/0052-replay-x-rr-begin-record-rewinds-the-log-to-the-star.patch",
-  "engine/patches/11.1.2/0056-hw-core-loader-rom_reset-logs-the-RAM-it-rewrites.patch",
-  "engine/patches/11.1.2/0057-target-arm-ptw-log-hardware-access-flag-and-dirty-st.patch",
-  "engine/patches/11.1.2/0060-vhost-don-t-turn-dirty-logging-on-in-a-device-that-c.patch",
-  "engine/patches/11.1.2/0063-target-arm-a-snapshot-loads-across-icount-on-off-PMC.patch",
-  "engine/patches/11.1.2/0064-target-riscv-log-hardware-A-D-page-table-updates-as-.patch",
-  "engine/patches/11.1.2/0065-plugins-keep-the-access-direction-clear-of-the-MemOp.patch",
-  "engine/patches/11.1.2/0066-replay-the-replay-mutex-pairs-on-its-holder-not-on-r.patch",
-  "engine/patches/11.1.2/0071-hw-core-build-the-configurable-machine-and-its-QAPI-.patch",
-  "engine/patches/11.1.2/0077-panda-link-a-plugin-interface-per-target-against-its.patch",
-  "engine/patches/11.1.2/0078-target-riscv-a-version-11-cpu-state-still-loads.patch",
-  "engine/patches/11.1.2/0080-migration-vmstate-skip-per-field-vmdesc-bookkeeping-.patch",
-  "engine/patches/11.1.2/0097-target-loongarch-migrate-the-constant-timer.patch",
-  "engine/patches/11.1.2/0098-target-ppc-rebuild-BookE-40x-exception-vectors-on-lo.patch",
-  "engine/patches/11.1.2/0099-hw-intc-openpic-restore-the-CPUs-external-proxy-mode.patch",
-  "engine/patches/11.1.2/0100-hw-pci-host-ppce500-rebuild-the-PCI-windows-on-load.patch",
-  "engine/patches/11.1.2/0101-hw-pci-host-ppce500-migrate-the-host-bridge-s-config.patch",
+  "engine/patches/11.1.2/0022-target-arm-kvm-guest-hypercalls-under-arm64-KVM-SMCC.patch",
+  "engine/patches/11.1.2/0025-target-i386-keep-the-guest-TSC-continuous-across-a-c.patch",
+  "engine/patches/11.1.2/0029-replay-declare-replay_mutex_locked-in-system-replay..patch",
+  "engine/patches/11.1.2/0033-i386-kvm-plugin-accesses-on-KVM-kernel-walk-declined.patch",
+  "engine/patches/11.1.2/0037-replay-write-the-log-header-first-and-flush-the-log-.patch",
+  "engine/patches/11.1.2/0039-replay-x-rr-end-record-end-a-recording-and-keep-runn.patch",
+  "engine/patches/11.1.2/0040-panda-enable-panda-builds-the-PANDA-API-and-libpanda.patch",
+  "engine/patches/11.1.2/0041-plugins-add-qemu_plugin_tb_size-and-qemu_plugin_tb_g.patch",
+  "engine/patches/11.1.2/0048-panda-asid_changed-on-riscv-satp-writes.patch",
+  "engine/patches/11.1.2/0049-replay-x-rr-begin-record-filter-ids-valid-for-nic-ne.patch",
+  "engine/patches/11.1.2/0051-replay-x-rr-begin-record-rewinds-the-log-to-the-star.patch",
+  "engine/patches/11.1.2/0055-hw-core-loader-rom_reset-logs-the-RAM-it-rewrites.patch",
+  "engine/patches/11.1.2/0056-target-arm-ptw-log-hardware-access-flag-and-dirty-st.patch",
+  "engine/patches/11.1.2/0059-vhost-don-t-turn-dirty-logging-on-in-a-device-that-c.patch",
+  "engine/patches/11.1.2/0062-target-arm-a-snapshot-loads-across-icount-on-off-PMC.patch",
+  "engine/patches/11.1.2/0063-target-riscv-log-hardware-A-D-page-table-updates-as-.patch",
+  "engine/patches/11.1.2/0064-plugins-keep-the-access-direction-clear-of-the-MemOp.patch",
+  "engine/patches/11.1.2/0065-replay-the-replay-mutex-pairs-on-its-holder-not-on-r.patch",
+  "engine/patches/11.1.2/0070-hw-core-build-the-configurable-machine-and-its-QAPI-.patch",
+  "engine/patches/11.1.2/0076-panda-link-a-plugin-interface-per-target-against-its.patch",
+  "engine/patches/11.1.2/0077-target-riscv-a-version-11-cpu-state-still-loads.patch",
+  "engine/patches/11.1.2/0079-migration-vmstate-skip-per-field-vmdesc-bookkeeping-.patch",
+  "engine/patches/11.1.2/0096-target-loongarch-migrate-the-constant-timer.patch",
+  "engine/patches/11.1.2/0097-target-ppc-rebuild-BookE-40x-exception-vectors-on-lo.patch",
+  "engine/patches/11.1.2/0098-hw-intc-openpic-restore-the-CPUs-external-proxy-mode.patch",
+  "engine/patches/11.1.2/0099-hw-pci-host-ppce500-rebuild-the-PCI-windows-on-load.patch",
+  "engine/patches/11.1.2/0100-hw-pci-host-ppce500-migrate-the-host-bridge-s-config.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
@@ -96,12 +95,12 @@ path = [
   "engine/patches/11.1.2/0014-plugins-target-arm-a-user-access-window-DACR-for-fau.patch",
   "engine/patches/11.1.2/0015-plugins-faulting-writes-uaccess-fault-index-ppc-risc.patch",
   "engine/patches/11.1.2/0019-system-target-i386-target-arm-the-syscall-trap.patch",
-  "engine/patches/11.1.2/0024-target-arm-arm_gic-resume-an-aarch64-KVM-snapshot-un.patch",
-  "engine/patches/11.1.2/0032-plugins-targets-a-user-access-window-owned-by-the-ac.patch",
-  "engine/patches/11.1.2/0033-plugins-qemu_plugin_set_pc-from-a-syscall-entry-call.patch",
-  "engine/patches/11.1.2/0035-plugins-bind-a-CF_PCREL-block-to-its-virtual-address.patch",
-  "engine/patches/11.1.2/0044-panda-asid_changed-on-x86-arm-and-mips.patch",
-  "engine/patches/11.1.2/0096-target-mips-move-the-Random-register-s-generator-sta.patch",
+  "engine/patches/11.1.2/0023-target-arm-arm_gic-resume-an-aarch64-KVM-snapshot-un.patch",
+  "engine/patches/11.1.2/0031-plugins-targets-a-user-access-window-owned-by-the-ac.patch",
+  "engine/patches/11.1.2/0032-plugins-qemu_plugin_set_pc-from-a-syscall-entry-call.patch",
+  "engine/patches/11.1.2/0034-plugins-bind-a-CF_PCREL-block-to-its-virtual-address.patch",
+  "engine/patches/11.1.2/0043-panda-asid_changed-on-x86-arm-and-mips.patch",
+  "engine/patches/11.1.2/0095-target-mips-move-the-Random-register-s-generator-sta.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
@@ -109,18 +108,18 @@ SPDX-License-Identifier = "GPL-2.0-or-later AND LGPL-2.1-or-later"
 
 [[annotations]]
 path = [
-  "engine/patches/11.1.2/0086-system-cancel-transient-analysis-before-restore-and-.patch",
+  "engine/patches/11.1.2/0085-system-cancel-transient-analysis-before-restore-and-.patch",
   "engine/patches/11.1.2/0001-system-the-embedding-API-s-core-callbacks-and-build-.patch",
   "engine/patches/11.1.2/0010-system-snapshot-ABI-and-a-migratable-vhost-user-vsoc.patch",
-  "engine/patches/11.1.2/0025-system-cpu-timers-continue-the-virtual-clock-when-an.patch",
-  "engine/patches/11.1.2/0028-system-cpus-run_on_cpu-under-record-replay-release-t.patch",
-  "engine/patches/11.1.2/0039-replay-x-rr-begin-record-and-x-rr-begin-replay-recor.patch",
-  "engine/patches/11.1.2/0051-replay-no-frontend-room-while-a-recorded-chardev-rea.patch",
-  "engine/patches/11.1.2/0067-accel-tcg-rr-vCPU-loop-takes-the-replay-mutex-if-rep.patch",
-  "engine/patches/11.1.2/0068-replay-the-replay-vmstate-registers-once-and-saves-w.patch",
-  "engine/patches/11.1.2/0070-vl-M-PATH-NAME-and-module-PATH-load-panda-modules.patch",
-  "engine/patches/11.1.2/0072-replay-a-snapshot-load-judges-its-virtual-timers-at-.patch",
-  "engine/patches/11.1.2/0073-replay-mark-the-begin-record-start-snapshot-refuse-l.patch",
+  "engine/patches/11.1.2/0024-system-cpu-timers-continue-the-virtual-clock-when-an.patch",
+  "engine/patches/11.1.2/0027-system-cpus-run_on_cpu-under-record-replay-release-t.patch",
+  "engine/patches/11.1.2/0038-replay-x-rr-begin-record-and-x-rr-begin-replay-recor.patch",
+  "engine/patches/11.1.2/0050-replay-no-frontend-room-while-a-recorded-chardev-rea.patch",
+  "engine/patches/11.1.2/0066-accel-tcg-rr-vCPU-loop-takes-the-replay-mutex-if-rep.patch",
+  "engine/patches/11.1.2/0067-replay-the-replay-vmstate-registers-once-and-saves-w.patch",
+  "engine/patches/11.1.2/0069-vl-M-PATH-NAME-and-module-PATH-load-panda-modules.patch",
+  "engine/patches/11.1.2/0071-replay-a-snapshot-load-judges-its-virtual-timers-at-.patch",
+  "engine/patches/11.1.2/0072-replay-mark-the-begin-record-start-snapshot-refuse-l.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
@@ -128,17 +127,17 @@ SPDX-License-Identifier = "GPL-2.0-or-later AND MIT"
 
 [[annotations]]
 path = [
-  "engine/patches/11.1.2/0029-qapi-a-weak-default-panda_handle_qmp-so-the-tools-li.patch",
-  "engine/patches/11.1.2/0031-accel-tcg-forget-the-plugin-callback-s-return-addres.patch",
-  "engine/patches/11.1.2/0043-panda-TCG-core-hooks.patch",
-  "engine/patches/11.1.2/0046-panda-panda_disable_tb_chaining-turns-TB-chaining-of.patch",
-  "engine/patches/11.1.2/0048-panda-before_find_fast-before-each-TB-lookup.patch",
-  "engine/patches/11.1.2/0055-hw-block-pflash_cfi01-one-post_load-state-handler-at.patch",
-  "engine/patches/11.1.2/0058-panda-block-callbacks-learn-of-a-longjmp-out-of-the-.patch",
-  "engine/patches/11.1.2/0059-panda-after_block_exec-hook-after-the-PC-is-synchron.patch",
-  "engine/patches/11.1.2/0062-accel-tcg-cpu_exec_step_atomic-runs-in-an-RCU-read-s.patch",
-  "engine/patches/11.1.2/0074-physmem-size-a-resizeable-RAM-block-s-maximum-indepe.patch",
-  "engine/patches/11.1.2/0079-hw-block-pflash-log-storage-writes-in-the-dirty-bitm.patch",
+  "engine/patches/11.1.2/0028-qapi-a-weak-default-panda_handle_qmp-so-the-tools-li.patch",
+  "engine/patches/11.1.2/0030-accel-tcg-forget-the-plugin-callback-s-return-addres.patch",
+  "engine/patches/11.1.2/0042-panda-TCG-core-hooks.patch",
+  "engine/patches/11.1.2/0045-panda-panda_disable_tb_chaining-turns-TB-chaining-of.patch",
+  "engine/patches/11.1.2/0047-panda-before_find_fast-before-each-TB-lookup.patch",
+  "engine/patches/11.1.2/0054-hw-block-pflash_cfi01-one-post_load-state-handler-at.patch",
+  "engine/patches/11.1.2/0057-panda-block-callbacks-learn-of-a-longjmp-out-of-the-.patch",
+  "engine/patches/11.1.2/0058-panda-after_block_exec-hook-after-the-PC-is-synchron.patch",
+  "engine/patches/11.1.2/0061-accel-tcg-cpu_exec_step_atomic-runs-in-an-RCU-read-s.patch",
+  "engine/patches/11.1.2/0073-physmem-size-a-resizeable-RAM-block-s-maximum-indepe.patch",
+  "engine/patches/11.1.2/0078-hw-block-pflash-log-storage-writes-in-the-dirty-bitm.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
@@ -147,16 +146,16 @@ SPDX-License-Identifier = "LGPL-2.1-or-later"
 [[annotations]]
 path = [
   "engine/patches/11.1.2/0012-hw-mips-malta-enlarge-the-prom-env-slot-so-the-cmdli.patch",
-  "engine/patches/11.1.2/0027-accel-tcg-x-tsc-vclock-the-x86-TSC-from-the-virtual-.patch",
-  "engine/patches/11.1.2/0037-accel-tcg-rr-ready-launch-a-VM-so-that-a-recording-c.patch",
-  "engine/patches/11.1.2/0053-panda-main_loop_wait-callback-at-each-main-loop-iter.patch",
-  "engine/patches/11.1.2/0054-panda-after_loadvm-callback-when-load_snapshot-succe.patch",
-  "engine/patches/11.1.2/0061-panda-before_loadvm-hook-before-qemu_loadvm_state-lo.patch",
-  "engine/patches/11.1.2/0075-block-qcow2-drop-the-active-VM-state-before-a-savevm.patch",
-  "engine/patches/11.1.2/0076-system-cpu-timers-a-snapshot-load-resets-the-ticks-m.patch",
-  "engine/patches/11.1.2/0090-system-seal-capabilities-before-startup-side-effects.patch",
-  "engine/patches/11.1.2/0081-migration-qemu-file-inline-the-in-buffer-case-of-the.patch",
-  "engine/patches/11.1.2/0095-migration-savevm-reset-load_section_id-at-the-start-.patch",
+  "engine/patches/11.1.2/0026-accel-tcg-x-tsc-vclock-the-x86-TSC-from-the-virtual-.patch",
+  "engine/patches/11.1.2/0036-accel-tcg-rr-ready-launch-a-VM-so-that-a-recording-c.patch",
+  "engine/patches/11.1.2/0052-panda-main_loop_wait-callback-at-each-main-loop-iter.patch",
+  "engine/patches/11.1.2/0053-panda-after_loadvm-callback-when-load_snapshot-succe.patch",
+  "engine/patches/11.1.2/0060-panda-before_loadvm-hook-before-qemu_loadvm_state-lo.patch",
+  "engine/patches/11.1.2/0074-block-qcow2-drop-the-active-VM-state-before-a-savevm.patch",
+  "engine/patches/11.1.2/0075-system-cpu-timers-a-snapshot-load-resets-the-ticks-m.patch",
+  "engine/patches/11.1.2/0089-system-seal-capabilities-before-startup-side-effects.patch",
+  "engine/patches/11.1.2/0080-migration-qemu-file-inline-the-in-buffer-case-of-the.patch",
+  "engine/patches/11.1.2/0094-migration-savevm-reset-load_section_id-at-the-start-.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
@@ -164,14 +163,14 @@ SPDX-License-Identifier = "MIT"
 
 [[annotations]]
 path = [
-  "engine/patches/11.1.2/0087-system-provision-startup-capabilities-and-gate-guest.patch",
-  "engine/patches/11.1.2/0088-system-gate-handoff-and-snapshot-clock-adaptations.patch",
+  "engine/patches/11.1.2/0086-system-provision-startup-capabilities-and-gate-guest.patch",
+  "engine/patches/11.1.2/0087-system-gate-handoff-and-snapshot-clock-adaptations.patch",
   "engine/patches/11.1.2/0018-accel-tcg-translation-time-address-hooks-and-registe.patch",
-  "engine/patches/11.1.2/0036-accel-tcg-address-hooks-keep-CF_PCREL-on-outside-hoo.patch",
-  "engine/patches/11.1.2/0045-panda-guest_hypercall-on-the-guest-hypercall-instruc.patch",
-  "engine/patches/11.1.2/0047-plugins-memory-callbacks-before-the-access.patch",
-  "engine/patches/11.1.2/0082-accel-tcg-no-PANDA-or-hook-calls-in-the-CPU-loop-whi.patch",
-  "engine/patches/11.1.2/0094-tcg-taint-shadow-pass-hooks.patch",
+  "engine/patches/11.1.2/0035-accel-tcg-address-hooks-keep-CF_PCREL-on-outside-hoo.patch",
+  "engine/patches/11.1.2/0044-panda-guest_hypercall-on-the-guest-hypercall-instruc.patch",
+  "engine/patches/11.1.2/0046-plugins-memory-callbacks-before-the-access.patch",
+  "engine/patches/11.1.2/0081-accel-tcg-no-PANDA-or-hook-calls-in-the-CPU-loop-whi.patch",
+  "engine/patches/11.1.2/0093-tcg-taint-shadow-pass-hooks.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
@@ -188,7 +187,7 @@ SPDX-License-Identifier = "LGPL-2.1-or-later AND MIT"
 
 [[annotations]]
 path = [
-  "engine/patches/11.1.2/0069-module-load-panda-modules-by-path-checked-against-th.patch",
+  "engine/patches/11.1.2/0068-module-load-panda-modules-by-path-checked-against-th.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
@@ -196,7 +195,7 @@ SPDX-License-Identifier = "GPL-2.0-only AND GPL-2.0-or-later"
 
 [[annotations]]
 path = [
-  "engine/patches/11.1.2/0022-i386-resume-a-KVM-snapshot-under-TCG-and-a-TCG-snaps.patch",
+  "engine/patches/11.1.2/0021-i386-resume-a-KVM-snapshot-under-TCG-and-a-TCG-snaps.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
@@ -304,7 +303,7 @@ SPDX-FileCopyrightText = "2008-2020 Eli Bendersky and contributors"
 SPDX-License-Identifier = "BSD-3-Clause"
 
 [[annotations]]
-path = "engine/patches/11.1.2/0083-plugins-emit-block-completion-at-outgoing-edges.patch"
+path = "engine/patches/11.1.2/0082-plugins-emit-block-completion-at-outgoing-edges.patch"
 precedence = "closest"
 SPDX-FileCopyrightText = "2026 The QEMU contributors and PANDA authors"
 SPDX-License-Identifier = "GPL-2.0-or-later AND LGPL-2.1-or-later"
