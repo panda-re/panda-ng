@@ -3,7 +3,7 @@ From: Luke Craig <lacraig3@gmail.com>
 Date: Wed, 21 Oct 2026 15:19:50 -0400
 Subject: [PATCH] replay: declare replay_mutex_locked() in system/replay.h
 
-0028 calls replay_mutex_locked() from system/cpus.c, but it was declared
+0027 calls replay_mutex_locked() from system/cpus.c, but it was declared
 only in replay/replay-internal.h, which cpus.c does not include. gcc 13
 treats the implicit declaration as a warning (and --disable-werror hides
 it); clang and gcc 14 reject it, so the series did not build on macOS.

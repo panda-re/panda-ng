@@ -165,7 +165,7 @@ void cb_block_translate_callback (CPUState* cpu, struct qemu_plugin_tb *tb) {
     std::set<target_ulong> inserted_addresses;
     memset(&hook_container, 0, sizeof(hook_container));
     // The block's address without reading it through the plugin API, which would bind every TB
-    // to its address (patch 0035) and stop CF_PCREL sharing: at translation the CPU's pc is the
+    // to its address (patch 0034) and stop CF_PCREL sharing: at translation the CPU's pc is the
     // block's start. Hooked pages translate per virtual address (add_hook); a TB that gets a hook
     // is bound below as well.
     uint64_t tb_vaddr = panda_current_pc(cpu);

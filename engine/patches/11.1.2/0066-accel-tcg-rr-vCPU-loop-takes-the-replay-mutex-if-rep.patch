@@ -12,7 +12,7 @@ The round-robin vCPU loop does
 
 With replay off, the lock is a no-op. If the vCPU thread is waiting in
 bql_lock() at that point while the main loop runs x-rr-begin-record
-(0039), replay_enable() switches to RECORD and hands the mutex to the
+(0038), replay_enable() switches to RECORD and hands the mutex to the
 main thread (replay_mutex_init()). The vCPU then gets the BQL, runs the
 icount part without the mutex, and calls replay_mutex_unlock() with
 replay on and the mutex not held:

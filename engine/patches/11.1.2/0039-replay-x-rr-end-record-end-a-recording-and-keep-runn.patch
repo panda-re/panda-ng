@@ -47,7 +47,7 @@ index 1325130ecdd21439063f85bb1cb515f5f8d08b63..29c55e07ac0a0eede8db15616c7dde52
 +{ 'command': 'x-rr-end-record',
 +  'features': [ 'unstable' ] }
 diff --git a/replay/replay-begin.c b/replay/replay-begin.c
-index 514bfee2dc64fb8099d33867b481619907aa2a16..4e3b320c55b596cccc50cc4c84bcf8b847fa85f8 100644
+index 580eb7405a9ad8480412a13e403fbbff866b39f9..d45d4a35b677ff338dbaa92568c2d74063d9aaa8 100644
 --- a/replay/replay-begin.c
 +++ b/replay/replay-begin.c
 @@ -6,7 +6,9 @@

@@ -136,7 +136,7 @@ below take the series from `<old>` to `<new>` (the last rebase was 11.1.0 to 11.
    `nix run .#regen-docs`, and commit.
 5. `nix flake check`, `nix build .#python`, the guest tests on all five images, the off-cost gate.
 
-11.1.0 to 11.1.2 (October 2026): only 0055 (pflash_cfi01) failed strict apply, on context
+11.1.0 to 11.1.2 (October 2026): only 0054 (pflash_cfi01) failed strict apply, on context
 from upstream 5ea267f ("Restore ROMD mode after migration"); its change is unchanged. Every other
 patch applied cleanly, but three upstream changes needed work:
 
@@ -152,7 +152,7 @@ patch applied cleanly, but three upstream changes needed work:
   `mmio_before_write`), which had no call site before.
 - 0d4875d ("target/riscv/kvm: Preserve MP state across migration") raised the riscv cpu
   vmstate's `minimum_version_id` from 11 to 12 without changing its fields, so no riscv snapshot
-  saved by 11.1.0 loaded (the guest suite's riscv64 image failed every test). 0078 takes the
+  saved by 11.1.0 loaded (the guest suite's riscv64 image failed every test). 0077 takes the
   minimum back to 11. Check `version_id` changes in a stable diff before trusting old snapshots.
 
 ## What came from qemu_builder, and what did not
@@ -176,7 +176,7 @@ does not build:
 `engine-offcost.yml` and `engine-canary.yml` (GitHub-hosted runners, paths under engine/).
 
 The series itself is imported whole. Several patches exist for penguin (IGLOO) rather than PANDA,
-but later patches are built on them (0002's shared-library link is how libpanda is linked; 0045,
+but later patches are built on them (0002's shared-library link is how libpanda is linked; 0044,
 PANDA's `guest_hypercall`, sits on the hypercall routing of 0001 and 0003-0008), so removing any
 means re-porting the series and re-testing. Which feature each patch serves, and whether
 pandare2 uses it, is in [docs/features.md](../docs/features.md) and

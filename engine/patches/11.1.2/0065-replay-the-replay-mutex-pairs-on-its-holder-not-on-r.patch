@@ -6,7 +6,7 @@ Subject: [PATCH] replay: the replay mutex pairs on its holder, not on
 
 replay_mutex_lock() and replay_mutex_unlock() are no-ops while
 replay_mode is NONE and assume the mode never changes in between.
-x-rr-end-record (0040) breaks that: it sets the mode to NONE in a QMP
+x-rr-end-record (0039) breaks that: it sets the mode to NONE in a QMP
 command, i.e. while the main loop holds the mutex. The main loop's
 unlock before its next poll is then a no-op, the thread-local flag stays
 set and the ticket counters stay one apart. The next x-rr-begin-record

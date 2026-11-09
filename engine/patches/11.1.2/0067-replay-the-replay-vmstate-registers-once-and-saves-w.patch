@@ -5,7 +5,7 @@ Subject: [PATCH] replay: the replay vmstate registers once and saves with no
  log open; a second begin works
 
 x-rr-begin-record registers the "replay" vmstate for its start snapshot
-and x-rr-end-record (0040) left it registered. Two consequences:
+and x-rr-end-record (0039) left it registered. Two consequences:
 
 - a second x-rr-begin-record in the same process registers it again,
   and savevm_state_handler_insert() exits:
@@ -28,8 +28,8 @@ would load through the NULL timers:
 
 They load into scratch timers, dropped after the load, and the virtual
 clock continues from the saver's icount time (bias + icount), the reverse
-of what 0025 does for a non-icount snapshot in an icount process; the
-clock-domain flag is set too, so the x86 TSC stays continuous (0026).
+of what 0024 does for a non-icount snapshot in an icount process; the
+clock-domain flag is set too, so the x86 TSC stays continuous (0025).
 
 Also: don't add a chardev to the replay list twice (each begin registers
 its chardevs again); register replay_finish() with atexit() once, not
@@ -47,7 +47,7 @@ Origin: new
  5 files changed, 110 insertions(+), 7 deletions(-)
 
 diff --git a/replay/replay-begin.c b/replay/replay-begin.c
-index a88b16186de4b23731bb17d72d38125898f673bf..fc2aef535d64e2cd9ebceece53a781287d8c2e22 100644
+index 40cb71328619eda926318054d93b19e71937339f..a899889597249c7c13a87ec82269128835369f5a 100644
 --- a/replay/replay-begin.c
 +++ b/replay/replay-begin.c
 @@ -391,9 +391,8 @@ void qmp_x_rr_end_record(Error **errp)

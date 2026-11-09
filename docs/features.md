@@ -56,7 +56,7 @@ instance; work that drives the guest and waits for it (console commands, snapsho
 
 **Tests:** `tests/smoke.py`, `tests/static/refs.py`, `tests/api.py`, `tests/reset.py`, `tests/teardown.py`, `tests/static/capabilities.py`, `tests/static/capability_gates.py`, `tests/static/startup_capabilities.py`, `tests/static/capability_admission.py`
 
-**Engine patches:** 0041, 0087, 0090 ([series](reference/patches.md))
+**Engine patches:** 0040, 0086, 0089 ([series](reference/patches.md))
 
 <a id="callbacks"></a>
 ## Callbacks
@@ -90,7 +90,7 @@ QEMU's own readers perform a device access except when RR policy refuses it.
 
 **Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/block_activation.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/mmio.py`, `tests/physmem.py`
 
-**Engine patches:** 0031, 0035, 0042-0044, 0046-0049, 0053-0054, 0058-0059, 0065, 0082-0083 ([series](reference/patches.md))
+**Engine patches:** 0030, 0034, 0041-0043, 0045-0048, 0052-0053, 0057-0058, 0064, 0081-0082 ([series](reference/patches.md))
 
 <a id="plugins"></a>
 ## C and C++ plugins
@@ -126,7 +126,7 @@ global scope, and the process then can't have a `Panda` of another architecture.
 
 **Tests:** `tests/multi.py`
 
-**Engine patches:** 0077 ([series](reference/patches.md))
+**Engine patches:** 0076 ([series](reference/patches.md))
 
 <a id="rust"></a>
 ## Rust plugins
@@ -195,7 +195,7 @@ handle them in C.
 
 **Tests:** `tests/guest.py`, `tests/mem.py`
 
-**Engine patches:** 0001, 0003-0008, 0045 ([series](reference/patches.md))
+**Engine patches:** 0001, 0003-0008, 0044 ([series](reference/patches.md))
 
 <a id="record-replay"></a>
 ## Record and replay
@@ -212,7 +212,7 @@ recording can start at any point.
 
 **Tests:** `tests/rr.py`, `tests/rrcb.py`, `tests/rrstop.py`, `tests/rrload.py`, `tests/rr_blocks.py`, `tests/replay_guard.py`, `tests/static/replay_policy.py`, `tests/static/replay_native.py`, `tests/static/replay_bh.py`
 
-**Engine patches:** 0025-0028, 0030, 0037-0040, 0050-0052, 0066-0068, 0072-0073, 0084-0085, 0095-0097, 0099-0101 ([series](reference/patches.md))
+**Engine patches:** 0024-0027, 0029, 0036-0039, 0049-0051, 0065-0067, 0071-0072, 0083-0084, 0094-0096, 0098-0100 ([series](reference/patches.md))
 
 <a id="recorded-ram-effects"></a>
 ## Recorded analysis RAM and register effects
@@ -229,7 +229,7 @@ requester. Registers are named by the CPU's gdbstub register number, so no PANDA
 
 **Tests:** `tests/static/replay_effect.py`, `tests/replay_effect.py`
 
-**Engine patches:** 0091-0092 ([series](reference/patches.md))
+**Engine patches:** 0090-0091 ([series](reference/patches.md))
 
 <a id="recorded-hypercall-answers"></a>
 ## Recorded guest writes
@@ -247,7 +247,7 @@ first site; writes made behind the API's back are a fatal error.
 
 **Tests:** `tests/static/replay_effect.py`, `tests/static/guest_layout.py`, `tests/static/guest_view.py`, `tests/hypercall_rr.py`
 
-**Engine patches:** 0093 ([series](reference/patches.md))
+**Engine patches:** 0092 ([series](reference/patches.md))
 
 <a id="taint"></a>
 ## Taint tracking (replay)
@@ -276,7 +276,7 @@ followed, only reported; table lookups are followed only in address mode.
 
 **Tests:** `tests/taint.py`, `tests/taint_mmio.py`, `tests/taint_errors.py`
 
-**Engine patches:** 0094 ([series](reference/patches.md))
+**Engine patches:** 0093 ([series](reference/patches.md))
 
 <a id="snapshots"></a>
 ## Snapshots
@@ -291,7 +291,7 @@ and a savevm right after a loadvm takes as long as any other.
 
 **Tests:** `tests/reset.py`, `tests/api.py`
 
-**Engine patches:** 0061, 0063, 0074-0075, 0078, 0089, 0095-0101 ([series](reference/patches.md))
+**Engine patches:** 0060, 0062, 0073-0074, 0077, 0088, 0094-0100 ([series](reference/patches.md))
 
 <a id="fast-restore"></a>
 ## Fast restore
@@ -309,7 +309,7 @@ a machine reset. tests/fuzz.py runs a fuzzing loop with it.
 
 **Tests:** `tests/fastrestore.py`, `tests/fastrestore_guards.py`, `tests/fastrestore_hotplug.py`, `tests/fastrestore_vsock.py`, `tests/fuzz.py`, `tests/static/lifecycle.py`
 
-**Engine patches:** 0055-0057, 0060, 0064, 0076, 0079-0081, 0086 ([series](reference/patches.md))
+**Engine patches:** 0054-0056, 0059, 0063, 0075, 0078-0080, 0085 ([series](reference/patches.md))
 
 <a id="fast-coverage"></a>
 ## Edge coverage for fuzzing
@@ -343,7 +343,7 @@ hasn't touched.
 
 **Tests:** `engine/tests/guest/kvm.sh`
 
-**Engine patches:** 0009, 0016, 0023, 0034 ([series](reference/patches.md))
+**Engine patches:** 0009, 0016, 0022, 0033 ([series](reference/patches.md))
 
 <a id="kvm-tcg"></a>
 ## Moving a running guest between KVM and TCG
@@ -362,7 +362,7 @@ TCG), and so must the devices: build both engines with the same features or pass
 
 **Tests:** none yet.
 
-**Engine patches:** 0022, 0024, 0074, 0088 ([series](reference/patches.md))
+**Engine patches:** 0021, 0023, 0073, 0087 ([series](reference/patches.md))
 
 <a id="faulting-access"></a>
 ## Memory access that pages in
@@ -374,7 +374,7 @@ when it isn't mapped yet, singly or batched, on TCG and x86_64 KVM.
 
 **Tests:** `engine/tests/guest/run.sh`, `engine/tests/guest/kvm.sh`
 
-**Engine patches:** 0013-0017, 0032, 0034 ([series](reference/patches.md))
+**Engine patches:** 0013-0017, 0031, 0033 ([series](reference/patches.md))
 
 <a id="engine-hooks"></a>
 ## Translation-time hooks and register pointers
@@ -386,7 +386,7 @@ hit), and read registers through stable pointers instead of the register API.
 
 **Tests:** `engine/tests/guest/hktest.sh`
 
-**Engine patches:** 0018, 0020, 0036 ([series](reference/patches.md))
+**Engine patches:** 0018, 0020, 0035 ([series](reference/patches.md))
 
 <a id="syscall-trap"></a>
 ## Syscall trap and host-side introspection
@@ -400,7 +400,7 @@ host-side from the kernel's symbols, and redirect the guest from a syscall entry
 
 **Tests:** `engine/tests/guest/sctest.sh`, `engine/tests/guest/setpctest.sh`
 
-**Engine patches:** 0019, 0021, 0033 ([series](reference/patches.md))
+**Engine patches:** 0019, 0032 ([series](reference/patches.md))
 
 <a id="embedding"></a>
 ## The embedding API
@@ -415,7 +415,7 @@ and reset-request and QMP command callbacks (system/panda-embed.h).
 
 **Tests:** none yet.
 
-**Engine patches:** 0002, 0010-0011, 0029 ([series](reference/patches.md))
+**Engine patches:** 0002, 0010-0011, 0028 ([series](reference/patches.md))
 
 <a id="machines"></a>
 ## Custom machines and modules
@@ -430,7 +430,7 @@ against the engine's target and ABI before they load.
 
 **Tests:** `tests/machine.py`, `tests/machine_sw.py`, `tests/machine_builder.py`, `tests/board.py`, `engine/tests/modules/run.sh`
 
-**Engine patches:** 0069-0071 ([series](reference/patches.md))
+**Engine patches:** 0068-0070 ([series](reference/patches.md))
 
 <a id="packaging"></a>
 ## Packages
@@ -453,4 +453,4 @@ cpu_exec_step_atomic under RCU.
 
 **Tests:** none yet.
 
-**Engine patches:** 0012, 0062 ([series](reference/patches.md))
+**Engine patches:** 0012, 0061 ([series](reference/patches.md))

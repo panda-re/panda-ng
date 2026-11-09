@@ -2,15 +2,15 @@
 
 Run: panda-python tests/rrstop.py <dir>/debian-13-x86_64.json [workdir]
 
-x-rr-begin-record and x-rr-end-record switch replay_mode while vCPU threads exist (patches 0039,
-0040). One process makes ROUNDS recordings back to back (begin, end, begin, ...); before each
+x-rr-begin-record and x-rr-end-record switch replay_mode while vCPU threads exist (patches 0038,
+0039). One process makes ROUNDS recordings back to back (begin, end, begin, ...); before each
 begin it stops and resumes the VM from the main loop, which kicks the vCPU thread into the
-replay-mutex window the mode switch used to race with (engine 0066/0067: an abort in
-replay_mutex_unlock at begin, or a main loop that waits for ever at the second begin; 0068: the second begin registered the
+replay-mutex window the mode switch used to race with (engine 0065/0066: an abort in
+replay_mutex_unlock at begin, or a main loop that waits for ever at the second begin; 0067: the second begin registered the
 replay vmstate again and exited on the duplicate). Each
 recording runs a command; then every recording is replayed in a fresh process and must reach
 its end and print its command's output again. After the last recording, a savevm must work
-(before 0122, 0040 left the replay vmstate registered, whose pre_save read the closed log's
+(before 0122, 0039 left the replay vmstate registered, whose pre_save read the closed log's
 offset), and so must a loadvm of that recording's start snapshot (rr-<name>, which carries the
 "replay" section: an earlier 0122 unregistered the section at end and broke this load), and the
 guest runs on from it.

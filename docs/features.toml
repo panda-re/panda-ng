@@ -38,7 +38,7 @@ docs = ["docs/guides/getting-started.md", "docs/guides/python.md", "python/core/
 tests = ["tests/smoke.py", "tests/static/refs.py", "tests/api.py", "tests/reset.py", "tests/teardown.py",
          "tests/static/capabilities.py", "tests/static/capability_gates.py",
          "tests/static/startup_capabilities.py", "tests/static/capability_admission.py"]
-patches = ["0041", "0087", "0090"]
+patches = ["0040", "0086", "0089"]
 
 [[feature]]
 id = "callbacks"
@@ -76,7 +76,7 @@ api = ["py:Panda.enable_callback", "py:Panda.disable_callback", "py:Panda.disabl
 docs = ["docs/guides/python.md#callbacks", "docs/reference/callbacks.md"]
 tests = ["tests/callbacks.py", "tests/blocks.py", "tests/block_activation.py", "tests/blocks_bare.py", "tests/late.py",
          "tests/tbpc.py", "tests/mem.py", "tests/mmio.py", "tests/physmem.py"]
-patches = ["0031", "0035", "0042-0044", "0046-0049", "0053", "0054", "0058", "0059", "0065", "0082", "0083"]
+patches = ["0030", "0034", "0041-0043", "0045-0048", "0052", "0053", "0057", "0058", "0064", "0081", "0082"]
 
 [[feature]]
 id = "plugins"
@@ -115,7 +115,7 @@ global scope, and the process then can't have a `Panda` of another architecture.
 api = ["py:EngineInUseError", "py:Panda.run", "flake:buildPandaPlugin"]
 docs = ["docs/guides/python.md#the-panda-object", "docs/guides/plugins.md#writing-a-c-plugin"]
 tests = ["tests/multi.py"]
-patches = ["0077"]
+patches = ["0076"]
 
 [[feature]]
 id = "rust"
@@ -185,7 +185,7 @@ handle them in C.
 api = ["py:Panda.hypercall", "plugin:hypercaller", "plugin:hypersyscalls"]
 docs = ["docs/guides/python.md#callbacks"]
 tests = ["tests/guest.py", "tests/mem.py"]
-patches = ["0001", "0003-0008", "0045"]
+patches = ["0001", "0003-0008", "0044"]
 
 [[feature]]
 id = "record-replay"
@@ -205,7 +205,7 @@ docs = ["docs/guides/record-replay.md"]
 tests = ["tests/rr.py", "tests/rrcb.py", "tests/rrstop.py", "tests/rrload.py", "tests/rr_blocks.py",
          "tests/replay_guard.py", "tests/static/replay_policy.py", "tests/static/replay_native.py",
          "tests/static/replay_bh.py"]
-patches = ["0025-0028", "0030", "0037-0040", "0050-0052", "0066-0068", "0072", "0073", "0084", "0085", "0095", "0096", "0097", "0099", "0100", "0101"]
+patches = ["0024-0027", "0029", "0036-0039", "0049-0051", "0065-0067", "0071", "0072", "0083", "0084", "0094", "0095", "0096", "0098", "0099", "0100"]
 
 [[feature]]
 id = "recorded-ram-effects"
@@ -222,7 +222,7 @@ limits = "Admission requires RR capability, RECORD, main thread/BQL/replay mutex
 api = ["c:panda_analysis_ram_write", "c:panda_analysis_reg_write"]
 docs = ["docs/guides/record-replay.md"]
 tests = ["tests/static/replay_effect.py", "tests/replay_effect.py"]
-patches = ["0091", "0092"]
+patches = ["0090", "0091"]
 
 [[feature]]
 id = "recorded-hypercall-answers"
@@ -240,7 +240,7 @@ limits = "TCG; KVM's hypercall consumer cannot be recorded. Writes are logged on
 api = ["c:panda_set_guest_hypercall_callback", "c:panda_guest_write_env_path", "c:panda_guest_write_reg", "py:Panda.hypercall", "py:Guest.env"]
 docs = ["docs/guides/record-replay.md", "docs/design/rr-guest-mutation-api.md"]
 tests = ["tests/static/replay_effect.py", "tests/static/guest_layout.py", "tests/static/guest_view.py", "tests/hypercall_rr.py"]
-patches = ["0093"]
+patches = ["0092"]
 
 [[feature]]
 id = "taint"
@@ -278,7 +278,7 @@ api = ["c:taint_enable", "c:taint_disable", "c:taint_label_ram", "c:taint_query_
        "py:TaintMixin.taint_address_mode"]
 docs = ["docs/guides/record-replay.md"]
 tests = ["tests/taint.py", "tests/taint_mmio.py", "tests/taint_errors.py"]
-patches = ["0094"]
+patches = ["0093"]
 
 [[feature]]
 id = "snapshots"
@@ -294,7 +294,7 @@ and a savevm right after a loadvm takes as long as any other.
 api = ["py:Panda.snap", "py:Panda.revert_sync", "py:Panda.delvm"]
 docs = ["docs/guides/snapshots.md"]
 tests = ["tests/reset.py", "tests/api.py"]
-patches = ["0061", "0063", "0074", "0075", "0078", "0089", "0095", "0096", "0097", "0098", "0099", "0100", "0101"]
+patches = ["0060", "0062", "0073", "0074", "0077", "0088", "0094", "0095", "0096", "0097", "0098", "0099", "0100"]
 
 [[feature]]
 id = "fast-restore"
@@ -313,7 +313,7 @@ api = ["c:panda_fast_snap", "c:panda_fast_restore", "c:panda_fast_delete"]
 docs = ["docs/guides/snapshots.md#fast-restore"]
 tests = ["tests/fastrestore.py", "tests/fastrestore_guards.py", "tests/fastrestore_hotplug.py",
          "tests/fastrestore_vsock.py", "tests/fuzz.py", "tests/static/lifecycle.py"]
-patches = ["0055-0057", "0060", "0064", "0076", "0079-0081", "0086"]
+patches = ["0054-0056", "0059", "0063", "0075", "0078-0080", "0085"]
 
 [[feature]]
 id = "fast-coverage"
@@ -348,7 +348,7 @@ limits = "PANDA callbacks, record/replay and fast restore need TCG. No CI runner
 api = ["qemu:-accel kvm", "c:qemu_plugin_register_vcpu_bp_cb", "c:qemu_plugin_hw_breakpoint_insert"]
 docs = ["docs/guides/kvm.md"]
 tests = ["engine/tests/guest/kvm.sh"]
-patches = ["0009", "0016", "0023", "0034"]
+patches = ["0009", "0016", "0022", "0033"]
 
 [[feature]]
 id = "kvm-tcg"
@@ -368,7 +368,7 @@ TCG), and so must the devices: build both engines with the same features or pass
 """
 api = ["qemu:-accel kvm", "qemu:-accel tcg"]
 docs = ["docs/guides/kvm.md#moving-a-guest-between-kvm-and-tcg"]
-patches = ["0022", "0024", "0074", "0088"]
+patches = ["0021", "0023", "0073", "0087"]
 
 [[feature]]
 id = "faulting-access"
@@ -382,7 +382,7 @@ when it isn't mapped yet, singly or batched, on TCG and x86_64 KVM.
 """
 api = ["c:qemu_plugin_read_memory_vaddr_fault", "c:qemu_plugin_access_memory_vaddr_fault"]
 tests = ["engine/tests/guest/run.sh", "engine/tests/guest/kvm.sh"]
-patches = ["0013-0017", "0032", "0034"]
+patches = ["0013-0017", "0031", "0033"]
 
 [[feature]]
 id = "engine-hooks"
@@ -396,7 +396,7 @@ hit), and read registers through stable pointers instead of the register API.
 """
 api = ["c:qemu_plugin_register_ptr"]
 tests = ["engine/tests/guest/hktest.sh"]
-patches = ["0018", "0020", "0036"]
+patches = ["0018", "0020", "0035"]
 
 [[feature]]
 id = "syscall-trap"
@@ -411,7 +411,7 @@ host-side from the kernel's symbols, and redirect the guest from a syscall entry
 limits = "Native syscall trap events require TCG; symbol presence does not establish KVM support. Checked lifetime/child-birth correlation and current consumer admission remain incomplete."
 api = ["c:qemu_plugin_set_pc"]
 tests = ["engine/tests/guest/sctest.sh", "engine/tests/guest/setpctest.sh"]
-patches = ["0019", "0021", "0033"]
+patches = ["0019", "0032"]
 
 [[feature]]
 id = "embedding"
@@ -425,7 +425,7 @@ and reset-request and QMP command callbacks (system/panda-embed.h).
 """
 limits = "Tested by the hosts' own suites, not here."
 api = ["c:panda_handle_qmp"]
-patches = ["0002", "0010", "0011", "0029"]
+patches = ["0002", "0010", "0011", "0028"]
 
 [[feature]]
 id = "machines"
@@ -442,7 +442,7 @@ api = ["py:MachineBuilder", "flake:mkBoard", "qemu:-module PATH"]
 docs = ["docs/guides/machines.md", "tests/README.md"]
 tests = ["tests/machine.py", "tests/machine_sw.py", "tests/machine_builder.py", "tests/board.py",
          "engine/tests/modules/run.sh"]
-patches = ["0069-0071"]
+patches = ["0068-0070"]
 
 [[feature]]
 id = "packaging"
@@ -463,4 +463,4 @@ summary = """
 Fixes to QEMU itself that analyses depend on: a longer kernel command line on MIPS Malta, and
 cpu_exec_step_atomic under RCU.
 """
-patches = ["0012", "0062"]
+patches = ["0012", "0061"]

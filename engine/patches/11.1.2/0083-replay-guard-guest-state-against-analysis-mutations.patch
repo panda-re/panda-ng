@@ -279,7 +279,7 @@ index 938e66104b76e89ce94c14c3b846b665e0d373e7..7fe9c64fa8d8b2cd801127ad7c9e814b
      clamp_syscall_arguments(&a1, &a2, &a3, &a4, &a5, &a6, &a7, &a8);
  
 diff --git a/replay/replay-begin.c b/replay/replay-begin.c
-index 39d85484dd4f228f02c2642e8c809bb1c2551494..23cf8117e6108b7630c331c5df24c9eda8ed910b 100644
+index d5bd287c7e91c1cb809d7ae3ff81e3ecdf2f0f4f..94f6db52addd62e12704af52fce2581ac4add10b 100644
 --- a/replay/replay-begin.c
 +++ b/replay/replay-begin.c
 @@ -39,6 +39,8 @@

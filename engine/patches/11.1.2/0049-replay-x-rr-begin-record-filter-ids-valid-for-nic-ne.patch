@@ -13,7 +13,7 @@ Origin: new
  1 file changed, 2 insertions(+)
 
 diff --git a/replay/replay-begin.c b/replay/replay-begin.c
-index 4e3b320c55b596cccc50cc4c84bcf8b847fa85f8..ec75bb0c8f42f955ff16aeece15f742a82d41483 100644
+index d45d4a35b677ff338dbaa92568c2d74063d9aaa8..ff6de94cd83c174cc92acb8ec9b2c4ff7ba2e560 100644
 --- a/replay/replay-begin.c
 +++ b/replay/replay-begin.c
 @@ -160,6 +160,8 @@ static bool rr_prepare(RrBeginRecordInfo *info, const char *icount,

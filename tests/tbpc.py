@@ -20,7 +20,7 @@ CF_PCREL = 0x00020000
 # following the host, timer ticks and the scheduling they cause take all of the slowed guest's time
 # and the workload starves (seen on all three arches; on aarch64 it ran past the 30-minute limit).
 # On every arch: an aarch64 root snapshot taken without icount loads with it since engine patch
-# 0081 (PMCEID0).
+# 0080 (PMCEID0).
 panda = Panda(generic=sys.argv[1], extra_args=["-icount", "shift=6,sleep=off"])
 arch = panda.arch_name
 TOP = 1 << 63                  # kernel addresses have the top bit set on all three arches

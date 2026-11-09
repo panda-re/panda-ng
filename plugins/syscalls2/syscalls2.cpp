@@ -1222,7 +1222,7 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, i
     int n = qemu_plugin_tb_n_insns(tb);
     struct qemu_plugin_insn *last = qemu_plugin_tb_get_insn(tb, n - 1);
     // The last instruction's address without qemu_plugin_insn_vaddr, which would bind every TB to
-    // its address (engine patch 0035) and stop CF_PCREL sharing: the block starts at the CPU's pc
+    // its address (engine patch 0034) and stop CF_PCREL sharing: the block starts at the CPU's pc
     // (at translation) and its instructions are contiguous. block_translate binds the TBs that
     // hold a system call, whose instrumentation carries the address.
     target_ulong UNUSED(pc) = panda_current_pc(cpu);

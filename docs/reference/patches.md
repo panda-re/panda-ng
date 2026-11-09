@@ -2,7 +2,7 @@
 
 # The engine patch series
 
-QEMU 11.1.2 plus 101 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
+QEMU 11.1.2 plus 100 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
@@ -26,84 +26,83 @@ QEMU 11.1.2 plus 101 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0018 | accel/tcg: translation-time address hooks and register pointers | [engine-hooks](../features.md#engine-hooks) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
 | 0019 | system, target/i386, target/arm: the syscall trap | [syscall-trap](../features.md#syscall-trap) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
 | 0020 | plugins: address hooks, register pointers, TLB-first reads, syscall events | [engine-hooks](../features.md#engine-hooks) | penguin | GPL-2.0-or-later |
-| 0021 | system: build the host-side OSI | [syscall-trap](../features.md#syscall-trap) | penguin | GPL-2.0-or-later |
-| 0022 | i386: resume a KVM snapshot under TCG and a TCG snapshot under KVM | [kvm-tcg](../features.md#kvm-tcg) | penguin | GPL-2.0-only AND GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
-| 0023 | target/arm/kvm: guest hypercalls under arm64 KVM (SMCCC filter + mailbox doorbell) | [kvm](../features.md#kvm) | penguin | GPL-2.0-or-later |
-| 0024 | target/arm, arm_gic: resume an aarch64 KVM snapshot under TCG and a TCG snapshot under KVM | [kvm-tcg](../features.md#kvm-tcg) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
-| 0025 | system/cpu-timers: continue the virtual clock when an icount process loads a non-icount snapshot | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
-| 0026 | target/i386: keep the guest TSC continuous across a clock-domain change | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
-| 0027 | accel/tcg: x-tsc-vclock, the x86 TSC from the virtual clock without icount | [record-replay](../features.md#record-replay) | new | MIT |
-| 0028 | system/cpus: run_on_cpu under record/replay: release the replay mutex while the VM is stopped | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
-| 0029 | qapi: a weak default panda_handle_qmp, so the tools link on macOS | [embedding](../features.md#embedding) | new | LGPL-2.1-or-later |
-| 0030 | replay: declare replay_mutex_locked() in system/replay.h | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
-| 0031 | accel/tcg: forget the plugin callback's return address and flags after a longjmp | [callbacks](../features.md#callbacks) | new | LGPL-2.1-or-later |
-| 0032 | plugins, targets: a user-access window owned by the access, not latched per vCPU | [faulting-access](../features.md#faulting-access) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
-| 0033 | plugins: qemu_plugin_set_pc from a syscall entry callback must not deliver the trap again | [syscall-trap](../features.md#syscall-trap) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
-| 0034 | i386/kvm: plugin accesses on KVM: kernel walk, declined breakpoints, full register sync | [kvm](../features.md#kvm), [faulting-access](../features.md#faulting-access) | new | GPL-2.0-or-later |
-| 0035 | plugins: bind a CF_PCREL block to its virtual address when a plugin read it | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
-| 0036 | accel/tcg: address hooks keep CF_PCREL on outside hooked pages | [engine-hooks](../features.md#engine-hooks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
-| 0037 | accel/tcg: rr-ready, launch a VM so that a recording can begin later | [record-replay](../features.md#record-replay) | new | MIT |
-| 0038 | replay: write the log header first and flush the log every second | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
-| 0039 | replay: x-rr-begin-record and x-rr-begin-replay, recording a running VM | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
-| 0040 | replay: x-rr-end-record, end a recording and keep running | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
-| 0041 | panda: --enable-panda builds the PANDA API and libpanda-<target> | [python](../features.md#python) | panda-re/qemu | GPL-2.0-or-later |
-| 0042 | plugins: add qemu_plugin_tb_size and qemu_plugin_tb_get_insn_by_vaddr | [callbacks](../features.md#callbacks) | panda-re/qemu | GPL-2.0-or-later |
-| 0043 | panda: TCG core hooks | [callbacks](../features.md#callbacks) | panda-re/qemu | LGPL-2.1-or-later |
-| 0044 | panda: asid_changed on x86, arm and mips | [callbacks](../features.md#callbacks) | panda-re/qemu | GPL-2.0-or-later AND LGPL-2.1-or-later |
-| 0045 | panda: guest_hypercall on the guest hypercall instruction | [hypercalls](../features.md#hypercalls) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
-| 0046 | panda: panda_disable_tb_chaining turns TB chaining off | [callbacks](../features.md#callbacks) | new | LGPL-2.1-or-later |
-| 0047 | plugins: memory callbacks before the access | [callbacks](../features.md#callbacks) | panda-re/qemu | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
-| 0048 | panda: before_find_fast before each TB lookup | [callbacks](../features.md#callbacks) | panda-re/qemu | LGPL-2.1-or-later |
-| 0049 | panda: asid_changed on riscv satp writes | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later |
-| 0050 | replay: x-rr-begin-record filter ids valid for -nic netdevs | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
-| 0051 | replay: no frontend room while a recorded chardev read is pending | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
-| 0052 | replay: x-rr-begin-record rewinds the log to the start snapshot | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
-| 0053 | panda: main_loop_wait callback at each main-loop iteration | [callbacks](../features.md#callbacks) | new | MIT |
-| 0054 | panda: after_loadvm callback when load_snapshot succeeds | [callbacks](../features.md#callbacks) | new | MIT |
-| 0055 | hw/block/pflash_cfi01: one post_load state handler at a time | [fast-restore](../features.md#fast-restore) | new | LGPL-2.1-or-later |
-| 0056 | hw/core/loader: rom_reset logs the RAM it rewrites | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later |
-| 0057 | target/arm/ptw: log hardware access flag and dirty state updates | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later |
-| 0058 | panda: block callbacks learn of a longjmp out of the block | [callbacks](../features.md#callbacks) | new | LGPL-2.1-or-later |
-| 0059 | panda: after_block_exec hook after the PC is synchronized | [callbacks](../features.md#callbacks) | new | LGPL-2.1-or-later |
-| 0060 | vhost: don't turn dirty logging on in a device that can't log | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later |
-| 0061 | panda: before_loadvm hook before qemu_loadvm_state loads RAM | [snapshots](../features.md#snapshots) | new | MIT |
-| 0062 | accel/tcg: cpu_exec_step_atomic runs in an RCU read-side critical section | [qemu-fixes](../features.md#qemu-fixes) | new | LGPL-2.1-or-later |
-| 0063 | target/arm: a snapshot loads across -icount on/off (PMCEID0's INST_RETIRED bit) | [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
-| 0064 | target/riscv: log hardware A/D page-table updates as dirty | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later |
-| 0065 | plugins: keep the access direction clear of the MemOpIdx in meminfo | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later |
-| 0066 | replay: the replay mutex pairs on its holder, not on replay_mode | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
-| 0067 | accel/tcg: rr vCPU loop takes the replay mutex if replay started under it | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
-| 0068 | replay: the replay vmstate registers once and saves with no log open; a second begin works | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
-| 0069 | module: load panda modules by path, checked against their target and a panda ABI hash | [machines](../features.md#machines) | ac88u | GPL-2.0-only AND GPL-2.0-or-later |
-| 0070 | vl: -M PATH[:NAME] and -module PATH load panda modules | [machines](../features.md#machines) | ac88u | GPL-2.0-or-later AND MIT |
-| 0071 | hw/core: build the configurable machine and its QAPI schema | [machines](../features.md#machines) | new | GPL-2.0-or-later |
-| 0072 | replay: a snapshot load judges its virtual timers at the loaded clock | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
-| 0073 | replay: mark the begin-record start snapshot; refuse loads while recording | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
-| 0074 | physmem: size a resizeable RAM block's maximum independently of the host page size | [snapshots](../features.md#snapshots), [kvm-tcg](../features.md#kvm-tcg) | new | LGPL-2.1-or-later |
-| 0075 | block/qcow2: drop the active VM state before a savevm writes it | [snapshots](../features.md#snapshots) | new | MIT |
-| 0076 | system/cpu-timers: a snapshot load resets the ticks' monotonic clamp | [fast-restore](../features.md#fast-restore) | new | MIT |
-| 0077 | panda: link a plugin interface per target against its engine | [multi-engine](../features.md#multi-engine) | new | GPL-2.0-or-later |
-| 0078 | target/riscv: a version 11 cpu state still loads | [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
-| 0079 | hw/block/pflash: log storage writes in the dirty bitmap | [fast-restore](../features.md#fast-restore) | new | LGPL-2.1-or-later |
-| 0080 | migration/vmstate: skip per-field vmdesc bookkeeping when there is no vmdesc | [fast-restore](../features.md#fast-restore) | penguin | GPL-2.0-or-later |
-| 0081 | migration/qemu-file: inline the in-buffer case of the byte reader | [fast-restore](../features.md#fast-restore) | penguin | MIT |
-| 0082 | accel/tcg: no PANDA or hook calls in the CPU loop while nothing uses them | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
-| 0083 | plugins: emit block completion at outgoing edges | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
-| 0084 | replay: guard guest state against analysis mutations | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
-| 0085 | replay: coalesce repeated schedules of a pending BH | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
-| 0086 | system: cancel transient analysis before restore and reset | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later AND MIT |
-| 0087 | system: provision startup capabilities and gate guest hypercalls | [python](../features.md#python) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
-| 0088 | system: gate handoff and snapshot clock adaptations | [kvm-tcg](../features.md#kvm-tcg) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
-| 0089 | riscv: select snapshot version policy at registration | [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
-| 0090 | system: seal capabilities before startup side effects | [python](../features.md#python) | new | MIT |
-| 0091 | replay: serialize deferred analysis RAM writes as ordered async events | [recorded-ram-effects](../features.md#recorded-ram-effects) | new | GPL-2.0-or-later |
-| 0092 | replay: stub analysis register effects without TCG | [recorded-ram-effects](../features.md#recorded-ram-effects) | new | GPL-2.0-or-later |
-| 0093 | replay: log analysis guest writes at their instruction | [recorded-hypercall-answers](../features.md#recorded-hypercall-answers) | new | GPL-2.0-or-later |
-| 0094 | tcg: taint shadow pass hooks | [taint](../features.md#taint) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
-| 0095 | migration/savevm: reset load_section_id at the start of qemu_loadvm_state | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | MIT |
-| 0096 | target/mips: move the Random register's generator state into CPUMIPSState | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
-| 0097 | target/loongarch: migrate the constant timer | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
-| 0098 | target/ppc: rebuild BookE/40x exception vectors on load | [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
-| 0099 | hw/intc/openpic: restore the CPUs' external proxy mode on load | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
-| 0100 | hw/pci-host/ppce500: rebuild the PCI windows on load | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
-| 0101 | hw/pci-host/ppce500: migrate the host bridge's config space | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
+| 0021 | i386: resume a KVM snapshot under TCG and a TCG snapshot under KVM | [kvm-tcg](../features.md#kvm-tcg) | penguin | GPL-2.0-only AND GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
+| 0022 | target/arm/kvm: guest hypercalls under arm64 KVM (SMCCC filter + mailbox doorbell) | [kvm](../features.md#kvm) | penguin | GPL-2.0-or-later |
+| 0023 | target/arm, arm_gic: resume an aarch64 KVM snapshot under TCG and a TCG snapshot under KVM | [kvm-tcg](../features.md#kvm-tcg) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0024 | system/cpu-timers: continue the virtual clock when an icount process loads a non-icount snapshot | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
+| 0025 | target/i386: keep the guest TSC continuous across a clock-domain change | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
+| 0026 | accel/tcg: x-tsc-vclock, the x86 TSC from the virtual clock without icount | [record-replay](../features.md#record-replay) | new | MIT |
+| 0027 | system/cpus: run_on_cpu under record/replay: release the replay mutex while the VM is stopped | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
+| 0028 | qapi: a weak default panda_handle_qmp, so the tools link on macOS | [embedding](../features.md#embedding) | new | LGPL-2.1-or-later |
+| 0029 | replay: declare replay_mutex_locked() in system/replay.h | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
+| 0030 | accel/tcg: forget the plugin callback's return address and flags after a longjmp | [callbacks](../features.md#callbacks) | new | LGPL-2.1-or-later |
+| 0031 | plugins, targets: a user-access window owned by the access, not latched per vCPU | [faulting-access](../features.md#faulting-access) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0032 | plugins: qemu_plugin_set_pc from a syscall entry callback must not deliver the trap again | [syscall-trap](../features.md#syscall-trap) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0033 | i386/kvm: plugin accesses on KVM: kernel walk, declined breakpoints, full register sync | [kvm](../features.md#kvm), [faulting-access](../features.md#faulting-access) | new | GPL-2.0-or-later |
+| 0034 | plugins: bind a CF_PCREL block to its virtual address when a plugin read it | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0035 | accel/tcg: address hooks keep CF_PCREL on outside hooked pages | [engine-hooks](../features.md#engine-hooks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
+| 0036 | accel/tcg: rr-ready, launch a VM so that a recording can begin later | [record-replay](../features.md#record-replay) | new | MIT |
+| 0037 | replay: write the log header first and flush the log every second | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
+| 0038 | replay: x-rr-begin-record and x-rr-begin-replay, recording a running VM | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
+| 0039 | replay: x-rr-end-record, end a recording and keep running | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
+| 0040 | panda: --enable-panda builds the PANDA API and libpanda-<target> | [python](../features.md#python) | panda-re/qemu | GPL-2.0-or-later |
+| 0041 | plugins: add qemu_plugin_tb_size and qemu_plugin_tb_get_insn_by_vaddr | [callbacks](../features.md#callbacks) | panda-re/qemu | GPL-2.0-or-later |
+| 0042 | panda: TCG core hooks | [callbacks](../features.md#callbacks) | panda-re/qemu | LGPL-2.1-or-later |
+| 0043 | panda: asid_changed on x86, arm and mips | [callbacks](../features.md#callbacks) | panda-re/qemu | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0044 | panda: guest_hypercall on the guest hypercall instruction | [hypercalls](../features.md#hypercalls) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
+| 0045 | panda: panda_disable_tb_chaining turns TB chaining off | [callbacks](../features.md#callbacks) | new | LGPL-2.1-or-later |
+| 0046 | plugins: memory callbacks before the access | [callbacks](../features.md#callbacks) | panda-re/qemu | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
+| 0047 | panda: before_find_fast before each TB lookup | [callbacks](../features.md#callbacks) | panda-re/qemu | LGPL-2.1-or-later |
+| 0048 | panda: asid_changed on riscv satp writes | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later |
+| 0049 | replay: x-rr-begin-record filter ids valid for -nic netdevs | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
+| 0050 | replay: no frontend room while a recorded chardev read is pending | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
+| 0051 | replay: x-rr-begin-record rewinds the log to the start snapshot | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
+| 0052 | panda: main_loop_wait callback at each main-loop iteration | [callbacks](../features.md#callbacks) | new | MIT |
+| 0053 | panda: after_loadvm callback when load_snapshot succeeds | [callbacks](../features.md#callbacks) | new | MIT |
+| 0054 | hw/block/pflash_cfi01: one post_load state handler at a time | [fast-restore](../features.md#fast-restore) | new | LGPL-2.1-or-later |
+| 0055 | hw/core/loader: rom_reset logs the RAM it rewrites | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later |
+| 0056 | target/arm/ptw: log hardware access flag and dirty state updates | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later |
+| 0057 | panda: block callbacks learn of a longjmp out of the block | [callbacks](../features.md#callbacks) | new | LGPL-2.1-or-later |
+| 0058 | panda: after_block_exec hook after the PC is synchronized | [callbacks](../features.md#callbacks) | new | LGPL-2.1-or-later |
+| 0059 | vhost: don't turn dirty logging on in a device that can't log | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later |
+| 0060 | panda: before_loadvm hook before qemu_loadvm_state loads RAM | [snapshots](../features.md#snapshots) | new | MIT |
+| 0061 | accel/tcg: cpu_exec_step_atomic runs in an RCU read-side critical section | [qemu-fixes](../features.md#qemu-fixes) | new | LGPL-2.1-or-later |
+| 0062 | target/arm: a snapshot loads across -icount on/off (PMCEID0's INST_RETIRED bit) | [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
+| 0063 | target/riscv: log hardware A/D page-table updates as dirty | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later |
+| 0064 | plugins: keep the access direction clear of the MemOpIdx in meminfo | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later |
+| 0065 | replay: the replay mutex pairs on its holder, not on replay_mode | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
+| 0066 | accel/tcg: rr vCPU loop takes the replay mutex if replay started under it | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
+| 0067 | replay: the replay vmstate registers once and saves with no log open; a second begin works | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
+| 0068 | module: load panda modules by path, checked against their target and a panda ABI hash | [machines](../features.md#machines) | ac88u | GPL-2.0-only AND GPL-2.0-or-later |
+| 0069 | vl: -M PATH[:NAME] and -module PATH load panda modules | [machines](../features.md#machines) | ac88u | GPL-2.0-or-later AND MIT |
+| 0070 | hw/core: build the configurable machine and its QAPI schema | [machines](../features.md#machines) | new | GPL-2.0-or-later |
+| 0071 | replay: a snapshot load judges its virtual timers at the loaded clock | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
+| 0072 | replay: mark the begin-record start snapshot; refuse loads while recording | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
+| 0073 | physmem: size a resizeable RAM block's maximum independently of the host page size | [snapshots](../features.md#snapshots), [kvm-tcg](../features.md#kvm-tcg) | new | LGPL-2.1-or-later |
+| 0074 | block/qcow2: drop the active VM state before a savevm writes it | [snapshots](../features.md#snapshots) | new | MIT |
+| 0075 | system/cpu-timers: a snapshot load resets the ticks' monotonic clamp | [fast-restore](../features.md#fast-restore) | new | MIT |
+| 0076 | panda: link a plugin interface per target against its engine | [multi-engine](../features.md#multi-engine) | new | GPL-2.0-or-later |
+| 0077 | target/riscv: a version 11 cpu state still loads | [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
+| 0078 | hw/block/pflash: log storage writes in the dirty bitmap | [fast-restore](../features.md#fast-restore) | new | LGPL-2.1-or-later |
+| 0079 | migration/vmstate: skip per-field vmdesc bookkeeping when there is no vmdesc | [fast-restore](../features.md#fast-restore) | penguin | GPL-2.0-or-later |
+| 0080 | migration/qemu-file: inline the in-buffer case of the byte reader | [fast-restore](../features.md#fast-restore) | penguin | MIT |
+| 0081 | accel/tcg: no PANDA or hook calls in the CPU loop while nothing uses them | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
+| 0082 | plugins: emit block completion at outgoing edges | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0083 | replay: guard guest state against analysis mutations | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
+| 0084 | replay: coalesce repeated schedules of a pending BH | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
+| 0085 | system: cancel transient analysis before restore and reset | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later AND MIT |
+| 0086 | system: provision startup capabilities and gate guest hypercalls | [python](../features.md#python) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
+| 0087 | system: gate handoff and snapshot clock adaptations | [kvm-tcg](../features.md#kvm-tcg) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
+| 0088 | riscv: select snapshot version policy at registration | [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
+| 0089 | system: seal capabilities before startup side effects | [python](../features.md#python) | new | MIT |
+| 0090 | replay: serialize deferred analysis RAM writes as ordered async events | [recorded-ram-effects](../features.md#recorded-ram-effects) | new | GPL-2.0-or-later |
+| 0091 | replay: stub analysis register effects without TCG | [recorded-ram-effects](../features.md#recorded-ram-effects) | new | GPL-2.0-or-later |
+| 0092 | replay: log analysis guest writes at their instruction | [recorded-hypercall-answers](../features.md#recorded-hypercall-answers) | new | GPL-2.0-or-later |
+| 0093 | tcg: taint shadow pass hooks | [taint](../features.md#taint) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
+| 0094 | migration/savevm: reset load_section_id at the start of qemu_loadvm_state | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | MIT |
+| 0095 | target/mips: move the Random register's generator state into CPUMIPSState | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0096 | target/loongarch: migrate the constant timer | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
+| 0097 | target/ppc: rebuild BookE/40x exception vectors on load | [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
+| 0098 | hw/intc/openpic: restore the CPUs' external proxy mode on load | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
+| 0099 | hw/pci-host/ppce500: rebuild the PCI windows on load | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
+| 0100 | hw/pci-host/ppce500: migrate the host bridge's config space | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |

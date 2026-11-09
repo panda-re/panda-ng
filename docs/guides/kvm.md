@@ -66,13 +66,13 @@ The two sides must describe the same machine:
 
 - The CPU model must match. `-cpu max` on the TCG side loads, but the guest panics after the load.
 - On aarch64, `cntfrq=` gives the TCG CPU the KVM host's counter frequency (54 MHz on a Pi 5).
-  Patch 0024's description also asks for `kvm-steal-time=off` on the KVM side
+  Patch 0023's description also asks for `kvm-steal-time=off` on the KVM side
   (`-cpu host,kvm-steal-time=off`).
 - The device set must match. An engine built with user networking adds a slirp NIC section to
   the saved state, so pass the same `-nic` on both sides, e.g. `-nic none`.
 - Moving between hosts with different page sizes, such as a Pi 5 (16K pages) and an x86_64
-  host (4K pages), needs engine patch 0074, which is in this series.
+  host (4K pages), needs engine patch 0073, which is in this series.
 
-The engine patches this rests on are 0022 (x86), 0024 (aarch64 CPU and GIC) and 0074 (page
+The engine patches this rests on are 0021 (x86), 0023 (aarch64 CPU and GIC) and 0073 (page
 sizes); see the [features page](../features.md#kvm-tcg) and the
 [patch list](../reference/patches.md).

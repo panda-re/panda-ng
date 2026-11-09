@@ -241,7 +241,7 @@ index 42c627f4ce64c28e7389397fab49c790cf403338..9da843de64efa15c3e899aeb83feac29
  #define CF_CLUSTER_SHIFT 24
  
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index ec5faf76dd43796719880685978e42b7ac8647df..500f5e9c3050e67a78bb6c2179b3bb992f40fb45 100644
+index 3bce74a74d250b725fe0cfc39ce16d8e0a185fb1..7b586cd16759ba69a7033d483cb810a723d25e91 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
 @@ -565,6 +565,8 @@ struct CPUState {
@@ -250,7 +250,7 @@ index ec5faf76dd43796719880685978e42b7ac8647df..500f5e9c3050e67a78bb6c2179b3bb99
      uintptr_t tcg_hook_ra;
 +    /* taint: the shadow CPU state and shadow TLB (exec/taint.h), or NULL */
 +    void *taint_senv;
-     /* Reserved for the 0082 CPUState ABI; no longer read or written. */
+     /* Reserved for the 0081 CPUState ABI; no longer read or written. */
      bool panda_block_pending;
      /*
 diff --git a/system/physmem.c b/system/physmem.c

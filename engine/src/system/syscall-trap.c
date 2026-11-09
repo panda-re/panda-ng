@@ -743,23 +743,6 @@ bool syscall_trap_read(CPUState *cpu, vaddr addr, void *buf, size_t len)
                                len - done, false) == 0;
 }
 
-const void *syscall_trap_host_page(CPUState *cpu, vaddr page)
-{
-#ifdef CONFIG_TCG
-    if (tcg_enabled()) {
-        int idx = cpu_mmu_index(cpu, false);
-        uint32_t idxs = (1u << idx) | cpu->syscall_kmmu;
-        void *h = tlb_vaddr_to_host_lookup(cpu, page, MMU_DATA_LOAD, idx);
-
-        for (idxs &= ~(1u << idx); !h && idxs; idxs &= idxs - 1) {
-            h = tlb_vaddr_to_host_lookup(cpu, page, MMU_DATA_LOAD, ctz32(idxs));
-        }
-        return h;
-    }
-#endif
-    return NULL;
-}
-
 #ifdef CONFIG_TCG
 /* the host address of a page the vCPU may write, at any of its indexes */
 static void *sc_writable(CPUState *cpu, vaddr a, size_t size)

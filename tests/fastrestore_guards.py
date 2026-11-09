@@ -6,7 +6,7 @@ Run: panda-python tests/fastrestore_guards.py <dir>/debian-13-x86_64.json [rr|no
 rr (review M3): with rr=True, a fast snapshot is taken before recording (allowed: nothing is
 recorded yet), then a recording starts. While it records, panda_fast_snap and panda_fast_restore
 must return -1 (a restore would rewrite RAM and device state outside the log; on x86 its device
-reload would run on 0028's replay-mutex release path). After the recording ends, a fast restore
+reload would run on 0027's replay-mutex release path). After the recording ends, a fast restore
 works again and verifies (x-rr-begin-record saved and reloaded a snapshot, so it copies all RAM:
 last_why=precopy or loadvm). Then the recording is replayed in a fresh process, where both must return -1.
 

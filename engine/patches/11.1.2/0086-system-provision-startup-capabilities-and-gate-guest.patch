@@ -92,7 +92,7 @@ index 6d6fc98da4dea3fce29ca1557a78342ba5ccf94b..2fcf0149921f0de71ffdf5a35e1fb5ba
      "-module path    load a panda module (external boards, devices) from a\n"
      "                shared object built with the engine's SDK\n"
 diff --git a/system/meson.build b/system/meson.build
-index 942d76786c2ad83c272c97e30550ef447d444d35..454ca36a78bef74ac9d4c56fe7ac07f20c18e7e2 100644
+index 1623762cc9463db4f76c56dea5f5ed6726660fe1..0372d1ee12cea5c32946e0192ca87f9c2c97efb1 100644
 --- a/system/meson.build
 +++ b/system/meson.build
 @@ -4,6 +4,7 @@ system_ss.add(files(
