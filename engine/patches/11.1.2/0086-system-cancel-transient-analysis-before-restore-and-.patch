@@ -14,7 +14,7 @@ Origin: new
  2 files changed, 3 insertions(+)
 
 diff --git a/migration/savevm.c b/migration/savevm.c
-index 490aa7e5ae056780c82308566bb327cfcb232cae..a3608ae6c1a999ce929705f20671196d8debbbc5 100644
+index 951151367f9c0a4be162aa709984e272c07f7bf3..fb4285ae8b60283c273e63269368d188b7a6ea56 100644
 --- a/migration/savevm.c
 +++ b/migration/savevm.c
 @@ -3112,6 +3112,7 @@ int qemu_loadvm_state(QEMUFile *f, Error **errp)
@@ -26,7 +26,7 @@ index 490aa7e5ae056780c82308566bb327cfcb232cae..a3608ae6c1a999ce929705f20671196d
      qemu_event_set(&mis->main_thread_load_event);
  
 diff --git a/system/runstate.c b/system/runstate.c
-index ae95fdb43bc4a8bf652e6675d7b0d3b2d50f95a3..75afa70e8020b81d4baa3b0063ba501e8b23ef74 100644
+index 61adbf7d98d557b37ee258ba49f80d5d521af3f8..d90dd28761d87eb916c40034a16c0e72e85acce2 100644
 --- a/system/runstate.c
 +++ b/system/runstate.c
 @@ -522,6 +522,8 @@ void qemu_system_reset(ShutdownCause reason)

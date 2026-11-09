@@ -197,14 +197,11 @@
                 mkdir -p $out/include/panda
                 cp include/panda/analysis-effect.h include/panda/guest-write.h include/panda/events.h \
                   $out/include/panda/
-                # libqemu-system-<name>.so (with penguin's alias names), libqemu-kvm-<target>.so and
-                # libpanda-<target>-softmmu.so are links of the same objects; only the soname differs,
-                # and all of them are dlopened by path. Keep libpanda-* and link the rest to it.
-                declare -A alias=([intel64]=x86_64 [armel]=arm [mipseb]=mips [mips64eb]=mips64
-                  [powerpc]=ppc [powerpc64]=ppc64 [powerpc64le]=ppc64)
+                # libqemu-system-<target>.so, libqemu-kvm-<target>.so and libpanda-<target>-softmmu.so
+                # are links of the same objects; only the soname differs, and all of them are
+                # dlopened by path. Keep libpanda-* and link the rest to it.
                 for f in $out/lib/libqemu-system-*.so $out/lib/libqemu-kvm-*.so; do
-                  name=''${f##*/libqemu-system-}; name=''${name##*/libqemu-kvm-}; name=''${name%.so}
-                  target=''${alias[$name]:-$name}
+                  target=''${f##*/libqemu-system-}; target=''${target##*/libqemu-kvm-}; target=''${target%.so}
                   if [ -f $out/lib/libpanda-$target-softmmu.so ]; then
                     ln -sf libpanda-$target-softmmu.so $f
                   fi

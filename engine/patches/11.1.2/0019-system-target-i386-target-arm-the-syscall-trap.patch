@@ -101,7 +101,7 @@ index cac4af61a465f576ebf47d1227c6a01b6a69de65..51ade9fb301d18f223e2a1b9f5a269a6
      bool vcpu_dirty;
      AccelCPUState *accel;
 diff --git a/system/meson.build b/system/meson.build
-index 10c41e709040ac1a37a215dcb9930951ba2c1ea9..4f8de182a383d804d8771b279af6d49ce72bd07e 100644
+index 588d29bf374f5ddb27e0e554b07b2a3c68fce8f5..1623762cc9463db4f76c56dea5f5ed6726660fe1 100644
 --- a/system/meson.build
 +++ b/system/meson.build
 @@ -21,6 +21,7 @@ system_ss.add(files(
@@ -409,13 +409,13 @@ index 05ab9ab6d31b638606c4dd79bedbfbb0b69748ff..6cc9ddfb31915a5777cecc877a4713cb
  
  illegal_return:
 diff --git a/target/arm/tcg/op_helper.c b/target/arm/tcg/op_helper.c
-index 943e0129e6a02892383353a73b41bbec790ed6ea..9ffa6d0690f9e3bd20895f285e440bdbede81bd5 100644
+index 1ce3308b6a214666f3b14e00355f50a6fd41de50..a57fe8f050ba14b55d54c6f735c7acb399e12986 100644
 --- a/target/arm/tcg/op_helper.c
 +++ b/target/arm/tcg/op_helper.c
 @@ -27,6 +27,9 @@
  #include "accel/tcg/probe.h"
  #include "cpregs.h"
- #include "system/penguin.h"
+ #include "system/panda-embed.h"
 +#ifndef CONFIG_USER_ONLY
 +#include "system/syscall-trap.h"
 +#endif

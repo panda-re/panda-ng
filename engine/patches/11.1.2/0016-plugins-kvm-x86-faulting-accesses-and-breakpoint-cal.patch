@@ -301,7 +301,7 @@ index e6619196b69888ae4ddffae73315043f78a572ae..ee6c5b78171ebd70cb6476d0378e90cf
 +    return -ENOTSUP;
 +}
 diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
-index 46025f3d504b3231a63a9b1cf0fdaee3106a3a1c..3a05a04d32a7075afc4e7bcf4cdf1512be8cecc8 100644
+index ccd48332f077534c09bcab0e0b56e6258ae7a9f2..00adeee4097b63985d288a59cd09e7786424a5c0 100644
 --- a/target/i386/kvm/kvm.c
 +++ b/target/i386/kvm/kvm.c
 @@ -72,6 +72,7 @@

@@ -22,7 +22,7 @@ Origin: penguin
  2 files changed, 64 insertions(+)
 
 diff --git a/hw/i386/pc.c b/hw/i386/pc.c
-index f064aa2b3e321c8dc2555c0c8258dd1a11c51bf4..b6f29fccfa957e64d5b0cbfd8c6457d55caabec6 100644
+index f064aa2b3e321c8dc2555c0c8258dd1a11c51bf4..f36a64b80894d116ecfafdb515fbe03ef15e852a 100644
 --- a/hw/i386/pc.c
 +++ b/hw/i386/pc.c
 @@ -32,6 +32,7 @@
@@ -37,7 +37,7 @@ index f064aa2b3e321c8dc2555c0c8258dd1a11c51bf4..b6f29fccfa957e64d5b0cbfd8c6457d5
  #include "hw/input/i8042.h"
  #include "hw/audio/pcspk.h"
  #include "system/system.h"
-+#include "system/penguin.h"
++#include "system/panda-embed.h"
 +#include "system/qtest.h"
  #include "system/xen.h"
  #include "system/reset.h"
@@ -64,14 +64,14 @@ index f064aa2b3e321c8dc2555c0c8258dd1a11c51bf4..b6f29fccfa957e64d5b0cbfd8c6457d5
 +
 +#ifdef TARGET_X86_64
 +    if (env->hflags & HF_CS64_MASK) {
-+        if (penguin_handle_guest_hypercall(cs, data,
-+                                           env->regs[R_EDI],
-+                                           env->regs[R_ESI],
-+                                           env->regs[R_EDX],
-+                                           env->regs[R_R10],
-+                                           env->regs[R_R8],
-+                                           env->regs[R_R9],
-+                                           &ret)) {
++        if (panda_handle_guest_hypercall(cs, data,
++                                         env->regs[R_EDI],
++                                         env->regs[R_ESI],
++                                         env->regs[R_EDX],
++                                         env->regs[R_R10],
++                                         env->regs[R_R8],
++                                         env->regs[R_R9],
++                                         &ret)) {
 +            env->regs[R_EAX] = ret;
 +            cs->vcpu_dirty = true;
 +        }
@@ -79,14 +79,14 @@ index f064aa2b3e321c8dc2555c0c8258dd1a11c51bf4..b6f29fccfa957e64d5b0cbfd8c6457d5
 +    }
 +#endif
 +
-+    if (penguin_handle_guest_hypercall(cs, data,
-+                                       env->regs[R_EBX],
-+                                       env->regs[R_ECX],
-+                                       env->regs[R_EDX],
-+                                       env->regs[R_ESI],
-+                                       env->regs[R_EDI],
-+                                       env->regs[R_EBP],
-+                                       &ret)) {
++    if (panda_handle_guest_hypercall(cs, data,
++                                     env->regs[R_EBX],
++                                     env->regs[R_ECX],
++                                     env->regs[R_EDX],
++                                     env->regs[R_ESI],
++                                     env->regs[R_EDI],
++                                     env->regs[R_EBP],
++                                     &ret)) {
 +        env->regs[R_EAX] = (uint32_t)ret;
 +        cs->vcpu_dirty = true;
 +    }
@@ -124,21 +124,21 @@ index f064aa2b3e321c8dc2555c0c8258dd1a11c51bf4..b6f29fccfa957e64d5b0cbfd8c6457d5
      memory_region_add_subregion(isa_bus->address_space_io, 0x80, ioport80_io);
  
 +    memory_region_init_io(ioport88_io, NULL, &ioport88_io_ops, NULL,
-+                          "penguin-hypercall", 4);
++                          "panda-hypercall", 4);
 +    memory_region_add_subregion(isa_bus->address_space_io, 0x88, ioport88_io);
 +
      memory_region_init_io(ioportF0_io, OBJECT(pcms), &ioportF0_io_ops, NULL,
                            "ioportF0", 1);
      memory_region_add_subregion(isa_bus->address_space_io, 0xf0, ioportF0_io);
 diff --git a/target/i386/tcg/misc_helper.c b/target/i386/tcg/misc_helper.c
-index f7342871ded72b73b6998ac506651890aeeefc0e..39960581befecdc53b47807b79aaa461e1f3b951 100644
+index f7342871ded72b73b6998ac506651890aeeefc0e..540382a0ed50c74f56c7e214dccca8f292388526 100644
 --- a/target/i386/tcg/misc_helper.c
 +++ b/target/i386/tcg/misc_helper.c
 @@ -24,6 +24,7 @@
  #include "exec/helper-proto.h"
  #include "exec/cputlb.h"
  #include "helper-tcg.h"
-+#include "system/penguin.h"
++#include "system/panda-embed.h"
  
  /*
   * NOTE: the translator must set DisasContext.cc_op to CC_OP_EFLAGS

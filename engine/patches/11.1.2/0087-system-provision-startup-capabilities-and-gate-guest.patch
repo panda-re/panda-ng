@@ -31,7 +31,7 @@ Origin: new
  12 files changed, 150 insertions(+), 9 deletions(-)
 
 diff --git a/hw/i386/pc.c b/hw/i386/pc.c
-index e7997007170d7363891c97c000b88983c761682b..982545cc1a65c5da9116a1798245253168ef55e9 100644
+index 6fdc783e7393bc1ccc3d4f1dda2e95dd303c719f..ca08f3986162b492a0899544f5ba6fe35fefadbb 100644
 --- a/hw/i386/pc.c
 +++ b/hw/i386/pc.c
 @@ -23,6 +23,7 @@
@@ -55,12 +55,12 @@ index e7997007170d7363891c97c000b88983c761682b..982545cc1a65c5da9116a17982452531
      memory_region_add_subregion(isa_bus->address_space_io, 0x80, ioport80_io);
  
 -    memory_region_init_io(ioport88_io, NULL, &ioport88_io_ops, NULL,
--                          "penguin-hypercall", 4);
+-                          "panda-hypercall", 4);
 -    memory_region_add_subregion(isa_bus->address_space_io, 0x88, ioport88_io);
 +    if (analysis_policy_has(ANALYSIS_CAP_GUEST_HYPERCALL)) {
 +        MemoryRegion *ioport88_io = g_new(MemoryRegion, 1);
 +        memory_region_init_io(ioport88_io, NULL, &ioport88_io_ops, NULL,
-+                              "penguin-hypercall", 4);
++                              "panda-hypercall", 4);
 +        memory_region_add_subregion(isa_bus->address_space_io, 0x88, ioport88_io);
 +    }
  
@@ -92,7 +92,7 @@ index 6d6fc98da4dea3fce29ca1557a78342ba5ccf94b..2fcf0149921f0de71ffdf5a35e1fb5ba
      "-module path    load a panda module (external boards, devices) from a\n"
      "                shared object built with the engine's SDK\n"
 diff --git a/system/meson.build b/system/meson.build
-index e6d08acd61077afb0f72e7782429b54090ec68db..2f88592e32fd70edeefbadbdc20eccafdd6e7ee4 100644
+index 942d76786c2ad83c272c97e30550ef447d444d35..454ca36a78bef74ac9d4c56fe7ac07f20c18e7e2 100644
 --- a/system/meson.build
 +++ b/system/meson.build
 @@ -4,6 +4,7 @@ system_ss.add(files(
@@ -104,7 +104,7 @@ index e6d08acd61077afb0f72e7782429b54090ec68db..2f88592e32fd70edeefbadbdc20eccaf
    'bootdevice.c',
    'cpus.c',
 diff --git a/system/vl.c b/system/vl.c
-index 626d854e71c3a2bb8f3f4aafee365e2236f1196d..88a24c5c0886885df81f4e01faf4b2b5a09a667e 100644
+index 4afa05bb93f7eeed9808840d0c5e6ca88eddb251..0c34f32545fafc731d5600c7f45a4f599d0b31af 100644
 --- a/system/vl.c
 +++ b/system/vl.c
 @@ -23,6 +23,7 @@
@@ -176,7 +176,7 @@ index 626d854e71c3a2bb8f3f4aafee365e2236f1196d..88a24c5c0886885df81f4e01faf4b2b5
                  if (is_help_option(optarg)) {
                      printf("panda ABI %s\n", module_panda_abi());
 diff --git a/target/arm/tcg/translate-a64.c b/target/arm/tcg/translate-a64.c
-index 8c5a6d9eafd162dd0768ca70f7b034e8cf29d79e..7c8a865b3bc7424284f1bdba27c4c941524af37b 100644
+index ad9080259f3ceae223f00b89358941a1f377ae3c..afaea769d29b287179be93c8f1c375042367ad80 100644
 --- a/target/arm/tcg/translate-a64.c
 +++ b/target/arm/tcg/translate-a64.c
 @@ -17,6 +17,18 @@
@@ -200,16 +200,16 @@ index 8c5a6d9eafd162dd0768ca70f7b034e8cf29d79e..7c8a865b3bc7424284f1bdba27c4c941
  #include "helper-a64.h"
 @@ -3280,6 +3292,9 @@ static bool trans_SYS(DisasContext *s, arg_SYS *a)
  
- static bool trans_PENGUIN(DisasContext *s, arg_PENGUIN *a)
+ static bool trans_HYPERCALL(DisasContext *s, arg_HYPERCALL *a)
  {
 +    if (!analysis_guest_hypercall_enabled()) {
 +        return false; /* preserve upstream UNDEF decoding */
 +    }
-     gen_helper_penguin_guest_hypercall(cpu_reg(s, 0), tcg_env,
-                                        cpu_reg(s, 8), cpu_reg(s, 0),
-                                        cpu_reg(s, 1), cpu_reg(s, 2),
+     gen_helper_guest_hypercall(cpu_reg(s, 0), tcg_env,
+                                cpu_reg(s, 8), cpu_reg(s, 0),
+                                cpu_reg(s, 1), cpu_reg(s, 2),
 diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
-index 0ce1cdaf286c19b5c4ddb15cddb18afd6dddfe70..c09865a2d81636f9d355d7be0c32037863304b4d 100644
+index c786fb29e0e713f81de2419dc626e6fa8d143f79..4e9768ed79f7ef9259f71cdea3229cebf23358e9 100644
 --- a/target/arm/tcg/translate.c
 +++ b/target/arm/tcg/translate.c
 @@ -20,6 +20,18 @@
@@ -242,7 +242,7 @@ index 0ce1cdaf286c19b5c4ddb15cddb18afd6dddfe70..c09865a2d81636f9d355d7be0c320378
          TCGv_i64 nr = tcg_temp_new_i64();
          TCGv_i64 a0 = tcg_temp_new_i64();
 diff --git a/target/loongarch/tcg/insn_trans/trans_extra.c.inc b/target/loongarch/tcg/insn_trans/trans_extra.c.inc
-index 78d79c70fa51927dbb9560cf3a598f926686855a..9f0557857bdf95670ba1b9493e1bcb4b785d47ef 100644
+index 43c0f2744df22e7b51f3a31a5c4ad2f57bc32c80..fc1d45073ee6caeb397960d286e0c51005260e9b 100644
 --- a/target/loongarch/tcg/insn_trans/trans_extra.c.inc
 +++ b/target/loongarch/tcg/insn_trans/trans_extra.c.inc
 @@ -87,7 +87,8 @@ static bool trans_cpucfg(DisasContext *ctx, arg_cpucfg *a)
@@ -253,8 +253,8 @@ index 78d79c70fa51927dbb9560cf3a598f926686855a..9f0557857bdf95670ba1b9493e1bcb4b
 +    if (analysis_guest_hypercall_enabled() &&
 +        a->rd == 0 && a->rj == 0) {
          TCGv ret = tcg_temp_new();
-         gen_helper_penguin_guest_hypercall(ret, tcg_env,
-                                            gpr_src(ctx, 11, EXT_NONE),
+         gen_helper_guest_hypercall(ret, tcg_env,
+                                    gpr_src(ctx, 11, EXT_NONE),
 diff --git a/target/loongarch/tcg/translate.c b/target/loongarch/tcg/translate.c
 index 124dce626954a85e5754de847ccba1796aebd8a6..d289e3f3c64c1d46906e49bca9d5fcb696f3e301 100644
 --- a/target/loongarch/tcg/translate.c
@@ -279,7 +279,7 @@ index 124dce626954a85e5754de847ccba1796aebd8a6..d289e3f3c64c1d46906e49bca9d5fcb6
  #include "tcg/tcg-op.h"
  #include "tcg/tcg-op-gvec.h"
 diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
-index a738c3d7be75f208167d8e2e319b6ee3d2597fd0..a402df7e55d504eb47a9627343e8c0bfcfa6ec5b 100644
+index f413e8d2c3c798c5a3c2fe7281b08206e4fa97ef..185063addcadc9acde5462e999bfd6c9bb0ad766 100644
 --- a/target/mips/tcg/translate.c
 +++ b/target/mips/tcg/translate.c
 @@ -23,6 +23,18 @@
@@ -308,9 +308,9 @@ index a738c3d7be75f208167d8e2e319b6ee3d2597fd0..a402df7e55d504eb47a9627343e8c0bf
 -    if (opc == OPC_MOVZ && rd == 0 && rs == 0 && rt == 0) {
 +    if (analysis_guest_hypercall_enabled() &&
 +        opc == OPC_MOVZ && rd == 0 && rs == 0 && rt == 0) {
-         gen_helper_penguin_guest_hypercall(cpu_gpr[2], tcg_env,
-                                            cpu_gpr[2], cpu_gpr[4],
-                                            cpu_gpr[5], cpu_gpr[6],
+         gen_helper_guest_hypercall(cpu_gpr[2], tcg_env,
+                                    cpu_gpr[2], cpu_gpr[4],
+                                    cpu_gpr[5], cpu_gpr[6],
 diff --git a/target/ppc/translate.c b/target/ppc/translate.c
 index 06ed2adf1053ddec214d17b6416e70269e29a38a..cabe5d6b4a2d774e7e8e086e610fe47f7966dbfc 100644
 --- a/target/ppc/translate.c
@@ -335,7 +335,7 @@ index 06ed2adf1053ddec214d17b6416e70269e29a38a..cabe5d6b4a2d774e7e8e086e610fe47f
  #include "internal.h"
  #include "exec/target_page.h"
 diff --git a/target/ppc/translate/fixedpoint-impl.c.inc b/target/ppc/translate/fixedpoint-impl.c.inc
-index 90fd9139113b6dbed4c2672f6ba50a77162e41c0..c28108670663faee02416634c53155dbc5fc88d7 100644
+index 3691111adf6f30efed0df42c82889ca9cd5de017..91f435d29313c5e76f77852ea3ff61bde90c735b 100644
 --- a/target/ppc/translate/fixedpoint-impl.c.inc
 +++ b/target/ppc/translate/fixedpoint-impl.c.inc
 @@ -880,7 +880,8 @@ static bool do_ori(DisasContext *ctx, arg_D_ui *a, bool shift)
@@ -345,11 +345,11 @@ index 90fd9139113b6dbed4c2672f6ba50a77162e41c0..c28108670663faee02416634c53155db
 -        if (!shift && a->rt == 10) {
 +        if (analysis_guest_hypercall_enabled() &&
 +            !shift && a->rt == 10) {
-             gen_helper_penguin_guest_hypercall(cpu_gpr[3], tcg_env,
-                                                cpu_gpr[0], cpu_gpr[3],
-                                                cpu_gpr[4], cpu_gpr[5],
+             gen_helper_guest_hypercall(cpu_gpr[3], tcg_env,
+                                        cpu_gpr[0], cpu_gpr[3],
+                                        cpu_gpr[4], cpu_gpr[5],
 diff --git a/target/riscv/tcg/translate.c b/target/riscv/tcg/translate.c
-index 0418e153d47cdc4949409e23a2ba92c2f568868e..9234795c260fdb49d28514d549242e929c3a963a 100644
+index 856e003468cbd985e42577152426795dc8e0e83b..734363a59b54cf57a87fed7880631015b8dc1263 100644
 --- a/target/riscv/tcg/translate.c
 +++ b/target/riscv/tcg/translate.c
 @@ -17,6 +17,18 @@
@@ -380,4 +380,4 @@ index 0418e153d47cdc4949409e23a2ba92c2f568868e..9234795c260fdb49d28514d549242e92
 +        a->rs1 == 0 && a->rd == 0 && a->imm == 0 &&
          func == tcg_gen_xori_tl) {
          TCGv ret = tcg_temp_new();
-         gen_helper_penguin_guest_hypercall(ret, tcg_env,
+         gen_helper_guest_hypercall(ret, tcg_env,

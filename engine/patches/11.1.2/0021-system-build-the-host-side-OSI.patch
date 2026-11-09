@@ -15,13 +15,13 @@ Origin: penguin
  1 file changed, 1 insertion(+)
 
 diff --git a/system/meson.build b/system/meson.build
-index 4f8de182a383d804d8771b279af6d49ce72bd07e..e6d08acd61077afb0f72e7782429b54090ec68db 100644
+index 1623762cc9463db4f76c56dea5f5ed6726660fe1..942d76786c2ad83c272c97e30550ef447d444d35 100644
 --- a/system/meson.build
 +++ b/system/meson.build
 @@ -18,6 +18,7 @@ system_ss.add(files(
    'memory_mapping.c',
    'memory.c',
-   'penguin.c',
+   'panda-embed.c',
 +  'penguin-osi.c',
    'physmem.c',
    'qdev-monitor.c',

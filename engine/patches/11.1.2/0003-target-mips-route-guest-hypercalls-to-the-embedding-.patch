@@ -1,11 +1,11 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: igloo <nix@local>
 Date: Wed, 19 Aug 2026 23:02:41 -0400
-Subject: [PATCH] target/mips: route guest hypercalls into Penguin
+Subject: [PATCH] target/mips: route guest hypercalls to the embedding API
 
-Adds helper_penguin_guest_hypercall, which forwards the hypercall number and
-six arguments to penguin_handle_guest_hypercall and returns the guest-visible
-result. When Penguin does not claim the hypercall the helper returns the
+Adds helper_guest_hypercall, which forwards the hypercall number and six
+arguments to panda_handle_guest_hypercall and returns the guest-visible
+result. When no consumer claims the hypercall the helper returns the
 hypercall number unchanged, so an unhandled hypercall is inert rather than
 clobbering the return register.
 
@@ -23,26 +23,26 @@ Origin: penguin
  3 files changed, 35 insertions(+), 2 deletions(-)
 
 diff --git a/target/mips/helper.h b/target/mips/helper.h
-index 786117813aebc5f0f2ef334451b2cdfd46df0b35..302216844bb1e9732a38e9e89ca87465e61d45b8 100644
+index 786117813aebc5f0f2ef334451b2cdfd46df0b35..9cc00ca0dd554d2e88fb9d39ac751643f07241f8 100644
 --- a/target/mips/helper.h
 +++ b/target/mips/helper.h
 @@ -1,6 +1,7 @@
  DEF_HELPER_3(raise_exception_err, noreturn, env, i32, int)
  DEF_HELPER_2(raise_exception, noreturn, env, i32)
  DEF_HELPER_1(raise_exception_debug, noreturn, env)
-+DEF_HELPER_7(penguin_guest_hypercall, tl, env, tl, tl, tl, tl, tl, tl)
++DEF_HELPER_7(guest_hypercall, tl, env, tl, tl, tl, tl, tl, tl)
  
  #ifdef TARGET_MIPS64
  DEF_HELPER_4(sdl, void, env, tl, tl, int)
 diff --git a/target/mips/tcg/op_helper.c b/target/mips/tcg/op_helper.c
-index df1b5c37347e38b226596a360aa8c5cd6f8d7faf..497eb25209d1ab924ad503f1be34d1ad275e7154 100644
+index df1b5c37347e38b226596a360aa8c5cd6f8d7faf..3996a4cf3f4cdefc5dbe1778faa44a9e59c9a9c0 100644
 --- a/target/mips/tcg/op_helper.c
 +++ b/target/mips/tcg/op_helper.c
 @@ -26,6 +26,7 @@
  #include "fpu_helper.h"
  #include "qemu/crc32c.h"
  #include "qemu/timer.h"
-+#include "system/penguin.h"
++#include "system/panda-embed.h"
  #include <zlib.h>
  
  static inline target_ulong bitswap(target_ulong v)
@@ -50,15 +50,15 @@ index df1b5c37347e38b226596a360aa8c5cd6f8d7faf..497eb25209d1ab924ad503f1be34d1ad
      return (int32_t)bitswap(rt);
  }
  
-+target_ulong helper_penguin_guest_hypercall(CPUMIPSState *env, target_ulong nr,
-+                                            target_ulong a0, target_ulong a1,
-+                                            target_ulong a2, target_ulong a3,
-+                                            target_ulong a4)
++target_ulong helper_guest_hypercall(CPUMIPSState *env, target_ulong nr,
++                                    target_ulong a0, target_ulong a1,
++                                    target_ulong a2, target_ulong a3,
++                                    target_ulong a4)
 +{
 +    CPUState *cs = env_cpu(env);
 +    uint64_t ret = 0;
 +
-+    if (penguin_handle_guest_hypercall(cs, nr, a0, a1, a2, a3, a4, 0, &ret)) {
++    if (panda_handle_guest_hypercall(cs, nr, a0, a1, a2, a3, a4, 0, &ret)) {
 +        return ret;
 +    }
 +    return nr;
@@ -68,7 +68,7 @@ index df1b5c37347e38b226596a360aa8c5cd6f8d7faf..497eb25209d1ab924ad503f1be34d1ad
                          uint32_t stripe)
  {
 diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
-index e3467d152516394064e71be362012cdff7e96aa8..a738c3d7be75f208167d8e2e319b6ee3d2597fd0 100644
+index e3467d152516394064e71be362012cdff7e96aa8..f413e8d2c3c798c5a3c2fe7281b08206e4fa97ef 100644
 --- a/target/mips/tcg/translate.c
 +++ b/target/mips/tcg/translate.c
 @@ -2724,8 +2724,21 @@ static void gen_cond_move(DisasContext *ctx, uint32_t opc,
@@ -76,10 +76,10 @@ index e3467d152516394064e71be362012cdff7e96aa8..a738c3d7be75f208167d8e2e319b6ee3
      TCGv t0, t1, t2;
  
 +    if (opc == OPC_MOVZ && rd == 0 && rs == 0 && rt == 0) {
-+        gen_helper_penguin_guest_hypercall(cpu_gpr[2], tcg_env,
-+                                           cpu_gpr[2], cpu_gpr[4],
-+                                           cpu_gpr[5], cpu_gpr[6],
-+                                           cpu_gpr[7], tcg_constant_tl(0));
++        gen_helper_guest_hypercall(cpu_gpr[2], tcg_env,
++                                   cpu_gpr[2], cpu_gpr[4],
++                                   cpu_gpr[5], cpu_gpr[6],
++                                   cpu_gpr[7], tcg_constant_tl(0));
 +        return;
 +    }
 +
@@ -89,7 +89,7 @@ index e3467d152516394064e71be362012cdff7e96aa8..a738c3d7be75f208167d8e2e319b6ee3
 +         * A conditional move into $zero has no architectural effect. cpu_gpr[0]
 +         * is NULL on MIPS ($zero is special-cased, never a TCG global), so the
 +         * movcond below would hand a NULL TCGv to the code generator. Treat it
-+         * as a NOP, as upstream did before the Penguin hypercall hook was added.
++         * as a NOP, as upstream did before the guest hypercall hook was added.
 +         */
          return;
      }
@@ -102,7 +102,7 @@ index e3467d152516394064e71be362012cdff7e96aa8..a738c3d7be75f208167d8e2e319b6ee3
 +            /*
 +             * mfc0 into $zero discards its result. cpu_gpr[0] is NULL on MIPS,
 +             * so gen_mfc0() would write through a NULL TCGv; treat it as a NOP
-+             * as upstream did before the Penguin hypercall hook was added.
++             * as upstream did before the guest hypercall hook was added.
 +             */
              return;
          }

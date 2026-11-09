@@ -279,7 +279,7 @@ index 938e66104b76e89ce94c14c3b846b665e0d373e7..7fe9c64fa8d8b2cd801127ad7c9e814b
      clamp_syscall_arguments(&a1, &a2, &a3, &a4, &a5, &a6, &a7, &a8);
  
 diff --git a/replay/replay-begin.c b/replay/replay-begin.c
-index 39d85484dd4f228f02c2642e8c809bb1c2551494..9f0d8917c45d74aeff64a1e683eb260e0cb73f83 100644
+index 39d85484dd4f228f02c2642e8c809bb1c2551494..23cf8117e6108b7630c331c5df24c9eda8ed910b 100644
 --- a/replay/replay-begin.c
 +++ b/replay/replay-begin.c
 @@ -39,6 +39,8 @@
@@ -287,7 +287,7 @@ index 39d85484dd4f228f02c2642e8c809bb1c2551494..9f0d8917c45d74aeff64a1e683eb260e
  #include "hw/virtio/virtio-mmio.h"
  #include "replay-internal.h"
 +#include "panda/hooks.h"
-+#include "system/penguin.h"
++#include "system/panda-embed.h"
  
  #define MAX_NETDEVS 64
  
@@ -295,7 +295,7 @@ index 39d85484dd4f228f02c2642e8c809bb1c2551494..9f0d8917c45d74aeff64a1e683eb260e
      if (replay_check_blockers(errp)) {
          return NULL;
      }
-+    if (!panda_callbacks_record_safe(errp) || !penguin_hypercall_replay_safe(errp)) {
++    if (!panda_callbacks_record_safe(errp) || !panda_hypercall_replay_safe(errp)) {
 +        return NULL;
 +    }
      probe = fopen(file, "wb");
@@ -305,14 +305,14 @@ index 39d85484dd4f228f02c2642e8c809bb1c2551494..9f0d8917c45d74aeff64a1e683eb260e
          error_setg(errp, "start the replaying VM paused (-S)");
          return NULL;
      }
-+    if (!panda_callbacks_replay_safe(errp) || !penguin_hypercall_replay_safe(errp)) {
++    if (!panda_callbacks_replay_safe(errp) || !panda_hypercall_replay_safe(errp)) {
 +        return NULL;
 +    }
      if (replay_check_blockers(errp)) {
          return NULL;
      }
 diff --git a/replay/replay.c b/replay/replay.c
-index 2f164a31a887d3175368142195010c2efa83f935..707baeef1578afbaa4d63bea4037fbdbb522dc2a 100644
+index 2f164a31a887d3175368142195010c2efa83f935..0e6b665d5603d09b0d06e445efafc14d49fa70b8 100644
 --- a/replay/replay.c
 +++ b/replay/replay.c
 @@ -15,6 +15,8 @@
@@ -320,7 +320,7 @@ index 2f164a31a887d3175368142195010c2efa83f935..707baeef1578afbaa4d63bea4037fbdb
  #include "system/runstate.h"
  #include "replay-internal.h"
 +#include "panda/hooks.h"
-+#include "system/penguin.h"
++#include "system/panda-embed.h"
  #include "qemu/main-loop.h"
  #include "qemu/timer.h"
  #include "qemu/option.h"
@@ -330,13 +330,13 @@ index 2f164a31a887d3175368142195010c2efa83f935..707baeef1578afbaa4d63bea4037fbdb
      }
 +    if (replay_mode == REPLAY_MODE_PLAY) {
 +        Error *err = NULL;
-+        if (!panda_callbacks_replay_safe(&err) || !penguin_hypercall_replay_safe(&err)) {
++        if (!panda_callbacks_replay_safe(&err) || !panda_hypercall_replay_safe(&err)) {
 +            error_reportf_err(err, "Replay: ");
 +            exit(EXIT_FAILURE);
 +        }
 +    } else {
 +        Error *err = NULL;
-+        if (!panda_callbacks_record_safe(&err) || !penguin_hypercall_replay_safe(&err)) {
++        if (!panda_callbacks_record_safe(&err) || !panda_hypercall_replay_safe(&err)) {
 +            error_reportf_err(err, "Record: ");
 +            exit(EXIT_FAILURE);
 +        }

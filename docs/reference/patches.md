@@ -6,17 +6,17 @@ QEMU 11.1.2 plus 101 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
-| 0001 | penguin: core callbacks and build wiring | [hypercalls](../features.md#hypercalls) | penguin | GPL-2.0-or-later AND MIT |
-| 0002 | build: emit shared libraries for the Penguin embedding API | [penguin](../features.md#penguin) | penguin | GPL-2.0-or-later |
-| 0003 | target/mips: route guest hypercalls into Penguin | [hypercalls](../features.md#hypercalls) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
-| 0004 | target/arm: route guest hypercalls into Penguin | [hypercalls](../features.md#hypercalls) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
-| 0005 | target/ppc: route guest hypercalls into Penguin | [hypercalls](../features.md#hypercalls) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
-| 0006 | target/riscv: route guest hypercalls into Penguin | [hypercalls](../features.md#hypercalls) | penguin | GPL-2.0-or-later |
-| 0007 | target/loongarch: route guest hypercalls into Penguin | [hypercalls](../features.md#hypercalls) | penguin | GPL-2.0-or-later |
+| 0001 | system: the embedding API's core callbacks and build wiring | [hypercalls](../features.md#hypercalls) | penguin | GPL-2.0-or-later AND MIT |
+| 0002 | build: emit shared libraries for the embedding API | [embedding](../features.md#embedding) | penguin | GPL-2.0-or-later |
+| 0003 | target/mips: route guest hypercalls to the embedding API | [hypercalls](../features.md#hypercalls) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0004 | target/arm: route guest hypercalls to the embedding API | [hypercalls](../features.md#hypercalls) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0005 | target/ppc: route guest hypercalls to the embedding API | [hypercalls](../features.md#hypercalls) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0006 | target/riscv: route guest hypercalls to the embedding API | [hypercalls](../features.md#hypercalls) | penguin | GPL-2.0-or-later |
+| 0007 | target/loongarch: route guest hypercalls to the embedding API | [hypercalls](../features.md#hypercalls) | penguin | GPL-2.0-or-later |
 | 0008 | target/i386, hw/i386: route guest hypercalls through an I/O port | [hypercalls](../features.md#hypercalls) | penguin | LGPL-2.1-or-later AND MIT |
-| 0009 | kvm: expose hypercall and port-I/O exits to Penguin | [kvm](../features.md#kvm) | penguin | GPL-2.0-or-later |
-| 0010 | penguin: snapshot ABI and a migratable vhost-user-vsock | [penguin](../features.md#penguin) | penguin | GPL-2.0-or-later AND MIT |
-| 0011 | penguin: reset-request and QMP-command callbacks | [penguin](../features.md#penguin) | penguin | LGPL-2.1-or-later AND MIT |
+| 0009 | kvm: expose hypercall and port-I/O exits to the embedding API | [kvm](../features.md#kvm) | penguin | GPL-2.0-or-later |
+| 0010 | system: snapshot ABI and a migratable vhost-user-vsock | [embedding](../features.md#embedding) | penguin | GPL-2.0-or-later AND MIT |
+| 0011 | system: reset-request and QMP-command callbacks | [embedding](../features.md#embedding) | penguin | LGPL-2.1-or-later AND MIT |
 | 0012 | hw/mips/malta: enlarge the prom env slot so the cmdline is not truncated | [qemu-fixes](../features.md#qemu-fixes) | penguin | MIT |
 | 0013 | plugins: qemu_plugin_read_memory_vaddr_fault, page-in reads at a hook | [faulting-access](../features.md#faulting-access) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
 | 0014 | plugins, target/arm: a user-access window (DACR) for faulting reads | [faulting-access](../features.md#faulting-access) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
@@ -28,13 +28,13 @@ QEMU 11.1.2 plus 101 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0020 | plugins: address hooks, register pointers, TLB-first reads, syscall events | [engine-hooks](../features.md#engine-hooks) | penguin | GPL-2.0-or-later |
 | 0021 | system: build the host-side OSI | [syscall-trap](../features.md#syscall-trap) | penguin | GPL-2.0-or-later |
 | 0022 | i386: resume a KVM snapshot under TCG and a TCG snapshot under KVM | [kvm-tcg](../features.md#kvm-tcg) | penguin | GPL-2.0-only AND GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
-| 0023 | target/arm/kvm: penguin hypercalls under arm64 KVM (SMCCC filter + mailbox doorbell) | [kvm](../features.md#kvm) | penguin | GPL-2.0-or-later |
+| 0023 | target/arm/kvm: guest hypercalls under arm64 KVM (SMCCC filter + mailbox doorbell) | [kvm](../features.md#kvm) | penguin | GPL-2.0-or-later |
 | 0024 | target/arm, arm_gic: resume an aarch64 KVM snapshot under TCG and a TCG snapshot under KVM | [kvm-tcg](../features.md#kvm-tcg) | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later |
 | 0025 | system/cpu-timers: continue the virtual clock when an icount process loads a non-icount snapshot | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
 | 0026 | target/i386: keep the guest TSC continuous across a clock-domain change | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
 | 0027 | accel/tcg: x-tsc-vclock, the x86 TSC from the virtual clock without icount | [record-replay](../features.md#record-replay) | new | MIT |
 | 0028 | system/cpus: run_on_cpu under record/replay: release the replay mutex while the VM is stopped | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
-| 0029 | qapi: a weak default penguin_handle_qmp, so the tools link on macOS | [penguin](../features.md#penguin) | new | LGPL-2.1-or-later |
+| 0029 | qapi: a weak default panda_handle_qmp, so the tools link on macOS | [embedding](../features.md#embedding) | new | LGPL-2.1-or-later |
 | 0030 | replay: declare replay_mutex_locked() in system/replay.h | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
 | 0031 | accel/tcg: forget the plugin callback's return address and flags after a longjmp | [callbacks](../features.md#callbacks) | new | LGPL-2.1-or-later |
 | 0032 | plugins, targets: a user-access window owned by the access, not latched per vCPU | [faulting-access](../features.md#faulting-access) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
@@ -50,7 +50,7 @@ QEMU 11.1.2 plus 101 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0042 | plugins: add qemu_plugin_tb_size and qemu_plugin_tb_get_insn_by_vaddr | [callbacks](../features.md#callbacks) | panda-re/qemu | GPL-2.0-or-later |
 | 0043 | panda: TCG core hooks | [callbacks](../features.md#callbacks) | panda-re/qemu | LGPL-2.1-or-later |
 | 0044 | panda: asid_changed on x86, arm and mips | [callbacks](../features.md#callbacks) | panda-re/qemu | GPL-2.0-or-later AND LGPL-2.1-or-later |
-| 0045 | panda: guest_hypercall on penguin's hypercall instruction | [hypercalls](../features.md#hypercalls) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
+| 0045 | panda: guest_hypercall on the guest hypercall instruction | [hypercalls](../features.md#hypercalls) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
 | 0046 | panda: panda_disable_tb_chaining turns TB chaining off | [callbacks](../features.md#callbacks) | new | LGPL-2.1-or-later |
 | 0047 | plugins: memory callbacks before the access | [callbacks](../features.md#callbacks) | panda-re/qemu | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
 | 0048 | panda: before_find_fast before each TB lookup | [callbacks](../features.md#callbacks) | panda-re/qemu | LGPL-2.1-or-later |

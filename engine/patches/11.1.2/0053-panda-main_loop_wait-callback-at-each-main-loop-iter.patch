@@ -16,7 +16,7 @@ Origin: new
  1 file changed, 8 insertions(+)
 
 diff --git a/system/runstate.c b/system/runstate.c
-index 569841239f1dee0918a65cd85fc2da6f425d6eef..ae95fdb43bc4a8bf652e6675d7b0d3b2d50f95a3 100644
+index 2f596b449363b6d53505bf958c6620ca498813de..61adbf7d98d557b37ee258ba49f80d5d521af3f8 100644
 --- a/system/runstate.c
 +++ b/system/runstate.c
 @@ -57,6 +57,7 @@

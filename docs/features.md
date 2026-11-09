@@ -35,7 +35,7 @@ ubuntu-24.04 images (see
 | [Memory access that pages in](#faulting-access) | engine API | TCG, KVM | x86_64, aarch64 |
 | [Translation-time hooks and register pointers](#engine-hooks) | engine API | TCG | x86_64, aarch64 |
 | [Syscall trap and host-side introspection](#syscall-trap) | engine API | TCG | x86_64, aarch64 |
-| [Embedding for penguin](#penguin) | engine API | TCG, KVM | **untested** |
+| [The embedding API](#embedding) | engine API | TCG, KVM | **untested** |
 | [Custom machines and modules](#machines) | supported | TCG | arm, aarch64 |
 | [Packages](#packaging) | supported | - | **untested** |
 | [QEMU fixes](#qemu-fixes) | supported | - | **untested** |
@@ -239,9 +239,9 @@ register and CPUArchState fields (through pointers too, by path). Each write is 
 callback's instruction and replay repeats it without the callback. Guest hypercalls are the
 first site; writes made behind the API's back are a fatal error.
 
-**Limits.** TCG; KVM's hypercall consumer cannot be recorded. Writes are logged only inside hypercall handlers (Penguin's consumer, mutating guest_hypercall callbacks, @panda.hypercall with mutates=True); elsewhere during record/replay they are refused. Env paths follow only pointers the generated layout map lists. At most 16 MiB of writes per hypercall. Hypercall instructions end their translation block under icount. riscv64 and the other targets without a PANDA hypercall fallback answer only through Penguin's consumer.
+**Limits.** TCG; KVM's hypercall consumer cannot be recorded. Writes are logged only inside hypercall handlers (the embedding API's consumer, mutating guest_hypercall callbacks, @panda.hypercall with mutates=True); elsewhere during record/replay they are refused. Env paths follow only pointers the generated layout map lists. At most 16 MiB of writes per hypercall. Hypercall instructions end their translation block under icount. riscv64 and the other targets without a PANDA hypercall fallback answer only through the embedding API's consumer.
 
-**Use it:** `set_penguin_guest_hypercall_callback`, `panda_guest_write_env_path`, `panda_guest_write_reg`, `Panda.hypercall`, `Guest.env`
+**Use it:** `panda_set_guest_hypercall_callback`, `panda_guest_write_env_path`, `panda_guest_write_reg`, `Panda.hypercall`, `Guest.env`
 
 **Docs:** [docs/guides/record-replay.md](guides/record-replay.md), [docs/design/rr-guest-mutation-api.md](design/rr-guest-mutation-api.md)
 
@@ -402,16 +402,16 @@ host-side from the kernel's symbols, and redirect the guest from a syscall entry
 
 **Engine patches:** 0019, 0021, 0033 ([series](reference/patches.md))
 
-<a id="penguin"></a>
-## Embedding for penguin
+<a id="embedding"></a>
+## The embedding API
 
-What penguin (the firmware rehosting tool) needs from the engine: the engine as shared
-libraries, a snapshot ABI with a migratable vhost-user-vsock, and reset-request and QMP command
-callbacks.
+What a host that drives the engine as a library (penguin, the firmware rehosting tool, for one)
+needs from it: the engine as shared libraries, a snapshot ABI with a migratable vhost-user-vsock,
+and reset-request and QMP command callbacks (system/panda-embed.h).
 
-**Limits.** Tested by penguin's own suites, not here.
+**Limits.** Tested by the hosts' own suites, not here.
 
-**Use it:** `penguin_handle_qmp`
+**Use it:** `panda_handle_qmp`
 
 **Tests:** none yet.
 

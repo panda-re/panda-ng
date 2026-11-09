@@ -114,7 +114,7 @@ index 8e2bb2161b06aeb3dcbd62a44ac3253a8434aa5b..37b1d4fdb800b4462851c24a2ad73465
   * type_register_static_array:
   * @infos: The array of the new type #TypeInfo structures.
 diff --git a/meson.build b/meson.build
-index 075686df3d320afa5f69a818ccb42214b323396f..91a019901bd1753d778f4e67bda5efcd236b5a8c 100644
+index 32e07a0c7df240af2a259ce79309b44050888575..5e092c051a03ba20325c2312274759d8389ff755 100644
 --- a/meson.build
 +++ b/meson.build
 @@ -3546,6 +3546,19 @@ qemu_version = custom_target('qemu-version.h',

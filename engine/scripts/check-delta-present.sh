@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Assert the IGLOO delta actually compiled into the built libraries.
 #
-#   ./scripts/check-delta-present.sh <penguin-qemu-out-dir>
+#   ./scripts/check-delta-present.sh <engine-out-dir>
 #
 # WHY THIS EXISTS. The boot gate we ship is a minimal kernel+initramfs boot,
 # mirroring linux_builder's nix/boot.nix. That gate has a known hole: it passes
@@ -14,7 +14,7 @@
 # every patch that should contribute code to a given library actually did.
 #
 # TWO GUEST-ENTRY PATHS, and the check must know the difference. Twelve targets
-# reach Penguin through a TCG helper (helper_penguin_guest_hypercall, one patch
+# reach the embedding API through a TCG helper (helper_guest_hypercall, one patch
 # per arch). x86 does NOT: it has no convenient spare instruction, so the guest
 # writes to I/O port 0x88 and patch 0008 registers a MemoryRegion for it. There
 # is therefore no TCG helper in the x86 libraries by design -- asserting one
@@ -23,16 +23,16 @@
 # instead, which is what proves 0008 landed.
 set -euo pipefail
 
-OUT="${1:?usage: check-delta-present.sh <penguin-qemu-out-dir>}"
+OUT="${1:?usage: check-delta-present.sh <engine-out-dir>}"
 
 # The core + callbacks patches must contribute these to EVERY system library.
 CORE_SYMS=(
-    penguin_handle_guest_hypercall
-    penguin_guest_hypercall_registered
-    penguin_clear_guest_hypercalls
-    penguin_cpu_env
-    penguin_handle_qmp
-    penguin_invoke_reset_request_callback
+    panda_handle_guest_hypercall
+    panda_guest_hypercall_registered
+    panda_clear_guest_hypercalls
+    panda_cpu_env
+    panda_handle_qmp
+    panda_invoke_reset_request_callback
 )
 # The pagein/syscall-trap sources (src/system/penguin-osi.c, syscall-trap.c,
 # accel/tcg/hooks.c) and the plugin API patches: target-independent system code,
@@ -50,12 +50,12 @@ ENGINE_SYMS=(
 # The syscall trap's target patches: only x86 and arm report syscalls so far.
 X86_TRAP_SYM=x86_sc_return
 ARM_TRAP_SYM=arm_sc_key
-TCG_SYM=helper_penguin_guest_hypercall   # every target EXCEPT x86
-IOPORT_STR=penguin-hypercall             # x86 only: the port-0x88 MemoryRegion name
+TCG_SYM=helper_guest_hypercall   # every target EXCEPT x86
+IOPORT_STR=panda-hypercall               # x86 only: the port-0x88 MemoryRegion name
 
 # i386 (panda-ng builds it; penguin does not) takes the same I/O-port path as x86_64.
-is_x86() { case "$1" in x86_64|intel64|i386) return 0 ;; *) return 1 ;; esac; }
-is_arm() { case "$1" in aarch64|arm|armel) return 0 ;; *) return 1 ;; esac; }
+is_x86() { case "$1" in x86_64|i386) return 0 ;; *) return 1 ;; esac; }
+is_arm() { case "$1" in aarch64|arm) return 0 ;; *) return 1 ;; esac; }
 
 shopt -s nullglob
 libs=("$OUT"/lib/libqemu-system-*.so)
@@ -87,7 +87,7 @@ for lib in "${libs[@]}"; do
     fi
 
     if [ ${#missing[@]} -eq 0 ]; then
-        echo "  ok    $name [$path, trap $trap] ($(grep -ci penguin <<<"$syms") penguin symbols)"
+        echo "  ok    $name [$path, trap $trap] ($(grep -c '^panda_' <<<"$syms") panda_ symbols)"
     else
         echo "  FAIL  $name [$path] missing: ${missing[*]}" >&2
         rc=1

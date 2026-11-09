@@ -13,7 +13,7 @@ Origin: new
  1 file changed, 3 insertions(+)
 
 diff --git a/migration/savevm.c b/migration/savevm.c
-index d3b7ecfd05b0fb6b5d3692154fe952e24816471d..5e915e5dd300b456bee6c1a975c80d40fab68058 100644
+index bb28cdbff9d5bbe55ab6a9dda16fff6552b69edf..91edbe2315f9330a1ec5f63b6f8841721f561459 100644
 --- a/migration/savevm.c
 +++ b/migration/savevm.c
 @@ -71,6 +71,8 @@

@@ -617,7 +617,7 @@ unsigned syscall_trap_cancel_all(void)
      * caller's scratch, not other threads; no held continuation retains it. */
     sc_fault_addr = 0;
     sc_fault_write = false;
-    sc_unlock();  /* Penguin's drop -> ABORT -> free chain runs outside the lock. */
+    sc_unlock();  /* A consumer's drop chain runs outside the lock. */
     return n;
 }
 

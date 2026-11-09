@@ -5,7 +5,7 @@
 # chip id, five PIT ticks through the AIC, semihosting exit), under icount:
 #   intree: INTREE_BUILD/qemu-system-arm -M at91sam9260      (the board's wiring patch applied)
 #   so:     ENGINE_BUILD/qemu-system-arm -M at91sam9260.so   (engine without it)
-#   qhost:  the same .so through a penguin-style libqemu host (dlopen libqemu-system-arm.so RTLD_GLOBAL,
+#   qhost:  the same .so through an embedding-style libqemu host (dlopen libqemu-system-arm.so RTLD_GLOBAL,
 #           then qemu_init; extboard probe's qhost.c), -M ./at91sam9260.so:at91sam9260
 # PASS when the console output and libbb's block and instruction counts are identical.
 set -u

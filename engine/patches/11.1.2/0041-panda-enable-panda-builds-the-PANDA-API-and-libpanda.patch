@@ -36,7 +36,7 @@ index e7fc4d6d8f59084c976a8317f4b222a8477e7d84..727ac7b94539b4ab8225655b1de7973a
    contrib_plugins += 'cpp.cpp'
  endif
 diff --git a/meson.build b/meson.build
-index f9ade4821e76c7768fa89ba0c074fbc61bd92c18..075686df3d320afa5f69a818ccb42214b323396f 100644
+index 6dc02bdf2eb4bccfc2345593841c07e629701915..32e07a0c7df240af2a259ce79309b44050888575 100644
 --- a/meson.build
 +++ b/meson.build
 @@ -2479,6 +2479,7 @@ if numa.found()
@@ -60,8 +60,8 @@ index f9ade4821e76c7768fa89ba0c074fbc61bd92c18..075686df3d320afa5f69a818ccb42214
  subdir('ebpf')
  
  if have_system
-@@ -4478,6 +4485,17 @@ foreach target : target_dirs
-       endforeach
+@@ -4467,6 +4474,17 @@ foreach target : target_dirs
+                  link_args: link_args)
      endif
  
 +    if get_option('panda') and target.endswith('-softmmu') and 'CONFIG_TCG' in config_target

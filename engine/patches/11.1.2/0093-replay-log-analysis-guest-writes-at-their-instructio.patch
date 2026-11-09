@@ -43,7 +43,7 @@ Origin: new
  10 files changed, 80 insertions(+), 1 deletion(-)
 
 diff --git a/meson.build b/meson.build
-index 9c77219b727a61279925c4cd52b85c574c348a98..14133903562ee7b8d2891b6b48f56b3b3411bf67 100644
+index ad0e759e0e28e17ff87ab6d1b990dbf11e965fe1..bab301523caff3a68cae126b2eee83816def2dd5 100644
 --- a/meson.build
 +++ b/meson.build
 @@ -4421,6 +4421,27 @@ foreach target : target_dirs
@@ -88,7 +88,7 @@ index fa94be90af6ae8c83bde51b47c63ec5713c6bfdb..7c8455c344791a93846cf96475f99f44
      /* some of greater codes are reserved for clocks */
      EVENT_CLOCK,
 diff --git a/replay/replay.c b/replay/replay.c
-index 0f65e6b85a8822aa8bb8bbdec860808d618f2eb5..7d72b42fb24c24e830f2fdd07c0024c7b724b9be 100644
+index 41e4fec6f3f4bc272c7d6df0a137382491470255..fa8171123d0f309424193e1ccc9e7f85469eccd9 100644
 --- a/replay/replay.c
 +++ b/replay/replay.c
 @@ -26,7 +26,7 @@
@@ -172,19 +172,19 @@ index 8e1ba878362c2869becbb6caf7d9869d895d6655..db2c4577001cbb7b5883ee4bd7290cf1
 +    return GUEST_WRITE_EPERM;
 +}
 diff --git a/target/arm/tcg/translate-a64.c b/target/arm/tcg/translate-a64.c
-index 7c8a865b3bc7424284f1bdba27c4c941524af37b..ac3d87f35d7347c7de18be29d8cf4f1d88418d77 100644
+index afaea769d29b287179be93c8f1c375042367ad80..9329ab2c292fee98fbfed44869e89764bc4e1b09 100644
 --- a/target/arm/tcg/translate-a64.c
 +++ b/target/arm/tcg/translate-a64.c
-@@ -3295,6 +3295,7 @@ static bool trans_PENGUIN(DisasContext *s, arg_PENGUIN *a)
+@@ -3295,6 +3295,7 @@ static bool trans_HYPERCALL(DisasContext *s, arg_HYPERCALL *a)
      if (!analysis_guest_hypercall_enabled()) {
          return false; /* preserve upstream UNDEF decoding */
      }
 +    translator_io_start(&s->base);
-     gen_helper_penguin_guest_hypercall(cpu_reg(s, 0), tcg_env,
-                                        cpu_reg(s, 8), cpu_reg(s, 0),
-                                        cpu_reg(s, 1), cpu_reg(s, 2),
+     gen_helper_guest_hypercall(cpu_reg(s, 0), tcg_env,
+                                cpu_reg(s, 8), cpu_reg(s, 0),
+                                cpu_reg(s, 1), cpu_reg(s, 2),
 diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
-index c09865a2d81636f9d355d7be0c32037863304b4d..caa9c54e2e3edd5d0cbc707dc63d09a4b60fd1dc 100644
+index 4e9768ed79f7ef9259f71cdea3229cebf23358e9..0f2a099c882bc267572f08f2845ea888c09416c8 100644
 --- a/target/arm/tcg/translate.c
 +++ b/target/arm/tcg/translate.c
 @@ -2376,6 +2376,7 @@ static bool trans_MCR(DisasContext *s, arg_MCR *a)
@@ -192,11 +192,11 @@ index c09865a2d81636f9d355d7be0c32037863304b4d..caa9c54e2e3edd5d0cbc707dc63d09a4
          tcg_gen_extu_i32_i64(a3, load_reg(s, 3));
          tcg_gen_extu_i32_i64(a4, load_reg(s, 4));
 +        translator_io_start(&s->base);
-         gen_helper_penguin_guest_hypercall(ret64, tcg_env, nr, a0, a1, a2,
-                                            a3, a4);
+         gen_helper_guest_hypercall(ret64, tcg_env, nr, a0, a1, a2,
+                                    a3, a4);
          tcg_gen_extrl_i64_i32(ret, ret64);
 diff --git a/target/loongarch/tcg/insn_trans/trans_extra.c.inc b/target/loongarch/tcg/insn_trans/trans_extra.c.inc
-index 9f0557857bdf95670ba1b9493e1bcb4b785d47ef..3c00d3ffbf569e422ef14268844ff0d31112441a 100644
+index fc1d45073ee6caeb397960d286e0c51005260e9b..a9f4f5cfa11f220e464311424bd76d1414b79a64 100644
 --- a/target/loongarch/tcg/insn_trans/trans_extra.c.inc
 +++ b/target/loongarch/tcg/insn_trans/trans_extra.c.inc
 @@ -90,6 +90,7 @@ static bool trans_cpucfg(DisasContext *ctx, arg_cpucfg *a)
@@ -204,11 +204,11 @@ index 9f0557857bdf95670ba1b9493e1bcb4b785d47ef..3c00d3ffbf569e422ef14268844ff0d3
          a->rd == 0 && a->rj == 0) {
          TCGv ret = tcg_temp_new();
 +        translator_io_start(&ctx->base);
-         gen_helper_penguin_guest_hypercall(ret, tcg_env,
-                                            gpr_src(ctx, 11, EXT_NONE),
-                                            gpr_src(ctx, 4, EXT_NONE),
+         gen_helper_guest_hypercall(ret, tcg_env,
+                                    gpr_src(ctx, 11, EXT_NONE),
+                                    gpr_src(ctx, 4, EXT_NONE),
 diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
-index a402df7e55d504eb47a9627343e8c0bfcfa6ec5b..78de322a708f6e2d013d7c339cb3c2482d196cb3 100644
+index 185063addcadc9acde5462e999bfd6c9bb0ad766..6a544a9e0e5422a02cf451d20c3f8138b14d6c29 100644
 --- a/target/mips/tcg/translate.c
 +++ b/target/mips/tcg/translate.c
 @@ -2738,6 +2738,7 @@ static void gen_cond_move(DisasContext *ctx, uint32_t opc,
@@ -216,11 +216,11 @@ index a402df7e55d504eb47a9627343e8c0bfcfa6ec5b..78de322a708f6e2d013d7c339cb3c248
      if (analysis_guest_hypercall_enabled() &&
          opc == OPC_MOVZ && rd == 0 && rs == 0 && rt == 0) {
 +        translator_io_start(&ctx->base);
-         gen_helper_penguin_guest_hypercall(cpu_gpr[2], tcg_env,
-                                            cpu_gpr[2], cpu_gpr[4],
-                                            cpu_gpr[5], cpu_gpr[6],
+         gen_helper_guest_hypercall(cpu_gpr[2], tcg_env,
+                                    cpu_gpr[2], cpu_gpr[4],
+                                    cpu_gpr[5], cpu_gpr[6],
 diff --git a/target/ppc/translate/fixedpoint-impl.c.inc b/target/ppc/translate/fixedpoint-impl.c.inc
-index c28108670663faee02416634c53155dbc5fc88d7..5fc7894502e077068af0a3cca06c07428d801e7d 100644
+index 91f435d29313c5e76f77852ea3ff61bde90c735b..8df412b7a53b3473235a7b708c65749311b4b540 100644
 --- a/target/ppc/translate/fixedpoint-impl.c.inc
 +++ b/target/ppc/translate/fixedpoint-impl.c.inc
 @@ -882,6 +882,7 @@ static bool do_xori(DisasContext *ctx, arg_D_ui *a, bool shift)
@@ -228,11 +228,11 @@ index c28108670663faee02416634c53155dbc5fc88d7..5fc7894502e077068af0a3cca06c0742
          if (analysis_guest_hypercall_enabled() &&
              !shift && a->rt == 10) {
 +            translator_io_start(&ctx->base);
-             gen_helper_penguin_guest_hypercall(cpu_gpr[3], tcg_env,
-                                                cpu_gpr[0], cpu_gpr[3],
-                                                cpu_gpr[4], cpu_gpr[5],
+             gen_helper_guest_hypercall(cpu_gpr[3], tcg_env,
+                                        cpu_gpr[0], cpu_gpr[3],
+                                        cpu_gpr[4], cpu_gpr[5],
 diff --git a/target/riscv/tcg/translate.c b/target/riscv/tcg/translate.c
-index 9234795c260fdb49d28514d549242e929c3a963a..f2f219d0ad04b01f3e187ae019acafa3f4086aff 100644
+index 734363a59b54cf57a87fed7880631015b8dc1263..d753fb8826d8c6ebdcf27c9bd75fe232793e2c5b 100644
 --- a/target/riscv/tcg/translate.c
 +++ b/target/riscv/tcg/translate.c
 @@ -882,6 +882,7 @@ static bool gen_logic_imm_fn(DisasContext *ctx, arg_i *a,
@@ -240,6 +240,6 @@ index 9234795c260fdb49d28514d549242e929c3a963a..f2f219d0ad04b01f3e187ae019acafa3
          func == tcg_gen_xori_tl) {
          TCGv ret = tcg_temp_new();
 +        translator_io_start(&ctx->base);
-         gen_helper_penguin_guest_hypercall(ret, tcg_env,
-                                            cpu_gpr[17], cpu_gpr[10],
-                                            cpu_gpr[11], cpu_gpr[12],
+         gen_helper_guest_hypercall(ret, tcg_env,
+                                    cpu_gpr[17], cpu_gpr[10],
+                                    cpu_gpr[11], cpu_gpr[12],

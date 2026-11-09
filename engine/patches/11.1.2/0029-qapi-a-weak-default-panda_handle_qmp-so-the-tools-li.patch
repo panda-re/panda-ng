@@ -1,0 +1,61 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Wed, 21 Oct 2026 15:19:34 -0400
+Subject: [PATCH] qapi: a weak default panda_handle_qmp, so the tools link on
+ macOS
+
+qmp-dispatch.c declared the QMP hook as an undefined weak reference and
+tested it for NULL. ELF allows that. Mach-O's ld64 refuses it, so
+qemu-img, qemu-io, qemu-nbd and qemu-storage-daemon fail to link on
+macOS ("Undefined symbols").
+
+Give it a weak definition that handles nothing instead.
+system/panda-embed.c's strong definition replaces it wherever it is linked
+(every system binary and libqemu-system-*.so), on both linkers.
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
+---
+ qapi/qmp-dispatch.c | 19 +++++++++++++------
+ 1 file changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/qapi/qmp-dispatch.c b/qapi/qmp-dispatch.c
+index 76ea20c6a5a4b62a77cdd017951d21fa650d85ef..d780f8dcbbb14f0976699c96163dc015fb4e950f 100644
+--- a/qapi/qmp-dispatch.c
++++ b/qapi/qmp-dispatch.c
+@@ -26,13 +26,20 @@
+ #include "qemu/main-loop.h"
+ 
+ /*
+- * Penguin QMP hook. Declared as a weak symbol so that binaries which do not
+- * link system/panda-embed.c (e.g. qemu-nbd, qemu-storage-daemon) still link; the
+- * pointer is NULL at runtime there and the hook is skipped.
++ * The embedding API's QMP hook. A weak default that handles nothing, so
++ * binaries which do not link system/panda-embed.c (e.g. qemu-nbd,
++ * qemu-storage-daemon) still link; panda-embed.c's strong definition replaces
++ * it where it is linked.  A weak
++ * *definition* rather than a weak reference: Mach-O's linker refuses an
++ * undefined weak reference that nothing provides.
+  */
++bool panda_handle_qmp(const char *command, const char *args, char **result);
+ __attribute__((weak)) bool panda_handle_qmp(const char *command,
+                                             const char *args,
+-                                            char **result);
++                                            char **result)
++{
++    return false;
++}
+ 
+ Visitor *qobject_input_visitor_new_qmp(QObject *obj)
+ {
+@@ -189,8 +196,8 @@ QDict *coroutine_mixed_fn qmp_dispatch(const QmpCommandList *cmds, QObject *requ
+     cmd = qmp_find_command(cmds, command);
+     if (cmd == NULL) {
+         /* --- EMBEDDING QMP HOOK START --- */
+-        /* Only present when system/panda-embed.c is linked (not in qemu-nbd). */
+-        if (panda_handle_qmp) {
++        /* Handles nothing unless system/panda-embed.c is linked (not in qemu-nbd). */
++        {
+             char *hook_result = NULL;
+             QDict *hook_args;
+             GString *hook_args_json;

@@ -111,7 +111,7 @@ index 7651d28fcd2cb4e1d403ad8bc951971a01f67dcb..fa94be90af6ae8c83bde51b47c63ec57
  } ReplayAsyncEventKind;
  
 diff --git a/replay/replay.c b/replay/replay.c
-index fc5cc2f34471f8a490b1d971d58ef5aa0f0d0878..0f65e6b85a8822aa8bb8bbdec860808d618f2eb5 100644
+index dea01242c890422bee2491e64c21d9dee30d2b94..41e4fec6f3f4bc272c7d6df0a137382491470255 100644
 --- a/replay/replay.c
 +++ b/replay/replay.c
 @@ -26,7 +26,7 @@

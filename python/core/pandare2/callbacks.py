@@ -34,7 +34,7 @@ NO_CALL_SITE = {
 # code: the block, instruction and memory callbacks, asid_changed (from the TCG helpers that write
 # CR3/TTBR/satp/EntryHi), before_handle_exception (TCG's cpu loop) and guest_hypercall (the TCG
 # hypercall helpers and the PC's port 0x88, which KVM's exit handler serves itself: patches 0009,
-# 0023 and 0045 hand a KVM hypercall to penguin's consumers only). Under KVM, registering one of
+# 0023 and 0045 hand a KVM hypercall to the embedding API's consumers only). Under KVM, registering one of
 # those raises NotImplementedError.
 KVM = {"main_loop_wait", "after_machine_init", "after_loadvm"}
 
