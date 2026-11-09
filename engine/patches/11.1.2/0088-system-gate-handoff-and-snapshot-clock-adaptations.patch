@@ -287,7 +287,7 @@ index e217a4e4ea24ace74d39471b76dbb2def190beb2..21f40bb698c2bef968d0b83698a4b3b6
  }
  
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index 25b850f17c1470ee05a012697e2049dfce2997a6..2ad10fa08fff2657d9975ed637395ee9839b350b 100644
+index 73285ca2fbe943bd6441541b3e96f32b2691822b..89945f57b57a2bf8b5881d774758113369a3c038 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -40,6 +40,7 @@

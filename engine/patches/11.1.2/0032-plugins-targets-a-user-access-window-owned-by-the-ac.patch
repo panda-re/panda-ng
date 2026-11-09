@@ -88,7 +88,7 @@ index 06ecc0beac77b2d13528e5dd25f6a12a45a718f7..b2eacb554288d5dffb29803a980f3f1f
  #ifdef CONFIG_USER_ONLY
      /**
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index c34b0dff8086a57f2e1e34e4e00959d72ae28572..802f0f506757dbc63a072a7f65e74aede0773738 100644
+index 51ade9fb301d18f223e2a1b9f5a269a653fa9889..bddb140da155313a0e5e8bb29c55a7e356c7e1ac 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
 @@ -563,6 +563,17 @@ struct CPUState {

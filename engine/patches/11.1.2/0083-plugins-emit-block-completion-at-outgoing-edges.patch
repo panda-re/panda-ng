@@ -131,7 +131,7 @@ index 9e6430bd6af81efb49b18e54f47fab916050c344..d90f822e0b408d464c4163e9ebad408e
          ptb->mem_helper = false;
          ptb->vaddr_read = false;
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index 51cd192ebeb36f50b76247be9251c36602b4acf2..f96b4b4d9f3a712dd153817aaa957d3d739aa6ee 100644
+index 4f2e0d867c7c54e72b5d418eabd5a3bf760dc113..ec5faf76dd43796719880685978e42b7ac8647df 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
 @@ -565,7 +565,7 @@ struct CPUState {

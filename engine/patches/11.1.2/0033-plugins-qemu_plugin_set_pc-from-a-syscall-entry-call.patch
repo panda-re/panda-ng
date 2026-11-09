@@ -41,7 +41,7 @@ index b2358dffccb81e623cfa3c333bcff5187fd4186a..fc30bdf05ebffc813fddc20b51dfe20e
      if (bql_locked()) {
          bql_unlock();
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index 802f0f506757dbc63a072a7f65e74aede0773738..8033d4470b435a9a0a195b4ed6e10975752a4d12 100644
+index bddb140da155313a0e5e8bb29c55a7e356c7e1ac..9af888378205d2ae6c13ebc5a3aff7f5a0a66ff3 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
 @@ -371,6 +371,8 @@ typedef struct CPUNegativeOffsetState {

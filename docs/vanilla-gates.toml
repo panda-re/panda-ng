@@ -267,7 +267,7 @@ vanilla_verified = false
 [[patch]]
 id = "0019"
 file = "engine/patches/11.1.2/0019-system-target-i386-target-arm-the-syscall-trap.patch"
-sha256 = "f83b9e05c9a8a0cc49ea05a16faeb4c5cfebe6f9adb6407da0fdc8752e2d2cc1"
+sha256 = "8290a2ffff67c60825f40a8448ea86b5ce24dfe9afdd32e9e1a0553cfb477028"
 class = "runtime-gate"
 capability = "syscall-trap"
 paths = ["accel/tcg/cputlb.c", "include/accel/tcg/probe.h", "include/hw/core/cpu.h", "system/meson.build", "target/arm/helper.c", "target/arm/internals.h", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c", "target/i386/tcg/emit.c.inc", "target/i386/tcg/seg_helper.c", "target/i386/tcg/seg_helper.h", "target/i386/tcg/system/seg_helper.c"]
@@ -337,7 +337,7 @@ vanilla_verified = false
 [[patch]]
 id = "0024"
 file = "engine/patches/11.1.2/0024-target-arm-arm_gic-resume-an-aarch64-KVM-snapshot-un.patch"
-sha256 = "34f417ee05c74d3453c1656e3f4c949654ebd2a5498e38f1f285647ee4689b5a"
+sha256 = "626d920c97a2eabd23769a98a9e873e7bc8c1e48b20319465de259f0f0113340"
 class = "startup-gate"
 capability = "accelerator-handoff"
 paths = ["hw/intc/arm_gic_common.c", "include/hw/intc/arm_gic_common.h", "target/arm/cpu.h", "target/arm/helper.c", "target/arm/internals.h", "target/arm/machine.c", "target/arm/trace-events"]
@@ -449,7 +449,7 @@ vanilla_verified = false
 [[patch]]
 id = "0032"
 file = "engine/patches/11.1.2/0032-plugins-targets-a-user-access-window-owned-by-the-ac.patch"
-sha256 = "8263ca6ee18b1b46d5c1ad0d6395c73e72061fc3a4f88cdab8efeaa1526b8223"
+sha256 = "1bf257d046961f21b82b6702162ee4f61c54fc1505caefb2b782f7e43b205248"
 class = "runtime-gate"
 capability = "faulting-access"
 paths = ["hw/core/cpu-common.c", "hw/core/cpu-system.c", "include/accel/tcg/cpu-ops.h", "include/hw/core/cpu.h", "plugins/api-system.c", "target/arm/cpu.c", "target/arm/cpu.h", "target/i386/cpu.h", "target/i386/tcg/tcg-cpu.c", "target/ppc/cpu.h", "target/ppc/cpu_init.c", "target/riscv/cpu.h", "target/riscv/tcg/tcg-cpu.c"]
@@ -463,7 +463,7 @@ vanilla_verified = false
 [[patch]]
 id = "0033"
 file = "engine/patches/11.1.2/0033-plugins-qemu_plugin_set_pc-from-a-syscall-entry-call.patch"
-sha256 = "a6b3d0a629a7b29315fed395760e2e8d2ef6fd4d8ec51d558b8494695a76e96b"
+sha256 = "4a08935702f782beb6843a4c8f393f8d1d4bdd6f99375862d8d1cce2609b2c3d"
 class = "runtime-gate"
 capability = "plugin-control-flow"
 paths = ["accel/tcg/cpu-exec.c", "include/hw/core/cpu.h", "include/plugins/qemu-plugin.h", "plugins/api.c"]
@@ -617,7 +617,7 @@ vanilla_verified = false
 [[patch]]
 id = "0044"
 file = "engine/patches/11.1.2/0044-panda-asid_changed-on-x86-arm-and-mips.patch"
-sha256 = "29fbe0d64aab03dc6cd016ceb841c7e74f89df443f8a2530033ca890de66b9bc"
+sha256 = "b39eec865f0f44631fdbb9c8fed7699022212d53b5155e037abae3be861a4141"
 class = "runtime-gate"
 capability = "asid-observation"
 paths = ["target/arm/helper.c", "target/i386/helper.c", "target/mips/tcg/system/cp0_helper.c"]
@@ -883,7 +883,7 @@ vanilla_verified = false
 [[patch]]
 id = "0063"
 file = "engine/patches/11.1.2/0063-target-arm-a-snapshot-loads-across-icount-on-off-PMC.patch"
-sha256 = "533a5c8e87bd10cdb5bd4e808628cb40ad83f3fe1d5b2e4a98bc3a597ad67d25"
+sha256 = "0b03dd790ede6ba9bf60ef2fe8e1333f73f7c7f936c6f0b786cd08428a54ed98"
 class = "upstream-fix-needs-off-path"
 capability = "snapshot-compatibility"
 paths = ["target/arm/helper.c"]
@@ -1149,7 +1149,7 @@ vanilla_verified = false
 [[patch]]
 id = "0082"
 file = "engine/patches/11.1.2/0082-accel-tcg-no-PANDA-or-hook-calls-in-the-CPU-loop-whi.patch"
-sha256 = "c342b701b6ab6fe73bda31343c00d217bb3506492160d212cc1701503506e130"
+sha256 = "9e19df0c383c5769f7a11fbce41da0c3acc707458f5ee34ab07a3619847a5cde"
 class = "runtime-gate"
 capability = "analysis-idle-path"
 paths = ["accel/tcg/cpu-exec-common.c", "accel/tcg/cpu-exec.c", "accel/tcg/icount-common.c", "accel/tcg/tcg-accel-ops.c", "include/exec/translation-block.h", "include/hw/core/cpu.h"]
@@ -1163,7 +1163,7 @@ vanilla_verified = false
 [[patch]]
 id = "0083"
 file = "engine/patches/11.1.2/0083-plugins-emit-block-completion-at-outgoing-edges.patch"
-sha256 = "8f2935775712cbb13bc2a49fdb0a9a4bd06aca36821f4f5daabbad8d865c7477"
+sha256 = "b9edc3b5ee36f2937a10f11c5ad8918686cfcb0f5ee673886f4bdafbc1cc92d4"
 class = "runtime-gate"
 capability = "analysis-block-completion"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/plugin-gen.c", "include/hw/core/cpu.h", "include/plugins/qemu-plugin.h", "include/qemu/plugin.h", "plugins/api.c"]
@@ -1233,7 +1233,7 @@ vanilla_verified = false
 [[patch]]
 id = "0088"
 file = "engine/patches/11.1.2/0088-system-gate-handoff-and-snapshot-clock-adaptations.patch"
-sha256 = "339e16abf57251c3d838f1da233c5f31c0b17eb89a1b9e206b22bb9b016ca31e"
+sha256 = "13adfe920d822d961c4556b0b98b0c3821faeaa408f9e3c35bad0db0d9458d70"
 class = "startup-gate"
 capability = "handoff-rr-fuzz-snapshot-adaptations"
 paths = ["hw/i386/pc.c", "hw/intc/arm_gic_common.c", "replay/replay-snapshot.c", "replay/replay.c", "system/cpu-timers.c", "target/arm/helper.c", "target/arm/machine.c", "target/i386/kvm/kvm.c", "target/i386/machine.c", "target/i386/tcg/system/seg_helper.c"]
@@ -1318,7 +1318,7 @@ vanilla_verified = false
 [[patch]]
 id = "0094"
 file = "engine/patches/11.1.2/0094-tcg-taint-shadow-pass-hooks.patch"
-sha256 = "6ed3eeda13afdd1212826ab219717735d31f9a1c3e84b76151a2ee73fe8e84dd"
+sha256 = "09fc214e942041ffa3b2eb15deae7e39fb804bbc72a193786723b523c7bbe114"
 class = "runtime-gate"
 capability = "taint"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/cputlb.c", "accel/tcg/meson.build", "accel/tcg/translator.c", "include/exec/translation-block.h", "include/hw/core/cpu.h", "system/physmem.c", "system/vl.c", "target/arm/helper.c", "target/arm/internals.h", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c", "target/arm/tcg/translate.c", "target/mips/tcg/ldst_helper.c", "target/mips/tcg/tcg-internal.h", "target/mips/tcg/translate.c", "target/riscv/tcg/op_helper.c", "tcg/tcg.c"]
