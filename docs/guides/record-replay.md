@@ -142,7 +142,7 @@ record/replay the same calls simply write. The design is in
 
 The older entry points are wrappers over these: `panda_virtual_memory_write`,
 `panda_physical_memory_write`, `panda_set_retval`, `panda_set_syscall_arg` and
-`penguin_write_guest_reg`, and pandare2's
+`panda_write_guest_reg`, and pandare2's
 `virtual_memory_write`, `physical_memory_write` and `arch.set_reg`/`set_retval`/`set_arg`, whose
 register writes go through `panda.guest.env(cpu)`. That view of `CPUArchState` reads through
 and turns each assignment into an env write: `env.regs[0] = 1`, `env.cp15.ttbr0_el[1] = x`.
@@ -155,7 +155,7 @@ repointing. A recording that wrote env replays only on an engine with the same l
 layout depends on the host, so a recording made on an x86_64 host may not replay on aarch64.
 
 Where writes are logged so far is guest hypercalls. Each hypercall is one event, answered or
-not. This covers Penguin's consumer (`set_penguin_guest_hypercall_callback`), mutating
+not. This covers the embedding API's consumer (`panda_set_guest_hypercall_callback`), mutating
 `guest_hypercall` callbacks and `@panda.hypercall` handlers. During record/replay a pandare2
 handler must say which it is: `observe_only=True` or `mutates=True`. Replay does not run
 mutators and does not need them registered. It repeats each write with the same call, so the
@@ -165,7 +165,7 @@ the replay with a divergence error. Observe-only hypercall callbacks run in both
 writes.
 
 Changing guest state any other way is unsupported. That includes storing into CPU state
-through `penguin_cpu_env`, cffi's `env_ptr` or `cpu_env()` in C, and target helpers that
+through `panda_cpu_env`, cffi's `env_ptr` or `cpu_env()` in C, and target helpers that
 rewrite env. Nothing logs such a write, so a replay of that recording diverges, usually
 somewhere later and without naming the cause. The API covers every write and costs little
 without record/replay too, so use it everywhere: `panda.guest` and its `env(cpu)` view in

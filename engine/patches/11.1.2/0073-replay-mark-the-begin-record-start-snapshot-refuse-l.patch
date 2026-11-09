@@ -30,7 +30,7 @@ x-rr-begin-replay; boards that draw random data at machine init (virt's fdt
 rng-seed) stop earlier, and "Missing random event" now says the same.
 
 load_snapshot() was not refused under record/replay (HMP/QMP loadvm,
-snapshot-load, and PANDA's panda_revert / penguin_load_snapshot): the log
+snapshot-load, and PANDA's panda_revert / panda_load_snapshot): the log
 has no event for the load, so a recording with a revert in it could not be
 replayed.  replay_can_load_snapshot() refuses every load while recording or
 replaying except record/replay's own (replay_load_snapshot(): the start
@@ -111,7 +111,7 @@ index b04fc4489f45e14d80ea6b644f3e483e7ccbecb2..fe665f331aea0fd493f265611a3a276e
  
      if (load_snapshot(name, NULL, false, NULL, &err)) {
 diff --git a/migration/savevm.c b/migration/savevm.c
-index e19f6420a610a8d63f32e2c98d9ea7c5f4fe7a50..490aa7e5ae056780c82308566bb327cfcb232cae 100644
+index d898b10a06a3b3c7515f128c93242f133a0f4b08..951151367f9c0a4be162aa709984e272c07f7bf3 100644
 --- a/migration/savevm.c
 +++ b/migration/savevm.c
 @@ -3303,6 +3303,9 @@ bool save_snapshot(const char *name, bool overwrite, const char *vmstate,
@@ -430,7 +430,7 @@ index e0a389e47a0c00d09afcdcb6f6e9bac082c3c36a..62defd60fd251b3d98e3e39c334de895
  {
  }
 diff --git a/system/vl.c b/system/vl.c
-index 5fa6050ba4ed9060a6d329f4ebc778b8f5d762c8..626d854e71c3a2bb8f3f4aafee365e2236f1196d 100644
+index 78eedcb88837374d0d7ec181a6bc618b4d4f2ab7..4afa05bb93f7eeed9808840d0c5e6ca88eddb251 100644
 --- a/system/vl.c
 +++ b/system/vl.c
 @@ -2895,7 +2895,9 @@ void qmp_x_exit_preconfig(Error **errp)

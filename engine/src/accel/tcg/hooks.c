@@ -236,9 +236,9 @@ static void hooks_commit(CPUState *cpu, run_on_cpu_data unused)
     if (!tcg_enabled()) {
         /*
          * A TCG+KVM build under -accel kvm: no translated code to
-         * invalidate, and tb_flush() would abort.  Callers (the penguin
-         * syscall engine) may insert hooks before they know the
-         * accelerator; the sites stay, unused.
+         * invalidate, and tb_flush() would abort.  Callers may insert
+         * hooks before they know the accelerator; the sites stay,
+         * unused.
          */
         qemu_mutex_unlock(&hooks_lock);
         return;

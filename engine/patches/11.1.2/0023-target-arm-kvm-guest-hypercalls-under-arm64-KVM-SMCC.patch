@@ -1,12 +1,12 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Luke Craig <lacraig3@gmail.com>
 Date: Wed, 21 Oct 2026 12:44:10 -0400
-Subject: [PATCH] target/arm/kvm: penguin hypercalls under arm64 KVM (SMCCC
+Subject: [PATCH] target/arm/kvm: guest hypercalls under arm64 KVM (SMCCC
  filter + mailbox doorbell)
 
 Patch 0009 routes KVM_EXIT_HYPERCALL with run->hypercall.args[], which arm64
 KVM never fills, and enables KVM_CAP_EXIT_HYPERCALL, which is x86-only, so
-on arm64 no penguin hypercall reached QEMU (and the &run->hypercall.ret
+on arm64 no guest hypercall reached QEMU (and the &run->hypercall.ret
 argument failed to build with gcc 14: __u64 * vs uint64_t *).
 
 Install an SMCCC filter forwarding 0xC3001337 (the guest kernel's
@@ -26,15 +26,15 @@ Origin: penguin
  1 file changed, 196 insertions(+), 16 deletions(-)
 
 diff --git a/target/arm/kvm.c b/target/arm/kvm.c
-index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b1b306a5f 100644
+index 261d4cf1eb6c4f1a0992faca1f035a3b7036eb0a..731aac2d3f403fc92eaf8910e99826ed5e3912aa 100644
 --- a/target/arm/kvm.c
 +++ b/target/arm/kvm.c
 @@ -44,6 +44,51 @@
  #include "migration/blocker.h"
- #include "system/penguin.h"
+ #include "system/panda-embed.h"
  
 +/*
-+ * Penguin hypercalls under arm64 KVM.
++ * Guest hypercalls under arm64 KVM.
 + *
 + * The TCG hypercall instruction (msr S0_0_c5_c0_0, xzr; x8 = number, x0..x4 =
 + * arguments, result in x0; AArch32 tasks: mcr p7, 0, r0, c0, c0, 0 with the
@@ -43,13 +43,13 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
 + * range; linux_builder "arm64: forward IGLOO hypercalls to the hypervisor
 + * under KVM"):
 + *
-+ *   x0 = PENGUIN_SMCCC_HYPERCALL, x6 = original x0 (argument 0),
-+ *   x1..x4 = arguments 1..4, x8 = penguin hypercall number.
++ *   x0 = PANDA_SMCCC_HYPERCALL, x6 = original x0 (argument 0),
++ *   x1..x4 = arguments 1..4, x8 = hypercall number.
 + *
 + * The result is returned in x0; the guest copies x1..x5 and x8 back to the
 + * caller. As in the TCG helper, a5 is 0 and an unhandled call returns a0.
 + *
-+ * PENGUIN_SMCCC_MAILBOX is the hypercall-mailbox doorbell (igloo_driver
++ * PANDA_SMCCC_MAILBOX is the hypercall-mailbox doorbell (igloo_driver
 + * portal/mailbox.h, kvmperf DESIGN-mailbox.md): the call's number, arguments,
 + * buffers and result live in guest-physical memory the host reads directly,
 + * so the exit reads and writes no vCPU register. It reaches the host as
@@ -59,14 +59,14 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
 + * KVM reports only the function ID (run->hypercall.nr): arguments and result
 + * live in the guest GPRs, reachable only with KVM_{GET,SET}_ONE_REG.
 + */
-+#define PENGUIN_SMCCC_HYPERCALL 0xC3001337u
-+#define PENGUIN_SMCCC_MAILBOX   0xC3001338u
++#define PANDA_SMCCC_HYPERCALL 0xC3001337u
++#define PANDA_SMCCC_MAILBOX   0xC3001338u
 +#define IGLOO_HYPER_MAILBOX     0x7905u
 +#define SMCCC_RET_NOT_SUPPORTED ((uint64_t)-1)
 +
 +/* Lets the host side see that this QEMU has the no-sync doorbell path. */
-+bool __attribute__((visibility("default"))) penguin_kvm_mailbox_supported(void);
-+bool penguin_kvm_mailbox_supported(void)
++bool __attribute__((visibility("default"))) panda_kvm_mailbox_supported(void);
++bool panda_kvm_mailbox_supported(void)
 +{
 +    return true;
 +}
@@ -76,7 +76,7 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
 + * when nothing else changed (see kvm_arm_handle_smccc_hypercall). Cleared
 + * only for measurements.
 + */
-+bool penguin_kvm_put_changed_gprs = true;
++bool panda_kvm_put_changed_gprs = true;
 +
  const KVMCapabilityInfo kvm_arch_required_capabilities[] = {
      KVM_CAP_INFO(DEVICE_CTRL),
@@ -86,15 +86,15 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
  }
  
 +/*
-+ * Ask KVM to forward the penguin SMCCC function IDs to us. Needs Linux 6.4+
++ * Ask KVM to forward the hypercall SMCCC function IDs to us. Needs Linux 6.4+
 + * and must happen before any vCPU runs. arm64 KVM does not advertise
 + * KVM_CAP_VM_ATTRIBUTES, so kvm_vm_check_attr() can't probe for it; just try.
 + */
-+static void kvm_arm_install_penguin_smccc_filter(KVMState *s)
++static void kvm_arm_install_panda_smccc_filter(KVMState *s)
 +{
 +    struct kvm_smccc_filter filter = {
-+        .base = PENGUIN_SMCCC_HYPERCALL,
-+        .nr_functions = 2,      /* PENGUIN_SMCCC_HYPERCALL, _MAILBOX */
++        .base = PANDA_SMCCC_HYPERCALL,
++        .nr_functions = 2,      /* PANDA_SMCCC_HYPERCALL, _MAILBOX */
 +        .action = KVM_SMCCC_FILTER_FWD_TO_USER,
 +    };
 +    struct kvm_device_attr attr = {
@@ -105,8 +105,8 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
 +    int err = kvm_vm_ioctl(s, KVM_SET_DEVICE_ATTR, &attr);
 +
 +    if (err < 0) {
-+        warn_report("kvm: failed to install penguin SMCCC filter (needs "
-+                    "Linux 6.4+): %s; penguin hypercalls will not reach QEMU",
++        warn_report("kvm: failed to install the hypercall SMCCC filter (needs "
++                    "Linux 6.4+): %s; guest hypercalls will not reach QEMU",
 +                    strerror(-err));
 +    }
 +}
@@ -130,7 +130,7 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
 +     * KVM_CAP_EXIT_HYPERCALL is x86-only; arm64 forwards hypercalls through
 +     * an SMCCC filter instead.
 +     */
-+    kvm_arm_install_penguin_smccc_filter(s);
++    kvm_arm_install_panda_smccc_filter(s);
  
      if (s->kvm_eager_split_size) {
          uint32_t sizes;
@@ -138,8 +138,8 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
      return false;
  }
  
-+#define PENGUIN_CORE_REG(x) (KVM_REG_ARM64 | KVM_REG_SIZE_U64 | \
-+                             KVM_REG_ARM_CORE | KVM_REG_ARM_CORE_REG(x))
++#define PANDA_CORE_REG(x) (KVM_REG_ARM64 | KVM_REG_SIZE_U64 | \
++                           KVM_REG_ARM_CORE | KVM_REG_ARM_CORE_REG(x))
 +
 +/*
 + * A wanted hypercall pulls the whole vCPU in (kvm_cpu_synchronize_state),
@@ -151,11 +151,11 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
 + * registers, FP/SIMD, PSTATE, ...) falls back to the full put. The compare
 + * never copies the snapshot back into env.
 + */
-+static __thread CPUARMState *penguin_env_snap;
++static __thread CPUARMState *panda_env_snap;
 +
-+static bool penguin_put_changed_gprs(CPUState *cs, CPUARMState *env)
++static bool panda_put_changed_gprs(CPUState *cs, CPUARMState *env)
 +{
-+    CPUARMState *snap = penguin_env_snap;
++    CPUARMState *snap = panda_env_snap;
 +    uint64_t old_x[31], old_pc;
 +    int i;
 +
@@ -168,20 +168,20 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
 +    }
 +    for (i = 0; i < 31; i++) {
 +        if (env->xregs[i] != old_x[i] &&
-+            kvm_set_one_reg(cs, PENGUIN_CORE_REG(regs.regs[i]),
++            kvm_set_one_reg(cs, PANDA_CORE_REG(regs.regs[i]),
 +                            &env->xregs[i])) {
 +            return false;
 +        }
 +    }
 +    if (env->pc != old_pc &&
-+        kvm_set_one_reg(cs, PENGUIN_CORE_REG(regs.pc), &env->pc)) {
++        kvm_set_one_reg(cs, PANDA_CORE_REG(regs.pc), &env->pc)) {
 +        return false;
 +    }
 +    return true;
 +}
 +
 +/*
-+ * A penguin SMCCC call forwarded by the filter installed in kvm_arch_init().
++ * A hypercall SMCCC call forwarded by the filter installed in kvm_arch_init().
 + * The PC is already past the HVC.
 + */
 +static void kvm_arm_handle_smccc_hypercall(CPUState *cs, struct kvm_run *run)
@@ -190,15 +190,15 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
 +    uint64_t ret = 0;
 +    bool was_dirty;
 +
-+    if (run->hypercall.nr == PENGUIN_SMCCC_MAILBOX) {
++    if (run->hypercall.nr == PANDA_SMCCC_MAILBOX) {
 +        /*
 +         * Neither pull nor push the vCPU: the answer goes in the mailbox. A
-+         * handler that does need live state calls penguin_sync_cpu_state(),
++         * handler that does need live state calls panda_sync_cpu_state(),
 +         * which also marks the vCPU dirty so its changes are pushed before
 +         * the next KVM_RUN.
 +         */
-+        penguin_handle_guest_hypercall(cs, IGLOO_HYPER_MAILBOX,
-+                                       0, 0, 0, 0, 0, 0, &ret);
++        panda_handle_guest_hypercall(cs, IGLOO_HYPER_MAILBOX,
++                                     0, 0, 0, 0, 0, 0, &ret);
 +        return;
 +    }
 +
@@ -208,15 +208,15 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
 +     * ONE_REG ioctls. KVM's copy is only authoritative while QEMU's isn't
 +     * dirty.
 +     */
-+    if (run->hypercall.nr == PENGUIN_SMCCC_HYPERCALL && !cs->vcpu_dirty) {
++    if (run->hypercall.nr == PANDA_SMCCC_HYPERCALL && !cs->vcpu_dirty) {
 +        uint64_t pstate, nr, a0;
 +
-+        if (!kvm_get_one_reg(cs, PENGUIN_CORE_REG(regs.pstate), &pstate) &&
++        if (!kvm_get_one_reg(cs, PANDA_CORE_REG(regs.pstate), &pstate) &&
 +            !(pstate & PSTATE_nRW) &&
-+            !kvm_get_one_reg(cs, PENGUIN_CORE_REG(regs.regs[8]), &nr) &&
-+            !penguin_guest_hypercall_wanted(nr) &&
-+            !kvm_get_one_reg(cs, PENGUIN_CORE_REG(regs.regs[6]), &a0) &&
-+            !kvm_set_one_reg(cs, PENGUIN_CORE_REG(regs.regs[0]), &a0)) {
++            !kvm_get_one_reg(cs, PANDA_CORE_REG(regs.regs[8]), &nr) &&
++            !panda_guest_hypercall_wanted(nr) &&
++            !kvm_get_one_reg(cs, PANDA_CORE_REG(regs.regs[6]), &a0) &&
++            !kvm_set_one_reg(cs, PANDA_CORE_REG(regs.regs[0]), &a0)) {
 +            return;
 +        }
 +    }
@@ -224,7 +224,7 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
 +    was_dirty = cs->vcpu_dirty;
 +    kvm_cpu_synchronize_state(cs);
 +
-+    if (run->hypercall.nr != PENGUIN_SMCCC_HYPERCALL || !is_a64(env)) {
++    if (run->hypercall.nr != PANDA_SMCCC_HYPERCALL || !is_a64(env)) {
 +        /* Not ours: answer as KVM does for calls it doesn't implement. */
 +        if (is_a64(env)) {
 +            env->xregs[0] = SMCCC_RET_NOT_SUPPORTED;
@@ -234,24 +234,24 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
 +        return;
 +    }
 +
-+    if (!was_dirty && penguin_kvm_put_changed_gprs) {
-+        if (!penguin_env_snap) {
-+            penguin_env_snap = g_new(CPUARMState, 1);
++    if (!was_dirty && panda_kvm_put_changed_gprs) {
++        if (!panda_env_snap) {
++            panda_env_snap = g_new(CPUARMState, 1);
 +        }
-+        memcpy(penguin_env_snap, env, sizeof(*env));
++        memcpy(panda_env_snap, env, sizeof(*env));
 +    }
 +
-+    if (penguin_handle_guest_hypercall(cs, env->xregs[8],
-+                                       env->xregs[6], env->xregs[1],
-+                                       env->xregs[2], env->xregs[3],
-+                                       env->xregs[4], 0, &ret)) {
++    if (panda_handle_guest_hypercall(cs, env->xregs[8],
++                                     env->xregs[6], env->xregs[1],
++                                     env->xregs[2], env->xregs[3],
++                                     env->xregs[4], 0, &ret)) {
 +        env->xregs[0] = ret;
 +    } else {
 +        env->xregs[0] = env->xregs[6];
 +    }
 +
-+    if (!was_dirty && penguin_kvm_put_changed_gprs && cs->vcpu_dirty &&
-+        penguin_put_changed_gprs(cs, env)) {
++    if (!was_dirty && panda_kvm_put_changed_gprs && cs->vcpu_dirty &&
++        panda_put_changed_gprs(cs, env)) {
 +        /* KVM now holds everything the handler changed. */
 +        cs->vcpu_dirty = false;
 +    }
@@ -264,14 +264,14 @@ index e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d..97e35eb15c7573b444c90e3c12ad047b
  
      switch (run->exit_reason) {
      case KVM_EXIT_HYPERCALL:
--        penguin_handle_guest_hypercall(cs, run->hypercall.nr,
--                                       run->hypercall.args[0],
--                                       run->hypercall.args[1],
--                                       run->hypercall.args[2],
--                                       run->hypercall.args[3],
--                                       run->hypercall.args[4],
--                                       run->hypercall.args[5],
--                                       &run->hypercall.ret);
+-        panda_handle_guest_hypercall(cs, run->hypercall.nr,
+-                                     run->hypercall.args[0],
+-                                     run->hypercall.args[1],
+-                                     run->hypercall.args[2],
+-                                     run->hypercall.args[3],
+-                                     run->hypercall.args[4],
+-                                     run->hypercall.args[5],
+-                                     &run->hypercall.ret);
 +        kvm_arm_handle_smccc_hypercall(cs, run);
          break;
      case KVM_EXIT_DEBUG:

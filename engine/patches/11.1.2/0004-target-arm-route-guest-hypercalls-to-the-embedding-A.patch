@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: igloo <nix@local>
 Date: Wed, 19 Aug 2026 23:02:41 -0400
-Subject: [PATCH] target/arm: route guest hypercalls into Penguin
+Subject: [PATCH] target/arm: route guest hypercalls to the embedding API
 
 Same helper as the other targets. Unhandled hypercalls return the first
 argument unchanged. Hooks both the A32/T32 and A64 translators; the A64 side
@@ -20,38 +20,38 @@ Origin: penguin
  5 files changed, 50 insertions(+)
 
 diff --git a/target/arm/tcg/a64.decode b/target/arm/tcg/a64.decode
-index b5de5d5a0279beec170af7cd29afba6ce992f29f..f6aff3a7c97b356d76b05619010ab06b447d7f39 100644
+index b5de5d5a0279beec170af7cd29afba6ce992f29f..49f9ea195dae37f62b83ae60e1ab8a1cdaff31bd 100644
 --- a/target/arm/tcg/a64.decode
 +++ b/target/arm/tcg/a64.decode
 @@ -314,6 +314,7 @@ MSR_i_SVCR      1101 0101 0000 0 011 0100 0 mask:2 imm:1 011 11111
  # same instruction as far as QEMU is concerned.
  # NB: op0 is bits [20:19], but op0=0b00 is other insns, so we have
  # to hand-decode it.
-+PENGUIN         1101 0101 00 0   00 000 0101 0000 000 11111
++HYPERCALL       1101 0101 00 0   00 000 0101 0000 000 11111
  SYS             1101 0101 00 l:1 01 op1:3 crn:4 crm:4 op2:3 rt:5 op0=1
  SYS             1101 0101 00 l:1 10 op1:3 crn:4 crm:4 op2:3 rt:5 op0=2
  SYS             1101 0101 00 l:1 11 op1:3 crn:4 crm:4 op2:3 rt:5 op0=3
 diff --git a/target/arm/tcg/helper-defs.h b/target/arm/tcg/helper-defs.h
-index 0077aeb4e228bc69dff7111b110104b01c230400..350f54e2290e8dd3d162f43b7dc01b3ef1d90beb 100644
+index 0077aeb4e228bc69dff7111b110104b01c230400..b449ce8ddd6763425bbe5cf473d373ca6a6cb5a4 100644
 --- a/target/arm/tcg/helper-defs.h
 +++ b/target/arm/tcg/helper-defs.h
 @@ -60,6 +60,7 @@ DEF_HELPER_2(wfet, void, env, i32)
  DEF_HELPER_1(yield, void, env)
  DEF_HELPER_1(pre_hvc, void, env)
  DEF_HELPER_2(pre_smc, void, env, i32)
-+DEF_HELPER_7(penguin_guest_hypercall, i64, env, i64, i64, i64, i64, i64, i64)
++DEF_HELPER_7(guest_hypercall, i64, env, i64, i64, i64, i64, i64, i64)
  DEF_HELPER_1(vesb, void, env)
  DEF_HELPER_1(sev, void, env)
  
 diff --git a/target/arm/tcg/op_helper.c b/target/arm/tcg/op_helper.c
-index c4433be2ed0ac6644e8a248b1b28839bb652ea7e..943e0129e6a02892383353a73b41bbec790ed6ea 100644
+index c4433be2ed0ac6644e8a248b1b28839bb652ea7e..1ce3308b6a214666f3b14e00355f50a6fd41de50 100644
 --- a/target/arm/tcg/op_helper.c
 +++ b/target/arm/tcg/op_helper.c
 @@ -26,6 +26,7 @@
  #include "accel/tcg/cpu-loop.h"
  #include "accel/tcg/probe.h"
  #include "cpregs.h"
-+#include "system/penguin.h"
++#include "system/panda-embed.h"
  
  #define SIGNBIT (uint32_t)0x80000000
  #define SIGNBIT64 ((uint64_t)1 << 63)
@@ -59,15 +59,15 @@ index c4433be2ed0ac6644e8a248b1b28839bb652ea7e..943e0129e6a02892383353a73b41bbec
      raise_exception(env, excp, syndrome, target_el);
  }
  
-+uint64_t HELPER(penguin_guest_hypercall)(CPUARMState *env, uint64_t nr,
-+                                         uint64_t a0, uint64_t a1,
-+                                         uint64_t a2, uint64_t a3,
-+                                         uint64_t a4)
++uint64_t HELPER(guest_hypercall)(CPUARMState *env, uint64_t nr,
++                                 uint64_t a0, uint64_t a1,
++                                 uint64_t a2, uint64_t a3,
++                                 uint64_t a4)
 +{
 +    CPUState *cs = env_cpu(env);
 +    uint64_t ret = 0;
 +
-+    if (penguin_handle_guest_hypercall(cs, nr, a0, a1, a2, a3, a4, 0, &ret)) {
++    if (panda_handle_guest_hypercall(cs, nr, a0, a1, a2, a3, a4, 0, &ret)) {
 +        return ret;
 +    }
 +    return a0;
@@ -77,19 +77,19 @@ index c4433be2ed0ac6644e8a248b1b28839bb652ea7e..943e0129e6a02892383353a73b41bbec
                            uint64_t ireg, uint64_t def)
  {
 diff --git a/target/arm/tcg/translate-a64.c b/target/arm/tcg/translate-a64.c
-index 1780490065e14fe81fe56513e24484c56f3a542f..8c5a6d9eafd162dd0768ca70f7b034e8cf29d79e 100644
+index 1780490065e14fe81fe56513e24484c56f3a542f..ad9080259f3ceae223f00b89358941a1f377ae3c 100644
 --- a/target/arm/tcg/translate-a64.c
 +++ b/target/arm/tcg/translate-a64.c
 @@ -3278,6 +3278,15 @@ static bool trans_SYS(DisasContext *s, arg_SYS *a)
      return true;
  }
  
-+static bool trans_PENGUIN(DisasContext *s, arg_PENGUIN *a)
++static bool trans_HYPERCALL(DisasContext *s, arg_HYPERCALL *a)
 +{
-+    gen_helper_penguin_guest_hypercall(cpu_reg(s, 0), tcg_env,
-+                                       cpu_reg(s, 8), cpu_reg(s, 0),
-+                                       cpu_reg(s, 1), cpu_reg(s, 2),
-+                                       cpu_reg(s, 3), cpu_reg(s, 4));
++    gen_helper_guest_hypercall(cpu_reg(s, 0), tcg_env,
++                               cpu_reg(s, 8), cpu_reg(s, 0),
++                               cpu_reg(s, 1), cpu_reg(s, 2),
++                               cpu_reg(s, 3), cpu_reg(s, 4));
 +    return true;
 +}
 +
@@ -97,7 +97,7 @@ index 1780490065e14fe81fe56513e24484c56f3a542f..8c5a6d9eafd162dd0768ca70f7b034e8
  {
      /*
 diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
-index 86c3c30a47716e2bd6defb73776f8867ea455abd..0ce1cdaf286c19b5c4ddb15cddb18afd6dddfe70 100644
+index 86c3c30a47716e2bd6defb73776f8867ea455abd..c786fb29e0e713f81de2419dc626e6fa8d143f79 100644
 --- a/target/arm/tcg/translate.c
 +++ b/target/arm/tcg/translate.c
 @@ -2346,6 +2346,30 @@ static bool valid_cp(DisasContext *s, int cp)
@@ -121,8 +121,8 @@ index 86c3c30a47716e2bd6defb73776f8867ea455abd..0ce1cdaf286c19b5c4ddb15cddb18afd
 +        tcg_gen_extu_i32_i64(a2, load_reg(s, 2));
 +        tcg_gen_extu_i32_i64(a3, load_reg(s, 3));
 +        tcg_gen_extu_i32_i64(a4, load_reg(s, 4));
-+        gen_helper_penguin_guest_hypercall(ret64, tcg_env, nr, a0, a1, a2,
-+                                           a3, a4);
++        gen_helper_guest_hypercall(ret64, tcg_env, nr, a0, a1, a2,
++                                   a3, a4);
 +        tcg_gen_extrl_i64_i32(ret, ret64);
 +        store_reg(s, 0, ret);
 +        return true;

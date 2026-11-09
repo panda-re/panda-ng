@@ -24,7 +24,7 @@
 #include "panda/plugin.h"
 #include "panda/hooks.h"
 #include "panda/events-internal.h"
-#include "system/penguin.h"
+#include "system/panda-embed.h"
 
 enum { RR_REQ_RECORD, RR_REQ_RECORD_END, RR_REQ_REPLAY };
 
@@ -132,7 +132,7 @@ int panda_record_begin(const char *name, const char *snapshot)
     if (!name || rr_on()) {
         return RRCTRL_EINVALID;
     }
-    if (!panda_callbacks_record_safe(&err) || !penguin_hypercall_replay_safe(&err)) {
+    if (!panda_callbacks_record_safe(&err) || !panda_hypercall_replay_safe(&err)) {
         error_report_err(err);
         return RRCTRL_EINVALID;
     }
@@ -153,7 +153,7 @@ int panda_replay_begin(const char *name)
     if (!name || rr_on()) {
         return RRCTRL_EINVALID;
     }
-    if (!panda_callbacks_replay_safe(&err) || !penguin_hypercall_replay_safe(&err)) {
+    if (!panda_callbacks_replay_safe(&err) || !panda_hypercall_replay_safe(&err)) {
         error_report_err(err);
         return RRCTRL_EINVALID;
     }

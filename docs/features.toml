@@ -236,8 +236,8 @@ register and CPUArchState fields (through pointers too, by path). Each write is 
 callback's instruction and replay repeats it without the callback. Guest hypercalls are the
 first site; writes made behind the API's back are a fatal error.
 """
-limits = "TCG; KVM's hypercall consumer cannot be recorded. Writes are logged only inside hypercall handlers (Penguin's consumer, mutating guest_hypercall callbacks, @panda.hypercall with mutates=True); elsewhere during record/replay they are refused. Env paths follow only pointers the generated layout map lists. At most 16 MiB of writes per hypercall. Hypercall instructions end their translation block under icount. riscv64 and the other targets without a PANDA hypercall fallback answer only through Penguin's consumer."
-api = ["c:set_penguin_guest_hypercall_callback", "c:panda_guest_write_env_path", "c:panda_guest_write_reg", "py:Panda.hypercall", "py:Guest.env"]
+limits = "TCG; KVM's hypercall consumer cannot be recorded. Writes are logged only inside hypercall handlers (the embedding API's consumer, mutating guest_hypercall callbacks, @panda.hypercall with mutates=True); elsewhere during record/replay they are refused. Env paths follow only pointers the generated layout map lists. At most 16 MiB of writes per hypercall. Hypercall instructions end their translation block under icount. riscv64 and the other targets without a PANDA hypercall fallback answer only through the embedding API's consumer."
+api = ["c:panda_set_guest_hypercall_callback", "c:panda_guest_write_env_path", "c:panda_guest_write_reg", "py:Panda.hypercall", "py:Guest.env"]
 docs = ["docs/guides/record-replay.md", "docs/design/rr-guest-mutation-api.md"]
 tests = ["tests/static/replay_effect.py", "tests/static/guest_layout.py", "tests/static/guest_view.py", "tests/hypercall_rr.py"]
 patches = ["0093"]
@@ -414,17 +414,17 @@ tests = ["engine/tests/guest/sctest.sh", "engine/tests/guest/setpctest.sh"]
 patches = ["0019", "0021", "0033"]
 
 [[feature]]
-id = "penguin"
-name = "Embedding for penguin"
+id = "embedding"
+name = "The embedding API"
 status = "engine"
 accel = ["TCG", "KVM"]
 summary = """
-What penguin (the firmware rehosting tool) needs from the engine: the engine as shared
-libraries, a snapshot ABI with a migratable vhost-user-vsock, and reset-request and QMP command
-callbacks.
+What a host that drives the engine as a library (penguin, the firmware rehosting tool, for one)
+needs from it: the engine as shared libraries, a snapshot ABI with a migratable vhost-user-vsock,
+and reset-request and QMP command callbacks (system/panda-embed.h).
 """
-limits = "Tested by penguin's own suites, not here."
-api = ["c:penguin_handle_qmp"]
+limits = "Tested by the hosts' own suites, not here."
+api = ["c:panda_handle_qmp"]
 patches = ["0002", "0010", "0011", "0029"]
 
 [[feature]]

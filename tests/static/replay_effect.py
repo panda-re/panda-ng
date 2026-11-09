@@ -135,8 +135,8 @@ static void record_one(void *p) {
     replay_analysis_effect_run(p);
 }
 static void reset(void);
-/* A handler as Penguin's and PANDA's write APIs make one: admission, the write, the log. */
-static bool penguin_write(CPUState *cpu,vaddr a,const uint8_t *p,size_t n) {
+/* A handler as the embedding API's and PANDA's write APIs make one: admission, the write, the log. */
+static bool panda_write(CPUState *cpu,vaddr a,const uint8_t *p,size_t n) {
     vaddr bad;bool ok;
     if(replay_guest_write_admitted(NULL,n)!=GUEST_WRITE_OK)return false;
     ok=syscall_trap_access(cpu,a,(void*)p,n,true,&bad);
@@ -188,8 +188,8 @@ static void guest_write_checks(void) {
     assert(replay_guest_write_begin(&cpus[0],REPLAY_GUEST_SITE_HYPERCALL));
     assert(replay_guest_write_admitted(&cpus[0],1)==GUEST_WRITE_OK);
     assert(replay_guest_write_admitted(&cpus[1],1)==GUEST_WRITE_EPERM);  /* another vCPU's env */
-    assert(penguin_write(&cpus[0],4,buf,3));
-    assert(!penguin_write(&cpus[0],30,buf,3));   /* refused the same way in replay */
+    assert(panda_write(&cpus[0],4,buf,3));
+    assert(!panda_write(&cpus[0],30,buf,3));   /* refused the same way in replay */
     ram[20]=0x77;replay_guest_write_log_ram(20,(const uint8_t[]){0x77},1);
     assert(reg_write(&cpus[1],2,value,8)==GUEST_WRITE_OK);
     assert(reg_write(&cpus[0],0,pc,8)==GUEST_WRITE_OK);
@@ -243,7 +243,7 @@ static void guest_write_checks(void) {
     /* A write whose result differs in replay, a missing event, a bad payload. */
     replay_mode=REPLAY_MODE_RECORD;reset();machine(arr_rec,inner_rec);
     assert(replay_guest_write_begin(&cpus[0],REPLAY_GUEST_SITE_HYPERCALL));
-    assert(penguin_write(&cpus[0],0,buf,3));
+    assert(panda_write(&cpus[0],0,buf,3));
     replay_guest_write_end(&cpus[0],true,1);
     replay_mode=REPLAY_MODE_PLAY;vfail=true;
     if(!setjmp(failure)) {replay_guest_write_replay(&cpus[0],REPLAY_GUEST_SITE_HYPERCALL,&ret);

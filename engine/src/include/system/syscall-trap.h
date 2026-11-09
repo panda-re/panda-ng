@@ -4,7 +4,7 @@
  * The target calls syscall_trap_enter() when a user task traps for a
  * syscall, and syscall_trap_return() on every return to user mode while a
  * call is pending.  The core filters the traps by ABI and number, hands
- * them to one consumer (the TCG plugin API or Penguin's syscall hooks),
+ * them to one consumer (the TCG plugin API),
  * and pairs each call with its return.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later

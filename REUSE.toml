@@ -47,15 +47,15 @@ path = [
   "engine/patches/11.1.2/0091-replay-serialize-deferred-analysis-RAM-writes-as-ord.patch",
   "engine/patches/11.1.2/0092-replay-stub-analysis-register-effects-without-TCG.patch",
   "engine/patches/11.1.2/0089-riscv-select-snapshot-version-policy-at-registration.patch",
-  "engine/patches/11.1.2/0002-build-emit-shared-libraries-for-the-Penguin-embeddin.patch",
-  "engine/patches/11.1.2/0006-target-riscv-route-guest-hypercalls-into-Penguin.patch",
-  "engine/patches/11.1.2/0007-target-loongarch-route-guest-hypercalls-into-Penguin.patch",
-  "engine/patches/11.1.2/0009-kvm-expose-hypercall-and-port-I-O-exits-to-Penguin.patch",
+  "engine/patches/11.1.2/0002-build-emit-shared-libraries-for-the-embedding-API.patch",
+  "engine/patches/11.1.2/0006-target-riscv-route-guest-hypercalls-to-the-embedding.patch",
+  "engine/patches/11.1.2/0007-target-loongarch-route-guest-hypercalls-to-the-embed.patch",
+  "engine/patches/11.1.2/0009-kvm-expose-hypercall-and-port-I-O-exits-to-the-embed.patch",
   "engine/patches/11.1.2/0016-plugins-kvm-x86-faulting-accesses-and-breakpoint-cal.patch",
   "engine/patches/11.1.2/0017-plugins-batched-faulting-accesses-qemu_plugin_access.patch",
   "engine/patches/11.1.2/0020-plugins-address-hooks-register-pointers-TLB-first-re.patch",
   "engine/patches/11.1.2/0021-system-build-the-host-side-OSI.patch",
-  "engine/patches/11.1.2/0023-target-arm-kvm-penguin-hypercalls-under-arm64-KVM-SM.patch",
+  "engine/patches/11.1.2/0023-target-arm-kvm-guest-hypercalls-under-arm64-KVM-SMCC.patch",
   "engine/patches/11.1.2/0026-target-i386-keep-the-guest-TSC-continuous-across-a-c.patch",
   "engine/patches/11.1.2/0030-replay-declare-replay_mutex_locked-in-system-replay..patch",
   "engine/patches/11.1.2/0034-i386-kvm-plugin-accesses-on-KVM-kernel-walk-declined.patch",
@@ -89,9 +89,9 @@ SPDX-License-Identifier = "GPL-2.0-or-later"
 
 [[annotations]]
 path = [
-  "engine/patches/11.1.2/0003-target-mips-route-guest-hypercalls-into-Penguin.patch",
-  "engine/patches/11.1.2/0004-target-arm-route-guest-hypercalls-into-Penguin.patch",
-  "engine/patches/11.1.2/0005-target-ppc-route-guest-hypercalls-into-Penguin.patch",
+  "engine/patches/11.1.2/0003-target-mips-route-guest-hypercalls-to-the-embedding-.patch",
+  "engine/patches/11.1.2/0004-target-arm-route-guest-hypercalls-to-the-embedding-A.patch",
+  "engine/patches/11.1.2/0005-target-ppc-route-guest-hypercalls-to-the-embedding-A.patch",
   "engine/patches/11.1.2/0013-plugins-qemu_plugin_read_memory_vaddr_fault-page-in-.patch",
   "engine/patches/11.1.2/0014-plugins-target-arm-a-user-access-window-DACR-for-fau.patch",
   "engine/patches/11.1.2/0015-plugins-faulting-writes-uaccess-fault-index-ppc-risc.patch",
@@ -110,8 +110,8 @@ SPDX-License-Identifier = "GPL-2.0-or-later AND LGPL-2.1-or-later"
 [[annotations]]
 path = [
   "engine/patches/11.1.2/0086-system-cancel-transient-analysis-before-restore-and-.patch",
-  "engine/patches/11.1.2/0001-penguin-core-callbacks-and-build-wiring.patch",
-  "engine/patches/11.1.2/0010-penguin-snapshot-ABI-and-a-migratable-vhost-user-vso.patch",
+  "engine/patches/11.1.2/0001-system-the-embedding-API-s-core-callbacks-and-build-.patch",
+  "engine/patches/11.1.2/0010-system-snapshot-ABI-and-a-migratable-vhost-user-vsoc.patch",
   "engine/patches/11.1.2/0025-system-cpu-timers-continue-the-virtual-clock-when-an.patch",
   "engine/patches/11.1.2/0028-system-cpus-run_on_cpu-under-record-replay-release-t.patch",
   "engine/patches/11.1.2/0039-replay-x-rr-begin-record-and-x-rr-begin-replay-recor.patch",
@@ -128,7 +128,7 @@ SPDX-License-Identifier = "GPL-2.0-or-later AND MIT"
 
 [[annotations]]
 path = [
-  "engine/patches/11.1.2/0029-qapi-a-weak-default-penguin_handle_qmp-so-the-tools-.patch",
+  "engine/patches/11.1.2/0029-qapi-a-weak-default-panda_handle_qmp-so-the-tools-li.patch",
   "engine/patches/11.1.2/0031-accel-tcg-forget-the-plugin-callback-s-return-addres.patch",
   "engine/patches/11.1.2/0043-panda-TCG-core-hooks.patch",
   "engine/patches/11.1.2/0046-panda-panda_disable_tb_chaining-turns-TB-chaining-of.patch",
@@ -168,7 +168,7 @@ path = [
   "engine/patches/11.1.2/0088-system-gate-handoff-and-snapshot-clock-adaptations.patch",
   "engine/patches/11.1.2/0018-accel-tcg-translation-time-address-hooks-and-registe.patch",
   "engine/patches/11.1.2/0036-accel-tcg-address-hooks-keep-CF_PCREL-on-outside-hoo.patch",
-  "engine/patches/11.1.2/0045-panda-guest_hypercall-on-penguin-s-hypercall-instruc.patch",
+  "engine/patches/11.1.2/0045-panda-guest_hypercall-on-the-guest-hypercall-instruc.patch",
   "engine/patches/11.1.2/0047-plugins-memory-callbacks-before-the-access.patch",
   "engine/patches/11.1.2/0082-accel-tcg-no-PANDA-or-hook-calls-in-the-CPU-loop-whi.patch",
   "engine/patches/11.1.2/0094-tcg-taint-shadow-pass-hooks.patch",
@@ -180,7 +180,7 @@ SPDX-License-Identifier = "GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT"
 [[annotations]]
 path = [
   "engine/patches/11.1.2/0008-target-i386-hw-i386-route-guest-hypercalls-through-a.patch",
-  "engine/patches/11.1.2/0011-penguin-reset-request-and-QMP-command-callbacks.patch",
+  "engine/patches/11.1.2/0011-system-reset-request-and-QMP-command-callbacks.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]

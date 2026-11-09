@@ -18,10 +18,10 @@ Origin: new
  1 file changed, 12 insertions(+), 1 deletion(-)
 
 diff --git a/meson.build b/meson.build
-index 91a019901bd1753d778f4e67bda5efcd236b5a8c..9c77219b727a61279925c4cd52b85c574c348a98 100644
+index 5e092c051a03ba20325c2312274759d8389ff755..ad0e759e0e28e17ff87ab6d1b990dbf11e965fe1 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -4506,13 +4506,24 @@ foreach target : target_dirs
+@@ -4495,13 +4495,24 @@ foreach target : target_dirs
  
      if get_option('panda') and target.endswith('-softmmu') and 'CONFIG_TCG' in config_target
        # libpanda-<target>.so, e.g. libpanda-x86_64-softmmu.so: the name libpanda-ng and pandare look for

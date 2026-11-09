@@ -25,17 +25,17 @@ Counts: new 65, penguin 26, panda-re/qemu 6, ac88u 2.
 
 | # | subject | origin | license | note |
 |---|---|---|---|---|
-| 0001 | penguin: core callbacks and build wiring | penguin | GPL-2.0-or-later AND MIT | qemu_builder main (penguin's series) |
-| 0002 | build: emit shared libraries for the Penguin embedding API | penguin | GPL-2.0-or-later | qemu_builder main (penguin's series) |
-| 0003 | target/mips: route guest hypercalls into Penguin | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later | qemu_builder main (penguin's series) |
-| 0004 | target/arm: route guest hypercalls into Penguin | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later | qemu_builder main (penguin's series) |
-| 0005 | target/ppc: route guest hypercalls into Penguin | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later | qemu_builder main (penguin's series) |
-| 0006 | target/riscv: route guest hypercalls into Penguin | penguin | GPL-2.0-or-later | qemu_builder main (penguin's series) |
-| 0007 | target/loongarch: route guest hypercalls into Penguin | penguin | GPL-2.0-or-later | qemu_builder main (penguin's series) |
+| 0001 | system: the embedding API's core callbacks and build wiring | penguin | GPL-2.0-or-later AND MIT | qemu_builder main (penguin's series) |
+| 0002 | build: emit shared libraries for the embedding API | penguin | GPL-2.0-or-later | qemu_builder main (penguin's series) |
+| 0003 | target/mips: route guest hypercalls to the embedding API | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later | qemu_builder main (penguin's series) |
+| 0004 | target/arm: route guest hypercalls to the embedding API | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later | qemu_builder main (penguin's series) |
+| 0005 | target/ppc: route guest hypercalls to the embedding API | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later | qemu_builder main (penguin's series) |
+| 0006 | target/riscv: route guest hypercalls to the embedding API | penguin | GPL-2.0-or-later | qemu_builder main (penguin's series) |
+| 0007 | target/loongarch: route guest hypercalls to the embedding API | penguin | GPL-2.0-or-later | qemu_builder main (penguin's series) |
 | 0008 | target/i386, hw/i386: route guest hypercalls through an I/O port | penguin | LGPL-2.1-or-later AND MIT | qemu_builder main (penguin's series) |
-| 0009 | kvm: expose hypercall and port-I/O exits to Penguin | penguin | GPL-2.0-or-later | qemu_builder main (penguin's series) |
-| 0010 | penguin: snapshot ABI and a migratable vhost-user-vsock | penguin | GPL-2.0-or-later AND MIT | qemu_builder main (penguin's series) |
-| 0011 | penguin: reset-request and QMP-command callbacks | penguin | LGPL-2.1-or-later AND MIT | qemu_builder main (penguin's series) |
+| 0009 | kvm: expose hypercall and port-I/O exits to the embedding API | penguin | GPL-2.0-or-later | qemu_builder main (penguin's series) |
+| 0010 | system: snapshot ABI and a migratable vhost-user-vsock | penguin | GPL-2.0-or-later AND MIT | qemu_builder main (penguin's series) |
+| 0011 | system: reset-request and QMP-command callbacks | penguin | LGPL-2.1-or-later AND MIT | qemu_builder main (penguin's series) |
 | 0012 | hw/mips/malta: enlarge the prom env slot so the cmdline is not truncated | penguin | MIT | qemu_builder main (penguin's series) |
 | 0013 | plugins: qemu_plugin_read_memory_vaddr_fault, page-in reads at a hook | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later | qemu_builder workspace/pagein |
 | 0014 | plugins, target/arm: a user-access window (DACR) for faulting reads | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later | qemu_builder workspace/pagein |
@@ -47,13 +47,13 @@ Counts: new 65, penguin 26, panda-re/qemu 6, ac88u 2.
 | 0020 | plugins: address hooks, register pointers, TLB-first reads, syscall events | penguin | GPL-2.0-or-later | qemu_builder workspace/pagein |
 | 0021 | system: build the host-side OSI | penguin | GPL-2.0-or-later | qemu_builder workspace/pagein |
 | 0022 | i386: resume a KVM snapshot under TCG and a TCG snapshot under KVM | penguin | GPL-2.0-only AND GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT | qemu_builder workspace/panda-next-kvmtcg; Patch-Set: igloo-core |
-| 0023 | target/arm/kvm: penguin hypercalls under arm64 KVM (SMCCC filter + mailbox doorbell) | penguin | GPL-2.0-or-later | qemu_builder workspace/panda-next-arm64kvm; from Jacques Becker's kvm_aarch64 patch |
+| 0023 | target/arm/kvm: guest hypercalls under arm64 KVM (SMCCC filter + mailbox doorbell) | penguin | GPL-2.0-or-later | qemu_builder workspace/panda-next-arm64kvm; from Jacques Becker's kvm_aarch64 patch |
 | 0024 | target/arm, arm_gic: resume an aarch64 KVM snapshot under TCG and a TCG snapshot under KVM | penguin | GPL-2.0-or-later AND LGPL-2.1-or-later | qemu_builder workspace/panda-next-arm64kvm (UNCERTAIN: kvm/tcg handoff companion of 0022; could be new) |
 | 0025 | system/cpu-timers: continue the virtual clock when an icount process loads a non-icount snapshot | new | GPL-2.0-or-later AND MIT | observe's rr spike |
 | 0026 | target/i386: keep the guest TSC continuous across a clock-domain change | new | GPL-2.0-or-later | observe's rr spike |
 | 0027 | accel/tcg: x-tsc-vclock, the x86 TSC from the virtual clock without icount | new | MIT | observe's rr spike |
 | 0028 | system/cpus: run_on_cpu under record/replay: release the replay mutex while the VM is stopped | new | GPL-2.0-or-later AND MIT | observe's rr spike |
-| 0029 | qapi: a weak default penguin_handle_qmp, so the tools link on macOS | new | LGPL-2.1-or-later | macOS build fixes (panda-next-macos) |
+| 0029 | qapi: a weak default panda_handle_qmp, so the tools link on macOS | new | LGPL-2.1-or-later | macOS build fixes (panda-next-macos) |
 | 0030 | replay: declare replay_mutex_locked() in system/replay.h | new | GPL-2.0-or-later | macOS build fixes (panda-next-macos) |
 | 0031 | accel/tcg: forget the plugin callback's return address and flags after a longjmp | new | LGPL-2.1-or-later | review fixes to the penguin page-in/hook patches (UNCERTAIN: could count as penguin) |
 | 0032 | plugins, targets: a user-access window owned by the access, not latched per vCPU | new | GPL-2.0-or-later AND LGPL-2.1-or-later | review fixes to the penguin page-in/hook patches (UNCERTAIN: could count as penguin) |
@@ -69,7 +69,7 @@ Counts: new 65, penguin 26, panda-re/qemu 6, ac88u 2.
 | 0042 | plugins: add qemu_plugin_tb_size and qemu_plugin_tb_get_insn_by_vaddr | panda-re/qemu | GPL-2.0-or-later | pandang 0002 |
 | 0043 | panda: TCG core hooks | panda-re/qemu | LGPL-2.1-or-later | pandang 0004 |
 | 0044 | panda: asid_changed on x86, arm and mips | panda-re/qemu | GPL-2.0-or-later AND LGPL-2.1-or-later | pandang 0006, 0009, 0012 |
-| 0045 | panda: guest_hypercall on penguin's hypercall instruction | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT | replaces pandang's hypercall patches with penguin's instruction |
+| 0045 | panda: guest_hypercall on the guest hypercall instruction | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT | replaces pandang's hypercall patches with penguin's instruction |
 | 0046 | panda: panda_disable_tb_chaining turns TB chaining off | new | LGPL-2.1-or-later | UNCERTAIN: re-implements classic PANDA's panda_disable_tb_chaining |
 | 0047 | plugins: memory callbacks before the access | panda-re/qemu | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT | aking's before/after memory callbacks (wrapup-rebase), reworked |
 | 0048 | panda: before_find_fast before each TB lookup | panda-re/qemu | LGPL-2.1-or-later | UNCERTAIN: call site where pandang had it |

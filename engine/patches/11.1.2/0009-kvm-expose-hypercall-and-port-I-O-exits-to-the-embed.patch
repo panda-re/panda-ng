@@ -1,10 +1,10 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: igloo <nix@local>
 Date: Wed, 19 Aug 2026 23:02:41 -0400
-Subject: [PATCH] kvm: expose hypercall and port-I/O exits to Penguin
+Subject: [PATCH] kvm: expose hypercall and port-I/O exits to the embedding API
 
 Enables KVM_CAP_EXIT_HYPERCALL where the host supports it and routes
-KVM_EXIT_HYPERCALL and port-I/O exits to penguin_handle_guest_hypercall, so a
+KVM_EXIT_HYPERCALL and port-I/O exits to panda_handle_guest_hypercall, so a
 KVM-accelerated guest reaches the same entry point as a TCG guest.
 
 Folds: 8f837df542, 644b68587a, 797f446cf8 (partial), c26a90a771 (partial),
@@ -46,14 +46,14 @@ index 83cbd120a84784e3128812c22be952e7af2b5480..35bb0ba8d1acf7fb9cce8c193697a79b
          case KVM_EXIT_MMIO:
              /* Called outside BQL */
 diff --git a/target/arm/kvm.c b/target/arm/kvm.c
-index d40a6a9859142ef74937a3b8c1804387fec7e9e4..e7294ed8f0ec5bf15b4e6b873329b24ca5bb0e1d 100644
+index d40a6a9859142ef74937a3b8c1804387fec7e9e4..261d4cf1eb6c4f1a0992faca1f035a3b7036eb0a 100644
 --- a/target/arm/kvm.c
 +++ b/target/arm/kvm.c
 @@ -42,6 +42,7 @@
  #include "hw/acpi/ghes.h"
  #include "target/arm/gtimer.h"
  #include "migration/blocker.h"
-+#include "system/penguin.h"
++#include "system/panda-embed.h"
  
  const KVMCapabilityInfo kvm_arch_required_capabilities[] = {
      KVM_CAP_INFO(DEVICE_CTRL),
@@ -78,27 +78,27 @@ index d40a6a9859142ef74937a3b8c1804387fec7e9e4..e7294ed8f0ec5bf15b4e6b873329b24c
  
      switch (run->exit_reason) {
 +    case KVM_EXIT_HYPERCALL:
-+        penguin_handle_guest_hypercall(cs, run->hypercall.nr,
-+                                       run->hypercall.args[0],
-+                                       run->hypercall.args[1],
-+                                       run->hypercall.args[2],
-+                                       run->hypercall.args[3],
-+                                       run->hypercall.args[4],
-+                                       run->hypercall.args[5],
-+                                       &run->hypercall.ret);
++        panda_handle_guest_hypercall(cs, run->hypercall.nr,
++                                     run->hypercall.args[0],
++                                     run->hypercall.args[1],
++                                     run->hypercall.args[2],
++                                     run->hypercall.args[3],
++                                     run->hypercall.args[4],
++                                     run->hypercall.args[5],
++                                     &run->hypercall.ret);
 +        break;
      case KVM_EXIT_DEBUG:
          if (kvm_arm_handle_debug(cpu, &run->debug.arch)) {
              ret = EXCP_DEBUG;
 diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
-index 644c45fb0a02a9991b90bcaefe637250417c9fb7..46025f3d504b3231a63a9b1cf0fdaee3106a3a1c 100644
+index 644c45fb0a02a9991b90bcaefe637250417c9fb7..ccd48332f077534c09bcab0e0b56e6258ae7a9f2 100644
 --- a/target/i386/kvm/kvm.c
 +++ b/target/i386/kvm/kvm.c
 @@ -31,6 +31,7 @@
  #include "host-cpu.h"
  #include "vmsr_energy.h"
  #include "system/system.h"
-+#include "system/penguin.h"
++#include "system/panda-embed.h"
  #include "system/hw_accel.h"
  #include "system/accel-irq.h"
  #include "system/kvm_int.h"
@@ -132,14 +132,14 @@ index 644c45fb0a02a9991b90bcaefe637250417c9fb7..46025f3d504b3231a63a9b1cf0fdaee3
 +    }
 +
 +    uint64_t ret_val = 0;
-+    if (penguin_handle_guest_hypercall(CPU(cpu), run->hypercall.nr,
-+                                       run->hypercall.args[0],
-+                                       run->hypercall.args[1],
-+                                       run->hypercall.args[2],
-+                                       run->hypercall.args[3],
-+                                       run->hypercall.args[4],
-+                                       run->hypercall.args[5],
-+                                       &ret_val)) {
++    if (panda_handle_guest_hypercall(CPU(cpu), run->hypercall.nr,
++                                     run->hypercall.args[0],
++                                     run->hypercall.args[1],
++                                     run->hypercall.args[2],
++                                     run->hypercall.args[3],
++                                     run->hypercall.args[4],
++                                     run->hypercall.args[5],
++                                     &ret_val)) {
 +        run->hypercall.ret = ret_val;
 +        return 0;
 +    }
@@ -165,39 +165,39 @@ index 644c45fb0a02a9991b90bcaefe637250417c9fb7..46025f3d504b3231a63a9b1cf0fdaee3
 +            env = &X86_CPU(cs)->env;
 +#ifdef TARGET_X86_64
 +            if (env->hflags & HF_CS64_MASK) {
-+                if (penguin_handle_guest_hypercall(cs, nr,
-+                                                   env->regs[R_EDI],
-+                                                   env->regs[R_ESI],
-+                                                   env->regs[R_EDX],
-+                                                   env->regs[R_R10],
-+                                                   env->regs[R_R8],
-+                                                   env->regs[R_R9],
-+                                                   &ret_val)) {
++                if (panda_handle_guest_hypercall(cs, nr,
++                                                 env->regs[R_EDI],
++                                                 env->regs[R_ESI],
++                                                 env->regs[R_EDX],
++                                                 env->regs[R_R10],
++                                                 env->regs[R_R8],
++                                                 env->regs[R_R9],
++                                                 &ret_val)) {
 +                    env->regs[R_EAX] = ret_val;
 +                    cs->vcpu_dirty = true;
 +                }
 +            } else {
-+                if (penguin_handle_guest_hypercall(cs, nr,
-+                                                   env->regs[R_EBX],
-+                                                   env->regs[R_ECX],
-+                                                   env->regs[R_EDX],
-+                                                   env->regs[R_ESI],
-+                                                   env->regs[R_EDI],
-+                                                   env->regs[R_EBP],
-+                                                   &ret_val)) {
++                if (panda_handle_guest_hypercall(cs, nr,
++                                                 env->regs[R_EBX],
++                                                 env->regs[R_ECX],
++                                                 env->regs[R_EDX],
++                                                 env->regs[R_ESI],
++                                                 env->regs[R_EDI],
++                                                 env->regs[R_EBP],
++                                                 &ret_val)) {
 +                    env->regs[R_EAX] = (uint32_t)ret_val;
 +                    cs->vcpu_dirty = true;
 +                }
 +            }
 +#else
-+            if (penguin_handle_guest_hypercall(cs, nr,
-+                                               env->regs[R_EBX],
-+                                               env->regs[R_ECX],
-+                                               env->regs[R_EDX],
-+                                               env->regs[R_ESI],
-+                                               env->regs[R_EDI],
-+                                               env->regs[R_EBP],
-+                                               &ret_val)) {
++            if (panda_handle_guest_hypercall(cs, nr,
++                                             env->regs[R_EBX],
++                                             env->regs[R_ECX],
++                                             env->regs[R_EDX],
++                                             env->regs[R_ESI],
++                                             env->regs[R_EDI],
++                                             env->regs[R_EBP],
++                                             &ret_val)) {
 +                env->regs[R_EAX] = (uint32_t)ret_val;
 +                cs->vcpu_dirty = true;
 +            }

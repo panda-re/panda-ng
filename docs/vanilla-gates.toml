@@ -14,12 +14,12 @@ coverage_note = "Every listed patch filename, digest, touched upstream path and 
 
 [[patch]]
 id = "0001"
-file = "engine/patches/11.1.2/0001-penguin-core-callbacks-and-build-wiring.patch"
-sha256 = "7c5069a81972a2c6c544ad2536586675d10c928ca232815670797af9421ef10c"
+file = "engine/patches/11.1.2/0001-system-the-embedding-API-s-core-callbacks-and-build-.patch"
+sha256 = "e7e5f3307ceb243f002a6911c715bdacfb26d13b8e27968928f5b0f006377e53"
 class = "runtime-gate"
 capability = "embedding"
 paths = ["include/system/system.h", "system/meson.build", "system/vl.c"]
-functions = ["qmp_x_exit_preconfig", "penguin after-guest-init callback"]
+functions = ["qmp_x_exit_preconfig", "KVM after-guest-init callback"]
 hunk_contexts = ["void qemu_remove_exit_notifier(Notifier *notify);", "system_ss.add(files(", "static const char *log_file;", "static bool auto_create_sdcard = true;", "void qmp_x_exit_preconfig(Error **errp)"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "NULL callback check only; startup callback hook remains compiled in"
@@ -28,8 +28,8 @@ vanilla_verified = false
 
 [[patch]]
 id = "0002"
-file = "engine/patches/11.1.2/0002-build-emit-shared-libraries-for-the-Penguin-embeddin.patch"
-sha256 = "125094c15f327f78bca4d6ee0922ebf96e2668801bbd822cc736c44878b33456"
+file = "engine/patches/11.1.2/0002-build-emit-shared-libraries-for-the-embedding-API.patch"
+sha256 = "85af8c6b71959c9fca17b88d3b2662b5c8af1824bbb54e7d1133f18908a6172d"
 class = "build-only"
 capability = "shared-engine"
 paths = ["meson.build"]
@@ -42,12 +42,12 @@ vanilla_verified = false
 
 [[patch]]
 id = "0003"
-file = "engine/patches/11.1.2/0003-target-mips-route-guest-hypercalls-into-Penguin.patch"
-sha256 = "31f9ab1acaa68ed28219263b56d92a9e231de881bf7e8e20310f0e5a7d07fe42"
+file = "engine/patches/11.1.2/0003-target-mips-route-guest-hypercalls-to-the-embedding-.patch"
+sha256 = "c2b721158e05bb1e8749133549daec6211f474d80ce6cd8f45dbac1fed105ead"
 class = "runtime-gate"
 capability = "guest-hypercall"
 paths = ["target/mips/helper.h", "target/mips/tcg/op_helper.c", "target/mips/tcg/translate.c"]
-functions = ["helper_penguin", "gen_cond_move", "gen_cp0"]
+functions = ["helper_guest_hypercall", "gen_cond_move", "gen_cp0"]
 hunk_contexts = ["target_ulong helper_bitswap(target_ulong rt)", "static void gen_cond_move(DisasContext *ctx, uint32_t opc,", "static void gen_cp0(CPUMIPSState *env, DisasContext *ctx, uint32_t opc,"]
 gate_status = "partial-recognition-gate-0087-not-parity-verified"
 current_gate = "0087 gates MIPS magic instruction recognition with immutable guest-hypercall capability; ordinary MOVZ decode continues without it. Helper/API admission and complete target vanilla parity remain unverified."
@@ -56,26 +56,26 @@ vanilla_verified = false
 
 [[patch]]
 id = "0004"
-file = "engine/patches/11.1.2/0004-target-arm-route-guest-hypercalls-into-Penguin.patch"
-sha256 = "f65d85df6b7f0909516423db6cf23bfddd0091fc083dd0b95bd6ba809cabc60d"
+file = "engine/patches/11.1.2/0004-target-arm-route-guest-hypercalls-to-the-embedding-A.patch"
+sha256 = "d81a96c84a29df676bf1e3db8f857f39ebe9b60f8820576e4774cd1611f4c810"
 class = "runtime-gate"
 capability = "guest-hypercall"
 paths = ["target/arm/tcg/a64.decode", "target/arm/tcg/helper-defs.h", "target/arm/tcg/op_helper.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c"]
-functions = ["trans_PENGUIN", "valid_cp", "helper_penguin"]
+functions = ["trans_HYPERCALL", "valid_cp", "helper_guest_hypercall"]
 hunk_contexts = ["MSR_i_SVCR      1101 0101 0000 0 011 0100 0 mask:2 imm:1 011 11111", "DEF_HELPER_2(wfet, void, env, i32)", "void raise_exception_ra(CPUARMState *env, uint32_t excp, uint64_t syndrome,", "static bool trans_SYS(DisasContext *s, arg_SYS *a)", "static bool valid_cp(DisasContext *s, int cp)"]
 gate_status = "partial-recognition-gate-0087-not-parity-verified"
-current_gate = "0087 gates ARM64 trans_PENGUIN (false/UNDEF when absent) and ARM32 magic MCR (upstream coprocessor decode follows). Recognition-only off path is host-tested; decoder/helper/API and complete guest parity remain unverified."
+current_gate = "0087 gates ARM64 trans_HYPERCALL (false/UNDEF when absent) and ARM32 magic MCR (upstream coprocessor decode follows). Recognition-only off path is host-tested; decoder/helper/API and complete guest parity remain unverified."
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
 [[patch]]
 id = "0005"
-file = "engine/patches/11.1.2/0005-target-ppc-route-guest-hypercalls-into-Penguin.patch"
-sha256 = "684960c4dcfa8a6cd34ee42ef47b399f43a0f0cdccf12780fbc187a0c684fee8"
+file = "engine/patches/11.1.2/0005-target-ppc-route-guest-hypercalls-to-the-embedding-A.patch"
+sha256 = "114575b25426dda1bc5ea00245a8caef07b14a4b4f4872ce60f9a5e7d365be43"
 class = "runtime-gate"
 capability = "guest-hypercall"
 paths = ["target/ppc/helper.h", "target/ppc/misc_helper.c", "target/ppc/translate/fixedpoint-impl.c.inc"]
-functions = ["helper_penguin", "xori translation"]
+functions = ["helper_guest_hypercall", "xori translation"]
 hunk_contexts = ["DEF_HELPER_FLAGS_4(TW, TCG_CALL_NO_WG, void, env, tl, tl, i32)", "void helper_store_dump_spr(CPUPPCState *env, uint32_t sprn)", "static bool do_ori(DisasContext *ctx, arg_D_ui *a, bool shift)"]
 gate_status = "partial-recognition-gate-0087-not-parity-verified"
 current_gate = "0087 gates PPC magic XORI recognition; ordinary instruction path continues without guest-hypercall. Helper/API admission and complete target vanilla parity remain unverified."
@@ -84,12 +84,12 @@ vanilla_verified = false
 
 [[patch]]
 id = "0006"
-file = "engine/patches/11.1.2/0006-target-riscv-route-guest-hypercalls-into-Penguin.patch"
-sha256 = "d985cb3197028345e6ab8a08a4cd9840c9fa07bba38b8062ed416eba69565303"
+file = "engine/patches/11.1.2/0006-target-riscv-route-guest-hypercalls-to-the-embedding.patch"
+sha256 = "dda7852f31a8bbc1b90ba735610d3492698e138114e631476e7bc194c7233dc3"
 class = "runtime-gate"
 capability = "guest-hypercall"
 paths = ["target/riscv/helper.h", "target/riscv/tcg/op_helper.c", "target/riscv/tcg/translate.c"]
-functions = ["trans_xori", "helper_penguin"]
+functions = ["trans_xori", "helper_guest_hypercall"]
 hunk_contexts = ["void helper_raise_exception(CPURISCVState *env, uint32_t exception)", "static int ex_rvc_shiftri(DisasContext *ctx, int imm)"]
 gate_status = "partial-recognition-gate-0087-not-parity-verified"
 current_gate = "0087 gates RISC-V magic XORI recognition; ordinary logical-immediate path continues without guest-hypercall. Helper/API admission and complete target vanilla parity remain unverified."
@@ -98,12 +98,12 @@ vanilla_verified = false
 
 [[patch]]
 id = "0007"
-file = "engine/patches/11.1.2/0007-target-loongarch-route-guest-hypercalls-into-Penguin.patch"
-sha256 = "7498264426065d9fb185b30e03a2f5aba375c4c9f79e5440697a194effe6798b"
+file = "engine/patches/11.1.2/0007-target-loongarch-route-guest-hypercalls-to-the-embed.patch"
+sha256 = "f9ff5d07e1d2d0defbec8c365dec35116260e2efbbf67a6db442d24d41de9592"
 class = "runtime-gate"
 capability = "guest-hypercall"
 paths = ["target/loongarch/tcg/helper.h", "target/loongarch/tcg/insn_trans/trans_extra.c.inc", "target/loongarch/tcg/op_helper.c"]
-functions = ["trans_cpucfg", "helper_penguin"]
+functions = ["trans_cpucfg", "helper_guest_hypercall"]
 hunk_contexts = ["static bool trans_cpucfg(DisasContext *ctx, arg_cpucfg *a)", "void helper_raise_exception(CPULoongArchState *env, uint32_t exception)"]
 gate_status = "partial-recognition-gate-0087-not-parity-verified"
 current_gate = "0087 gates LoongArch magic CPUCFG recognition; ordinary CPUCFG operation remains without guest-hypercall. Helper/API admission and complete target vanilla parity remain unverified."
@@ -113,11 +113,11 @@ vanilla_verified = false
 [[patch]]
 id = "0008"
 file = "engine/patches/11.1.2/0008-target-i386-hw-i386-route-guest-hypercalls-through-a.patch"
-sha256 = "f7cb77ad1b04a3ce28f6aabdd1fe5bd1388ed0578e8e52511d87dc6e5b38698c"
+sha256 = "b1c15517d8d8be63b94e34f09a6eac31eb95fd51582d188a4b513cae110ccc7d"
 class = "startup-gate"
 capability = "guest-hypercall"
 paths = ["hw/i386/pc.c", "target/i386/tcg/misc_helper.c"]
-functions = ["penguin_hypercall_io", "PC machine initialization"]
+functions = ["panda_hypercall_io", "PC machine initialization"]
 hunk_contexts = ["static uint64_t ioport80_read(void *opaque, hwaddr addr, unsigned size)", "static const MemoryRegionOps ioport80_io_ops = {", "void pc_basic_device_init(struct PCMachineState *pcms,"]
 gate_status = "partial-recognition-gate-0087-not-parity-verified"
 current_gate = "0087 gates x86 port0x88 region allocation/init/add at startup with guest-hypercall. This does not gate KVM exit/capability handling (0009), ARM KVM filters (0023), or prove guest/port-overlap parity."
@@ -126,8 +126,8 @@ vanilla_verified = false
 
 [[patch]]
 id = "0009"
-file = "engine/patches/11.1.2/0009-kvm-expose-hypercall-and-port-I-O-exits-to-Penguin.patch"
-sha256 = "e2cc986866065b92c90684c5334f24d92d85c1843f8ec8dc9b214de38b87d6c7"
+file = "engine/patches/11.1.2/0009-kvm-expose-hypercall-and-port-I-O-exits-to-the-embed.patch"
+sha256 = "35a499e6bacd30e2c8791748aa4e59f5b720ab5e1ea7b7b9f99d0bf655f5d587"
 class = "startup-gate"
 capability = "kvm-hypercall"
 paths = ["accel/kvm/kvm-all.c", "target/arm/kvm.c", "target/i386/kvm/kvm.c"]
@@ -140,8 +140,8 @@ vanilla_verified = false
 
 [[patch]]
 id = "0010"
-file = "engine/patches/11.1.2/0010-penguin-snapshot-ABI-and-a-migratable-vhost-user-vso.patch"
-sha256 = "180a92bd7f965ca1ce1d618017c988c03450a38078e53bb2a9fde119f164ad5f"
+file = "engine/patches/11.1.2/0010-system-snapshot-ABI-and-a-migratable-vhost-user-vsoc.patch"
+sha256 = "a7086db7bdb2b895f87f29c609aff929307fcf10305f6d064e30ad6f01727949"
 class = "startup-gate"
 capability = "snapshot-extensions"
 paths = ["hw/virtio/vhost-user-vsock.c", "include/hw/virtio/vhost-user-vsock.h", "include/migration/snapshot.h", "migration/savevm.c"]
@@ -154,8 +154,8 @@ vanilla_verified = false
 
 [[patch]]
 id = "0011"
-file = "engine/patches/11.1.2/0011-penguin-reset-request-and-QMP-command-callbacks.patch"
-sha256 = "9822b7fa5e01dfe9de1e9f23e90660b8deda755233cf2e25b18bd2c7d0a702d9"
+file = "engine/patches/11.1.2/0011-system-reset-request-and-QMP-command-callbacks.patch"
+sha256 = "b09a61fe83ef2628fb4da5996161d10e729f525e8287b70de595c2ca074ce534"
 class = "runtime-gate"
 capability = "embedding"
 paths = ["qapi/qmp-dispatch.c", "system/runstate.c"]
@@ -225,7 +225,7 @@ vanilla_verified = false
 [[patch]]
 id = "0016"
 file = "engine/patches/11.1.2/0016-plugins-kvm-x86-faulting-accesses-and-breakpoint-cal.patch"
-sha256 = "eed8d831352048a7c20d8bf801f0d4d08ea76664a6a02767607ca7d54b5cc59a"
+sha256 = "94a6874cfa9182540f257ff61b3bca2a34e7fa56aaf270843c7ed6253feb7b6c"
 class = "runtime-gate"
 capability = "kvm-analysis"
 paths = ["include/plugins/qemu-plugin.h", "plugins/api-system.c", "plugins/api-user.c", "target/i386/kvm/kvm.c"]
@@ -267,7 +267,7 @@ vanilla_verified = false
 [[patch]]
 id = "0019"
 file = "engine/patches/11.1.2/0019-system-target-i386-target-arm-the-syscall-trap.patch"
-sha256 = "8290a2ffff67c60825f40a8448ea86b5ce24dfe9afdd32e9e1a0553cfb477028"
+sha256 = "66f9d4c227c319a79e3d2d20e4c8bcd58ddebe94d597906139458a6142c409bc"
 class = "runtime-gate"
 capability = "syscall-trap"
 paths = ["accel/tcg/cputlb.c", "include/accel/tcg/probe.h", "include/hw/core/cpu.h", "system/meson.build", "target/arm/helper.c", "target/arm/internals.h", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c", "target/i386/tcg/emit.c.inc", "target/i386/tcg/seg_helper.c", "target/i386/tcg/seg_helper.h", "target/i386/tcg/system/seg_helper.c"]
@@ -295,7 +295,7 @@ vanilla_verified = false
 [[patch]]
 id = "0021"
 file = "engine/patches/11.1.2/0021-system-build-the-host-side-OSI.patch"
-sha256 = "db5ecad9882552fb40511c4998fdd97348ed5d17a8834725641127156f5e914f"
+sha256 = "3d7ce675a5b801cebfb4f32289599af37924349b170f41aa94e9ebec8592f539"
 class = "inert-in-vanilla"
 capability = "host-osi"
 paths = ["system/meson.build"]
@@ -309,7 +309,7 @@ vanilla_verified = false
 [[patch]]
 id = "0022"
 file = "engine/patches/11.1.2/0022-i386-resume-a-KVM-snapshot-under-TCG-and-a-TCG-snaps.patch"
-sha256 = "462f30cf59fd32d0ebf0779f08337ec3e893d0c4ec1fb3fe613c6c736089aa4c"
+sha256 = "2b19f4702bce0ddf227b42c7871692bf6eb1e0c15766e1f78fcbebfd49ef7b16"
 class = "startup-gate"
 capability = "accelerator-handoff"
 paths = ["hw/i386/kvm/clock.h", "hw/i386/pc.c", "hw/i386/pc_piix.c", "hw/i386/pc_q35.c", "target/i386/kvm/kvm.c", "target/i386/tcg/system/seg_helper.c"]
@@ -322,8 +322,8 @@ vanilla_verified = false
 
 [[patch]]
 id = "0023"
-file = "engine/patches/11.1.2/0023-target-arm-kvm-penguin-hypercalls-under-arm64-KVM-SM.patch"
-sha256 = "7b9223029ad79878ff0a1fa672c7bd29eee5435848942df5bf44d6cb24b8e0a1"
+file = "engine/patches/11.1.2/0023-target-arm-kvm-guest-hypercalls-under-arm64-KVM-SMCC.patch"
+sha256 = "8d74dac9ee3258ea6e9d2bd7bde5fd0e7c0c5bd052bfef432138c78dffd95549"
 class = "startup-gate"
 capability = "kvm-hypercall"
 paths = ["target/arm/kvm.c"]
@@ -406,12 +406,12 @@ vanilla_verified = false
 
 [[patch]]
 id = "0029"
-file = "engine/patches/11.1.2/0029-qapi-a-weak-default-penguin_handle_qmp-so-the-tools-.patch"
-sha256 = "cd0f434ecccc56afbc535393613959bab26e52c597513eab8874cbfacac9f607"
+file = "engine/patches/11.1.2/0029-qapi-a-weak-default-panda_handle_qmp-so-the-tools-li.patch"
+sha256 = "ecca18c00fd2f3226a63aa2202332388f2c2ca0a6ffb941fd1803c757f491dd4"
 class = "build-only"
 capability = "embedding-link"
 paths = ["qapi/qmp-dispatch.c"]
-functions = ["penguin_handle_qmp weak default"]
+functions = ["panda_handle_qmp weak default"]
 hunk_contexts = ["QDict *coroutine_mixed_fn qmp_dispatch(const QmpCommandList *cmds, QObject *requ"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "Weak link fallback; actual dispatch covered by patches0001/0011; audit symbol interposition separately"
@@ -477,7 +477,7 @@ vanilla_verified = false
 [[patch]]
 id = "0034"
 file = "engine/patches/11.1.2/0034-i386-kvm-plugin-accesses-on-KVM-kernel-walk-declined.patch"
-sha256 = "572238f9da1e09dd610fd2c840a5e1bbe9a75b212a3b7affd9521dd014be0fa7"
+sha256 = "adc1563811df1e6f110d6c458c1fd0febad7f8e7469e6bf91535d6d6659f71cd"
 class = "upstream-fix-needs-off-path"
 capability = "kvm-analysis"
 paths = ["plugins/api-system.c", "plugins/api-user.c", "plugins/api.c", "plugins/plugin.h", "target/i386/kvm/kvm.c"]
@@ -575,7 +575,7 @@ vanilla_verified = false
 [[patch]]
 id = "0041"
 file = "engine/patches/11.1.2/0041-panda-enable-panda-builds-the-PANDA-API-and-libpanda.patch"
-sha256 = "baa2952b0127f0ac2eca140d380ef9b56739a8eb48b6c98607a498a97e94f3db"
+sha256 = "ec1aec4309d9db0a4893a084fe7cb26dcb0d8d56b3346c1d5fc48c34ee9716fb"
 class = "build-only"
 capability = "panda-build"
 paths = ["contrib/plugins/meson.build", "meson.build", "meson_options.txt", "scripts/meson-buildoptions.sh"]
@@ -630,13 +630,13 @@ vanilla_verified = false
 
 [[patch]]
 id = "0045"
-file = "engine/patches/11.1.2/0045-panda-guest_hypercall-on-penguin-s-hypercall-instruc.patch"
-sha256 = "103ded267553907fdbad72e076b59d9fc447b310f8251294a16783a4ee59ffbd"
+file = "engine/patches/11.1.2/0045-panda-guest_hypercall-on-the-guest-hypercall-instruc.patch"
+sha256 = "34354ef493bc003c3f73f0c2f0fe7a8721f2341d829e2e6bf16ed37ae9abcafa"
 class = "runtime-gate"
 capability = "guest-hypercall"
 paths = ["hw/i386/pc.c", "target/arm/tcg/op_helper.c", "target/loongarch/tcg/op_helper.c", "target/mips/tcg/op_helper.c", "target/ppc/misc_helper.c", "target/riscv/tcg/op_helper.c"]
 functions = ["panda_callbacks_guest_hypercall", "target hypercall helpers"]
-hunk_contexts = ["static void ioport88_write(void *opaque, hwaddr addr, uint64_t data,", "uint64_t HELPER(penguin_guest_hypercall)(CPUARMState *env, uint64_t nr,", "target_ulong helper_penguin_guest_hypercall(CPULoongArchState *env,", "target_ulong helper_penguin_guest_hypercall(CPUMIPSState *env, target_ulong nr,", "target_ulong helper_penguin_guest_hypercall(CPUPPCState *env, target_ulong nr,", "target_ulong helper_penguin_guest_hypercall(CPURISCVState *env, target_ulong nr,"]
+hunk_contexts = ["static void ioport88_write(void *opaque, hwaddr addr, uint64_t data,", "uint64_t HELPER(guest_hypercall)(CPUARMState *env, uint64_t nr,", "target_ulong helper_guest_hypercall(CPULoongArchState *env,", "target_ulong helper_guest_hypercall(CPUMIPSState *env, target_ulong nr,", "target_ulong helper_guest_hypercall(CPUPPCState *env, target_ulong nr,", "target_ulong helper_guest_hypercall(CPURISCVState *env, target_ulong nr,"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "Subscriber/handler checks exist; underlying reserved encodings and port installation remain separate gates"
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
@@ -743,7 +743,7 @@ vanilla_verified = false
 [[patch]]
 id = "0053"
 file = "engine/patches/11.1.2/0053-panda-main_loop_wait-callback-at-each-main-loop-iter.patch"
-sha256 = "4cfc7f2298f529a697f7cc62243583cecddd53fc60464f32ae86ef4e36dfdd08"
+sha256 = "78ed3c0e245ce0b772a497613f2674414da245c50a78a65f3e90cefa561206ac"
 class = "runtime-gate"
 capability = "analysis-main-loop"
 paths = ["system/runstate.c"]
@@ -757,7 +757,7 @@ vanilla_verified = false
 [[patch]]
 id = "0054"
 file = "engine/patches/11.1.2/0054-panda-after_loadvm-callback-when-load_snapshot-succe.patch"
-sha256 = "07ca47df4454141a07e55ec5c831e0646f653974ecd599ce4e55e9e00ed24a15"
+sha256 = "17bcce5e706f14dd404d092730f85a44484ef9f3ec6339d8fa624022d7028149"
 class = "runtime-gate"
 capability = "snapshot-notifications"
 paths = ["migration/savevm.c"]
@@ -855,7 +855,7 @@ vanilla_verified = false
 [[patch]]
 id = "0061"
 file = "engine/patches/11.1.2/0061-panda-before_loadvm-hook-before-qemu_loadvm_state-lo.patch"
-sha256 = "31726918124e01ac27dc1ad41d01be555960016ac844df394b35f36623fe33be"
+sha256 = "0cad81de34b934e9dc3f75458217b4c1f95a3df1041ab0f8916083f21f5fd854"
 class = "runtime-gate"
 capability = "snapshot-fast-tracking"
 paths = ["migration/savevm.c"]
@@ -967,7 +967,7 @@ vanilla_verified = false
 [[patch]]
 id = "0069"
 file = "engine/patches/11.1.2/0069-module-load-panda-modules-by-path-checked-against-th.patch"
-sha256 = "99ddcc9b59f11046de490968aa5adbb2b8db85c66c44aa5bc71e3690828be4fa"
+sha256 = "659b69135eb29190a7d1d4263f44cbaca335953172deb090748c3b3e414043ba"
 class = "startup-gate"
 capability = "dynamic-modules"
 paths = ["include/qemu/module.h", "include/qom/object.h", "meson.build", "plugins/meson.build", "qom/object.c", "util/module.c"]
@@ -981,7 +981,7 @@ vanilla_verified = false
 [[patch]]
 id = "0070"
 file = "engine/patches/11.1.2/0070-vl-M-PATH-NAME-and-module-PATH-load-panda-modules.patch"
-sha256 = "96495a37865a320bdf66b00f143788b2e652ab498556b6607f3de9b6a9741120"
+sha256 = "22ff1a4fca2f6b2c7b2123b9ce35ca5fa0a4737ccab24eea509ccafa306f02c8"
 class = "startup-gate"
 capability = "dynamic-modules"
 paths = ["hw/core/meson.build", "qemu-options.hx", "system/vl.c"]
@@ -1023,7 +1023,7 @@ vanilla_verified = false
 [[patch]]
 id = "0073"
 file = "engine/patches/11.1.2/0073-replay-mark-the-begin-record-start-snapshot-refuse-l.patch"
-sha256 = "b6068c22e7daca31798840a213ca01bf3c48319a45a082b14bb7b8e5b43df52c"
+sha256 = "fd6442c1e7625213820bc463ebf34f8b8fb5617d9ffd009f141013aab45297aa"
 class = "runtime-gate"
 capability = "snapshot-rr-policy"
 paths = ["include/system/replay.h", "migration/migration-hmp-cmds.c", "migration/savevm.c", "replay/replay-internal.h", "replay/replay-random.c", "replay/replay-snapshot.c", "replay/replay.c", "replay/stubs-system.c", "system/vl.c"]
@@ -1079,7 +1079,7 @@ vanilla_verified = false
 [[patch]]
 id = "0077"
 file = "engine/patches/11.1.2/0077-panda-link-a-plugin-interface-per-target-against-its.patch"
-sha256 = "46205755598aebb3798e529443afe21af64dce66a747d099e112070405ea0a83"
+sha256 = "5b1f56f23ba78031c42c50da20e66e9bc42dc698f2535f1131fa7be6f2c2e98e"
 class = "build-only"
 capability = "panda-plugin-link"
 paths = ["meson.build"]
@@ -1177,7 +1177,7 @@ vanilla_verified = false
 [[patch]]
 id = "0084"
 file = "engine/patches/11.1.2/0084-replay-guard-guest-state-against-analysis-mutations.patch"
-sha256 = "9ca4987fe57e21045323f95cc63e9ca54f6da5cdf238286334d22a807b19ed0e"
+sha256 = "86f54e237a10efcb280fa7895d386cff316a0264461a58cd565801b4b309e20b"
 class = "runtime-gate"
 capability = "rr-analysis-policy"
 paths = ["include/plugins/qemu-plugin.h", "include/system/replay-analysis.h", "plugins/api-system.c", "plugins/api.c", "plugins/core.c", "replay/replay-begin.c", "replay/replay.c"]
@@ -1205,7 +1205,7 @@ vanilla_verified = false
 [[patch]]
 id = "0086"
 file = "engine/patches/11.1.2/0086-system-cancel-transient-analysis-before-restore-and-.patch"
-sha256 = "f9f777af939e8d1f721e897e40a09c110cc3c435e8aa6e1809dbe73c04772072"
+sha256 = "f253fd02209948c24ca19fb5e2dd4f703abe3d1aed3ad2524e823b6ae3758e8d"
 class = "runtime-gate"
 capability = "analysis-lifecycle"
 paths = ["migration/savevm.c", "system/runstate.c"]
@@ -1219,11 +1219,11 @@ vanilla_verified = false
 [[patch]]
 id = "0087"
 file = "engine/patches/11.1.2/0087-system-provision-startup-capabilities-and-gate-guest.patch"
-sha256 = "54ebfecb6184d0350251f7c91703bb034e29d670fb9d548558f64df908079bbb"
+sha256 = "50a49e31c814a202fc41c20e88bc756ab0d42de5ff8b6e3048d349a7b1ea702a"
 class = "startup-gate"
 capability = "startup-capability-policy-and-guest-hypercall"
 paths = ["hw/i386/pc.c", "qemu-options.hx", "system/meson.build", "system/vl.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c", "target/loongarch/tcg/insn_trans/trans_extra.c.inc", "target/loongarch/tcg/translate.c", "target/mips/tcg/translate.c", "target/ppc/translate.c", "target/ppc/translate/fixedpoint-impl.c.inc", "target/riscv/tcg/translate.c"]
-functions = ["parse_analysis_capabilities", "qemu_init_board", "analysis_policy_freeze", "analysis_guest_hypercall_enabled", "trans_PENGUIN", "trans_MCR", "pc_basic_device_init", "gen_cond_move", "do_xori", "gen_logic_imm_fn", "trans_cpucfg"]
+functions = ["parse_analysis_capabilities", "qemu_init_board", "analysis_policy_freeze", "analysis_guest_hypercall_enabled", "trans_HYPERCALL", "trans_MCR", "pc_basic_device_init", "gen_cond_move", "do_xori", "gen_logic_imm_fn", "trans_cpucfg"]
 hunk_contexts = ["void pc_basic_device_init(struct PCMachineState *pcms,", "SRST", "system_ss.add(files(", "static void qemu_init_displays(void)", "void qemu_init(int argc, char **argv)", "static bool trans_SYS(DisasContext *s, arg_SYS *a)", "static bool valid_cp(DisasContext *s, int cp)", "static bool trans_cpucfg(DisasContext *ctx, arg_cpucfg *a)", "static void gen_cond_move(DisasContext *ctx, uint32_t opc,", "static bool do_ori(DisasContext *ctx, arg_D_ui *a, bool shift)", "static int ex_rvc_shiftri(DisasContext *ctx, int imm)"]
 gate_status = "partial-startup-and-recognition-gates-not-parity-verified"
 current_gate = "CLI capability configuration/build wiring implemented; bare zero until 0090 seals the legacy CLI default, fuzz/RR normalize analysis, freeze before plugin/board realization and provisioned analysis startup activity. ARM/MIPS/PPC/RISC-V/LoongArch recognition and x86 port startup gated; user-only recognizers constant-off. No general callback admission, snapshot/device or KVM exit/filter gates implemented."
@@ -1233,7 +1233,7 @@ vanilla_verified = false
 [[patch]]
 id = "0088"
 file = "engine/patches/11.1.2/0088-system-gate-handoff-and-snapshot-clock-adaptations.patch"
-sha256 = "13adfe920d822d961c4556b0b98b0c3821faeaa408f9e3c35bad0db0d9458d70"
+sha256 = "25cef31eef66aa8bf87f261e0ce578c1680cf268c5652be6aaf80153c0ae8d20"
 class = "startup-gate"
 capability = "handoff-rr-fuzz-snapshot-adaptations"
 paths = ["hw/i386/pc.c", "hw/intc/arm_gic_common.c", "replay/replay-snapshot.c", "replay/replay.c", "system/cpu-timers.c", "target/arm/helper.c", "target/arm/machine.c", "target/i386/kvm/kvm.c", "target/i386/machine.c", "target/i386/tcg/system/seg_helper.c"]
@@ -1261,7 +1261,7 @@ vanilla_verified = false
 [[patch]]
 id = "0090"
 file = "engine/patches/11.1.2/0090-system-seal-capabilities-before-startup-side-effects.patch"
-sha256 = "12d326e8f160acd493cf46c60f562cef431a65becd97064dab87bbe26077d568"
+sha256 = "66ad17f34aa8b0fb0134669cbd477036ba75a24adfaac1621b81b2e74594da52"
 class = "startup-gate"
 capability = "sealed-startup-policy"
 paths = ["qemu-options.hx", "system/vl.c"]
@@ -1275,7 +1275,7 @@ vanilla_verified = false
 [[patch]]
 id = "0091"
 file = "engine/patches/11.1.2/0091-replay-serialize-deferred-analysis-RAM-writes-as-ord.patch"
-sha256 = "d9cf1fc1c82fc4067a226d505552b12d682092a018a47d738b0804ffc7f63826"
+sha256 = "865f25b4ebc06f36e056e207b026fbc5027da7d4fffbf6a7870d20f4ff35d608"
 class = "runtime-gate"
 capability = "rr-analysis-effects"
 paths = ["replay/replay-internal.h", "replay/replay.c", "replay/meson.build", "replay/replay-events.c", "replay/stubs-system.c"]
@@ -1304,12 +1304,12 @@ vanilla_verified = false
 [[patch]]
 id = "0093"
 file = "engine/patches/11.1.2/0093-replay-log-analysis-guest-writes-at-their-instructio.patch"
-sha256 = "46526a92e882ce9d36c90372858c6eec0acc7c4e70873cbe6c63964bdab75016"
+sha256 = "9b7f5d4a61d63a3dd1f476768fe08228e426dc51019f2155e44466fcfdbcac3d"
 class = "runtime-gate"
 capability = "rr-analysis-effects"
 paths = ["meson.build", "replay/replay-internal.h", "replay/replay.c", "replay/stubs-system.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c", "target/loongarch/tcg/insn_trans/trans_extra.c.inc", "target/mips/tcg/translate.c", "target/ppc/translate/fixedpoint-impl.c.inc", "target/riscv/tcg/translate.c"]
-functions = ["EVENT_GUEST_WRITE", "replay_event_name", "trans_PENGUIN", "gen_cond_move", "do_xori", "gen_logic_imm_fn", "trans_cpucfg", "replay_guest_write_begin"]
-hunk_contexts = ["EVENT_RANDOM", "REPLAY_VERSION", "gen_helper_penguin_guest_hypercall"]
+functions = ["EVENT_GUEST_WRITE", "replay_event_name", "trans_HYPERCALL", "gen_cond_move", "do_xori", "gen_logic_imm_fn", "trans_cpucfg", "replay_guest_write_begin"]
+hunk_contexts = ["EVENT_RANDOM", "REPLAY_VERSION", "gen_helper_guest_hypercall"]
 gate_status = "rr-guest-write-event-not-vanilla-verified"
 current_gate = "Hypercall instructions start I/O unconditionally (their translation blocks end after them under icount, in every mode); the guest-write event is written and read only in RECORD/PLAY. Outer replay version is bumped globally."
 required_action = "Gate translator_io_start on the guest-hypercall capability's RR use, or show it is inert without icount; validate record/replay of answered hypercalls on each target."
@@ -1318,7 +1318,7 @@ vanilla_verified = false
 [[patch]]
 id = "0094"
 file = "engine/patches/11.1.2/0094-tcg-taint-shadow-pass-hooks.patch"
-sha256 = "09fc214e942041ffa3b2eb15deae7e39fb804bbc72a193786723b523c7bbe114"
+sha256 = "fbe06afbd40a2b114f20a2c02e8ae53050fa2d5f9edb23f143b5f406e88003c9"
 class = "runtime-gate"
 capability = "taint"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/cputlb.c", "accel/tcg/meson.build", "accel/tcg/translator.c", "include/exec/translation-block.h", "include/hw/core/cpu.h", "system/physmem.c", "system/vl.c", "target/arm/helper.c", "target/arm/internals.h", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c", "target/arm/tcg/translate.c", "target/mips/tcg/ldst_helper.c", "target/mips/tcg/tcg-internal.h", "target/mips/tcg/translate.c", "target/riscv/tcg/op_helper.c", "tcg/tcg.c"]
@@ -1332,7 +1332,7 @@ vanilla_verified = false
 [[patch]]
 id = "0095"
 file = "engine/patches/11.1.2/0095-migration-savevm-reset-load_section_id-at-the-start-.patch"
-sha256 = "2db585c8de27aa8979a280595e267fef0d48c52ce1203331cfe86b0fc6f11df2"
+sha256 = "4231af46889ff728c20a37e36dd1c7f66451f0b6308b687a6406257dd7fd3683"
 class = "upstream-fix-needs-off-path"
 capability = "rr-snapshot"
 paths = ["migration/savevm.c"]
@@ -1453,8 +1453,8 @@ vanilla_verified = false
 id = "embedding-control"
 class = "runtime-gate"
 capability = "embedding"
-paths = ["engine/src/system/penguin.c"]
-functions = ["penguin_handle_guest_hypercall", "penguin_qemu_add_mmio_region", "penguin_write_guest_reg", "penguin_cpu_env", "penguin_sync_cpu_state", "penguin_handle_qmp", "penguin_invoke_reset_request_callback"]
+paths = ["engine/src/system/panda-embed.c"]
+functions = ["panda_handle_guest_hypercall", "panda_add_mmio_region", "panda_write_guest_reg", "panda_cpu_env", "panda_sync_cpu_state", "panda_handle_qmp", "panda_invoke_reset_request_callback"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "NULL callback/registration checks and RR mutation guards only; raw env handles and host QMP/MMIO/control APIs remain admitted."
 required_action = "Reject extension registration and control entrypoints before state mutation; preserve upstream unknown-QMP handling and do not add guest MMIO/PIO/hypercall behavior."
@@ -1464,8 +1464,8 @@ vanilla_verified = false
 id = "embedding-snapshots"
 class = "runtime-gate"
 capability = "snapshot-extensions"
-paths = ["engine/src/system/penguin.c"]
-functions = ["penguin_save_snapshot", "penguin_load_snapshot", "penguin_snapshot_bh"]
+paths = ["engine/src/system/panda-embed.c"]
+functions = ["panda_save_snapshot", "panda_load_snapshot", "panda_snapshot_bh"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "Snapshot API toggles ignore-blockers; load checks replay policy then stops VM; no explicit vanilla admission."
 required_action = "Vanilla must use upstream save/load blocker and runstate policy; reject extension wrappers or route to exact upstream semantics before stopping the VM."
@@ -1651,7 +1651,7 @@ vanilla_verified = false
 id = "overlay-headers-and-build"
 class = "build-only"
 capability = "overlay-build-and-abi"
-paths = ["engine/src/accel/tcg/hooks-internal.h", "engine/src/include/accel/tcg/hooks.h", "engine/src/include/hw/core/configurable-cpu.h", "engine/src/include/hw/core/panda-modules.h", "engine/src/include/panda/callbacks/cb-defs.h", "engine/src/include/panda/callbacks/cb-helper-defs.h", "engine/src/include/panda/callbacks/cb-helper-impl.h", "engine/src/include/panda/callbacks/cb-macros.h", "engine/src/include/panda/callbacks/cb-support.h", "engine/src/include/panda/callbacks/cb-trampolines.h", "engine/src/include/panda/cheaders.h", "engine/src/include/panda/checkpoint.h", "engine/src/include/panda/common.h", "engine/src/include/panda/debug.h", "engine/src/include/panda/helper_runtime.h", "engine/src/include/panda/hooks.h", "engine/src/include/panda/network.h", "engine/src/include/panda/panda_api.h", "engine/src/include/panda/panda_qemu_plugin_helpers.h", "engine/src/include/panda/plugin.h", "engine/src/include/panda/plugin_plugin.h", "engine/src/include/panda/types.h", "engine/src/include/panda/wrap_ops.h", "engine/src/include/qemu/panda-module-info.h", "engine/src/include/qemu/panda-module.h", "engine/src/include/qemu/plugin-hw.h", "engine/src/include/system/penguin-osi.h", "engine/src/include/system/penguin.h", "engine/src/include/system/syscall-trap.h", "engine/src/panda/meson.build", "engine/src/panda/src/meson.build", "engine/src/scripts/panda-abi.py", "engine/src/scripts/panda-sdk.sh"]
+paths = ["engine/src/accel/tcg/hooks-internal.h", "engine/src/include/accel/tcg/hooks.h", "engine/src/include/hw/core/configurable-cpu.h", "engine/src/include/hw/core/panda-modules.h", "engine/src/include/panda/callbacks/cb-defs.h", "engine/src/include/panda/callbacks/cb-helper-defs.h", "engine/src/include/panda/callbacks/cb-helper-impl.h", "engine/src/include/panda/callbacks/cb-macros.h", "engine/src/include/panda/callbacks/cb-support.h", "engine/src/include/panda/callbacks/cb-trampolines.h", "engine/src/include/panda/cheaders.h", "engine/src/include/panda/checkpoint.h", "engine/src/include/panda/common.h", "engine/src/include/panda/debug.h", "engine/src/include/panda/helper_runtime.h", "engine/src/include/panda/hooks.h", "engine/src/include/panda/network.h", "engine/src/include/panda/panda_api.h", "engine/src/include/panda/panda_qemu_plugin_helpers.h", "engine/src/include/panda/plugin.h", "engine/src/include/panda/plugin_plugin.h", "engine/src/include/panda/types.h", "engine/src/include/panda/wrap_ops.h", "engine/src/include/qemu/panda-module-info.h", "engine/src/include/qemu/panda-module.h", "engine/src/include/qemu/plugin-hw.h", "engine/src/include/system/penguin-osi.h", "engine/src/include/system/panda-embed.h", "engine/src/include/system/syscall-trap.h", "engine/src/panda/meson.build", "engine/src/panda/src/meson.build", "engine/src/scripts/panda-abi.py", "engine/src/scripts/panda-sdk.sh"]
 functions = ["CONFIG_PANDA hook stubs/declarations", "callback ABI and generated helper macros", "Meson overlay source/link selection", "public API inline/accessor contracts"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "Headers/build inputs grouped for coverage only; inline dispatch, ABI/layout, CONFIG_PANDA and linker effects are not exempt from strict upstream vanilla behavior."

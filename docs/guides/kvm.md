@@ -25,8 +25,8 @@ under KVM:
 What works under KVM:
 
 - the guest, at native speed;
-- guest hypercalls and port I/O reaching the engine's own hypercall handlers (penguin's, for tools
-  built on the engine; not PANDA's `guest_hypercall`), QEMU snapshots (`savevm`, `loadvm`) and
+- guest hypercalls and port I/O reaching the engine's own hypercall handlers (the embedding
+  API's, for tools built on the engine; not PANDA's `guest_hypercall`), QEMU snapshots (`savevm`, `loadvm`) and
   the monitor (`run_monitor_cmd`);
 - for tools built on the engine: hardware breakpoints (`qemu_plugin_hw_breakpoint_insert`,
   `qemu_plugin_register_vcpu_bp_cb`) and plugin memory accesses that page in what the guest
@@ -38,7 +38,7 @@ What needs TCG:
   `after_machine_init` and `after_loadvm`. On a `Panda(accel="kvm")` their decorators,
   `hook`, `hypercall` and `hypersyscall` raise `NotImplementedError`. PANDA's
   `guest_hypercall` (which `@panda.hypercall` goes through) is among them: under KVM the
-  engine hands a hypercall only to penguin's consumers;
+  engine hands a hypercall only to the embedding API's consumers;
 - [record and replay](record-replay.md): `record` and `run_replay` raise `NotImplementedError`;
 - [fast restore](snapshots.md#fast-restore): `panda_fast_snap` and `panda_fast_restore` return -1
   under KVM.

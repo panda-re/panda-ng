@@ -33,11 +33,11 @@ assert "parse_analysis_capabilities(optarg, &requested, errp)" in vl
 assert "'analysis-policy.c'" in (TREE / "system/meson.build").read_text()
 assert 'DEF("analysis-capabilities", HAS_ARG' in (TREE / "qemu-options.hx").read_text()
 
-arm64 = function((TREE / "target/arm/tcg/translate-a64.c").read_text(), "trans_PENGUIN")
+arm64 = function((TREE / "target/arm/tcg/translate-a64.c").read_text(), "trans_HYPERCALL")
 arm32 = function((TREE / "target/arm/tcg/translate.c").read_text(), "trans_MCR")
 for body in (arm64, arm32):
     assert body.index("analysis_guest_hypercall_enabled()") < body.index("translator_io_start") \
-        < body.index("gen_helper_penguin_guest_hypercall")
+        < body.index("gen_helper_guest_hypercall")
 assert "return false; /* preserve upstream UNDEF decoding */" in arm64
 assert arm32.index("analysis_guest_hypercall_enabled") < arm32.index("valid_cp") < arm32.index("do_coproc_insn")
 for path, token in [
@@ -49,7 +49,7 @@ for path, token in [
     source = (TREE / path).read_text()
     assert re.search(r'if \(analysis_guest_hypercall_enabled\(\) &&\s*' + re.escape(token), source), path
     # Under icount the hypercall ends its TB, so the handler can read the instruction count.
-    assert re.search(r'translator_io_start\(&ctx->base\);\s*gen_helper_penguin_guest_hypercall', source), path
+    assert re.search(r'translator_io_start\(&ctx->base\);\s*gen_helper_guest_hypercall', source), path
 pc = (TREE / "hw/i386/pc.c").read_text()
 port = re.search(r'    if \(analysis_policy_has\(ANALYSIS_CAP_GUEST_HYPERCALL\)\) \{\n.*?\n    \}', pc, re.S).group()
 assert port.count("g_new(MemoryRegion, 1)") == 1
@@ -88,14 +88,14 @@ void error_setg(Error **errp, const char *fmt, ...) {
 }
 static int translated, fallback, loaded, initialized;
 typedef struct DisasContext { int base; } DisasContext;
-typedef struct arg_PENGUIN { int unused; } arg_PENGUIN;
+typedef struct arg_HYPERCALL { int unused; } arg_HYPERCALL;
 typedef struct arg_MCR { int cp, opc1, rt, crn, crm, opc2; } arg_MCR;
 typedef int TCGv_i64;
 typedef int TCGv_i32;
 static int tcg_env;
 #define cpu_reg(...) 0
 #define translator_io_start(...) ((void)0)
-#define gen_helper_penguin_guest_hypercall(...) (++translated)
+#define gen_helper_guest_hypercall(...) (++translated)
 #define tcg_temp_new_i64() 0
 #define tcg_temp_new_i32() 0
 #define tcg_gen_extu_i32_i64(...) ((void)0)
@@ -148,8 +148,8 @@ int main(int argc, char **argv) {
     assert(analysis_policy_is_frozen() && loaded == 1 && initialized == 1 && !error_fatal);
     assert(analysis_policy_analysis_active() == analysis);
     assert(!analysis_policy_configure(requested, &error)); g_clear_pointer(&error, g_free);
-    DisasContext ctx = {0}; arg_PENGUIN a64 = {0}; arg_MCR a32 = {.cp=7};
-    assert(trans_PENGUIN(&ctx, &a64) == hypercall);
+    DisasContext ctx = {0}; arg_HYPERCALL a64 = {0}; arg_MCR a32 = {.cp=7};
+    assert(trans_HYPERCALL(&ctx, &a64) == hypercall);
     assert(trans_MCR(&ctx, &a32) == hypercall);
     assert(translated == (hypercall ? 2 : 0));
     assert(fallback == (hypercall ? 0 : 1));

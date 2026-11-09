@@ -1,12 +1,12 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: igloo <nix@local>
 Date: Wed, 19 Aug 2026 23:02:41 -0400
-Subject: [PATCH] penguin: snapshot ABI and a migratable vhost-user-vsock
+Subject: [PATCH] system: snapshot ABI and a migratable vhost-user-vsock
 
-Exposes savevm/loadvm to Penguin, and makes vhost-user-vsock migratable so a
-snapshot taken with the guest command channel open can be restored. Without
-this, vsock is a migration blocker and no rehost with a live channel can be
-snapshotted.
+Exposes savevm/loadvm to an embedding host, and makes vhost-user-vsock
+migratable so a snapshot taken with the guest command channel open can be
+restored. Without this, vsock is a migration blocker and no rehost with a
+live channel can be snapshotted.
 
 Folds: 61b39d3eba, 3795e4c1ed
 
@@ -219,7 +219,7 @@ index 9e4dcaaa7510e1aa6738c8c06b74bb60d6b9db1a..0629dc90be4f93c26641eaf530a5865e
 +
  #endif
 diff --git a/migration/savevm.c b/migration/savevm.c
-index 34dd06f9f732dee7d3c6d0458da8bb67f23d76b4..d3b7ecfd05b0fb6b5d3692154fe952e24816471d 100644
+index 34dd06f9f732dee7d3c6d0458da8bb67f23d76b4..bb28cdbff9d5bbe55ab6a9dda16fff6552b69edf 100644
 --- a/migration/savevm.c
 +++ b/migration/savevm.c
 @@ -3257,6 +3257,21 @@ bool qemu_loadvm_load_state_buffer(const char *idstr, uint32_t instance_id,
@@ -227,7 +227,7 @@ index 34dd06f9f732dee7d3c6d0458da8bb67f23d76b4..d3b7ecfd05b0fb6b5d3692154fe952e2
  }
  
 +/*
-+ * Penguin: when set, save/load_snapshot skip the live-migration *blocker list*
++ * When set, save/load_snapshot skip the live-migration *blocker list*
 + * (e.g. the vhost-user "lacks VHOST_USER_PROTOCOL_F_LOG_SHMFD" blocker, which
 + * guards dirty-page logging) while still honouring qemu_savevm_state_blocked()
 + * for genuinely unmigratable devices. A snapshot stops the VM, so dirty-page

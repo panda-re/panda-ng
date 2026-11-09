@@ -8,14 +8,14 @@ and registers, and callbacks. The [Python API reference](../reference/python.md)
 
 `Panda()` explicitly provisions `analysis` and `guest-hypercall` for compatibility;
 `rr=True` also provisions `rr`. `capabilities=` accepts a sequence or comma-separated
-selection of `analysis`, `fuzz`, `rr`, `guest-hypercall`, `handoff` and `penguin`.
+selection of `analysis`, `fuzz`, `rr`, `guest-hypercall`, `handoff` and `taint`.
 Fuzz/RR imply analysis, and any selection but vanilla implies `handoff`: the KVM/TCG
 snapshot adaptations are only in a snapshot saved with them, so leaving them to the caller
 made snapshots that a later load refused. Explicit `capabilities="vanilla"` or
 `capabilities=[]` selects zero capabilities. Accelerator choice remains separate; there is
 no live KVM/TCG toggle.
-QEMU started without `Panda()` and without `-analysis-capabilities` (Penguin through
-`qemu_compat`, for example) gets `analysis`, `guest-hypercall` and `penguin`, the behavior
+QEMU started without `Panda()` and without `-analysis-capabilities` (an embedding host, for
+example) gets `analysis` and `guest-hypercall`, the behavior
 before capabilities existed, plus `rr` when the command line is recordable
 (`-accel tcg,rr-ready=on`) or `-icount` has `rr=record` or `rr=replay`. An
 explicit `-analysis-capabilities` without `rr` next to those is an error rather than a

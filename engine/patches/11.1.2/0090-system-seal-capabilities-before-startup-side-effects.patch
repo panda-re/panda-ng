@@ -56,7 +56,7 @@ index 2fcf0149921f0de71ffdf5a35e1fb5ba997ba78a..a2d920866baf03d1fa04fe94aac9d4fe
      port; it does not yet provide complete upstream vanilla behavior parity.
  ERST
 diff --git a/system/vl.c b/system/vl.c
-index 88a24c5c0886885df81f4e01faf4b2b5a09a667e..49abf5010da4277443a4d89d586bd15c4cf6ae53 100644
+index 0c34f32545fafc731d5600c7f45a4f599d0b31af..a86f3b2a1680c7a5300ec2eba26a6e54a03bf193 100644
 --- a/system/vl.c
 +++ b/system/vl.c
 @@ -2786,7 +2786,8 @@ static void qemu_init_displays(void)

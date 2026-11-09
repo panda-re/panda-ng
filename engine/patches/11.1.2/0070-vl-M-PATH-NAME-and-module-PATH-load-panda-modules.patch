@@ -67,7 +67,7 @@ index 34970fffc94b4d79b6c2cbfc12efab9ad88855f2..6d6fc98da4dea3fce29ca1557a78342b
  DEF("qtest", HAS_ARG, QEMU_OPTION_qtest, "", QEMU_ARCH_ALL)
  DEF("qtest-log", HAS_ARG, QEMU_OPTION_qtest_log, "", QEMU_ARCH_ALL)
 diff --git a/system/vl.c b/system/vl.c
-index 67ad72c90a092697f0a593d2bb7816dbabe00c22..5fa6050ba4ed9060a6d329f4ebc778b8f5d762c8 100644
+index bbf25321b468e28742786d27d9a02199daf350bd..78eedcb88837374d0d7ec181a6bc618b4d4f2ab7 100644
 --- a/system/vl.c
 +++ b/system/vl.c
 @@ -63,6 +63,7 @@

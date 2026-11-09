@@ -100,7 +100,7 @@ index c901016b8c18f1b625e3e504296207bc83d377b9..719611cd579cce94f8d085213ba357e2
 +
  #endif /* PLUGIN_H */
 diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
-index 3fcd927a0e9d021167b9984a1700c4393bd8d8ab..57ef95b083d28cbc91b9a522e2b65a7f53839362 100644
+index 503b3a216892b61193fe93b76b7f6680b2e52063..27aa884e7494aca84ae37bae66d54d71bbd9babc 100644
 --- a/target/i386/kvm/kvm.c
 +++ b/target/i386/kvm/kvm.c
 @@ -3456,13 +3456,12 @@ static int xen_init(MachineState *ms, KVMState *s)

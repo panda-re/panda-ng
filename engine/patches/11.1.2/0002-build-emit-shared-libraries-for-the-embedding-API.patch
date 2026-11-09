@@ -1,0 +1,60 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: igloo <nix@local>
+Date: Wed, 19 Aug 2026 23:02:41 -0400
+Subject: [PATCH] build: emit shared libraries for the embedding API
+
+A host can drive the engine as a library (through CFFI, say), not as a
+subprocess, so each softmmu target is also linked as a shared object.
+
+Emits libqemu-system-<target>.so for every TCG softmmu target, and
+qemu-kvm-<target>.so for the KVM targets. Requires b_staticpic=true, since
+the default static-PIC-free build cannot be relinked into a shared object.
+
+Folds: 67bfb34d25, 797f446cf8 (partial)
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: penguin
+---
+ meson.build | 23 ++++++++++++++++++++++-
+ 1 file changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/meson.build b/meson.build
+index 40e3f4ec44c8d36c44ec505bc4f54cbe5724ea73..6dc02bdf2eb4bccfc2345593841c07e629701915 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1,6 +1,6 @@
+ project('qemu', ['c'], meson_version: '>=1.5.0',
+         default_options: ['warning_level=1', 'c_std=gnu11', 'cpp_std=gnu++23', 'b_colorout=auto',
+-                          'b_staticpic=false', 'stdsplit=false', 'optimization=2', 'b_pie=true'] +
++                          'b_staticpic=true', 'stdsplit=false', 'optimization=2', 'b_pie=true'] +
+ 
+                           # build.rust_std breaks with older meson, but Rust does not
+                           # support old meson anyway
+@@ -4456,6 +4456,27 @@ foreach target : target_dirs
+                link_args: link_args,
+                win_subsystem: exe['win_subsystem'])
+ 
++    if target.endswith('-softmmu') and 'CONFIG_TCG' in config_target
++      shared_library('libqemu-system-' + target_name, exe['sources'],
++                 install: true,
++                 name_prefix: '',
++                 c_args: c_args,
++                 dependencies: arch_deps + exe['dependencies'],
++                 objects: lib.extract_all_objects(recursive: true),
++                 link_depends: [block_syms, qemu_syms],
++                 link_args: link_args)
++    endif
++
++    if target.endswith('-softmmu') and 'CONFIG_KVM' in config_target and target_name in ['x86_64', 'aarch64']
++      shared_library('qemu-kvm-' + target_name, exe['sources'],
++                 install: true,
++                 c_args: c_args,
++                 dependencies: arch_deps + exe['dependencies'],
++                 objects: lib.extract_all_objects(recursive: true),
++                 link_depends: [block_syms, qemu_syms],
++                 link_args: link_args)
++    endif
++
+     if host_os == 'darwin'
+       icon = 'pc-bios/qemu.rsrc'
+       build_input = [emulator, files(icon)]

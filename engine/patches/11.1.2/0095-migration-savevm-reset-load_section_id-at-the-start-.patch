@@ -29,7 +29,7 @@ Origin: new
  1 file changed, 10 insertions(+)
 
 diff --git a/migration/savevm.c b/migration/savevm.c
-index a3608ae6c1a999ce929705f20671196d8debbbc5..f028f88005758c13fbe6e805878b43c5060cd358 100644
+index fb4285ae8b60283c273e63269368d188b7a6ea56..4583c2ae8982753c29932604a12b30871f1a248b 100644
 --- a/migration/savevm.c
 +++ b/migration/savevm.c
 @@ -3092,6 +3092,7 @@ int qemu_loadvm_state(QEMUFile *f, Error **errp)

@@ -30,7 +30,7 @@ Origin: new
  10 files changed, 118 insertions(+), 40 deletions(-)
 
 diff --git a/hw/i386/pc.c b/hw/i386/pc.c
-index 982545cc1a65c5da9116a1798245253168ef55e9..0f4307cd7133d03847f2d10d50ed3f958bc73115 100644
+index ca08f3986162b492a0899544f5ba6fe35fefadbb..77489ec81c7f0c0ee8d3557709839c533b8491ee 100644
 --- a/hw/i386/pc.c
 +++ b/hw/i386/pc.c
 @@ -1931,5 +1931,7 @@ static const VMStateDescription kvmclock_sink_vmsd = {
@@ -152,7 +152,7 @@ index bbd9faa9be506b6b25f96abfb4c5b23c304eb560..cfe480e3f4203a666f559c96c1645395
      replay_state.begin_start = false;
      return ok;
 diff --git a/replay/replay.c b/replay/replay.c
-index 707baeef1578afbaa4d63bea4037fbdbb522dc2a..fc5cc2f34471f8a490b1d971d58ef5aa0f0d0878 100644
+index 0e6b665d5603d09b0d06e445efafc14d49fa70b8..dea01242c890422bee2491e64c21d9dee30d2b94 100644
 --- a/replay/replay.c
 +++ b/replay/replay.c
 @@ -10,6 +10,7 @@
@@ -490,7 +490,7 @@ index 63941f9c28a58ad9fbf32a312b5b020ebef55f8e..302e8d2bd541e112a15afc0d6d6d913f
               * A KVM source leaves TCG's timer QEMUTimers unarmed, and its
               * GIC state says nothing about the timer lines (KVM drives them
 diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
-index 57ef95b083d28cbc91b9a522e2b65a7f53839362..ae2f65ef66ee72ad7b4e045c3bde0a9f1d1dd64d 100644
+index 27aa884e7494aca84ae37bae66d54d71bbd9babc..70c17c609e86ba2907cef4b24c061af6f067866f 100644
 --- a/target/i386/kvm/kvm.c
 +++ b/target/i386/kvm/kvm.c
 @@ -13,6 +13,7 @@

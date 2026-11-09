@@ -38,7 +38,7 @@ index 401c7e445bd50bdd5191a625e2879508db07df0a..d79ffa92db906726d9d5572663df0da8
  
  #endif
 diff --git a/hw/i386/pc.c b/hw/i386/pc.c
-index b6f29fccfa957e64d5b0cbfd8c6457d55caabec6..8f95fa7a85fd5097f954aed280c7e6d76103231e 100644
+index f36a64b80894d116ecfafdb515fbe03ef15e852a..f2f8784ccec43bae69574008dc7db7f85478a87d 100644
 --- a/hw/i386/pc.c
 +++ b/hw/i386/pc.c
 @@ -47,6 +47,8 @@
@@ -132,7 +132,7 @@ index 6c1e4eff5f1d2c49bacd1db716b591dd00be2487..d5a06e5d38dcab35fa05e889e8b95bc3
  
      /* create pci host bus */
 diff --git a/target/i386/kvm/kvm.c b/target/i386/kvm/kvm.c
-index 3a05a04d32a7075afc4e7bcf4cdf1512be8cecc8..3fcd927a0e9d021167b9984a1700c4393bd8d8ab 100644
+index 00adeee4097b63985d288a59cd09e7786424a5c0..503b3a216892b61193fe93b76b7f6680b2e52063 100644
 --- a/target/i386/kvm/kvm.c
 +++ b/target/i386/kvm/kvm.c
 @@ -3913,6 +3913,14 @@ static int kvm_put_sregs(X86CPU *cpu)

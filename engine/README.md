@@ -17,7 +17,7 @@ engine/
                         hash the series must produce)
   patches/<version>/    the series (one .patch per topic) and its `series` file (quilt order)
   src/                  the overlay: files we authored (panda/, include/panda/, accel/tcg/hooks.c,
-                        system/penguin*.c, contrib/plugins/panda_plugin_interface.c, ...), copied
+                        system/panda-embed.c, contrib/plugins/panda_plugin_interface.c, ...), copied
                         over the patched tree, never patched
   nix/source.nix        tarball + series + src/ -> the patched tree (`nix build .#engine-src`)
   scripts/              verify-series.sh (THE gate), import-series.sh, export-series.sh,
