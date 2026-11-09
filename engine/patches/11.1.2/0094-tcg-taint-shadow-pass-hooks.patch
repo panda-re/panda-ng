@@ -241,7 +241,7 @@ index 42c627f4ce64c28e7389397fab49c790cf403338..9da843de64efa15c3e899aeb83feac29
  #define CF_CLUSTER_SHIFT 24
  
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index f96b4b4d9f3a712dd153817aaa957d3d739aa6ee..af772d026b62c9fe738ad7e7666ad73b498391f8 100644
+index ec5faf76dd43796719880685978e42b7ac8647df..500f5e9c3050e67a78bb6c2179b3bb992f40fb45 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
 @@ -565,6 +565,8 @@ struct CPUState {
@@ -301,10 +301,10 @@ index 49abf5010da4277443a4d89d586bd15c4cf6ae53..a8eccc40080942e3d98179a48991ac2b
              error_setg(errp, "unknown analysis capability '%s'", *name);
              return false;
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index 2ad10fa08fff2657d9975ed637395ee9839b350b..54d823ac2d87a3cdc39bc5431b0ffeeb2b036795 100644
+index 89945f57b57a2bf8b5881d774758113369a3c038..064126f69fa0d7eb9545a4a810bc467a6e63387a 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
-@@ -8486,23 +8486,25 @@ static void switch_mode(CPUARMState *env, int mode)
+@@ -8476,23 +8476,25 @@ static void switch_mode(CPUARMState *env, int mode)
      }
  
      if (old_mode == ARM_CPU_MODE_FIQ) {

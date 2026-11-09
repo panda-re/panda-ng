@@ -100,12 +100,6 @@ void syscall_trap_unwatch_all(void);
 void syscall_trap_stats(uint64_t *pending, uint64_t *full, uint64_t *stale);
 uint64_t syscall_trap_faults(void);    /* faults raised for consumers */
 
-/*
- * The task is gone: drop its calls, pending or held (those whose
- * SyscallTrap.task is @task, not 0).  Returns how many.
- */
-unsigned syscall_trap_forget_task(uint64_t task);
-
 /* Stopped-vCPU restore/reset boundary: abandon pending/held analysis, without
  * restoring old registers. Drops run outside sc_lock. Watches and the consumer
  * remain installed; a return whose entry predates the snapshot is not rebuilt. */

@@ -224,7 +224,7 @@ index b8c22306f509f9c7aa5764aa0a06723663fa3f18..896669731d17e7e5826dd5c6eeab4e15
      bool mp_is_up;
  
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index d92764eba159de91a78fe00ae37d00b4b7a9dc30..ef7b823e393a00af1c749ec27ff514fdbb5e0de7 100644
+index 1bb9b087c888ffac388ba5be4637e7d21a5f256b..051e1936bca34d302c75b275b859ed9d48527221 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -1499,6 +1499,14 @@ uint64_t gt_direct_access_timer_offset(CPUARMState *env, int timeridx)

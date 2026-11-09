@@ -591,31 +591,6 @@ uint64_t syscall_trap_faults(void)
     return qatomic_read(&sc_faults);
 }
 
-unsigned syscall_trap_forget_task(uint64_t task)
-{
-    unsigned n = 0;
-
-    if (!task || !syscall_trap_waiting()) {
-        return 0;
-    }
-    qemu_mutex_lock(&sc_lock);
-    for (unsigned i = 0; i < SC_SLOTS;) {
-        SCSlot *s = &sc_slots[i];
-
-        if (s->pc && s->sc.task == task) {
-            sc_forget(s);
-            sc_drop_later(&s->sc);
-            sc_delete(s);       /* may move a later call into slot i */
-            qatomic_dec(&syscall_trap_pending);
-            n++;
-        } else {
-            i++;
-        }
-    }
-    sc_unlock();
-    return n;
-}
-
 unsigned syscall_trap_cancel_all(void)
 {
     CPUState *cpu;
@@ -634,7 +609,6 @@ unsigned syscall_trap_cancel_all(void)
     qatomic_set(&syscall_trap_pending, 0);
     qatomic_set(&sc_held, 0);
     CPU_FOREACH(cpu) {
-        cpu->syscall_current = 0;
         cpu->syscall_kmmu = 0;
         cpu->syscall_inject_abis = 0;
     }

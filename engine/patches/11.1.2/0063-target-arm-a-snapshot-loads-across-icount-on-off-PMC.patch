@@ -18,7 +18,7 @@ Origin: new
  1 file changed, 16 insertions(+), 1 deletion(-)
 
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index 1c592e13769d94290852a4399b7a936f996c1993..25b850f17c1470ee05a012697e2049dfce2997a6 100644
+index 9d2ec96f6ffe1fdcfc7db66f5c580bbe6195149b..73285ca2fbe943bd6441541b3e96f32b2691822b 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -201,6 +201,20 @@ bool write_cpustate_to_list(ARMCPU *cpu, bool kvm_sync)

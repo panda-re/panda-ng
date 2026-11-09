@@ -56,7 +56,6 @@ typedef GMutex QemuMutex;
 #define qemu_mutex_lock g_mutex_lock
 #define qemu_mutex_unlock g_mutex_unlock
 typedef struct CPUState {
-    uint64_t syscall_current;
     uint32_t syscall_kmmu;
     uint32_t syscall_inject_abis;
 } CPUState;
@@ -177,7 +176,7 @@ static void on_abort(CPUState *cpu, int *ev, struct consumer_cmd *cmd, void *opa
     assert(!sc_fault_addr && !sc_fault_write);
     assert(!syscall_trap_pending && !sc_held);
     for (unsigned i = 0; i < 2; i++) {
-        assert(!cpus[i].syscall_current && !cpus[i].syscall_kmmu && !cpus[i].syscall_inject_abis);
+        assert(!cpus[i].syscall_kmmu && !cpus[i].syscall_inject_abis);
     }
     g_mutex_unlock(&sc_lock);
     aborted++;
@@ -242,7 +241,6 @@ int main(void)
     SyscallTrap empty = {0};
     sc_add(99, 2, 0x2000, 4, &empty, SC_PENDING);
     assert(syscall_trap_pending == 6 && sc_held == 4);
-    cpus[0].syscall_current = cpus[1].syscall_current = 42;
     cpus[0].syscall_kmmu = cpus[1].syscall_kmmu = 7;
     cpus[0].syscall_inject_abis = cpus[1].syscall_inject_abis = 3;
     sc_fault_addr = 123;
@@ -272,8 +270,7 @@ int main(void)
         memcpy(watches, sc_watch, sizeof(watches));
         memcpy(all, sc_watch_all, sizeof(all));
         CPUState cpu_before[2];
-        cpus[0].syscall_current = cpus[1].syscall_current = 42;
-        cpus[0].syscall_kmmu = cpus[1].syscall_kmmu = 7;
+            cpus[0].syscall_kmmu = cpus[1].syscall_kmmu = 7;
         cpus[0].syscall_inject_abis = cpus[1].syscall_inject_abis = 3;
         memcpy(cpu_before, cpus, sizeof(cpus));
         sc_fault_addr = 123;
