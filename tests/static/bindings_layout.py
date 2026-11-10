@@ -13,6 +13,8 @@ import re
 import sys
 from pathlib import Path
 
+PANDA_TEST = None   # a module of guest_layout.py, not a test
+
 ROOT = Path(__file__).resolve().parents[2]
 AUTOGEN = ROOT / 'rust/panda-bindings/src/autogen'
 

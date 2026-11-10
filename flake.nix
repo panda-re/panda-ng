@@ -1217,6 +1217,12 @@
             python3 ${./.}/tests/static/vanilla_inventory.py
             touch $out
           '';
+          # The checks that run test scripts are the ones the scripts' PANDA_TEST metadata names
+          # (tests/static/flake_checks.py; tests/README.md, "Running tests").
+          flake-checks = pkgs.runCommand "flake-checks-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            python3 ${./.}/tests/static/flake_checks.py ${./.}/flake.nix
+            touch $out
+          '';
           events-registry = pkgs.runCommandCC "events-registry-check" {
             nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
             buildInputs = [ pkgs.glib ];

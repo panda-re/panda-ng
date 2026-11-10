@@ -46,6 +46,10 @@ import tempfile
 import threading
 import time
 
+PANDA_TEST = dict(area="testmachine", tier="guest", fixture="testmachine",
+                  arches=["x86_64", "aarch64", "armel"],
+                  variants=dict(smp=[1, 4], intel=[False, True]), timeout=600)
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "programs"))
 sys.path.insert(0, HERE)

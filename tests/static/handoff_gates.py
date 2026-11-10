@@ -9,6 +9,9 @@ import subprocess
 import sys
 import tempfile
 
+PANDA_TEST = dict(area="rr", tier="static", needs=["cc"], args=["{engine_src}"],
+                  nix_check="handoff-gates")
+
 TREE = Path(sys.argv[1]).resolve()
 ROOT = Path(__file__).resolve().parents[2]
 

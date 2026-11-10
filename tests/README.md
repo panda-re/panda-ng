@@ -1,7 +1,8 @@
 # Tests
 
 Each test is a script run with pandare2's Python; its docstring says what it checks and how to
-run it. Build that Python once:
+run it. `tests/run` runs them by area, tier and arch from the metadata each declares (below,
+"Running tests"). Build that Python once:
 
 ```sh
 nix build .#python -o result-python      # python3 with pandare2: the engine, the plugins
@@ -26,6 +27,7 @@ export PANDA_PYTHON=$PWD/result-python/bin/python3
 | guest suite | `guest api osi_isf blocks block_activation callbacks calls mem mmio late reset teardown asidstory tbpc hookalias rr rrcb rrstop rrload fuzz fastrestore fastcov syscalls taint taint_mmio taint_errors` | an image (below); `run.sh` runs them |
 | every arch | `busybox.sh [arch...]` | nix and network: builds `mkbusybox.py` images (a linux_builder kernel, a busybox initramfs, an ext2 disk) for 12 arches and runs `taint taint_mmio taint_errors` on them through `run.sh`, about 3 minutes. CI runs it on PRs that touch taint or record/replay, and nightly |
 | more guest tests | `kpti physmem rr_blocks fastrestore_guards fastrestore_hotplug fastrestore_vsock` | an image; not in `run.sh`'s default list (x86_64-only, or need extra host tools: see each docstring) |
+| test machines | `testmachine.py <busybox json> [--smp N] [--intel]` | a `mkbusybox.py` image (x86_64, aarch64, armel): builds and checks its test machine (below) |
 | reset/restore lifecycle | `lifecycle.py <image>` | real public owner reset-hook ordering, ordinary/fast restore notifications, rejection, unregister/re-register and hardware reset; `RRCB_HANDOFF=1` only for fixtures with handoff snapshot extensions; pending/held/injected slot and safe teardown cases are host-only in `static/lifecycle.py` |
 | replay safety | `replay_guard.py <image> [workdir]` | record/replay observer and mutation refusal; `RRCB_HANDOFF=1` explicitly admits fixtures saved with handoff snapshot extensions |
 | recorded RAM effects | `replay_effect.py <x86_64 image> [workdir]` | deferred overlapping RAM writes, then two fresh producer-free replays |
@@ -56,7 +58,125 @@ boot under TCG plus symbol extraction: on a 2026 x86_64 server, all five in para
 each for debian-13, 11 min for ubuntu x86_64 and 21 min for ubuntu aarch64, downloads included.
 `debian-13-ppc64` is also a recipe; the suite isn't run on it yet.
 
-## Running the suite
+## Test machines
+
+`testmachine.py` turns a `mkbusybox.py` image into a machine for tests that run guest programs:
+the image's kernel and machine arguments with an initramfs of the image's busybox and the guest
+agent (`programs/agent.c`) as `/init`, snapshotted at the agent's first poll (one boot, 3-6 s) and
+cached next to the image (`machines/`, or `$TESTMACHINE_CACHE`). A test copies the snapshot,
+reverts to it (0.3-0.6 s) and moves files and commands through the agent's hypercalls and guest
+memory (`Agent.put`, `run`, `get`): no boot and no serial console. The agent mounts `/dev`,
+`/proc`, `/sys`, tracefs and `/tmp`.
+
+Machines exist for x86_64, aarch64 and arm (busybox-armel). An arch needs:
+
+1. **An image**: `mkbusybox.py <arch>` (all 12 of its arches have one).
+2. **The system layer** in `programs/sys.h`, under the compiler's arch macro: `NR_<name>` for the
+   calls the agent makes, `sc(n, a, b, c, d, e, f)` (a system call returning `-errno` on error),
+   `hc(op, a, b, c)` (penguin's hypercall instruction with the magic in the number register and in
+   argument 0, op, a, b and c in arguments 1-4, the host's answer in the return register; the
+   instructions the engine decodes are in engine patches 0003-0008), `hc_setup()`,
+   `clone_fn(flags, stack, ctid, fn)`, `SIGRETURN_ASM` and `_start`.
+3. **The build**: the arch in `programs/build.sh`'s list for `agent` (its nixpkgs `pkgsCross`
+   name and flags), then `sh tests/programs/build.sh agent`.
+4. **The machine**: its pandare2 arch in `testmachine.AGENT_ARCH`.
+
+## Running tests
+
+`tests/run` collects one item per test, arch and variant from each test file's `PANDA_TEST`
+metadata, selects them and runs each in its own process, through pytest (`tests/pandatest/`):
+
+```sh
+tests/run --tier static                     # the static tier, in parallel
+tests/run smoke --arch x86_64
+tests/run taint --arch x86_64,aarch64       # the taint tests on busybox guests
+tests/run testmachine --build-fixtures      # builds the missing machines first
+tests/run --list --explain taint            # what would run, why, the commands, what is skipped
+```
+
+Terms are areas (`taint`), test names (`smoke`, `static/refs`) or item id globs
+(`'testmachine[x86_64,*smp=4*]'`); none selects everything. `--tier` and `--arch` take
+comma-separated lists; `--arch` matches mkbusybox names (`armel`) and pandare2 names (`arm`).
+Other options go to pytest (`-x`, `-k`).
+
+**The engine** is a `tools/dev/dev.sh` build: `--build <dir>` (default `<repo>/.dev`, or
+`$PANDA_DEV_DIR`). `PANDA_PYTHON`, `PANDA_LIB`, `PANDA_PLUGIN_DIR`, `PANDA_ENGINE_SRC` (the patched
+QEMU tree) and `PANDA_ENGINE_PREFIX` (its installed headers) override it, e.g. for a
+`nix build .#python` result. pytest runs from `$PANDATEST_PYTHON`, else `$PANDA_PYTHON` or the
+build's Python if it has pytest, else `python3` on `PATH`; the tests themselves run with the
+engine's Python. An item whose engine, plugin, host tool or fixture is missing is skipped, with
+the reason.
+
+**Running.** Static and harness items run at once (`--jobs`, default 8). Guest items run one at
+a time, each after a resource guard: at least 45 GB free on `/home` (`PANDATEST_MIN_FREE_GB`),
+8 GB `MemAvailable` (`PANDATEST_MIN_MEM_GB`), no build holding the build directory's lock or
+`$PANDATEST_BUILD_LOCK`, and no `ninja` or `meson` process; if the guard fails, the item is
+skipped with the reason, never passed. Every item runs pinned with `taskset -c` to `--cpus`
+(default `$PANDATEST_CPUS`, or `64-79` on a host with at least 80 CPUs) and under `timeout`. Each
+gets a work directory and a private `TMPDIR`; busybox and cloud images are copied into it, as
+`run.sh` does.
+
+**Results** go to `--out` (default `$TMPDIR/panda-tests-<time>`): `junit.xml`, `results.json`
+(per item: its id, outcome, reason, duration, log, the fixture's name and identity, the item's
+hash, and the engine build's git revision and whether its tree had uncommitted changes),
+`logs/<item>.log`, and the work directories of the items that failed (`--keep`: all of them).
+
+**Expected failures** (`xfail`) run, and report XFAIL while they fail; an entry that passes
+reports XPASS, which fails the run, so stale entries come out.
+
+### Metadata
+
+A test file declares a literal dict (read with `ast`: collecting imports nothing):
+
+```python
+PANDA_TEST = dict(
+    area="syscalls",                    # what it covers: selected by name
+    tier="guest",                       # static | harness | guest | stress | bench
+    arches=["x86_64", "aarch64"],       # one item per arch (none: one item)
+    fixture="testmachine",              # none | busybox | testmachine[-smpN] | cloud-<distro>
+    plugins=["syscalls"],               # checked in the plugin directory ("test:<name>": built by the test)
+    variants=dict(smp=[1, 4], intel=[False, True]),   # one item per combination
+    xfail=[dict(when=dict(arch="aarch64", smp=4), reason="...", issue="#NN")],
+    always=False,                       # run on every change
+    args=["{fixture}"],                 # the argv after the script (this is the default with a fixture)
+    env={"SCTRACE_OBSERVER": "syscalls"},
+    needs=["cc", "glib"],               # cc, c++, glib, pandare2, all-targets, py:<module>, a program
+    timeout=1800,                       # seconds (default: 1800 guest, 900 static and harness)
+    nix_check="layout",                 # the flake check that runs this file
+)
+```
+
+`args` and `env` may name `{fixture}` (the image json the test takes), `{arch}`, `{panda_arch}`,
+`{work}` (the item's work directory), `{repo}`, `{engine_src}`, `{engine_prefix}` and
+`{plugin_dir}`. A shell script puts the dict in a comment (`# PANDA_TEST = dict(...`), and a
+module that is not a test says `PANDA_TEST = None`. Files without metadata are listed as "no
+metadata: not run by tests/run".
+
+The variants are `smp` (`--smp N`, and the machine `testmachine-<arch>-smpN`), `intel` (x86_64
+only: `--intel`, `testmachine-<arch>-intel`), `form` (`SCOBSERVE_LEAN`: `call`, `lean`, `entry`)
+and `backend` (`PANDA_SYSCALLS_BACKEND`); `pandatest/meta.py` defines them. A variant given as
+`dict(values=[...], arches=[...])` takes values other than its first only on those arches.
+An item's id is its test, arch and variants: `testmachine[x86_64,intel=1,smp=4]`.
+
+`static/flake_checks.py` (the flake check `flake-checks`) checks that every flake check that runs
+a test script is the `nix_check` that script's metadata names, and the other way round.
+
+### Fixtures
+
+| name | what | where |
+|---|---|---|
+| `busybox-<arch>` | a `mkbusybox.py` image | `$PANDATEST_BUSYBOX`, else `<cache>/busybox/<recipe>/busybox-<arch>.json` |
+| `testmachine-<arch>[-smpN][-intel]` | a test machine on `busybox-<arch>` | `$TESTMACHINE_CACHE`, else `<cache>/machines` |
+| `cloud-<distro>-<arch>` | a `pandare2.mkimage` image | `$PANDATEST_IMAGES`, else `<cache>/images/<distro>-<arch>.json` |
+
+`<cache>` is `$PANDATEST_CACHE`, else `~/.cache/panda-tests`. A missing fixture skips its items
+unless `--build-fixtures` is given; then it is built before the first guest item that needs it
+(a busybox image needs `tests/busybox.sh`'s downloads, in `$PANDA_BUSYBOX_DL` or
+`~/.cache/panda-busybox`). Each fixture has an identity: for an image, a hash of its json and the
+size and modification time of the files it names; for a machine, its directory's name, whose key
+hashes everything it is built from.
+
+## Running the suite with run.sh
 
 ```sh
 tests/run.sh ~/panda-images                      # every image in the directory, the default tests

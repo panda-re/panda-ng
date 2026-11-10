@@ -21,6 +21,10 @@ import tempfile
 
 from pandare2 import Panda
 
+PANDA_TEST = dict(area="taint", tier="guest", fixture="busybox", args=["{fixture}", "{work}"],
+                  arches=["x86_64", "aarch64", "armel", "mipsel", "mipseb", "mips64el", "mips64eb",
+                          "powerpc", "powerpc64", "powerpc64le", "riscv64", "loongarch64"])
+
 CMD = "echo taint-errors"
 
 

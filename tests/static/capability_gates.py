@@ -12,6 +12,9 @@ import subprocess
 import sys
 import tempfile
 
+PANDA_TEST = dict(area="capabilities", tier="static", needs=["cc", "glib"], args=["{engine_src}"],
+                  nix_check="capability-gates")
+
 ROOT = Path(__file__).resolve().parents[2]
 TREE = Path(sys.argv[1]).resolve() if len(sys.argv) == 2 else None
 if TREE is None:

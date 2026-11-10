@@ -15,6 +15,10 @@ import sys
 import tempfile
 import unittest
 
+PANDA_TEST = dict(area="rr", tier="static", needs=["cc"],
+                  args=["{engine_src}/replay/replay-events.c"],
+                  nix_check="replay-bh")
+
 
 SOURCE = Path(sys.argv.pop(1) if len(sys.argv) > 1 and not sys.argv[1].startswith('-')
               else os.environ.get('PANDA_REPLAY_EVENTS', 'replay/replay-events.c')).resolve()

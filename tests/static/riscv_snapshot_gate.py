@@ -11,6 +11,9 @@ import subprocess
 import sys
 import tempfile
 
+PANDA_TEST = dict(area="capabilities", tier="static", needs=["cc", "glib"], args=["{engine_src}"],
+                  nix_check="riscv-snapshot-gate")
+
 TREE = Path(sys.argv[1]).resolve()
 
 

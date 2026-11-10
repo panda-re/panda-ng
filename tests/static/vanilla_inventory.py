@@ -3,6 +3,8 @@ import hashlib
 from pathlib import Path
 import tomllib
 
+PANDA_TEST = dict(area="engine", tier="static", nix_check="vanilla-inventory")
+
 ROOT = Path(__file__).resolve().parents[2]
 inventory = tomllib.loads((ROOT / 'docs/vanilla-gates.toml').read_text())
 series = [line.strip() for line in (ROOT / inventory['patch_series']).read_text().splitlines()

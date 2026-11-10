@@ -11,6 +11,8 @@ import threading
 from types import SimpleNamespace
 import unittest
 
+PANDA_TEST = dict(area="rr", tier="static", nix_check="replay-policy")
+
 
 ROOT = Path(__file__).resolve().parents[2]
 tree = ast.parse((ROOT / 'python/core/pandare2/panda.py').read_text())

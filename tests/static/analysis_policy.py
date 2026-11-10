@@ -9,6 +9,8 @@ import os
 import subprocess
 import tempfile
 
+PANDA_TEST = dict(area="capabilities", tier="static", needs=["cc"], nix_check="analysis-policy")
+
 ROOT = Path(__file__).resolve().parents[2]
 
 with tempfile.TemporaryDirectory(prefix="analysis-policy-") as temp:

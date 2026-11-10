@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""Run panda-ng's tests by area, name, tier and arch (tests/README.md, "Running tests").
+
+  tests/run syscalls --arch x86_64,aarch64 --tier guest
+  tests/run --tier static                 # every static test, in parallel
+  tests/run smoke --arch x86_64
+  tests/run --list --explain taint        # what would run, why, and what is skipped
+  tests/run syscall_truth --build-fixtures
+
+Terms are areas, test names (syscall_truth, static/refs) or item id globs
+('syscall_truth[x86_64,*smp=4*]'); none means everything. Other options are passed to pytest.
+pytest comes from $PANDATEST_PYTHON, else $PANDA_PYTHON or the build's Python if it has pytest,
+else python3 on PATH.
+"""
+import argparse
+import os
+import subprocess
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def has_pytest(py):
+    return py and subprocess.run([py, "-c", "import pytest"], capture_output=True).returncode == 0
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="tests/run", description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("terms", nargs="*")
+    ap.add_argument("--arch", default="")
+    ap.add_argument("--tier", default="")
+    ap.add_argument("--list", action="store_true")
+    ap.add_argument("--explain", action="store_true")
+    ap.add_argument("--build-fixtures", action="store_true")
+    ap.add_argument("--cpus")
+    ap.add_argument("--jobs", "-j", type=int)
+    ap.add_argument("--out")
+    ap.add_argument("--build", help="a tools/dev/dev.sh build directory (default <repo>/.dev)")
+    ap.add_argument("--keep", action="store_true")
+    opt, rest = ap.parse_known_args()
+
+    build_py = os.path.join(opt.build or os.environ.get("PANDA_DEV_DIR") or
+                            os.path.join(HERE, "..", ".dev"), "bin", "python3")
+    for py in (os.environ.get("PANDATEST_PYTHON"), os.environ.get("PANDA_PYTHON"), build_py, "python3"):
+        if has_pytest(py):
+            break
+    else:
+        sys.exit("tests/run: no Python with pytest: set PANDATEST_PYTHON (the flake's dev shell has it)")
+
+    out = opt.out or os.path.join(os.environ.get("TMPDIR", "/tmp"),
+                                  time.strftime("panda-tests-%Y%m%d-%H%M%S"))
+    args = [py, "-m", "pytest", "-c", os.path.join(HERE, "pytest.ini"), "--rootdir", HERE, HERE]
+    args += [f"--panda-select={t}" for t in opt.terms]
+    for name in ("arch", "tier", "cpus", "jobs", "build"):
+        if getattr(opt, name) not in (None, ""):
+            args.append(f"--{name}={getattr(opt, name)}")
+    for name in ("list", "explain", "build_fixtures", "keep"):
+        if getattr(opt, name):
+            args.append("--" + name.replace("_", "-"))
+    if opt.list or opt.explain:
+        args += ["-q", "--no-header", "-p", "no:junitxml"]
+    else:
+        args += [f"--out={out}", f"--junitxml={out}/junit.xml", "-v", "-rfEX"]
+    os.execvp(py, args + rest)
+
+
+if __name__ == "__main__":
+    main()

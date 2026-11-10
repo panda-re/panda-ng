@@ -12,6 +12,8 @@ import subprocess
 import tempfile
 import unittest
 
+PANDA_TEST = dict(area="rr", tier="static", needs=["cc"], nix_check="replay-native")
+
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / 'engine/src'
