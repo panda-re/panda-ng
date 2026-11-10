@@ -2,7 +2,8 @@
 identities and the commands that build them.
 
     none                                no fixture
-    busybox-<arch>                      a tests/mkbusybox.py image (json, qcow2, initrd)
+    busybox-<arch>                      a tests/mkbusybox.py image (json, qcow2, initrd): the file
+                                        is busybox-<mkbusybox's name for the arch>.json
     testmachine-<arch>[-smpN][-intel]   a tests/testmachine.py snapshot at the agent, on busybox-<arch>
     cloud-<distro>-<arch>               a pandare2.mkimage image
 
@@ -20,6 +21,8 @@ import os
 import re
 import subprocess
 import sys
+
+from .meta import BUSYBOX_ARCH, canonical
 
 TESTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(TESTS)
@@ -115,18 +118,19 @@ def busybox(arch, engine):
                   *re.findall(r"^(?:LB_VERSION|BUSYBOX_REV|PPC32_\w+)=.*$",
                               open(os.path.join(TESTS, "busybox.sh")).read(), re.M))
     d = os.environ.get("PANDATEST_BUSYBOX") or os.path.join(cache_root(), "busybox", recipe)
-    path = os.path.join(d, f"busybox-{arch}.json")
+    bb = BUSYBOX_ARCH.get(arch, arch)
+    path = os.path.join(d, f"busybox-{bb}.json")
     name = f"busybox-{arch}"
     if os.path.isfile(path):
         return Fixture(name, "busybox", arch, path, identity=_content_id(path), copy=True)
     dl = os.environ.get("PANDA_BUSYBOX_DL") or os.path.expanduser("~/.cache/panda-busybox")
     builds = []
-    if os.path.isdir(os.path.join(dl, "kernels")) and os.path.isdir(os.path.join(dl, "busybox", arch)):
-        builds = [[engine.python, os.path.join(TESTS, "mkbusybox.py"), arch, "-o", d,
+    if os.path.isdir(os.path.join(dl, "kernels")) and os.path.isdir(os.path.join(dl, "busybox", bb)):
+        builds = [[engine.python, os.path.join(TESTS, "mkbusybox.py"), bb, "-o", d,
                    "--kernels", os.path.join(dl, "kernels"), "--busybox", os.path.join(dl, "busybox")]]
         how = "--build-fixtures builds it"
     else:
-        how = f"no downloads in {dl} to build it from: run tests/busybox.sh {arch} once, or set PANDA_BUSYBOX_DL"
+        how = f"no downloads in {dl} to build it from: run tests/busybox.sh {bb} once, or set PANDA_BUSYBOX_DL"
     return Fixture(name, "busybox", arch, path, False, f"{name}: no {path}; {how}", recipe,
                    copy=True, builds=builds)
 
@@ -180,10 +184,10 @@ def resolve(name, engine):
         return Fixture("none", "none")
     m = re.fullmatch(r"testmachine-([a-z0-9_]+?)(?:-smp(\d+))?(-intel)?", name)
     if m:
-        return testmachine(name, m[1], int(m[2] or 1), bool(m[3]), engine)
+        return testmachine(name, canonical(m[1]), int(m[2] or 1), bool(m[3]), engine)
     m = re.fullmatch(r"busybox-([a-z0-9_]+)", name)
     if m:
-        return busybox(m[1], engine)
+        return busybox(canonical(m[1]), engine)
     m = re.fullmatch(r"cloud-(.+)-([a-z0-9_]+)", name)
     if m:
         return cloud(name, m[1], m[2], engine)

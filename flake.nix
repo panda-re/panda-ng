@@ -780,6 +780,8 @@
                 ps.pyyaml
                 ps.tree-sitter
                 ps.tree-sitter-grammars.tree-sitter-c
+                # tests/run
+                ps.pytest
               ]))
             ]
             ++ engineTools.nativeBuildInputs

@@ -7,9 +7,9 @@ resource guard. Every item runs pinned to --cpus with taskset.
 """
 import concurrent.futures
 import fcntl
-import fnmatch
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -29,7 +29,12 @@ def pytest_addoption(parser):
     g = parser.getgroup("panda", "panda-ng tests (tests/run)")
     g.addoption("--panda-select", action="append", default=[], metavar="TERM",
                 help="an area, test name or item id glob (repeatable; default: everything)")
-    g.addoption("--arch", default="", help="comma-separated arches (mkbusybox or pandare2 names)")
+    g.addoption("--arch", default="", help="comma-separated arches (engine target names, or mkbusybox's)")
+    g.addoption("--variants", choices=("all", "default"), default="all",
+                help="every combination of the variants (default), or each at its default value")
+    g.addoption("--no-wait", action="store_true",
+                help="skip a guest item at once when the resource guard fails (default: wait up to "
+                     "$PANDATEST_GUARD_WAIT seconds, 1800, re-checking)")
     g.addoption("--tier", default="", help=f"comma-separated tiers: {', '.join(meta.TIERS)}")
     g.addoption("--list", action="store_true", help="list the selected items and stop")
     g.addoption("--explain", action="store_true", help="with each item, why it is selected or skipped")
@@ -88,7 +93,7 @@ class PandaFile(pytest.File):
             return
         if m is None:
             return
-        for arch, params in meta.expand(m):
+        for arch, params in meta.expand(m, self.config.option.variants == "default"):
             yield PandaItem.from_parent(self, name=meta.item_name(stem, arch, params), rel=rel,
                                         m=m, arch=arch, params=params)
 
@@ -100,7 +105,7 @@ class PandaItem(pytest.Item):
         self.id = os.path.dirname(rel) + "/" + self.name if os.path.dirname(rel) else self.name
         self.tier = m["tier"] if m else None
         self.area = m["area"] if m else None
-        self.panda_arch = meta.PANDA_ARCH.get(arch, arch) if arch else None
+        self.panda_arch = meta.panda_arch(arch)
         self.fixture = None
         self.skip_reason = None
         self.why = "everything"
@@ -203,7 +208,7 @@ class PandaItem(pytest.Item):
         if self.future:
             self.result = self.future.result()
         else:
-            reason = guard(st)
+            reason = wait_for_guard(st, self)
             if reason:
                 pytest.skip(f"resource guard: {reason}")
             if not self.fixture.ready:
@@ -295,6 +300,22 @@ def guard(st):
     return None
 
 
+def wait_for_guard(st, item):
+    """None once the guard passes; its reason if it still fails at the deadline (--no-wait: now)."""
+    reason = guard(st)
+    if not reason or st.config.option.no_wait:
+        return reason
+    wait = float(os.environ.get("PANDATEST_GUARD_WAIT", 1800))
+    deadline = time.monotonic() + wait
+    sys.__stderr__.write(f"\npandatest: {item.id}: {reason}; waiting up to {wait:.0f}s\n")
+    while time.monotonic() < deadline:
+        time.sleep(min(30, max(1, deadline - time.monotonic())))
+        reason = guard(st)
+        if not reason:
+            return None
+    return f"{reason} (still, after waiting {wait:.0f}s)"
+
+
 def build_fixture(st, item):
     fx = item.fixture
     os.makedirs(os.path.join(st.out, "fixtures"), exist_ok=True)
@@ -314,6 +335,12 @@ def build_fixture(st, item):
         raise PandaFailure(f"fixture {fx.name} still missing after its build: {item.fixture.reason}")
 
 
+def glob(pattern, s):
+    """* and ? as in a shell; brackets are literal (item ids have them)."""
+    rx = re.escape(pattern).replace(r"\*", ".*").replace(r"\?", ".")
+    return re.fullmatch(rx, s) is not None
+
+
 def selected(item, terms, arches, tiers):
     """Why the item is selected, or None."""
     if item.error:
@@ -328,7 +355,7 @@ def selected(item, terms, arches, tiers):
     for t in terms:
         if t == item.area:
             return f"area {t}"
-        if t in (stem, item.rel) or fnmatch.fnmatch(item.id, t) or fnmatch.fnmatch(stem, t):
+        if t in (stem, item.rel, item.id) or glob(t, item.id) or glob(t, stem):
             return f"name {t}"
     return None
 
@@ -336,9 +363,10 @@ def selected(item, terms, arches, tiers):
 def pytest_collection_modifyitems(session, config, items):
     st, o = config._panda, config.option
     split = lambda s: [x for x in s.split(",") if x]  # noqa: E731
+    arches = [meta.canonical(a) for a in split(o.arch)]
     keep, drop = [], []
     for it in items:
-        why = selected(it, o.panda_select, split(o.arch), split(o.tier)) if isinstance(it, PandaItem) else None
+        why = selected(it, o.panda_select, arches, split(o.tier)) if isinstance(it, PandaItem) else None
         (keep if why else drop).append(it)
         if why:
             it.why = why

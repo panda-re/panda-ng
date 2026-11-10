@@ -47,7 +47,7 @@ import threading
 import time
 
 PANDA_TEST = dict(area="testmachine", tier="guest", fixture="testmachine",
-                  arches=["x86_64", "aarch64", "armel"],
+                  arches=["x86_64", "aarch64", "arm"],
                   variants=dict(smp=[1, 4], intel=[False, True]), timeout=600)
 
 HERE = os.path.dirname(os.path.abspath(__file__))

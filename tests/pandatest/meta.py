@@ -4,10 +4,10 @@ imported), and its expansion into items, one per (test, arch, variant).
     PANDA_TEST = dict(
         area="syscalls",              # what the test covers: syscalls, rr, taint, ...
         tier="guest",                 # static | harness | guest | stress | bench
-        arches=["x86_64", "aarch64"], # mkbusybox arch names for busybox/testmachine fixtures
+        arches=["x86_64", "aarch64"], # engine target names (ARCH_ALIASES: mkbusybox's names)
         fixture="testmachine",        # none | busybox | testmachine[-smpN][-intel] | cloud-<distro>
         plugins=["syscalls"],         # PANDA plugins it loads (checked in the plugin dir)
-        variants=dict(smp=[1, 4], intel=dict(values=[False, True], arches=["x86_64"])),
+        variants=dict(smp=[1, 4], backend=dict(values=["trap", "arch"], default="arch")),
         xfail=[dict(when=dict(backend="arch"), reason="...", issue="#NN")],
         always=False,                 # selected on every change (used by selection)
         args=["{fixture}"],           # argv after the script (default: the fixture, if any)
@@ -31,26 +31,39 @@ TIERS = ("static", "harness", "guest", "stress", "bench")
 FIELDS = {"area", "tier", "arches", "fixture", "plugins", "variants", "xfail", "always", "args",
           "env", "needs", "timeout", "nix_check"}
 
-# Variant dimensions and how each value reaches the test: argv, environment, fixture name.
-# A dimension with "arches" only takes values other than its first on those arches.
+# Variant dimensions: how each value reaches the test (argv, environment, fixture name), the
+# value `--variants default` runs, and, with "arches", the only arches the dimension applies to.
+# A test's metadata may give a dimension as dict(values=[...], default=..., arches=[...]).
 VARIANTS = {
     "smp": dict(args=lambda v: [] if v == 1 else ["--smp", str(v)],
-                fixture=lambda v: "" if v == 1 else f"-smp{v}"),
+                fixture=lambda v: "" if v == 1 else f"-smp{v}", default=1),
     "intel": dict(args=lambda v: ["--intel"] if v else [], fixture=lambda v: "-intel" if v else "",
-                  arches=["x86_64"]),
+                  arches=["x86_64"], default=False),
     # The syscalls plugin's callback form in tests/plugins/scobserve.
-    "form": dict(env=lambda v: {"SCOBSERVE_LEAN": {"call": "0", "lean": "1", "entry": "entry"}[v]}),
-    # The syscalls plugin's event source (transitional, while both exist).
-    "backend": dict(env=lambda v: {"PANDA_SYSCALLS_BACKEND": v}),
+    "form": dict(env=lambda v: {"SCOBSERVE_LEAN": {"call": "0", "lean": "1", "entry": "entry"}[v]},
+                 default="call"),
+    # The syscalls plugin's event source (transitional, while both exist): its default is trap.
+    "backend": dict(env=lambda v: {"PANDA_SYSCALLS_BACKEND": v}, default="trap"),
 }
 
 # The engine's targets (flake.nix defaultTargets)
 TARGETS = ["x86_64", "i386", "arm", "aarch64", "mips", "mipsel", "mips64", "mips64el", "ppc", "ppc64",
            "loongarch64", "riscv32", "riscv64"]
 
-# mkbusybox arch -> pandare2 arch (the libpanda-<arch>-softmmu.so target)
-PANDA_ARCH = {"armel": "arm", "mipseb": "mips", "mips64eb": "mips64", "powerpc": "ppc",
-              "powerpc64": "ppc64", "powerpc64le": "ppc64"}
+# Arch names are the engine's targets; mkbusybox's names are aliases. ppc64le is the one name that
+# is not a target: a little-endian guest on the ppc64 engine.
+ARCH_ALIASES = {"armel": "arm", "mipseb": "mips", "mips64eb": "mips64", "powerpc": "ppc",
+                "powerpc64": "ppc64", "powerpc64le": "ppc64le"}
+BUSYBOX_ARCH = {v: k for k, v in ARCH_ALIASES.items()}      # arch -> mkbusybox name
+
+
+def canonical(arch):
+    return ARCH_ALIASES.get(arch, arch)
+
+
+def panda_arch(arch):
+    """The engine target (libpanda-<target>-softmmu.so) an arch runs on."""
+    return {"ppc64le": "ppc64"}.get(arch, arch) if arch else None
 
 
 class MetaError(Exception):
@@ -111,23 +124,30 @@ def validate(meta):
     for x in meta.get("xfail", []):
         if not x.get("reason") or not isinstance(x.get("when", {}), dict):
             raise MetaError("an xfail entry needs a reason and a when dict")
+    for a in meta.get("arches", []):
+        if a in ARCH_ALIASES:
+            raise MetaError(f"arch {a!r}: write {ARCH_ALIASES[a]!r} (the engine target's name)")
 
 
-def _values(name, spec, arch):
-    values, only = (spec["values"], spec.get("arches")) if isinstance(spec, dict) else (spec, None)
-    only = only or VARIANTS[name].get("arches")
+def _values(name, spec, arch, defaults):
+    spec = spec if isinstance(spec, dict) else dict(values=spec)
+    values, only = list(spec["values"]), spec.get("arches") or VARIANTS[name].get("arches")
     if only and arch not in only:
         return None                     # not applicable on this arch
-    return list(values)
+    if defaults:
+        d = spec.get("default", VARIANTS[name]["default"])
+        return [d] if d in values else values[:1]
+    return values
 
 
-def expand(meta):
-    """[(arch, {variant: value})] for the metadata, in a stable order."""
+def expand(meta, defaults=False):
+    """[(arch, {variant: value})] for the metadata, in a stable order; with defaults, each
+    variant at its default value only."""
     out = []
     for arch in meta.get("arches") or [None]:
         dims = []
         for name, spec in sorted(meta.get("variants", {}).items()):
-            vals = _values(name, spec, arch)
+            vals = _values(name, spec, arch, defaults)
             if vals is not None:
                 dims.append([(name, v) for v in vals])
         for combo in itertools.product(*dims):

@@ -6,6 +6,7 @@
   tests/run smoke --arch x86_64
   tests/run --list --explain taint        # what would run, why, and what is skipped
   tests/run syscall_truth --build-fixtures
+  tests/run syscalls --variants default   # each variant at its default value only
 
 Terms are areas, test names (syscall_truth, static/refs) or item id globs
 ('syscall_truth[x86_64,*smp=4*]'); none means everything. Other options are passed to pytest.
@@ -34,6 +35,9 @@ def main():
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--explain", action="store_true")
     ap.add_argument("--build-fixtures", action="store_true")
+    ap.add_argument("--variants", choices=("all", "default"),
+                    help="every combination of the variants (the default), or each at its default")
+    ap.add_argument("--no-wait", action="store_true", help="skip guest items at once when the guard fails")
     ap.add_argument("--cpus")
     ap.add_argument("--jobs", "-j", type=int)
     ap.add_argument("--out")
@@ -53,10 +57,10 @@ def main():
                                   time.strftime("panda-tests-%Y%m%d-%H%M%S"))
     args = [py, "-m", "pytest", "-c", os.path.join(HERE, "pytest.ini"), "--rootdir", HERE, HERE]
     args += [f"--panda-select={t}" for t in opt.terms]
-    for name in ("arch", "tier", "cpus", "jobs", "build"):
+    for name in ("arch", "tier", "cpus", "jobs", "build", "variants"):
         if getattr(opt, name) not in (None, ""):
             args.append(f"--{name}={getattr(opt, name)}")
-    for name in ("list", "explain", "build_fixtures", "keep"):
+    for name in ("list", "explain", "build_fixtures", "keep", "no_wait"):
         if getattr(opt, name):
             args.append("--" + name.replace("_", "-"))
     if opt.list or opt.explain:

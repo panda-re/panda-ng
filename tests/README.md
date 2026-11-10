@@ -95,23 +95,39 @@ tests/run --list --explain taint            # what would run, why, the commands,
 ```
 
 Terms are areas (`taint`), test names (`smoke`, `static/refs`) or item id globs
-(`'testmachine[x86_64,*smp=4*]'`); none selects everything. `--tier` and `--arch` take
-comma-separated lists; `--arch` matches mkbusybox names (`armel`) and pandare2 names (`arm`).
-Other options go to pytest (`-x`, `-k`).
+(`'testmachine[x86_64,*smp=4*]'`: `*` and `?` match, brackets are literal); none selects
+everything. `--tier` and `--arch` take comma-separated lists. `--variants default` runs each
+variant at its default value only; `--variants all` (the default) runs every combination. Other
+options go to pytest (`-x`, `-k`).
+
+Arches are named by the engine target they run on (`libpanda-<target>-softmmu.so`), in item ids,
+metadata and `--arch`; `--arch` also takes `mkbusybox.py`'s names:
+
+| arch | mkbusybox | | arch | mkbusybox |
+|---|---|---|---|---|
+| `x86_64` | `x86_64` | | `ppc` | `powerpc` |
+| `aarch64` | `aarch64` | | `ppc64` | `powerpc64` |
+| `arm` | `armel` | | `ppc64le` | `powerpc64le` (on the `ppc64` target) |
+| `mips` | `mipseb` | | `riscv64` | `riscv64` |
+| `mipsel` | `mipsel` | | `loongarch64` | `loongarch64` |
+| `mips64` | `mips64eb` | | `i386`, `riscv32` | none |
+| `mips64el` | `mips64el` | | | |
 
 **The engine** is a `tools/dev/dev.sh` build: `--build <dir>` (default `<repo>/.dev`, or
 `$PANDA_DEV_DIR`). `PANDA_PYTHON`, `PANDA_LIB`, `PANDA_PLUGIN_DIR`, `PANDA_ENGINE_SRC` (the patched
 QEMU tree) and `PANDA_ENGINE_PREFIX` (its installed headers) override it, e.g. for a
 `nix build .#python` result. pytest runs from `$PANDATEST_PYTHON`, else `$PANDA_PYTHON` or the
-build's Python if it has pytest, else `python3` on `PATH`; the tests themselves run with the
+build's Python if it has pytest (the dev shell's Python, and so `.dev/bin/python3`, has it), else
+`python3` on `PATH`; the tests themselves run with the
 engine's Python. An item whose engine, plugin, host tool or fixture is missing is skipped, with
 the reason.
 
 **Running.** Static and harness items run at once (`--jobs`, default 8). Guest items run one at
 a time, each after a resource guard: at least 45 GB free on `/home` (`PANDATEST_MIN_FREE_GB`),
 8 GB `MemAvailable` (`PANDATEST_MIN_MEM_GB`), no build holding the build directory's lock or
-`$PANDATEST_BUILD_LOCK`, and no `ninja` or `meson` process; if the guard fails, the item is
-skipped with the reason, never passed. Every item runs pinned with `taskset -c` to `--cpus`
+`$PANDATEST_BUILD_LOCK`, and no `ninja` or `meson` process. While the guard fails, the item waits,
+re-checking every 30 s, for up to `$PANDATEST_GUARD_WAIT` seconds (default 1800); if it still
+fails, the item is skipped with the reason, never passed (`--no-wait`: skipped at once). Every item runs pinned with `taskset -c` to `--cpus`
 (default `$PANDATEST_CPUS`, or `64-79` on a host with at least 80 CPUs) and under `timeout`. Each
 gets a work directory and a private `TMPDIR`; busybox and cloud images are copied into it, as
 `run.sh` does.
@@ -135,7 +151,7 @@ PANDA_TEST = dict(
     arches=["x86_64", "aarch64"],       # one item per arch (none: one item)
     fixture="testmachine",              # none | busybox | testmachine[-smpN] | cloud-<distro>
     plugins=["syscalls"],               # checked in the plugin directory ("test:<name>": built by the test)
-    variants=dict(smp=[1, 4], intel=[False, True]),   # one item per combination
+    variants=dict(smp=[1, 4], intel=[False, True]),   # one item per combination (--variants all)
     xfail=[dict(when=dict(arch="aarch64", smp=4), reason="...", issue="#NN")],
     always=False,                       # run on every change
     args=["{fixture}"],                 # the argv after the script (this is the default with a fixture)
@@ -154,8 +170,10 @@ metadata: not run by tests/run".
 
 The variants are `smp` (`--smp N`, and the machine `testmachine-<arch>-smpN`), `intel` (x86_64
 only: `--intel`, `testmachine-<arch>-intel`), `form` (`SCOBSERVE_LEAN`: `call`, `lean`, `entry`)
-and `backend` (`PANDA_SYSCALLS_BACKEND`); `pandatest/meta.py` defines them. A variant given as
-`dict(values=[...], arches=[...])` takes values other than its first only on those arches.
+and `backend` (`PANDA_SYSCALLS_BACKEND`); `pandatest/meta.py` defines them, each with its default
+value (`smp` 1, `intel` False, `form` `call`, `backend` `trap`, the syscalls plugin's own default).
+A test can give a variant as `dict(values=[...], default=..., arches=[...])`: its own default, and
+the only arches it applies to.
 An item's id is its test, arch and variants: `testmachine[x86_64,intel=1,smp=4]`.
 
 `static/flake_checks.py` (the flake check `flake-checks`) checks that every flake check that runs
@@ -165,7 +183,7 @@ a test script is the `nix_check` that script's metadata names, and the other way
 
 | name | what | where |
 |---|---|---|
-| `busybox-<arch>` | a `mkbusybox.py` image | `$PANDATEST_BUSYBOX`, else `<cache>/busybox/<recipe>/busybox-<arch>.json` |
+| `busybox-<arch>` | a `mkbusybox.py` image | `$PANDATEST_BUSYBOX`, else `<cache>/busybox/<recipe>/`: `busybox-<mkbusybox arch>.json` |
 | `testmachine-<arch>[-smpN][-intel]` | a test machine on `busybox-<arch>` | `$TESTMACHINE_CACHE`, else `<cache>/machines` |
 | `cloud-<distro>-<arch>` | a `pandare2.mkimage` image | `$PANDATEST_IMAGES`, else `<cache>/images/<distro>-<arch>.json` |
 
