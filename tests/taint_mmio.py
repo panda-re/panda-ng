@@ -27,6 +27,10 @@ import tempfile
 
 from pandare2 import Panda
 
+PANDA_TEST = dict(area="taint", tier="guest", fixture="busybox", args=["{fixture}", "{work}"],
+                  arches=["x86_64", "aarch64", "armel", "mipsel", "mipseb", "mips64el", "mips64eb",
+                          "powerpc", "powerpc64", "powerpc64le", "riscv64", "loongarch64"])
+
 WORD = "typed-q7"
 CMD = f"echo {WORD}; uname -m"
 UART = {"aarch64": 0x09000000, "riscv64": 0x10000000}   # MMIO base of the console UART

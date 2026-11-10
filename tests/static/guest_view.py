@@ -15,6 +15,8 @@ from pathlib import Path
 
 from cffi import FFI
 
+PANDA_TEST = dict(area="api", tier="static", needs=["pandare2"], nix_check="guest-view")
+
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('guest', ROOT / 'python/core/pandare2/guest.py')
 guest = importlib.util.module_from_spec(spec)

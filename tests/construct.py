@@ -39,6 +39,9 @@ import tempfile
 import threading
 import warnings
 
+PANDA_TEST = dict(area="api", tier="harness", needs=["pandare2", "all-targets"],
+                  nix_check="pandare2-construct")
+
 # Images like the ones pandare2.mkimage writes (tests/README.md), for three arches whose disks
 # are attached differently: x86_64 a bare qcow, aarch64 virtio-blk-pci under rr, riscv64 a virtio
 # drive and firmware named through {biospath}.

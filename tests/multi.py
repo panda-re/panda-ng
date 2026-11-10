@@ -28,6 +28,8 @@ import tempfile
 import threading
 import time
 
+PANDA_TEST = dict(area="api", tier="harness", needs=["pandare2"], nix_check="pandare2-multi")
+
 A, B = "x86_64", "aarch64"
 MACHINE = {"aarch64": ["-M", "virt", "-cpu", "max"]}
 PLUGINS = ["proc_start_linux", "hypersyscalls"]

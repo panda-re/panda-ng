@@ -31,6 +31,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+PANDA_TEST = dict(area="api", tier="static", needs=["pandare2"], nix_check="pandare2-refs")
+
 HERE = Path(__file__).resolve().parent
 ALLOW = HERE / "refs-allow.txt"
 FFI_CALLS = {"new", "cast", "callback", "typeof", "sizeof"}

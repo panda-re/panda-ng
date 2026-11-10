@@ -23,6 +23,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bindings_layout as bl  # noqa: E402
 
+PANDA_TEST = dict(area="api", tier="static", needs=["all-targets"],
+                  args=["{engine_prefix}/include/panda/guest-layout"], nix_check="guest-layout")
+
 
 def parse(text):
     """(types [(name, size)], host {i: [(offset, size)]}, follow {i: [...]}, fields)"""

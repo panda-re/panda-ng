@@ -22,6 +22,8 @@ import struct
 import sys
 from os import path
 
+PANDA_TEST = None   # the busybox-<arch> fixtures builder
+
 # arch: (pandare2 arch, kernel, console, machine args, word size)
 ARCHES = {
     "x86_64": ("x86_64", "bzImage.x86_64", "ttyS0", ["-M", "pc"], 64),

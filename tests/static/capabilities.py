@@ -3,6 +3,8 @@ import ast
 from pathlib import Path
 import unittest
 
+PANDA_TEST = dict(area="capabilities", tier="static", nix_check="capabilities")
+
 ROOT = Path(__file__).resolve().parents[2]
 tree = ast.parse((ROOT / 'python/core/pandare2/panda.py').read_text())
 selected = [node for node in tree.body

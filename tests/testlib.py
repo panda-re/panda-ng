@@ -10,6 +10,8 @@ import os
 import sys
 import time
 
+PANDA_TEST = None   # a module of the guest tests
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "programs"))
 

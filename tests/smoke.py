@@ -4,6 +4,11 @@ Run: panda-python tests/smoke.py <arch>
 """
 import sys
 from pandare2 import Panda
+
+PANDA_TEST = dict(area="engine", tier="harness", always=True, plugins=["cskeleton"], args=["{arch}"],
+                  timeout=300,
+                  arches=["x86_64", "i386", "arm", "aarch64", "mips", "mipsel", "mips64", "mips64el",
+                          "ppc", "ppc64", "loongarch64", "riscv32", "riscv64"])
 arch = sys.argv[1] if len(sys.argv) > 1 else "x86_64"
 bits = 64 if "64" in arch else 32
 machine = {"aarch64": ["-M", "virt", "-cpu", "max"], "arm": ["-M", "virt"],

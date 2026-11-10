@@ -11,6 +11,8 @@ import shlex
 import subprocess
 import tempfile
 
+PANDA_TEST = dict(area="lifecycle", tier="static", needs=["cc", "glib"], nix_check="lifecycle")
+
 ROOT = Path(__file__).resolve().parents[2]
 
 

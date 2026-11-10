@@ -25,6 +25,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+PANDA_TEST = dict(area="api", tier="static", needs=["pandare2", "all-targets", "cc", "glib"],
+                  args=["{engine_prefix}/include/panda-ng"], env={"PANDA_INCLUDE": "{repo}/include"},
+                  nix_check="layout")
+
 # panda-ng's include/ (c_sys_includes.h): the tree's, or PANDA_INCLUDE (the flake check passes it).
 REPO_INCLUDE = Path(os.environ.get("PANDA_INCLUDE") or Path(__file__).resolve().parents[2] / "include")
 

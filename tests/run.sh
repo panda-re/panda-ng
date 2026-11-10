@@ -16,6 +16,8 @@
 #
 # Output: $OUT/results (one "PASS|FAIL|TIMEOUT <secs>s <image> <test>" line per run), logs in
 # $OUT/<image>/<test>.log. Exits 1 if any run did not pass.
+#
+# PANDA_TEST = None   # a runner
 set -euo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

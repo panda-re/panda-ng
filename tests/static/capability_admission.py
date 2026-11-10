@@ -11,6 +11,9 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 
+PANDA_TEST = dict(area="capabilities", tier="static", needs=["cc"],
+                  nix_check="capability-admission")
+
 ROOT = Path(__file__).resolve().parents[2]
 PYTHON = ROOT / 'python/core/pandare2/panda.py'
 TREE = ast.parse(PYTHON.read_text())

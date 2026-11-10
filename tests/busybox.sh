@@ -13,6 +13,8 @@
 #   TESTS         default "taint taint_mmio taint_errors"
 #   OUT, JOBS     as for run.sh (JOBS default 4)
 # Arches: default all of mkbusybox's.
+#
+# PANDA_TEST = None   # a runner
 set -euo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

@@ -35,6 +35,8 @@ import tempfile
 import uuid
 from pathlib import Path
 
+PANDA_TEST = dict(area="events", tier="static", needs=["cc", "glib"], nix_check="events-registry")
+
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "engine/src"
 EVENTS_C = SRC / "panda/src/events.c"
