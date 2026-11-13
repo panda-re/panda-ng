@@ -149,7 +149,9 @@
               configurePhase = ''
                 runHook preConfigure
                 mkdir build && cd build
-                ../configure --prefix=$out \
+                # --libdir: without it meson picks lib64 or lib/<triplet> from the host when the build
+                # isn't sandboxed (an Ubuntu CI runner), and the install below expects $out/lib.
+                ../configure --prefix=$out --libdir=lib \
                   --target-list=${lib.concatStringsSep "," targets} \
                   --enable-plugins --enable-panda \
                   --disable-docs --disable-werror --disable-gtk --disable-sdl --disable-opengl \
