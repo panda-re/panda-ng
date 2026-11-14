@@ -19,10 +19,10 @@ Origin: new
  6 files changed, 79 insertions(+), 14 deletions(-)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
-index 8b1275950782c942df875cf9a5048775691e8f8c..543d5fb7961932ae9ede3ef2932a208bee31f2c8 100644
+index 18729efa3faae05ab0bbb8c8075f2ae71f40fbbd..71750d8e6fefe0ed3335c251df655dd364705c95 100644
 --- a/accel/tcg/cpu-exec.c
 +++ b/accel/tcg/cpu-exec.c
-@@ -495,14 +495,6 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
+@@ -531,14 +531,6 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
          }
      }
  
@@ -37,7 +37,7 @@ index 8b1275950782c942df875cf9a5048775691e8f8c..543d5fb7961932ae9ede3ef2932a208b
      /*
       * If gdb single-step, and we haven't raised another exception,
       * raise a debug exception.  Single-step with another exception
-@@ -583,10 +575,6 @@ static void cpu_exec_longjmp_cleanup(CPUState *cpu)
+@@ -619,10 +611,6 @@ static void cpu_exec_longjmp_cleanup(CPUState *cpu)
          bql_unlock();
      }
      assert_no_pages_locked();
@@ -48,7 +48,7 @@ index 8b1275950782c942df875cf9a5048775691e8f8c..543d5fb7961932ae9ede3ef2932a208b
  }
  
  void cpu_exec_step_atomic(CPUState *cpu)
-@@ -758,7 +746,7 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
+@@ -794,7 +782,7 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
          return true;
      }
      /* A PANDA plugin may rewrite the exception; re-dispatch the new one. */
