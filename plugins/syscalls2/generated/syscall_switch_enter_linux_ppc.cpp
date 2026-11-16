@@ -2,7 +2,9 @@
 
 #include "syscalls2.h"
 #include "syscalls2_info.h"
+#if SYSCALLS2_HOOK_RETURNS
 #include "hooks/hooks_int_fns.h"
+#endif
 //#include "hw_proc_id/hw_proc_id_ext.h"
 
 extern bool load_info;
@@ -8919,22 +8921,33 @@ void syscall_enter_switch_linux_ppc(CPUState *cpu, int profile, target_ptr_t pc,
 	PPP_RUN_CB(on_all_sys_enter2, cpu, pc, call, &ctx);
 	if (!panda_noreturn && (*return_count > 0 || *return_context_count > 0 ||
 			PPP_CHECK_CB(on_all_sys_return) || PPP_CHECK_CB(on_all_sys_return2))) {
-		struct hook h;
-		h.addr = ctx.retaddr;
-		h.asid = ctx.asid;
-		h.cb.before_tcg_codegen = hook_syscall_return;
-		h.type = PANDA_CB_BEFORE_TCG_CODEGEN;
-		h.enabled = true;
-		h.km = MODE_ANY; //you'd expect this to be user only
-		hooks_add_hook(&h);
-
-		// Construct a new context directly; operator[] would zero it before copying ctx.
-		// The return may run on another vCPU: the map is shared, under its lock.
-		std::lock_guard<std::mutex> running_guard(running_syscalls_lock);
-		auto stored = running_syscalls.emplace(std::make_pair(ctx.retaddr, ctx.asid), ctx);
-		if (!stored.second) {
-			stored.first->second = ctx;
+#if SYSCALLS2_ENGINE
+		if (syscalls2_engine_store) {
+			// The engine pairs the return: the context is kept with its pending call.
+			*syscalls2_engine_store = ctx;
+			syscalls2_engine_keep = true;
 		}
+#endif
+#if SYSCALLS2_HOOK_RETURNS
+		if (!syscalls2_engine_store) {
+			struct hook h;
+			h.addr = ctx.retaddr;
+			h.asid = ctx.asid;
+			h.cb.before_tcg_codegen = hook_syscall_return;
+			h.type = PANDA_CB_BEFORE_TCG_CODEGEN;
+			h.enabled = true;
+			h.km = MODE_ANY; //you'd expect this to be user only
+			hooks_add_hook(&h);
+
+			// Construct a new context directly; operator[] would zero it before copying ctx.
+			// The return may run on another vCPU: the map is shared, under its lock.
+			std::lock_guard<std::mutex> running_guard(running_syscalls_lock);
+			auto stored = running_syscalls.emplace(std::make_pair(ctx.retaddr, ctx.asid), ctx);
+			if (!stored.second) {
+				stored.first->second = ctx;
+			}
+		}
+#endif
 	}
 #endif
 }
