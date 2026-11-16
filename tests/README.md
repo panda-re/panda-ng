@@ -24,7 +24,7 @@ export PANDA_PYTHON=$PWD/result-python/bin/python3
 | static | `static/replay_policy.py` | Python only, no engine or guest: RR admission and observe-only wrapper policy (`nix build .#checks.x86_64-linux.replay-policy`) |
 | static | `bash static/syscalls_dispatch.sh <output binary>` | a C++ compiler, no engine or guest: generated syscalls2 dispatch and PPP subscriptions (`nix build .#checks.x86_64-linux.syscalls2-dispatch`) |
 | smoke | `smoke.py <arch>` | nothing: boots the firmware, loads C plugins (CI runs it on every PR) |
-| guest suite | `guest api osi_isf blocks block_activation callbacks calls mem mmio late reset teardown asidstory tbpc hookalias rr rrcb rrstop rrload fuzz fastrestore fastcov syscalls taint taint_mmio taint_errors` | an image (below); `run.sh` runs them |
+| guest suite | `guest api osi_isf blocks block_activation block_toggle callbacks calls mem mmio late reset teardown asidstory tbpc hookalias rr rrcb rrstop rrload fuzz fastrestore fastcov syscalls taint taint_mmio taint_errors` | an image (below); `run.sh` runs them |
 | every arch | `busybox.sh [arch...]` | nix and network: builds `mkbusybox.py` images (a linux_builder kernel, a busybox initramfs, an ext2 disk) for 12 arches and runs `taint taint_mmio taint_errors` on them through `run.sh`, about 3 minutes. CI runs it on PRs that touch taint or record/replay, and nightly |
 | more guest tests | `kpti physmem rr_blocks fastrestore_guards fastrestore_hotplug fastrestore_vsock` | an image; not in `run.sh`'s default list (x86_64-only, or need extra host tools: see each docstring) |
 | test machines | `testmachine.py <busybox json> [--smp N] [--intel]` | a `mkbusybox.py` image (x86_64, aarch64, armel): builds and checks its test machine (below) |
