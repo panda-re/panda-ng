@@ -92,7 +92,15 @@ void fixupendian(T& x) {
 }
 
 void *self_ptr;
-panda_cb pcb_sbe_execve, pcb_asid;
+panda_cb pcb_sbe_execve;
+// After an execve, start_block_exec stays enabled until a user block's stack holds the new
+// program's argc/argv/envp/auxv. The first user block may be another process's (the exec'ing one
+// was switched out): a failed read waits for another address space. That wait is a check here,
+// not a switch to an asid_changed callback and back: start_block_exec's first enable and last
+// disable change how blocks are translated and flush every translated block, and the wait can
+// last many context switches.
+static bool waiting;
+static target_ulong failed_asid;
 
 #define ARG_MAX 0x200000
 
@@ -327,33 +335,38 @@ bool try_run_auxv(CPUState *cpu, TranslationBlock *tb, T sp){
 }
 
 void sbe(CPUState *cpu, TranslationBlock *tb){
+    if (waiting && panda_current_asid(cpu) == failed_asid) {
+        return;
+    }
     target_ulong sp = panda_current_sp(cpu);
     bool sp_in_kernel = address_in_kernel_code_linux(sp);
     target_ulong pc = panda_tb_pc(cpu, tb);
     bool pc_in_kernel = address_in_kernel_code_linux(pc);
-    if (!sp_in_kernel && !pc_in_kernel){ 
+    if (!sp_in_kernel && !pc_in_kernel){
         if (!try_run_auxv(cpu, tb, sp)){
             log("Failed to read in this ASID. Try the next one\n");
-            panda_enable_callback(self_ptr, PANDA_CB_ASID_CHANGED, pcb_asid);
+            waiting = true;
+            failed_asid = panda_current_asid(cpu);
+            return;
         }
+        waiting = false;
         panda_disable_callback(self_ptr,  PANDA_CB_START_BLOCK_EXEC, pcb_sbe_execve);
     }
 }
 
-bool asid_changed(CPUState *env, uint64_t old_asid, uint64_t new_asid) {
+static void start_waiting(void) {
+    waiting = false;
     panda_enable_callback(self_ptr, PANDA_CB_START_BLOCK_EXEC, pcb_sbe_execve);
-    panda_disable_callback(self_ptr, PANDA_CB_ASID_CHANGED, pcb_asid);
-    return false;
 }
 
 void execve_cb(CPUState *cpu, target_ptr_t pc, target_ptr_t filename, target_ptr_t argv, target_ptr_t envp) {
     log("execve\n");
-    panda_enable_callback(self_ptr, PANDA_CB_START_BLOCK_EXEC, pcb_sbe_execve);
+    start_waiting();
 }
 
 void execveat_cb (CPUState* cpu, target_ptr_t pc, int dfd, target_ptr_t filename, target_ptr_t argv, target_ptr_t envp, int flags) {
     log("execveat\n");
-    panda_enable_callback(self_ptr, PANDA_CB_START_BLOCK_EXEC, pcb_sbe_execve);
+    start_waiting();
 }
 
 bool init_plugin(void *self) {
@@ -366,10 +379,6 @@ bool init_plugin(void *self) {
         panda_register_callback_modes(self, PANDA_CB_START_BLOCK_EXEC, pcb_sbe_execve,
             panda_callback_supported_modes(PANDA_CB_START_BLOCK_EXEC), true);
         panda_disable_callback(self, PANDA_CB_START_BLOCK_EXEC, pcb_sbe_execve);
-        pcb_asid.asid_changed = asid_changed;
-        panda_register_callback_modes(self, PANDA_CB_ASID_CHANGED, pcb_asid,
-            panda_callback_supported_modes(PANDA_CB_ASID_CHANGED), true);
-        panda_disable_callback(self, PANDA_CB_ASID_CHANGED, pcb_asid);
 
         // why? so we don't get 1000 messages telling us syscalls2 is already loaded
         void* syscalls2 = panda_get_plugin_by_name("syscalls2");
