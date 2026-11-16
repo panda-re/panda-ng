@@ -9,7 +9,7 @@ Run: panda-python tests/multi.py [case...]     (default: every case but guests)
 - thread: run() on a thread other than the main one; the process exits on its own after it (the
   engine's exit notifiers take the BQL, which panda_run no longer keeps);
 - seq: x86_64 then aarch64, one after the other in one process (the first from a thread), each
-  with C plugins that call each other (proc_start_linux -> syscalls2 -> hooks, hw_proc_id;
+  with C plugins that call each other (proc_start_linux -> syscalls2 -> hw_proc_id;
   hypersyscalls -> hypercaller). LD_DEBUG=bindings shows that every symbol the plugin interface
   and plugins of an arch take from an engine comes from that arch's engine, never the other's;
 - conc: while the x86_64 Panda runs, the aarch64 one's run() raises EngineInUseError (engines
@@ -34,7 +34,8 @@ A, B = "x86_64", "aarch64"
 MACHINE = {"aarch64": ["-M", "virt", "-cpu", "max"]}
 PLUGINS = ["proc_start_linux", "hypersyscalls"]
 # Loaded through those, by the plugins themselves (panda_require), and called through dlsym.
-REQUIRED = ["syscalls2", "hooks", "hw_proc_id", "hypercaller"]
+# (syscalls2 needs no hooks on x86_64 and aarch64 Linux guests: the engine pairs their returns)
+REQUIRED = ["syscalls2", "hw_proc_id", "hypercaller"]
 BLOCKS = 20000
 
 

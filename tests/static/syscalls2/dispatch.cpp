@@ -16,6 +16,8 @@ Profile profiles[PROFILE_LAST];
 bool load_info = false;
 context_map_t running_syscalls;
 std::mutex running_syscalls_lock;
+thread_local syscall_ctx_t *syscalls2_engine_store;
+thread_local bool syscalls2_engine_keep;
 static uint64_t reads, hooks, enters, returns;
 static uint64_t args[3] = {100, 200, 3};
 static uint64_t seen[3];
@@ -84,6 +86,12 @@ static void reset() {
 static void call(int nr = 436) {
     syscall_enter_switch_linux_x64(&cpu, PROFILE_LINUX_X64, pc, nr);
 }
+static void engine_call(syscall_ctx_t *store, int nr = 436) {
+    syscalls2_engine_store = store;
+    syscalls2_engine_keep = false;
+    call(nr);
+    syscalls2_engine_store = nullptr;
+}
 static void finish() {
     assert(running_syscalls.size() == 1);
     syscall_ctx_t ctx = running_syscalls.begin()->second;
@@ -133,7 +141,20 @@ static void tests() {
     reset(); ppp_add_cb_on_sys_close_range_return(ret); call();
     args[2] = 17; call(); finish();  // a repeated (return PC, ASID) replaces the old context
     assert(hooks == 2 && returns == 1); check_args(); args[2] = 3;
-    std::puts("PASS: generated syscall dispatch (18 subscription, argument and return scenarios)");
+    // Engine pairing (Linux on x86_64 and aarch64): the context goes to the engine's store, the
+    // return is the engine's, and no hook is installed.
+    syscall_ctx_t store;
+    reset(); ppp_add_cb_on_sys_close_range_return(ret); engine_call(&store);
+    assert(syscalls2_engine_keep && hooks == 0 && running_syscalls.empty() && store.no == 436);
+    syscall_return_switch_linux_x64(&cpu, store.retaddr, &store);
+    assert(returns == 1); check_args();
+    reset(); ppp_add_cb_on_sys_close_range_enter(enter); engine_call(&store);
+    assert(!syscalls2_engine_keep && hooks == 0 && enters == 1);
+    reset(); ppp_add_cb_on_sys_close_range_enter(late_specific); engine_call(&store);
+    assert(syscalls2_engine_keep && hooks == 0 && enters == 1);
+    reset(); ppp_add_cb_on_all_sys_return(all_return); engine_call(&store, 60);
+    assert(!syscalls2_engine_keep && hooks == 0);
+    std::puts("PASS: generated syscall dispatch (22 subscription, argument and return scenarios)");
 }
 
 static void bench(const char *mode) {
