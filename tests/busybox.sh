@@ -49,7 +49,22 @@ if [[ " $ARCHES " == *" powerpc "* ]] && [ ! -x "$DL/busybox/powerpc/busybox" ];
   t=$(mktemp -d)
   curl -fsSL -o "$t/bb.deb" "$PPC32_DEB"
   echo "$PPC32_SHA256  $t/bb.deb" | sha256sum -c --quiet
-  (cd "$t" && ar x bb.deb && tar -xf data.tar.* ./usr/bin/busybox)
+  # A .deb is an ar archive. Python unpacks it: the CI runners have no binutils.
+  "$PANDA_PYTHON" -I - "$t/bb.deb" <<'PY'
+import os, sys
+deb = sys.argv[1]
+with open(deb, "rb") as f:
+    data = f.read()
+assert data[:8] == b"!<arch>\n", f"{deb}: not an ar archive"
+off = 8
+while off + 60 <= len(data):
+    name = os.path.basename(data[off:off + 16].decode().strip().rstrip("/"))
+    size = int(data[off + 48:off + 58])
+    with open(os.path.join(os.path.dirname(deb), name), "wb") as out:
+        out.write(data[off + 60:off + 60 + size])
+    off += 60 + size + (size & 1)
+PY
+  (cd "$t" && tar -xf data.tar.* ./usr/bin/busybox)
   mkdir -p "$DL/busybox/powerpc" && cp "$t/usr/bin/busybox" "$DL/busybox/powerpc/"
   rm -rf "$t"
 fi
