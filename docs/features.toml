@@ -159,7 +159,7 @@ processes (proc_start_linux).
 """
 api = ["plugin:syscalls2", "plugin:proc_start_linux"]
 docs = ["docs/guides/plugins.md#using-a-plugin-from-python", "plugins/syscalls2/README.md"]
-tests = ["tests/guest.py", "tests/syscalls.py"]
+tests = ["tests/guest.py", "tests/syscalls.py", "tests/syscalls_smp.py"]
 
 [[feature]]
 id = "hooks"
