@@ -42,6 +42,8 @@ VARIANTS = {
     # The syscalls plugin's callback form in tests/plugins/scobserve.
     "form": dict(env=lambda v: {"SCOBSERVE_LEAN": {"call": "0", "lean": "1", "entry": "entry"}[v]},
                  default="call"),
+    # tests/syscall_pair_tcg.py: with syscalls2 declaring its ABIs to the engine, or nothing.
+    "declared": dict(args=lambda v: ["--declared"] if v else [], default=False),
     # The syscalls plugin's event source (transitional, while both exist): its default is trap.
     "backend": dict(env=lambda v: {"PANDA_SYSCALLS_BACKEND": v}, default="trap"),
 }

@@ -3,9 +3,10 @@
 Run: panda-python tests/syscalls_smp.py <dir>/busybox-<arch>.json --smp 4   (an image from
 tests/mkbusybox.py; the machine is tests/testmachine.py's)
 
-With a return callback subscribed, syscalls2 adds a hooks-plugin hook at each call's return
-address and keeps the call's context until it returns. Calls enter and return on every vCPU at
-once, and a task may return on another vCPU than it entered on. One `dd bs=1` per vCPU, pinned
+With a return callback subscribed, syscalls2 keeps each call's context until it returns: on
+x86_64 and aarch64 Linux in the engine's pending set (its returns paired by task), elsewhere with
+a hooks-plugin hook at the call's return address. Calls enter and return on every vCPU at once,
+and a task may return on another vCPU than it entered on. One `dd bs=1` per vCPU, pinned
 there, copies a COUNT-byte file: COUNT reads and writes (and a read at its end); the rest of the
 guest makes a few more. Checks:
 - the run ends (no crash: the hooks plugin's per-vCPU lists of new hooks and syscalls2's map of
