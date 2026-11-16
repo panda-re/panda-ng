@@ -1219,14 +1219,14 @@ vanilla_verified = false
 [[patch]]
 id = "0087"
 file = "engine/patches/11.1.2/0087-system-gate-handoff-and-snapshot-clock-adaptations.patch"
-sha256 = "25cef31eef66aa8bf87f261e0ce578c1680cf268c5652be6aaf80153c0ae8d20"
+sha256 = "db7eeb4ab5e460f217da5af304201c266ab2c4f920d87d6f8484b3c1839e5f68"
 class = "startup-gate"
 capability = "handoff-rr-fuzz-snapshot-adaptations"
 paths = ["hw/i386/pc.c", "hw/intc/arm_gic_common.c", "replay/replay-snapshot.c", "replay/replay.c", "system/cpu-timers.c", "target/arm/helper.c", "target/arm/machine.c", "target/i386/kvm/kvm.c", "target/i386/machine.c", "target/i386/tcg/system/seg_helper.c"]
 functions = ["kvmclock_sink_register", "gic_post_load", "replay_load_snapshot", "replay_check_timer_stall", "timers_post_load", "cpreg_mismatch_is_icount_only", "cpu_post_load", "helper_check_io"]
 hunk_contexts = ["static int timers_pre_load(void *opaque)", "static int cpu_post_load(void *opaque, int version_id)", "void helper_check_io(CPUX86State *env, uint32_t addr, uint32_t size)"]
 gate_status = "partial-snapshot-off-paths-not-parity-verified"
-current_gate = "HANDOFF gates added ARM/GIC snapshot sections, conversion, timer reconstruction and x86 TSS/sink adaptations. RR gates clock-domain and PMCEID adaptations; ANALYSIS gates tick-clamp rewind. Added subsection pre_load rejects opt-out before fields."
+current_gate = "HANDOFF gates added ARM/GIC snapshot sections, conversion, timer reconstruction and x86 TSS/sink adaptations. RR gates load-time timer deferral and stall handling; ANALYSIS (implied by RR and fuzz) gates the cross-icount clock-domain, x86 TSC and PMCEID adaptations and the tick-clamp rewind. Added subsection pre_load rejects opt-out before fields."
 required_action = "Complete RISC-V early version rejection and remaining snapshot marker, timer overhead and inventoried off paths; validate guest snapshots and cross-target builds. No full vanilla parity claim."
 vanilla_verified = false
 
@@ -1304,7 +1304,7 @@ vanilla_verified = false
 [[patch]]
 id = "0093"
 file = "engine/patches/11.1.2/0093-tcg-taint-shadow-pass-hooks.patch"
-sha256 = "019ee1fd58447112ae32fee8fe0c0176c2b481d817d773ca4f08367611c4d041"
+sha256 = "30fc69a55f181331fe7994ff67be2bfa53a3305c549727509b4ab9fca2b24249"
 class = "runtime-gate"
 capability = "taint"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/cputlb.c", "accel/tcg/meson.build", "accel/tcg/translator.c", "include/exec/translation-block.h", "include/hw/core/cpu.h", "system/physmem.c", "system/vl.c", "target/arm/helper.c", "target/arm/internals.h", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c", "target/arm/tcg/translate.c", "target/mips/tcg/ldst_helper.c", "target/mips/tcg/tcg-internal.h", "target/mips/tcg/translate.c", "target/riscv/tcg/op_helper.c", "tcg/tcg.c"]

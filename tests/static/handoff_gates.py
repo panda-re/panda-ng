@@ -103,7 +103,7 @@ int main(void) {
     for (caps=0; caps<32; caps++) {
         assert(virt_count_needed(&cpu) == !!(caps & ANALYSIS_CAP_HANDOFF));
         assert((handoff_subsection_pre_load(&cpu) == 0) == !!(caps & ANALYSIS_CAP_HANDOFF));
-        assert(cpreg_mismatch_is_icount_only(&ri, 0, 256) == !!(caps & ANALYSIS_CAP_RR));
+        assert(cpreg_mismatch_is_icount_only(&ri, 0, 256) == !!(caps & ANALYSIS_CAP_ANALYSIS));
         assert(!cpreg_mismatch_is_icount_only(&ri, 0, 512));
         gic_kvm=true;
         assert(gic_kvm_cpuif_needed(0) == !!(caps & ANALYSIS_CAP_HANDOFF));
@@ -124,12 +124,13 @@ int main(void) {
             icount_on=direction==0;
             armed=0;
             assert(!timers_post_load(&s, 2));
-            bool rr = caps & ANALYSIS_CAP_RR;
-            assert(clock_domain_changed == (rr && direction<2));
-            assert(s.cpu_clock_offset == (rr && direction==1 ? 230 : 100));
-            assert(s.qemu_icount_bias == (rr && direction==0 ? 70 : 200));
+            /* Cross-icount continuity: analysis (rr implies it), not rr alone. */
+            bool cross = caps & ANALYSIS_CAP_ANALYSIS;
+            assert(clock_domain_changed == (cross && direction<2));
+            assert(s.cpu_clock_offset == (cross && direction==1 ? 230 : 100));
+            assert(s.qemu_icount_bias == (cross && direction==0 ? 70 : 200));
             assert(s.cpu_ticks_prev == (caps & ANALYSIS_CAP_ANALYSIS ? 77 : 999));
-            assert(armed == (rr && direction==0));
+            assert(armed == (cross && direction==0));
         }
     }
     tcg_on=false;caps=ANALYSIS_CAP_HANDOFF;

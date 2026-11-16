@@ -301,7 +301,7 @@ index a86f3b2a1680c7a5300ec2eba26a6e54a03bf193..cc031bca8d812ca2538d862504d7a313
              error_setg(errp, "unknown analysis capability '%s'", *name);
              return false;
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index 89945f57b57a2bf8b5881d774758113369a3c038..064126f69fa0d7eb9545a4a810bc467a6e63387a 100644
+index a7fe7534b3cc9c14138d5cc850b151dd039b517a..15858f03a0814e62d96794f727367f673556457a 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -8476,23 +8476,25 @@ static void switch_mode(CPUARMState *env, int mode)
