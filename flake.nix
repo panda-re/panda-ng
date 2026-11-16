@@ -198,6 +198,7 @@
                 # Additive APIs are not part of the generated flattened ABI headers.
                 mkdir -p $out/include/panda
                 cp include/panda/analysis-effect.h include/panda/guest-write.h include/panda/events.h \
+                  include/panda/syscall-pair.h \
                   $out/include/panda/
                 # libqemu-system-<target>.so, libqemu-kvm-<target>.so and libpanda-<target>-softmmu.so
                 # are links of the same objects; only the soname differs, and all of them are
