@@ -96,10 +96,16 @@ def drive():
     start = " ".join(f"/tmp/procs & p{k}=$!;" for k in range(KIDS))
     waits = " ".join(f"wait $p{k}; r{k}=$?;" for k in range(KIDS))
     rcs = " ".join(f"$r{k}" for k in range(KIDS))
-    panda.run_serial_cmd("rm -f /tmp/go /tmp/ready; mkfifo /tmp/go /tmp/ready; exec 3<>/tmp/go 4<>/tmp/ready")
+    # procname's filter enables its callback as a copy is scheduled in and disables it as it is
+    # scheduled out, and each first enable or last disable of a block callback flushes every
+    # translated block (8000 flushes in a run on ubuntu-24.04-aarch64): a minute from this command
+    # to the first hypercall there, and the shell's next command over the default 30 s.
+    T = 600
+    panda.run_serial_cmd("rm -f /tmp/go /tmp/ready; mkfifo /tmp/go /tmp/ready; exec 3<>/tmp/go 4<>/tmp/ready",
+                         timeout=T)
     S["output"] = panda.run_serial_cmd(f"{start} head -c {KIDS} <&4 >/dev/null; printf %{KIDS}s >&3; {waits} "
-                                       f"echo rc={rcs}")
-    panda.run_serial_cmd("exec 3>&- 4>&-; rm -f /tmp/go /tmp/ready")
+                                       f"echo rc={rcs}", timeout=T)
+    panda.run_serial_cmd("exec 3>&- 4>&-; rm -f /tmp/go /tmp/ready", timeout=T)
     S["on"] = False
     panda.end_analysis()
 
