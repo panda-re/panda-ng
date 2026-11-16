@@ -43,6 +43,7 @@ PANDAENDCOMMENT */
 #include "system/cpus.h"
 #include "system/runstate.h"
 #include "system/syscall-trap.h"
+#include "panda/syscall-pair-tcg.h"
 #include "exec/translation-block.h"
 #include "panda/hooks.h"
 #include "system/replay.h"
@@ -751,6 +752,7 @@ void panda_analysis_reset(void)
     panda_main_walk_depth++;
     panda_transient_depth++;
     syscall_trap_cancel_all();
+    panda_syscall_pair_reset();
     for (PandaTransientReset *entry = head; entry; entry = entry->next) {
         if (!qatomic_read(&entry->dead)) {
             entry->reset(entry->opaque);

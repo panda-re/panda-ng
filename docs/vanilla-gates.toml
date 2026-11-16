@@ -1427,6 +1427,20 @@ current_gate = "Adds the info panda-events monitor command under CONFIG_PANDA; i
 required_action = "Leave the command out of the info table for vanilla, or accept it as a monitor-only addition."
 vanilla_verified = false
 
+[[patch]]
+id = "0102"
+file = "engine/patches/11.1.2/0102-target-i386-target-arm-system-call-pairing-sites.patch"
+sha256 = "fea18ff3d7a6ce30a0988fad3c72e2020f1588afa08d74d7b97c0eed2bf3780e"
+class = "runtime-gate"
+capability = "syscall-pairing"
+paths = ["meson.build", "target/arm/helper.c", "target/arm/tcg/translate-a64.c", "target/i386/tcg/emit.c.inc", "target/i386/tcg/seg_helper.c", "target/i386/tcg/translate.c"]
+functions = ["panda_sc_enter_inline", "panda_sc_return_inline", "panda_sc_gen_enter", "panda_sc_gen_return", "panda_sc_enter_c", "panda_hot_ss"]
+hunk_contexts = ["foreach target : target_dirs", "void arm_cpu_do_interrupt(CPUState *cs)", "static inline bool analysis_guest_hypercall_enabled(void)", "static bool trans_ERET(DisasContext *s, arg_ERET *a)", "static bool trans_ERETA(DisasContext *s, arg_reta *a)", "static bool trans_SVC(DisasContext *s, arg_i *a)", "static void gen_IRET(DisasContext *s, X86DecodedInsn *decode)", "static void gen_SYSCALL(DisasContext *s, X86DecodedInsn *decode)", "static void gen_SYSENTER(DisasContext *s, X86DecodedInsn *decode)", "void do_interrupt_all(X86CPU *cpu, int intno, int is_int,"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Every trap and return site tests a flag at translation time (the C sites at run time) that is set only once a consumer declares an ABI (traps) or wants a return (returns); with nothing declared, translated code is identical per TB. The per-target panda-hot library (its entry and return functions) is built with the panda option, like the rest of panda/src."
+required_action = "Select upstream translation for vanilla regardless of declarations, or admit declarations only under a capability."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
@@ -1697,4 +1711,15 @@ functions = ["taint_gen_tb", "taint_enable", "taint_unavailable", "taint_device_
 gate_status = "taint-cap-gate-implemented-not-vanilla-verified"
 current_gate = "Without the taint capability, init allocates nothing and taint_enable refuses; the pass runs only for CF_TAINT blocks during a replay."
 required_action = "Covered by 0093's obligations; nothing here runs unless taint is enabled in a replay."
+vanilla_verified = false
+
+[[overlay]]
+id = "syscall-pairing"
+class = "runtime-gate"
+capability = "syscall-pairing"
+paths = ["engine/src/include/panda/syscall-pair.h", "engine/src/include/panda/syscall-pair-tcg.h", "engine/src/panda/src/syscall-pair.c", "engine/src/panda/src/syscall-pair-fast.c", "engine/src/panda/src/syscall-pair-int.h"]
+functions = ["panda_syscall_consumer", "panda_syscall_abi_declare", "panda_syscall_want", "panda_syscall_keep", "panda_task_key_declare", "panda_syscall_pair_reset", "sc_enter_h_task_s", "sc_ret_h_task"]
+gate_status = "consumer-gate-implemented-not-vanilla-verified"
+current_gate = "Nothing runs and no site changes until a consumer declares an ABI; reset, snapshot load and fast restore empty the pending set."
+required_action = "Refuse declarations in vanilla, or prove the declared path's snapshot and replay neutrality."
 vanilla_verified = false

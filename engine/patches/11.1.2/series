@@ -99,3 +99,4 @@
 11.1.2/0099-hw-pci-host-ppce500-rebuild-the-PCI-windows-on-load.patch
 11.1.2/0100-hw-pci-host-ppce500-migrate-the-host-bridge-s-config.patch
 11.1.2/0101-monitor-info-panda-events-lists-the-PANDA-event-regi.patch
+11.1.2/0102-target-i386-target-arm-system-call-pairing-sites.patch
