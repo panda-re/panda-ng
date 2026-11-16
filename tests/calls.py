@@ -29,7 +29,11 @@ LABELS = ["N", "D", "setup", "loop", "ret_main", "done", "ret_r0", "f", "hook_mi
           "f_ret", "g", "g_ret", "h", "r", "r_rec", "r_ret", "r_base", "fin"]
 BLOCKS = [k for k in LABELS[2:] if k != "hook_mid"]
 
-panda = Panda(generic=sys.argv[1])
+# Guest time from instructions. The window's Python callbacks run on every block, the kernel's
+# too; with time following the host, the guest then sees timer interrupts come ever more often
+# per instruction, and between hypercalls 1 and 2 ran 5 to 34 million kernel blocks (5 s to
+# minutes; the serial command times out at 30 s). Under icount it runs about 180.
+panda = Panda(generic=sys.argv[1], extra_args=["-icount", "shift=6,sleep=off"])
 arch = panda.arch_name
 ffi = panda.ffi
 C = Checks(arch)
