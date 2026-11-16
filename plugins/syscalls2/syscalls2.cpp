@@ -36,6 +36,8 @@ PANDAENDCOMMENT */
 #include <sstream>
 #include <limits>
 #include <mutex>
+#include <set>
+#include <tuple>
 
 #include "syscalls2.h"
 #include "syscalls2_info.h"
@@ -45,7 +47,7 @@ target_ulong syscalls_get_id(CPUState *cpu){
     return get_id(cpu);
 }
 
-void syscall_callback(unsigned int vcpu_index, void* sysinfo);
+void syscall_callback(unsigned int vcpu_index, void *udata);
 
 void (*hooks_add_hook)(struct hook*);
 extern "C" {
@@ -1366,12 +1368,19 @@ target_ulong doesBlockContainSyscall(CPUState *cpu, struct qemu_plugin_tb *tb, i
 #endif
 }
 
+/* A system call instruction as translated: the syscall callback's udata. A block translated on one
+ * vCPU runs on every vCPU, so what the callback needs travels with the instrumentation. Interned
+ * (set nodes never move), so retranslating a block adds nothing. */
 struct sysinfo {
+    target_ulong pc;
     enum ProfileType profile;
     int callno;
+    bool operator<(const sysinfo &o) const {
+        return std::tie(pc, profile, callno) < std::tie(o.pc, o.profile, o.callno);
+    }
 };
-
-static std::map<target_ulong, struct sysinfo> per_guest_cpu_syscall_info_map[16];
+static std::set<sysinfo> syscall_sites;
+static std::mutex syscall_sites_lock;
 
 void block_translate(CPUState *cpu, struct qemu_plugin_tb *tb){
     int static_callno = -1; // Set to non -1 if syscall num can be
@@ -1388,9 +1397,12 @@ void block_translate(CPUState *cpu, struct qemu_plugin_tb *tb){
         struct qemu_plugin_insn *insn = qemu_plugin_tb_get_insn_by_vaddr(tb, res);
         if (insn != NULL){
             qemu_plugin_insn_vaddr(insn);   // bind the TB: the callback is keyed by this address
-            assert(cpu->cpu_index < sizeof(per_guest_cpu_syscall_info_map)/sizeof(per_guest_cpu_syscall_info_map[0]));
-            per_guest_cpu_syscall_info_map[cpu->cpu_index][res] = {profile, static_callno};
-            qemu_plugin_register_vcpu_insn_exec_cb(insn, syscall_callback, QEMU_PLUGIN_CB_NO_REGS, (void*) (uint64_t)res);
+            const sysinfo *site;
+            {
+                std::lock_guard<std::mutex> g(syscall_sites_lock);
+                site = &*syscall_sites.insert({res, profile, static_callno}).first;
+            }
+            qemu_plugin_register_vcpu_insn_exec_cb(insn, syscall_callback, QEMU_PLUGIN_CB_NO_REGS, (void *)site);
         }
     }
 }
@@ -1398,12 +1410,12 @@ void block_translate(CPUState *cpu, struct qemu_plugin_tb *tb){
 // This will be called directly from the TCG stream for blocks that contain a
 // syscall (as identified by doesBlockContainSyscall). Inserted into TCG by
 // before_tcg_codegen.
-void syscall_callback(unsigned int vcpu_index, void *sysinfo){
+void syscall_callback(unsigned int vcpu_index, void *udata){
     CPUState *cpu = panda_cpu_by_index(vcpu_index);
-    target_ulong pc = (target_ulong) (uint64_t)sysinfo;
-    assert(vcpu_index < sizeof(per_guest_cpu_syscall_info_map)/sizeof(per_guest_cpu_syscall_info_map[0]));
-    enum ProfileType profile = per_guest_cpu_syscall_info_map[vcpu_index][pc].profile;
-    int callno = per_guest_cpu_syscall_info_map[vcpu_index][pc].callno;
+    const sysinfo *site = (const sysinfo *)udata;
+    target_ulong pc = site->pc;
+    enum ProfileType profile = site->profile;
+    int callno = site->callno;
 #if defined(TARGET_PPC) && defined(TARGET_PPC64)
     CPUArchState *env_ppc = (CPUArchState *)panda_cpu_env(cpu);
     // Check MSR_SF (bit 63) to see if we're in 64-bit mode. If not, it's a 32-bit syscall.
