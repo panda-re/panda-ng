@@ -41,21 +41,68 @@ static bool panda_has_callback_registered(panda_cb_type type){
 
 static bool panda_any_enabled(panda_cb_type type);
 
+static const panda_cb_type block_cb_types[] = {
+    PANDA_CB_BEFORE_BLOCK_EXEC, PANDA_CB_AFTER_BLOCK_EXEC, PANDA_CB_START_BLOCK_EXEC,
+    PANDA_CB_END_BLOCK_EXEC, PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT,
+};
+
+/* Block instrumentation (both gates, and the end's address store) is one shape: on from the first
+ * registration of any block callback, entry or end kind, and on for the rest of the run, however
+ * many are later unregistered. Enabling, disabling, registering and unregistering after that
+ * change only the gates: no flush, no retranslation, and translations made after any later flush
+ * (a full code buffer, loadvm) carry it too. With no block callback ever registered, blocks carry
+ * nothing. */
+static bool block_instrumented;
+
+static bool panda_block_instrumented(void){
+    if (!qatomic_read(&block_instrumented)) {
+        for (size_t i = 0; i < ARRAY_SIZE(block_cb_types); i++) {
+            if (panda_has_callback_registered(block_cb_types[i])) {
+                qatomic_set(&block_instrumented, true);
+                break;
+            }
+        }
+    }
+    return qatomic_read(&block_instrumented);
+}
+
 unsigned panda_bridge_wants(void){
     unsigned wants = 0;
     if (panda_has_callback_registered(PANDA_CB_INSN_TRANSLATE)) {
         wants |= PANDA_BRIDGE_INSN;
     }
+    if (panda_block_instrumented()) {
+        wants |= PANDA_BRIDGE_BLOCK | PANDA_BRIDGE_END;
+    }
+    return wants;
+}
+
+/* The block gates: one byte per vCPU (CPUState.plugin_tb_gates), written for all vCPUs together,
+ * that the instrumentation loads at a fixed offset from env and tests before it calls out. The
+ * instrumentation is there while a callback of the kind is registered; the gate says whether one
+ * is enabled. Written under panda_cbs_lock, read by translated code with a plain load: a block that
+ * reads the byte while it changes makes one call more (the dispatchers skip disabled callbacks) or
+ * one fewer, as when the enable races the block. A vCPU created after an update gets its gates
+ * from the bridge's vCPU init (panda_block_gates_sync), under the same lock; until then its byte
+ * is zero (gates closed). */
+void panda_block_gates_update(void){
+    uint8_t gates = 0;
+    CPUState *cpu;
+
     if (panda_any_enabled(PANDA_CB_START_BLOCK_EXEC)
         || panda_any_enabled(PANDA_CB_BEFORE_BLOCK_EXEC)
         || panda_any_enabled(PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT)) {
-        wants |= PANDA_BRIDGE_BLOCK;
+        gates |= PANDA_BLOCK_GATE_ENTRY;
     }
     if (panda_any_enabled(PANDA_CB_END_BLOCK_EXEC)
         || panda_any_enabled(PANDA_CB_AFTER_BLOCK_EXEC)) {
-        wants |= PANDA_BRIDGE_END;
+        gates |= PANDA_BLOCK_GATE_END;
     }
-    return wants;
+    WITH_RCU_READ_LOCK_GUARD() {
+        CPU_FOREACH(cpu) {
+            qatomic_set(&cpu->plugin_tb_gates, gates);
+        }
+    }
 }
 
 uint64_t panda_bridge_virt_to_phys(CPUState *cpu, uint64_t vaddr){
@@ -176,6 +223,17 @@ static struct {
     uint64_t pc;
 } invalidated[PANDA_BLOCK_SLOTS];
 
+/* Per vCPU, the block whose end callbacks are running (panda_block_end), for panda_tb_pc. One
+ * cache line each: MTTCG vCPUs write theirs at every block end (neighbouring words made those
+ * writes contend), and a thread-local costs a __tls_get_addr call per access in this library. */
+static struct {
+    TranslationBlock *tb;
+} QEMU_ALIGNED(64) ending[PANDA_BLOCK_SLOTS];
+
+/* A block shared between virtual addresses (CF_PCREL, not bound to one) has no address of its own:
+ * it is the one it runs at. That is the PC at its start (and in after_block_translate); at its end
+ * the PC has moved on, and the address is the one the block stored at its start
+ * (CPUState.plugin_tb_vaddr, which a block with end instrumentation stores). */
 target_ulong panda_tb_pc(CPUState *cpu, TranslationBlock *tb)
 {
     if (!tb) {
@@ -185,7 +243,23 @@ target_ulong panda_tb_pc(CPUState *cpu, TranslationBlock *tb)
         return tb->pc;
     }
     cpu = cpu ? cpu : current_cpu;
-    return cpu ? cpu->cc->get_pc(cpu) : 0;
+    if (!cpu) {
+        return 0;
+    }
+    if ((unsigned) cpu->cpu_index < PANDA_BLOCK_SLOTS && ending[cpu->cpu_index].tb == tb) {
+        return cpu->plugin_tb_vaddr;
+    }
+    return cpu->cc->get_pc(cpu);
+}
+
+/* A block whose end callbacks left by a longjmp (qemu_plugin_set_pc) stays marked. Harmless while
+ * it is that block: entered again, it stores its address before any callback asks. Forget it
+ * before a translation, after which its TB may have been freed and the pointer reused. */
+void panda_block_translate_begin(CPUState *cpu){
+    unsigned index = cpu->cpu_index;
+    if (index < PANDA_BLOCK_SLOTS && ending[index].tb) {
+        ending[index].tb = NULL;
+    }
 }
 
 static bool panda_any_enabled(panda_cb_type type){
@@ -200,10 +274,18 @@ static bool panda_any_enabled(panda_cb_type type){
 /* Called by TCG at the outgoing edge, after guest operations and PC updates. */
 void panda_block_end(CPUState *cpu, TranslationBlock *tb)
 {
+    unsigned index = cpu->cpu_index;
+
+    if (index < PANDA_BLOCK_SLOTS) {
+        ending[index].tb = tb;
+    }
     panda_callbacks_end_block_exec(cpu, tb);
     /* Compatibility spelling: normal completion only, like end_block_exec. */
     if (unlikely(panda_cbs[PANDA_CB_AFTER_BLOCK_EXEC])) {
         panda_callbacks_after_block_exec_dispatch(cpu, tb, TB_EXIT_IDX0);
+    }
+    if (index < PANDA_BLOCK_SLOTS) {
+        ending[index].tb = NULL;
     }
 }
 
@@ -246,7 +328,7 @@ void panda_block_leave_at_start(CPUState *cpu, TranslationBlock *tb){
  * Make it this block's, as cpu_tb_exec does for a TB that exits at its entry, before anything reads
  * it (the callbacks, panda_current_pc, cpu_loop_exit_noexc's next lookup). Such code never reads
  * the PC from the CPU state, so this changes nothing for the block itself. CF_PCREL code keeps the
- * PC current. Only here, i.e. only while a block-exec callback is enabled. */
+ * PC current. Only here, i.e. only while a block-entry callback is enabled (the gate). */
 static inline void panda_block_sync_pc(CPUState *cpu, TranslationBlock *tb){
     if (!(tb_cflags(tb) & CF_PCREL)) {
         const TCGCPUOps *ops = cpu->cc->tcg_ops;
@@ -281,10 +363,6 @@ void panda_block_start(CPUState *cpu, TranslationBlock *tb)
     panda_callbacks_start_block_exec(cpu, tb);
 }
 
-static const panda_cb_type block_cb_types[] = {
-    PANDA_CB_BEFORE_BLOCK_EXEC, PANDA_CB_AFTER_BLOCK_EXEC, PANDA_CB_START_BLOCK_EXEC,
-    PANDA_CB_END_BLOCK_EXEC, PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT,
-};
 
 bool panda_is_block_cb_type(int type){
     for (size_t i = 0; i < ARRAY_SIZE(block_cb_types); i++) {

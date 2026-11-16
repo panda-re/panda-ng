@@ -72,9 +72,12 @@ engine.
 reference says which. Block execution uses `start_block_exec` at entry and
 `end_block_exec` at normal completion, before outgoing transfers; chaining stays enabled.
 Faults and early exits have no end event. `before_block_exec` and `after_block_exec` are
-compatibility spellings at those boundaries. First enable and last disable flush translations;
-fully disabled block callbacks leave no helper or gate. Entry-only callbacks preserve PC-relative
-sharing; end callbacks bind source addresses so they remain identifiable after the PC advances. A registered memory callback (`mmio_after_read` and `mmio_before_write`
+compatibility spellings at those boundaries. The first registration of any block callback
+instruments every block for entry and end for the rest of the run (one flush; unregistering
+removes nothing); enabling, disabling, and later registering and unregistering only set a gate
+each block tests (in a run that never registers one, no helper or gate). Block callbacks preserve
+PC-relative sharing: a block stores the address it runs at when it starts, which `tb_pc` gives its
+end callbacks after the PC has moved on. A registered memory callback (`mmio_after_read` and `mmio_before_write`
 included) instruments every load or store even while disabled. While enabled, a physical one or
 `mmio_before_write` costs an address lookup per access, and any before-access one a TLB lookup
 per access in the middle of a block (QEMU rewinds a device access there and runs it again; the
@@ -88,7 +91,7 @@ QEMU's own readers perform a device access except when RR policy refuses it.
 
 **Docs:** [docs/guides/python.md#callbacks](guides/python.md#callbacks), [docs/reference/callbacks.md](reference/callbacks.md)
 
-**Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/block_activation.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/mmio.py`, `tests/physmem.py`
+**Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/block_activation.py`, `tests/block_toggle.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/mmio.py`, `tests/physmem.py`
 
 **Engine patches:** 0030, 0034, 0041-0043, 0045-0048, 0052-0053, 0057-0058, 0064, 0081-0082 ([series](reference/patches.md))
 

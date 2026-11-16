@@ -209,7 +209,7 @@ index ad9080259f3ceae223f00b89358941a1f377ae3c..afaea769d29b287179be93c8f1c37504
                                 cpu_reg(s, 8), cpu_reg(s, 0),
                                 cpu_reg(s, 1), cpu_reg(s, 2),
 diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
-index c786fb29e0e713f81de2419dc626e6fa8d143f79..4e9768ed79f7ef9259f71cdea3229cebf23358e9 100644
+index 2959ba51d6cfd74be611d2865838ca3a20646a90..a28fe54b12b3156f5b3f0bb02f8394fabb9a6027 100644
 --- a/target/arm/tcg/translate.c
 +++ b/target/arm/tcg/translate.c
 @@ -20,6 +20,18 @@

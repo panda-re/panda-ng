@@ -184,7 +184,7 @@ index afaea769d29b287179be93c8f1c375042367ad80..9329ab2c292fee98fbfed44869e89764
                                 cpu_reg(s, 8), cpu_reg(s, 0),
                                 cpu_reg(s, 1), cpu_reg(s, 2),
 diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
-index 4e9768ed79f7ef9259f71cdea3229cebf23358e9..0f2a099c882bc267572f08f2845ea888c09416c8 100644
+index a28fe54b12b3156f5b3f0bb02f8394fabb9a6027..4e04d65900d4b74bd48e3673dfa282ecb4715af4 100644
 --- a/target/arm/tcg/translate.c
 +++ b/target/arm/tcg/translate.c
 @@ -2376,6 +2376,7 @@ static bool trans_MCR(DisasContext *s, arg_MCR *a)

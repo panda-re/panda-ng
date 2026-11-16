@@ -3,20 +3,34 @@ From: Luke Craig <lacraig3@gmail.com>
 Date: Wed, 28 Oct 2026 14:58:36 -0400
 Subject: [PATCH] plugins: emit block completion at outgoing edges
 
-Add a translation-time TB-end callback for normal completion. Emit it after outgoing CPU-state updates and before direct/indirect links or dispatcher returns. Move direct-link opcodes past their fallback PC updates only for instrumented translations. Faults, nonlocal exits and entry rejection do not report completion.
+Add a translation-time TB-end callback for normal completion. Emit it after outgoing CPU-state updates and before direct/indirect links or dispatcher returns; for an indirect link, before the target lookup, whose result the link takes in the same extended basic block. Move direct-link opcodes past their fallback PC updates only for instrumented translations. Faults, nonlocal exits and entry rejection do not report completion.
 
-Remove deferred PANDA completion delivery and pending-block reads from the CPU loop. Keep the unused CPUState byte for the existing native layout.
+End callbacks run after the PC has moved on. A CF_PCREL TB that has them stays shared between the virtual addresses that map it: at its start it stores the address it runs at in CPUState.plugin_tb_vaddr (TCGCPUOps.gen_tb_pc, implemented for x86 and arm), where the embedding finds it. A target without gen_tb_pc binds such a TB to its address instead.
+
+Add gated TB-entry and TB-end callbacks. The block loads a byte at a fixed offset from env (CPUState.plugin_tb_gates), tests the callback's bits and branches around the call, so the embedding turns them on and off for every vCPU without retranslation and without a scoreboard index. The gate byte and the address take two CPUState fields that were kept unused for the layout.
+
+Remove deferred PANDA completion delivery and pending-block reads from the CPU loop.
 
 SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
 Origin: new
 ---
- accel/tcg/cpu-exec.c          | 14 +----------
- accel/tcg/plugin-gen.c        | 46 +++++++++++++++++++++++++++++++++++
- include/hw/core/cpu.h         |  2 +-
- include/plugins/qemu-plugin.h | 20 +++++++++++++++
- include/qemu/plugin.h         |  1 +
- plugins/api.c                 | 10 ++++++++
- 6 files changed, 79 insertions(+), 14 deletions(-)
+ accel/tcg/cpu-exec.c          |  14 +---
+ accel/tcg/plugin-gen.c        | 127 +++++++++++++++++++++++++++++++++-
+ include/accel/tcg/cpu-ops.h   |   9 +++
+ include/hw/core/cpu.h         |  14 +++-
+ include/plugins/qemu-plugin.h |  64 +++++++++++++++++
+ include/qemu/plugin.h         |   2 +
+ plugins/api.c                 |  31 +++++++++
+ plugins/core.c                |  15 ++++
+ plugins/plugin.h              |   6 ++
+ target/arm/cpu.c              |   1 +
+ target/arm/internals.h        |   2 +
+ target/arm/tcg/cpu-v7m.c      |   1 +
+ target/arm/tcg/translate.c    |  10 +++
+ target/i386/tcg/helper-tcg.h  |   2 +
+ target/i386/tcg/tcg-cpu.c     |   1 +
+ target/i386/tcg/translate.c   |  16 +++++
+ 16 files changed, 297 insertions(+), 18 deletions(-)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
 index 18729efa3faae05ab0bbb8c8075f2ae71f40fbbd..71750d8e6fefe0ed3335c251df655dd364705c95 100644
@@ -58,13 +72,58 @@ index 18729efa3faae05ab0bbb8c8075f2ae71f40fbbd..71750d8e6fefe0ed3335c251df655dd3
  
          cpu->exception_index = panda_callbacks_before_handle_exception(cpu, exception);
 diff --git a/accel/tcg/plugin-gen.c b/accel/tcg/plugin-gen.c
-index 9e6430bd6af81efb49b18e54f47fab916050c344..d90f822e0b408d464c4163e9ebad408ea3255305 100644
+index 9e6430bd6af81efb49b18e54f47fab916050c344..7d8b13287513a931dcb7259307db225801d2e783 100644
 --- a/accel/tcg/plugin-gen.c
 +++ b/accel/tcg/plugin-gen.c
-@@ -290,6 +290,30 @@ static void inject_mem_cb(struct qemu_plugin_dyn_cb *cb,
+@@ -28,6 +28,7 @@
+ #include "exec/plugin-gen.h"
+ #include "exec/translator.h"
+ #include "exec/translation-block.h"
++#include "accel/tcg/cpu-ops.h"
+ 
+ enum plugin_gen_from {
+     PLUGIN_GEN_FROM_TB,
+@@ -203,6 +204,25 @@ static void gen_udata_cond_cb(struct qemu_plugin_conditional_cb *cb)
+     tcg_temp_free_ptr(ptr);
+ }
+ 
++/*
++ * A callback behind the vCPU's gate byte: one load, test and branch around
++ * the call (no scoreboard index: the byte is at a fixed offset from env).
++ */
++static void gen_udata_gated_cb(struct qemu_plugin_conditional_cb *cb)
++{
++    TCGv_i32 gates = tcg_temp_ebb_new_i32();
++    TCGLabel *after_cb = gen_new_label();
++
++    tcg_gen_ld8u_i32(gates, tcg_env,
++                     offsetof(CPUState, plugin_tb_gates) - sizeof(CPUState));
++    tcg_gen_brcondi_i32(TCG_COND_TSTEQ, gates, cb->imm, after_cb);
++    tcg_temp_free_i32(gates);
++    gen_udata_cb(&(struct qemu_plugin_regular_cb) {
++        .f = cb->f, .info = cb->info, .userp = cb->userp,
++    });
++    gen_set_label(after_cb);
++}
++
+ static void gen_inline_add_u64_cb(struct qemu_plugin_inline_cb *cb)
+ {
+     TCGv_ptr ptr = gen_plugin_u64_ptr(cb->entry);
+@@ -258,6 +278,9 @@ static void inject_cb(struct qemu_plugin_dyn_cb *cb)
+     case PLUGIN_CB_COND:
+         gen_udata_cond_cb(&cb->cond);
+         break;
++    case PLUGIN_CB_GATED:
++        gen_udata_gated_cb(&cb->cond);
++        break;
+     case PLUGIN_CB_INLINE_ADD_U64:
+         gen_inline_add_u64_cb(&cb->inline_insn);
+         break;
+@@ -290,7 +313,65 @@ static void inject_mem_cb(struct qemu_plugin_dyn_cb *cb,
      }
  }
  
+-static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb)
 +/*
 + * A direct link normally skips the outgoing PC store on its fallback path.
 + * End observers need that store before the link. Move the goto, only for
@@ -89,10 +148,45 @@ index 9e6430bd6af81efb49b18e54f47fab916050c344..d90f822e0b408d464c4163e9ebad408e
 +    g_assert(jump == NULL);
 +}
 +
- static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb)
++/*
++ * Where a block's end callbacks go: before its exit. An indirect link's
++ * goto_ptr takes the result of the lookup call just before it, an EBB temp: a
++ * conditional end callback branches, so the callbacks go before that lookup
++ * (which then also sees any CPU state a callback changed).
++ */
++static TCGOp *plugin_end_point(TCGOp *op)
++{
++    if (op->opc == INDEX_op_goto_ptr) {
++        TCGOp *call = QTAILQ_PREV(op, link);
++
++        g_assert(call && call->opc == INDEX_op_call && TCGOP_CALLO(call) == 1
++                 && call->args[0] == op->args[0]);
++        return call;
++    }
++    return op;
++}
++
++/*
++ * At the start of a CF_PCREL TB with end callbacks: store the virtual address
++ * it runs at, which its end callbacks need after the PC has moved on, rather
++ * than binding the TB to one address (see plugin_gen_tb_end).
++ */
++static void gen_store_tb_vaddr(const TCGCPUOps *ops, const TranslationBlock *tb)
++{
++    TCGv_i64 pc = tcg_temp_ebb_new_i64();
++
++    ops->gen_tb_pc(pc, tb);
++    tcg_gen_st_i64(pc, tcg_env,
++                   offsetof(CPUState, plugin_tb_vaddr) - sizeof(CPUState));
++    tcg_temp_free_i64(pc);
++}
++
++static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb,
++                              const TCGCPUOps *store_vaddr)
  {
      TCGOp *op, *next;
-@@ -313,8 +337,27 @@ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb)
+     int insn_idx = -1;
+@@ -313,8 +394,28 @@ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb)
       */
      tcg_temp_ebb_reset_freed(tcg_ctx);
  
@@ -109,8 +203,9 @@ index 9e6430bd6af81efb49b18e54f47fab916050c344..d90f822e0b408d464c4163e9ebad408e
 +             * The prologue's TB_EXIT_REQUESTED did not execute the block. */
 +            if (op->opc != INDEX_op_exit_tb || op->args[0] == 0) {
 +                const GArray *cbs = plugin_tb->end_cbs;
-+                tcg_ctx->emit_before_op = op;
-+                for (int i = 0, n = cbs ? cbs->len : 0; i < n; i++) {
++                int n_end = cbs ? cbs->len : 0;
++                tcg_ctx->emit_before_op = n_end ? plugin_end_point(op) : op;
++                for (int i = 0; i < n_end; i++) {
 +                    inject_cb(&g_array_index(cbs, struct qemu_plugin_dyn_cb, i));
 +                }
 +                tcg_ctx->emit_before_op = NULL;
@@ -120,7 +215,17 @@ index 9e6430bd6af81efb49b18e54f47fab916050c344..d90f822e0b408d464c4163e9ebad408e
          case INDEX_op_insn_start:
              insn_idx++;
              break;
-@@ -427,6 +470,9 @@ bool plugin_gen_tb_start(CPUState *cpu, const DisasContextBase *db)
+@@ -349,6 +450,9 @@ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb)
+             case PLUGIN_GEN_FROM_TB:
+                 assert(insn == NULL);
+ 
++                if (store_vaddr) {
++                    gen_store_tb_vaddr(store_vaddr, tcg_ctx->plugin_db->tb);
++                }
+                 cbs = plugin_tb->cbs;
+                 for (i = 0, n = (cbs ? cbs->len : 0); i < n; i++) {
+                     inject_cb(
+@@ -427,6 +531,9 @@ bool plugin_gen_tb_start(CPUState *cpu, const DisasContextBase *db)
          if (ptb->cbs) {
              g_array_set_size(ptb->cbs, 0);
          }
@@ -130,24 +235,102 @@ index 9e6430bd6af81efb49b18e54f47fab916050c344..d90f822e0b408d464c4163e9ebad408e
          ptb->n = 0;
          ptb->mem_helper = false;
          ptb->vaddr_read = false;
+@@ -500,6 +607,22 @@ void plugin_gen_tb_end(CPUState *cpu, size_t num_insns)
+     /* collect instrumentation requests */
+     qemu_plugin_tb_trans_cb(cpu, ptb);
+ 
++    /*
++     * End callbacks run after the PC has moved on. A CF_PCREL TB stays shared
++     * and stores the address it runs at, at its start (gen_store_tb_vaddr);
++     * on a target that can't say where that address is, bind it instead.
++     */
++    const TCGCPUOps *ops = cpu->cc->tcg_ops;
++    const TCGCPUOps *store_vaddr = NULL;
++    if (ptb->end_cbs && ptb->end_cbs->len && !ptb->vaddr_read
++        && (tb_cflags(tcg_ctx->plugin_db->tb) & CF_PCREL)) {
++        if (ops->gen_tb_pc) {
++            store_vaddr = ops;
++        } else {
++            ptb->vaddr_read = true;
++        }
++    }
++
+     /*
+      * A CF_PCREL TB runs at every virtual address that maps its physical
+      * page.  If a plugin read the address while instrumenting it, the
+@@ -511,7 +634,7 @@ void plugin_gen_tb_end(CPUState *cpu, size_t num_insns)
+     }
+ 
+     /* inject the instrumentation at the appropriate places */
+-    plugin_gen_inject(ptb);
++    plugin_gen_inject(ptb, store_vaddr);
+ 
+     /* reset plugin translation state (plugin_tb is reused between blocks) */
+     tcg_ctx->plugin_db = NULL;
+diff --git a/include/accel/tcg/cpu-ops.h b/include/accel/tcg/cpu-ops.h
+index b2eacb554288d5dffb29803a980f3f1f0fcf2870..4d4a327c9fc90291f7a51bf83572c0952d6ee195 100644
+--- a/include/accel/tcg/cpu-ops.h
++++ b/include/accel/tcg/cpu-ops.h
+@@ -23,6 +23,8 @@
+ #include "accel/tcg/tb-cpu-state.h"
+ #include "tcg/tcg-mo.h"
+ 
++struct TCGv_i64_d;
++
+ struct TCGCPUOps {
+     /**
+      * mttcg_supported: multi-threaded TCG is supported
+@@ -83,6 +85,13 @@ struct TCGCPUOps {
+      * function to restore all the state, and register it here.
+      */
+     void (*synchronize_from_tb)(CPUState *cpu, const TranslationBlock *tb);
++    /**
++     * @gen_tb_pc: Emit TCG ops, at the start of CF_PCREL @tb, that put the
++     * virtual address @tb runs at (the pc its lookup used) in @dst.
++     * Optional: a TB with plugin end callbacks is otherwise bound to the
++     * address it was translated at.
++     */
++    void (*gen_tb_pc)(struct TCGv_i64_d *dst, const TranslationBlock *tb);
+     /**
+      * @restore_state_to_opc: Synchronize state from INDEX_op_start_insn
+      *
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index 4f2e0d867c7c54e72b5d418eabd5a3bf760dc113..3bce74a74d250b725fe0cfc39ce16d8e0a185fb1 100644
+index 4f2e0d867c7c54e72b5d418eabd5a3bf760dc113..5f4382cef39206e81f7c54edcbad373c11cb5460 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
-@@ -565,7 +565,7 @@ struct CPUState {
+@@ -565,8 +565,12 @@ struct CPUState {
      int32_t exception_index;
      /* host return address into the block while a TCG hook runs, or 0 */
      uintptr_t tcg_hook_ra;
 -    /* PANDA: a block's after_block_exec is still owed (panda/hooks.h) */
-+    /* Reserved for the 0081 CPUState ABI; no longer read or written. */
-     bool panda_block_pending;
+-    bool panda_block_pending;
++    /*
++     * Gated TB callbacks (qemu_plugin_register_vcpu_tb_exec_gated_cb): a
++     * block calls one only while a bit of its gate is set here. Written by
++     * the embedding for every vCPU, read by translated code.
++     */
++    uint8_t plugin_tb_gates;
      /*
       * A user-access window a plugin memory access opened and left open
+      * across the guest fault it raised (plugins/api-system.c): the access
+@@ -589,7 +593,11 @@ struct CPUState {
+      * whose registers the target can put back after an injected call.
+      */
+     uint32_t syscall_inject_abis;
+-    uint64_t syscall_current;   /* unused; kept for CPUState's layout */
++    /*
++     * The virtual address of the block in flight, stored at its start when
++     * it has TB-end callbacks and runs at any address (CF_PCREL, not bound).
++     */
++    uint64_t plugin_tb_vaddr;
+ 
+     bool vcpu_dirty;
+     AccelCPUState *accel;
 diff --git a/include/plugins/qemu-plugin.h b/include/plugins/qemu-plugin.h
-index 9c509144d41cadd41e5a75164ae75196f081b400..81d026087ac85e6071b42c85d613694fef30058e 100644
+index 9c509144d41cadd41e5a75164ae75196f081b400..ce2305f987f574303e22dad4d78403400c3a5522 100644
 --- a/include/plugins/qemu-plugin.h
 +++ b/include/plugins/qemu-plugin.h
-@@ -463,6 +463,26 @@ void qemu_plugin_register_vcpu_tb_exec_cb(struct qemu_plugin_tb *tb,
+@@ -463,6 +463,29 @@ void qemu_plugin_register_vcpu_tb_exec_cb(struct qemu_plugin_tb *tb,
                                            enum qemu_plugin_cb_flags flags,
                                            void *userdata);
  
@@ -164,6 +347,9 @@ index 9c509144d41cadd41e5a75164ae75196f081b400..81d026087ac85e6071b42c85d613694f
 + * at its entry, or leaves through a fault, exception or other nonlocal exit.
 + * An end event therefore need not accompany every block-entry event.
 + * Changing control flow requires qemu_plugin_set_pc(), not a raw PC write.
++ * A block that runs at any virtual address (CF_PCREL) stays shared: it
++ * stores the address it runs at, at its start, in CPUState.plugin_tb_vaddr
++ * for its end callbacks (a target without TCGCPUOps.gen_tb_pc binds it).
 + */
 +QEMU_PLUGIN_API
 +void qemu_plugin_register_vcpu_tb_end_cb(struct qemu_plugin_tb *tb,
@@ -174,11 +360,67 @@ index 9c509144d41cadd41e5a75164ae75196f081b400..81d026087ac85e6071b42c85d613694f
  /**
   * qemu_plugin_register_vcpu_tb_exec_cond_cb() - register conditional callback
   * @tb: the opaque qemu_plugin_tb handle for the translation
+@@ -500,6 +523,47 @@ enum qemu_plugin_op {
+     QEMU_PLUGIN_INLINE_STORE_U64,
+ };
+ 
++/**
++ * qemu_plugin_register_vcpu_tb_exec_gated_cb() - register a gated TB-entry
++ * callback
++ * @tb: the opaque translation handle
++ * @cb: callback function
++ * @flags: whether the callback reads or writes registers
++ * @gate: a bit mask
++ * @userdata: user data for callback
++ *
++ * As qemu_plugin_register_vcpu_tb_exec_cb(), called only while the vCPU's
++ * gate byte (CPUState.plugin_tb_gates) has a bit of @gate set. The block
++ * tests the byte inline, so opening and closing the gate needs no
++ * retranslation. The embedding writes the gates; a block that reads one
++ * while it changes may call once more or once less.
++ */
++QEMU_PLUGIN_API
++void qemu_plugin_register_vcpu_tb_exec_gated_cb(struct qemu_plugin_tb *tb,
++                                                qemu_plugin_vcpu_udata_cb_t cb,
++                                                enum qemu_plugin_cb_flags flags,
++                                                uint8_t gate,
++                                                void *userdata);
++
++/**
++ * qemu_plugin_register_vcpu_tb_end_gated_cb() - register a gated normal
++ * block-exit callback
++ * @tb: the opaque translation handle
++ * @cb: callback function
++ * @flags: whether the callback reads or writes registers
++ * @gate: a bit mask
++ * @userdata: user data for callback
++ *
++ * As qemu_plugin_register_vcpu_tb_end_cb(), gated as
++ * qemu_plugin_register_vcpu_tb_exec_gated_cb().
++ */
++QEMU_PLUGIN_API
++void qemu_plugin_register_vcpu_tb_end_gated_cb(struct qemu_plugin_tb *tb,
++                                               qemu_plugin_vcpu_udata_cb_t cb,
++                                               enum qemu_plugin_cb_flags flags,
++                                               uint8_t gate,
++                                               void *userdata);
++
+ /**
+  * qemu_plugin_register_vcpu_tb_exec_inline_per_vcpu() - execution inline op
+  * @tb: the opaque qemu_plugin_tb handle for the translation
 diff --git a/include/qemu/plugin.h b/include/qemu/plugin.h
-index 080eac2cd1c5b4c934c591e924b157faf0612a53..d91b6fa8b5d8d389b18897a070cc39379dafa83d 100644
+index 080eac2cd1c5b4c934c591e924b157faf0612a53..99421677b35452224ca06e43520edf4e25cd9a0a 100644
 --- a/include/qemu/plugin.h
 +++ b/include/qemu/plugin.h
-@@ -164,6 +164,7 @@ struct qemu_plugin_tb {
+@@ -96,6 +96,7 @@ enum plugin_dyn_cb_type {
+     PLUGIN_CB_MEM_REGULAR,
+     PLUGIN_CB_INLINE_ADD_U64,
+     PLUGIN_CB_INLINE_STORE_U64,
++    PLUGIN_CB_GATED,            /* cond: entry unused, imm the gate mask */
+ };
+ 
+ struct qemu_plugin_regular_cb {
+@@ -164,6 +165,7 @@ struct qemu_plugin_tb {
      bool vaddr_read;
  
      GArray *cbs;
@@ -187,10 +429,10 @@ index 080eac2cd1c5b4c934c591e924b157faf0612a53..d91b6fa8b5d8d389b18897a070cc3937
  
  /**
 diff --git a/plugins/api.c b/plugins/api.c
-index 6e77ca84524f1233d23f3973ca2fc8b7e4067a98..fdb70054eb27ad3d81c08a16cb66cb47340e8149 100644
+index 6e77ca84524f1233d23f3973ca2fc8b7e4067a98..8cde31a52aad230012312ce6ae24c53fa261af85 100644
 --- a/plugins/api.c
 +++ b/plugins/api.c
-@@ -106,6 +106,16 @@ void qemu_plugin_register_vcpu_tb_exec_cb(struct qemu_plugin_tb *tb,
+@@ -106,6 +106,37 @@ void qemu_plugin_register_vcpu_tb_exec_cb(struct qemu_plugin_tb *tb,
      }
  }
  
@@ -204,6 +446,174 @@ index 6e77ca84524f1233d23f3973ca2fc8b7e4067a98..fdb70054eb27ad3d81c08a16cb66cb47
 +    }
 +}
 +
++void qemu_plugin_register_vcpu_tb_exec_gated_cb(struct qemu_plugin_tb *tb,
++                                                qemu_plugin_vcpu_udata_cb_t cb,
++                                                enum qemu_plugin_cb_flags flags,
++                                                uint8_t gate, void *udata)
++{
++    if (gate && !tb_is_mem_only()) {
++        plugin_register_dyn_gated_cb__udata(&tb->cbs, cb, flags, gate, udata);
++    }
++}
++
++void qemu_plugin_register_vcpu_tb_end_gated_cb(struct qemu_plugin_tb *tb,
++                                               qemu_plugin_vcpu_udata_cb_t cb,
++                                               enum qemu_plugin_cb_flags flags,
++                                               uint8_t gate, void *udata)
++{
++    if (gate && !tb_is_mem_only()) {
++        plugin_register_dyn_gated_cb__udata(&tb->end_cbs, cb, flags, gate,
++                                            udata);
++    }
++}
++
  void qemu_plugin_register_vcpu_tb_exec_cond_cb(struct qemu_plugin_tb *tb,
                                                 qemu_plugin_vcpu_udata_cb_t cb,
                                                 enum qemu_plugin_cb_flags flags,
+diff --git a/plugins/core.c b/plugins/core.c
+index 938e66104b76e89ce94c14c3b846b665e0d373e7..64939079bda402a71af084a273df123617b5bd68 100644
+--- a/plugins/core.c
++++ b/plugins/core.c
+@@ -490,6 +490,21 @@ void plugin_register_dyn_cond_cb__udata(GArray **arr,
+     dyn_cb->cond = cond_cb;
+ }
+ 
++/* A conditional callback on the vCPU's CPUState.plugin_tb_gates byte. */
++void plugin_register_dyn_gated_cb__udata(GArray **arr,
++                                         qemu_plugin_vcpu_udata_cb_t cb,
++                                         enum qemu_plugin_cb_flags flags,
++                                         uint8_t gate, void *udata)
++{
++    struct qemu_plugin_dyn_cb *dyn_cb;
++
++    assert(flags != QEMU_PLUGIN_CB_RW_REGS_PC);
++    plugin_register_dyn_cond_cb__udata(arr, cb, flags, QEMU_PLUGIN_COND_NE,
++                                       (qemu_plugin_u64) { 0 }, gate, udata);
++    dyn_cb = &g_array_index(*arr, struct qemu_plugin_dyn_cb, (*arr)->len - 1);
++    dyn_cb->type = PLUGIN_CB_GATED;
++}
++
+ void plugin_register_vcpu_mem_cb(GArray **arr,
+                                  void *cb,
+                                  enum qemu_plugin_cb_flags flags,
+diff --git a/plugins/plugin.h b/plugins/plugin.h
+index 719611cd579cce94f8d085213ba357e22ed8945a..2ace8f12da7aef804a0efcc36cfebf1c4465ebc1 100644
+--- a/plugins/plugin.h
++++ b/plugins/plugin.h
+@@ -104,6 +104,12 @@ plugin_register_dyn_cond_cb__udata(GArray **arr,
+                                    uint64_t imm,
+                                    void *udata);
+ 
++void
++plugin_register_dyn_gated_cb__udata(GArray **arr,
++                                    qemu_plugin_vcpu_udata_cb_t cb,
++                                    enum qemu_plugin_cb_flags flags,
++                                    uint8_t gate, void *udata);
++
+ void plugin_register_vcpu_mem_cb(GArray **arr,
+                                  void *cb,
+                                  enum qemu_plugin_cb_flags flags,
+diff --git a/target/arm/cpu.c b/target/arm/cpu.c
+index 01df17394510b9702535ad1a150b4d76914a1783..499713696a30cc36becbb8ed0584809f2f0ae57f 100644
+--- a/target/arm/cpu.c
++++ b/target/arm/cpu.c
+@@ -2637,6 +2637,7 @@ static const TCGCPUOps arm_tcg_ops = {
+     .translate_code = arm_translate_code,
+     .get_tb_cpu_state = arm_get_tb_cpu_state,
+     .synchronize_from_tb = arm_cpu_synchronize_from_tb,
++    .gen_tb_pc = arm_gen_tb_pc,
+     .debug_excp_handler = arm_debug_excp_handler,
+     .restore_state_to_opc = arm_restore_state_to_opc,
+     .mmu_index = arm_cpu_mmu_index,
+diff --git a/target/arm/internals.h b/target/arm/internals.h
+index 051e9e34044cecf743eba2c730e8d8e66e1245fb..1803d2f4d4982cb0034fd52b8a231ba1541cfe53 100644
+--- a/target/arm/internals.h
++++ b/target/arm/internals.h
+@@ -426,6 +426,8 @@ void aarch64_translate_code(CPUState *cs, TranslationBlock *tb,
+                             int *max_insns, vaddr pc, void *host_pc);
+ void arm_translate_code(CPUState *cs, TranslationBlock *tb,
+                         int *max_insns, vaddr pc, void *host_pc);
++struct TCGv_i64_d;
++void arm_gen_tb_pc(struct TCGv_i64_d *dst, const TranslationBlock *tb);
+ 
+ void arm_cpu_register_gdb_commands(ARMCPU *cpu);
+ void aarch64_cpu_register_gdb_commands(ARMCPU *cpu, GString *,
+diff --git a/target/arm/tcg/cpu-v7m.c b/target/arm/tcg/cpu-v7m.c
+index dc249ce1f145ad05e4485263dab4062e9c25bbe6..398288bdc6ba5ccf2be8eeb36030c3c6dc39abff 100644
+--- a/target/arm/tcg/cpu-v7m.c
++++ b/target/arm/tcg/cpu-v7m.c
+@@ -246,6 +246,7 @@ static const TCGCPUOps arm_v7m_tcg_ops = {
+     .translate_code = arm_translate_code,
+     .get_tb_cpu_state = arm_get_tb_cpu_state,
+     .synchronize_from_tb = arm_cpu_synchronize_from_tb,
++    .gen_tb_pc = arm_gen_tb_pc,
+     .debug_excp_handler = arm_debug_excp_handler,
+     .restore_state_to_opc = arm_restore_state_to_opc,
+     .mmu_index = arm_cpu_mmu_index,
+diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
+index c786fb29e0e713f81de2419dc626e6fa8d143f79..2959ba51d6cfd74be611d2865838ca3a20646a90 100644
+--- a/target/arm/tcg/translate.c
++++ b/target/arm/tcg/translate.c
+@@ -7000,3 +7000,13 @@ void arm_translate_code(CPUState *cpu, TranslationBlock *tb,
+                         &dc.base, TCG_TYPE_VA);
+     }
+ }
++
++/* The address a CF_PCREL TB runs at, at its start: as arm_cpu_get_pc. */
++void arm_gen_tb_pc(TCGv_i64 dst, const TranslationBlock *tb)
++{
++    if (EX_TBFLAG_ANY(arm_tbflags_from_tb(tb), AARCH64_STATE)) {
++        tcg_gen_ld_i64(dst, tcg_env, offsetof(CPUARMState, pc));
++    } else {
++        tcg_gen_ld32u_i64(dst, tcg_env, offsetof(CPUARMState, regs[15]));
++    }
++}
+diff --git a/target/i386/tcg/helper-tcg.h b/target/i386/tcg/helper-tcg.h
+index f4b2ff740d54935bebb0c4e9115aad94708c67a3..b3c8240eba4359be042ed2f581a75f55c5c6cf15 100644
+--- a/target/i386/tcg/helper-tcg.h
++++ b/target/i386/tcg/helper-tcg.h
+@@ -58,6 +58,8 @@ static inline target_long lshift(target_long x, int n)
+ void tcg_x86_init(void);
+ void x86_translate_code(CPUState *cs, TranslationBlock *tb,
+                         int *max_insns, vaddr pc, void *host_pc);
++struct TCGv_i64_d;
++void x86_gen_tb_pc(struct TCGv_i64_d *dst, const TranslationBlock *tb);
+ 
+ /* excp_helper.c */
+ G_NORETURN void raise_exception(CPUX86State *env, int exception_index);
+diff --git a/target/i386/tcg/tcg-cpu.c b/target/i386/tcg/tcg-cpu.c
+index aae460e09a9098bd40552f347e7ec73bf01b3419..e8ed088466f9778d0b9ef37afee2dc1d5d4415d3 100644
+--- a/target/i386/tcg/tcg-cpu.c
++++ b/target/i386/tcg/tcg-cpu.c
+@@ -208,6 +208,7 @@ const TCGCPUOps x86_tcg_ops = {
+     .translate_code = x86_translate_code,
+     .get_tb_cpu_state = x86_get_tb_cpu_state,
+     .synchronize_from_tb = x86_cpu_synchronize_from_tb,
++    .gen_tb_pc = x86_gen_tb_pc,
+     .restore_state_to_opc = x86_restore_state_to_opc,
+     .mmu_index = x86_cpu_mmu_index,
+     .user_mmu_index = x86_cpu_user_mmu_index,
+diff --git a/target/i386/tcg/translate.c b/target/i386/tcg/translate.c
+index 2115c5cd24ba4b07ad7588c2413095dc37d15dc0..678d350f078d418a1cde08627801ae4c2d389ad8 100644
+--- a/target/i386/tcg/translate.c
++++ b/target/i386/tcg/translate.c
+@@ -3618,3 +3618,19 @@ void x86_translate_code(CPUState *cpu, TranslationBlock *tb,
+     translator_loop(cpu, tb, max_insns, pc, host_pc, &i386_tr_ops, &dc.base,
+                     TCG_TYPE_VA);
+ }
++
++/* The address a CF_PCREL TB runs at, at its start: as x86_get_tb_cpu_state. */
++void x86_gen_tb_pc(TCGv_i64 dst, const TranslationBlock *tb)
++{
++#ifdef TARGET_X86_64
++    tcg_gen_ld_i64(dst, tcg_env, offsetof(CPUX86State, eip));
++#else
++    tcg_gen_ld32u_i64(dst, tcg_env, offsetof(CPUX86State, eip));
++#endif
++    if (!(tb->flags & HF_CS64_MASK)) {
++        if (tb->cs_base) {
++            tcg_gen_addi_i64(dst, dst, tb->cs_base);
++        }
++        tcg_gen_ext32u_i64(dst, dst);
++    }
++}

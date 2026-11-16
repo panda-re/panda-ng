@@ -20,10 +20,10 @@ Origin: new
  create mode 100644 include/system/replay-analysis.h
 
 diff --git a/include/plugins/qemu-plugin.h b/include/plugins/qemu-plugin.h
-index 81d026087ac85e6071b42c85d613694fef30058e..698914ea3d5a3e8c2c51e49b57dd7a171e40ee71 100644
+index ce2305f987f574303e22dad4d78403400c3a5522..8e90d9b70baea6e861677b32da030eb667426b4d 100644
 --- a/include/plugins/qemu-plugin.h
 +++ b/include/plugins/qemu-plugin.h
-@@ -1682,7 +1682,9 @@ void qemu_plugin_hook_remove(struct qemu_plugin_hook *hook);
+@@ -1726,7 +1726,9 @@ void qemu_plugin_hook_remove(struct qemu_plugin_hook *hook);
   * @vaddr: the new virtual (guest) address for the program counter
   *
   * This function sets the program counter for the current vCPU to @vaddr and
@@ -34,7 +34,7 @@ index 81d026087ac85e6071b42c85d613694fef30058e..698914ea3d5a3e8c2c51e49b57dd7a17
   *
   * From a syscall event's entry callback, the trap is not delivered: the
   * task continues at @vaddr without entering the kernel.  From any other
-@@ -1692,6 +1694,16 @@ QEMU_PLUGIN_API
+@@ -1736,6 +1738,16 @@ QEMU_PLUGIN_API
  __attribute__((__noreturn__))
  void qemu_plugin_set_pc(uint64_t vaddr);
  
@@ -166,7 +166,7 @@ index 72ad08f56eed6b5a24080d80b4b5ab96275efc81..d5889f8e5f6bf8cda037e02e2e4fd134
  
      if (n == 0 || n > QEMU_PLUGIN_VADDR_OPS_MAX) {
 diff --git a/plugins/api.c b/plugins/api.c
-index fdb70054eb27ad3d81c08a16cb66cb47340e8149..902d2ec6639afee321fcd1e38d3e0b6aa68cc012 100644
+index 8cde31a52aad230012312ce6ae24c53fa261af85..7301a28495095592222a6834fa708d2fcfe273dd 100644
 --- a/plugins/api.c
 +++ b/plugins/api.c
 @@ -55,6 +55,7 @@
@@ -177,7 +177,7 @@ index fdb70054eb27ad3d81c08a16cb66cb47340e8149..902d2ec6639afee321fcd1e38d3e0b6a
  
  /* Uninstall and Reset handlers */
  
-@@ -546,6 +547,9 @@ bool qemu_plugin_read_register(struct qemu_plugin_register *reg,
+@@ -567,6 +568,9 @@ bool qemu_plugin_read_register(struct qemu_plugin_register *reg,
  bool qemu_plugin_write_register(struct qemu_plugin_register *reg,
                                  GByteArray *buf)
  {
@@ -187,7 +187,7 @@ index fdb70054eb27ad3d81c08a16cb66cb47340e8149..902d2ec6639afee321fcd1e38d3e0b6a
      g_assert(current_cpu);
  
      /* Read-only property is encoded in least significant bit */
-@@ -564,6 +568,10 @@ bool qemu_plugin_write_register(struct qemu_plugin_register *reg,
+@@ -585,6 +589,10 @@ bool qemu_plugin_write_register(struct qemu_plugin_register *reg,
  void *qemu_plugin_register_ptr(struct qemu_plugin_register *reg,
                                 size_t *size)
  {
@@ -198,7 +198,7 @@ index fdb70054eb27ad3d81c08a16cb66cb47340e8149..902d2ec6639afee321fcd1e38d3e0b6a
  #ifdef CONFIG_TCG
      ptrdiff_t off;
      unsigned n;
-@@ -587,6 +595,12 @@ void *qemu_plugin_register_ptr(struct qemu_plugin_register *reg,
+@@ -608,6 +616,12 @@ void *qemu_plugin_register_ptr(struct qemu_plugin_register *reg,
  
  void qemu_plugin_set_pc(uint64_t vaddr)
  {
@@ -211,7 +211,7 @@ index fdb70054eb27ad3d81c08a16cb66cb47340e8149..902d2ec6639afee321fcd1e38d3e0b6a
      g_assert(current_cpu);
  
      g_assert(qemu_plugin_get_cb_flags() == QEMU_PLUGIN_CB_RW_REGS_PC);
-@@ -611,6 +625,14 @@ void qemu_plugin_set_pc(uint64_t vaddr)
+@@ -632,6 +646,14 @@ void qemu_plugin_set_pc(uint64_t vaddr)
      cpu_loop_exit(current_cpu);
  }
  
@@ -226,7 +226,7 @@ index fdb70054eb27ad3d81c08a16cb66cb47340e8149..902d2ec6639afee321fcd1e38d3e0b6a
  bool qemu_plugin_read_memory_vaddr(uint64_t addr, GByteArray *data, size_t len)
  {
      g_assert(current_cpu);
-@@ -640,6 +662,9 @@ bool qemu_plugin_read_memory_vaddr(uint64_t addr, GByteArray *data, size_t len)
+@@ -661,6 +683,9 @@ bool qemu_plugin_read_memory_vaddr(uint64_t addr, GByteArray *data, size_t len)
  
  bool qemu_plugin_write_memory_vaddr(uint64_t addr, GByteArray *data)
  {
@@ -236,7 +236,7 @@ index fdb70054eb27ad3d81c08a16cb66cb47340e8149..902d2ec6639afee321fcd1e38d3e0b6a
      g_assert(current_cpu);
  
      if (data->len == 0) {
-@@ -675,6 +700,9 @@ qemu_plugin_read_memory_hwaddr(hwaddr addr, GByteArray *data, size_t len)
+@@ -696,6 +721,9 @@ qemu_plugin_read_memory_hwaddr(hwaddr addr, GByteArray *data, size_t len)
      }
  
      g_byte_array_set_size(data, len);
@@ -246,7 +246,7 @@ index fdb70054eb27ad3d81c08a16cb66cb47340e8149..902d2ec6639afee321fcd1e38d3e0b6a
      MemTxResult res = address_space_rw(as, addr,
                                         MEMTXATTRS_UNSPECIFIED, data->data,
                                         data->len, false);
-@@ -700,6 +728,9 @@ enum qemu_plugin_hwaddr_operation_result
+@@ -721,6 +749,9 @@ enum qemu_plugin_hwaddr_operation_result
  qemu_plugin_write_memory_hwaddr(hwaddr addr, GByteArray *data)
  {
  #ifdef CONFIG_SOFTMMU
@@ -257,7 +257,7 @@ index fdb70054eb27ad3d81c08a16cb66cb47340e8149..902d2ec6639afee321fcd1e38d3e0b6a
          return QEMU_PLUGIN_HWADDR_OPERATION_ERROR;
      }
 diff --git a/plugins/core.c b/plugins/core.c
-index 938e66104b76e89ce94c14c3b846b665e0d373e7..7fe9c64fa8d8b2cd801127ad7c9e814b4dfd1c8a 100644
+index 64939079bda402a71af084a273df123617b5bd68..356f3e97ad600ac0094837c96a1e6700b346ebd6 100644
 --- a/plugins/core.c
 +++ b/plugins/core.c
 @@ -12,6 +12,7 @@
@@ -268,7 +268,7 @@ index 938e66104b76e89ce94c14c3b846b665e0d373e7..7fe9c64fa8d8b2cd801127ad7c9e814b
  #include "qemu/lockable.h"
  #include "qemu/option.h"
  #include "qemu/plugin.h"
-@@ -643,6 +644,9 @@ qemu_plugin_vcpu_syscall_filter(CPUState *cpu, int64_t num, uint64_t a1,
+@@ -658,6 +659,9 @@ qemu_plugin_vcpu_syscall_filter(CPUState *cpu, int64_t num, uint64_t a1,
      if (!test_bit(ev, cpu->plugin_state->event_mask)) {
          return false;
      }

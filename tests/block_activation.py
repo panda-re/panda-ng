@@ -2,10 +2,10 @@
 
 Run: panda-python tests/block_activation.py <image.json>
 Warm the program with both callbacks disabled, then select entry only, end
-only, both, neither, and both again. No caller requests a TB flush. End-only
-must not require entry instrumentation. Faulting blocks have no end event;
-normal end observers see the outgoing PC. The enabled-shape query verifies
-that disabled callbacks leave neither a block helper nor a gate requested.
+only, both, neither, and both again. No caller requests a TB flush. Faulting blocks have no end event;
+normal end observers see the outgoing PC. The shape query verifies that the
+translation follows registration: entry and end stay instrumented (behind
+their run-time gates) whatever is enabled.
 """
 import base64
 from collections import Counter
@@ -94,9 +94,9 @@ for i, run in enumerate(runs):
     start_on, end_on = run["mode"]
     labels = run["labels"]
     check(prefix + " guest completes", "rc=0" in run["output"])
-    check(prefix + " independent enabled shape", run.get("shape") ==
-          (2 * start_on | 4 * end_on), run.get("shape"))
-    check(prefix + " disabling removes both shapes", run.get("closed_shape") == 0)
+    check(prefix + " registered shape whatever is enabled", run.get("shape") == 6, run.get("shape"))
+    check(prefix + " disabling keeps the registered shape", run.get("closed_shape") == 6,
+          run.get("closed_shape"))
     check(prefix + " no callbacks after disable", run.get("closed_counts") == run["final_counts"])
     if start_on:
         check(prefix + " all 1000 loop entries observed after late enable",
