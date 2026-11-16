@@ -15,6 +15,7 @@ Profile profiles[PROFILE_LAST];
 
 bool load_info = false;
 context_map_t running_syscalls;
+std::mutex running_syscalls_lock;
 static uint64_t reads, hooks, enters, returns;
 static uint64_t args[3] = {100, 200, 3};
 static uint64_t seen[3];
