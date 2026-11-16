@@ -1169,8 +1169,10 @@ typedef union panda_cb {
        start_block_exec:
         Runs at the block's entry, after the entry interrupt/icount check
         and before its first guest instruction. Chaining stays enabled.
-        First enable flushes cached uninstrumented blocks. Last disable
-        flushes away entry instrumentation; disabled callbacks have no gate.
+        Blocks are instrumented for block callbacks from the first
+        registration of any of them (one flush) to the end of the run;
+        enabling, disabling, registering and unregistering after that only
+        set a gate the block tests at its entry.
         An entry may be followed by an early exit with no end event.
 
        Arguments:
@@ -1192,13 +1194,17 @@ typedef union panda_cb {
         outgoing PC update, before a direct link, indirect link or dispatcher
         return. It is emitted at the outgoing edge, with no next-block delay.
         Faults, exceptions, entry rejection and other early exits have no end
-        event. It can be enabled alone without entry instrumentation. First
-        enable and last disable flush translations; disabled callbacks leave
-        no end helper or gate.
+        event. Blocks are instrumented for block callbacks from the first
+        registration of any of them (one flush) to the end of the run;
+        enabling, disabling, registering and unregistering after that only
+        set a gate the block tests at its end: one enabled while a block
+        runs sees that block's end, not its entry.
 
        Arguments:
         CPUState *env:        the current CPU state
-        TranslationBlock *tb: the TB we are executing
+        TranslationBlock *tb: the TB we are executing. Its address is
+                              panda_tb_pc(env, tb): the address the block ran
+                              at, not the PC it has moved on to.
 
        Helper call location: TCG outgoing edge
 
@@ -2281,8 +2287,10 @@ typedef union panda_cb_with_context {
        start_block_exec:
         Runs at the block's entry, after the entry interrupt/icount check
         and before its first guest instruction. Chaining stays enabled.
-        First enable flushes cached uninstrumented blocks. Last disable
-        flushes away entry instrumentation; disabled callbacks have no gate.
+        Blocks are instrumented for block callbacks from the first
+        registration of any of them (one flush) to the end of the run;
+        enabling, disabling, registering and unregistering after that only
+        set a gate the block tests at its entry.
         An entry may be followed by an early exit with no end event.
 
        Arguments:
@@ -2304,13 +2312,17 @@ typedef union panda_cb_with_context {
         outgoing PC update, before a direct link, indirect link or dispatcher
         return. It is emitted at the outgoing edge, with no next-block delay.
         Faults, exceptions, entry rejection and other early exits have no end
-        event. It can be enabled alone without entry instrumentation. First
-        enable and last disable flush translations; disabled callbacks leave
-        no end helper or gate.
+        event. Blocks are instrumented for block callbacks from the first
+        registration of any of them (one flush) to the end of the run;
+        enabling, disabling, registering and unregistering after that only
+        set a gate the block tests at its end: one enabled while a block
+        runs sees that block's end, not its entry.
 
        Arguments:
         CPUState *env:        the current CPU state
-        TranslationBlock *tb: the TB we are executing
+        TranslationBlock *tb: the TB we are executing. Its address is
+                              panda_tb_pc(env, tb): the address the block ran
+                              at, not the PC it has moved on to.
 
        Helper call location: TCG outgoing edge
 

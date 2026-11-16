@@ -3,10 +3,12 @@ pandare2.mkimage.
 
 Run: panda-python tests/tbpc.py <dir>/debian-13-x86_64.json
 
-Entry-only callbacks preserve PCREL sharing between virtual addresses. Enabling
-normal-end callbacks binds source addresses so end observers can identify the
-source after the live PC advances. Both phases check CPU-PC synchronization
-and physical page identity across processes using different ASLR mappings.
+Block callbacks preserve PCREL sharing between virtual addresses: the first phase runs with
+entry callbacks only (blocks carry entry and end instrumentation either way), the second with end
+callbacks registered and enabled too. An end callback runs after the
+PC has moved on; a shared block stores the address it runs at, at its start, and tb_pc in its end
+callbacks is that address (checked against the one its start callback saw). Both phases check
+CPU-PC synchronization and physical page identity across processes using different ASLR mappings.
 """
 import os
 import sys
@@ -104,7 +106,7 @@ def describe(cpu, tb, pc, t, want, extra=""):
     exc = last["exc"]
     return (f"tb_pc {pc:#x} tb {key(tb):#x} tb->pc {tb.pc:#x} cflags {tb.cflags:#x} bound {tb.pc_bound}{extra}"
             f" | started tb {key(t):#x} at {want:#x} | cpu pc {panda.arch.get_pc(cpu):#x}"
-            f" | phase {last['phase']}, enabled {[x for x in NAMES if panda.is_callback_enabled(x)]}"
+            f" | phase {last['phase']}, enabled {[x for x in NAMES if x in panda.registered_callbacks and panda.is_callback_enabled(x)]}"
             f" | last exception {exc[0] if exc else None} {n['before_block_exec'] - exc[1] if exc else '-'} blocks ago")
 
 
@@ -119,7 +121,6 @@ def bbe(cpu, tb):
     last["bbe"] = (tb, at_entry("before_block_exec", cpu, tb))
 
 
-@panda.cb_after_block_exec(enabled=False)
 def abe(cpu, tb, exit_code):
     n["after_block_exec"] += 1
     pc = tb_pc(cpu, tb)
@@ -135,7 +136,6 @@ def sbe(cpu, tb):
     last["sbe"] = (tb, at_entry("start_block_exec", cpu, tb))
 
 
-@panda.cb_end_block_exec(enabled=False)
 def ebe(cpu, tb):
     n["end_block_exec"] += 1
     pc = tb_pc(cpu, tb)
@@ -144,6 +144,10 @@ def ebe(cpu, tb):
         return   # the block was running when the callbacks were enabled
     if t != tb or want != pc:
         bad("end_block_exec", describe(cpu, tb, pc, t, want))
+
+
+# Registered for the second phase only (drive).
+END_CBS = {"abe": panda.callback.after_block_exec(abe), "ebe": panda.callback.end_block_exec(ebe)}
 
 
 # In this order each "after" callback is enabled after, and disabled before, the one it pairs with:
@@ -155,8 +159,15 @@ NAMES = ["bhe", "bbt", "abt", "bbe", "abe", "sbe", "ebe"]
 
 def switch(on):
     last["translating"] = None   # do not reuse a translation from the prior enable window
+    # Nor a block start from it: blocks carry end instrumentation from the first registration, so
+    # an end callback enabled while a block runs sees that block's end, whose start the start
+    # callback (enabled after it, or not yet) never saw.
+    if on:
+        last["bbe"] = last["sbe"] = (None, None)
     last["phase"] = "enabling" if on else "disabling"
     for name in (NAMES if on or FORWARD else reversed(NAMES)):
+        if name not in panda.registered_callbacks:
+            continue
         (panda.enable_callback if on else panda.disable_callback)(name)
         if GAP:
             time.sleep(GAP)
@@ -182,9 +193,14 @@ def drive():
     st["entry_unbound"] = sum(pcrel and not bound for pcrel, bound in list(st["tbs"].values()))
     st["where"].clear()
     st["tbs"].clear()
+    # End observers too: blocks are translated again with end instrumentation, still shared.
+    panda.register_callback(panda.callback.after_block_exec, END_CBS["abe"], "abe", enabled=False)
+    panda.register_callback(panda.callback.end_block_exec, END_CBS["ebe"], "ebe", enabled=False)
     switch(True)
     panda.run_serial_cmd("sh /tmp/w.sh", timeout=3000)
     switch(False)
+    st["end_shared"] = sum(len({pc for pc, _ in v}) > 1 for v in list(st["where"].values()))
+    st["end_unbound"] = sum(pcrel and not bound for pcrel, bound in list(st["tbs"].values()))
     st["out"] = panda.run_serial_cmd("cat /tmp/o1 /tmp/o2")
     panda.end_analysis()
 
@@ -208,10 +224,10 @@ checks["kernel blocks: tb_pc maps to the TB's physical address"] = (
 checks["entry-only callbacks preserve virtual-address sharing"] = (
     st.get("entry_shared", 0) >= 10 and st.get("entry_unbound", 0) > 0,
     f"{st.get('entry_shared', 0)} shared, {st.get('entry_unbound', 0)} unbound")
-tbs = st["tbs"].values()
-checks["end observers bind their source address"] = (
-    len(tbs) > 0 and all(bound for pcrel, bound in tbs if pcrel),
-    f"{len(tbs)} observed source blocks")
+checks["end callbacks preserve virtual-address sharing"] = (
+    st.get("end_shared", 0) >= 10 and st.get("end_unbound", 0) > 0
+    and n["end_block_exec"] > 0 and n["after_block_exec"] > 0,
+    f"{st.get('end_shared', 0)} shared, {st.get('end_unbound', 0)} unbound")
 out = st.get("out", "").strip().splitlines()
 checks["guest ran the workload (head twice)"] = (len(out) == 2 and out[0] == out[1], repr(out))
 

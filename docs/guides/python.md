@@ -187,12 +187,22 @@ before transferring to another block or returning to the dispatcher. Faults, exc
 other early exits do not produce an end event. The older `before_block_exec` and
 `after_block_exec` names remain compatibility spellings; the latter receives exit code zero.
 
-Entry and end instrumentation are independent. First enable and last disable request a TB
-flush and make vCPUs leave chained execution at a safe boundary. Existing translations are
-rebuilt for the new enabled set; activation does not report past block entries or completions.
-When disabled, neither event leaves a per-block helper or gate. Entry-only callbacks preserve
-PC-relative sharing; end callbacks bind the source address so `panda.tb_pc(cpu, tb)` remains
-valid after the live PC advances. Changing control flow requires the engine's explicit PC-set
+Block instrumentation follows registration, once: the first registration of any block callback
+(entry or end kind, enabled or not) instruments every block for both entry and end and flushes
+translated code once; it stays for the rest of the run, also after the last block callback is
+unregistered (`delete_callback`, plugin unload), so registering one again later costs nothing.
+Enabling and disabling (`enable_callback`, `disable_callback`, a `procname=` filter at each
+context switch), and registering and unregistering after the first time, only set a gate that each
+block tests before calling out, so they cost no retranslation. From then on every block pays the
+two gates (a load, a test and a branch each) and, on x86_64 and aarch64, the address store below,
+whether any block callback is still registered or not. Activation does not report past block
+entries or completions; an end callback enabled while a block runs (from a callback or hypercall
+in it) sees that block's end without its entry. In a run that never registers a block callback,
+blocks carry neither a helper nor a gate. Block callbacks don't tie a block to one virtual
+address: on targets with PC-relative translation (x86_64, aarch64) code mapped into several
+address spaces stays translated once, and each block stores the address it runs at when it
+starts, so `panda.tb_pc(cpu, tb)` in an end callback is the block's address, not the PC it moved
+on to (`tb.pc` is 0 for such a block). Changing control flow requires the engine's explicit PC-set
 and exit API (`qemu_plugin_set_pc`); assigning the raw PC alone does not redirect a chained edge.
 
 An exception in a callback can't propagate into the engine: with `catch_exceptions` (the default)

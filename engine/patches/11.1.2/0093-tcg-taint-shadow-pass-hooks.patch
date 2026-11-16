@@ -241,7 +241,7 @@ index 42c627f4ce64c28e7389397fab49c790cf403338..9da843de64efa15c3e899aeb83feac29
  #define CF_CLUSTER_SHIFT 24
  
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index 3bce74a74d250b725fe0cfc39ce16d8e0a185fb1..7b586cd16759ba69a7033d483cb810a723d25e91 100644
+index 5f4382cef39206e81f7c54edcbad373c11cb5460..8c60551a391dd330162a9e284bde1a7ca0b18710 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
 @@ -565,6 +565,8 @@ struct CPUState {
@@ -250,9 +250,9 @@ index 3bce74a74d250b725fe0cfc39ce16d8e0a185fb1..7b586cd16759ba69a7033d483cb810a7
      uintptr_t tcg_hook_ra;
 +    /* taint: the shadow CPU state and shadow TLB (exec/taint.h), or NULL */
 +    void *taint_senv;
-     /* Reserved for the 0081 CPUState ABI; no longer read or written. */
-     bool panda_block_pending;
      /*
+      * Gated TB callbacks (qemu_plugin_register_vcpu_tb_exec_gated_cb): a
+      * block calls one only while a bit of its gate is set here. Written by
 diff --git a/system/physmem.c b/system/physmem.c
 index 6b5480f0bbf912af949eaa12003df8860ec83285..6b79a710ed56393bf10fa73bc557b36b6e596965 100644
 --- a/system/physmem.c
@@ -339,7 +339,7 @@ index a7fe7534b3cc9c14138d5cc850b151dd039b517a..15858f03a0814e62d96794f727367f67
  
  /*
 diff --git a/target/arm/internals.h b/target/arm/internals.h
-index 051e9e34044cecf743eba2c730e8d8e66e1245fb..5a43a6d6dee17b67ffc615bbad222e34596b0b85 100644
+index 1803d2f4d4982cb0034fd52b8a231ba1541cfe53..e8c2ebdc819063821838994a1364bb0f5e071fcd 100644
 --- a/target/arm/internals.h
 +++ b/target/arm/internals.h
 @@ -37,6 +37,7 @@
@@ -360,7 +360,7 @@ index 051e9e34044cecf743eba2c730e8d8e66e1245fb..5a43a6d6dee17b67ffc615bbad222e34
  void aarch64_translate_code(CPUState *cs, TranslationBlock *tb,
                              int *max_insns, vaddr pc, void *host_pc);
  void arm_translate_code(CPUState *cs, TranslationBlock *tb,
-@@ -597,21 +601,36 @@ static inline bool arm_cpu_bswap_data(CPUARMState *env)
+@@ -599,21 +603,36 @@ static inline bool arm_cpu_bswap_data(CPUARMState *env)
  }
  #endif
  
@@ -577,7 +577,7 @@ index 34997eb4e4d050b04b413bbef5bb635c4f6b8ea4..dd363b2fcd2bdae1c67cf2d11907a810
  {
      if ((env->uncached_cpsr & CPSR_M) == mode) {
 diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
-index 0f2a099c882bc267572f08f2845ea888c09416c8..9799375a6663953663e5e8de8a99d36b4bb1f056 100644
+index 4e04d65900d4b74bd48e3673dfa282ecb4715af4..adf4cd2324dbfed7bc195f8db508b51579f7b58e 100644
 --- a/target/arm/tcg/translate.c
 +++ b/target/arm/tcg/translate.c
 @@ -91,6 +91,9 @@ void arm_translate_init(void)

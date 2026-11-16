@@ -6,7 +6,9 @@ tests/programs/blocks_<arch>.S makes hypercall 1 (passing a table of its blocks'
 loop of N iterations (blocks "loop" N times, "odd" and "even" N/2 times each), a block that faults
 on its third instruction (the first write to a .bss page), a block that ends in a system call, then
 hypercall 2, and exits. End callbacks run on normal completion only. The block-exec callbacks are registered from the start, disabled, and
-enabled only between the hypercalls (first enable flushes old uninstrumented TBs). The program
+enabled only between the hypercalls (registered, they are in every translated block behind a gate
+that enabling opens: no TB flush). The block holding hypercall 1 completes with its end callbacks
+but not its start ones, which it had passed when they were enabled. The program
 runs twice: with TB chaining on (the default) and with it off. Each time:
 - before_block_exec / after_block_exec alternate on every block (the kernel's too), each pair on
   the same TB on normal completion; faulting blocks have an exception event instead;
@@ -31,7 +33,8 @@ without storing the pc, as on mips and ppc (tests/blocks_bare.py), and the same 
 Another run ("toggle", before the hooked one) has only before/after_block_exec (and the insn callbacks) on. At the 10th
 start of "odd", before_block_exec disables both: no block-exec callback is enabled. insn_exec
 re-enables them at "loop"'s first instruction, which "odd" chains into. "odd"'s after_block_exec,
-disabled when it ended, must not run late, at the start the gate reopened for.
+disabled when it ended, must not run late, at the start the gate reopened for; "loop"'s own
+after_block_exec, enabled while it ran, does run.
 
 Guest time comes from -icount, so the slow per-block Python callbacks can't starve the program
 under timer ticks.
@@ -102,6 +105,7 @@ class Run:
         self.prog_tbs = Counter()    # program blocks started: PCREL or not
         self.odd_starts = 0          # toggle run
         self.toggled = self.reenabled = False
+        self.enabled_in = {}         # callback -> pc of the instruction that enabled it mid-block
 
 
 runs = []
@@ -110,6 +114,14 @@ cur = None   # the Run in progress
 
 def tbptr(tb):
     return int(ffi.cast("uintptr_t", tb))
+
+
+def enabled_in_this_block(r, name, cpu, tb):
+    """An end callback enabled during a block runs at that block's end, its start having passed
+    before: once, for the block holding the enabling instruction."""
+    at = r.enabled_in.pop(name, None)
+    start = panda.tb_pc(cpu, tb)
+    return at is not None and start <= at < start + tb.size
 
 
 @panda.cb_before_block_exec(name="bbe", enabled=False)
@@ -141,6 +153,8 @@ def bbe(cpu, tb):
 @panda.cb_after_block_exec(name="abe", enabled=False)
 def abe(cpu, tb, exit_code):
     r = cur
+    if r.be_cur is None and enabled_in_this_block(r, "abe", cpu, tb):
+        return
     if r.be_cur is None or r.be_cur[0] != tbptr(tb):
         r.viol["after_block_exec without its before_block_exec"] += 1
         r.be_cur = None
@@ -168,6 +182,8 @@ def sbe(cpu, tb):
 @panda.cb_end_block_exec(name="ebe", enabled=False)
 def ebe(cpu, tb):
     r = cur
+    if r.se_cur is None and enabled_in_this_block(r, "ebe", cpu, tb):
+        return
     if r.se_cur is None or r.se_cur[0] != tbptr(tb):
         r.viol["end_block_exec without its start_block_exec"] += 1
         r.se_cur = None
@@ -211,6 +227,7 @@ def ie(cpu, pc):
         if r.toggled and not r.reenabled and pc == r.labels["loop"]:
             panda.enable_callback("bbe")
             panda.enable_callback("abe")
+            r.enabled_in["abe"] = pc
             r.reenabled = True
             r.ev.append(("y", pc))
     return 0
@@ -244,6 +261,8 @@ def hypercall(cpu):
         cur.labels = {k: int.from_bytes(raw[8 * i:8 * i + 8], "little") for i, k in enumerate(LABELS)}
         for name in (["bbe", "abe", "it", "ie", "bex"] if cur.name == "toggle" else WINDOW):
             panda.enable_callback(name)
+        hc_pc = panda.arch.get_arg(cpu, 5, convention="syscall")
+        cur.enabled_in = {name: hc_pc for name in ("abe", "ebe")}
     elif op == 2:
         for name in WINDOW:
             panda.disable_callback(name)

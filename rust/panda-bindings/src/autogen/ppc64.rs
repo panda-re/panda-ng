@@ -33377,11 +33377,11 @@ pub struct CPUState {
     pub exception_index: i32,
     pub tcg_hook_ra: usize,
     pub taint_senv: *mut ::std::os::raw::c_void,
-    pub panda_block_pending: bool,
+    pub plugin_tb_gates: u8,
     pub uaccess_pend: CPUState__bindgen_ty_5,
     pub syscall_kmmu: u32,
     pub syscall_inject_abis: u32,
-    pub syscall_current: u64,
+    pub plugin_tb_vaddr: u64,
     pub vcpu_dirty: bool,
     pub accel: *mut AccelCPUState,
     pub throttle_thread_scheduled: bool,
@@ -33573,16 +33573,16 @@ const _: () = {
         [::std::mem::offset_of!(CPUState, tcg_hook_ra) - 712usize];
     ["Offset of field: CPUState::taint_senv"]
         [::std::mem::offset_of!(CPUState, taint_senv) - 720usize];
-    ["Offset of field: CPUState::panda_block_pending"]
-        [::std::mem::offset_of!(CPUState, panda_block_pending) - 728usize];
+    ["Offset of field: CPUState::plugin_tb_gates"]
+        [::std::mem::offset_of!(CPUState, plugin_tb_gates) - 728usize];
     ["Offset of field: CPUState::uaccess_pend"]
         [::std::mem::offset_of!(CPUState, uaccess_pend) - 736usize];
     ["Offset of field: CPUState::syscall_kmmu"]
         [::std::mem::offset_of!(CPUState, syscall_kmmu) - 760usize];
     ["Offset of field: CPUState::syscall_inject_abis"]
         [::std::mem::offset_of!(CPUState, syscall_inject_abis) - 764usize];
-    ["Offset of field: CPUState::syscall_current"]
-        [::std::mem::offset_of!(CPUState, syscall_current) - 768usize];
+    ["Offset of field: CPUState::plugin_tb_vaddr"]
+        [::std::mem::offset_of!(CPUState, plugin_tb_vaddr) - 768usize];
     ["Offset of field: CPUState::vcpu_dirty"]
         [::std::mem::offset_of!(CPUState, vcpu_dirty) - 776usize];
     ["Offset of field: CPUState::accel"][::std::mem::offset_of!(CPUState, accel) - 784usize];
@@ -37578,6 +37578,24 @@ pub const QEMU_PLUGIN_INLINE_ADD_U64: qemu_plugin_op = 0;
 pub const QEMU_PLUGIN_INLINE_STORE_U64: qemu_plugin_op = 1;
 pub type qemu_plugin_op = ::std::os::raw::c_uint;
 unsafe extern "C" {
+    pub fn qemu_plugin_register_vcpu_tb_exec_gated_cb(
+        tb: *mut qemu_plugin_tb,
+        cb: qemu_plugin_vcpu_udata_cb_t,
+        flags: qemu_plugin_cb_flags,
+        gate: u8,
+        userdata: *mut ::std::os::raw::c_void,
+    );
+}
+unsafe extern "C" {
+    pub fn qemu_plugin_register_vcpu_tb_end_gated_cb(
+        tb: *mut qemu_plugin_tb,
+        cb: qemu_plugin_vcpu_udata_cb_t,
+        flags: qemu_plugin_cb_flags,
+        gate: u8,
+        userdata: *mut ::std::os::raw::c_void,
+    );
+}
+unsafe extern "C" {
     pub fn qemu_plugin_register_vcpu_tb_exec_inline_per_vcpu(
         tb: *mut qemu_plugin_tb,
         op: qemu_plugin_op,
@@ -38706,6 +38724,7 @@ pub const PLUGIN_CB_COND: plugin_dyn_cb_type = 1;
 pub const PLUGIN_CB_MEM_REGULAR: plugin_dyn_cb_type = 2;
 pub const PLUGIN_CB_INLINE_ADD_U64: plugin_dyn_cb_type = 3;
 pub const PLUGIN_CB_INLINE_STORE_U64: plugin_dyn_cb_type = 4;
+pub const PLUGIN_CB_GATED: plugin_dyn_cb_type = 5;
 pub type plugin_dyn_cb_type = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -39406,6 +39425,15 @@ unsafe extern "C" {
         cond: qemu_plugin_cond,
         entry: qemu_plugin_u64,
         imm: u64,
+        udata: *mut ::std::os::raw::c_void,
+    );
+}
+unsafe extern "C" {
+    pub fn plugin_register_dyn_gated_cb__udata(
+        arr: *mut *mut GArray,
+        cb: qemu_plugin_vcpu_udata_cb_t,
+        flags: qemu_plugin_cb_flags,
+        gate: u8,
         udata: *mut ::std::os::raw::c_void,
     );
 }
@@ -46603,6 +46631,12 @@ unsafe extern "C" {
     pub fn panda_bridge_wants() -> ::std::os::raw::c_uint;
 }
 unsafe extern "C" {
+    pub fn panda_block_gates_update();
+}
+unsafe extern "C" {
+    pub fn panda_block_gates_sync();
+}
+unsafe extern "C" {
     pub fn panda_memcb_rw(is_store: bool) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -46637,6 +46671,9 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn panda_block_leave_at_start(cpu: *mut CPUState, tb: *mut TranslationBlock);
+}
+unsafe extern "C" {
+    pub fn panda_block_translate_begin(cpu: *mut CPUState);
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

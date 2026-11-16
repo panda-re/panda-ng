@@ -3,12 +3,24 @@ CPUState *panda_cpu_by_index(int index);
 CPUState *panda_cpu_in_translate(void);
 TranslationBlock *panda_get_tb(struct qemu_plugin_tb *tb);
 
-/* Insn/memory shape follows registration; block shape follows enable state.
- * First block enable and last disable flush existing translations. */
+/* What translated code is instrumented for follows registration, not enable state. Instruction
+ * and memory instrumentation follow the registered callbacks (the first registration of a kind and
+ * the last unregistration change it and flush). Block instrumentation, entry and end together, is
+ * on from the first registration of any block callback for the rest of the run (one flush); its
+ * entry and end test a gate inline (a bit of CPUState.plugin_tb_gates) and call out only while a
+ * callback of the kind is enabled. */
 #define PANDA_BRIDGE_INSN  1
 #define PANDA_BRIDGE_BLOCK 2  /* actual entry */
 #define PANDA_BRIDGE_END   4  /* normal completion, before outgoing transfer */
 unsigned panda_bridge_wants(void);
+/* The block gates: bits of every vCPU's CPUState.plugin_tb_gates, set while a block-entry
+ * (PANDA_BLOCK_GATE_ENTRY) or block-end (PANDA_BLOCK_GATE_END) callback is enabled. */
+#define PANDA_BLOCK_GATE_ENTRY 1
+#define PANDA_BLOCK_GATE_END   2
+/* Recompute the gates from the enabled block callbacks and write them to every vCPU
+ * (callbacks.c, under its lock; panda_block_gates_sync takes it, for a new vCPU). */
+void panda_block_gates_update(void);
+void panda_block_gates_sync(void);
 /* The qemu_plugin_mem_rw (direction and phases) to register for reads (is_store false) or
  * writes; 0 for none. mmio_after_read needs every load's after event and mmio_before_write every
  * store's before event: whether the access went (or goes) to a device is known per access. */
@@ -43,6 +55,8 @@ bool panda_bridge_io_rewinds(CPUState *cpu);
 void panda_block_start(CPUState *cpu, TranslationBlock *tb);
 void panda_block_end(CPUState *cpu, TranslationBlock *tb);
 void panda_block_leave_at_start(CPUState *cpu, TranslationBlock *tb); /* noreturn */
+/* The bridge is about to instrument a new block on @cpu (panda_tb_pc's state). */
+void panda_block_translate_begin(CPUState *cpu);
 /* Edge coverage (panda/src/panda_cov.c). While on, the bridge registers a callback per translated
  * block that panda_cov_block accepts (id in *cur, it says which), which does AFL's
  * map[cur ^ prev]++, prev = cur >> 1 for its vCPU. */

@@ -386,8 +386,12 @@ for key, where in [("tb_pc_translate", "after_block_translate (before_block_tran
     n, bad = seen[key]
     check(f"tb_pc is the block's address in {where}", n and not bad, f"{n} TBs, {bad}")
 # The window opens inside hypercall 1's block (whose start passed with the callbacks off: no
-# before/after for it) and closes inside hypercall 2's (before ran, after didn't).
+# before for it, but after, enabled before it ended, runs at its end) and closes inside hypercall
+# 2's (before ran, after didn't).
 blk = seen["blk"]
+seen["opening_after"] = blk[0] if blk and blk[0][0] == "a" else None
+if seen["opening_after"]:
+    blk = blk[1:]
 seen["bbe"] = [e[1] for e in blk if e[0] == "b"]
 seen["abe"] = [e[1] for e in blk if e[0] == "a"]
 alternate = all(blk[i][0] == ("b" if i % 2 == 0 else "a") and (i % 2 == 0 or blk[i][1] == blk[i - 1][1])

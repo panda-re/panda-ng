@@ -119,6 +119,9 @@ def abe(cpu, tb, exit_code):
         return
     kind = S["kind"].get((pc, tb.size))
     if kind is None:
+        at = S.pop("enabled_in", None)
+        if at is not None and pc <= at < pc + tb.size:
+            return                  # the block that opened the window, translated before it
         S["untracked_calls"] += 1   # executed but never seen translated (window opened after)
         return
     if exit_code > 1:
@@ -159,6 +162,7 @@ def hypercall(cpu):
         add_hooks(S["labels"])
         for name in WINDOW:
             panda.enable_callback(name)
+        S["enabled_in"] = pc            # this block's after_block_exec runs at its end
         panda.flush_tb()
     elif op == 2:
         for name in WINDOW:

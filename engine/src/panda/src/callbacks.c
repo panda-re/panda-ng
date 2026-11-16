@@ -1014,14 +1014,18 @@ static void panda_cb_retire(panda_cb_list *node)
     panda_events_call_rcu(&r->rcu, panda_cb_retired_free);
 }
 
-/* Block-entry/end code is selected from enabled callbacks. First enable and
- * last disable change the translation shape and request a flush, including
- * callbacks enabled after old uninstrumented blocks have been cached. */
+/* What translated code is instrumented for (the translation shape) follows the registered
+ * callbacks; a change requests a flush, so blocks cached before then get the new shape. For block
+ * callbacks it changes once: the first registration of any block callback turns entry and end
+ * instrumentation on for the rest of the run (panda_bridge_wants), so later registrations,
+ * unregistrations, enables and disables only set the block gates, which the instrumentation tests
+ * at run time: toggling a callback (pandare2's procname filter at every context switch) costs no
+ * retranslation. */
 static unsigned panda_tb_shape;
 
 static unsigned panda_translation_shape(void)
 {
-    /* Block shape also controls virtual-address binding for its observers. */
+    /* Which instrumentation translated blocks carry (none of it binds a block to its address). */
     return (panda_bridge_wants() & (PANDA_BRIDGE_INSN | PANDA_BRIDGE_BLOCK | PANDA_BRIDGE_END))
            | (unsigned) panda_memcb_rw(false) << 8
            | (unsigned) panda_memcb_rw(true) << 16;
@@ -1033,6 +1037,9 @@ static void panda_cb_list_changed(panda_cb_type type, bool was_registered)
     if (shape != panda_tb_shape) {
         panda_tb_shape = shape;
         panda_do_flush_tb();
+    }
+    if (panda_is_block_cb_type(type)) {
+        panda_block_gates_update();
     }
     if (type == PANDA_CB_BEFORE_HANDLE_EXCEPTION) {
         if (panda_cbs[type]) {
@@ -1046,6 +1053,13 @@ static void panda_cb_list_changed(panda_cb_type type, bool was_registered)
 void panda_block_cbs_changed(void)
 {
     panda_cb_list_changed(PANDA_CB_START_BLOCK_EXEC, true);
+}
+
+/* A new vCPU's block gates (from the bridge's vCPU init). */
+void panda_block_gates_sync(void)
+{
+    QEMU_LOCK_GUARD(&panda_cbs_lock);
+    panda_block_gates_update();
 }
 
 /* Why a legacy registration (all supported modes, mutating) was refused. */
