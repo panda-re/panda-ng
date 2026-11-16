@@ -175,9 +175,11 @@ def drive():
     for name in ("bhe", "bbt", "abt", "bbe", "sbe"):
         panda.enable_callback(name)
     panda.run_serial_cmd("sh /tmp/w.sh", timeout=3000)
-    st["entry_shared"] = sum(len({pc for pc, _ in v}) > 1 for v in st["where"].values())
-    st["entry_unbound"] = sum(pcrel and not bound for pcrel, bound in st["tbs"].values())
+    # The guest runs on while this thread reads: stop the callbacks first, and read copies (list()
+    # under the GIL) in case one was still running when its callback was disabled.
     switch(False)
+    st["entry_shared"] = sum(len({pc for pc, _ in v}) > 1 for v in list(st["where"].values()))
+    st["entry_unbound"] = sum(pcrel and not bound for pcrel, bound in list(st["tbs"].values()))
     st["where"].clear()
     st["tbs"].clear()
     switch(True)
