@@ -5,9 +5,13 @@ Subject: [PATCH] system: gate handoff and snapshot clock adaptations
 
 Require handoff for added x86/ARM migration conversions and ARM/GIC snapshot
 subsections. Preserve upstream TSS and cpreg-validation paths otherwise.
-Require RR for cross-icount clock and PMCEID adaptations and load-time timer
-deferral/stall handling, leaving stock expired-timer RR scheduling unchanged.
-Require analysis (which fuzz implies) for the snapshot tick-clamp rewind:
+Require analysis (which fuzz and RR imply) for the cross-icount clock, x86 TSC
+and PMCEID adaptations: -icount alone is a common way to make guest time
+follow instructions, and such a run of a snapshot taken without icount needs
+them (without them the x86 guest clock stands still and the aarch64 load
+fails), while RR can be provisioned only for a recordable VM. Require RR for
+load-time timer deferral/stall handling, leaving stock expired-timer RR
+scheduling unchanged. Require analysis for the snapshot tick-clamp rewind:
 panda_fast_restore and repeated loadvm need it without fuzz.
 
 This bounded gate does not restore whole-engine vanilla parity. RISC-V version11
@@ -174,7 +178,7 @@ index 0e6b665d5603d09b0d06e445efafc14d49fa70b8..dea01242c890422bee2491e64c21d9de
      /*
       * Not the caller's deadline: that one was taken before it ran the
 diff --git a/system/cpu-timers.c b/system/cpu-timers.c
-index e217a4e4ea24ace74d39471b76dbb2def190beb2..21f40bb698c2bef968d0b83698a4b3b6c3d1b683 100644
+index e217a4e4ea24ace74d39471b76dbb2def190beb2..07af2fcff7ea2573c9ca45c64968e4492ce187b6 100644
 --- a/system/cpu-timers.c
 +++ b/system/cpu-timers.c
 @@ -23,6 +23,7 @@
@@ -191,7 +195,7 @@ index e217a4e4ea24ace74d39471b76dbb2def190beb2..21f40bb698c2bef968d0b83698a4b3b6
  {
 -    icount_state_loaded = false;
 -    clock_domain_changed = false;
-+    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++    if (analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
 +        icount_state_loaded = false;
 +        clock_domain_changed = false;
 +    }
@@ -201,7 +205,7 @@ index e217a4e4ea24ace74d39471b76dbb2def190beb2..21f40bb698c2bef968d0b83698a4b3b6
  static int icount_timers_post_load(void *opaque, int version_id)
  {
 -    icount_state_loaded = true;
-+    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++    if (analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
 +        icount_state_loaded = true;
 +    }
      return 0;
@@ -212,7 +216,7 @@ index e217a4e4ea24ace74d39471b76dbb2def190beb2..21f40bb698c2bef968d0b83698a4b3b6
      TimersState *s = opaque;
  
 -    icount_scratch_set(&s->icount_warp_timer, 0);
-+    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++    if (analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
 +        icount_scratch_set(&s->icount_warp_timer, 0);
 +    }
      return 0;
@@ -223,7 +227,7 @@ index e217a4e4ea24ace74d39471b76dbb2def190beb2..21f40bb698c2bef968d0b83698a4b3b6
      TimersState *s = opaque;
  
 -    icount_scratch_drop(&s->icount_warp_timer, 0);
-+    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++    if (analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
 +        icount_scratch_drop(&s->icount_warp_timer, 0);
 +    }
      return 0;
@@ -235,7 +239,7 @@ index e217a4e4ea24ace74d39471b76dbb2def190beb2..21f40bb698c2bef968d0b83698a4b3b6
  
 -    icount_scratch_set(&s->icount_rt_timer, 1);
 -    icount_scratch_set(&s->icount_vm_timer, 2);
-+    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++    if (analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
 +        icount_scratch_set(&s->icount_rt_timer, 1);
 +        icount_scratch_set(&s->icount_vm_timer, 2);
 +    }
@@ -248,7 +252,7 @@ index e217a4e4ea24ace74d39471b76dbb2def190beb2..21f40bb698c2bef968d0b83698a4b3b6
  
 -    icount_scratch_drop(&s->icount_rt_timer, 1);
 -    icount_scratch_drop(&s->icount_vm_timer, 2);
-+    if (analysis_policy_has(ANALYSIS_CAP_RR)) {
++    if (analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
 +        icount_scratch_drop(&s->icount_rt_timer, 1);
 +        icount_scratch_drop(&s->icount_vm_timer, 2);
 +    }
@@ -260,7 +264,7 @@ index e217a4e4ea24ace74d39471b76dbb2def190beb2..21f40bb698c2bef968d0b83698a4b3b6
      TimersState *s = opaque;
  
 -    if (!icount_enabled() && icount_state_loaded) {
-+    if (analysis_policy_has(ANALYSIS_CAP_RR) &&
++    if (analysis_policy_has(ANALYSIS_CAP_ANALYSIS) &&
 +        !icount_enabled() && icount_state_loaded) {
          /*
           * The saver's virtual clock was its icount time; cpu_clock_offset
@@ -270,7 +274,7 @@ index e217a4e4ea24ace74d39471b76dbb2def190beb2..21f40bb698c2bef968d0b83698a4b3b6
      }
  
 -    if (icount_enabled() && !icount_state_loaded) {
-+    if (analysis_policy_has(ANALYSIS_CAP_RR) &&
++    if (analysis_policy_has(ANALYSIS_CAP_ANALYSIS) &&
 +        icount_enabled() && !icount_state_loaded) {
          /*
           * cpu_clock_offset holds the virtual time at which the saving VM
@@ -287,7 +291,7 @@ index e217a4e4ea24ace74d39471b76dbb2def190beb2..21f40bb698c2bef968d0b83698a4b3b6
  }
  
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index 73285ca2fbe943bd6441541b3e96f32b2691822b..89945f57b57a2bf8b5881d774758113369a3c038 100644
+index 73285ca2fbe943bd6441541b3e96f32b2691822b..a7fe7534b3cc9c14138d5cc850b151dd039b517a 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -40,6 +40,7 @@
@@ -303,7 +307,7 @@ index 73285ca2fbe943bd6441541b3e96f32b2691822b..89945f57b57a2bf8b5881d7747581133
                                            uint64_t want, uint64_t got)
  {
 -    return (ri->type & ARM_CP_CONST) &&
-+    return analysis_policy_has(ANALYSIS_CAP_RR) &&
++    return analysis_policy_has(ANALYSIS_CAP_ANALYSIS) &&
 +           (ri->type & ARM_CP_CONST) &&
             (!strcmp(ri->name, "PMCEID0") || !strcmp(ri->name, "PMCEID0_EL0")) &&
             (want ^ got) == (1ULL << 0x008);
@@ -522,7 +526,7 @@ index 27aa884e7494aca84ae37bae66d54d71bbd9babc..70c17c609e86ba2907cef4b24c061af6
      }
      set_seg(&sregs.ldt, &env->ldt);
 diff --git a/target/i386/machine.c b/target/i386/machine.c
-index 33231a7a7c3d6c46c7d3e98c259f5d838f53ee6f..4f56e6c1b4c2f9339af916e9341d7b3a631abcdd 100644
+index 33231a7a7c3d6c46c7d3e98c259f5d838f53ee6f..8fd481b33a1ce96f25a29353c8615ce054e2dbdd 100644
 --- a/target/i386/machine.c
 +++ b/target/i386/machine.c
 @@ -1,4 +1,5 @@
@@ -546,7 +550,7 @@ index 33231a7a7c3d6c46c7d3e98c259f5d838f53ee6f..4f56e6c1b4c2f9339af916e9341d7b3a
       * (env->tsc, written by the saver) continuous.
       */
 -    if (tcg_enabled() && cpu_timers_clock_domain_changed()) {
-+    if (tcg_enabled() && analysis_policy_has(ANALYSIS_CAP_RR) &&
++    if (tcg_enabled() && analysis_policy_has(ANALYSIS_CAP_ANALYSIS) &&
 +        cpu_timers_clock_domain_changed()) {
          env->tsc_offset = env->tsc - cpu_get_tsc(env);
      }
