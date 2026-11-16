@@ -113,6 +113,8 @@ void syscall_enter_switch_{{os}}_{{arch}}(CPUState *cpu, int profile, target_ptr
 		hooks_add_hook(&h);
 
 		// Construct a new context directly; operator[] would zero it before copying ctx.
+		// The return may run on another vCPU: the map is shared, under its lock.
+		std::lock_guard<std::mutex> running_guard(running_syscalls_lock);
 		auto stored = running_syscalls.emplace(std::make_pair(ctx.retaddr, ctx.asid), ctx);
 		if (!stored.second) {
 			stored.first->second = ctx;

@@ -35,6 +35,7 @@ PANDAENDCOMMENT */
 #include <iostream>
 #include <sstream>
 #include <limits>
+#include <mutex>
 
 #include "syscalls2.h"
 #include "syscalls2_info.h"
@@ -1142,6 +1143,7 @@ void registerExecPreCallback(void (*callback)(CPUState*, target_ulong)){
  * the map.
  */
 context_map_t running_syscalls;
+std::mutex running_syscalls_lock;
 
 #if defined(SYSCALL_RETURN_DEBUG)
 /**
@@ -1177,21 +1179,34 @@ void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
     target_ulong current_asid = get_id(cpu);
     target_ulong pc = panda_tb_pc(cpu, tb);
     auto k = std::make_pair(pc, current_asid);
-    auto ctxi = running_syscalls.find(k);
     [[maybe_unused]] int no = -1;
-    if (ctxi == running_syscalls.end()) { [[unlikely]]
-        k = std::make_pair(pc, 0);
-        ctxi = running_syscalls.find(k);
+    // Other vCPUs enter and return calls concurrently: take this call's context out under the
+    // lock, and run the callbacks on the copy without it.
+    syscall_ctx_t ctx;
+    bool found = false, again = false;
+    {
+        std::lock_guard<std::mutex> g(running_syscalls_lock);
+        auto ctxi = running_syscalls.find(k);
+        if (ctxi == running_syscalls.end()) { [[unlikely]]
+            k = std::make_pair(pc, 0);
+            ctxi = running_syscalls.find(k);
+        }
+        if (ctxi != running_syscalls.end()) {
+            found = true;
+            ctx = ctxi->second;
+            if (ctxi->second.double_return) {
+                ctxi->second.double_return = false;
+                again = true;
+            } else {
+                running_syscalls.erase(ctxi);
+            }
+        }
     }
-    if (ctxi != running_syscalls.end()) {
-        syscall_ctx_t *ctx = &ctxi->second; 
-        no = ctx->no;
-        profiles[ctx->profile].return_switch(cpu, pc, ctx);
-        if (ctx->double_return){
-            ctx->double_return = false;
+    if (found) {
+        no = ctx.no;
+        profiles[ctx.profile].return_switch(cpu, pc, &ctx);
+        if (again) {
             return;
-        }else{
-            running_syscalls.erase(ctxi);
         }
     }
 #if defined(SYSCALL_RETURN_DEBUG)
@@ -1200,6 +1215,7 @@ void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
         // If not guarded we get unused variable warning
         const syscall_info_t *si = syscall_info;
         const syscall_meta_t *sm = syscall_meta;
+        std::lock_guard<std::mutex> g(running_syscalls_lock);
         std::string remaining = context_map_t_dump(running_syscalls);
         LOG_DEBUG("returned: %s:" TARGET_PTR_FMT, (no > sm->max_generic ? "N/A" : si[no].name), get_id(cpu));
         LOG_DEBUG("remaining %zu: %s\n", running_syscalls.size(), remaining.c_str());
@@ -1433,6 +1449,7 @@ void syscall_callback(unsigned int vcpu_index, void *sysinfo){
 
 #if defined(SYSCALL_RETURN_DEBUG) && defined(TARGET_I386)
     if (no >= 0 && !si[no].noreturn) {
+        std::lock_guard<std::mutex> g(running_syscalls_lock);
         std::string remaining = context_map_t_dump(running_syscalls);
         const char *c = (rr_get_guest_instr_count() > 7726588867 ? "X" : "");
         LOG_DEBUG("started%s: %s:" TARGET_PTR_FMT, c, (no > sm->max_generic ? "N/A" : si[no].name), get_id(cpu));
@@ -1488,6 +1505,7 @@ const syscall_meta_t *get_syscall_meta(void) {
  * Return hooks stay: one whose syscall was dropped finds no entry and disables itself. */
 static void syscalls2_reset_transient(void *)
 {
+    std::lock_guard<std::mutex> g(running_syscalls_lock);
     running_syscalls.clear();
 }
 

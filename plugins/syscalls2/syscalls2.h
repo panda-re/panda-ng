@@ -1,9 +1,13 @@
 #pragma once
 #include <map>
+#include <mutex>
 typedef struct CPUState CPUState;
 typedef struct syscall_ctx syscall_ctx_t;
 typedef std::map<std::pair<target_ptr_t, target_ptr_t>, syscall_ctx_t> context_map_t;
+/* Calls entered and not yet returned, by return address and ASID. A call may return on another
+ * vCPU than it entered on: hold running_syscalls_lock for every access. */
 extern context_map_t running_syscalls;
+extern std::mutex running_syscalls_lock;
 
 extern void (*hooks_add_hook)(struct hook*);
 void hook_syscall_return(CPUState *cpu, TranslationBlock* tb, struct hook* h);
