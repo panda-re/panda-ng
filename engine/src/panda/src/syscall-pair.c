@@ -488,9 +488,11 @@ static PandaSyscallCall *sc_child_slot(ScState *P, CPUState *cpu)
 /*
  * A child's first return (a 0 at a watched call's return address, in its address space): the
  * caller's call, copied under BUSY into this vCPU's child slot, delivered CHILD. True if
- * delivered.
+ * delivered. Once per child (key @ka, @kb): a child that comes back to user mode at that address
+ * again before it moves on (an interrupt or a fault there) is not a new child.
  */
-static bool sc_child(ScState *P, CPUState *cpu, CPUArchState *env, uint64_t pc)
+static bool sc_child(ScState *P, CPUState *cpu, CPUArchState *env, uint64_t pc, uint64_t ka,
+                     uint64_t kb)
 {
     uint64_t root = sc_root(env);
     PandaSyscallCall *c = sc_child_slot(P, cpu);
@@ -509,6 +511,9 @@ static bool sc_child(ScState *P, CPUState *cpu, CPUArchState *env, uint64_t pc)
         if (!r || wt.retpc != pc || wt.root != root) {
             continue;
         }
+        if (wt.cka == ka && wt.ckb == kb) {
+            return false;                       /* this child's, delivered */
+        }
         A = P->by_id[r->c.abi];
         if (!A || sc_retval(A, env) != 0) {
             return false;
@@ -525,6 +530,12 @@ static bool sc_child(ScState *P, CPUState *cpu, CPUArchState *env, uint64_t pc)
         }
         memcpy(c, &r->c, P->slot_stride);
         qatomic_store_release(&P->sets[s].tag[w], t);
+        qemu_mutex_lock(&P->lock);
+        if (P->watch[i].r == r && P->watch[i].id == wt.id) {
+            P->watch[i].cka = ka;
+            P->watch[i].ckb = kb;
+        }
+        qemu_mutex_unlock(&P->lock);
         sc_vcpu(P, cpu)->st.children++;
         P->fn(P->ctx, cpu, c, 0, sc_ret_flags(A, cpu, c, 0) | PANDA_SYSCALL_CHILD);
         return true;
@@ -555,9 +566,14 @@ void sc_return_other(CPUArchState *env, unsigned s, unsigned w, uint64_t bt, ScR
     }
     if (pc == r->c.pc + r->c.len) {
         if (ret == 0 && (r->rflags & SC_W_CHILD)) {
-            /* the child, under the caller's key (a call key on its stack) */
+            /* the child, under the caller's key (a call key on its stack), once */
             PandaSyscallCall *c = sc_child_slot(P, cpu);
 
+            if (r->rflags & SC_R_CHILD) {
+                qatomic_store_release(T, bt);
+                return;
+            }
+            r->rflags |= SC_R_CHILD;
             memcpy(c, &r->c, P->slot_stride);
             qatomic_store_release(T, bt);
             v->st.children++;
@@ -626,7 +642,7 @@ void sc_return_full(CPUArchState *env, uint64_t ka, uint64_t kb)
     return;
 child:
     if (qatomic_read(P->watch_n)) {
-        sc_child(P, cpu, env, sc_dest_pc(env));
+        sc_child(P, cpu, env, sc_dest_pc(env), ka, kb);
     }
 }
 
