@@ -14,7 +14,7 @@ typedef struct syscall_ctx syscall_ctx_t;
  *   SYSCALLS2_HOOK_RETURNS: Windows and FreeBSD guests (x86), Linux on the other targets. A hook (the hooks plugin) at the
  *     return address, keyed by (return address, ASID) in running_syscalls.
  */
-#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_RISCV64)
+#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_RISCV64) || defined(TARGET_MIPS)
 #define SYSCALLS2_ENGINE 1
 #else
 #define SYSCALLS2_ENGINE 0

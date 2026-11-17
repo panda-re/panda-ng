@@ -1528,6 +1528,10 @@ static bool engine_mode;
 #else
 #define SC2_NABI 1
 #endif
+#if defined(TARGET_MIPS)
+#undef SC2_NB
+#define SC2_NB 7000                         /* o32 4000-, n64 5000-, n32 6000- */
+#endif
 static int engine_abi[SC2_NABI];                        /* the engine's handles, by our ABI id */
 static ProfileType engine_profile[SC2_NABI];
 static uint8_t engine_want[SC2_NABI][SC2_NB + 1];      /* what the engine was told */
@@ -1711,6 +1715,29 @@ static const LinuxAbi linux_abis[SC2_NABI] = {
     { PANDA_SYSCALL_FORM_RISCV_ECALL, PROFILE_LINUX_RISCV64, 17, 10, { 10, 11, 12, 13, 14, 15 },
       0, { 93, 94, 139 }, { 221, 281 }, { 220, 435 } },
 };
+#elif defined(TARGET_MIPS)
+/*
+ * One trap for every ABI: numbers 4000- are o32, 5000- n64, 6000- n32 (mips64 targets; the
+ * switch picks the profile by number). An error sets $a3 and leaves the positive error number in
+ * $v0. n32 and n64 pass arguments 5 and 6 in $a4 and $a5 ($8, $9); o32 on the stack, 16 and 20
+ * bytes above $sp, which syscalls2's own argument getters read: the o32 declaration has four
+ * arguments (the engine reading two words of user memory at every entry cost a fifth of a
+ * storm's throughput), and an o32 task's on mips64 are syscalls2's to read too.
+ */
+#define SC2_MIPS_O32_EXITS { 4001, 4246, 4119, 4193 }, { 4011, 4356 }, { 4120, 4435 }
+#if defined(TARGET_MIPS64)
+static const LinuxAbi linux_abis[SC2_NABI] = {
+    { PANDA_SYSCALL_FORM_MIPS_SYSCALL, PROFILE_LINUX_MIPS64, 2, 2, { 4, 5, 6, 7, 8, 9 }, 0,
+      { 4001, 4246, 4119, 4193, 5058, 5205, 5211, 6058, 6205, 6211 },
+      { 4011, 4356, 5057, 5316, 6057, 6320 }, { 4120, 4435, 5055, 5435, 6055, 6435 },
+      PANDA_SYSCALL_ERR_REG(7) },
+};
+#else
+static const LinuxAbi linux_abis[SC2_NABI] = {
+    { PANDA_SYSCALL_FORM_MIPS_SYSCALL, PROFILE_LINUX_MIPS32, 2, 2, { 4, 5, 6, 7, 0xff, 0xff }, 0,
+      SC2_MIPS_O32_EXITS, PANDA_SYSCALL_ERR_REG(7) },
+};
+#endif
 #endif
 
 #if defined(TARGET_I386) && !defined(TARGET_X86_64)
@@ -1734,6 +1761,93 @@ static uint64_t i386_tss_word(void *opaque, CPUState *cpu, uint64_t base)
 }
 #endif
 
+#if defined(TARGET_MIPS)
+/*
+ * Linux MIPS's task key: kernelsp[cpu], the running task's kernel stack top, which every exception
+ * entry loads (get_saved_sp): "(d)mfc0 k0, Context or XContext; lui k1, %hi(kernelsp); (d)srl k0,
+ * k0, n; (d)addu k1, k1, k0; lw/ld sp, %lo(kernelsp)(k1)". The array's address, the register and
+ * the shift are read from that sequence in the kernel's text (scanned once, at physical 0-64 MiB);
+ * the CPU's index is that register shifted. kernelsp is in KSEG0/CKSEG0. (A uniprocessor kernel
+ * loads it without the index: not decoded, the call key is used.)
+ */
+struct MipsKsp {
+    uint64_t pa;                            /* kernelsp's physical address; 0: not found */
+    unsigned reg, shift;                    /* CP0 4 (Context) or 20 (XContext), >> shift */
+};
+static std::atomic<int> mips_ksp_state{0};  /* 0 not scanned, 1 scanning or done */
+static MipsKsp mips_ksp;
+static std::mutex mips_ksp_lock;
+
+static MipsKsp mips_find_kernelsp(void)
+{
+    std::vector<uint8_t> buf(1 << 16);
+    std::map<std::tuple<uint64_t, unsigned, unsigned>, unsigned> seen;
+    uint32_t w[8] = {};
+    MipsKsp best = {};
+    unsigned n = 0;
+
+    for (uint64_t pa = 0; pa < (64ull << 20); pa += buf.size()) {
+        if (panda_physical_memory_read(pa, buf.data(), buf.size()) != 0) {
+            break;
+        }
+        for (size_t i = 0; i < buf.size(); i += 4) {
+            const uint8_t *b = &buf[i];
+            memmove(w, w + 1, 7 * sizeof(w[0]));
+            w[7] = TARGET_BIG_ENDIAN ? (uint32_t)b[3] | b[2] << 8 | b[1] << 16 | (uint32_t)b[0] << 24
+                                     : (uint32_t)b[0] | b[1] << 8 | b[2] << 16 | (uint32_t)b[3] << 24;
+            /* w[0] (d)mfc0 k0, rd; w[1] lui k1, hi; w[2] (d)srl(32) k0, k0, sa; w[3] (d)addu k1,
+             * k1, k0; the load of the stack pointer within the next 4 */
+            if ((w[0] & 0xffdf07ff) != 0x401a0000 || (w[1] & 0xffff0000) != 0x3c1b0000 ||
+                (w[3] != 0x037ad821 && w[3] != 0x037ad82d)) {
+                continue;
+            }
+            uint32_t sh = w[2];
+            unsigned sa;
+            if ((sh & 0xffffffc0) == ((0x001ad000 | ((sh >> 6) & 31) << 6) & 0xffffffc0) &&
+                ((sh & 0x3f) == 0x02 || (sh & 0x3f) == 0x3a || (sh & 0x3f) == 0x3e)) {
+                sa = ((sh >> 6) & 31) + ((sh & 0x3f) == 0x3e ? 32 : 0);
+            } else {
+                continue;
+            }
+            for (unsigned k = 4; k < 8; k++) {
+                uint32_t op = w[k] >> 26, base = (w[k] >> 21) & 31;
+                if ((op == 0x23 || op == 0x37) && base == 27) {
+                    int64_t va = (int32_t)((w[1] & 0xffff) << 16) + (int16_t)(w[k] & 0xffff);
+                    seen[{(uint64_t)va & 0x1fffffff, (w[0] >> 11) & 31, sa}]++;
+                    break;
+                }
+            }
+        }
+    }
+    for (auto &kv : seen) {
+        if (kv.second > n) {
+            n = kv.second;
+            best = { std::get<0>(kv.first), std::get<1>(kv.first), std::get<2>(kv.first) };
+        }
+    }
+    return best;
+}
+
+static uint64_t mips_kernelsp_word(void *opaque, CPUState *cpu, uint64_t base)
+{
+    CPUArchState *env = (CPUArchState *)panda_cpu_env(cpu);
+    uint64_t r;
+
+    if (mips_ksp_state.load(std::memory_order_acquire) != 2) {
+        std::lock_guard<std::mutex> g(mips_ksp_lock);
+        if (mips_ksp_state.load(std::memory_order_relaxed) != 2) {
+            mips_ksp = mips_find_kernelsp();
+            mips_ksp_state.store(2, std::memory_order_release);
+        }
+    }
+    if (!mips_ksp.pa) {
+        return 0;
+    }
+    r = mips_ksp.reg == 20 ? (uint64_t)env->CP0_XContext : (uint64_t)env->CP0_Context;
+    return mips_ksp.pa + (r >> mips_ksp.shift);
+}
+#endif
+
 /* Linux's task key, per target (docs/design/syscall-pairing.md) */
 static const PandaTaskKeyDecl LINUX_TASK_KEY = {
     sizeof(PandaTaskKeyDecl),
@@ -1747,6 +1861,8 @@ static const PandaTaskKeyDecl LINUX_TASK_KEY = {
     PANDA_TASK_KEY_REG, PANDA_TASK_REG_ARM_SP_SVC, nullptr, nullptr,       /* SP_svc */
 #elif defined(TARGET_RISCV64)
     PANDA_TASK_KEY_REG, PANDA_TASK_REG_RISCV_SSCRATCH, nullptr, nullptr,   /* current */
+#elif defined(TARGET_MIPS)
+    PANDA_TASK_KEY_WORD, PANDA_TASK_REG_MIPS_EBASE, mips_kernelsp_word, nullptr,
 #else
     PANDA_TASK_KEY_NONE, 0, nullptr, nullptr,
 #endif
