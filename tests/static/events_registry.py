@@ -126,16 +126,12 @@ static inline QemuMutex *lock_take_(QemuMutex *m) { g_assert(!m->held); m->held 
 #define warn_report(...) (fprintf(stderr, "warn: " __VA_ARGS__), fputc('\n', stderr))
 #define info_report(...) (fprintf(stderr, "info: " __VA_ARGS__), fputc('\n', stderr))
 ''',
-"system/analysis-policy.h": r'''
+"system/capabilities.h": r'''
 #pragma once
-#define ANALYSIS_CAP_ANALYSIS 1u
 extern bool env_frozen, env_analysis;
 extern uint32_t env_caps;
-static inline bool analysis_policy_is_frozen(void) { return env_frozen; }
-static inline bool analysis_policy_has(uint32_t c)
-{
-    return env_analysis && (c == ANALYSIS_CAP_ANALYSIS || (env_caps & c) == c);
-}
+static inline bool startup_caps_is_frozen(void) { return env_frozen; }
+static inline bool startup_caps_has(uint32_t c) { return (env_caps & c) == c; }
 ''',
 "system/kvm.h": r'''
 #pragma once
@@ -390,7 +386,7 @@ int main(void)
             }
             printf("0");
             break;
-        case 'M':           /* mode: analysis frozen kvm replay caps; then re-evaluate? */
+        case 'M':           /* mode: (unused) frozen kvm replay caps; then re-evaluate? */
             sscanf(rest, "%ld %ld %ld %ld %ld %ld", &a[0], &a[1], &a[2], &a[3], &a[4], &a[5]);
             env_analysis = a[0];
             env_frozen = a[1];
@@ -796,8 +792,7 @@ class Model:
 
     def admit(self, ev, s):
         e = self.env
-        if not e["frozen"] or not e["analysis"]:
-            return False
+        # Events here name no startup capability: admitted whatever the capabilities are.
         if not s.modes or s.modes & ~ev.modes:
             return False
         if e["kvm"]:
@@ -1279,10 +1274,10 @@ def directed(exe):
     out, err, rc = run_c(exe, unbound1 + ["n"])
     if rc != 1 or "error: PANDA events: 1 subscription bound to nothing after startup" not in err:
         fails.append(f"strict machine ready: exit {rc}, {err[-500:]!r}")
-    # No analysis provisioned: the notifier does nothing, even with one unbound.
-    out, err, rc = run_c(exe, unbound1 + ["M 0 1 0 0 0 0", "n"])
-    if rc != 0 or "after startup" in err:
-        fails.append(f"no-analysis machine ready: exit {rc}, {err[-500:]!r}")
+    # The check does not depend on the startup capabilities: none chosen, it still fails.
+    out, err, rc = run_c(exe, unbound1 + ["M 0 0 0 0 0 0", "n"])
+    if rc != 1 or "after startup" not in err:
+        fails.append(f"machine ready without capabilities: exit {rc}, {err[-500:]!r}")
     # Nothing used the registry: no report, and the registry is not set up for it.
     lines, err = run(["n", "T", "F 1 a.x cpu:ptr", "S 2 0 1 1", "G 1"])
     if lines[1] != "1" or "after startup" in err or "a.x: p2's subscription is pending" not in err:

@@ -29,7 +29,7 @@ MARK = "rrstop-{}-42"  # the command computes 42, so its echo alone does not mat
 
 
 def child(mode, image, name, out):
-    panda = Panda(generic=image, rr=True)
+    panda = Panda(generic=image, capabilities=["record"] if mode == "record" else None)
     lib = panda.libpanda
     seen = {"rounds": [], "replay_serial": None}
     ev = threading.Event()

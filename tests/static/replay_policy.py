@@ -133,6 +133,7 @@ class ReplayPolicy(unittest.TestCase):
     def test_public_rr_entry_checks_before_native_requests(self):
         self.p._needs_tcg = lambda operation: None
         self.p._needs_engine = lambda operation: None
+        self.p.capabilities = ('record',)
         self.p.registered_callbacks = {'unsafe': dict(enabled=True, observe_only=False, modes=4)}
         self.p._ppp_observers = {}
         self.p.hook_list = []

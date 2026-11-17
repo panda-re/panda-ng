@@ -1,14 +1,18 @@
 """panda_fast_snap/panda_fast_restore refuse where they would be wrong: under record/replay, and
 without TCG.
 
-Run: panda-python tests/fastrestore_guards.py <dir>/debian-13-x86_64.json [rr|notcg ...]
+Run: panda-python tests/fastrestore_guards.py <dir>/debian-13-x86_64.json [rr|notcg|discard ...]
 
-rr (review M3): with rr=True, a fast snapshot is taken before recording (allowed: nothing is
+rr (review M3): with the record capability, a fast snapshot is taken before recording (allowed: nothing is
 recorded yet), then a recording starts. While it records, panda_fast_snap and panda_fast_restore
 must return -1 (a restore would rewrite RAM and device state outside the log; on x86 its device
 reload would run on 0027's replay-mutex release path). After the recording ends, a fast restore
 works again and verifies (x-rr-begin-record saved and reloaded a snapshot, so it copies all RAM:
 last_why=precopy or loadvm). Then the recording is replayed in a fresh process, where both must return -1.
+
+discard: the image with a virtio-balloon takes a fast snapshot and restores (RAM discards are
+switched off while it exists); a bare x86_64 machine with virtio-mem, which needs discards that
+don't mark pages dirty, has panda_fast_snap refuse (-1), naming the device in the log.
 
 notcg (review M4): the same image under KVM (host-arch images only; needs /dev/kvm): both
 must return -1. Skipped when /dev/kvm can't be opened or the image is not the host's arch.
@@ -24,7 +28,7 @@ from pandare2 import Panda
 
 
 def child_replay(image, name, out):
-    panda = Panda(generic=image, rr=True)
+    panda = Panda(generic=image)
     res = {}
 
     def try_both():
@@ -57,6 +61,40 @@ def child_notcg(image, out):
     @panda.queue_blocking
     def drive():
         panda.queue_main_loop_wait_fn(try_both)
+        done.wait(60)
+        panda.end_analysis()
+
+    panda.run()
+    with open(out, "w") as f:
+        f.write(repr(res))
+
+
+# A device that discards guest RAM: virtio-balloon on the image (its discards are switched off
+# while a fast snapshot exists), or virtio-mem on a bare x86_64 machine (it needs them: refused).
+def child_discard(kind, image, out):
+    if kind == "balloon":
+        # a slot the image does not use, so its snapshot still loads
+        panda = Panda(generic=image, extra_args=["-device", "virtio-balloon-pci,id=balloon0,addr=0x1f"])
+    else:
+        panda = Panda(arch="x86_64", mem="256M,maxmem=1G",
+                      extra_args=["-display", "none", "-nodefaults",
+                                  "-object", "memory-backend-ram,id=vmem0,size=128M",
+                                  "-device", "virtio-mem-pci,memdev=vmem0,id=vmem0dev"])
+    res = {}
+    done = threading.Event()
+
+    def snap():
+        res["snap"] = panda.libpanda.panda_fast_snap()
+        if res["snap"] == 0:
+            res["restore"] = panda.libpanda.panda_fast_restore()
+            panda.libpanda.panda_fast_delete()
+        done.set()
+
+    @panda.queue_blocking
+    def drive():
+        if kind == "balloon":
+            panda.revert_sync("root")
+        panda.queue_main_loop_wait_fn(snap)
         done.wait(60)
         panda.end_analysis()
 
@@ -98,7 +136,7 @@ def test_rr(image, check):
 
 
 def child_record(image, name, out):
-    panda = Panda(generic=image, rr=True)
+    panda = Panda(generic=image, capabilities=["record"])
     lib = panda.libpanda
     res = {}
     ev = threading.Event()
@@ -174,6 +212,17 @@ def test_notcg(image, check):
           res and res.get("snap") == -1 and res.get("restore") == -1)
 
 
+def test_discard(image, check):
+    rc, res = run_child(["discard", "balloon", image])
+    print(f"GUARD discard balloon rc={rc} {res}")
+    check("with virtio-balloon (discards switched off) a fast snapshot and restore work",
+          res and res.get("snap") == 0 and res.get("restore") == 0)
+    rc, res = run_child(["discard", "mem", image])
+    print(f"GUARD discard virtio-mem rc={rc} {res}")
+    check("with virtio-mem (discards unlogged and required) panda_fast_snap refuses",
+          res and res.get("snap") == -1)
+
+
 def main():
     if sys.argv[1] == "--child":
         kind = sys.argv[2]
@@ -181,11 +230,13 @@ def main():
             child_record(*sys.argv[3:6])
         elif kind == "replay":
             child_replay(*sys.argv[3:6])
+        elif kind == "discard":
+            child_discard(*sys.argv[3:6])
         else:
             child_notcg(*sys.argv[3:5])
         return
     image = sys.argv[1]
-    which = sys.argv[2:] or ["rr", "notcg"]
+    which = sys.argv[2:] or ["rr", "notcg", "discard"]
     ok = True
 
     def check(name, cond):
@@ -197,6 +248,8 @@ def main():
         test_rr(image, check)
     if "notcg" in which:
         test_notcg(image, check)
+    if "discard" in which:
+        test_discard(image, check)
     sys.exit(0 if ok else 1)
 
 

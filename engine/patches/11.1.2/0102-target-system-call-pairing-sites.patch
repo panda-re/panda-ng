@@ -73,7 +73,7 @@ index bab301523caff3a68cae126b2eee83816def2dd5..7f9c3125c3b7fa20b4da7158bbb01c7d
  
    lib = static_library('qemu-' + target,
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index 15858f03a0814e62d96794f727367f673556457a..0dd6a6726f885c4550cd386e055d6f0fd669d310 100644
+index 79bd1c5f2af83f17434d2708039ca4881960b5a2..423aef56d70735cf7160ac00d3d9b4c76f84f5d2 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -37,6 +37,7 @@
@@ -84,7 +84,7 @@ index 15858f03a0814e62d96794f727367f673556457a..0dd6a6726f885c4550cd386e055d6f0f
  
  static void switch_mode(CPUARMState *env, int mode);
  #ifndef CONFIG_USER_ONLY
-@@ -9868,6 +9869,15 @@ void arm_cpu_do_interrupt(CPUState *cs)
+@@ -9866,6 +9867,15 @@ void arm_cpu_do_interrupt(CPUState *cs)
      }
  #endif
  
@@ -101,10 +101,10 @@ index 15858f03a0814e62d96794f727367f673556457a..0dd6a6726f885c4550cd386e055d6f0f
          arm_current_el(env) == 0 && arm_sc_enter(env)) {
          return;
 diff --git a/target/arm/tcg/translate-a64.c b/target/arm/tcg/translate-a64.c
-index 9329ab2c292fee98fbfed44869e89764bc4e1b09..7f07ee132c1d14968d7429acc4b491e65d5cd580 100644
+index afc8621a73ce29d8f44b4269a341e0123e9667a0..1f1482789580dd4b23525b98d690bf185a39e534 100644
 --- a/target/arm/tcg/translate-a64.c
 +++ b/target/arm/tcg/translate-a64.c
-@@ -38,6 +38,9 @@ static inline bool analysis_guest_hypercall_enabled(void)
+@@ -26,6 +26,9 @@
  #include "translate.h"
  #include "translate-a64.h"
  #include "tcg/tcg-op.h"
@@ -114,7 +114,7 @@ index 9329ab2c292fee98fbfed44869e89764bc4e1b09..7f07ee132c1d14968d7429acc4b491e6
  #include "qemu/log.h"
  #include "semihosting/semihost.h"
  #include "cpregs.h"
-@@ -2090,6 +2093,9 @@ static bool trans_ERET(DisasContext *s, arg_ERET *a)
+@@ -2078,6 +2081,9 @@ static bool trans_ERET(DisasContext *s, arg_ERET *a)
      translator_io_start(&s->base);
  
      gen_helper_exception_return(tcg_env, dst);
@@ -124,7 +124,7 @@ index 9329ab2c292fee98fbfed44869e89764bc4e1b09..7f07ee132c1d14968d7429acc4b491e6
      /* Must exit loop to check un-masked IRQs */
      s->base.is_jmp = DISAS_EXIT;
      return true;
-@@ -2123,6 +2129,9 @@ static bool trans_ERETA(DisasContext *s, arg_reta *a)
+@@ -2111,6 +2117,9 @@ static bool trans_ERETA(DisasContext *s, arg_reta *a)
      translator_io_start(&s->base);
  
      gen_helper_exception_return(tcg_env, dst);
@@ -134,7 +134,7 @@ index 9329ab2c292fee98fbfed44869e89764bc4e1b09..7f07ee132c1d14968d7429acc4b491e6
      /* Must exit loop to check un-masked IRQs */
      s->base.is_jmp = DISAS_EXIT;
      return true;
-@@ -3317,6 +3326,13 @@ static bool trans_SVC(DisasContext *s, arg_i *a)
+@@ -3302,6 +3311,13 @@ static bool trans_SVC(DisasContext *s, arg_i *a)
          return true;
      }
      gen_ss_advance(s);
@@ -149,10 +149,10 @@ index 9329ab2c292fee98fbfed44869e89764bc4e1b09..7f07ee132c1d14968d7429acc4b491e6
      return true;
  }
 diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
-index adf4cd2324dbfed7bc195f8db508b51579f7b58e..07af2800fdb1ae0e6f4bdf57212b79e4761080f7 100644
+index 2f933893f766d4c1dc8e97219470f62ad5fedf59..9a4842c95c15b93bb56318d7d3dd5790f37ed892 100644
 --- a/target/arm/tcg/translate.c
 +++ b/target/arm/tcg/translate.c
-@@ -37,6 +37,9 @@ static inline bool analysis_guest_hypercall_enabled(void)
+@@ -25,6 +25,9 @@
  #include "translate-a32.h"
  #define TCG_ADDRESS_BITS 32
  #include "tcg/tcg-op-mem.h"
@@ -162,7 +162,7 @@ index adf4cd2324dbfed7bc195f8db508b51579f7b58e..07af2800fdb1ae0e6f4bdf57212b79e4
  #include "qemu/log.h"
  #include "semihosting/semihost.h"
  #include "cpregs.h"
-@@ -1708,6 +1711,12 @@ static void gen_rfe(DisasContext *s, TCGv_i32 pc, TCGv_i32 cpsr)
+@@ -1696,6 +1699,12 @@ static void gen_rfe(DisasContext *s, TCGv_i32 pc, TCGv_i32 cpsr)
       */
      translator_io_start(&s->base);
      gen_helper_cpsr_write_eret(tcg_env, cpsr);
@@ -175,7 +175,7 @@ index adf4cd2324dbfed7bc195f8db508b51579f7b58e..07af2800fdb1ae0e6f4bdf57212b79e4
      /* Must exit loop to check un-masked IRQs */
      s->base.is_jmp = DISAS_EXIT;
  }
-@@ -5348,6 +5357,11 @@ static bool do_ldm(DisasContext *s, arg_ldst_block *a)
+@@ -5335,6 +5344,11 @@ static bool do_ldm(DisasContext *s, arg_ldst_block *a)
          tmp = load_cpu_field(spsr);
          translator_io_start(&s->base);
          gen_helper_cpsr_write_eret(tcg_env, tmp);
@@ -302,10 +302,10 @@ index 678d350f078d418a1cde08627801ae4c2d389ad8..7a3a28439151cc170da4bf3a1a1760e0
  #include "exec/log.h"
  
 diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
-index 5fedfe3cdb4f62db60bbe0fd5349f3fd519d5c4f..53a3c57d8a3a6c776d15e24cb735259d4ba65236 100644
+index 0d09236de483b7cba861af5eedc26b43e5f9cf84..4b046869ff070c29b4e19eb679c1e809e81fceff 100644
 --- a/target/mips/tcg/translate.c
 +++ b/target/mips/tcg/translate.c
-@@ -43,6 +43,9 @@ static inline bool analysis_guest_hypercall_enabled(void)
+@@ -31,6 +31,9 @@
  #include "semihosting/semihost.h"
  #include "trace.h"
  #include "fpu_helper.h"
@@ -315,7 +315,7 @@ index 5fedfe3cdb4f62db60bbe0fd5349f3fd519d5c4f..53a3c57d8a3a6c776d15e24cb735259d
  
  #define HELPER_H "helper.h"
  #include "exec/helper-info.c.inc"
-@@ -8685,6 +8688,11 @@ static void gen_cp0(CPUMIPSState *env, DisasContext *ctx, uint32_t opc,
+@@ -8672,6 +8675,11 @@ static void gen_cp0(CPUMIPSState *env, DisasContext *ctx, uint32_t opc,
                  check_insn(ctx, ISA_MIPS2);
                  gen_helper_eret(tcg_env);
              }
@@ -327,7 +327,7 @@ index 5fedfe3cdb4f62db60bbe0fd5349f3fd519d5c4f..53a3c57d8a3a6c776d15e24cb735259d
              ctx->base.is_jmp = DISAS_EXIT;
          }
          break;
-@@ -13324,6 +13332,16 @@ static void decode_opc_special(CPUMIPSState *env, DisasContext *ctx)
+@@ -13311,6 +13319,16 @@ static void decode_opc_special(CPUMIPSState *env, DisasContext *ctx)
  #endif
          break;
      case OPC_SYSCALL:
@@ -345,10 +345,10 @@ index 5fedfe3cdb4f62db60bbe0fd5349f3fd519d5c4f..53a3c57d8a3a6c776d15e24cb735259d
          break;
      case OPC_BREAK:
 diff --git a/target/ppc/translate.c b/target/ppc/translate.c
-index cabe5d6b4a2d774e7e8e086e610fe47f7966dbfc..4b06c7d59d5e6455edc611ec8c6a6fae57c5a10e 100644
+index 06ed2adf1053ddec214d17b6416e70269e29a38a..eb313df977b5217ebe2ad115c66deb07f734f32b 100644
 --- a/target/ppc/translate.c
 +++ b/target/ppc/translate.c
-@@ -42,6 +42,9 @@ static inline bool analysis_guest_hypercall_enabled(void)
+@@ -30,6 +30,9 @@
  #include "exec/helper-gen.h"
  
  #include "exec/translator.h"
@@ -358,7 +358,7 @@ index cabe5d6b4a2d774e7e8e086e610fe47f7966dbfc..4b06c7d59d5e6455edc611ec8c6a6fae
  #include "exec/translation-block.h"
  #include "exec/log.h"
  #include "qemu/atomic128.h"
-@@ -3947,6 +3950,9 @@ static void gen_rfi(DisasContext *ctx)
+@@ -3935,6 +3938,9 @@ static void gen_rfi(DisasContext *ctx)
      translator_io_start(&ctx->base);
      gen_update_branch_history(ctx, ctx->cia, NULL, BHRB_TYPE_NORECORD);
      gen_helper_rfi(tcg_env);
@@ -368,7 +368,7 @@ index cabe5d6b4a2d774e7e8e086e610fe47f7966dbfc..4b06c7d59d5e6455edc611ec8c6a6fae
      ctx->base.is_jmp = DISAS_EXIT;
  #endif
  }
-@@ -3962,6 +3968,9 @@ static void gen_rfid(DisasContext *ctx)
+@@ -3950,6 +3956,9 @@ static void gen_rfid(DisasContext *ctx)
      translator_io_start(&ctx->base);
      gen_update_branch_history(ctx, ctx->cia, NULL, BHRB_TYPE_NORECORD);
      gen_helper_rfid(tcg_env);
@@ -378,7 +378,7 @@ index cabe5d6b4a2d774e7e8e086e610fe47f7966dbfc..4b06c7d59d5e6455edc611ec8c6a6fae
      ctx->base.is_jmp = DISAS_EXIT;
  #endif
  }
-@@ -3977,6 +3986,9 @@ static void gen_rfscv(DisasContext *ctx)
+@@ -3965,6 +3974,9 @@ static void gen_rfscv(DisasContext *ctx)
      translator_io_start(&ctx->base);
      gen_update_branch_history(ctx, ctx->cia, NULL, BHRB_TYPE_NORECORD);
      gen_helper_rfscv(tcg_env);
@@ -388,7 +388,7 @@ index cabe5d6b4a2d774e7e8e086e610fe47f7966dbfc..4b06c7d59d5e6455edc611ec8c6a6fae
      ctx->base.is_jmp = DISAS_EXIT;
  #endif
  }
-@@ -4012,6 +4024,23 @@ static void gen_sc(DisasContext *ctx)
+@@ -4000,6 +4012,23 @@ static void gen_sc(DisasContext *ctx)
       * for Ultravisor which TCG does not support, so just ignore the top 6.
       */
      lev = (ctx->opcode >> 5) & 0x1;
@@ -412,7 +412,7 @@ index cabe5d6b4a2d774e7e8e086e610fe47f7966dbfc..4b06c7d59d5e6455edc611ec8c6a6fae
      gen_exception_err(ctx, POWERPC_SYSCALL, lev);
  }
  
-@@ -4023,6 +4052,11 @@ static void gen_scv(DisasContext *ctx)
+@@ -4011,6 +4040,11 @@ static void gen_scv(DisasContext *ctx)
  
      /* Set the PC back to the faulting instruction. */
      gen_update_nip(ctx, ctx->cia);
@@ -456,10 +456,10 @@ index a8eaccef67e77f0d3480ea8dc7b218091694ccf1..294db4def9e352b0b51cecfa4fe0e1e5
          ctx->base.is_jmp = DISAS_NORETURN;
      } else {
 diff --git a/target/riscv/tcg/translate.c b/target/riscv/tcg/translate.c
-index 1105ce0310048aae9cf56af0881e6219c61c2d6a..eb8097ad6493e255f8a72034b4a7094d39eebe69 100644
+index 05cc25e6cd1b1ff70e0af0624d8b304e8afa11cf..b17e00170d205e037359a0a58b68b59e746b4725 100644
 --- a/target/riscv/tcg/translate.c
 +++ b/target/riscv/tcg/translate.c
-@@ -36,6 +36,9 @@ static inline bool analysis_guest_hypercall_enabled(void)
+@@ -24,6 +24,9 @@
  #include "exec/helper-gen.h"
  #include "exec/target_page.h"
  #include "exec/translator.h"

@@ -13,8 +13,8 @@
  * Register writes count against REPLAY_RAM_EFFECT_PENDING_MAX too. */
 #define REPLAY_REG_EFFECT_MAX 256
 
-/* Request admission only: main thread/BQL, every vCPU stopped, RECORD and RR
- * provisioned. Copies bytes, never writes synchronously. False has no effect.
+/* Request admission only: main thread/BQL, every vCPU stopped, recording (which
+ * needs the record capability). Copies bytes, never writes synchronously. False has no effect.
  * Apply runs at the existing deterministic TCG scheduler async-event boundary
  * under BQL + replay mutex, before another guest instruction budget. Not on
  * the requester thread. End-record flush cancels unsaved requests.

@@ -13,7 +13,8 @@ checked by hand.
 KVM runs guests of the host's architecture, x86_64 or aarch64, and needs access to `/dev/kvm`.
 From pandare2, pass `accel="kvm"`. The constructor checks that KVM can run the guest (an x86_64 or
 aarch64 guest on a host of the same arch, with `/dev/kvm` readable and writable) and raises
-`ValueError` saying what is missing; `rr=True` or an `-accel` in `extra_args` next to it raises
+`ValueError` saying what is missing; `capabilities=["record"]` or `["taint"]`, or an `-accel` in
+`extra_args`, next to it raises
 too. (`extra_args=["-accel", "kvm"]`, the way to ask before `accel=`, still works, with a
 `DeprecationWarning`.) This is `tests/fastrestore_guards.py` checking that fast restore refuses
 under KVM:

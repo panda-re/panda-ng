@@ -17,7 +17,7 @@
 #include "qemu/thread.h"
 #include "qemu/lockable.h"
 #include "qemu/error-report.h"
-#include "system/analysis-policy.h"
+#include "system/capabilities.h"
 #include "system/kvm.h"
 #include "system/replay.h"
 #include "system/system.h"
@@ -1275,10 +1275,6 @@ void panda_events_machine_up(void)
 static void events_machine_ready(Notifier *notifier, void *data)
 {
     panda_events_machine_up();
-    /* No analysis provisioned: nothing at all. */
-    if (!analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
-        return;
-    }
     if (!startup_deferred && !panda_events_startup_done()) {
         exit(1);
     }

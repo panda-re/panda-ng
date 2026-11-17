@@ -172,37 +172,24 @@ _PLUGIN_DIR = None
 
 ACCELS = ("tcg", "kvm")
 MONITORS = ("qmp", "hmp", None)
-CAPABILITIES = ("analysis", "fuzz", "rr", "guest-hypercall", "handoff", "taint")
+# The startup capabilities, in the order of their bits (the engine's PANDA_CAP_*): what a run must
+# choose before the machine exists. Everything else needs none.
+CAPABILITIES = ("record", "taint")
 
 
-def _analysis_capabilities(capabilities, rr, accel):
+def _startup_capabilities(capabilities, accel):
+    '''The capabilities= names, checked: a tuple in CAPABILITIES order.'''
     if capabilities is None:
-        selected = {"analysis", "guest-hypercall"}
-        if rr:
-            selected.add("rr")
-    else:
-        names = capabilities.split(",") if isinstance(capabilities, str) else capabilities
-        selected = set(names)
-        if selected == {"vanilla"}:
-            selected.clear()
-        if selected - set(CAPABILITIES):
-            raise ValueError("capabilities must name analysis, fuzz, rr, guest-hypercall, handoff or taint; vanilla must stand alone")
-        if "taint" in selected:
-            # Taint runs only in replay: it brings rr (as the engine's policy does).
-            if not rr:
-                raise ValueError("the taint capability requires rr=True: taint runs only in replay")
-            if accel != "tcg":
-                raise ValueError("the taint capability requires TCG")
-            selected.add("rr")
-        if rr and "rr" not in selected:
-            raise ValueError("rr=True requires the rr capability")
-    if "rr" in selected and not rr:
-        raise ValueError("the rr capability requires rr=True for recordable device setup")
-    if "rr" in selected and accel != "tcg":
-        raise ValueError("the rr capability requires TCG")
-    if selected & {"fuzz", "rr"}:
-        selected.add("analysis")
-    return tuple(name for name in CAPABILITIES if name in selected)
+        return ()
+    names = capabilities.split(",") if isinstance(capabilities, str) else list(capabilities)
+    unknown = [n for n in names if n not in CAPABILITIES]
+    if unknown:
+        raise ValueError(f"capabilities={capabilities!r}: unknown {', '.join(map(repr, unknown))}; "
+                         f"the startup capabilities are {', '.join(map(repr, CAPABILITIES))}")
+    for name in ("record", "taint"):
+        if name in names and accel != "tcg":
+            raise ValueError(f'capabilities=["{name}"] needs TCG, not accel={accel!r}')
+    return tuple(name for name in CAPABILITIES if name in names)
 _HOST_ARCH = {"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64", "arm64": "aarch64"}
 
 
@@ -259,12 +246,11 @@ class Panda(TaintMixin):
             libpanda_path=None,
             biospath=None,
             plugin_path=None,
-            rr=False, # make the VM recordable (virtio kicks through the log); pass it to the replay too
             machine=None, # a pandare2.MachineBuilder: the machine to build (the configurable machine or an external board)
             modules=None, # panda modules (external board/device .so files) to load: -module PATH each
             accel=None, # "tcg" (the default) or "kvm"
             monitor="qmp", # "qmp", "hmp" or None: the monitor run_monitor_cmd talks to
-            capabilities=None, # explicit combinable startup capabilities; "vanilla" selects none
+            capabilities=None, # startup capabilities: "record", "taint" (none by default)
             ):
         '''
         Construct a new `Panda` object. A process has at most one `Panda` per arch, for its whole
@@ -288,14 +274,14 @@ class Panda(TaintMixin):
                     osi_isf and osi_linux unless given other arguments for them.
             mem: size of memory for machine (e.g. "128M", "1G"). Default: the image's with
                     generic=, else "128M". It must match the RAM of a snapshot you load.
-            capabilities: startup capability names (analysis, fuzz, rr, guest-hypercall,
-                    handoff), or "vanilla"/an empty sequence for zero capabilities. Default enables
-                    analysis and guest hypercalls for Panda compatibility (plus rr with rr=True).
-                    Any selection but vanilla also provisions handoff.
-                    Accelerator selection is separate. Full upstream vanilla parity is not yet
-                    implemented; this selector must not be treated as proof of that parity.
-            rr: make the VM recordable (-accel tcg,thread=single,rr-ready=on). Pass it to a replay too: it needs the recording's command line.
-                    Not with accel="kvm" (ValueError): record and replay need TCG.
+            capabilities: the startup capabilities, what a run must choose before the machine
+                    exists (a list, or a comma-separated string; none by default). "record": the
+                    run may record (`record`, `record_cmd`); it launches a recordable machine
+                    (-capabilities record: one TCG thread, one vCPU, virtio ioeventfd off, the
+                    disk behind blkreplay). "taint": reserve taint's shadow state (`taint_enable`,
+                    in a replay). Both need TCG (ValueError with accel="kvm"). Everything else
+                    (plugins, callbacks, hypercalls, fast snapshots) needs none. A replay
+                    (`run_replay`) needs no capability: it builds the recording's machine itself.
             accel: the accelerator, "tcg" (the default) or "kvm". "kvm" runs the guest on the host
                     CPU; it needs an x86_64 or aarch64 guest on a host of the same arch, with
                     /dev/kvm readable and writable, or the constructor raises ValueError. Under KVM,
@@ -382,7 +368,8 @@ class Panda(TaintMixin):
             raise ValueError(f"monitor={monitor!r}: expected one of {', '.join(map(repr, MONITORS))}")
 
         # The accelerator: accel=, else an -accel in extra_args (the way to ask for KVM before
-        # accel=), else TCG. rr=True adds its own -accel.
+        # accel=), else TCG. A recordable machine (capabilities=["record"], or a replay) adds its
+        # own -accel.
         given = _accel_args(extra_args)
         if accel is not None:
             if accel not in ACCELS:
@@ -395,19 +382,20 @@ class Panda(TaintMixin):
             warnings.warn('Panda(extra_args=["-accel", "kvm"]): use accel="kvm"', DeprecationWarning, stacklevel=2)
         else:
             accel = "tcg"
-        if rr and accel == "kvm":
-            raise ValueError("rr=True with KVM: record and replay need TCG")
+        if any(a.lstrip('-').split('=')[0] == 'capabilities' for a in extra_args):
+            raise ValueError("choose startup capabilities with capabilities= only")
+        self.capabilities = _startup_capabilities(capabilities, accel)
+        rr = "record" in self.capabilities
         if rr and given:
-            raise ValueError(f"rr=True and {extra_args[given[0][0]]} in extra_args: rr=True selects "
-                             f"the accelerator itself (-accel tcg,thread=single,rr-ready=on)")
+            raise ValueError(f'capabilities=["record"] and {extra_args[given[0][0]]} in extra_args: a '
+                             f'recordable machine selects the accelerator itself '
+                             f'(-accel tcg,thread=single,rr-ready=on)')
         if accel == "kvm":
             why = _kvm_unavailable(arch)
             if why:
                 raise ValueError(f'accel="kvm": {why}')
         self.accel = accel
-        if any(a.lstrip('-').split('=')[0] == 'analysis-capabilities' for a in extra_args):
-            raise ValueError("choose startup capabilities with capabilities= only")
-        self.capabilities = _analysis_capabilities(capabilities, rr, accel)
+        self._accel_given = bool(given)
 
         self.arch_name = arch
         self.machine = machine
@@ -528,14 +516,14 @@ class Panda(TaintMixin):
         self.C = self.ffi.dlopen(None)
         requested = sum(1 << CAPABILITIES.index(name) for name in self.capabilities)
         if not self.libpanda.panda_configure_capabilities(requested):
-            raise ValueError("engine startup capabilities already sealed differently")
+            raise ValueError("the engine refused the startup capabilities (the reason is on stderr): "
+                             "this process chose different ones already")
 
         # Setup argv for panda
-        self.panda_args = [self.panda, '-analysis-capabilities',
-                           ','.join(self.capabilities) or 'vanilla']
-        if 'analysis' not in self.capabilities:
-            self.plugin_interface = None
-        elif not self._engine_global:
+        self.panda_args = [self.panda]
+        if self.capabilities:
+            self.panda_args += ['-capabilities', ','.join(self.capabilities)]
+        if not self._engine_global:
             self.plugin_interface = self.ffi.dlopen(own_interface, self.ffi.RTLD_NOW | self.ffi.RTLD_LOCAL)
             self.panda_args.extend(["-plugin", own_interface])
         else:
@@ -543,9 +531,6 @@ class Panda(TaintMixin):
             plugin_interface = pjoin(dirname(self.panda), f"libpanda_plugin_interface.{self.dll_extension}")
             self.plugin_interface = self.ffi.dlopen(plugin_interface, self.ffi.RTLD_GLOBAL)
             self.panda_args.extend(["-plugin", plugin_interface])
-
-        self.panda_args.append("-L")
-        self.panda_args.append(biospath)
 
         # The disk device each arch gets for a bare qcow, when rr needs to name it.
         rr_disk = {'x86_64': 'ide-hd,bus=ide.0,unit=0', 'i386': 'ide-hd,bus=ide.0,unit=0',
@@ -555,51 +540,62 @@ class Panda(TaintMixin):
                    'mips': 'virtio-blk-pci', 'mipsel': 'virtio-blk-pci', 'loongarch64': 'virtio-blk-pci'}
         if disk_device:
             rr_disk[self.arch_name] = disk_device
-        if self.qcow and rr and self.arch_name in rr_disk:
-            # Under record/replay, disk I/O completes asynchronously: blkreplay journals the
-            # completions. -blockdev, so only the blkreplay node has a BlockBackend and savevm
-            # snapshots the qcow2 (through the filter) once.
-            self.panda_args += ["-blockdev", f"driver=file,filename={self.qcow},node-name=panda-disk-file",
-                                "-blockdev", "driver=qcow2,file=panda-disk-file,node-name=panda-disk-qcow2",
-                                "-blockdev", "driver=blkreplay,image=panda-disk-qcow2,node-name=panda-disk"]
-        elif self.qcow:
+
+        def machine_args(rr):
+            '''The machine's arguments: a recordable one (rr) or not.'''
+            args = ["-L", biospath]
+            if self.qcow and rr and self.arch_name in rr_disk:
+                # Under record/replay, disk I/O completes asynchronously: blkreplay journals the
+                # completions. -blockdev, so only the blkreplay node has a BlockBackend and savevm
+                # snapshots the qcow2 (through the filter) once.
+                args += ["-blockdev", f"driver=file,filename={self.qcow},node-name=panda-disk-file",
+                         "-blockdev", "driver=qcow2,file=panda-disk-file,node-name=panda-disk-qcow2",
+                         "-blockdev", "driver=blkreplay,image=panda-disk-qcow2,node-name=panda-disk"]
+            elif self.qcow:
+                if self.arch_name in ['mips64', 'mips64el', 'riscv64']:
+                    # XXX: mips64 (and riscv64's virt, which has no IDE) need virtio for the qcow
+                    args += ["-drive", f"file={self.qcow},if=virtio"]
+                else:
+                    args.append(self.qcow)
+
+            for m in modules or []:
+                args += ["-module", abspath(m)]
+            if machine is not None:
+                args += machine.args()
+
+            # "{biospath}" in an argument is the firmware directory (-L), for firmware QEMU doesn't look
+            # up there itself (pflash: riscv64's EDK2).
+            args += [a.replace("{biospath}", biospath) for a in extra_args]
+            if self.qcow and rr and self.arch_name in rr_disk:
+                # After extra_args' -devices, where a -drive's own device goes: the same PCI slot, so
+                # the image's snapshots still load.
+                if self.arch_name == 'ppc64':
+                    # pseries puts a bare qcow at scsi 0:0:0 and its default CD-ROM at 0:2:0, both on
+                    # a spapr-vscsi; the image's snapshots hold all three.
+                    args += ["-device", "spapr-vscsi,id=rr-vscsi",
+                             "-device", "scsi-cd,bus=rr-vscsi.0,scsi-id=2,lun=0"]
+                args += ["-device", f"{rr_disk[self.arch_name]},drive=panda-disk"]
+
+            # Record/replay needs what can't change on a running VM (rr-ready): one TCG vCPU thread,
+            # virtio kicks as MMIO exits rather than eventfds, an x86 TSC that keeps its rate under
+            # icount. Only for capabilities=["record"] (the engine's record capability turns it on
+            # too) and a replay: other runs would pay for it.
             if rr:
-                logger.warning(f"rr: no blkreplay disk for {self.arch_name}; a replay may diverge on disk I/O")
-            if self.arch_name in ['mips64', 'mips64el', 'riscv64']:
-                # XXX: mips64 (and riscv64's virt, which has no IDE) need virtio for the qcow
-                self.panda_args.extend(["-drive", f"file={self.qcow},if=virtio"])
-            else:
-                self.panda_args.append(self.qcow)
+                args += ["-accel", "tcg,thread=single,rr-ready=on"]
+            elif accel == "kvm" and not given:
+                args += ["-accel", "kvm"]
 
-        for m in modules or []:
-            self.panda_args += ["-module", abspath(m)]
-        if machine is not None:
-            self.panda_args += machine.args()
+            # Configure memory options
+            args += ['-m', self.mem]
+            return args
 
-        # "{biospath}" in an argument is the firmware directory (-L), for firmware QEMU doesn't look
-        # up there itself (pflash: riscv64's EDK2).
-        self.panda_args += [a.replace("{biospath}", biospath) for a in extra_args]
-        if self.qcow and rr and self.arch_name in rr_disk:
-            # After extra_args' -devices, where a -drive's own device goes: the same PCI slot, so
-            # the image's snapshots still load.
-            if self.arch_name == 'ppc64':
-                # pseries puts a bare qcow at scsi 0:0:0 and its default CD-ROM at 0:2:0, both on
-                # a spapr-vscsi; the image's snapshots hold all three.
-                self.panda_args += ["-device", "spapr-vscsi,id=rr-vscsi",
-                                    "-device", "scsi-cd,bus=rr-vscsi.0,scsi-id=2,lun=0"]
-            self.panda_args += ["-device", f"{rr_disk[self.arch_name]},drive=panda-disk"]
-
-        # Record/replay needs what can't change on a running VM (rr-ready): one TCG vCPU thread,
-        # virtio kicks as MMIO exits rather than eventfds, an x86 TSC that keeps its rate under
-        # icount. Off by default: runs that never record would pay for it. A replay needs the
-        # recording's command line, so pass rr=True to both.
-        if rr:
-            self.panda_args += ["-accel", "tcg,thread=single,rr-ready=on"]
-        elif accel == "kvm" and not given:
-            self.panda_args += ["-accel", "kvm"]
-
-        # Configure memory options
-        self.panda_args.extend(['-m', self.mem])
+        if self.qcow and rr and self.arch_name not in rr_disk:
+            logger.warning(f"record: no blkreplay disk for {self.arch_name}; a replay may diverge on disk I/O")
+        # A replay builds the recording's machine (run_replay): the recordable one.
+        start = len(self.panda_args)
+        self.panda_args += machine_args(rr)
+        self._machine_span = (start, len(self.panda_args))
+        self._replay_machine_args = None if rr or accel != "tcg" else machine_args(True)
 
         # Configure serial - if we have an expect_prompt set. Otherwise how can we know what guest cmds are outputting?
         # The first serial port, on a socket pair like the monitor's below. Its id starts with
@@ -795,10 +791,8 @@ class Panda(TaintMixin):
         # [NEW] Check if osi_linux was loaded via command line args and cache result
         self._osi_linux_loaded = self._plugin_loaded("osi_linux")
 
-        # Vanilla does not install the PANDA bridge or its queued-work callback.
-        if 'analysis' in self.capabilities:
-            self.register_callback(self.callback.main_loop_wait,
-                    self.callback.main_loop_wait(self.__main_loop_wait_cb), '__main_loop_wait', observe_only=True)
+        self.register_callback(self.callback.main_loop_wait,
+                self.callback.main_loop_wait(self.__main_loop_wait_cb), '__main_loop_wait', observe_only=True)
 
         self._initialized_panda = True
 
@@ -832,7 +826,6 @@ class Panda(TaintMixin):
         Queue a function to run at the next main loop
         fn is a function we want to run, args are arguments to apss to it
         '''
-        self._require_analysis("queued main-loop work")
         self.main_loop_wait_fnargs.append((fn, args))
         self.libpanda.panda_main_loop_kick()  # the main loop may be asleep with the VM stopped
 
@@ -1161,10 +1154,14 @@ class Panda(TaintMixin):
         Raises:
             Exception: raises exception if there was an error starting recording.
             NotImplementedError: under accel="kvm" (record and replay need TCG).
-            RuntimeError: before run() (only a running VM can be recorded).
+            RuntimeError: before run() (only a running VM can be recorded), or without
+                capabilities=["record"].
         """
         self._needs_tcg("record")
         self._needs_engine("record")
+        if "record" not in self.capabilities:
+            raise RuntimeError('record needs the record capability, chosen at startup: '
+                               'Panda(..., capabilities=["record"])')
         self._check_rr_observers()
         if snapshot_name == None:
             snapshot_name_ffi = self.ffi.NULL
@@ -1224,6 +1221,10 @@ class Panda(TaintMixin):
         '''
         Load a replay and run it. Starts PANDA execution and returns after end of VM execution.
 
+        A replay needs no capability: called before the engine has started (a Panda that has
+        not run), it launches the recording's machine (the recordable one that
+        capabilities=["record"] builds) instead of the one panda_args had.
+
         Args:
             replaypfx (str): Replay name/path (e.g., "foo" or "./dir/foo")
 
@@ -1235,6 +1236,15 @@ class Panda(TaintMixin):
         if not isfile(replaypfx+"-rr-nondet.log"):
             raise ValueError("Replay files not present to run replay of {}".format(replaypfx))
 
+        if not self._initialized_panda and self._replay_machine_args is not None:
+            if self._accel_given:
+                raise ValueError("run_replay: an -accel in extra_args; a replay selects the "
+                                 "accelerator itself (-accel tcg,thread=single,rr-ready=on)")
+            start, end = self._machine_span
+            self.panda_args[start:end] = self._replay_machine_args
+            self._machine_span = (start, start + len(self._replay_machine_args))
+            self._replay_machine_args = None
+            logger.info("Panda args (replay): %s", " ".join(map(shlex_quote, self.panda_args)))
         self.ending = False
 
         if debug:
@@ -1310,10 +1320,6 @@ class Panda(TaintMixin):
         name_c = self.ffi.new("char[]", bytes(name, "utf-8"))
         return self.libpanda.panda_get_plugin_by_name(name_c) != self.ffi.NULL
 
-    def _require_analysis(self, operation):
-        if 'analysis' not in self.capabilities:
-            raise RuntimeError(f"{operation} requires the analysis capability")
-
     def load_plugin(self, name, args={}):
         '''
         Load a C plugin, optionally with arguments. Before or during run().
@@ -1329,7 +1335,6 @@ class Panda(TaintMixin):
         Returns:
             None.
         '''
-        self._require_analysis("plugin loading")
         image_arg = {"osi_linux": ("kconf_file", self.kconf_file), "osi_isf": ("isf", self.isf)}.get(name)
         if image_arg and image_arg[1]:
             key, value = image_arg
@@ -1383,7 +1388,6 @@ class Panda(TaintMixin):
         DT_NEEDED finds panda_* only in the global scope. For such a plugin the engine is put in
         the global scope, as pandare2 used to load it, if it is the only engine in this process.
         '''
-        self._require_analysis("plugin binding")
         if self._engine_global or name in self.plugins:
             return
         path = pjoin(self.get_plugin_path(), f"libpanda-{name}_{self.arch_name}-{self.target}.{self.dll_extension}")
@@ -1628,7 +1632,6 @@ class Panda(TaintMixin):
 
 
     def _load_plugin_library(self, name):
-        self._require_analysis("plugin library loading")
         if not name in self.plugins.keys():
             plugin = pjoin(*[self.get_plugin_path(), f"libpanda-{name}_{self.arch_name}-{self.target}.{self.dll_extension}"])
             if not isfile(plugin):
@@ -2840,7 +2843,6 @@ class Panda(TaintMixin):
         # func = main_loop_wait_cb
         # name = main_loop_wait
 
-        self._require_analysis("callback registration")
         cb = self.callback_dictionary[callback]
         if cb.name in ABORTS:
             raise NotImplementedError(f"callback {cb.name}: {unavailable(cb.name)}")

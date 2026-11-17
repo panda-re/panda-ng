@@ -40,7 +40,7 @@
 #include "system/ramblock.h"
 #include "system/ramlist.h"
 #include "system/replay.h"
-#include "system/analysis-policy.h"
+#include "system/capabilities.h"
 #include "tcg/tcg.h"
 #include "tcg/tcg-temp-internal.h"
 #include "tcg/tcg-op-common.h"
@@ -1291,7 +1291,7 @@ void taint_tcg_init(CPUState *cpu)
     TCGTemp *env_ts = tcgv_ptr_temp(tcg_env);
     TCGv_ptr senv;
 
-    if (!analysis_policy_has(ANALYSIS_CAP_TAINT)) {
+    if (!startup_caps_has(STARTUP_CAP_TAINT)) {
         return;
     }
     env_size = object_class_get_instance_size(OBJECT_CLASS(cpu->cc)) -
@@ -1357,7 +1357,7 @@ void taint_tcg_init(CPUState *cpu)
 
 void taint_vcpu_init(CPUState *cpu)
 {
-    if (!analysis_policy_has(ANALYSIS_CAP_TAINT) || !senv_bytes) {
+    if (!startup_caps_has(STARTUP_CAP_TAINT) || !senv_bytes) {
         return;
     }
     cpu->taint_senv = qemu_memalign(64, senv_bytes);
@@ -4095,9 +4095,9 @@ const char *taint_last_error(void)
 
 const char *taint_unavailable(void)
 {
-    if (!analysis_policy_has(ANALYSIS_CAP_TAINT)) {
-        return "the taint capability was not provisioned at startup "
-               "(-analysis-capabilities ...,taint)";
+    if (!startup_caps_has(STARTUP_CAP_TAINT)) {
+        return "the taint capability was not chosen at startup "
+               "(-capabilities taint; pandare2: capabilities=[\"taint\"])";
     }
     if (!senv_idx) {
         return "taint needs TCG";

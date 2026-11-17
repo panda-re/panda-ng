@@ -4,33 +4,23 @@ pandare2 runs the engine inside your Python process. This page explains how a pa
 is put together: the `Panda` object, where your code runs, driving the guest, reading its memory
 and registers, and callbacks. The [Python API reference](../reference/python.md) has every method.
 
-## Startup capabilities (in progress)
+## Startup capabilities
 
-`Panda()` explicitly provisions `analysis` and `guest-hypercall` for compatibility;
-`rr=True` also provisions `rr`. `capabilities=` accepts a sequence or comma-separated
-selection of `analysis`, `fuzz`, `rr`, `guest-hypercall`, `handoff` and `taint`.
-Fuzz/RR imply analysis, and any selection but vanilla implies `handoff`: the KVM/TCG
-snapshot adaptations are only in a snapshot saved with them, so leaving them to the caller
-made snapshots that a later load refused. Explicit `capabilities="vanilla"` or
-`capabilities=[]` selects zero capabilities. Accelerator choice remains separate; there is
-no live KVM/TCG toggle.
-QEMU started without `Panda()` and without `-analysis-capabilities` (an embedding host, for
-example) gets `analysis` and `guest-hypercall`, the behavior
-before capabilities existed, plus `rr` when the command line is recordable
-(`-accel tcg,rr-ready=on`) or `-icount` has `rr=record` or `rr=replay`. An
-explicit `-analysis-capabilities` without `rr` next to those is an error rather than a
-recording without the clock and timer adaptations. Pass `-analysis-capabilities vanilla`
-for zero.
+A startup capability is something a run must choose before the machine exists. There are two,
+and none is chosen by default:
 
-This is a staged implementation: zero capability selection is **not yet full upstream
-vanilla parity**. The complete patch inventory in `docs/vanilla-gates.toml` tracks
-remaining execution and snapshot-format off paths. Do not use the selector as a
-claim that those remaining changes are already gated. Python seals startup capabilities
-before loading the PANDA bridge or accepting pre-run callbacks/plugins. Explicit vanilla
-skips that bridge and rejects analysis callbacks, plugin loading and queued main-loop work.
-The constructor's sealed request cannot be overridden by a different CLI selection. This
-provisions analysis but does not activate it; runtime instrumentation activation requires
-separate quiescence and translation invalidation.
+- `record`: the run may record. It launches a recordable machine (one TCG vCPU thread, one vCPU,
+  virtio kicks as MMIO exits, the disk behind blkreplay); without it, `record` raises.
+- `taint`: taint's shadow state is reserved before guest memory exists. Taint runs in a replay.
+
+Choose them with `capabilities=` (a list, or a comma-separated string):
+`Panda(generic=image, capabilities=["record"])`. Both need TCG. Everything else (callbacks,
+plugins, hooks, guest hypercalls, fast snapshots, loading a snapshot taken under another
+accelerator or clock) needs no capability. A replay needs none either: `run_replay` launches the
+recording's machine itself.
+
+From C, `panda_configure_capabilities(PANDA_CAP_RECORD | PANDA_CAP_TAINT)` before `panda_init`;
+on the command line, `-capabilities record,taint`.
 
 ## The Panda object
 

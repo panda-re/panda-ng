@@ -14,10 +14,10 @@ Origin: new
  1 file changed, 6 insertions(+)
 
 diff --git a/replay/stubs-system.c b/replay/stubs-system.c
-index 2018b72bd7a645a947a01bd782f4d07c3dee4a08..8e1ba878362c2869becbb6caf7d9869d895d6655 100644
+index 54b36e233432c9ce28ef13f9805f7ee1e93eccde..d3d59aa4d8d3ed3146c5941098422b7a07b68a6f 100644
 --- a/replay/stubs-system.c
 +++ b/replay/stubs-system.c
-@@ -140,3 +140,9 @@ bool replay_analysis_ram_write_request(uint64_t address, const uint8_t *data,
+@@ -144,3 +144,9 @@ bool replay_analysis_ram_write_request(uint64_t address, const uint8_t *data,
  {
      return false;
  }

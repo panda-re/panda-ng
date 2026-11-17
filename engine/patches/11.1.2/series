@@ -83,10 +83,10 @@
 11.1.2/0083-replay-guard-guest-state-against-analysis-mutations.patch
 11.1.2/0084-replay-coalesce-repeated-schedules-of-a-pending-BH.patch
 11.1.2/0085-system-cancel-transient-analysis-before-restore-and-.patch
-11.1.2/0086-system-provision-startup-capabilities-and-gate-guest.patch
-11.1.2/0087-system-gate-handoff-and-snapshot-clock-adaptations.patch
-11.1.2/0088-riscv-select-snapshot-version-policy-at-registration.patch
-11.1.2/0089-system-seal-capabilities-before-startup-side-effects.patch
+11.1.2/0086-system-choose-startup-capabilities-with-capabilities.patch
+11.1.2/0087-accel-tcg-the-record-capability-launches-a-recordabl.patch
+11.1.2/0088-replay-recording-needs-the-record-capability.patch
+11.1.2/0089-replay-consult-the-replay-table-when-replay-starts.patch
 11.1.2/0090-replay-serialize-deferred-analysis-RAM-writes-as-ord.patch
 11.1.2/0091-replay-stub-analysis-register-effects-without-TCG.patch
 11.1.2/0092-replay-log-analysis-guest-writes-at-their-instructio.patch

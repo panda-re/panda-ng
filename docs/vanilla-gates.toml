@@ -49,8 +49,8 @@ capability = "guest-hypercall"
 paths = ["target/mips/helper.h", "target/mips/tcg/op_helper.c", "target/mips/tcg/translate.c"]
 functions = ["helper_guest_hypercall", "gen_cond_move", "gen_cp0"]
 hunk_contexts = ["target_ulong helper_bitswap(target_ulong rt)", "static void gen_cond_move(DisasContext *ctx, uint32_t opc,", "static void gen_cp0(CPUMIPSState *env, DisasContext *ctx, uint32_t opc,"]
-gate_status = "partial-recognition-gate-0086-not-parity-verified"
-current_gate = "0086 gates MIPS magic instruction recognition with immutable guest-hypercall capability; ordinary MOVZ decode continues without it. Helper/API admission and complete target vanilla parity remain unverified."
+gate_status = "ungated-by-design"
+current_gate = "MIPS magic MOVZ recognition is always on. Always available by design (docs/design/capabilities.md): no startup capability gates it."
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
@@ -63,8 +63,8 @@ capability = "guest-hypercall"
 paths = ["target/arm/tcg/a64.decode", "target/arm/tcg/helper-defs.h", "target/arm/tcg/op_helper.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c"]
 functions = ["trans_HYPERCALL", "valid_cp", "helper_guest_hypercall"]
 hunk_contexts = ["MSR_i_SVCR      1101 0100 0000 0 011 0099 0 mask:2 imm:1 011 11111", "DEF_HELPER_2(wfet, void, env, i32)", "void raise_exception_ra(CPUARMState *env, uint32_t excp, uint64_t syndrome,", "static bool trans_SYS(DisasContext *s, arg_SYS *a)", "static bool valid_cp(DisasContext *s, int cp)"]
-gate_status = "partial-recognition-gate-0086-not-parity-verified"
-current_gate = "0086 gates ARM64 trans_HYPERCALL (false/UNDEF when absent) and ARM32 magic MCR (upstream coprocessor decode follows). Recognition-only off path is host-tested; decoder/helper/API and complete guest parity remain unverified."
+gate_status = "ungated-by-design"
+current_gate = "ARM64 HYPERCALL and ARM32 magic MCR recognition are always on. Always available by design (docs/design/capabilities.md): no startup capability gates it."
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
@@ -77,8 +77,8 @@ capability = "guest-hypercall"
 paths = ["target/ppc/helper.h", "target/ppc/misc_helper.c", "target/ppc/translate/fixedpoint-impl.c.inc"]
 functions = ["helper_guest_hypercall", "xori translation"]
 hunk_contexts = ["DEF_HELPER_FLAGS_4(TW, TCG_CALL_NO_WG, void, env, tl, tl, i32)", "void helper_store_dump_spr(CPUPPCState *env, uint32_t sprn)", "static bool do_ori(DisasContext *ctx, arg_D_ui *a, bool shift)"]
-gate_status = "partial-recognition-gate-0086-not-parity-verified"
-current_gate = "0086 gates PPC magic XORI recognition; ordinary instruction path continues without guest-hypercall. Helper/API admission and complete target vanilla parity remain unverified."
+gate_status = "ungated-by-design"
+current_gate = "PPC magic XORI recognition is always on. Always available by design (docs/design/capabilities.md): no startup capability gates it."
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
@@ -91,8 +91,8 @@ capability = "guest-hypercall"
 paths = ["target/riscv/helper.h", "target/riscv/tcg/op_helper.c", "target/riscv/tcg/translate.c"]
 functions = ["trans_xori", "helper_guest_hypercall"]
 hunk_contexts = ["void helper_raise_exception(CPURISCVState *env, uint32_t exception)", "static int ex_rvc_shiftri(DisasContext *ctx, int imm)"]
-gate_status = "partial-recognition-gate-0086-not-parity-verified"
-current_gate = "0086 gates RISC-V magic XORI recognition; ordinary logical-immediate path continues without guest-hypercall. Helper/API admission and complete target vanilla parity remain unverified."
+gate_status = "ungated-by-design"
+current_gate = "RISC-V magic XORI recognition is always on. Always available by design (docs/design/capabilities.md): no startup capability gates it."
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
@@ -105,8 +105,8 @@ capability = "guest-hypercall"
 paths = ["target/loongarch/tcg/helper.h", "target/loongarch/tcg/insn_trans/trans_extra.c.inc", "target/loongarch/tcg/op_helper.c"]
 functions = ["trans_cpucfg", "helper_guest_hypercall"]
 hunk_contexts = ["static bool trans_cpucfg(DisasContext *ctx, arg_cpucfg *a)", "void helper_raise_exception(CPULoongArchState *env, uint32_t exception)"]
-gate_status = "partial-recognition-gate-0086-not-parity-verified"
-current_gate = "0086 gates LoongArch magic CPUCFG recognition; ordinary CPUCFG operation remains without guest-hypercall. Helper/API admission and complete target vanilla parity remain unverified."
+gate_status = "ungated-by-design"
+current_gate = "LoongArch magic CPUCFG recognition is always on. Always available by design (docs/design/capabilities.md): no startup capability gates it."
 required_action = "Guard capability admission and every changed execution/load/save/reset path; explicit vanilla must select upstream behavior, including failure and no-subscriber paths."
 vanilla_verified = false
 
@@ -119,8 +119,8 @@ capability = "guest-hypercall"
 paths = ["hw/i386/pc.c", "target/i386/tcg/misc_helper.c"]
 functions = ["panda_hypercall_io", "PC machine initialization"]
 hunk_contexts = ["static uint64_t ioport80_read(void *opaque, hwaddr addr, unsigned size)", "static const MemoryRegionOps ioport80_io_ops = {", "void pc_basic_device_init(struct PCMachineState *pcms,"]
-gate_status = "partial-recognition-gate-0086-not-parity-verified"
-current_gate = "0086 gates x86 port0x88 region allocation/init/add at startup with guest-hypercall. This does not gate KVM exit/capability handling (0009), ARM KVM filters (0022), or prove guest/port-overlap parity."
+gate_status = "ungated-by-design"
+current_gate = "The x86 port 0x88 region is always installed. Always available by design (docs/design/capabilities.md): no startup capability gates it."
 required_action = "Choose immutable capability before machine/accelerator/device/type realization; reject vanilla-incompatible options and retain original upstream realization/stream behavior."
 vanilla_verified = false
 
@@ -301,8 +301,8 @@ capability = "accelerator-handoff"
 paths = ["hw/i386/kvm/clock.h", "hw/i386/pc.c", "hw/i386/pc_piix.c", "hw/i386/pc_q35.c", "target/i386/kvm/kvm.c", "target/i386/tcg/system/seg_helper.c"]
 functions = ["kvmclock_sink_register", "helper_check_io", "kvm_put_sregs", "kvm_put_sregs2"]
 hunk_contexts = ["static void pc_machine_register_types(void)", "static void pc_init1(MachineState *machine, const char *pci_type)", "static void pc_q35_init(MachineState *machine)", "static int kvm_put_sregs(X86CPU *cpu)", "static int kvm_put_sregs2(X86CPU *cpu)", "void helper_check_io(CPUX86State *env, uint32_t addr, uint32_t size)"]
-gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "TCG kvmclock sink and busy-TSS I/O permission relaxed without handoff gate; both need upstream off paths"
+gate_status = "runs-when-modes-differ"
+current_gate = "The TCG kvmclock sink and busy-TSS acceptance run for every load and act only when the loaded snapshot's accelerator differs from the machine's. Always available by design (docs/design/capabilities.md): no startup capability gates it."
 required_action = "Choose immutable capability before machine/accelerator/device/type realization; reject vanilla-incompatible options and retain original upstream realization/stream behavior."
 vanilla_verified = false
 
@@ -329,8 +329,8 @@ capability = "accelerator-handoff"
 paths = ["hw/intc/arm_gic_common.c", "include/hw/intc/arm_gic_common.h", "target/arm/cpu.h", "target/arm/helper.c", "target/arm/internals.h", "target/arm/machine.c", "target/arm/trace-events"]
 functions = ["virt_count_needed", "virt_count_post_load", "cpu_post_load", "gic_pre_save", "gic_post_load"]
 hunk_contexts = ["static int gic_pre_save(void *opaque)", "static const VMStateDescription vmstate_gic = {", "struct GICState {", "struct ArchCPU {", "uint64_t gt_direct_access_timer_offset(CPUARMState *env, int timeridx)", "int delete_gdbstub_hw_watchpoint(vaddr addr, vaddr len, GdbBreakpointType type);", "static bool wfxt_timer_needed(void *opaque)", "static int cpu_pre_load(void *opaque)", "static void handle_cpreg_missing_in_incoming_stream(ARMCPU *cpu, uint64_t kvmidx", "handle_cpreg_only_in_incoming_stream(ARMCPU *cpu, uint64_t kvmidx, uint64_t valu", "static int cpu_post_load(void *opaque, int version_id)", "const VMStateDescription vmstate_arm_cpu = {", "arm_powerctl_reset_cpu(uint64_t mp_aff) \"cpu %\" PRIu64"]
-gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "AArch64 TCG snapshot subsection and timer/GIC handoff logic not restricted to explicit handoff capability"
+gate_status = "runs-when-modes-differ"
+current_gate = "The AArch64 virt-count subsection and the timer/GIC conversion act when the loaded snapshot's accelerator differs from the machine's. Always available by design (docs/design/capabilities.md): no startup capability gates it."
 required_action = "Choose immutable capability before machine/accelerator/device/type realization; reject vanilla-incompatible options and retain original upstream realization/stream behavior."
 vanilla_verified = false
 
@@ -1057,8 +1057,8 @@ capability = "snapshot-clock-rewind"
 paths = ["system/cpu-timers.c"]
 functions = ["timers_post_load", "cpu_ticks_prev"]
 hunk_contexts = ["static int timers_post_load(void *opaque, int version_id)"]
-gate_status = "gated-by-0087-not-guest-verified"
-current_gate = "0087 resets the tick clamp on load only with the analysis capability (fuzz implies it); vanilla keeps the upstream monotonic clamp, so the x86 TCG TSC does not rewind on load."
+gate_status = "ungated-by-design"
+current_gate = "The tick clamp resets on every load (fast restore and repeated loadvm need it). Always available by design (docs/design/capabilities.md): no startup capability gates it."
 required_action = "Keep an explicit upstream implementation/path for vanilla, including bugs or performance characteristics; apply the fix only under an opted-in capability."
 vanilla_verified = false
 
@@ -1085,8 +1085,8 @@ capability = "snapshot-compatibility"
 paths = ["target/riscv/machine.c"]
 functions = ["vmstate_riscv_cpu minimum_version_id"]
 hunk_contexts = ["static const VMStateDescription vmstate_mseccfg = {"]
-gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "Accepts RISC-V v11 stream upstream rejects; needs explicit load-compatibility gate"
+gate_status = "ungated-by-design"
+current_gate = "Version 11 RISC-V CPU streams (11.1.0's) are accepted. Always available by design (docs/design/capabilities.md): no startup capability gates it."
 required_action = "Keep an explicit upstream implementation/path for vanilla, including bugs or performance characteristics; apply the fix only under an opted-in capability."
 vanilla_verified = false
 
@@ -1204,78 +1204,78 @@ vanilla_verified = false
 
 [[patch]]
 id = "0086"
-file = "engine/patches/11.1.2/0086-system-provision-startup-capabilities-and-gate-guest.patch"
-sha256 = "91bc50f48893462d13b0c8934acf96562038141517ed3a213f86f30831311540"
+file = "engine/patches/11.1.2/0086-system-choose-startup-capabilities-with-capabilities.patch"
+sha256 = "99eea21df10af43f790a22a0e5fc174be3aa996b4688c7392750876608bf26d0"
 class = "startup-gate"
-capability = "startup-capability-policy-and-guest-hypercall"
-paths = ["hw/i386/pc.c", "qemu-options.hx", "system/meson.build", "system/vl.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c", "target/loongarch/tcg/insn_trans/trans_extra.c.inc", "target/loongarch/tcg/translate.c", "target/mips/tcg/translate.c", "target/ppc/translate.c", "target/ppc/translate/fixedpoint-impl.c.inc", "target/riscv/tcg/translate.c"]
-functions = ["parse_analysis_capabilities", "qemu_init_board", "analysis_policy_freeze", "analysis_guest_hypercall_enabled", "trans_HYPERCALL", "trans_MCR", "pc_basic_device_init", "gen_cond_move", "do_xori", "gen_logic_imm_fn", "trans_cpucfg"]
-hunk_contexts = ["void pc_basic_device_init(struct PCMachineState *pcms,", "SRST", "system_ss.add(files(", "static void qemu_init_displays(void)", "void qemu_init(int argc, char **argv)", "static bool trans_SYS(DisasContext *s, arg_SYS *a)", "static bool valid_cp(DisasContext *s, int cp)", "static bool trans_cpucfg(DisasContext *ctx, arg_cpucfg *a)", "static void gen_cond_move(DisasContext *ctx, uint32_t opc,", "static bool do_ori(DisasContext *ctx, arg_D_ui *a, bool shift)", "static int ex_rvc_shiftri(DisasContext *ctx, int imm)"]
-gate_status = "partial-startup-and-recognition-gates-not-parity-verified"
-current_gate = "CLI capability configuration/build wiring implemented; bare zero until 0089 seals the legacy CLI default, fuzz/RR normalize analysis, freeze before plugin/board realization and provisioned analysis startup activity. ARM/MIPS/PPC/RISC-V/LoongArch recognition and x86 port startup gated; user-only recognizers constant-off. No general callback admission, snapshot/device or KVM exit/filter gates implemented."
-required_action = "Complete earlier-series upstream off paths and extension admission, prove guest reserved-instruction/PIO and snapshot/CLI-RR parity, and validate supported builds. Do not infer whole-engine vanilla parity from zero policy or this bounded recognition patch."
+capability = "startup-capabilities"
+paths = ["qemu-options.hx", "system/meson.build", "system/vl.c"]
+functions = ["seal_startup_capabilities", "lookup_opt", "qemu_init", "QEMU_OPTION_capabilities"]
+hunk_contexts = ["SRST", "system_ss.add(files(", "static void qemu_init_displays(void)", "void qemu_init(int argc, char **argv)"]
+gate_status = "startup-capabilities-record-taint"
+current_gate = "-capabilities record,taint (none by default) is sealed by an arity-aware prepass before option, module and plugin side effects; an embedding's earlier panda_configure_capabilities must be repeated exactly. Builds system/capabilities.c."
+required_action = "Keep the capability set to choices that must precede the machine (docs/design/capabilities.md); everything else stays ungated."
 vanilla_verified = false
 
 [[patch]]
 id = "0087"
-file = "engine/patches/11.1.2/0087-system-gate-handoff-and-snapshot-clock-adaptations.patch"
-sha256 = "db7eeb4ab5e460f217da5af304201c266ab2c4f920d87d6f8484b3c1839e5f68"
+file = "engine/patches/11.1.2/0087-accel-tcg-the-record-capability-launches-a-recordabl.patch"
+sha256 = "a8f24b5d1160e703822c26bc91b8c03944b79359f3c24f680106065d8e1245f5"
 class = "startup-gate"
-capability = "handoff-rr-fuzz-snapshot-adaptations"
-paths = ["hw/i386/pc.c", "hw/intc/arm_gic_common.c", "replay/replay-snapshot.c", "replay/replay.c", "system/cpu-timers.c", "target/arm/helper.c", "target/arm/machine.c", "target/i386/kvm/kvm.c", "target/i386/machine.c", "target/i386/tcg/system/seg_helper.c"]
-functions = ["kvmclock_sink_register", "gic_post_load", "replay_load_snapshot", "replay_check_timer_stall", "timers_post_load", "cpreg_mismatch_is_icount_only", "cpu_post_load", "helper_check_io"]
-hunk_contexts = ["static int timers_pre_load(void *opaque)", "static int cpu_post_load(void *opaque, int version_id)", "void helper_check_io(CPUX86State *env, uint32_t addr, uint32_t size)"]
-gate_status = "partial-snapshot-off-paths-not-parity-verified"
-current_gate = "HANDOFF gates added ARM/GIC snapshot sections, conversion, timer reconstruction and x86 TSS/sink adaptations. RR gates load-time timer deferral and stall handling; ANALYSIS (implied by RR and fuzz) gates the cross-icount clock-domain, x86 TSC and PMCEID adaptations and the tick-clamp rewind. Added subsection pre_load rejects opt-out before fields."
-required_action = "Complete RISC-V early version rejection and remaining snapshot marker, timer overhead and inventoried off paths; validate guest snapshots and cross-target builds. No full vanilla parity claim."
+capability = "record"
+paths = ["accel/tcg/tcg-all.c", "hw/virtio/vhost-stub.c", "hw/virtio/vhost.c", "include/hw/virtio/vhost.h", "include/system/replay.h", "replay/replay-internal.h", "replay/stubs-system.c", "system/vl.c"]
+functions = ["tcg_init_machine", "record_startup_check", "qemu_machine_creation_done", "replay_check_blockers", "vhost_has_dev"]
+hunk_contexts = ["#include \"qom/compat-properties.h\"", "static int tcg_init_machine(AccelState *as, MachineState *ms)", "bool vhost_has_unlogged_dev(void)", "static inline void vhost_dev_log_resize(struct vhost_dev *dev, uint64_t size)", "void replay_check_timer_stall(void);", "bool replay_load_snapshot(const char *name, Error **errp);", "void replay_add_blocker(const char *feature)", "static bool qemu_machine_creation_done(Error **errp)"]
+gate_status = "record-capability-startup-refusals"
+current_gate = "The record capability turns rr-ready on (one TCG thread, one vCPU, virtio ioeventfd off, x-tsc-vclock); without it the machine is built as asked. Startup refuses it, naming the argument, for a non-TCG accelerator, thread=multi, more than one vCPU, replay blockers and vhost backends."
+required_action = "Extend the startup refusals as more unrecordable arguments are identified (passthrough devices)."
 vanilla_verified = false
 
 [[patch]]
 id = "0088"
-file = "engine/patches/11.1.2/0088-riscv-select-snapshot-version-policy-at-registration.patch"
-sha256 = "7f139c65adc5f49889a385ebbda88253159dbbe8be5cb5ca387b0a5f89c4bf04"
-class = "startup-gate"
-capability = "handoff-snapshot-version"
-paths = ["hw/core/cpu-system.c", "include/hw/core/sysemu-cpu-ops.h", "target/riscv/cpu.c", "target/riscv/internals.h", "target/riscv/machine.c"]
-functions = ["cpu_legacy_vmsd", "cpu_vmstate_register", "cpu_vmstate_unregister", "riscv_cpu_legacy_vmsd"]
-hunk_contexts = ["void cpu_vmstate_register(CPUState *cpu)", "const VMStateDescription vmstate_riscv_cpu"]
-gate_status = "early-descriptor-selection-standalone-tested"
-current_gate = "RISC-V base minimum12 restored; frozen HANDOFF selects stable once-published minimum11 copy before registration. Both save12 and share fields/hooks. Other CPU targets keep original descriptor fallback."
-required_action = "Validate real loader/build behavior and guest snapshot compatibility. Standalone loader-boundary stub is not full engine acceptance or vanilla parity."
+file = "engine/patches/11.1.2/0088-replay-recording-needs-the-record-capability.patch"
+sha256 = "51c04ce59de99510dfc213c9d492938969b2afb755b37cae7ef89e7af8af7949"
+class = "runtime-gate"
+capability = "record"
+paths = ["replay/meson.build", "replay/replay-begin.c", "replay/replay.c"]
+functions = ["qmp_x_rr_begin_record", "replay_start", "replay_record_check"]
+hunk_contexts = ["system_ss.add(when: 'CONFIG_TCG', if_true: files(", "#include \"system/panda-embed.h\"", "RrBeginRecordInfo *qmp_x_rr_begin_record(const char *snapshot,", "void replay_start(void)"]
+gate_status = "record-capability-gate"
+current_gate = "x-rr-begin-record and -icount rr=record start only with the record capability, not in a replay, and with only logged mutators (replay_record_check). Builds replay/replay-conflicts.c."
+required_action = "Route every recording entry point through replay_record_check."
 vanilla_verified = false
 
 [[patch]]
 id = "0089"
-file = "engine/patches/11.1.2/0089-system-seal-capabilities-before-startup-side-effects.patch"
-sha256 = "66ad17f34aa8b0fb0134669cbd477036ba75a24adfaac1621b81b2e74594da52"
-class = "startup-gate"
-capability = "sealed-startup-policy"
-paths = ["qemu-options.hx", "system/vl.c"]
-functions = ["parse_analysis_capabilities", "seal_startup_capabilities", "qemu_init"]
-hunk_contexts = ["ERST", "static bool parse_analysis_capabilities", "void qemu_init(int argc, char **argv)"]
-gate_status = "early-policy-sealing-standalone-tested"
-current_gate = "Arity-aware prepass resolves final repeated CLI selection before module/option effects; bare startup seals ANALYSIS_CAP_CLI_DEFAULT (analysis, guest-hypercall) and vanilla is explicit; embedded request retained or exactly confirmed. Provisioning does not activate analysis. PANDA/Python overlays seal before extension constructors and reject vanilla callback/plugin admission."
-required_action = "Validate packaged constructor/preinit and command-line startup behavior; complete runtime dispatch/API and all remaining vanilla off paths."
+file = "engine/patches/11.1.2/0089-replay-consult-the-replay-table-when-replay-starts.patch"
+sha256 = "a7de4bf1c0e716c06d5c61aba737da742cf3d41f12af1f05499198d6aecb99fe"
+class = "runtime-gate"
+capability = "replay-mode"
+paths = ["replay/replay-begin.c", "replay/replay.c"]
+functions = ["qmp_x_rr_begin_replay", "replay_start", "replay_start_check"]
+hunk_contexts = ["RrBeginRecordInfo *qmp_x_rr_begin_replay(const char *snapshot,", "void replay_start(void)"]
+gate_status = "replay-table-consulted"
+current_gate = "Replay is a mode, not a capability. Replay start (x-rr-begin-replay, -icount rr=replay) consults the replay table (replay-conflicts.c): mutating callbacks and a KVM hypercall consumer are refused; features consult the same table when requested."
+required_action = "Move the remaining per-feature replay refusals (guest-write, plugin set-PC, syscall mutation) onto the table."
 vanilla_verified = false
 
 [[patch]]
 id = "0090"
 file = "engine/patches/11.1.2/0090-replay-serialize-deferred-analysis-RAM-writes-as-ord.patch"
-sha256 = "865f25b4ebc06f36e056e207b026fbc5027da7d4fffbf6a7870d20f4ff35d608"
+sha256 = "8db7b928f37d546f33da207e9afa0df52241ba90d725f4fdad68276951a137d9"
 class = "runtime-gate"
 capability = "rr-analysis-effects"
 paths = ["replay/replay-internal.h", "replay/replay.c", "replay/meson.build", "replay/replay-events.c", "replay/stubs-system.c"]
 functions = ["replay_save_events", "replay_read_event", "replay_flush_events", "replay_analysis_ram_write_request"]
 hunk_contexts = ["REPLAY_ASYNC_EVENT_NET", "REPLAY_VERSION", "while (!QTAILQ_EMPTY(&events_list))"]
 gate_status = "rr-request-gated-stream-format-not-vanilla-verified"
-current_gate = "RAM effects require RECORD, RR capability and quiescent main-thread admission; existing async stream applies logged results without requester. Teardown cancels unsaved effects. Outer replay version is bumped globally."
+current_gate = "RAM effects require an active recording (so the record capability) and quiescent main-thread admission; loading one outside a replay is a replay error. Teardown cancels unsaved effects. Outer replay version is bumped globally."
 required_action = "Validate actual record/replay guest ordering, malformed/truncated logs and no-TCG linkage; complete explicit vanilla replay-format off path and exclude extension payloads when not provisioned."
 vanilla_verified = false
 
 [[patch]]
 id = "0091"
 file = "engine/patches/11.1.2/0091-replay-stub-analysis-register-effects-without-TCG.patch"
-sha256 = "8757bb687c35b46d9c288523731bfc45381487b7d1b281b3f84b0fd21f8afd02"
+sha256 = "19abec019bdba8cc775212c599f44c64a4b16814ce8d5ac60c7437eb29332695"
 class = "build-only"
 capability = "rr-analysis-effects"
 paths = ["replay/stubs-system.c"]
@@ -1290,7 +1290,7 @@ vanilla_verified = false
 [[patch]]
 id = "0092"
 file = "engine/patches/11.1.2/0092-replay-log-analysis-guest-writes-at-their-instructio.patch"
-sha256 = "39a3b3adfa48dec264cf6b9ec343a35f9b8451a26a8815eecd0329b22312e7d5"
+sha256 = "49ede612c8d8f22574a62f73d5827eb242e0c051a31c9e250ff1adf3b7d9f988"
 class = "runtime-gate"
 capability = "rr-analysis-effects"
 paths = ["meson.build", "replay/replay-internal.h", "replay/replay.c", "replay/stubs-system.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c", "target/loongarch/tcg/insn_trans/trans_extra.c.inc", "target/mips/tcg/translate.c", "target/ppc/translate/fixedpoint-impl.c.inc", "target/riscv/tcg/translate.c"]
@@ -1304,14 +1304,14 @@ vanilla_verified = false
 [[patch]]
 id = "0093"
 file = "engine/patches/11.1.2/0093-tcg-taint-shadow-pass-hooks.patch"
-sha256 = "5f5c1c2a064c803103a7c4d55f1b3f0271d1548663359695bcf98e11d0f8afa3"
+sha256 = "f8fc2d7ef16e01d7fb156b19ff03fd906a3ffe393338447ab63f887a11ff258e"
 class = "runtime-gate"
 capability = "taint"
 paths = ["accel/tcg/cpu-exec.c", "accel/tcg/cputlb.c", "accel/tcg/meson.build", "accel/tcg/translator.c", "include/exec/translation-block.h", "include/hw/core/cpu.h", "system/physmem.c", "system/vl.c", "target/arm/helper.c", "target/arm/internals.h", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c", "target/arm/tcg/translate.c", "target/mips/tcg/ldst_helper.c", "target/mips/tcg/tcg-internal.h", "target/mips/tcg/translate.c", "target/riscv/tcg/op_helper.c", "tcg/tcg.c"]
-functions = ["taint_gen_tb", "taint_tcg_init", "taint_vcpu_init", "tlb_set_page_full", "tlb_flush_page_locked", "invalidate_and_set_dirty", "liveness_pass_2", "user_reg_ptr", "configure_accelerators", "parse_analysis_capabilities"]
+functions = ["taint_gen_tb", "taint_tcg_init", "taint_vcpu_init", "tlb_set_page_full", "tlb_flush_page_locked", "invalidate_and_set_dirty", "liveness_pass_2", "user_reg_ptr", "configure_accelerators"]
 hunk_contexts = ["bool tcg_exec_realizefn(CPUState *cpu, Error **errp)", "static void tlb_flush_one_mmuidx_locked(CPUState *cpu, int mmu_idx,", "static void tlb_flush_page_locked(CPUState *cpu, int midx, vaddr page)", "static void tlb_flush_range_locked(CPUState *cpu, int midx,", "void tlb_set_page_full(CPUState *cpu, int mmu_idx,", "static void notdirty_write(CPUState *cpu, vaddr mem_vaddr, unsigned size,", "user_ss.add(files(", "void translator_loop(CPUState *cpu, TranslationBlock *tb, int *max_insns,", "struct TranslationBlock {", "struct CPUState {", "static void invalidate_and_set_dirty(MemoryRegion *mr, hwaddr addr,", "static void configure_accelerators(const char *progname)"]
 gate_status = "taint-cap-gate-implemented-not-vanilla-verified"
-current_gate = "Translation hooks run only for CF_TAINT blocks (set by taint_enable, replay only); memory, TLB and helper hooks test taint_active; init hooks return without the taint capability; startup refuses the capability without TCG. Not gated: liveness_pass_2 creates direct temps only for indirect globals a TB uses (no built target has indirect globals without taint), Arm's get/set_user_reg share user_reg_ptr(), and Arm/MIPS register taint helper names at translator init."
+current_gate = "Translation hooks run only for CF_TAINT blocks (set by taint_enable, replay only); memory, TLB and helper hooks test taint_active; init hooks return without the taint capability; startup refuses the capability without TCG. Not gated: liveness_pass_2 creates direct temporaries only for the indirect globals a TB uses (none without taint)."
 required_action = "Show the ungated liveness_pass_2 and user_reg_ptr changes are behavior-neutral in vanilla (or gate them), and measure the off-cost of the taint_active branches (engine-offcost)."
 vanilla_verified = false
 
@@ -1430,21 +1430,21 @@ vanilla_verified = false
 [[patch]]
 id = "0102"
 file = "engine/patches/11.1.2/0102-target-system-call-pairing-sites.patch"
-sha256 = "9b1d8d8ad87c6204fe6256dfefaad1fe786f5da75672f8cef54e07c04650acd0"
+sha256 = "275d1696b4ed4ba71229a0eaa9f673ca786aa8fabba471f39a340991c1db8492"
 class = "runtime-gate"
 capability = "syscall-pairing"
 paths = ["meson.build", "target/arm/helper.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c", "target/i386/tcg/emit.c.inc", "target/i386/tcg/seg_helper.c", "target/i386/tcg/translate.c", "target/mips/tcg/translate.c", "target/ppc/translate.c", "target/riscv/tcg/insn_trans/trans_privileged.c.inc", "target/riscv/tcg/translate.c"]
 functions = ["panda_sc_enter_inline", "panda_sc_return_inline", "panda_sc_gen_enter", "panda_sc_gen_return", "panda_sc_enter_c", "panda_hot_ss"]
-hunk_contexts = ["foreach target : target_dirs", "void arm_cpu_do_interrupt(CPUState *cs)", "static inline bool analysis_guest_hypercall_enabled(void)", "static bool trans_ERET(DisasContext *s, arg_ERET *a)", "static bool trans_ERETA(DisasContext *s, arg_reta *a)", "static bool trans_SVC(DisasContext *s, arg_i *a)", "static void gen_rfe(DisasContext *s, TCGv_i32 pc, TCGv_i32 cpsr)", "static bool do_ldm(DisasContext *s, arg_ldst_block *a)", "static void gen_IRET(DisasContext *s, X86DecodedInsn *decode)", "static void gen_SYSCALL(DisasContext *s, X86DecodedInsn *decode)", "static void gen_SYSENTER(DisasContext *s, X86DecodedInsn *decode)", "void do_interrupt_all(X86CPU *cpu, int intno, int is_int,", "static void gen_cp0(CPUMIPSState *env, DisasContext *ctx, uint32_t opc,", "static void decode_opc_special(CPUMIPSState *env, DisasContext *ctx)", "static void gen_rfi(DisasContext *ctx)", "static void gen_rfid(DisasContext *ctx)", "static void gen_rfscv(DisasContext *ctx)", "static void gen_sc(DisasContext *ctx)", "static void gen_scv(DisasContext *ctx)", "static bool trans_sret(DisasContext *ctx, arg_sret *a)"]
+hunk_contexts = ["foreach target : target_dirs", "void arm_cpu_do_interrupt(CPUState *cs)", "static bool trans_ERET(DisasContext *s, arg_ERET *a)", "static bool trans_ERETA(DisasContext *s, arg_reta *a)", "static bool trans_SVC(DisasContext *s, arg_i *a)", "static void gen_rfe(DisasContext *s, TCGv_i32 pc, TCGv_i32 cpsr)", "static bool do_ldm(DisasContext *s, arg_ldst_block *a)", "static void gen_IRET(DisasContext *s, X86DecodedInsn *decode)", "static void gen_SYSCALL(DisasContext *s, X86DecodedInsn *decode)", "static void gen_SYSENTER(DisasContext *s, X86DecodedInsn *decode)", "void do_interrupt_all(X86CPU *cpu, int intno, int is_int,", "static void gen_cp0(CPUMIPSState *env, DisasContext *ctx, uint32_t opc,", "static void decode_opc_special(CPUMIPSState *env, DisasContext *ctx)", "static void gen_rfi(DisasContext *ctx)", "static void gen_rfid(DisasContext *ctx)", "static void gen_rfscv(DisasContext *ctx)", "static void gen_sc(DisasContext *ctx)", "static void gen_scv(DisasContext *ctx)", "static bool trans_sret(DisasContext *ctx, arg_sret *a)"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "Every trap and return site tests a flag at translation time (the C sites at run time) that is set only once a consumer declares an ABI (traps) or wants a return (returns); with nothing declared, translated code is identical per TB. The per-target panda-hot library (its entry and return functions) is built with the panda option, like the rest of panda/src."
-required_action = "Select upstream translation for vanilla regardless of declarations, or admit declarations only under a capability."
+required_action = "Select upstream translation for vanilla regardless of declarations."
 vanilla_verified = false
 
 [[patch]]
 id = "0103"
 file = "engine/patches/11.1.2/0103-accel-tcg-target-arm-take-SVC-UNDEF-and-aborts-to-EL.patch"
-sha256 = "05c3a5482bca4b2d789608260e1e71e0d7f38e5b7e75391afa8bd815668f0155"
+sha256 = "d75c22d1f8ed689594b9a931d1409338cb53c8bf8d242cd36e75d7cec6d1f095"
 class = "upstream-fix-needs-off-path"
 capability = "tcg-exception-locking"
 paths = ["accel/tcg/cpu-exec.c", "hw/intc/arm_gicv3_cpuif.c", "include/accel/tcg/cpu-ops.h", "target/arm/cpregs-pmu.c", "target/arm/cpu.c", "target/arm/cpu.h", "target/arm/helper.c", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c"]
@@ -1528,7 +1528,7 @@ vanilla_verified = false
 [[patch]]
 id = "0109"
 file = "engine/patches/11.1.2/0109-target-i386-deliver-INT-0x80-from-user-mode-without-.patch"
-sha256 = "1e715b705bca6687529dcb2ac0f4ccc60b0c31ef400f1efb8c31bf1d11a204a7"
+sha256 = "c1522faa67d760d948a0bbf617e212c28fde74697e41e9ed2ae3d0aa0e7f4742"
 class = "upstream-fix-needs-off-path"
 capability = "tcg-exception-locking"
 paths = ["target/i386/tcg/helper-tcg.h", "target/i386/tcg/system/seg_helper.c", "target/i386/tcg/tcg-cpu.c"]
@@ -1623,7 +1623,7 @@ capability = "analysis-callbacks"
 paths = ["engine/src/panda/src/callbacks.c"]
 functions = ["panda_register_callback_modes", "panda_register_callback_with_context_modes", "panda_register_callback_disabled", "panda_register_callback_with_context_disabled", "panda_set_callback_observe_only", "panda_guest_mutation_allowed", "panda_disable_tb_chaining", "panda_do_flush_tb"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "Callback registration/re-enable and native plugin loading require frozen ANALYSIS provisioning before allocation/dlopen. Python seals via public preinit handshake before bridge loading and rejects vanilla registration/plugin/queued work. Runtime activity/dispatch and mutating API off paths remain incomplete."
+current_gate = "Callback registration and native plugin loading need no capability; admission (panda/admission.h) checks modes, KVM and record/replay. Runtime dispatch and mutating API off paths remain."
 required_action = "Reject PANDA callback/plugin/mutating control activation in vanilla; preserve upstream TCG cflags and dispatch paths; do not mistake RR safety for vanilla gating."
 vanilla_verified = false
 
@@ -1634,7 +1634,7 @@ capability = "analysis-callbacks"
 paths = ["engine/src/panda/src/events.c", "engine/src/panda/src/events-core.c", "engine/src/panda/src/events-hmp.c", "engine/src/include/panda/events.h", "engine/src/include/panda/events-internal.h", "engine/src/include/panda/admission.h"]
 functions = ["panda_event_declare", "panda_subscribe", "panda_event_emit", "panda_event_open", "panda_admit", "panda_events_owner_gone", "panda_events_startup_done", "events_machine_ready"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "Every subscription is admitted by panda_admit (frozen ANALYSIS provisioning, modes, KVM, rr); with none admitted, emitters see no subscribers. Core events are declared on first use of the registry, including in vanilla. A machine-init-done notifier (added when the library loads) runs the after-startup check: it returns at once unless analysis_policy_has(ANALYSIS_CAP_ANALYSIS), and the check returns without setting the registry up if nothing used it."
+current_gate = "Every subscription is admitted by panda_admit (an event's own startup capability if it names one, modes, KVM, rr); with none admitted, emitters see no subscribers. A machine-init-done notifier (added when the library loads) runs the after-startup check; it returns without setting the registry up if nothing used it."
 required_action = "Vanilla must not declare or admit events; sources must test panda_event_wanted before building arguments."
 vanilla_verified = false
 
@@ -1678,7 +1678,7 @@ capability = "snapshot-fast-tracking"
 paths = ["engine/src/panda/src/panda_fast.c"]
 functions = ["fast_supported", "panda_fast_snap", "panda_fast_restore", "panda_fast_delete", "panda_fast_verify", "panda_before_loadvm", "fast_load_devices"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "TCG/no-RR admission and valid/tracking checks only; dirty logging/listeners/sentinels/TLB rearm and device-only loading activate through API."
+current_gate = "TCG only; refused while recording and in replay (the replay table) and on machines with devices that discard guest RAM unlogged (virtio-mem, hv-balloon); discards are disabled while a snapshot exists; shared RAM is compared. Dirty logging/listeners/sentinels/TLB rearm and device-only loading activate through the API."
 required_action = "Refuse fast APIs in vanilla before listeners/logging/runstate/RAM changes; retain stock full snapshot stream, dirty logging and reset order; no implicit fuzz capability."
 vanilla_verified = false
 
@@ -1722,7 +1722,7 @@ capability = "rr-runtime-switch"
 paths = ["engine/src/panda/src/rr_control.c"]
 functions = ["rr_request_run", "panda_record_begin", "panda_record_end", "panda_replay_begin", "panda_replay_end", "panda_shutdown_request"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "Request BHs and replay/callback safety checks; no explicit vanilla command admission; upstream CLI RR is a separate path."
+current_gate = "Request BHs; record needs the record capability and replay start consults the replay table (replay-conflicts.c); upstream CLI RR is a separate path."
 required_action = "Reject runtime RR extension transitions in vanilla while preserving exact upstream CLI RR behavior, including fixes that need their own off paths."
 vanilla_verified = false
 
@@ -1761,14 +1761,25 @@ vanilla_verified = false
 
 
 [[overlay]]
-id = "analysis-policy-foundation"
+id = "startup-capabilities"
 class = "inert-in-vanilla"
-capability = "startup-capability-policy"
-paths = ["engine/src/include/system/analysis-policy.h", "engine/src/system/analysis-policy.c"]
-functions = ["analysis_policy_configure", "analysis_policy_freeze", "analysis_policy_has", "analysis_policy_set_analysis_active"]
-gate_status = "startup-cli-wired-0086-other-admission-gates-pending"
-current_gate = "New common policy defaults to zero/inactive, normalizes fuzz/RR prerequisites, freezes startup capabilities and independently tracks provisioned runtime analysis. 0086 now wires CLI configuration/freeze/startup activity and bounded guest-hypercall recognition/PIO gates; callback/API admission and other execution/snapshot off paths remain unwired."
-required_action = "Wire explicit startup configuration/freeze before realization, reject disallowed extension admission, and implement every upstream off path above. Activation callers must quiesce and invalidate affected TBs through existing mechanisms. Do not claim vanilla parity from policy state alone."
+capability = "startup-capabilities"
+paths = ["engine/src/include/system/capabilities.h", "engine/src/system/capabilities.c"]
+functions = ["startup_caps_seal", "startup_caps_has", "startup_caps_parse", "startup_cap_name"]
+gate_status = "record-taint-sealed-at-startup"
+current_gate = "Two startup capabilities, record and taint, none by default; parsed from -capabilities or panda_configure_capabilities and sealed before anything depends on them. Nothing else is gated on a capability."
+required_action = "Add a capability only for a choice that must be made before the machine exists."
+vanilla_verified = false
+
+[[overlay]]
+id = "replay-table"
+class = "runtime-gate"
+capability = "replay-mode"
+paths = ["engine/src/include/system/replay-conflicts.h", "engine/src/replay/replay-conflicts.c"]
+functions = ["replay_feature_check", "replay_start_check", "replay_record_check"]
+gate_status = "replay-table"
+current_gate = "One table of what replay refuses (record, guest-visible mutation outside the log, fast restore), takes from the log (hypercall answers, device input) or allows (taint, analysis); consulted at replay start and by features when requested."
+required_action = "Move the remaining per-feature replay refusals onto the table."
 vanilla_verified = false
 
 [[priority]]

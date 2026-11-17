@@ -117,7 +117,7 @@ def build(arch, out_dir, kernels, busybox):
 def snapshot(jpath):
     """In a child process (one Panda per process): format the disk, mount it on /root, savevm."""
     from pandare2 import Panda
-    panda = Panda(generic=jpath, rr=True)
+    panda = Panda(generic=jpath, capabilities=["record"])
 
     @panda.queue_blocking
     def snap():

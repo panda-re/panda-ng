@@ -1181,24 +1181,6 @@
             python3 ${./.}/tests/static/replay_policy.py
             touch $out
           '';
-          capability-gates = pkgs.runCommandCC "capability-gates-check" {
-            nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
-            buildInputs = [ pkgs.glib ];
-          } ''
-            python3 ${./.}/tests/static/capability_gates.py ${p.engineSrc}
-            touch $out
-          '';
-          riscv-snapshot-gate = pkgs.runCommandCC "riscv-snapshot-gate-check" {
-            nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
-            buildInputs = [ pkgs.glib ];
-          } ''
-            python3 ${./.}/tests/static/riscv_snapshot_gate.py ${p.engineSrc}
-            touch $out
-          '';
-          handoff-gates = pkgs.runCommandCC "handoff-gates-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-            python3 ${./.}/tests/static/handoff_gates.py ${p.engineSrc}
-            touch $out
-          '';
           startup-capabilities = pkgs.runCommandCC "startup-capabilities-check" {
             nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
             buildInputs = [ pkgs.glib ];
@@ -1214,8 +1196,12 @@
             python3 ${./.}/tests/static/capabilities.py
             touch $out
           '';
-          analysis-policy = pkgs.runCommandCC "analysis-policy-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-            python3 ${./.}/tests/static/analysis_policy.py
+          capability-policy = pkgs.runCommandCC "capability-policy-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            python3 ${./.}/tests/static/capability_policy.py
+            touch $out
+          '';
+          replay-conflicts = pkgs.runCommandCC "replay-conflicts-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            python3 ${./.}/tests/static/replay_conflicts.py
             touch $out
           '';
           vanilla-inventory = pkgs.runCommand "vanilla-inventory-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''

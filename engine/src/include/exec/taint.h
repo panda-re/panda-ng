@@ -2,7 +2,7 @@
 /*
  * Taint: a bit-precise shadow of guest registers, CPU state and RAM, propagated by a TCG pass.
  *
- * Provisioned by the "taint" startup capability (ANALYSIS_CAP_TAINT); usable only while
+ * Reserved by the "taint" startup capability (STARTUP_CAP_TAINT); usable only while
  * replaying. One shadow bit per guest bit (Memcheck's V-bits): a set bit means "this bit
  * depends on a labelled source". RAM shadow is keyed by ram_addr_t.
  */

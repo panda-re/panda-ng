@@ -5,7 +5,7 @@ saying which is missing (and before panda.run() has started the engine). Shadow 
 depends on a labelled source. RAM is addressed by ram_addr (see taint_va_to_ram); registers by
 gdbstub number.
 
-    panda = Panda(generic="x86_64", rr=True, capabilities=["analysis", "guest-hypercall", "taint"])  # taint brings rr
+    panda = Panda(generic="x86_64", capabilities=["taint"])   # taint runs in a replay: no "record" needed
 
     @panda.cb_start_block_exec(observe_only=True)
     def first(cpu, tb):

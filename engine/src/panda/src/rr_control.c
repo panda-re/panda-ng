@@ -25,6 +25,7 @@
 #include "panda/hooks.h"
 #include "panda/events-internal.h"
 #include "system/panda-embed.h"
+#include "system/replay-conflicts.h"
 
 enum { RR_REQ_RECORD, RR_REQ_RECORD_END, RR_REQ_REPLAY };
 
@@ -129,11 +130,15 @@ uint64_t rr_get_guest_instr_count_external(void)
 int panda_record_begin(const char *name, const char *snapshot)
 {
     Error *err = NULL;
-    if (!name || rr_on()) {
+    if (!name) {
         return RRCTRL_EINVALID;
     }
-    if (!panda_callbacks_record_safe(&err) || !panda_hypercall_replay_safe(&err)) {
+    /* the record capability, not in replay, only logged mutators (replay-conflicts.c) */
+    if (!replay_record_check(&err)) {
         error_report_err(err);
+        return RRCTRL_EINVALID;
+    }
+    if (rr_on()) {
         return RRCTRL_EINVALID;
     }
     return rr_request(RR_REQ_RECORD, name, snapshot);
@@ -153,7 +158,8 @@ int panda_replay_begin(const char *name)
     if (!name || rr_on()) {
         return RRCTRL_EINVALID;
     }
-    if (!panda_callbacks_replay_safe(&err) || !panda_hypercall_replay_safe(&err)) {
+    /* what replay refuses and is in use now (replay-conflicts.c) */
+    if (!replay_start_check(&err)) {
         error_report_err(err);
         return RRCTRL_EINVALID;
     }

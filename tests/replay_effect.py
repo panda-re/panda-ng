@@ -24,7 +24,7 @@ R12_GDB = 12    # x86_64 gdbstub order: rax rbx rcx rdx rsi rdi rbp rsp r8..r15
 
 def child(mode, image, name, output):
     from pandare2 import Panda
-    panda = Panda(generic=image, rr=True)
+    panda = Panda(generic=image, capabilities=['record'] if mode == 'record' else None)
     if panda.arch_name != 'x86_64':
         raise RuntimeError('effect fixture currently specifies x86_64 calls guest')
     # Exercise the generated public binding, not a ctypes fallback that could

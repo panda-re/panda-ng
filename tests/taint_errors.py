@@ -7,11 +7,13 @@ Each case runs in its own process:
 - no-cap:   replaying a recording without the "taint" capability: taint_enable and
             taint_label_ram raise "capability"; taint_enabled() stays False;
 - live:     with the capability, from a callback while the guest runs live (not a replay):
-            taint_enable raises "replaying";
+            taint_enable raises "replaying" (with "record" too: the image's snapshot was saved on
+            a recordable machine);
 - conflict: replaying with the capability: label sets, then address mode, raises "both";
             taint itself still enables;
-- accel:    the capability without TCG (-accel qtest): pandare2 refuses (taint needs rr, rr needs
-            TCG), and qemu-system-<arch>, started directly, exits saying "needs TCG".
+- accel:    the capability without TCG: pandare2 refuses accel="kvm", qemu-system-<arch> (started
+            directly with -accel qtest) exits saying "needs TCG"; the capability without
+            "record" is accepted (taint does not imply record).
 """
 import json
 import os
@@ -40,34 +42,28 @@ def attempt(fn):
 def child(case, image, name, out):
     seen = {}
     if case == "accel":
-        # pandare2 refuses first (taint implies rr, which needs TCG); the engine's own check is
-        # reached from its command line: qemu-system-<arch> next to the PANDA library.
+        # pandare2 refuses first (taint needs TCG); the engine's own check is reached from its
+        # command line: qemu-system-<arch> next to the PANDA library.
         try:
-            Panda(generic=image, rr=True, capabilities=["analysis", "taint"],
-                  extra_args=["-accel", "qtest"])
+            Panda(generic=image, capabilities=["taint"], accel="kvm")
             seen["pandare2"] = None
         except ValueError as e:
             seen["pandare2"] = str(e)
-        try:
-            Panda(generic=image, capabilities=["analysis", "taint"])
-            seen["no-rr"] = None
-        except ValueError as e:
-            seen["no-rr"] = str(e)
-        panda = Panda(generic=image, rr=True, capabilities=["analysis", "taint"])
+        panda = Panda(generic=image, capabilities=["taint"])
         lib = os.path.dirname(panda.libpanda_path)
         exe = next((p for p in (os.path.join(lib, f"qemu-system-{panda.arch_name}"),
                                 os.path.join(lib, "..", "bin", f"qemu-system-{panda.arch_name}"))
                     if os.path.exists(p)), None)
         if exe:
             p = subprocess.run([exe, "-M", "none", "-accel", "qtest", "-display", "none",
-                                "-analysis-capabilities", "taint"],
+                                "-capabilities", "taint"],
                                capture_output=True, text=True, timeout=60)
             seen["engine"] = [p.returncode, p.stderr[-500:]]
         with open(out, "w") as f:
             json.dump(seen, f)
         return
-    caps = ["analysis", "guest-hypercall", "rr"] + ([] if case in ("record", "no-cap") else ["taint"])
-    panda = Panda(generic=image, rr=True, capabilities=caps)
+    caps = {"record": ["record"], "no-cap": [], "live": ["record", "taint"]}.get(case, ["taint"])
+    panda = Panda(generic=image, capabilities=caps)
 
     if case == "early":
         seen["enable"] = attempt(panda.taint_enable)
@@ -79,7 +75,8 @@ def child(case, image, name, out):
             panda.end_analysis()
         panda.run()
     elif case == "live":
-        @panda.cb_start_block_exec(observe_only=True)
+        # Enabled once the snapshot is loaded: a block from the boot state would race the load.
+        @panda.cb_start_block_exec(observe_only=True, enabled=False)
         def first(cpu, tb):
             seen["enable"] = attempt(panda.taint_enable)
             panda.disable_callback("first")
@@ -87,7 +84,12 @@ def child(case, image, name, out):
 
         @panda.queue_blocking
         def drive():
-            panda.revert_sync("root")
+            # revert_sync returns the monitor's output: warnings (pseries' TCG caps) or "Error: ..."
+            seen["revert"] = panda.revert_sync("root")
+            if "Error" in seen["revert"]:
+                panda.end_analysis()
+            else:
+                panda.enable_callback("first")
         panda.run()
     else:
         @panda.cb_start_block_exec(observe_only=True)
@@ -140,12 +142,12 @@ def main():
         ("no capability: taint_enable says so", has(n.get("enable"), "capability"), n),
         ("no capability: taint_label_ram says so", has(n.get("label"), "capability"), n),
         ("no capability: taint stays off", n.get("enabled") is False, n),
+        ("live: the image's snapshot loads", "Error" not in l.get("revert", "Error"), l),
         ("live, not a replay: taint_enable says it needs a replay", has(l.get("enable"), "replaying"), l),
         ("label sets then address mode: refused, saying both can't be on",
          c.get("labels") is None and has(c.get("address"), "both"), c),
         ("after that refusal, taint still enables", c.get("enable") is None and c.get("enabled") is True, c),
         ("taint with another accelerator: pandare2 refuses", has(a.get("pandare2"), "accel"), a),
-        ("taint without rr=True: pandare2 says it runs only in replay", has(a.get("no-rr"), "replay"), a),
     ]
     if "engine" in a:
         checks.append(("without TCG: the engine exits saying taint needs TCG",

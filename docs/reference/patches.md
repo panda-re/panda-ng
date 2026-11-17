@@ -91,10 +91,10 @@ QEMU 11.1.2 plus 109 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0083 | replay: guard guest state against analysis mutations | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
 | 0084 | replay: coalesce repeated schedules of a pending BH | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
 | 0085 | system: cancel transient analysis before restore and reset | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later AND MIT |
-| 0086 | system: provision startup capabilities and gate guest hypercalls | [python](../features.md#python) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
-| 0087 | system: gate handoff and snapshot clock adaptations | [kvm-tcg](../features.md#kvm-tcg) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
-| 0088 | riscv: select snapshot version policy at registration | [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
-| 0089 | system: seal capabilities before startup side effects | [python](../features.md#python) | new | MIT |
+| 0086 | system: choose startup capabilities with -capabilities | [python](../features.md#python) | new | GPL-2.0-or-later AND MIT |
+| 0087 | accel/tcg: the record capability launches a recordable machine | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later AND MIT |
+| 0088 | replay: recording needs the record capability | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
+| 0089 | replay: consult the replay table when replay starts | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
 | 0090 | replay: serialize deferred analysis RAM writes as ordered async events | [recorded-ram-effects](../features.md#recorded-ram-effects) | new | GPL-2.0-or-later |
 | 0091 | replay: stub analysis register effects without TCG | [recorded-ram-effects](../features.md#recorded-ram-effects) | new | GPL-2.0-or-later |
 | 0092 | replay: log analysis guest writes at their instruction | [recorded-hypercall-answers](../features.md#recorded-hypercall-answers) | new | GPL-2.0-or-later |

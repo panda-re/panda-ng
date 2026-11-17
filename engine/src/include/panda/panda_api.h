@@ -11,13 +11,20 @@
 
 // from panda_api.c
 
+/* Startup capabilities (panda_configure_capabilities): none by default. */
+typedef enum panda_capability {
+    PANDA_CAP_RECORD = 1,   /* the run may record (a recordable machine from launch) */
+    PANDA_CAP_TAINT = 2,    /* taint's shadow state, reserved before guest memory */
+} panda_capability;
+
 /**
- * panda_configure_capabilities() - Seal startup capabilities before extension loading.
- * @requested: analysis-policy capability bits, not callback compatibility modes.
+ * panda_configure_capabilities() - Choose the startup capabilities.
+ * @requested: PANDA_CAP_* bits.
  *
- * Does not activate analysis. Repeating the same sealed request succeeds; a
- * conflicting request fails without changing policy. Call before callbacks or
- * plugin loading, including before panda_init when embedding the engine.
+ * What a run must choose before the machine exists; everything else needs no capability.
+ * Call before panda_init (the command line's -capabilities must then repeat the choice).
+ * Repeating the same request succeeds; a different one, or an unknown bit, fails (with the
+ * reason on stderr) and changes nothing.
  */
 bool panda_configure_capabilities(uint32_t requested);
 

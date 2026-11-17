@@ -31,7 +31,7 @@ CMD = "cat /etc/os-release; ls -R /usr/share/doc | wc -l"
 
 
 def child(mode, image, name, out):
-    panda = Panda(generic=image, rr=True)
+    panda = Panda(generic=image, capabilities=["record"] if mode == "record" else None)
     seen = {"asids": [], "openat": 0, "icount": None, "exits": 0, "blocks": 0}
 
     @panda.cb_asid_changed(observe_only=True)
