@@ -1497,6 +1497,20 @@ current_gate = "Always on: every CP0 Cause update is an atomic read-modify-write
 required_action = "Explicit vanilla would keep upstream's plain read-modify-writes of CP0 Cause, including their race with device interrupt-line updates under MTTCG."
 vanilla_verified = false
 
+[[patch]]
+id = "0107"
+file = "engine/patches/11.1.2/0107-target-riscv-take-ECALL-from-U-mode-and-page-faults-.patch"
+sha256 = "b7edcc695da7f3f226a4fd41f07b357466a950b7ba3c098c84e5cec8ca388c7a"
+class = "upstream-fix-needs-off-path"
+capability = "tcg-exception-locking"
+paths = ["target/riscv/cpu.h", "target/riscv/tcg/cpu_helper.c", "target/riscv/tcg/tcg-cpu.c"]
+functions = ["riscv_cpu_exception_bql_free", "riscv_cpu_do_interrupt", "riscv_tcg_ops"]
+hunk_contexts = ["bool riscv_cpu_option_set(RISCVCPU *cpu, const char *optname);", "static void riscv_do_nmi(CPURISCVState *env, target_ulong cause, bool virt)", "const TCGCPUOps riscv_tcg_ops = {"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Always on under TCG: RISC-V ECALL from U-mode, illegal instructions and page faults taken to S-mode with V=0 skip the BQL in cpu_handle_exception. Other exceptions, interrupts and traps to M-mode or with V=1 are unchanged. No guest-visible state differs; lock acquisition does."
+required_action = "Explicit vanilla must take the BQL around every do_interrupt as upstream does (riscv exception_bql_free unset)."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
