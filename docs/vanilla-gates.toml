@@ -1525,6 +1525,20 @@ current_gate = "Always on under TCG: LoongArch SYSCALL, page faults, INE/IPE, FP
 required_action = "Explicit vanilla must take the BQL around every do_interrupt as upstream does (loongarch exception_bql_free unset)."
 vanilla_verified = false
 
+[[patch]]
+id = "0109"
+file = "engine/patches/11.1.2/0109-target-i386-deliver-INT-0x80-from-user-mode-without-.patch"
+sha256 = "1e715b705bca6687529dcb2ac0f4ccc60b0c31ef400f1efb8c31bf1d11a204a7"
+class = "upstream-fix-needs-off-path"
+capability = "tcg-exception-locking"
+paths = ["target/i386/tcg/helper-tcg.h", "target/i386/tcg/system/seg_helper.c", "target/i386/tcg/tcg-cpu.c"]
+functions = ["x86_cpu_exception_bql_free", "x86_cpu_do_interrupt", "x86_tcg_ops"]
+hunk_contexts = ["void handle_even_inj(CPUX86State *env, int intno, int is_int,", "const TCGCPUOps x86_tcg_ops = {"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Always on under TCG: x86 INT 0x80 from CPL 3 in protected mode (not SVM guest mode or SMM) skips the BQL in cpu_handle_exception. Other vectors and exceptions are unchanged. No guest-visible state differs; lock acquisition does."
+required_action = "Explicit vanilla must take the BQL around every do_interrupt as upstream does (x86 exception_bql_free unset)."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
