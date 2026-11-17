@@ -25,7 +25,9 @@ import tempfile
 from testlib import Checks, progress
 from testmachine import Agent, Machine
 
-PANDA_TEST = dict(area="syscalls", tier="guest", fixture="testmachine", arches=["x86_64", "aarch64"],
+PANDA_TEST = dict(area="syscalls", tier="guest", fixture="testmachine",
+                  arches=["x86_64", "aarch64", "arm", "i386", "riscv64", "mipsel", "mips", "mips64el",
+                          "mips64", "ppc", "ppc64"],
                   plugins=["syscalls2"], variants=dict(declared=[False, True]), timeout=600)
 
 ap = argparse.ArgumentParser()
@@ -64,14 +66,21 @@ text = open(log, errors="replace").read()
 os.unlink(log)
 helpers = re.findall(r"\bcall (panda_sc_\w+)", text)
 # the trap's and the return's helpers in the ops (an SVC raises its exception through a helper)
-TRAP = {"x86_64": r"\bcall syscall,", "aarch64": r"\bcall exception_with_syndrome"}[arch]
-RET = {"x86_64": r"\bcall (sysret|iret_protected),", "aarch64": r"\bcall exception_return,"}[arch]
+TRAP = {"x86_64": r"\bcall syscall,", "aarch64": r"\bcall exception_with_syndrome",
+        "arm": r"\bcall exception_with_syndrome", "i386": r"\bcall (raise_interrupt|sysenter),",
+        "riscv64": r"\bcall raise_exception,", "ppc": r"\bcall raise_exception_err,",
+        "ppc64": r"\bcall raise_exception_err,"}.get(arch, r"\bcall raise_exception_err,")
+RET = {"x86_64": r"\bcall (sysret|iret_protected),", "aarch64": r"\bcall exception_return,",
+       "arm": r"\bcall cpsr_write_eret,", "i386": r"\bcall (sysexit|iret_protected),",
+       "riscv64": r"\bcall sret,", "ppc": r"\bcall rfi,", "ppc64": r"\bcall rfid,"}.get(
+    arch, r"\bcall eret,")
 C.check("the guest ran its commands", b"done" in R.get("out", b""), R.get("out"))
 C.check("trap and return-to-user instructions were translated",
         bool(re.search(TRAP, text) and re.search(RET, text)))
 if opt.declared:
-    C.check("the trap sites call the pairing's entry helper",
-            any(h.startswith("panda_sc_enter") for h in helpers), sorted(set(helpers)))
+    if arch != "arm":                   # an AArch32 kernel's SVC enters from interrupt delivery
+        C.check("the trap sites call the pairing's entry helper",
+                any(h.startswith("panda_sc_enter") for h in helpers), sorted(set(helpers)))
     C.check("the return sites call the pairing's return check",
             any(h.startswith("panda_sc_return") for h in helpers), sorted(set(helpers)))
     C.check("syscalls2 delivered returns", R["returns"] > 0, R["returns"])

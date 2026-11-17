@@ -22,12 +22,16 @@ import threading
 from testlib import Checks, progress
 from testmachine import Agent, Machine
 
-PANDA_TEST = dict(area="syscalls", tier="guest", fixture="testmachine", arches=["x86_64", "aarch64"],
+PANDA_TEST = dict(area="syscalls", tier="guest", fixture="testmachine",
+                  arches=["x86_64", "aarch64", "arm", "i386", "riscv64", "mipsel", "mips", "mips64el",
+                          "mips64", "ppc", "ppc64"],
                   plugins=["syscalls2", "hooks"], variants=dict(smp=[1, 4]), timeout=900)
 
 COUNT = 20000
 # (read, write) numbers
-CALLS = {"x86_64": (0, 1), "aarch64": (63, 64), "riscv64": (63, 64)}
+CALLS = {"x86_64": (0, 1), "aarch64": (63, 64), "riscv64": (63, 64), "arm": (3, 4), "i386": (3, 4),
+         "mipsel": (4003, 4004), "mips": (4003, 4004), "mips64el": (5000, 5001),
+         "mips64": (5000, 5001), "ppc": (3, 4), "ppc64": (3, 4)}
 
 ap = argparse.ArgumentParser()
 ap.add_argument("image")
