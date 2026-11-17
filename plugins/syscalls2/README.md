@@ -21,7 +21,7 @@ Arguments
 
 * `load-info`: boolean, defaults to `false`. Enables loading of system call information for the selected OS profile. This allows more generic processing of system call events, without having to implement individual hooks.
 * `abi`: string. Accepted but not used: on mips64 the ABI (o32, n64 or n32) of each system call is taken from its number (4000-4999, 5000-5999, 6000-6999).
-* `task_key`: boolean, defaults to `true`. Linux on x86_64 and aarch64 only: pair returns by task (below), or with `false` by the call key (address space and user stack pointer; for tests).
+* `task_key`: boolean, defaults to `true`. Linux only: pair returns by task (below), or with `false` by the call key (address space and user stack pointer; for tests; on MIPS it loses fork's return, whose ASID changes).
 
 From Python:
 
@@ -32,18 +32,31 @@ panda.load_plugin("syscalls2", {"load-info": True})
 How returns are paired
 ----------------------
 
-**Linux guests on x86_64 and aarch64.** syscalls2 declares the guest's system-call ABIs to the engine ([docs/design/syscall-pairing.md](../../docs/design/syscall-pairing.md)): x86_64 `syscall`, and a 32-bit task's i386 calls (`int 0x80`, and through the vDSO `sysenter` or `syscall` from compat mode, reported under the i386 profile); AArch64 and AArch32 `svc`. The engine recognizes these calls, keeps each one whose return a callback wants (with its `syscall_ctx_t`), and pairs it with its return by task: the per-CPU kernel stack word on x86_64, `SP_EL1` on aarch64. So concurrent calls of threads of one process each get their own return, a call returning on another vCPU is paired, and no hook is added per call. The enter callbacks run before the trap; the return callbacks once the task is back in user mode at the return address (`pc`), as before.
+**Linux guests (every target).** syscalls2 declares the guest's system-call ABIs to the engine ([docs/design/syscall-pairing.md](../../docs/design/syscall-pairing.md)) and the task key, and the engine recognizes these calls, keeps each one whose return a callback wants (with its `syscall_ctx_t`), and pairs it with its return by task. So concurrent calls of threads of one process each get their own return, a call returning on another vCPU is paired, and no hook is added per call. The enter callbacks run before the trap; the return callbacks once the task is back in user mode at the return address (`pc`), as before.
+
+| Target | ABIs declared | Task key |
+|---|---|---|
+| x86_64 | `syscall`; a 32-bit task's `int 0x80`, and through the vDSO `sysenter` or `syscall` from compat mode (reported under the i386 profile) | the per-CPU top-of-stack word at an offset from `KERNEL_GS_BASE`, decoded from the entry code at `LSTAR` |
+| i386 | `int 0x80`; `sysenter` through the vDSO | the TSS's `sp1` (4.19 and later; `sp0` before), at TR's base |
+| aarch64 | AArch64 `svc`; AArch32 `svc` (EABI) | `SP_EL1` |
+| arm | `svc` (EABI, ARM and Thumb) | `SP_svc` (r13 of SVC mode) |
+| riscv64 | `ecall` | `sscratch` (`current` while in U-mode) |
+| mips, mipsel, mips64, mips64el | `syscall`: o32 (4000-), n64 (5000-), n32 (6000-) by number; errors flagged in `$a3` | `kernelsp[cpu]`, its address, register and shift decoded from the exception entry code |
+| ppc | `sc` (errors flagged in CR0.SO) | `SPRG3` (`&current->thread`) |
+| ppc64 | `sc` from 64-bit and from 32-bit tasks, `scv` | the PACA's `kstack`, at an offset from `SPRG1` decoded from the system call entry |
 - A call the kernel restarts (the task traps again) has no return callback; its new entry gets one.
 - An `execve` that succeeds has no return callback.
 - A signal handler that runs before a call returns doesn't end it: the call returns when the handler's `rt_sigreturn` brings the task back.
 - A vfork or clone child's first return (0) in its caller's address space is delivered as a return of the caller's call, before the caller's own (the tables' "double return" calls, and any `shared_child` call).
+- A 32-bit ARM kernel restarts a call that has no handler to run inside the kernel: the call's return is the restarted call's value (on other kernels the task traps again: a new entry).
+- MIPS o32 arguments 5 and 6 are on the user stack; the host reads user memory on MIPS only through the TLB, so they read as 0 while their page is not in it (as before).
 
-**Other targets, and Windows and FreeBSD guests on x86_64.** A hook (the `hooks` plugin) at each call's return address, keyed by the return address and the process's ASID: threads of one process making the same call at the same address share the key.
+**Windows and FreeBSD guests (x86 and x86_64).** A hook (the `hooks` plugin) at each call's return address, keyed by the return address and the process's ASID: threads of one process making the same call at the same address share the key.
 
 Dependencies
 ------------
 
-`hw_proc_id`, and `hooks` where returns are tracked with hooks; it loads them itself.
+`hw_proc_id`, and `hooks` where returns are tracked with hooks (Windows and FreeBSD guests); it loads them itself.
 
 APIs and Callbacks
 ------------------
@@ -157,7 +170,7 @@ Signature:
 bool syscalls2_current_call(CPUState *cpu, uint64_t *id, uint32_t *flags)
 ```
 
-Description: Inside an enter or return callback on a guest whose returns the engine pairs (Linux on x86_64 and aarch64): the call's id, the same at its entry and its return, and the engine's delivery flags (`panda/syscall-pair.h`: `PANDA_SYSCALL_RETURN` at a return, `PANDA_SYSCALL_CHILD` at a child's first return). Returns false elsewhere.
+Description: Inside an enter or return callback on a guest whose returns the engine pairs (Linux): the call's id, the same at its entry and its return, and the engine's delivery flags (`panda/syscall-pair.h`: `PANDA_SYSCALL_RETURN` at a return, `PANDA_SYSCALL_CHILD` at a child's first return). Returns false elsewhere.
 
 
 
