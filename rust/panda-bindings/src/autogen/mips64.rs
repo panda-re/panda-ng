@@ -45071,6 +45071,9 @@ unsafe extern "C" {
         cb: panda_cb,
     ) -> bool;
 }
+pub const PANDA_CAP_RECORD: panda_capability = 1;
+pub const PANDA_CAP_TAINT: panda_capability = 2;
+pub type panda_capability = ::std::os::raw::c_uint;
 unsafe extern "C" {
     pub fn panda_configure_capabilities(requested: u32) -> bool;
 }
