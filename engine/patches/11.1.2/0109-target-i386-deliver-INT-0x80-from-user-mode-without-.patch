@@ -1,0 +1,107 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 17 Nov 2026 14:31:58 -0500
+Subject: [PATCH] target/i386: deliver INT 0x80 from user mode without the BQL
+
+cpu_handle_exception() holds the BQL around every do_interrupt unless the
+target's TCGCPUOps.exception_bql_free says otherwise.  x86's SYSCALL and
+SYSENTER are helpers that take no lock, but INT 0x80 (the i386 system
+call, also usable from 64-bit tasks) is a software interrupt raised as an
+exception, so a guest's INT 0x80 system calls serialize on the BQL under
+MTTCG: a getppid/close storm through INT 0x80 runs at the same rate at
+-smp 2 and -smp 4.
+
+Implement exception_bql_free for x86: true for vector 0x80 raised by an
+INT instruction at CPL 3 in protected mode, outside SVM guest mode and
+SMM.  Delivery reads the IDT, GDT/LDT and TSS, pushes the frame, loads
+CS/SS and the hflags and clears IF/TF/VM/RF/NT: the vCPU's own state and
+guest memory.  The engine's system-call entry and the syscall trap run
+their consumers on the vCPU thread, as they do from the SYSCALL and
+SYSENTER sites.  Faults during delivery leave through
+raise_exception_err() as from any helper (a triple fault's reset request
+included), and a task gate runs switch_tss(), as a far CALL or JMP through
+one does from a helper.  Nothing touches the local APIC; interrupt
+acceptance stays in x86_cpu_exec_interrupt() under the BQL.  The storm
+then runs 2.2 times faster at -smp 4.
+
+Every other exception and vector, real mode, SVM guest mode and SMM keep
+the BQL.
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
+---
+ target/i386/tcg/helper-tcg.h        |  3 +++
+ target/i386/tcg/system/seg_helper.c | 33 +++++++++++++++++++++++++++++
+ target/i386/tcg/tcg-cpu.c           |  1 +
+ 3 files changed, 37 insertions(+)
+
+diff --git a/target/i386/tcg/helper-tcg.h b/target/i386/tcg/helper-tcg.h
+index b3c8240eba4359be042ed2f581a75f55c5c6cf15..fc330af7f359620b5ef4edd94a9eb235fe563111 100644
+--- a/target/i386/tcg/helper-tcg.h
++++ b/target/i386/tcg/helper-tcg.h
+@@ -37,6 +37,9 @@
+  */
+ void x86_cpu_do_interrupt(CPUState *cpu);
+ #ifndef CONFIG_USER_ONLY
++bool x86_cpu_exception_bql_free(CPUState *cpu);
++#endif
++#ifndef CONFIG_USER_ONLY
+ bool x86_cpu_exec_halt(CPUState *cpu);
+ bool x86_need_replay_interrupt(int interrupt_request);
+ bool x86_cpu_exec_interrupt(CPUState *cpu, int int_req);
+diff --git a/target/i386/tcg/system/seg_helper.c b/target/i386/tcg/system/seg_helper.c
+index 27987c29750e0d129efa99b0d9ca95013d09d983..e2505c3ee589217c4e6816de4f6d460902318514 100644
+--- a/target/i386/tcg/system/seg_helper.c
++++ b/target/i386/tcg/system/seg_helper.c
+@@ -162,6 +162,39 @@ void handle_even_inj(CPUX86State *env, int intno, int is_int,
+     }
+ }
+ 
++/*
++ * May x86_cpu_do_interrupt() deliver cs->exception_index without the BQL?
++ *
++ * Yes for INT 0x80 executed at CPL 3 in protected mode (the i386 Linux
++ * system call, also used by 32- and 64-bit tasks on x86_64 kernels), outside
++ * SVM guest mode and SMM.  Delivery reads the IDT, GDT/LDT and TSS through
++ * the softmmu TLB, pushes the frame on the kernel stack, loads CS/SS (hflags)
++ * and clears IF/TF/VM/RF/NT: the vCPU's own state and guest memory, which
++ * the memory core locks for itself where it must (MMIO).  The engine's
++ * system-call entry (panda_sc_enter_c) and the syscall trap (x86_sc_i386)
++ * run their consumers on the vCPU thread, as they do from the SYSCALL and
++ * SYSENTER sites, which take no lock.  A fault while delivering (#GP, #NP,
++ * #PF, #DF) leaves through raise_exception_err() as it would from any
++ * helper; a triple fault calls qemu_system_reset_request(), which helpers
++ * already call without the BQL.
++ * A task gate in the IDT runs switch_tss(), the code a far CALL or JMP
++ * through a task gate runs from a helper without the BQL.  Nothing here
++ * touches the local APIC: interrupt acceptance stays in
++ * x86_cpu_exec_interrupt(), under the BQL.
++ *
++ * Every other exception and vector, real mode, SVM guest mode (event
++ * injection and the VMCB) and SMM keep the BQL.
++ */
++bool x86_cpu_exception_bql_free(CPUState *cs)
++{
++    CPUX86State *env = cpu_env(cs);
++
++    return cs->exception_index == 0x80 && env->exception_is_int &&
++           (env->cr[0] & CR0_PE_MASK) &&
++           (env->hflags & HF_CPL_MASK) == 3 &&
++           !(env->hflags & (HF_GUEST_MASK | HF_SMM_MASK));
++}
++
+ void x86_cpu_do_interrupt(CPUState *cs)
+ {
+     X86CPU *cpu = X86_CPU(cs);
+diff --git a/target/i386/tcg/tcg-cpu.c b/target/i386/tcg/tcg-cpu.c
+index e8ed088466f9778d0b9ef37afee2dc1d5d4415d3..64f425da495c4c98614a6095bbc1b758263350f9 100644
+--- a/target/i386/tcg/tcg-cpu.c
++++ b/target/i386/tcg/tcg-cpu.c
+@@ -226,6 +226,7 @@ const TCGCPUOps x86_tcg_ops = {
+     .tlb_fill = x86_cpu_tlb_fill,
+     .pointer_wrap = x86_pointer_wrap,
+     .do_interrupt = x86_cpu_do_interrupt,
++    .exception_bql_free = x86_cpu_exception_bql_free,
+     .cpu_exec_halt = x86_cpu_exec_halt,
+     .cpu_exec_interrupt = x86_cpu_exec_interrupt,
+     .cpu_exec_reset = x86_cpu_exec_reset,

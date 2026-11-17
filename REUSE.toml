@@ -144,6 +144,7 @@ path = [
   "engine/patches/11.1.2/0073-physmem-size-a-resizeable-RAM-block-s-maximum-indepe.patch",
   "engine/patches/11.1.2/0078-hw-block-pflash-log-storage-writes-in-the-dirty-bitm.patch",
   "engine/patches/11.1.2/0104-accel-tcg-clear-a-lone-CPU_INTERRUPT_EXITTB-without-.patch",
+  "engine/patches/11.1.2/0109-target-i386-deliver-INT-0x80-from-user-mode-without-.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
