@@ -27,9 +27,10 @@ starts in about a second, and tests can run in parallel.
 
 The guest console goes to console.log in the machine's private directory (Machine.tmp).
 
-Machines exist for x86_64, aarch64 and arm (busybox-armel). An arch needs (tests/README.md, "Test
-machines"): the agent built for it (AGENT_ARCH, from tests/programs/sys.h's system layer and
-build.sh), and a mkbusybox image. The hypercall is penguin's per-arch instruction, which the
+Machines exist for x86_64, i386, aarch64, arm (busybox-armel), riscv64, mipsel, mips, mips64el,
+mips64, ppc and ppc64 (big- and little-endian). An arch needs (tests/README.md, "Test machines"):
+the agent built for it (AGENT_ARCH, from tests/programs/sys.h's system layer and build.sh), and a
+mkbusybox image. The hypercall is penguin's per-arch instruction, which the
 engine routes to PANDA's guest_hypercall.
 """
 import argparse
@@ -48,7 +49,8 @@ import threading
 import time
 
 PANDA_TEST = dict(area="testmachine", tier="guest", fixture="testmachine",
-                  arches=["x86_64", "aarch64", "arm"],
+                  arches=["x86_64", "aarch64", "arm", "i386", "riscv64", "mipsel", "mips", "mips64el",
+                          "mips64", "ppc", "ppc64"],
                   variants=dict(smp=[1, 4], intel=[False, True]), timeout=600)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -59,15 +61,27 @@ from mkbusybox import cpio_newc, empty_qcow2  # noqa: E402
 MAGIC_AGENT = 0x50416774
 HC_HELLO, HC_POLL, HC_REPLY = 1, 2, 3
 OP_PUT, OP_RUN, OP_GET = 1, 2, 3
-REQ = struct.Struct("<IIIIQQ")          # op, mode, flags, pathlen, datalen, offset
+REQ = "IIIIQQ"                          # op, mode, flags, pathlen, datalen, offset (guest order)
+REQ_SIZE = struct.calcsize("<" + REQ)
 SNAPSHOT = "agent"
 # pandare2 arch: the agent's key in agent_programs.PROGRAMS
-AGENT_ARCH = {"x86_64": "x86_64", "aarch64": "aarch64", "arm": "arm"}
+AGENT_ARCH = {"x86_64": "x86_64", "aarch64": "aarch64", "arm": "arm", "i386": "i386", "riscv64": "riscv64",
+              "mipsel": "mipsel", "mips": "mips", "mips64el": "mips64el", "mips64": "mips64",
+              "ppc": "ppc", "ppc64": "ppc64"}
 
 
-def agent_binary(arch):
+def agent_key(image):
+    """The agent build for an image: its pandare2 arch's (ppc64 also runs little-endian kernels)."""
+    arch = image["arch"]
+    kernel = arg_after(list(image["extra_args"]), "-kernel") or ""
+    if arch == "ppc64" and "64le" in os.path.basename(kernel):
+        return "ppc64le"
+    return AGENT_ARCH[arch]
+
+
+def agent_binary(image):
     import base64
-    return base64.b64decode(importlib.import_module("agent_programs").PROGRAMS[AGENT_ARCH[arch]])
+    return base64.b64decode(importlib.import_module("agent_programs").PROGRAMS[agent_key(image)])
 
 
 def cpio_members(data):
@@ -99,7 +113,7 @@ def machine_dir(image, initrd_src, initrd, smp, intel, mem, append=""):
     key = hashlib.sha256(json.dumps([image["arch"], list(image["extra_args"]), smp, intel, mem,
                                      image.get("disk_device")] + ([append] if append else [])
                                     ).encode() + initrd +
-                         agent_binary(image["arch"])).hexdigest()[:16]
+                         agent_binary(image)).hexdigest()[:16]
     return os.path.join(cache, f"{image['arch']}-smp{smp}{'-intel' if intel else ''}-{key}")
 
 
@@ -155,7 +169,7 @@ class Machine:
         with open(os.path.join(tmp, "initrd"), "wb") as f:
             f.write(cpio_newc([(d, 0o40755, b"") for d in dirs] + [
                 ("bin/busybox", 0o100755, bb[1]), ("bin/sh", 0o120777, b"busybox"),
-                ("init", 0o100755, agent_binary(self.arch))]))
+                ("init", 0o100755, agent_binary(self.image))]))
         empty_qcow2(os.path.join(tmp, "snapshot.qcow2"), 16 << 20)
         t0 = time.monotonic()
         print(f"testmachine: booting {os.path.basename(self.dir)} for its snapshot", flush=True)
@@ -232,11 +246,20 @@ class Agent:
         self.result = None
         self.size = 0
         self.hello = None
+        self.order = None                   # the guest's byte order, at its first hypercall
         panda.hypercall(MAGIC_AGENT, mutates=True)(self._hypercall)
+
+    def _byte_order(self, cpu):
+        arch = self.panda.arch_name
+        if arch == "ppc64":
+            return ">" if not self.panda.cpu_env(cpu).msr & 1 else "<"    # MSR[LE]
+        return ">" if arch in ("mips", "mips64", "ppc") else "<"
 
     def _hypercall(self, cpu):
         # The "syscall" convention's argument 0 is the number register; the magic is argument 1.
         op, a, b, c = (self.panda.arch.get_arg(cpu, i, convention="syscall") for i in range(2, 6))
+        if self.order is None:
+            self.order = self._byte_order(cpu)
         ret = 0
         if op == HC_HELLO:
             self.hello = c
@@ -249,14 +272,17 @@ class Agent:
                 ret = len(req)
         elif op == HC_REPLY:
             data = bytes(self.panda.virtual_memory_read(cpu, a, b)) if b else b""
-            status = c - (1 << 64) if c >= 1 << 63 else c
+            bits = self.panda.bits
+            c &= (1 << bits) - 1
+            status = c - (1 << bits) if c >> (bits - 1) else c
             self.result = (status, data)
             self.done.set()
         self.panda.guest.set_retval(cpu, ret)
 
     def request(self, op, path, data=b"", mode=0o755, flags=0, offset=0, timeout=600):
         path = path.encode() if isinstance(path, str) else path
-        req = REQ.pack(op, mode, flags, len(path), len(data), offset) + path + data
+        req = struct.pack((self.order or "<") + REQ, op, mode, flags, len(path), len(data),
+                          offset) + path + data
         if len(req) > self.size:
             raise ValueError(f"request of {len(req)} bytes; the agent's buffer is {self.size}")
         self.done.clear()
@@ -267,7 +293,7 @@ class Agent:
 
     def put(self, path, data, mode=0o755):
         """Write data to the guest file path (created or truncated)."""
-        chunk = self.size - REQ.size - 4096
+        chunk = self.size - REQ_SIZE - 4096
         for i in range(0, max(len(data), 1), chunk):
             status, _ = self.request(OP_PUT, path, data[i:i + chunk], mode, flags=int(i > 0))
             if status:

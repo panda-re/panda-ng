@@ -111,6 +111,101 @@ static long clone3_exit(void *args, long size)
                      : "+r"(r0) : "r"(r1) : "r7", "memory");
     return r0;
 }
+#elif defined(__i386__)
+static long vfork_exit(void)
+{
+    long r;
+    __asm__ volatile("int $0x80; test %%eax, %%eax; jnz 1f; mov $252, %%eax; mov $6, %%ebx; int $0x80; 1:"
+                     : "=a"(r) : "a"(NR_vfork) : "ebx", "memory");
+    return r;
+}
+
+static long clone3_exit(void *args, long size)
+{
+    long r;
+    __asm__ volatile("int $0x80; test %%eax, %%eax; jnz 1f; mov $252, %%eax; mov $9, %%ebx; int $0x80; 1:"
+                     : "=a"(r) : "a"(NR_clone3), "b"(args), "c"(size) : "memory");
+    return r;
+}
+#elif defined(__riscv)
+static long vfork_exit(void)
+{
+    register long a0 __asm__("a0") = CLONE_VM | CLONE_VFORK | SIGCHLD;
+    __asm__ volatile("li a7, 220\n li a1, 0\n li a2, 0\n li a3, 0\n li a4, 0\n ecall\n"
+                     " bnez a0, 1f\n li a0, 6\n li a7, 94\n ecall\n1:"
+                     : "+r"(a0) : : "a1", "a2", "a3", "a4", "a7", "memory");
+    return a0;
+}
+
+static long clone3_exit(void *args, long size)
+{
+    register long a0 __asm__("a0") = (long)args;
+    register long a1 __asm__("a1") = size;
+    __asm__ volatile("li a7, 435\n ecall\n bnez a0, 1f\n li a0, 9\n li a7, 94\n ecall\n1:"
+                     : "+r"(a0) : "r"(a1) : "a7", "memory");
+    return a0;
+}
+#elif defined(__mips__)
+/* clone(CLONE_VM | CLONE_VFORK | SIGCHLD) (MIPS has no vfork); the child exit_group(6)s */
+static long vfork_exit(void)
+{
+    register long v0 __asm__("$2"), a3 __asm__("$7");
+    register long a0 __asm__("$4") = CLONE_VM | CLONE_VFORK | SIGCHLD;
+    __asm__ volatile(".set push\n.set noreorder\n"
+#if _MIPS_SIM == _ABIO32
+                     " addiu $sp, $sp, -32\n sw $0, 16($sp)\n move $5, $0\n move $6, $0\n"
+                     " move $7, $0\n li $2, 4120\n syscall\n bnez $7, 1f\n nop\n bnez $2, 1f\n"
+                     " nop\n li $4, 6\n li $2, 4246\n syscall\n1: addiu $sp, $sp, 32\n"
+#else
+                     " move $5, $0\n move $6, $0\n move $7, $0\n move $8, $0\n li $2, 5055\n"
+                     " syscall\n bnez $7, 1f\n nop\n bnez $2, 1f\n nop\n li $4, 6\n li $2, 5205\n"
+                     " syscall\n1:\n"
+#endif
+                     ".set pop"
+                     : "=r"(v0), "=r"(a3), "+r"(a0) : : "$1", "$3", "$5", "$6", "$8", "$9", "$10",
+                       "$11", "$12", "$13", "$14", "$15", "$24", "$25", "hi", "lo", "memory");
+    return a3 ? -v0 : v0;
+}
+
+static long clone3_exit(void *args, long size)
+{
+    register long v0 __asm__("$2"), a3 __asm__("$7");
+    register long a0 __asm__("$4") = (long)args, a1 __asm__("$5") = size;
+    __asm__ volatile(".set push\n.set noreorder\n"
+#if _MIPS_SIM == _ABIO32
+                     " li $2, 4435\n syscall\n bnez $7, 1f\n nop\n bnez $2, 1f\n nop\n li $4, 9\n"
+                     " li $2, 4246\n syscall\n1:\n"
+#else
+                     " li $2, 5435\n syscall\n bnez $7, 1f\n nop\n bnez $2, 1f\n nop\n li $4, 9\n"
+                     " li $2, 5205\n syscall\n1:\n"
+#endif
+                     ".set pop"
+                     : "=r"(v0), "=r"(a3), "+r"(a0) : "r"(a1) : "$1", "$3", "$6", "$8", "$9",
+                       "$10", "$11", "$12", "$13", "$14", "$15", "$24", "$25", "hi", "lo",
+                       "memory");
+    return a3 ? -v0 : v0;
+}
+#elif defined(__powerpc__)
+static long vfork_exit(void)
+{
+    register long r3 __asm__("r3");
+    __asm__ volatile("li 0, 189\n sc\n bns+ 2f\n neg 3, 3\n b 1f\n"
+                     "2: cmpwi 3, 0\n bne 1f\n li 3, 6\n li 0, 234\n sc\n1:"
+                     : "=r"(r3) : : "r0", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11",
+                       "r12", "cr0", "ctr", "memory");
+    return r3;
+}
+
+static long clone3_exit(void *args, long size)
+{
+    register long r3 __asm__("r3") = (long)args;
+    register long r4 __asm__("r4") = size;
+    __asm__ volatile("li 0, 435\n sc\n bns+ 2f\n neg 3, 3\n b 1f\n"
+                     "2: cmpwi 3, 0\n bne 1f\n li 3, 9\n li 0, 234\n sc\n1:"
+                     : "+r"(r3), "+r"(r4) : : "r0", "r5", "r6", "r7", "r8", "r9", "r10", "r11",
+                       "r12", "cr0", "ctr", "memory");
+    return r3;
+}
 #endif
 
 /* case 11: rt_sigreturn, and at once the handler, which sets usr1_seen */
@@ -128,12 +223,36 @@ __asm__(".text\n.globl restorer_open\nrestorer_open:\n mov x8, #139\n svc #0\n"
 __asm__(".text\n.arm\n.globl restorer_open\nrestorer_open:\n mov r7, #173\n svc #0\n"
         ".globl on_usr1_past\non_usr1_past:\n ldr r12, 1f\n mov r3, #1\n str r3, [r12]\n bx lr\n"
         "1: .word usr1_seen\n");
+#elif defined(__i386__)
+__asm__(".text\n.globl restorer_open\nrestorer_open:\n mov $173, %eax\n int $0x80\n"
+        ".globl on_usr1_past\non_usr1_past:\n movl $1, usr1_seen\n ret\n");
+#elif defined(__riscv)
+/* (riscv, MIPS and PowerPC return from handlers through the vDSO: the handler alone) */
+__asm__(".text\n.globl restorer_open\nrestorer_open:\n li a7, 139\n ecall\n"
+        ".globl on_usr1_past\non_usr1_past:\n lla t0, usr1_seen\n li t1, 1\n sw t1, 0(t0)\n ret\n");
+#elif defined(__mips__) && _MIPS_SIM == _ABIO32
+__asm__(".text\n.set push\n.set noreorder\n.globl restorer_open\nrestorer_open:\n"
+        " li $2, 4193\n syscall\n.globl on_usr1_past\non_usr1_past:\n"
+        " lui $8, %hi(usr1_seen)\n li $9, 1\n jr $31\n sw $9, %lo(usr1_seen)($8)\n.set pop\n");
+#elif defined(__mips__)
+__asm__(".text\n.set push\n.set noreorder\n.globl restorer_open\nrestorer_open:\n"
+        " li $2, 5211\n syscall\n.globl on_usr1_past\non_usr1_past:\n"
+        " dla $8, usr1_seen\n li $9, 1\n jr $31\n sw $9, 0($8)\n.set pop\n");
+#elif defined(__powerpc64__)
+__asm__(".text\n.globl restorer_open\nrestorer_open:\n li 0, 172\n sc\n"
+        ".globl on_usr1_past\non_usr1_past:\n lis 9, usr1_seen@highest\n ori 9, 9, usr1_seen@higher\n"
+        " rldicr 9, 9, 32, 31\n oris 9, 9, usr1_seen@h\n ori 9, 9, usr1_seen@l\n li 10, 1\n"
+        " stw 10, 0(9)\n blr\n");
+#elif defined(__powerpc__)
+__asm__(".text\n.globl restorer_open\nrestorer_open:\n li 0, 172\n sc\n"
+        ".globl on_usr1_past\non_usr1_past:\n lis 9, usr1_seen@ha\n li 10, 1\n"
+        " stw 10, usr1_seen@l(9)\n blr\n");
 #endif
 
 static void handle_past(int sig)
 {
-    struct ksigaction a = { on_usr1_past, SA_RESTORER | SA_SIGINFO, restorer_open, 0 };
-    sc(NR_rt_sigaction, sig, (long)&a, 0, 8, 0, 0);
+    struct ksigaction a = KSIGACTION(on_usr1_past, SA_SIGINFO, restorer_open);
+    sc(NR_rt_sigaction, sig, (long)&a, 0, KSIGSET, 0, 0);
 }
 
 static void on_alarm_write(int sig) { sc(NR_write, pipefd[1], (long)"x", 1, 0, 0, 0); }
