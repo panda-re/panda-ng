@@ -2,7 +2,7 @@
 
 # The engine patch series
 
-QEMU 11.1.2 plus 103 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
+QEMU 11.1.2 plus 104 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
@@ -109,3 +109,4 @@ QEMU 11.1.2 plus 103 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0101 | monitor: info panda-events lists the PANDA event registry | [plugins](../features.md#plugins) | new | GPL-2.0-or-later |
 | 0102 | target: system-call pairing sites | [syscalls](../features.md#syscalls) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
 | 0103 | accel/tcg, target/arm: take SVC, UNDEF and aborts to EL1 without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0104 | accel/tcg: clear a lone CPU_INTERRUPT_EXITTB without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | LGPL-2.1-or-later |

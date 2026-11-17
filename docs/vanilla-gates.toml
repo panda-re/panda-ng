@@ -1455,6 +1455,20 @@ current_gate = "Always on under TCG: Arm SVC/UNDEF/aborts from EL0/EL1 to EL1, a
 required_action = "Explicit vanilla must take the BQL around every do_interrupt and the exception-return hooks as upstream does (exception_bql_free unset, hooks always called)."
 vanilla_verified = false
 
+[[patch]]
+id = "0104"
+file = "engine/patches/11.1.2/0104-accel-tcg-clear-a-lone-CPU_INTERRUPT_EXITTB-without-.patch"
+sha256 = "f3fae07561eb82e7bfd1abbd561d3f539ab3eea068ddb3bc16ab0f7e6b02989f"
+class = "upstream-fix-needs-off-path"
+capability = "tcg-exception-locking"
+paths = ["accel/tcg/cpu-exec.c"]
+functions = ["cpu_handle_interrupt"]
+hunk_contexts = ["static inline bool cpu_handle_interrupt(CPUState *cpu,"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Always on under TCG outside record/replay: when CPU_INTERRUPT_EXITTB is the only pending interrupt request, cpu_handle_interrupt clears it atomically and forgets the last TB without the BQL. Any other bit, and record/replay, take the upstream locked path. No guest-visible state differs; lock acquisition does."
+required_action = "Explicit vanilla must take the BQL whenever interrupt_request is non-zero, as upstream does."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"

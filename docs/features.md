@@ -465,4 +465,4 @@ EL1 without the BQL, so that an AArch64 guest's system calls scale with vCPUs un
 
 **Tests:** none yet.
 
-**Engine patches:** 0012, 0061, 0103 ([series](reference/patches.md))
+**Engine patches:** 0012, 0061, 0103-0104 ([series](reference/patches.md))
