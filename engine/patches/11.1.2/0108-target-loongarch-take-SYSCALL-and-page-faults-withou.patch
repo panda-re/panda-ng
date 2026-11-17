@@ -1,0 +1,91 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 17 Nov 2026 14:31:26 -0500
+Subject: [PATCH] target/loongarch: take SYSCALL and page faults without the
+ BQL
+
+cpu_handle_exception() holds the BQL around every do_interrupt unless the
+target's TCGCPUOps.exception_bql_free says otherwise.  A LoongArch guest's
+system call is the SYSCALL instruction, delivered as EXCCODE_SYS through
+that path, so every system call takes the BQL once under MTTCG; a
+getppid/close storm runs only 1.3 times faster at -smp 2 than at -smp 1.
+
+Implement exception_bql_free for LoongArch: true for EXCCODE_SYS, the page
+invalid, modified and privilege faults (PIL, PIS, PIF, PME, PNR, PNX, PPI),
+INE, IPE, the FP/LSX/LASX disabled traps and FPE.  Taking one writes only
+the vCPU's own CSRs (ESTAT's exception code, PRMD, ERA, CRMD, BADI, or the
+TLBR* CSRs in a TLB refill) and pc, and fetches the trapping instruction
+for BADI through the softmmu TLB; helper_ertn writes the same CSRs without
+the BQL on the way back.  ESTAT's interrupt status bits are changed under
+TCG only on the vCPU's own thread (loongarch_cpu_set_irq() uses
+async_run_on_cpu()), so the read-modify-write of ESTAT cannot race with a
+device raising an interrupt.  The storm gets 6-10% faster at -smp 1 to 4.
+
+Interrupts, the debug exception, BRK, address and bound-check errors keep
+the BQL.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ target/loongarch/tcg/tcg_cpu.c | 41 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 41 insertions(+)
+
+diff --git a/target/loongarch/tcg/tcg_cpu.c b/target/loongarch/tcg/tcg_cpu.c
+index 339b84d62081b70c1ab539b1aab4a8116f0459c9..e29ecc03a21de7c3ab0e4b3dca80378c074d175c 100644
+--- a/target/loongarch/tcg/tcg_cpu.c
++++ b/target/loongarch/tcg/tcg_cpu.c
+@@ -220,6 +220,46 @@ static void loongarch_cpu_do_interrupt(CPUState *cs)
+     cs->exception_index = -1;
+ }
+ 
++/*
++ * May loongarch_cpu_do_interrupt() take cs->exception_index without the BQL?
++ *
++ * Yes for the system call (SYSCALL), the page invalid, modified and
++ * privilege faults, the instruction non-existent and privilege errors, the
++ * FP/LSX/LASX disabled traps and the FP exception.  Taking one writes only
++ * this vCPU's own CSRs (ESTAT.Ecode/EsubCode, PRMD, ERA, CRMD, BADI; in a
++ * TLB refill the TLBR* CSRs), fetches the trapping instruction for BADI
++ * through the softmmu TLB like any instruction fetch, and sets pc; helper_ertn,
++ * which runs without the BQL, writes the same CSRs on the way back.  ESTAT's
++ * IS bits, which devices raise, are written under TCG only on this vCPU's own
++ * thread (loongarch_cpu_set_irq() queues the change with async_run_on_cpu()),
++ * so the read-modify-write of ESTAT here cannot lose one.
++ *
++ * Interrupts, the debug exception (DBP, debug mode), BRK, the address and
++ * bound-check errors and anything else keep the BQL.
++ */
++static bool loongarch_cpu_exception_bql_free(CPUState *cs)
++{
++    switch (cs->exception_index) {
++    case EXCCODE_SYS:
++    case EXCCODE_PIL:
++    case EXCCODE_PIS:
++    case EXCCODE_PIF:
++    case EXCCODE_PME:
++    case EXCCODE_PNR:
++    case EXCCODE_PNX:
++    case EXCCODE_PPI:
++    case EXCCODE_INE:
++    case EXCCODE_IPE:
++    case EXCCODE_FPD:
++    case EXCCODE_SXD:
++    case EXCCODE_ASXD:
++    case EXCCODE_FPE:
++        return true;
++    default:
++        return false;
++    }
++}
++
+ static void loongarch_cpu_do_transaction_failed(CPUState *cs, hwaddr physaddr,
+                                                 vaddr addr, unsigned size,
+                                                 MMUAccessType access_type,
+@@ -338,6 +378,7 @@ const TCGCPUOps loongarch_tcg_ops = {
+     .cpu_exec_halt = loongarch_cpu_has_work,
+     .cpu_exec_reset = cpu_reset,
+     .do_interrupt = loongarch_cpu_do_interrupt,
++    .exception_bql_free = loongarch_cpu_exception_bql_free,
+     .do_transaction_failed = loongarch_cpu_do_transaction_failed,
+ #endif
+ };

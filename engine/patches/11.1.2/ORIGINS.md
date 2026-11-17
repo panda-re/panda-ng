@@ -21,7 +21,7 @@ The trailers are part of each commit message in an `import-series.sh` tree, so
 `export-series.sh` keeps them. Add both to a new patch, and update this table when the series
 changes (the export does not rewrite this file). "Uncertain" in a note marks a judgement call.
 
-Counts: new 74, penguin 25, panda-re/qemu 6, ac88u 2.
+Counts: new 75, penguin 25, panda-re/qemu 6, ac88u 2.
 
 | # | subject | origin | license | note |
 |---|---|---|---|---|
@@ -132,3 +132,4 @@ Counts: new 74, penguin 25, panda-re/qemu 6, ac88u 2.
 | 0105 | target/ppc: take system calls from problem state without the BQL | new | LGPL-2.1-or-later AND MIT | sc/scv from problem state on BookE and Book3S 64-bit through TCGCPUOps.exception_bql_free (0103); ppc_maybe_interrupt and cpu_interrupt_exittb skip the BQL when they have nothing to do or act on the own vCPU, so PowerPC guest system calls scale with vCPUs under MTTCG |
 | 0106 | target/mips: update CP0 Cause atomically | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT | CP0 Cause holds both the vCPU's exception bits and the interrupt lines that devices set under the BQL, while mtc0 Cause/Compare and a timer expiry seen by mfc0 Count write it on the vCPU without the BQL; every update becomes an atomic read-modify-write of its own bits, so neither side loses the other's (a lost IP bit is a lost interrupt) |
 | 0107 | target/riscv: take ECALL from U-mode and page faults to S-mode without the BQL | new | GPL-2.0-or-later | TCGCPUOps.exception_bql_free (0103) on RISC-V: an ECALL from U-mode, illegal instructions and instruction/load/store page faults taken to S-mode with V=0 are delivered without the BQL (the hart's own state only, as sret writes it); everything else keeps it |
+| 0108 | target/loongarch: take SYSCALL and page faults without the BQL | new | GPL-2.0-or-later | TCGCPUOps.exception_bql_free (0103) on LoongArch: SYSCALL, page faults, INE/IPE, FP/LSX/LASX-disabled and FPE are delivered without the BQL (own CSRs only, as ertn writes them; ESTAT's IS bits change only on the vCPU's thread under TCG); interrupts, DBP, BRK, address and bound errors keep it |

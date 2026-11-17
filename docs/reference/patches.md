@@ -2,7 +2,7 @@
 
 # The engine patch series
 
-QEMU 11.1.2 plus 107 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
+QEMU 11.1.2 plus 108 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
@@ -113,3 +113,4 @@ QEMU 11.1.2 plus 107 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0105 | target/ppc: take system calls from problem state without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | LGPL-2.1-or-later AND MIT |
 | 0106 | target/mips: update CP0 Cause atomically | [qemu-fixes](../features.md#qemu-fixes) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
 | 0107 | target/riscv: take ECALL from U-mode and page faults to S-mode without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | GPL-2.0-or-later |
+| 0108 | target/loongarch: take SYSCALL and page faults without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | GPL-2.0-or-later |

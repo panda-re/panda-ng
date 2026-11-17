@@ -83,6 +83,7 @@ path = [
   "engine/patches/11.1.2/0100-hw-pci-host-ppce500-migrate-the-host-bridge-s-config.patch",
   "engine/patches/11.1.2/0101-monitor-info-panda-events-lists-the-PANDA-event-regi.patch",
   "engine/patches/11.1.2/0107-target-riscv-take-ECALL-from-U-mode-and-page-faults-.patch",
+  "engine/patches/11.1.2/0108-target-loongarch-take-SYSCALL-and-page-faults-withou.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
