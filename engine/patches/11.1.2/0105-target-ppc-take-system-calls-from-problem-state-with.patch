@@ -1,0 +1,222 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 17 Nov 2026 14:29:03 -0500
+Subject: [PATCH] target/ppc: take system calls from problem state without the
+ BQL
+
+A PowerPC sc is delivered through cpu_handle_exception(), which holds the
+BQL around do_interrupt, and every exception entry and rfi takes it again
+in ppc_maybe_interrupt() and, for rfi, in cpu_interrupt_exittb().  A
+guest's system calls therefore serialize on the BQL under MTTCG: a
+getppid/close storm on an e500mc guest (qemu-system-ppc64) runs at the
+same rate at -smp 1 and 4.
+
+Opt in to TCGCPUOps.exception_bql_free for sc (and scv) from problem
+state on the BookE and Book3S 64-bit exception models.  Taking one writes
+only the vCPU's own state (SRR0/1 or LR/CTR, NIP, MSR, hflags, the
+reservation, a pending local TLB flush).  sc 1 on Book3S (the virtual
+hypervisor's hypercalls), a nested-HV guest's, a wake-up from power
+saving, the other exception models and every other exception keep the
+BQL.
+
+ppc_maybe_interrupt() called without the BQL returns early when no
+interrupt is pending and CPU_INTERRUPT_HARD is clear: the locked
+computation would find nothing and resetting the clear bit is a no-op.
+The caller's MSR/LPCR change is ordered before its read of
+pending_interrupts and ppc_set_irq() orders its update before it reads
+that state (smp_mb() on both sides), so a concurrent ppc_set_irq() either
+is seen (and the BQL taken) or sees the new state itself.  This also
+covers rfi, mtmsr and wrtee.
+
+cpu_interrupt_exittb() on the vCPU's own thread without icount does what
+cpu_interrupt() does there (set the bit atomically, request a TB exit)
+without the BQL.
+
+SPDX-License-Identifier: LGPL-2.1-or-later AND MIT
+Origin: new
+---
+ hw/ppc/ppc.c             |  6 +++
+ target/ppc/cpu.h         |  1 +
+ target/ppc/cpu_init.c    |  1 +
+ target/ppc/excp_helper.c | 79 ++++++++++++++++++++++++++++++++++++++++
+ target/ppc/helper_regs.c | 18 +++++++--
+ 5 files changed, 102 insertions(+), 3 deletions(-)
+
+diff --git a/hw/ppc/ppc.c b/hw/ppc/ppc.c
+index b123b4cc1cce7852c7821cf3d3bced347ef998ab..fd8e768c0f080e97dc15275060651521192ba551 100644
+--- a/hw/ppc/ppc.c
++++ b/hw/ppc/ppc.c
+@@ -59,6 +59,12 @@ void ppc_set_irq(PowerPCCPU *cpu, int irq, int level)
+     }
+ 
+     if (old_pending != env->pending_interrupts) {
++        /*
++         * Pairs with ppc_maybe_interrupt_idle(): a vCPU changing its own
++         * masking state without the BQL either sees this update or has its
++         * new state seen below.
++         */
++        smp_mb();
+         ppc_maybe_interrupt(env);
+         if (kvm_enabled()) {
+             kvmppc_set_interrupt(cpu, irq, level);
+diff --git a/target/ppc/cpu.h b/target/ppc/cpu.h
+index b788d7ccca25f58e5ce0159f605fea7ac595fa6f..bc4fc68617a6231ffbfbea3a3af16ebbc198700e 100644
+--- a/target/ppc/cpu.h
++++ b/target/ppc/cpu.h
+@@ -1649,6 +1649,7 @@ int ppc32_cpu_write_elf32_note(WriteCoreDumpFunction f, CPUState *cs,
+ #ifndef CONFIG_USER_ONLY
+ void ppc_maybe_interrupt(CPUPPCState *env);
+ void ppc_cpu_do_interrupt(CPUState *cpu);
++bool ppc_cpu_exception_bql_free(CPUState *cpu);
+ bool ppc_cpu_exec_interrupt(CPUState *cpu, int int_req);
+ void ppc_cpu_do_system_reset(CPUState *cs);
+ void ppc_cpu_do_fwnmi_machine_check(CPUState *cs, target_ulong vector);
+diff --git a/target/ppc/cpu_init.c b/target/ppc/cpu_init.c
+index 0a750e9e9df8275d3261fa86062f3e58c2631633..f0ba26e9561a7447cf8b17fb3993bca5761a392e 100644
+--- a/target/ppc/cpu_init.c
++++ b/target/ppc/cpu_init.c
+@@ -7538,6 +7538,7 @@ static const TCGCPUOps ppc_tcg_ops = {
+   .cpu_exec_halt = ppc_cpu_has_work,
+   .cpu_exec_reset = cpu_reset,
+   .do_interrupt = ppc_cpu_do_interrupt,
++  .exception_bql_free = ppc_cpu_exception_bql_free,
+   .cpu_exec_enter = ppc_cpu_exec_enter,
+   .cpu_exec_exit = ppc_cpu_exec_exit,
+   .do_unaligned_access = ppc_cpu_do_unaligned_access,
+diff --git a/target/ppc/excp_helper.c b/target/ppc/excp_helper.c
+index 6d05b8650588a2f7acd6fba852d335a7601693c8..21309034b33e662bbd337a5a7000a754951bb4fd 100644
+--- a/target/ppc/excp_helper.c
++++ b/target/ppc/excp_helper.c
+@@ -1764,6 +1764,58 @@ void ppc_cpu_do_interrupt(CPUState *cs)
+     powerpc_excp(cpu, cs->exception_index);
+ }
+ 
++/*
++ * A system call from problem state (sc, and scv on Book3S) may be taken
++ * without the BQL on the BookE and Book3S 64-bit exception models.  It writes
++ * only this vCPU's state: SRR0/1 (scv: LR, CTR), NIP, MSR, the hflags, the
++ * reservation, a local TLB flush that was pending (on this vCPU), the
++ * exception counters; ppc_maybe_interrupt() takes the BQL itself unless it has
++ * nothing to do.  Kept under the BQL: sc 1 on Book3S (the vhyp's hypercalls,
++ * the machine's), a nested-HV guest's (MSR[HV] with a vhyp), a wake-up from
++ * power saving, every other exception and exception model.
++ */
++bool ppc_cpu_exception_bql_free(CPUState *cs)
++{
++    PowerPCCPU *cpu = POWERPC_CPU(cs);
++    CPUPPCState *env = &cpu->env;
++
++    if (!FIELD_EX64(env->msr, MSR, PR)) {
++        return false;
++    }
++    switch (cs->exception_index) {
++    case POWERPC_EXCP_SYSCALL:
++        break;
++#ifdef TARGET_PPC64
++    case POWERPC_EXCP_SYSCALL_VECTORED:
++        break;
++#endif
++    default:
++        return false;
++    }
++    switch (env->excp_model) {
++    case POWERPC_EXCP_BOOKE:
++        return cs->exception_index == POWERPC_EXCP_SYSCALL;
++#ifdef TARGET_PPC64
++    case POWERPC_EXCP_970:
++    case POWERPC_EXCP_POWER7:
++    case POWERPC_EXCP_POWER8:
++    case POWERPC_EXCP_POWER9:
++    case POWERPC_EXCP_POWER10:
++    case POWERPC_EXCP_POWER11:
++        if (cs->exception_index == POWERPC_EXCP_SYSCALL &&
++            env->error_code == 1) {
++            return false;
++        }
++        if (env->resume_as_sreset || (cpu->vhyp && (env->msr & MSR_HVB))) {
++            return false;
++        }
++        return true;
++#endif
++    default:
++        return false;
++    }
++}
++
+ #ifdef TARGET_PPC64
+ #define P7_UNUSED_INTERRUPTS \
+     (PPC_INTERRUPT_RESET | PPC_INTERRUPT_HVIRT | PPC_INTERRUPT_CEXT |       \
+@@ -2295,9 +2347,36 @@ static int ppc_next_unmasked_interrupt(CPUPPCState *env)
+  *  - When cs->halted is changed and the CPU has a different interrupt masking
+  *    logic in power-saving mode (e.g., POWER7/8/9/10);
+  */
++/*
++ * Called without the BQL (a vCPU changing its own MSR, LPCR or power-saving
++ * state: exception entry, rfi, mtmsr, wrtee), there is nothing to recompute
++ * when no interrupt is pending and CPU_INTERRUPT_HARD is clear: under the BQL
++ * the answer would be "none", and resetting the clear bit a no-op.  The
++ * caller's state change is ordered before the read of pending_interrupts,
++ * and ppc_set_irq() orders its pending_interrupts update before it reads
++ * that state (smp_mb() on both sides), so a concurrent ppc_set_irq() either
++ * makes us see the interrupt (and take the BQL) or sees the new state
++ * itself.
++ */
++static bool ppc_maybe_interrupt_idle(CPUPPCState *env)
++{
++    CPUState *cs = env_cpu(env);
++
++    if (!tcg_enabled() || bql_locked()) {
++        return false;
++    }
++    smp_mb();   /* the caller's state change, then pending_interrupts */
++    return !qatomic_read(&env->pending_interrupts) &&
++           !cpu_test_interrupt(cs, CPU_INTERRUPT_HARD);
++}
++
+ void ppc_maybe_interrupt(CPUPPCState *env)
+ {
+     CPUState *cs = env_cpu(env);
++
++    if (ppc_maybe_interrupt_idle(env)) {
++        return;
++    }
+     BQL_LOCK_GUARD();
+ 
+     if (ppc_next_unmasked_interrupt(env)) {
+diff --git a/target/ppc/helper_regs.c b/target/ppc/helper_regs.c
+index acf74c543a178e9fe480a044d71c600c4a866cf5..c70fb9a59c8eb37e1d6a4dbcd24980f6f89d24b1 100644
+--- a/target/ppc/helper_regs.c
++++ b/target/ppc/helper_regs.c
+@@ -23,6 +23,7 @@
+ #include "exec/cputlb.h"
+ #include "system/kvm.h"
+ #include "system/tcg.h"
++#include "exec/icount.h"
+ #include "helper_regs.h"
+ #include "power8-pmu.h"
+ #include "cpu-models.h"
+@@ -286,10 +287,21 @@ void cpu_interrupt_exittb(CPUState *cs)
+      * We don't need to worry about translation blocks
+      * unless running with TCG.
+      */
+-    if (tcg_enabled()) {
+-        BQL_LOCK_GUARD();
+-        cpu_interrupt(cs, CPU_INTERRUPT_EXITTB);
++    if (!tcg_enabled()) {
++        return;
++    }
++    if (qemu_cpu_is_self(cs) && !icount_enabled()) {
++        /*
++         * What cpu_interrupt() does on the vCPU's own thread without icount
++         * (tcg_handle_interrupt), which needs no BQL: interrupt_request is
++         * atomic and icount_decr is this vCPU's.
++         */
++        cpu_set_interrupt(cs, CPU_INTERRUPT_EXITTB);
++        qatomic_set(&cs->neg.icount_decr.u16.high, -1);
++        return;
+     }
++    BQL_LOCK_GUARD();
++    cpu_interrupt(cs, CPU_INTERRUPT_EXITTB);
+ }
+ #endif
+ 

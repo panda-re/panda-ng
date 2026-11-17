@@ -102,3 +102,4 @@
 11.1.2/0102-target-system-call-pairing-sites.patch
 11.1.2/0103-accel-tcg-target-arm-take-SVC-UNDEF-and-aborts-to-EL.patch
 11.1.2/0104-accel-tcg-clear-a-lone-CPU_INTERRUPT_EXITTB-without-.patch
+11.1.2/0105-target-ppc-take-system-calls-from-problem-state-with.patch

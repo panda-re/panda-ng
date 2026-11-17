@@ -1469,6 +1469,20 @@ current_gate = "Always on under TCG outside record/replay: when CPU_INTERRUPT_EX
 required_action = "Explicit vanilla must take the BQL whenever interrupt_request is non-zero, as upstream does."
 vanilla_verified = false
 
+[[patch]]
+id = "0105"
+file = "engine/patches/11.1.2/0105-target-ppc-take-system-calls-from-problem-state-with.patch"
+sha256 = "b89c210b4c581018d00d14bfa3520a114d40556cd34c8811d1a6f753b7b74b0e"
+class = "upstream-fix-needs-off-path"
+capability = "tcg-exception-locking"
+paths = ["hw/ppc/ppc.c", "target/ppc/cpu.h", "target/ppc/cpu_init.c", "target/ppc/excp_helper.c", "target/ppc/helper_regs.c"]
+functions = ["ppc_set_irq", "ppc_maybe_interrupt", "ppc_maybe_interrupt_idle", "ppc_cpu_exception_bql_free", "TCGCPUOps.exception_bql_free", "cpu_interrupt_exittb"]
+hunk_contexts = ["void ppc_set_irq(PowerPCCPU *cpu, int irq, int level)", "int ppc32_cpu_write_elf32_note(WriteCoreDumpFunction f, CPUState *cs,", "static const TCGCPUOps ppc_tcg_ops = {", "void ppc_cpu_do_interrupt(CPUState *cs)", "static int ppc_next_unmasked_interrupt(CPUPPCState *env)", "void cpu_interrupt_exittb(CPUState *cs)"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Always on under TCG: PowerPC sc/scv from problem state on BookE and Book3S 64-bit are delivered without the BQL; ppc_maybe_interrupt skips the BQL when nothing is pending and CPU_INTERRUPT_HARD is clear (smp_mb pairs with ppc_set_irq); cpu_interrupt_exittb on the own vCPU without icount skips it. Other exceptions, models and callers that hold the BQL are unchanged. No guest-visible state differs; lock acquisition does."
+required_action = "Explicit vanilla must take the BQL around every do_interrupt, in ppc_maybe_interrupt and in cpu_interrupt_exittb as upstream does (exception_bql_free unset, no early return)."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
