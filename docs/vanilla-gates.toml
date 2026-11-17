@@ -1441,6 +1441,20 @@ current_gate = "Every trap and return site tests a flag at translation time (the
 required_action = "Select upstream translation for vanilla regardless of declarations, or admit declarations only under a capability."
 vanilla_verified = false
 
+[[patch]]
+id = "0103"
+file = "engine/patches/11.1.2/0103-accel-tcg-target-arm-take-SVC-UNDEF-and-aborts-to-EL.patch"
+sha256 = "05c3a5482bca4b2d789608260e1e71e0d7f38e5b7e75391afa8bd815668f0155"
+class = "upstream-fix-needs-off-path"
+capability = "tcg-exception-locking"
+paths = ["accel/tcg/cpu-exec.c", "hw/intc/arm_gicv3_cpuif.c", "include/accel/tcg/cpu-ops.h", "target/arm/cpregs-pmu.c", "target/arm/cpu.c", "target/arm/cpu.h", "target/arm/helper.c", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c"]
+functions = ["cpu_handle_exception", "TCGCPUOps.exception_bql_free", "arm_cpu_exception_bql_free", "arm_cpu_do_interrupt", "arm_set_el_change_hook_idle", "arm_el_change_hooks_idle", "pmu_el_change_idle", "gicv3_cpuif_el_change_idle", "do_exception_return", "cpsr_write_eret"]
+hunk_contexts = ["static inline bool cpu_handle_exception(CPUState *cpu, int *ret)", "static void gicv3_cpuif_el_change_hook(ARMCPU *cpu, void *opaque)", "void gicv3_init_cpuif(GICv3State *s, Error **errp)", "struct TCGCPUOps {", "void pmu_post_el_change(ARMCPU *cpu, void *ignored)", "void arm_register_el_change_hook(ARMCPU *cpu, ARMELChangeHookFn *hook,", "static void arm_cpu_realizefn(DeviceState *dev, Error **errp)", "static const TCGCPUOps arm_tcg_ops = {", "static inline void unset_feature(CPUARMState *env, int feature)", "uint64_t arm_build_mp_affinity(int idx, uint8_t clustersz);", "void arm_pmu_timer_cb(void *opaque);", "void arm_register_pre_el_change_hook(ARMCPU *cpu, ARMELChangeHookFn *hook,", "void arm_sc_return_aa32(CPUARMState *env)", "void arm_cpu_do_interrupt(CPUState *cs)", "void HELPER(exception_return)(CPUARMState *env, uint64_t new_pc)", "void HELPER(cpsr_write)(CPUARMState *env, uint32_t val, uint32_t mask)", "void HELPER(cpsr_write_eret)(CPUARMState *env, uint32_t val)"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Always on under TCG: Arm SVC/UNDEF/aborts from EL0/EL1 to EL1, and exception returns, skip the BQL and the EL change hooks while every hook reports idle (PMU: PMCNTENSET zero; GICv3: EL0/EL1 changes). Other targets, other exceptions and callers that hold the BQL are unchanged. No guest-visible state differs; lock acquisition and the hooks' no-op calls do."
+required_action = "Explicit vanilla must take the BQL around every do_interrupt and the exception-return hooks as upstream does (exception_bql_free unset, hooks always called)."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"

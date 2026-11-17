@@ -2,7 +2,7 @@
 
 # The engine patch series
 
-QEMU 11.1.2 plus 102 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
+QEMU 11.1.2 plus 103 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
@@ -108,3 +108,4 @@ QEMU 11.1.2 plus 102 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0100 | hw/pci-host/ppce500: migrate the host bridge's config space | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
 | 0101 | monitor: info panda-events lists the PANDA event registry | [plugins](../features.md#plugins) | new | GPL-2.0-or-later |
 | 0102 | target: system-call pairing sites | [syscalls](../features.md#syscalls) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0103 | accel/tcg, target/arm: take SVC, UNDEF and aborts to EL1 without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |

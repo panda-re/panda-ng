@@ -1,0 +1,466 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 17 Nov 2026 14:27:08 -0500
+Subject: [PATCH] accel/tcg, target/arm: take SVC, UNDEF and aborts to EL1
+ without the BQL
+
+cpu_handle_exception() holds the BQL around every TCGCPUOps.do_interrupt.
+On Arm that serializes every system call (SVC is delivered as EXCP_SWI),
+and the exception return (ERET, and the AArch32 cpsr_write_eret) takes it
+twice more for the EL change hooks.  An AArch64 guest's system-call rate
+therefore does not grow with vCPUs under MTTCG: a getppid/close storm runs
+at about 0.3 M calls/s at -smp 1, 2 and 4 alike, while x86, whose SYSCALL
+is a helper that takes no lock, scales.
+
+Add an optional TCGCPUOps.exception_bql_free(cpu): when it returns true
+the cpu loop calls do_interrupt without the BQL.  Targets without it are
+unchanged.
+
+On Arm it is true for EXCP_SWI, EXCP_UDEF, EXCP_PREFETCH_ABORT and
+EXCP_DATA_ABORT taken from EL0 or EL1 to EL1, when every registered EL
+change hook says it would do nothing for that change.  Taking such an
+exception writes only the vCPU's own state (ESR, FAR, ELR, SPSR, PSTATE,
+SP, hflags; the AArch32 banked registers) and sets CPU_INTERRUPT_EXITTB,
+which is atomic.  PSCI and semihosting calls (HVC, SMC, EXCP_SEMIHOST),
+anything to EL2 or EL3, interrupts and debug exceptions keep the BQL, as
+does every other caller of arm_cpu_do_interrupt (they hold it already).
+
+EL change hooks get an optional idle predicate, called on the vCPU's
+thread without the BQL:
+- PMU: idle while PMCNTENSET is zero.  pmu_op_start() then only records
+  each counter's underlying count, pmu_op_finish() does nothing, and
+  every reader of a counter or its delta calls pmu_op_start() first.
+- GICv3 CPU interface: idle for changes between EL0 and EL1; what it
+  computes depends on the EL only through EL2, EL3 and the security
+  state, which EL0 and EL1 share.
+- A hook without a predicate (the RME generic-timer hook) is never idle.
+
+The exception returns use the same test and skip the BQL and the hooks
+when all are idle.  arm_cpu_do_interrupt asks again after the consumers
+of the engine's system-call entry (A32 SVC) and of the syscall trap have
+run, and takes the BQL if the answer changed.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: new
+---
+ accel/tcg/cpu-exec.c        | 10 ++++--
+ hw/intc/arm_gicv3_cpuif.c   | 14 +++++++++
+ include/accel/tcg/cpu-ops.h | 10 ++++++
+ target/arm/cpregs-pmu.c     | 13 ++++++++
+ target/arm/cpu.c            | 39 +++++++++++++++++++++++
+ target/arm/cpu.h            | 31 ++++++++++++++++++
+ target/arm/helper.c         | 63 ++++++++++++++++++++++++++++++++-----
+ target/arm/tcg/helper-a64.c | 19 +++++++----
+ target/arm/tcg/op_helper.c  | 24 ++++++++++----
+ 9 files changed, 201 insertions(+), 22 deletions(-)
+
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 9130f046cc2ea90aee795a57a0c9cd98aca0fe36..62f5883a2b6828a0887d032562ecb95a53a8a293 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -808,9 +808,13 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
+     if (replay_exception()) {
+         const TCGCPUOps *tcg_ops = cpu->cc->tcg_ops;
+ 
+-        bql_lock();
+-        tcg_ops->do_interrupt(cpu);
+-        bql_unlock();
++        if (tcg_ops->exception_bql_free && tcg_ops->exception_bql_free(cpu)) {
++            tcg_ops->do_interrupt(cpu);
++        } else {
++            bql_lock();
++            tcg_ops->do_interrupt(cpu);
++            bql_unlock();
++        }
+         cpu->exception_index = -1;
+ 
+         if (unlikely(cpu_single_stepping(cpu))) {
+diff --git a/hw/intc/arm_gicv3_cpuif.c b/hw/intc/arm_gicv3_cpuif.c
+index 67a0bba4b03968035c00faa441de5462bf5d2024..2c16ed475d01cadf306f54fb462d7a28174f238b 100644
+--- a/hw/intc/arm_gicv3_cpuif.c
++++ b/hw/intc/arm_gicv3_cpuif.c
+@@ -3048,6 +3048,18 @@ static void gicv3_cpuif_el_change_hook(ARMCPU *cpu, void *opaque)
+     gicv3_cpuif_virt_irq_fiq_update(cs);
+ }
+ 
++/*
++ * What the hook computes depends on the exception level only through EL2
++ * and EL3 (and the security state, which EL0 and EL1 share): a change
++ * between EL0 and EL1 leaves the signalled IRQ/FIQ/NMI and virtual
++ * IRQ/FIQ levels as they are.
++ */
++static bool gicv3_cpuif_el_change_idle(ARMCPU *cpu, void *opaque,
++                                       int from_el, int to_el)
++{
++    return from_el <= 1 && to_el <= 1;
++}
++
+ void gicv3_init_cpuif(GICv3State *s, Error **errp)
+ {
+     /* Called from the GICv3 realize function; register our system
+@@ -3196,6 +3208,8 @@ void gicv3_init_cpuif(GICv3State *s, Error **errp)
+              * the non-TCG case this is OK, as EL2 and EL3 can't exist.
+              */
+             arm_register_el_change_hook(cpu, gicv3_cpuif_el_change_hook, cs);
++            arm_set_el_change_hook_idle(cpu, gicv3_cpuif_el_change_hook, cs,
++                                        gicv3_cpuif_el_change_idle);
+         } else {
+             assert(!arm_feature(&cpu->env, ARM_FEATURE_EL2));
+             assert(!arm_feature(&cpu->env, ARM_FEATURE_EL3));
+diff --git a/include/accel/tcg/cpu-ops.h b/include/accel/tcg/cpu-ops.h
+index 4d4a327c9fc90291f7a51bf83572c0952d6ee195..e39e377958b71f673c6f3a323d7cb4b457e59dd8 100644
+--- a/include/accel/tcg/cpu-ops.h
++++ b/include/accel/tcg/cpu-ops.h
+@@ -207,6 +207,16 @@ struct TCGCPUOps {
+ #else
+     /** @do_interrupt: Callback for interrupt handling.  */
+     void (*do_interrupt)(CPUState *cpu);
++    /**
++     * @exception_bql_free: Callback: may @do_interrupt deliver the
++     * pending exception (cpu->exception_index) without the BQL?
++     *
++     * Optional.  The cpu loop holds the BQL around @do_interrupt unless
++     * this returns true; @do_interrupt then runs without it and must
++     * touch nothing but the vCPU's own state.  Called on the vCPU's
++     * thread without the BQL; it may read only the vCPU's own state.
++     */
++    bool (*exception_bql_free)(CPUState *cpu);
+     /** @cpu_exec_interrupt: Callback for processing interrupts in cpu_exec */
+     bool (*cpu_exec_interrupt)(CPUState *cpu, int interrupt_request);
+     /** @cpu_exec_reset: Callback for reset in cpu_exec.  */
+diff --git a/target/arm/cpregs-pmu.c b/target/arm/cpregs-pmu.c
+index 46df6597b1ab3ff387c634f4eb82ec96156c58df..765ac0f1c4821cb22739a6aec2502857f73dea7e 100644
+--- a/target/arm/cpregs-pmu.c
++++ b/target/arm/cpregs-pmu.c
+@@ -622,6 +622,19 @@ void pmu_post_el_change(ARMCPU *cpu, void *ignored)
+     pmu_op_finish(&cpu->env);
+ }
+ 
++/*
++ * With no counter enabled in PMCNTENSET, pmu_op_start() only records each
++ * counter's underlying count as its delta, and pmu_op_finish() does nothing.
++ * Every reader of a counter or of its delta (counter, type, enable, PMCR and
++ * MDCR accesses, migration) calls pmu_op_start() first, which records the
++ * delta again, so an EL change can skip both hooks.  PMCNTENSET is this
++ * vCPU's own register, written only by its own accesses and by state loads.
++ */
++bool pmu_el_change_idle(ARMCPU *cpu, void *ignored, int from_el, int to_el)
++{
++    return cpu->env.cp15.c9_pmcnten == 0;
++}
++
+ void arm_pmu_timer_cb(void *opaque)
+ {
+     ARMCPU *cpu = opaque;
+diff --git a/target/arm/cpu.c b/target/arm/cpu.c
+index 499713696a30cc36becbb8ed0584809f2f0ae57f..1ebb3bccf1029deac8901fbdac027d1f4d36675b 100644
+--- a/target/arm/cpu.c
++++ b/target/arm/cpu.c
+@@ -243,6 +243,40 @@ void arm_register_el_change_hook(ARMCPU *cpu, ARMELChangeHookFn *hook,
+     QLIST_INSERT_HEAD(&cpu->el_change_hooks, entry, node);
+ }
+ 
++void arm_set_el_change_hook_idle(ARMCPU *cpu, ARMELChangeHookFn *hook,
++                                 void *opaque, ARMELChangeHookIdleFn *idle)
++{
++    ARMELChangeHook *entry;
++
++    QLIST_FOREACH(entry, &cpu->pre_el_change_hooks, node) {
++        if (entry->hook == hook && entry->opaque == opaque) {
++            entry->idle = idle;
++        }
++    }
++    QLIST_FOREACH(entry, &cpu->el_change_hooks, node) {
++        if (entry->hook == hook && entry->opaque == opaque) {
++            entry->idle = idle;
++        }
++    }
++}
++
++bool arm_el_change_hooks_idle(ARMCPU *cpu, int from_el, int to_el)
++{
++    ARMELChangeHook *entry;
++
++    QLIST_FOREACH(entry, &cpu->pre_el_change_hooks, node) {
++        if (!entry->idle || !entry->idle(cpu, entry->opaque, from_el, to_el)) {
++            return false;
++        }
++    }
++    QLIST_FOREACH(entry, &cpu->el_change_hooks, node) {
++        if (!entry->idle || !entry->idle(cpu, entry->opaque, from_el, to_el)) {
++            return false;
++        }
++    }
++    return true;
++}
++
+ static ARMCPRegMigTolerance *find_mig_tolerance(ARMCPU *cpu, uint64_t kvmidx)
+ {
+     ARMCPRegMigTolerance *t;
+@@ -2248,6 +2282,10 @@ static void arm_cpu_realizefn(DeviceState *dev, Error **errp)
+         if (tcg_enabled() || hvf_enabled()) {
+             arm_register_pre_el_change_hook(cpu, &pmu_pre_el_change, 0);
+             arm_register_el_change_hook(cpu, &pmu_post_el_change, 0);
++            arm_set_el_change_hook_idle(cpu, &pmu_pre_el_change, 0,
++                                        &pmu_el_change_idle);
++            arm_set_el_change_hook_idle(cpu, &pmu_post_el_change, 0,
++                                        &pmu_el_change_idle);
+         }
+ 
+ #ifndef CONFIG_USER_ONLY
+@@ -2655,6 +2693,7 @@ static const TCGCPUOps arm_tcg_ops = {
+     .cpu_exec_halt = arm_cpu_exec_halt,
+     .cpu_exec_reset = cpu_reset,
+     .do_interrupt = arm_cpu_do_interrupt,
++    .exception_bql_free = arm_cpu_exception_bql_free,
+     .do_transaction_failed = arm_cpu_do_transaction_failed,
+     .do_unaligned_access = arm_cpu_do_unaligned_access,
+     .adjust_watchpoint_address = arm_adjust_watchpoint_address,
+diff --git a/target/arm/cpu.h b/target/arm/cpu.h
+index 913dc2ad1e5cbb52b55ceb125274a2427478ef24..e75e5538c9d4f661bb83d987f49f5f28fb829b82 100644
+--- a/target/arm/cpu.h
++++ b/target/arm/cpu.h
+@@ -842,9 +842,19 @@ static inline void unset_feature(CPUARMState *env, int feature)
+  * to get callbacks when the CPU changes its exception level or mode.
+  */
+ typedef void ARMELChangeHookFn(ARMCPU *cpu, void *opaque);
++/**
++ * ARMELChangeHookIdleFn:
++ * type of a function which says whether an EL change hook would do nothing
++ * for a change from @from_el to @to_el, so that the change may skip the
++ * hooks and the BQL (arm_el_change_hooks_idle()).  It is called on the
++ * vCPU's thread without the BQL, and may read only the vCPU's own state.
++ */
++typedef bool ARMELChangeHookIdleFn(ARMCPU *cpu, void *opaque,
++                                   int from_el, int to_el);
+ typedef struct ARMELChangeHook ARMELChangeHook;
+ struct ARMELChangeHook {
+     ARMELChangeHookFn *hook;
++    ARMELChangeHookIdleFn *idle;
+     void *opaque;
+     QLIST_ENTRY(ARMELChangeHook) node;
+ };
+@@ -1251,6 +1261,7 @@ uint64_t arm_build_mp_affinity(int idx, uint8_t clustersz);
+ extern const VMStateDescription vmstate_arm_cpu;
+ 
+ void arm_cpu_do_interrupt(CPUState *cpu);
++bool arm_cpu_exception_bql_free(CPUState *cpu);
+ void arm_v7m_cpu_do_interrupt(CPUState *cpu);
+ 
+ typedef struct ARMGranuleProtectionConfig {
+@@ -1399,6 +1410,8 @@ void arm_pmu_timer_cb(void *opaque);
+  */
+ void pmu_pre_el_change(ARMCPU *cpu, void *ignored);
+ void pmu_post_el_change(ARMCPU *cpu, void *ignored);
++/* Their ARMELChangeHookIdleFn: idle while no counter is enabled */
++bool pmu_el_change_idle(ARMCPU *cpu, void *ignored, int from_el, int to_el);
+ 
+ /*
+  * pmu_init
+@@ -2680,6 +2693,24 @@ void arm_register_pre_el_change_hook(ARMCPU *cpu, ARMELChangeHookFn *hook,
+ void arm_register_el_change_hook(ARMCPU *cpu, ARMELChangeHookFn *hook, void
+         *opaque);
+ 
++/**
++ * arm_set_el_change_hook_idle:
++ * Give the hook @hook registered with @opaque (pre- or post-change) a
++ * function that says when it would do nothing.  A hook without one is
++ * never idle: every EL change runs it, with the BQL held.
++ */
++void arm_set_el_change_hook_idle(ARMCPU *cpu, ARMELChangeHookFn *hook,
++                                 void *opaque, ARMELChangeHookIdleFn *idle);
++
++/**
++ * arm_el_change_hooks_idle:
++ * True if every registered pre- and post-change hook would do nothing for
++ * a change from @from_el to @to_el: the change may then skip them all, and
++ * need not take the BQL for them.  Called on the vCPU's thread, with or
++ * without the BQL.
++ */
++bool arm_el_change_hooks_idle(ARMCPU *cpu, int from_el, int to_el);
++
+ /**
+  * arm_rebuild_hflags:
+  * Rebuild the cached TBFLAGS for arbitrary changed processor state.
+diff --git a/target/arm/helper.c b/target/arm/helper.c
+index 0dd6a6726f885c4550cd386e055d6f0fd669d310..8db6b4c1f604b9c874dd596b86eb0548a8e63630 100644
+--- a/target/arm/helper.c
++++ b/target/arm/helper.c
+@@ -9830,12 +9830,45 @@ void arm_sc_return_aa32(CPUARMState *env)
+     }
+ }
+ 
++/*
++ * The synchronous exceptions that may be taken without the BQL: an SVC,
++ * an undefined instruction or an instruction or data abort, from EL0 or
++ * EL1 to EL1, while every EL change hook is idle for that change.  Taking
++ * one writes only this vCPU's state (ESR/FAR/ELR/SPSR, PSTATE, SP, the
++ * hflags; the AArch32 banked registers and fault status for an AArch32
++ * EL1), sets CPU_INTERRUPT_EXITTB (atomically), and reports the syscall
++ * trap's entry and the plugins' exception callback, which x86's SYSCALL
++ * already does without the BQL.  PSCI and semihosting calls (HVC, SMC,
++ * EXCP_SEMIHOST), anything to EL2 or EL3, interrupts and debug exceptions
++ * keep the BQL.
++ */
++bool arm_cpu_exception_bql_free(CPUState *cs)
++{
++    ARMCPU *cpu = ARM_CPU(cs);
++    CPUARMState *env = &cpu->env;
++    int cur_el;
++
++    switch (cs->exception_index) {
++    case EXCP_SWI:
++    case EXCP_UDEF:
++    case EXCP_PREFETCH_ABORT:
++    case EXCP_DATA_ABORT:
++        break;
++    default:
++        return false;
++    }
++    cur_el = arm_current_el(env);
++    return env->exception.target_el == 1 && cur_el <= 1 &&
++           arm_el_change_hooks_idle(cpu, cur_el, 1);
++}
++
+ void arm_cpu_do_interrupt(CPUState *cs)
+ {
+     ARMCPU *cpu = ARM_CPU(cs);
+     CPUARMState *env = &cpu->env;
+     unsigned int new_el = env->exception.target_el;
+     uint64_t last_pc = cs->cc->get_pc(cs);
++    bool hooks = true, unlock = false;
+ 
+     assert(!arm_feature(env, ARM_FEATURE_M));
+ 
+@@ -9884,13 +9917,24 @@ void arm_cpu_do_interrupt(CPUState *cs)
+     }
+ 
+     /*
+-     * Hooks may change global state so BQL should be held, also the
+-     * BQL needs to be held for any modification of
+-     * cs->interrupt_request.
++     * Hooks may change global state so BQL should be held.  The cpu loop
++     * calls us without it only for an exception that
++     * arm_cpu_exception_bql_free() allowed, whose hooks have nothing to
++     * do.  Ask again (the consumers of the engine's system-call entry and
++     * of the syscall trap have run since), and take the BQL if the answer
++     * changed.
+      */
+-    g_assert(bql_locked());
+-
+-    arm_call_pre_el_change_hook(cpu);
++    if (!bql_locked()) {
++        if (arm_cpu_exception_bql_free(cs)) {
++            hooks = false;
++        } else {
++            bql_lock();
++            unlock = true;
++        }
++    }
++    if (hooks) {
++        arm_call_pre_el_change_hook(cpu);
++    }
+ 
+     assert(!excp_is_internal(cs->exception_index));
+     if (arm_el_is_aa64(env, new_el)) {
+@@ -9899,7 +9943,12 @@ void arm_cpu_do_interrupt(CPUState *cs)
+         arm_cpu_do_interrupt_aarch32(cs);
+     }
+ 
+-    arm_call_el_change_hook(cpu);
++    if (hooks) {
++        arm_call_el_change_hook(cpu);
++    }
++    if (unlock) {
++        bql_unlock();
++    }
+ 
+     if (tcg_enabled()) {
+         cpu_set_interrupt(cs, CPU_INTERRUPT_EXITTB);
+diff --git a/target/arm/tcg/helper-a64.c b/target/arm/tcg/helper-a64.c
+index e235c9d1aa8e30cf87dab47e5d3e949d6110118e..2892e23c3b4e8ea6bc7ce1f153a781bc2f4e5e78 100644
+--- a/target/arm/tcg/helper-a64.c
++++ b/target/arm/tcg/helper-a64.c
+@@ -630,6 +630,7 @@ void HELPER(exception_return)(CPUARMState *env, uint64_t new_pc)
+     uint64_t spsr = env->banked_spsr[spsr_idx];
+     int new_el;
+     bool return_to_aa64 = (spsr & PSTATE_nRW) == 0;
++    bool hooks;
+ 
+     aarch64_save_sp(env, cur_el);
+ 
+@@ -693,9 +694,13 @@ void HELPER(exception_return)(CPUARMState *env, uint64_t new_pc)
+         goto illegal_return;
+     }
+ 
+-    bql_lock();
+-    arm_call_pre_el_change_hook(cpu);
+-    bql_unlock();
++    /* the hooks and the BQL only if some hook has work for this change */
++    hooks = !arm_el_change_hooks_idle(cpu, cur_el, new_el);
++    if (hooks) {
++        bql_lock();
++        arm_call_pre_el_change_hook(cpu);
++        bql_unlock();
++    }
+ 
+     if (!return_to_aa64) {
+         env->aarch64 = false;
+@@ -760,9 +765,11 @@ void HELPER(exception_return)(CPUARMState *env, uint64_t new_pc)
+      */
+     aarch64_sve_change_el(env, cur_el, new_el, return_to_aa64);
+ 
+-    bql_lock();
+-    arm_call_el_change_hook(cpu);
+-    bql_unlock();
++    if (hooks) {
++        bql_lock();
++        arm_call_el_change_hook(cpu);
++        bql_unlock();
++    }
+ 
+     while (new_el == 0 && syscall_trap_waiting()) {
+         uint64_t ret = return_to_aa64 ? env->xregs[0] : env->regs[0];
+diff --git a/target/arm/tcg/op_helper.c b/target/arm/tcg/op_helper.c
+index dd363b2fcd2bdae1c67cf2d11907a810222e271d..383eac1d86281c59d67cbc729133e88b55944b45 100644
+--- a/target/arm/tcg/op_helper.c
++++ b/target/arm/tcg/op_helper.c
+@@ -819,10 +819,20 @@ void HELPER(cpsr_write)(CPUARMState *env, uint32_t val, uint32_t mask)
+ void HELPER(cpsr_write_eret)(CPUARMState *env, uint32_t val)
+ {
+     uint32_t mask;
++    /*
++     * The hooks and the BQL only if some hook has work for this change.
++     * Only a return to User mode is known here to be to EL0; any other
++     * mode is taken as EL3 (no hook is idle for it).
++     */
++    int cur_el = arm_current_el(env);
++    int new_el = (val & CPSR_M) == ARM_CPU_MODE_USR ? 0 : 3;
++    bool hooks = !arm_el_change_hooks_idle(env_archcpu(env), cur_el, new_el);
+ 
+-    bql_lock();
+-    arm_call_pre_el_change_hook(env_archcpu(env));
+-    bql_unlock();
++    if (hooks) {
++        bql_lock();
++        arm_call_pre_el_change_hook(env_archcpu(env));
++        bql_unlock();
++    }
+ 
+     mask = aarch32_cpsr_valid_mask(env->features, &env_archcpu(env)->isar);
+     cpsr_write(env, val, mask, CPSRWriteExceptionReturn);
+@@ -835,9 +845,11 @@ void HELPER(cpsr_write_eret)(CPUARMState *env, uint32_t val)
+     env->regs[15] &= (env->thumb ? ~1 : ~3);
+     arm_rebuild_hflags(env);
+ 
+-    bql_lock();
+-    arm_call_el_change_hook(env_archcpu(env));
+-    bql_unlock();
++    if (hooks) {
++        bql_lock();
++        arm_call_el_change_hook(env_archcpu(env));
++        bql_unlock();
++    }
+ #ifndef CONFIG_USER_ONLY
+     /* an AArch32 kernel back to user mode: the syscall trap's return */
+     if ((env->uncached_cpsr & CPSR_M) == ARM_CPU_MODE_USR &&

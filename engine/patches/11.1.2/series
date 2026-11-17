@@ -100,3 +100,4 @@
 11.1.2/0100-hw-pci-host-ppce500-migrate-the-host-bridge-s-config.patch
 11.1.2/0101-monitor-info-panda-events-lists-the-PANDA-event-regi.patch
 11.1.2/0102-target-system-call-pairing-sites.patch
+11.1.2/0103-accel-tcg-target-arm-take-SVC-UNDEF-and-aborts-to-EL.patch
