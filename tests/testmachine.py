@@ -90,13 +90,14 @@ def arg_after(args, flag):
     return args[args.index(flag) + 1] if flag in args else None
 
 
-def machine_dir(image, initrd_src, initrd, smp, intel, mem):
+def machine_dir(image, initrd_src, initrd, smp, intel, mem, append=""):
     """The machine's cache directory: <cache>/<arch>-smp<N>[-intel]-<key>, the key a hash of
     everything the machine is built from (the image's arguments, the initramfs, the agent)."""
     cache = os.environ.get("TESTMACHINE_CACHE") or \
         os.path.join(os.path.dirname(os.path.realpath(initrd_src)), "machines")
     key = hashlib.sha256(json.dumps([image["arch"], list(image["extra_args"]), smp, intel, mem,
-                                     image.get("disk_device")]).encode() + initrd +
+                                     image.get("disk_device")] + ([append] if append else [])
+                                    ).encode() + initrd +
                          agent_binary(image["arch"])).hexdigest()[:16]
     return os.path.join(cache, f"{image['arch']}-smp{smp}{'-intel' if intel else ''}-{key}")
 
@@ -104,7 +105,8 @@ def machine_dir(image, initrd_src, initrd, smp, intel, mem):
 class Machine:
     """A busybox image's machine with the agent as /init, and a cached snapshot at its start."""
 
-    def __init__(self, image, smp=1, intel=False, mem=None):
+    def __init__(self, image, smp=1, intel=False, mem=None, append=""):
+        """append: more kernel command line (e.g. nokaslr, for OSI from a kernel's ISF)."""
         with open(image) as f:
             self.image = json.load(f)
         self.arch = self.image["arch"]
@@ -115,11 +117,11 @@ class Machine:
         self.initrd_src = arg_after(args, "-initrd")
         if not self.initrd_src or not arg_after(args, "-kernel"):
             raise ValueError(f"{image}: not a tests/mkbusybox.py image (no -kernel and -initrd)")
-        self.smp, self.intel = smp, intel
+        self.smp, self.intel, self.append = smp, intel, append
         self.mem = mem or self.image["default_mem"]
         with open(self.initrd_src, "rb") as f:
             initrd = f.read()
-        self.dir = machine_dir(self.image, self.initrd_src, initrd, smp, intel, self.mem)
+        self.dir = machine_dir(self.image, self.initrd_src, initrd, smp, intel, self.mem, append)
         self.snapshot = os.path.join(self.dir, "snapshot.qcow2")
         self.tmp = None
         if not os.path.isfile(self.snapshot):
@@ -128,6 +130,8 @@ class Machine:
     def args(self, initrd, console):
         args = list(self.image["extra_args"])
         args[args.index("-initrd") + 1] = initrd
+        if self.append:
+            args[args.index("-append") + 1] += " " + self.append
         args += ["-smp", str(self.smp), "-serial", f"file:{console}"]
         if self.intel:
             args += ["-cpu", "qemu64,vendor=GenuineIntel"]
@@ -154,7 +158,7 @@ class Machine:
         t0 = time.monotonic()
         print(f"testmachine: booting {os.path.basename(self.dir)} for its snapshot", flush=True)
         spec = json.dumps(dict(image=self.image, initrd_src=self.initrd_src, smp=self.smp,
-                               intel=self.intel, mem=self.mem, dir=tmp))
+                               intel=self.intel, mem=self.mem, append=self.append, dir=tmp))
         rc = subprocess.run([sys.executable, os.path.abspath(__file__), "--snap", spec]).returncode
         if rc:
             raise RuntimeError(f"testmachine: no snapshot (rc {rc}; console: {tmp}/console.log)")
@@ -263,9 +267,9 @@ def _snap(spec):
     from pandare2 import Panda
     s = json.loads(spec)
     m = Machine.__new__(Machine)
-    m.image, m.initrd_src, m.arch, m.smp, m.intel, m.mem, m.dir, m.tmp = (
-        s["image"], s["initrd_src"], s["image"]["arch"], s["smp"], s["intel"], s["mem"], s["dir"],
-        None)
+    m.image, m.initrd_src, m.arch, m.smp, m.intel, m.mem, m.append, m.dir, m.tmp = (
+        s["image"], s["initrd_src"], s["image"]["arch"], s["smp"], s["intel"], s["mem"], s["append"],
+        s["dir"], None)
     panda = Panda(generic=m.generic(os.path.join(m.dir, "snapshot.qcow2"),
                                     os.path.join(m.dir, "console.log")))
     agent = Agent(panda)
