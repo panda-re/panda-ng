@@ -1,0 +1,471 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Mon, 16 Nov 2026 16:21:36 -0500
+Subject: [PATCH] target: system-call pairing sites
+
+The trap and return-to-user sites of the engine's system-call pairing
+(panda/syscall-pair.h). With a declared ABI, these trap sites load the
+number's want byte in translated code and call the engine's entry
+function when it is set, before the plain helper or exception: x86_64
+SYSCALL (64-bit code at CPL 3) and SYSCALL from compat mode, SYSENTER
+(CPL 3: a 32-bit task's vDSO entries; also on the i386 target), A64
+SVC (EL0), RISC-V ECALL (U-mode, riscv64), MIPS SYSCALL (user mode, not
+in a delay slot), PowerPC sc 0 (problem state; a 32-bit task's on
+ppc64 apart) and scv 0. INT 0x80 (x86, CPL 3) and the A32 SVC from
+AArch32 EL0 (under an AArch64 EL1, or the arm target's AArch32 EL1)
+report from interrupt delivery. While some return is wanted, the
+return sites check for a pending call after the plain helper: to user
+mode, the task key, its set's count, and a call of the pairing function
+only if the set holds calls. They are SYSRET, SYSEXIT and protected IRET
+(x86_64 and i386), ERET/ERETA (AArch64), the AArch32 exception returns
+of the arm target (RFE, MOVS PC and LDM with the PC and ^), SRET
+(riscv64), ERET/ERETNC (MIPS), and RFI, RFID and RFSCV (PowerPC).
+
+Without a declaration translated code is unchanged: every site tests a
+flag at translation time.
+
+The build compiles panda/src's hot paths (panda_hot_ss: the functions
+those sites call) per target as a library of their own, with their own
+code generation flags (no call-used register zeroing on return, no frame
+pointer), so that they end in tail calls.
+
+Vendored sources: src/panda/src/syscall-pair.c,
+src/panda/src/syscall-pair-fast.c, src/panda/src/syscall-pair-int.h,
+src/panda/src/meson.build, src/include/panda/syscall-pair.h,
+src/include/panda/syscall-pair-tcg.h.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: new
+---
+ meson.build                                   | 11 ++++++
+ target/arm/helper.c                           | 10 ++++++
+ target/arm/tcg/translate-a64.c                | 16 +++++++++
+ target/arm/tcg/translate.c                    | 14 ++++++++
+ target/i386/tcg/emit.c.inc                    | 32 +++++++++++++++++
+ target/i386/tcg/seg_helper.c                  | 12 +++++++
+ target/i386/tcg/translate.c                   |  3 ++
+ target/mips/tcg/translate.c                   | 18 ++++++++++
+ target/ppc/translate.c                        | 34 +++++++++++++++++++
+ .../tcg/insn_trans/trans_privileged.c.inc     | 13 +++++++
+ target/riscv/tcg/translate.c                  |  3 ++
+ 11 files changed, 166 insertions(+)
+
+diff --git a/meson.build b/meson.build
+index bab301523caff3a68cae126b2eee83816def2dd5..7f9c3125c3b7fa20b4da7158bbb01c7dce1083bb 100644
+--- a/meson.build
++++ b/meson.build
+@@ -4440,6 +4440,17 @@ foreach target : target_dirs
+                  install: true,
+                  install_dir: get_option('includedir') / 'panda' / 'guest-layout')
+     c_args += ['-DGUEST_LAYOUT_H="guest-layout-@0@.h"'.format(target)]
++    # panda/src's hot paths (panda_hot_ss), with their own code generation flags
++    panda_hot = panda_hot_ss.apply(config_target, strict: false)
++    if panda_hot.sources().length() > 0
++      objects += static_library('panda-hot-' + target,
++                   sources: panda_hot.sources() + [config_target_h[target],
++                                                   config_devices_h[target]] + genh,
++                   dependencies: lib_deps,
++                   include_directories: target_inc,
++                   c_args: c_args + panda_hot_cflags,
++                   build_by_default: false).extract_all_objects(recursive: false)
++    endif
+   endif
+ 
+   lib = static_library('qemu-' + target,
+diff --git a/target/arm/helper.c b/target/arm/helper.c
+index 15858f03a0814e62d96794f727367f673556457a..0dd6a6726f885c4550cd386e055d6f0fd669d310 100644
+--- a/target/arm/helper.c
++++ b/target/arm/helper.c
+@@ -37,6 +37,7 @@
+ #include "qemu/plugin.h"
+ #include "panda/hooks.h"
+ #include "system/syscall-trap.h"
++#include "panda/syscall-pair-tcg.h"
+ 
+ static void switch_mode(CPUARMState *env, int mode);
+ #ifndef CONFIG_USER_ONLY
+@@ -9868,6 +9869,15 @@ void arm_cpu_do_interrupt(CPUState *cs)
+     }
+ #endif
+ 
++    if (cs->exception_index == EXCP_SWI && !is_a64(env) &&
++        panda_sc_enter_inline(PANDA_SYSCALL_FORM_A32_SVC) && arm_current_el(env) == 0 &&
++        /* under an AArch64 kernel, or an AArch32 one on a CPU without AArch64 */
++        (arm_feature(env, ARM_FEATURE_AARCH64) ? arm_el_is_aa64(env, 1) : true)) {
++        /* a declared system-call ABI: the engine's entry (the PC is past the SVC) */
++        unsigned len = env->thumb ? 2 : 4;
++
++        panda_sc_enter_c(cs, PANDA_SYSCALL_FORM_A32_SVC, env->regs[15] - len, len);
++    }
+     if (cs->exception_index == EXCP_SWI && syscall_trap_enabled() &&
+         arm_current_el(env) == 0 && arm_sc_enter(env)) {
+         return;
+diff --git a/target/arm/tcg/translate-a64.c b/target/arm/tcg/translate-a64.c
+index 9329ab2c292fee98fbfed44869e89764bc4e1b09..7f07ee132c1d14968d7429acc4b491e65d5cd580 100644
+--- a/target/arm/tcg/translate-a64.c
++++ b/target/arm/tcg/translate-a64.c
+@@ -38,6 +38,9 @@ static inline bool analysis_guest_hypercall_enabled(void)
+ #include "translate.h"
+ #include "translate-a64.h"
+ #include "tcg/tcg-op.h"
++#ifndef CONFIG_USER_ONLY
++#include "panda/syscall-pair-tcg.h"
++#endif
+ #include "qemu/log.h"
+ #include "semihosting/semihost.h"
+ #include "cpregs.h"
+@@ -2090,6 +2093,9 @@ static bool trans_ERET(DisasContext *s, arg_ERET *a)
+     translator_io_start(&s->base);
+ 
+     gen_helper_exception_return(tcg_env, dst);
++    if (panda_sc_return_inline()) {
++        panda_sc_gen_return();          /* a pending system call's return? */
++    }
+     /* Must exit loop to check un-masked IRQs */
+     s->base.is_jmp = DISAS_EXIT;
+     return true;
+@@ -2123,6 +2129,9 @@ static bool trans_ERETA(DisasContext *s, arg_reta *a)
+     translator_io_start(&s->base);
+ 
+     gen_helper_exception_return(tcg_env, dst);
++    if (panda_sc_return_inline()) {
++        panda_sc_gen_return();          /* a pending system call's return? */
++    }
+     /* Must exit loop to check un-masked IRQs */
+     s->base.is_jmp = DISAS_EXIT;
+     return true;
+@@ -3317,6 +3326,13 @@ static bool trans_SVC(DisasContext *s, arg_i *a)
+         return true;
+     }
+     gen_ss_advance(s);
++#ifndef CONFIG_USER_ONLY
++    if (s->current_el == 0 && panda_sc_enter_inline(PANDA_SYSCALL_FORM_A64_SVC)) {
++        /* a declared system-call ABI: the engine's entry, if the number is wanted */
++        gen_a64_update_pc(s, 4);
++        panda_sc_gen_enter(PANDA_SYSCALL_FORM_A64_SVC, 4, cpu_X[8]);
++    }
++#endif
+     gen_exception_insn(s, 4, EXCP_SWI, syndrome);
+     return true;
+ }
+diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
+index adf4cd2324dbfed7bc195f8db508b51579f7b58e..07af2800fdb1ae0e6f4bdf57212b79e4761080f7 100644
+--- a/target/arm/tcg/translate.c
++++ b/target/arm/tcg/translate.c
+@@ -37,6 +37,9 @@ static inline bool analysis_guest_hypercall_enabled(void)
+ #include "translate-a32.h"
+ #define TCG_ADDRESS_BITS 32
+ #include "tcg/tcg-op-mem.h"
++#ifndef CONFIG_USER_ONLY
++#include "panda/syscall-pair-tcg.h"
++#endif
+ #include "qemu/log.h"
+ #include "semihosting/semihost.h"
+ #include "cpregs.h"
+@@ -1708,6 +1711,12 @@ static void gen_rfe(DisasContext *s, TCGv_i32 pc, TCGv_i32 cpsr)
+      */
+     translator_io_start(&s->base);
+     gen_helper_cpsr_write_eret(tcg_env, cpsr);
++#ifndef CONFIG_USER_ONLY
++    /* an AArch32 kernel's (an AArch64 one returns to AArch32 with ERET) */
++    if (panda_sc_return_inline() && !arm_dc_feature(s, ARM_FEATURE_AARCH64)) {
++        panda_sc_gen_return();          /* a pending system call's return? */
++    }
++#endif
+     /* Must exit loop to check un-masked IRQs */
+     s->base.is_jmp = DISAS_EXIT;
+ }
+@@ -5348,6 +5357,11 @@ static bool do_ldm(DisasContext *s, arg_ldst_block *a)
+         tmp = load_cpu_field(spsr);
+         translator_io_start(&s->base);
+         gen_helper_cpsr_write_eret(tcg_env, tmp);
++#ifndef CONFIG_USER_ONLY
++        if (panda_sc_return_inline() && !arm_dc_feature(s, ARM_FEATURE_AARCH64)) {
++            panda_sc_gen_return();      /* a pending system call's return? */
++        }
++#endif
+         /* Must exit loop to check un-masked IRQs */
+         s->base.is_jmp = DISAS_EXIT;
+     }
+diff --git a/target/i386/tcg/emit.c.inc b/target/i386/tcg/emit.c.inc
+index aa00d2c3f13a957e9006ca863e3f632dfaca4269..83f809756f1ba7a5ac7c920a85021eaf1b3f570f 100644
+--- a/target/i386/tcg/emit.c.inc
++++ b/target/i386/tcg/emit.c.inc
+@@ -2276,6 +2276,11 @@ static void gen_IRET(DisasContext *s, X86DecodedInsn *decode)
+     } else {
+         gen_helper_iret_protected(tcg_env, tcg_constant_i32(s->dflag - 1),
+                                   eip_next_i32(s));
++#if !defined(CONFIG_USER_ONLY)
++        if (panda_sc_return_inline()) {
++            panda_sc_gen_return();      /* a pending system call's return? */
++        }
++#endif
+     }
+     assume_cc_op(s, CC_OP_EFLAGS);
+     s->base.is_jmp = DISAS_EOB_ONLY;
+@@ -4130,6 +4135,16 @@ static void gen_SYSCALL(DisasContext *s, X86DecodedInsn *decode)
+ {
+     gen_update_cc_op(s);
+     gen_update_eip_cur(s);
++#if defined(TARGET_X86_64) && !defined(CONFIG_USER_ONLY)
++    if (CODE64(s) && CPL(s) == 3 &&
++        panda_sc_enter_inline(PANDA_SYSCALL_FORM_X86_SYSCALL)) {
++        /* a declared system-call ABI: the engine's entry, if the number is wanted */
++        panda_sc_gen_enter(PANDA_SYSCALL_FORM_X86_SYSCALL, cur_insn_len(s), cpu_regs[R_EAX]);
++    } else if (!CODE64(s) && LMA(s) && CPL(s) == 3 &&
++               panda_sc_enter_inline(PANDA_SYSCALL_FORM_X86_SYSCALL32)) {
++        panda_sc_gen_enter(PANDA_SYSCALL_FORM_X86_SYSCALL32, cur_insn_len(s), cpu_regs[R_EAX]);
++    }
++#endif
+     gen_helper_syscall(tcg_env, cur_insn_len_i32(s));
+     if (LMA(s)) {
+         assume_cc_op(s, CC_OP_EFLAGS);
+@@ -4146,6 +4161,13 @@ static void gen_SYSCALL(DisasContext *s, X86DecodedInsn *decode)
+ static void gen_SYSENTER(DisasContext *s, X86DecodedInsn *decode)
+ {
+     gen_update_eip_cur(s);      /* plugin syscall events read it */
++#if !defined(CONFIG_USER_ONLY)
++    if (CPL(s) == 3 && panda_sc_enter_inline(PANDA_SYSCALL_FORM_X86_SYSENTER)) {
++        /* a declared system-call ABI: the engine's entry, if the number is wanted */
++        gen_update_cc_op(s);
++        panda_sc_gen_enter(PANDA_SYSCALL_FORM_X86_SYSENTER, cur_insn_len(s), cpu_regs[R_EAX]);
++    }
++#endif
+     gen_helper_sysenter(tcg_env);
+     s->base.is_jmp = DISAS_EOB_ONLY;
+ }
+@@ -4153,12 +4175,22 @@ static void gen_SYSENTER(DisasContext *s, X86DecodedInsn *decode)
+ static void gen_SYSEXIT(DisasContext *s, X86DecodedInsn *decode)
+ {
+     gen_helper_sysexit(tcg_env, tcg_constant_i32(s->dflag - 1));
++#if !defined(CONFIG_USER_ONLY)
++    if (panda_sc_return_inline()) {
++        panda_sc_gen_return();
++    }
++#endif
+     s->base.is_jmp = DISAS_EOB_ONLY;
+ }
+ 
+ static void gen_SYSRET(DisasContext *s, X86DecodedInsn *decode)
+ {
+     gen_helper_sysret(tcg_env, tcg_constant_i32(s->dflag - 1));
++#if !defined(CONFIG_USER_ONLY)
++    if (panda_sc_return_inline()) {
++        panda_sc_gen_return();
++    }
++#endif
+     if (LMA(s)) {
+         assume_cc_op(s, CC_OP_EFLAGS);
+     }
+diff --git a/target/i386/tcg/seg_helper.c b/target/i386/tcg/seg_helper.c
+index 007a7122273df7296a87b1ed6b9d3b8f1e6b3a13..5bc32bea9855002b59d80ca286e4866f571391c0 100644
+--- a/target/i386/tcg/seg_helper.c
++++ b/target/i386/tcg/seg_helper.c
+@@ -31,6 +31,9 @@
+ #include "tcg-cpu.h"
+ #include "qemu/plugin.h"
+ #include "system/syscall-trap.h"
++#ifndef CONFIG_USER_ONLY
++#include "panda/syscall-pair-tcg.h"
++#endif
+ 
+ #ifdef TARGET_X86_64
+ #define SET_ESP(val, sp_mask)                                   \
+@@ -1350,6 +1353,15 @@ void do_interrupt_all(X86CPU *cpu, int intno, int is_int,
+             count++;
+         }
+     }
++#ifndef CONFIG_USER_ONLY
++    if (is_int && intno == 0x80 && !is_hw &&
++        panda_sc_enter_inline(PANDA_SYSCALL_FORM_X86_INT80) &&
++        (env->cr[0] & CR0_PE_MASK) && (env->hflags & HF_CPL_MASK) == 3) {
++        /* a declared system-call ABI: the engine's entry (EIP is past the INT) */
++        panda_sc_enter_c(env_cpu(env), PANDA_SYSCALL_FORM_X86_INT80,
++                         env->segs[R_CS].base + next_eip - 2, 2);
++    }
++#endif
+ #ifndef CONFIG_USER_ONLY
+     if (is_int && intno == 0x80 && !is_hw && syscall_trap_enabled() &&
+         (env->cr[0] & CR0_PE_MASK) && (env->hflags & HF_CPL_MASK) == 3 &&
+diff --git a/target/i386/tcg/translate.c b/target/i386/tcg/translate.c
+index 678d350f078d418a1cde08627801ae4c2d389ad8..7a3a28439151cc170da4bf3a1a1760e0b2260ab7 100644
+--- a/target/i386/tcg/translate.c
++++ b/target/i386/tcg/translate.c
+@@ -32,6 +32,9 @@
+ #include "exec/helper-gen.h"
+ #include "helper-tcg.h"
+ #include "decode-new.h"
++#ifndef CONFIG_USER_ONLY
++#include "panda/syscall-pair-tcg.h"
++#endif
+ 
+ #include "exec/log.h"
+ 
+diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
+index 5fedfe3cdb4f62db60bbe0fd5349f3fd519d5c4f..53a3c57d8a3a6c776d15e24cb735259d4ba65236 100644
+--- a/target/mips/tcg/translate.c
++++ b/target/mips/tcg/translate.c
+@@ -43,6 +43,9 @@ static inline bool analysis_guest_hypercall_enabled(void)
+ #include "semihosting/semihost.h"
+ #include "trace.h"
+ #include "fpu_helper.h"
++#ifndef CONFIG_USER_ONLY
++#include "panda/syscall-pair-tcg.h"
++#endif
+ 
+ #define HELPER_H "helper.h"
+ #include "exec/helper-info.c.inc"
+@@ -8685,6 +8688,11 @@ static void gen_cp0(CPUMIPSState *env, DisasContext *ctx, uint32_t opc,
+                 check_insn(ctx, ISA_MIPS2);
+                 gen_helper_eret(tcg_env);
+             }
++#ifndef CONFIG_USER_ONLY
++            if (panda_sc_return_inline()) {
++                panda_sc_gen_return();  /* a pending system call's return? */
++            }
++#endif
+             ctx->base.is_jmp = DISAS_EXIT;
+         }
+         break;
+@@ -13324,6 +13332,16 @@ static void decode_opc_special(CPUMIPSState *env, DisasContext *ctx)
+ #endif
+         break;
+     case OPC_SYSCALL:
++#ifndef CONFIG_USER_ONLY
++        if ((ctx->hflags & MIPS_HFLAG_KSU) == MIPS_HFLAG_UM &&
++            !(ctx->hflags & MIPS_HFLAG_BMASK) &&
++            panda_sc_enter_inline(PANDA_SYSCALL_FORM_MIPS_SYSCALL)) {
++            /* a declared system-call ABI: the engine's entry, if the number is wanted (the
++             * PC saved: the SYSCALL's address) */
++            save_cpu_state(ctx, 1);
++            panda_sc_gen_enter(PANDA_SYSCALL_FORM_MIPS_SYSCALL, 4, cpu_gpr[2]);
++        }
++#endif
+         generate_exception_end(ctx, EXCP_SYSCALL);
+         break;
+     case OPC_BREAK:
+diff --git a/target/ppc/translate.c b/target/ppc/translate.c
+index cabe5d6b4a2d774e7e8e086e610fe47f7966dbfc..4b06c7d59d5e6455edc611ec8c6a6fae57c5a10e 100644
+--- a/target/ppc/translate.c
++++ b/target/ppc/translate.c
+@@ -42,6 +42,9 @@ static inline bool analysis_guest_hypercall_enabled(void)
+ #include "exec/helper-gen.h"
+ 
+ #include "exec/translator.h"
++#ifndef CONFIG_USER_ONLY
++#include "panda/syscall-pair-tcg.h"
++#endif
+ #include "exec/translation-block.h"
+ #include "exec/log.h"
+ #include "qemu/atomic128.h"
+@@ -3947,6 +3950,9 @@ static void gen_rfi(DisasContext *ctx)
+     translator_io_start(&ctx->base);
+     gen_update_branch_history(ctx, ctx->cia, NULL, BHRB_TYPE_NORECORD);
+     gen_helper_rfi(tcg_env);
++    if (panda_sc_return_inline()) {
++        panda_sc_gen_return();          /* a pending system call's return? */
++    }
+     ctx->base.is_jmp = DISAS_EXIT;
+ #endif
+ }
+@@ -3962,6 +3968,9 @@ static void gen_rfid(DisasContext *ctx)
+     translator_io_start(&ctx->base);
+     gen_update_branch_history(ctx, ctx->cia, NULL, BHRB_TYPE_NORECORD);
+     gen_helper_rfid(tcg_env);
++    if (panda_sc_return_inline()) {
++        panda_sc_gen_return();          /* a pending system call's return? */
++    }
+     ctx->base.is_jmp = DISAS_EXIT;
+ #endif
+ }
+@@ -3977,6 +3986,9 @@ static void gen_rfscv(DisasContext *ctx)
+     translator_io_start(&ctx->base);
+     gen_update_branch_history(ctx, ctx->cia, NULL, BHRB_TYPE_NORECORD);
+     gen_helper_rfscv(tcg_env);
++    if (panda_sc_return_inline()) {
++        panda_sc_gen_return();          /* a pending system call's return? */
++    }
+     ctx->base.is_jmp = DISAS_EXIT;
+ #endif
+ }
+@@ -4012,6 +4024,23 @@ static void gen_sc(DisasContext *ctx)
+      * for Ultravisor which TCG does not support, so just ignore the top 6.
+      */
+     lev = (ctx->opcode >> 5) & 0x1;
++#ifndef CONFIG_USER_ONLY
++    if (ctx->pr && lev == 0) {
++        unsigned form = PANDA_SYSCALL_FORM_PPC_SC;
++
++#if defined(TARGET_PPC64)
++        if (!ctx->sf_mode) {
++            form = PANDA_SYSCALL_FORM_PPC_SC32;     /* a 32-bit task */
++        }
++#endif
++        if (panda_sc_enter_inline(form)) {
++            /* a declared system-call ABI: the engine's entry, if the number is wanted (NIP:
++             * the sc's address) */
++            gen_update_nip(ctx, ctx->cia);
++            panda_sc_gen_enter(form, 4, cpu_gpr[0]);
++        }
++    }
++#endif
+     gen_exception_err(ctx, POWERPC_SYSCALL, lev);
+ }
+ 
+@@ -4023,6 +4052,11 @@ static void gen_scv(DisasContext *ctx)
+ 
+     /* Set the PC back to the faulting instruction. */
+     gen_update_nip(ctx, ctx->cia);
++    if (ctx->pr && lev == 0 && panda_sc_enter_inline(PANDA_SYSCALL_FORM_PPC_SCV)) {
++        /* a declared system-call ABI: the engine's entry, if the number is wanted (scv takes
++         * its facility check in the helper: a disabled scv is a call the kernel refuses) */
++        panda_sc_gen_enter(PANDA_SYSCALL_FORM_PPC_SCV, 4, cpu_gpr[0]);
++    }
+     gen_helper_scv(tcg_env, tcg_constant_i32(lev));
+ 
+     ctx->base.is_jmp = DISAS_NORETURN;
+diff --git a/target/riscv/tcg/insn_trans/trans_privileged.c.inc b/target/riscv/tcg/insn_trans/trans_privileged.c.inc
+index a8eaccef67e77f0d3480ea8dc7b218091694ccf1..294db4def9e352b0b51cecfa4fe0e1e5a3855584 100644
+--- a/target/riscv/tcg/insn_trans/trans_privileged.c.inc
++++ b/target/riscv/tcg/insn_trans/trans_privileged.c.inc
+@@ -26,6 +26,14 @@
+ 
+ static bool trans_ecall(DisasContext *ctx, arg_ecall *a)
+ {
++#if !defined(CONFIG_USER_ONLY) && defined(TARGET_RISCV64)
++    if (ctx->priv == PRV_U && !ctx->virt_enabled &&
++        panda_sc_enter_inline(PANDA_SYSCALL_FORM_RISCV_ECALL)) {
++        /* a declared system-call ABI: the engine's entry, if the number is wanted */
++        gen_update_pc(ctx, 0);
++        panda_sc_gen_enter(PANDA_SYSCALL_FORM_RISCV_ECALL, 4, cpu_gpr[17]);
++    }
++#endif
+     /* always generates U-level ECALL, fixed in do_interrupt handler */
+     generate_exception(ctx, RISCV_EXCP_U_ECALL);
+     return true;
+@@ -99,6 +107,11 @@ static bool trans_sret(DisasContext *ctx, arg_sret *a)
+         translator_io_start(&ctx->base);
+         gen_update_pc(ctx, 0);
+         gen_helper_sret(cpu_pc, tcg_env);
++#if defined(TARGET_RISCV64)
++        if (panda_sc_return_inline()) {
++            panda_sc_gen_return();      /* a pending system call's return? */
++        }
++#endif
+         exit_tb(ctx); /* no chaining */
+         ctx->base.is_jmp = DISAS_NORETURN;
+     } else {
+diff --git a/target/riscv/tcg/translate.c b/target/riscv/tcg/translate.c
+index 1105ce0310048aae9cf56af0881e6219c61c2d6a..eb8097ad6493e255f8a72034b4a7094d39eebe69 100644
+--- a/target/riscv/tcg/translate.c
++++ b/target/riscv/tcg/translate.c
+@@ -36,6 +36,9 @@ static inline bool analysis_guest_hypercall_enabled(void)
+ #include "exec/helper-gen.h"
+ #include "exec/target_page.h"
+ #include "exec/translator.h"
++#ifndef CONFIG_USER_ONLY
++#include "panda/syscall-pair-tcg.h"
++#endif
+ #include "accel/tcg/cpu-ldst.h"
+ #include "exec/translation-block.h"
+ #include "exec/log.h"

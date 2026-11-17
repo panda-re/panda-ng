@@ -40,13 +40,14 @@ void panda_syscall_pair_reset(void);
 
 /*
  * Emitters (tcg-op context). gen_enter: at a declared form's trap, in its mode, with the PC
- * synchronized (x86: EIP at the SYSCALL; AArch64: PC past the SVC) and @nr the number
- * register's TCG global: the number's want byte, then a call of the entry function if it is
- * not 0. gen_return: after the plain return helper.
+ * synchronized (x86: EIP at the SYSCALL; AArch64: PC past the SVC; RISC-V, MIPS and PowerPC:
+ * the PC at the trap) and @nr the number
+ * register's TCG global (of the target's word size): the number's want byte, then a call of the
+ * entry function if it is not 0. gen_return: after the plain return helper.
  */
-#ifdef TCG_TCG_OP_H
-void panda_sc_gen_enter(unsigned form, uint32_t len, TCGv_i64 nr);
 void panda_sc_gen_return(void);
+#ifdef TCG_TCG_OP_H
+void panda_sc_gen_enter(unsigned form, uint32_t len, TCGv nr);
 #endif
 #endif
 

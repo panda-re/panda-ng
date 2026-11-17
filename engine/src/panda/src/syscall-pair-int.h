@@ -38,7 +38,8 @@
 #include "panda/syscall-pair.h"
 #include "panda/syscall-pair-tcg.h"
 
-#if defined(TARGET_X86_64) || defined(TARGET_AARCH64)
+#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_RISCV64) || \
+    defined(TARGET_MIPS) || defined(TARGET_PPC)
 #define SC_TARGET 1
 #endif
 
@@ -77,7 +78,9 @@ QEMU_BUILD_BUG_ON(sizeof(ScSet) != 1u << SC_SET_SHIFT);
 typedef struct ScRec {
     uint64_t ka, kb;                    /* the key (kb: 0 for a task key; the user SP for a
                                          * call key) */
-    uint64_t rflags;                    /* SC_W_CHILD: a shared_child number */
+    uint64_t rflags;                    /* SC_W_CHILD: a shared_child number; SC_R_HANDLER: a
+                                         * return went elsewhere (a signal handler runs) */
+    uint64_t usp;                       /* the user stack pointer at the entry */
     PandaSyscallCall c;                 /* then the consumer's data */
 } ScRec;
 
@@ -106,13 +109,14 @@ enum {
     SC_W_ENTRY = PANDA_SYSCALL_WANT_ENTRY,
     SC_W_RET = PANDA_SYSCALL_WANT_RETURN,
     SC_W_CHILD = 1u << 2,               /* a shared_child number */
+    SC_R_HANDLER = 1u << 3,             /* ScRec.rflags only: a signal handler ran */
 };
 
 typedef struct ScAbi {
     PandaSyscallAbi abi;                /* the number sets copied */
     uint8_t *want;                      /* [nbits + 1], read by translated code */
     uint64_t mask;                      /* the form's register width */
-    bool std;                           /* the target's 64-bit layout (x86_64, AArch64) */
+    bool std;                           /* the target's standard layout (SC_TCG_FORM, SC_STD_*) */
 } ScAbi;
 
 typedef struct ScWatch {
@@ -198,25 +202,65 @@ static inline uint64_t sc_index(const PandaSyscallAbi *a, int64_t nr)
 }
 
 /* --- Architecture ------------------------------------------------------------------------ */
-
-#if defined(TARGET_X86_64)
+/*
+ * Per target:
+ *   SC_FORMS             the forms it declares (1u << PANDA_SYSCALL_FORM_*)
+ *   SC_TCG_FORM          the form whose trap translated code reaches with the target's standard
+ *                        register layout (SC_STD_NR, SC_STD_RET, sc_std_args_read), if SC_HAS_STD
+ *   SC_TASK_FORM         the task key form it supports (PANDA_TASK_KEY_REG or _WORD), and
+ *   SC_TASK_REG          its PANDA_TASK_REG_*: REG's register (SC_TASK_REG_OFF, _BITS in env) or
+ *                        WORD's base register (SC_WORD_BASE_OFF, _BITS)
+ *   sc_reg               a register of a form's instruction set
+ *   sc_dest_pc           where the vCPU is (a return's destination)
+ *   sc_at_user           in user mode
+ *   sc_root, sc_user_sp  the call key's parts
+ *   sc_tcg_pc            the trap's address when translated code calls the entry function
+ */
+#if defined(TARGET_X86_64) || defined(TARGET_I386)
 #define SC_STD_NR 0
 #define SC_STD_RET 0
 #define SC_TCG_FORM PANDA_SYSCALL_FORM_X86_SYSCALL
+#define SC_TASK_FORM PANDA_TASK_KEY_WORD
+#if defined(TARGET_X86_64)
+#define SC_HAS_STD 1
+#define SC_FORMS ((1u << PANDA_SYSCALL_FORM_X86_SYSCALL) | (1u << PANDA_SYSCALL_FORM_X86_INT80) | \
+                  (1u << PANDA_SYSCALL_FORM_X86_SYSENTER) | \
+                  (1u << PANDA_SYSCALL_FORM_X86_SYSCALL32))
+#define SC_TASK_REG PANDA_TASK_REG_X86_KERNEL_GS_BASE
+#define SC_WORD_BASE_OFF offsetof(CPUX86State, kernelgsbase)
+#define SC_WORD_BASE_BITS 64
+#else
+#define SC_HAS_STD 0
+#define SC_FORMS ((1u << PANDA_SYSCALL_FORM_X86_INT80) | (1u << PANDA_SYSCALL_FORM_X86_SYSENTER))
+#define SC_TASK_REG PANDA_TASK_REG_X86_TR_BASE
+#define SC_WORD_BASE_OFF offsetof(CPUX86State, tr.base)
+#define SC_WORD_BASE_BITS TARGET_LONG_BITS
+#endif
 
 static inline uint64_t sc_reg(CPUArchState *env, unsigned form, unsigned r)
 {
-    return env->regs[r & 15];
+    return env->regs[r & (CPU_NB_REGS - 1)];
 }
 
 static inline void sc_std_args_read(CPUArchState *env, uint64_t *a)
 {
+#if defined(TARGET_X86_64)
     a[0] = env->regs[R_EDI];
     a[1] = env->regs[R_ESI];
     a[2] = env->regs[R_EDX];
     a[3] = env->regs[10];
     a[4] = env->regs[8];
     a[5] = env->regs[9];
+#endif
+}
+
+static inline uint64_t sc_word_base(CPUArchState *env)
+{
+#if defined(TARGET_X86_64)
+    return env->kernelgsbase;
+#else
+    return env->tr.base;
+#endif
 }
 
 static inline uint64_t sc_dest_pc(CPUArchState *env)
@@ -253,10 +297,17 @@ static inline bool sc_x86_faults(CPUArchState *env, unsigned form)
     }
     return !(env->efer & MSR_EFER_SCE);
 }
-#else
+
+#elif defined(TARGET_AARCH64)
 #define SC_STD_NR 8
 #define SC_STD_RET 0
+#define SC_HAS_STD 1
 #define SC_TCG_FORM PANDA_SYSCALL_FORM_A64_SVC
+#define SC_FORMS ((1u << PANDA_SYSCALL_FORM_A64_SVC) | (1u << PANDA_SYSCALL_FORM_A32_SVC))
+#define SC_TASK_FORM PANDA_TASK_KEY_REG
+#define SC_TASK_REG PANDA_TASK_REG_ARM_SP_EL1
+#define SC_TASK_REG_OFF offsetof(CPUARMState, sp_el[1])
+#define SC_TASK_REG_BITS 64
 
 static inline uint64_t sc_reg(CPUArchState *env, unsigned form, unsigned r)
 {
@@ -266,6 +317,11 @@ static inline uint64_t sc_reg(CPUArchState *env, unsigned form, unsigned r)
 static inline void sc_std_args_read(CPUArchState *env, uint64_t *a)
 {
     memcpy(a, env->xregs, 6 * sizeof(uint64_t));
+}
+
+static inline uint64_t sc_task_reg(CPUArchState *env)
+{
+    return env->sp_el[1];
 }
 
 static inline uint64_t sc_dest_pc(CPUArchState *env)
@@ -296,7 +352,295 @@ static inline uint64_t sc_tcg_pc(CPUArchState *env, uint32_t len)
 {
     return env->pc - len;
 }
+
+#elif defined(TARGET_ARM)
+/* An AArch32 kernel: SVC is taken in C (no translated entry) */
+#define SC_STD_NR 7
+#define SC_STD_RET 0
+#define SC_HAS_STD 0
+#define SC_TCG_FORM PANDA_SYSCALL_FORM_A32_SVC
+#define SC_FORMS (1u << PANDA_SYSCALL_FORM_A32_SVC)
+#define SC_TASK_FORM PANDA_TASK_KEY_REG
+#define SC_TASK_REG PANDA_TASK_REG_ARM_SP_SVC
+#define SC_TASK_REG_OFF offsetof(CPUARMState, banked_r13[1])     /* bank_number(SVC) */
+#define SC_TASK_REG_BITS 32
+
+static inline uint64_t sc_reg(CPUArchState *env, unsigned form, unsigned r)
+{
+    return env->regs[r & 15];
+}
+
+static inline void sc_std_args_read(CPUArchState *env, uint64_t *a) {}
+
+static inline uint64_t sc_task_reg(CPUArchState *env)
+{
+    return env->banked_r13[1];
+}
+
+static inline uint64_t sc_dest_pc(CPUArchState *env)
+{
+    return env->regs[15];
+}
+
+static inline bool sc_at_user(CPUArchState *env)
+{
+    return (env->uncached_cpsr & CPSR_M) == ARM_CPU_MODE_USR;
+}
+
+static inline uint64_t sc_root(CPUArchState *env)
+{
+    return env->cp15.ttbr0_el[1] & 0x000000ffffffff80ull;   /* attributes and ASID dropped */
+}
+
+static inline uint64_t sc_user_sp(CPUArchState *env)
+{
+    return env->regs[13];
+}
+
+static inline uint64_t sc_tcg_pc(CPUArchState *env, uint32_t len)
+{
+    return env->regs[15] - len;
+}
+
+#elif defined(TARGET_RISCV64)
+#define SC_STD_NR 17
+#define SC_STD_RET 10
+#define SC_HAS_STD 1
+#define SC_TCG_FORM PANDA_SYSCALL_FORM_RISCV_ECALL
+#define SC_FORMS (1u << PANDA_SYSCALL_FORM_RISCV_ECALL)
+#define SC_TASK_FORM PANDA_TASK_KEY_REG
+#define SC_TASK_REG PANDA_TASK_REG_RISCV_SSCRATCH
+#define SC_TASK_REG_OFF offsetof(CPURISCVState, sscratch)
+#define SC_TASK_REG_BITS 64
+
+static inline uint64_t sc_reg(CPUArchState *env, unsigned form, unsigned r)
+{
+    return env->gpr[r & 31];
+}
+
+static inline void sc_std_args_read(CPUArchState *env, uint64_t *a)
+{
+    memcpy(a, &env->gpr[10], 6 * sizeof(uint64_t));
+}
+
+static inline uint64_t sc_task_reg(CPUArchState *env)
+{
+    return env->sscratch;
+}
+
+static inline uint64_t sc_dest_pc(CPUArchState *env)
+{
+    return env->pc;
+}
+
+static inline bool sc_at_user(CPUArchState *env)
+{
+    return env->priv == PRV_U && !env->virt_enabled;
+}
+
+static inline uint64_t sc_root(CPUArchState *env)
+{
+    return env->satp & ((1ull << 44) - 1);                  /* the root table's PPN */
+}
+
+static inline uint64_t sc_user_sp(CPUArchState *env)
+{
+    return env->gpr[2];
+}
+
+/* The trap site stores the ECALL's address in the PC first */
+static inline uint64_t sc_tcg_pc(CPUArchState *env, uint32_t len)
+{
+    return env->pc;
+}
+
+#elif defined(TARGET_MIPS)
+#define SC_STD_NR 2
+#define SC_STD_RET 2
+#define SC_TCG_FORM PANDA_SYSCALL_FORM_MIPS_SYSCALL
+#define SC_FORMS (1u << PANDA_SYSCALL_FORM_MIPS_SYSCALL)
+#define SC_TASK_FORM PANDA_TASK_KEY_WORD
+#define SC_TASK_REG PANDA_TASK_REG_MIPS_EBASE
+#define SC_WORD_BASE_OFF offsetof(CPUMIPSState, CP0_EBase)
+#define SC_WORD_BASE_BITS TARGET_LONG_BITS
+#if defined(TARGET_MIPS64)
+#define SC_HAS_STD 1                    /* n64: $a0-$a5 */
+#else
+#define SC_HAS_STD 0                    /* o32: arguments 5 and 6 on the stack */
 #endif
+
+static inline uint64_t sc_reg(CPUArchState *env, unsigned form, unsigned r)
+{
+    return env->active_tc.gpr[r & 31];
+}
+
+static inline void sc_std_args_read(CPUArchState *env, uint64_t *a)
+{
+    for (unsigned k = 0; k < 6; k++) {
+        a[k] = env->active_tc.gpr[4 + k];
+    }
+}
+
+static inline uint64_t sc_word_base(CPUArchState *env)
+{
+    return env->CP0_EBase;
+}
+
+static inline uint64_t sc_dest_pc(CPUArchState *env)
+{
+    return env->active_tc.PC;
+}
+
+static inline bool sc_at_user(CPUArchState *env)
+{
+    return (env->hflags & MIPS_HFLAG_KSU) == MIPS_HFLAG_UM;
+}
+
+static inline uint64_t sc_root(CPUArchState *env)
+{
+    return env->CP0_EntryHi & env->CP0_EntryHi_ASID_mask;  /* the ASID */
+}
+
+static inline uint64_t sc_user_sp(CPUArchState *env)
+{
+    return env->active_tc.gpr[29];
+}
+
+/* The trap site saves the SYSCALL's address in the PC first */
+static inline uint64_t sc_tcg_pc(CPUArchState *env, uint32_t len)
+{
+    return env->active_tc.PC;
+}
+
+#elif defined(TARGET_PPC)
+#define SC_STD_NR 0
+#define SC_STD_RET 3
+#define SC_HAS_STD 1
+#define SC_TCG_FORM PANDA_SYSCALL_FORM_PPC_SC
+#if defined(TARGET_PPC64)
+#define SC_FORMS ((1u << PANDA_SYSCALL_FORM_PPC_SC) | (1u << PANDA_SYSCALL_FORM_PPC_SC32) | \
+                  (1u << PANDA_SYSCALL_FORM_PPC_SCV))
+#define SC_TASK_FORM PANDA_TASK_KEY_WORD
+#define SC_TASK_REG PANDA_TASK_REG_PPC_SPRG1
+#define SC_WORD_BASE_OFF offsetof(CPUPPCState, spr[SPR_SPRG1])
+#define SC_WORD_BASE_BITS 64
+#else
+#define SC_FORMS (1u << PANDA_SYSCALL_FORM_PPC_SC)
+#define SC_TASK_FORM PANDA_TASK_KEY_REG
+#define SC_TASK_REG PANDA_TASK_REG_PPC_SPRG3
+#define SC_TASK_REG_OFF offsetof(CPUPPCState, spr[SPR_SPRG3])
+#define SC_TASK_REG_BITS 32
+#endif
+
+static inline uint64_t sc_reg(CPUArchState *env, unsigned form, unsigned r)
+{
+    return env->gpr[r & 31];
+}
+
+static inline void sc_std_args_read(CPUArchState *env, uint64_t *a)
+{
+    for (unsigned k = 0; k < 6; k++) {
+        a[k] = env->gpr[3 + k];
+    }
+}
+
+static inline uint64_t sc_task_reg(CPUArchState *env)
+{
+    return env->spr[SPR_SPRG3];
+}
+
+static inline uint64_t sc_word_base(CPUArchState *env)
+{
+    return env->spr[SPR_SPRG1];
+}
+
+static inline uint64_t sc_dest_pc(CPUArchState *env)
+{
+    return env->nip;
+}
+
+static inline bool sc_at_user(CPUArchState *env)
+{
+    return (env->msr >> MSR_PR) & 1;
+}
+
+static inline uint64_t sc_root(CPUArchState *env)
+{
+    return env->spr[SPR_BOOKE_PID];                         /* BookE PID, Book3S PIDR */
+}
+
+static inline uint64_t sc_user_sp(CPUArchState *env)
+{
+    return env->gpr[1];
+}
+
+/* The trap site stores the sc's address in NIP first */
+static inline uint64_t sc_tcg_pc(CPUArchState *env, uint32_t len)
+{
+    return env->nip;
+}
+#endif
+
+/* The task key form, for the preprocessor */
+#if defined(SC_WORD_BASE_OFF)
+#define SC_KEY_WORD 1
+#elif defined(SC_TASK_REG_OFF)
+#define SC_KEY_REG 1
+#endif
+
+#if !defined(TARGET_I386)
+static inline bool sc_x86_faults(CPUArchState *env, unsigned form)
+{
+    return false;
+}
+#endif
+
+/* The guest's data byte order (arguments read from memory) */
+static inline bool sc_guest_be(CPUArchState *env)
+{
+#if defined(TARGET_PPC)
+    return !(env->msr & 1);                     /* MSR[LE] */
+#elif defined(TARGET_MIPS) && TARGET_BIG_ENDIAN
+    return true;
+#else
+    return false;
+#endif
+}
+
+/* WORD: the key word's width; read through its host mapping as it is in memory (a key is
+ * compared, not interpreted) */
+#if (defined(TARGET_I386) && !defined(TARGET_X86_64)) || \
+    (defined(TARGET_MIPS) && !defined(TARGET_MIPS64))
+#define SC_WORD_BITS 32
+#else
+#define SC_WORD_BITS 64
+#endif
+
+static inline uint64_t sc_word_read(const uint64_t *w)
+{
+#if SC_WORD_BITS == 32
+    return *(const uint32_t *)w;
+#else
+    return *w;
+#endif
+}
+
+/* A form's register width: 64, or 32 */
+static inline bool sc_form_64(unsigned form)
+{
+    switch (form) {
+    case PANDA_SYSCALL_FORM_X86_SYSCALL:
+    case PANDA_SYSCALL_FORM_A64_SVC:
+    case PANDA_SYSCALL_FORM_RISCV_ECALL:
+    case PANDA_SYSCALL_FORM_PPC_SCV:
+        return true;
+    case PANDA_SYSCALL_FORM_MIPS_SYSCALL:
+    case PANDA_SYSCALL_FORM_PPC_SC:
+        return TARGET_LONG_BITS == 64;
+    default:
+        return false;
+    }
+}
 
 static inline int64_t sc_nr(ScAbi *A, CPUArchState *env)
 {
@@ -305,11 +649,26 @@ static inline int64_t sc_nr(ScAbi *A, CPUArchState *env)
     return A->abi.nr_width == 32 ? (int64_t)(int32_t)r : (int64_t)r;
 }
 
+/* An error reported by a flag (err_flag): the value is the positive error number */
+static inline bool sc_err_flag(ScAbi *A, CPUArchState *env)
+{
+#if defined(TARGET_PPC)
+    if (A->abi.err_flag == PANDA_SYSCALL_ERR_PPC_SO) {
+        return env->crf[0] & 1;                 /* CR0.SO */
+    }
+#endif
+    return (A->abi.err_flag & 0x80) && sc_reg(env, A->abi.form, A->abi.err_flag & 0x7f) != 0;
+}
+
 static inline int64_t sc_retval(ScAbi *A, CPUArchState *env)
 {
     uint64_t r = sc_reg(env, A->abi.form, A->abi.ret_reg);
+    int64_t v = A->mask == UINT32_MAX ? (int64_t)(int32_t)r : (int64_t)r;
 
-    return A->mask == UINT32_MAX ? (int64_t)(int32_t)r : (int64_t)r;
+    if (unlikely(A->abi.err_flag) && sc_err_flag(A, env)) {
+        return -v;
+    }
+    return v;
 }
 
 static inline uint32_t sc_ret_flags(ScAbi *A, CPUState *cpu, PandaSyscallCall *c, int64_t ret)
@@ -327,8 +686,8 @@ static inline uint32_t sc_ret_flags(ScAbi *A, CPUState *cpu, PandaSyscallCall *c
 
 /* --- The general cases (syscall-pair.c) ------------------------------------------------- */
 
-/* An argument PANDA_SYSCALL_ARG_MEM(r): the word at register r in user memory, or 0 */
-uint64_t sc_arg_mem(ScAbi *A, CPUArchState *env, unsigned r) G_GNUC_INTERNAL;
+/* An argument PANDA_SYSCALL_ARG_MEM(r): the word at register r + off in user memory, or 0 */
+uint64_t sc_arg_mem(ScAbi *A, CPUArchState *env, unsigned r, unsigned off) G_GNUC_INTERNAL;
 
 /* Fill the call from the registers at the trap */
 static inline QEMU_ALWAYS_INLINE void sc_fill(const bool std, ScAbi *A, ScVcpu *v, int ci,
@@ -350,7 +709,7 @@ static inline QEMU_ALWAYS_INLINE void sc_fill(const bool std, ScAbi *A, ScVcpu *
             unsigned r = A->abi.arg_reg[k];
 
             c->args[k] = k >= A->abi.nargs ? 0 :
-                         r & 0x80 ? sc_arg_mem(A, env, r & 0x7f) :
+                         r & 0x80 ? sc_arg_mem(A, env, r & 0x7f, A->abi.arg_off[k]) :
                          sc_reg(env, form, r) & A->mask;
         }
     }

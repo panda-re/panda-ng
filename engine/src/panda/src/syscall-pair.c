@@ -36,33 +36,33 @@ const uint64_t sc_zero_word;
 
 /* --- Task keys ----------------------------------------------------------------------------- */
 
-#if defined(TARGET_X86_64)
-/* The host address of guest RAM at @pa (8 bytes, not crossing a page), or NULL */
+#ifdef SC_KEY_WORD
+/* The host address of guest RAM at @pa (the word, aligned), or NULL */
 static const uint64_t *sc_map_word(uint64_t pa)
 {
-    hwaddr l = 8, xlat;
+    hwaddr l = SC_WORD_BITS / 8, xlat;
     MemoryRegion *mr;
 
-    if (pa & 7) {
+    if (pa & (SC_WORD_BITS / 8 - 1)) {
         return NULL;
     }
     RCU_READ_LOCK_GUARD();
     mr = address_space_translate(&address_space_memory, pa, &xlat, &l, false,
                                  MEMTXATTRS_UNSPECIFIED);
-    if (l < 8 || !memory_region_is_ram(mr) || memory_region_is_ram_device(mr) ||
+    if (l < SC_WORD_BITS / 8 || !memory_region_is_ram(mr) || memory_region_is_ram_device(mr) ||
         !mr->ram_block) {
         return NULL;
     }
     return qemu_map_ram_ptr(mr->ram_block, xlat);
 }
 
-/* WORD, the cache missed: resolve for the current KERNEL_GS_BASE. The word, or NULL (the call
- * key is used meanwhile; the resolver runs again after SC_RETRY misses or a new base). */
+/* WORD, the cache missed: resolve for the base register's current value. The word, or NULL (the
+ * call key is used meanwhile; the resolver runs again after SC_RETRY misses or a new base). */
 static const uint64_t *sc_word_slow(ScState *P, CPUState *cpu, CPUArchState *env)
 {
     ScVcpu *v = sc_vcpu(P, cpu);
     ScKey *k = &P->kc[cpu->cpu_index & (SC_VCPUS - 1)];
-    uint64_t base = env->kernelgsbase, pa;
+    uint64_t base = sc_word_base(env), pa;
     const uint64_t *w;
 
     if (base == v->fail_base && v->retry) {
@@ -90,23 +90,23 @@ static const uint64_t *sc_word_slow(ScState *P, CPUState *cpu, CPUArchState *env
 static uint32_t sc_key(ScState *P, CPUState *cpu, CPUArchState *env, uint64_t *ka,
                        uint64_t *kb)
 {
-#if defined(TARGET_X86_64)
+#ifdef SC_KEY_WORD
     if (P->key_form == PANDA_TASK_KEY_WORD) {
         ScKey *k = &P->kc[cpu->cpu_index & (SC_VCPUS - 1)];
         const uint64_t *w = k->kword;
 
-        if (k->kval != env->kernelgsbase) {
+        if (k->kval != sc_word_base(env)) {
             w = sc_word_slow(P, cpu, env);
         }
         if (w) {
-            *ka = *w;
+            *ka = sc_word_read(w);
             *kb = 0;
             return *ka ? PANDA_TASK_KEY_WORD : PANDA_TASK_KEY_NONE;
         }
     }
-#else
+#elif defined(SC_KEY_REG)
     if (P->key_form == PANDA_TASK_KEY_REG) {
-        *ka = env->sp_el[1];
+        *ka = sc_task_reg(env);
         *kb = 0;
         return PANDA_TASK_KEY_REG;
     }
@@ -161,14 +161,18 @@ static void sc_watch_del(ScState *P, ScRec *r, uint64_t id)
 
 /* --- Entries ------------------------------------------------------------------------------- */
 
-uint64_t sc_arg_mem(ScAbi *A, CPUArchState *env, unsigned r)
+uint64_t sc_arg_mem(ScAbi *A, CPUArchState *env, unsigned r, unsigned off)
 {
     uint64_t v = 0;
     unsigned n = A->mask == UINT32_MAX ? 4 : 8;
 
-    if (cpu_memory_rw_debug(env_cpu(env), sc_reg(env, A->abi.form, r) & A->mask, &v, n,
+    if (cpu_memory_rw_debug(env_cpu(env), (sc_reg(env, A->abi.form, r) + off) & A->mask, &v, n,
                             false) != 0) {
         return 0;
+    }
+    /* in the guest's byte order */
+    if (sc_guest_be(env)) {
+        return n == 4 ? be32_to_cpu((uint32_t)v) : be64_to_cpu(v);
     }
     return n == 4 ? le32_to_cpu((uint32_t)v) : le64_to_cpu(v);
 }
@@ -239,7 +243,7 @@ static int sc_claim(ScState *P, CPUState *cpu, unsigned s, uint64_t tb, uint64_t
 
             if (qatomic_cmpxchg(&T[victim], vt, tag | SC_BUSY) == vt) {
                 v->st.evicted++;                /* taken over: the count is unchanged */
-                if (r->rflags) {
+                if (r->rflags & SC_W_CHILD) {
                     sc_watch_del(P, r, id);
                 }
                 return SC_CLAIM(victim, depth << 1);
@@ -289,6 +293,7 @@ static bool sc_keep_late(ScState *P, CPUState *cpu, CPUArchState *env, ScAbi *A,
     r->ka = ka;
     r->kb = kb;
     r->rflags = sc_bit(A->abi.shared_child, sc_index(&A->abi, slot->nr)) ? SC_W_CHILD : 0;
+    r->usp = sc_user_sp(env);
     memcpy(&r->c, slot, P->slot_stride);
     r->c.key = kt == PANDA_TASK_KEY_CALL ? ka ^ kb : ka;
     r->c.keytype = kt;
@@ -296,7 +301,7 @@ static bool sc_keep_late(ScState *P, CPUState *cpu, CPUArchState *env, ScAbi *A,
     if (P->key_form == PANDA_TASK_KEY_WORD && kt == PANDA_TASK_KEY_CALL) {
         v->st.call_key++;
     }
-    if (r->rflags) {
+    if (r->rflags & SC_W_CHILD) {
         sc_watch_add(P, r, env);
     }
     qatomic_store_release(&P->sets[s].tag[cl & 0xff], tb | (cl >> 8));
@@ -311,7 +316,7 @@ static void sc_unkeep(ScState *P, ScRec *r)
 
     sc_where(P, r, &s, &w);
     t = qatomic_read(&P->sets[s].tag[w]);
-    if (r->rflags) {
+    if (r->rflags & SC_W_CHILD) {
         sc_watch_del(P, r, r->c.id);
     }
     if (t && !(t & SC_BUSY) && qatomic_cmpxchg(&P->sets[s].tag[w], t, 0) == t) {
@@ -377,6 +382,7 @@ static void sc_enter(ScState *P, ScAbi *A, CPUState *cpu, CPUArchState *env, uns
         r->ka = ka;
         r->kb = kb;
         r->rflags = w & SC_W_CHILD;
+        r->usp = sc_user_sp(env);
         c = &r->c;
         sc_fill(false, A, v, ci, env, c, nr, pc, len);
         c->key = kt == PANDA_TASK_KEY_CALL ? ka ^ kb : ka;
@@ -385,7 +391,7 @@ static void sc_enter(ScState *P, ScAbi *A, CPUState *cpu, CPUArchState *env, uns
         if (P->key_form == PANDA_TASK_KEY_WORD && kt == PANDA_TASK_KEY_CALL) {
             v->st.call_key++;
         }
-        if (r->rflags) {
+        if (r->rflags & SC_W_CHILD) {
             sc_watch_add(P, r, env);
         }
         qatomic_set(&v->dlv, r);
@@ -537,9 +543,18 @@ void sc_return_other(CPUArchState *env, unsigned s, unsigned w, uint64_t bt, ScR
     uint64_t i = sc_index(&A->abi, r->c.nr);
     int64_t ret = sc_retval(A, env);
     uint32_t flags = sc_ret_flags(A, cpu, &r->c, ret);
+    uint64_t restart = r->c.pc + (A->abi.ret_skip ? r->c.len - A->abi.ret_skip : 0);
 
+    if ((r->rflags & SC_R_HANDLER) && (pc == r->c.pc + r->c.len || pc == restart) &&
+        sc_user_sp(env) != r->usp) {
+        /* a signal handler at the call's own address (a shared system call instruction): a
+         * return to the call's address after its handler ran has its stack pointer back */
+        qatomic_store_release(T, bt);
+        v->st.elsewhere++;
+        return;
+    }
     if (pc == r->c.pc + r->c.len) {
-        if (ret == 0 && r->rflags) {
+        if (ret == 0 && (r->rflags & SC_W_CHILD)) {
             /* the child, under the caller's key (a call key on its stack) */
             PandaSyscallCall *c = sc_child_slot(P, cpu);
 
@@ -549,13 +564,13 @@ void sc_return_other(CPUArchState *env, unsigned s, unsigned w, uint64_t bt, ScR
             P->fn(P->ctx, cpu, c, 0, flags | PANDA_SYSCALL_CHILD);
             return;
         }
-    } else if (pc == r->c.pc + (A->abi.ret_skip ? r->c.len - A->abi.ret_skip : 0)) {
+    } else if (pc == restart) {
         flags |= PANDA_SYSCALL_RESTART;
         v->st.restarts++;
     } else if (sc_bit(A->abi.ctx_replace, i)) {
         /* it succeeded (execve): no return */
         v->st.ended++;
-        if (r->rflags) {
+        if (r->rflags & SC_W_CHILD) {
             sc_watch_del(P, r, r->c.id);
         }
         P->fn(P->ctx, cpu, &r->c, 0, PANDA_SYSCALL_RETURN | PANDA_SYSCALL_ENDED);
@@ -563,12 +578,13 @@ void sc_return_other(CPUArchState *env, unsigned s, unsigned w, uint64_t bt, ScR
         qatomic_dec(&P->sets[s].cnt);
         return;
     } else {
-        qatomic_store_release(T, bt);           /* elsewhere: a signal handler; still pending */
+        r->rflags |= SC_R_HANDLER;              /* elsewhere: a signal handler; still pending */
+        qatomic_store_release(T, bt);
         v->st.elsewhere++;
         return;
     }
     SC_COUNT(v, paired);
-    if (r->rflags) {
+    if (r->rflags & SC_W_CHILD) {
         sc_watch_del(P, r, r->c.id);
     }
     P->fn(P->ctx, cpu, &r->c, ret, flags);
@@ -673,20 +689,27 @@ static TCGv_ptr sc_gen_addr(TCGv_ptr p, intptr_t *off)
     return p;
 }
 
-void panda_sc_gen_enter(unsigned form, uint32_t len, TCGv_i64 nr)
+void panda_sc_gen_enter(unsigned form, uint32_t len, TCGv nr_tl)
 {
     ScState *P = sc;
     ScAbi *A = P->abi[form];
     TCGLabel *skip = gen_new_label();
-    TCGv_i64 i = tcg_temp_new_i64(), n = nr;
+    TCGv_i64 i = tcg_temp_new_i64(), nr, n;
     TCGv_i32 w = tcg_temp_new_i32();
     TCGv_ptr p = tcg_temp_new_ptr();
     intptr_t off = (intptr_t)A->want;
     TCGHelperInfo *info = &sc_enter_info[P->key_form != PANDA_TASK_KEY_CALL][A->std];
 
+#if TARGET_LONG_BITS == 64
+    nr = nr_tl;
+#else
+    nr = tcg_temp_new_i64();
+    tcg_gen_ext_i32_i64(nr, nr_tl);
+#endif
+    n = nr;
     /* the number as the ABI takes it, and its want byte: want[min(nr, nbits)] (unsigned: a
      * negative number is nbits) */
-    if (A->abi.nr_width == 32) {
+    if (A->abi.nr_width == 32 && TARGET_LONG_BITS == 64) {
         n = tcg_temp_new_i64();
         tcg_gen_ext32s_i64(n, nr);
     }
@@ -700,6 +723,98 @@ void panda_sc_gen_enter(unsigned form, uint32_t len, TCGv_i64 nr)
     gen_set_label(skip);
 }
 
+#ifdef SC_KEY_WORD
+/*
+ * WORD: the vCPU's ScKey, valid while the base register holds the value it was resolved for (a
+ * word that cannot be resolved leaves it invalid: the C function, the call key). @ka the key,
+ * @h its hash's product; to @slow if the cache is not valid.
+ */
+static void sc_gen_word(TCGv_i64 ka, TCGv_i64 h, TCGLabel *slow)
+{
+    ScState *P = sc;
+    TCGv_ptr v = tcg_temp_new_ptr();
+    TCGv_i64 g = tcg_temp_new_i64();
+    intptr_t kv = (intptr_t)P->kc + offsetof(ScKey, kval), kw;
+
+    tcg_gen_ld32u_i64(h, tcg_env, (int)(offsetof(ArchCPU, parent_obj.cpu_index) -
+                                       offsetof(ArchCPU, env)));
+    tcg_gen_shli_i64(h, h, 4);
+    tcg_gen_trunc_i64_ptr(v, h);
+    tcg_gen_ld_i64(h, sc_gen_addr(v, &kv), kv);
+    kw = kv + offsetof(ScKey, kword) - offsetof(ScKey, kval);
+#if SC_WORD_BASE_BITS == 64
+    tcg_gen_ld_i64(g, tcg_env, SC_WORD_BASE_OFF);
+#else
+    tcg_gen_ld32u_i64(g, tcg_env, SC_WORD_BASE_OFF);
+#endif
+    tcg_gen_brcond_i64(TCG_COND_NE, h, g, slow);
+    tcg_gen_ld_ptr(v, v, kw);
+#if SC_WORD_BITS == 64
+    tcg_gen_ld_i64(ka, v, 0);
+#else
+    tcg_gen_ld32u_i64(ka, v, 0);
+#endif
+    tcg_gen_muli_i64(h, ka, SC_HASH_K);
+}
+#endif
+
+#if !defined(TARGET_I386) && !defined(TARGET_AARCH64)
+/* A target_ulong field of env, zero-extended */
+static inline void sc_gen_ld_tl(TCGv_i64 v, intptr_t off)
+{
+#if TARGET_LONG_BITS == 64
+    tcg_gen_ld_i64(v, tcg_env, off);
+#else
+    tcg_gen_ld32u_i64(v, tcg_env, off);
+#endif
+}
+
+/* The call key, as sc_root() and sc_user_sp() */
+static void sc_gen_call_key(TCGv_i64 ka, TCGv_i64 kb)
+{
+#if defined(TARGET_ARM)
+    tcg_gen_ld_i64(ka, tcg_env, offsetof(CPUARMState, cp15.ttbr0_el[1]));
+    tcg_gen_andi_i64(ka, ka, 0x000000ffffffff80ull);
+    tcg_gen_ld32u_i64(kb, tcg_env, offsetof(CPUARMState, regs[13]));
+#elif defined(TARGET_RISCV)
+    tcg_gen_ld_i64(ka, tcg_env, offsetof(CPURISCVState, satp));
+    tcg_gen_andi_i64(ka, ka, (1ull << 44) - 1);
+    tcg_gen_ld_i64(kb, tcg_env, offsetof(CPURISCVState, gpr[2]));
+#elif defined(TARGET_MIPS)
+    sc_gen_ld_tl(ka, offsetof(CPUMIPSState, CP0_EntryHi));
+    sc_gen_ld_tl(kb, offsetof(CPUMIPSState, CP0_EntryHi_ASID_mask));
+    tcg_gen_and_i64(ka, ka, kb);
+    sc_gen_ld_tl(kb, offsetof(CPUMIPSState, active_tc.gpr[29]));
+#elif defined(TARGET_PPC)
+    sc_gen_ld_tl(ka, offsetof(CPUPPCState, spr[SPR_BOOKE_PID]));
+    sc_gen_ld_tl(kb, offsetof(CPUPPCState, gpr[1]));
+#endif
+}
+
+/* To @done unless the return is to user mode */
+static void sc_gen_not_user(TCGLabel *done)
+{
+    TCGv_i32 m = tcg_temp_new_i32();
+
+#if defined(TARGET_ARM)
+    tcg_gen_ld_i32(m, tcg_env, offsetof(CPUARMState, uncached_cpsr));
+    tcg_gen_andi_i32(m, m, CPSR_M);
+    tcg_gen_brcondi_i32(TCG_COND_NE, m, ARM_CPU_MODE_USR, done);
+#elif defined(TARGET_RISCV)
+    /* U-mode (a guest of the hypervisor extension goes on to the C function, which tests it) */
+    tcg_gen_ld8u_i32(m, tcg_env, offsetof(CPURISCVState, priv));
+    tcg_gen_brcondi_i32(TCG_COND_NE, m, PRV_U, done);
+#elif defined(TARGET_MIPS)
+    tcg_gen_ld_i32(m, tcg_env, offsetof(CPUMIPSState, hflags));
+    tcg_gen_andi_i32(m, m, MIPS_HFLAG_KSU);
+    tcg_gen_brcondi_i32(TCG_COND_NE, m, MIPS_HFLAG_UM, done);
+#elif defined(TARGET_PPC)
+    tcg_gen_ld_i32(m, tcg_env, offsetof(CPUPPCState, msr));     /* the low word: MSR[PR] */
+    tcg_gen_brcondi_i32(TCG_COND_TSTEQ, m, 1u << MSR_PR, done);
+#endif
+}
+#endif
+
 void panda_sc_gen_return(void)
 {
     ScState *P = sc;
@@ -709,40 +824,29 @@ void panda_sc_gen_return(void)
     TCGv_ptr p = tcg_temp_new_ptr();
     intptr_t off = (intptr_t)P->sets + offsetof(ScSet, cnt);
 
-#if defined(TARGET_X86_64)
+#if defined(TARGET_I386)
     /* to user mode (CPL 3; CPL 1 goes on to the C function, which tests it) */
     TCGv_i32 hf = tcg_temp_new_i32();
 
     tcg_gen_ld_i32(hf, tcg_env, offsetof(CPUX86State, hflags));
     tcg_gen_brcondi_i32(TCG_COND_TSTEQ, hf, 1, done);
     if (P->key_form == PANDA_TASK_KEY_WORD) {
-        /* the vCPU's ScKey, valid while KERNEL_GS_BASE is the value it was resolved for (a
-         * word that cannot be resolved leaves it invalid: the C function, the call key) */
-        TCGv_ptr v = tcg_temp_new_ptr();
-        TCGv_i64 g = tcg_temp_new_i64();
-        intptr_t kv = (intptr_t)P->kc + offsetof(ScKey, kval), kw;
-
         slow = gen_new_label();
-        tcg_gen_ld32u_i64(h, tcg_env, (int)(offsetof(ArchCPU, parent_obj.cpu_index) -
-                                           offsetof(ArchCPU, env)));
-        tcg_gen_shli_i64(h, h, 4);
-        tcg_gen_trunc_i64_ptr(v, h);
-        tcg_gen_ld_i64(h, sc_gen_addr(v, &kv), kv);
-        kw = kv + offsetof(ScKey, kword) - offsetof(ScKey, kval);
-        tcg_gen_ld_i64(g, tcg_env, offsetof(CPUX86State, kernelgsbase));
-        tcg_gen_brcond_i64(TCG_COND_NE, h, g, slow);
-        tcg_gen_ld_ptr(v, v, kw);
-        tcg_gen_ld_i64(ka, v, 0);
-        tcg_gen_muli_i64(h, ka, SC_HASH_K);
+        sc_gen_word(ka, h, slow);
     } else {
         kb = tcg_temp_new_i64();
+#if TARGET_LONG_BITS == 64
         tcg_gen_ld_i64(ka, tcg_env, offsetof(CPUX86State, cr[3]));
-        tcg_gen_andi_i64(ka, ka, 0x000ffffffffff000ull);
         tcg_gen_ld_i64(kb, tcg_env, offsetof(CPUX86State, regs[R_ESP]));
+#else
+        tcg_gen_ld32u_i64(ka, tcg_env, offsetof(CPUX86State, cr[3]));
+        tcg_gen_ld32u_i64(kb, tcg_env, offsetof(CPUX86State, regs[R_ESP]));
+#endif
+        tcg_gen_andi_i64(ka, ka, 0x000ffffffffff000ull);
         tcg_gen_xor_i64(h, ka, kb);
         tcg_gen_muli_i64(h, h, SC_HASH_K);
     }
-#else
+#elif defined(TARGET_AARCH64)
     /* to EL0 in AArch64 (PSTATE.M 0: EL0t; a return to AArch32 leaves PSTATE at EL1h) */
     TCGv_i32 ps = tcg_temp_new_i32();
 
@@ -763,6 +867,26 @@ void panda_sc_gen_return(void)
         tcg_gen_ld_i64(kb, tcg_env, offsetof(CPUARMState, xregs[31]));
         tcg_gen_xor_i64(h, ka, kb);
         tcg_gen_muli_i64(h, h, SC_HASH_K);
+    }
+#else
+    sc_gen_not_user(done);
+    if (P->key_form == PANDA_TASK_KEY_CALL) {
+        kb = tcg_temp_new_i64();
+        sc_gen_call_key(ka, kb);
+        tcg_gen_xor_i64(h, ka, kb);
+        tcg_gen_muli_i64(h, h, SC_HASH_K);
+    } else {
+#ifdef SC_KEY_WORD
+    slow = gen_new_label();
+    sc_gen_word(ka, h, slow);
+#elif defined(SC_KEY_REG)
+#if SC_TASK_REG_BITS == 64
+    tcg_gen_ld_i64(ka, tcg_env, SC_TASK_REG_OFF);
+#else
+    tcg_gen_ld32u_i64(ka, tcg_env, SC_TASK_REG_OFF);
+#endif
+    tcg_gen_muli_i64(h, ka, SC_HASH_K);
+#endif
     }
 #endif
     tcg_gen_shri_i64(h, h, 64 - P->sets_log - SC_SET_SHIFT);
@@ -889,16 +1013,11 @@ bool panda_task_key_declare(void *owner, const PandaTaskKeyDecl *d)
     if (!P || P->owner != owner || !d || d->size < sizeof(*d) || panda_sc_forms) {
         return false;
     }
-#if defined(TARGET_X86_64)
-    if (d->form != PANDA_TASK_KEY_WORD || d->reg != PANDA_TASK_REG_X86_KERNEL_GS_BASE ||
-        !d->resolve) {
+    /* the target's task key form and register (a WORD key needs its resolver) */
+    if (SC_TASK_FORM == PANDA_TASK_KEY_NONE || d->form != SC_TASK_FORM ||
+        d->reg != (uint32_t)SC_TASK_REG || (d->form == PANDA_TASK_KEY_WORD && !d->resolve)) {
         return false;
     }
-#else
-    if (d->form != PANDA_TASK_KEY_REG || d->reg != PANDA_TASK_REG_ARM_SP_EL1) {
-        return false;
-    }
-#endif
     P->key_form = d->form;
     P->key_reg = d->reg;
     P->resolve = d->resolve;
@@ -914,8 +1033,14 @@ static uint8_t *sc_set_copy(const uint8_t *set, uint32_t nbits)
 int panda_syscall_abi_declare(void *owner, const PandaSyscallAbi *a)
 {
     static const uint8_t std_args[6] =
-#if defined(TARGET_X86_64)
+#if defined(TARGET_I386)
         { 7, 6, 2, 10, 8, 9 };          /* RDI RSI RDX R10 R8 R9 */
+#elif defined(TARGET_RISCV)
+        { 10, 11, 12, 13, 14, 15 };     /* a0-a5 */
+#elif defined(TARGET_MIPS)
+        { 4, 5, 6, 7, 8, 9 };           /* $a0-$a5 (n64) */
+#elif defined(TARGET_PPC)
+        { 3, 4, 5, 6, 7, 8 };
 #else
         { 0, 1, 2, 3, 4, 5 };
 #endif
@@ -931,16 +1056,10 @@ int panda_syscall_abi_declare(void *owner, const PandaSyscallAbi *a)
         return -1;
     }
     form = a->form;
-#if defined(TARGET_X86_64)
-    if (form != PANDA_SYSCALL_FORM_X86_SYSCALL && form != PANDA_SYSCALL_FORM_X86_INT80 &&
-        form != PANDA_SYSCALL_FORM_X86_SYSENTER && form != PANDA_SYSCALL_FORM_X86_SYSCALL32) {
-        return -1;
+    if (!(SC_FORMS & (1u << form)) || (a->err_flag && a->err_flag != PANDA_SYSCALL_ERR_PPC_SO &&
+                                       !(a->err_flag & 0x80))) {
+        return -1;                      /* not a form of this target's */
     }
-#else
-    if (form != PANDA_SYSCALL_FORM_A64_SVC && form != PANDA_SYSCALL_FORM_A32_SVC) {
-        return -1;
-    }
-#endif
     QEMU_LOCK_GUARD(&P->lock);
     if (P->abi[form] || P->by_id[a->id]) {
         return -1;
@@ -952,10 +1071,11 @@ int panda_syscall_abi_declare(void *owner, const PandaSyscallAbi *a)
     A->abi.shared_child = sc_set_copy(a->shared_child, a->nbits);
     A->want = sc_alloc_low(a->nbits + 1);
     memset(A->want, 0, a->nbits + 1);
-    A->mask = (form == PANDA_SYSCALL_FORM_X86_SYSCALL || form == PANDA_SYSCALL_FORM_A64_SVC) ?
-              UINT64_MAX : UINT32_MAX;
-    A->std = A->mask == UINT64_MAX && a->nargs == 6 && !memcmp(a->arg_reg, std_args, 6) &&
-             a->nr_reg == SC_STD_NR && a->ret_reg == SC_STD_RET && !a->ret_skip;
+    A->mask = sc_form_64(form) ? UINT64_MAX : UINT32_MAX;
+    /* the fast entry functions read the target's standard layout */
+    A->std = SC_HAS_STD && form == SC_TCG_FORM && A->mask == UINT64_MAX && a->nargs == 6 &&
+             !memcmp(a->arg_reg, std_args, 6) && a->nr_reg == SC_STD_NR &&
+             a->ret_reg == SC_STD_RET && !a->ret_skip;
     if (a->shared_child) {
         P->child = true;
     }

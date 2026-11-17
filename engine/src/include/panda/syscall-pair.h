@@ -13,8 +13,8 @@
  * map in translated code (a byte load); the return-to-user sites check for a pending call
  * inline only while some number's return is wanted (arming and disarming flush translations).
  *
- * Pairing. Every return to user mode (x86 SYSRET, SYSEXIT and IRET; AArch64 ERET) is a
- * candidate. For the returning task's newest pending call:
+ * Pairing. Every return to user mode (x86 SYSRET, SYSEXIT and IRET; ARM ERET and AArch32
+ * exception returns; RISC-V SRET; MIPS ERET; PowerPC RFI, RFID and RFSCV) is a candidate. For the returning task's newest pending call:
  *   - at the call's return address (pc + len): its return;
  *   - at its restart address (the trap instruction, pc; for an ABI with ret_skip, the
  *     instruction it skips): its return, flagged RESTART (the kernel restarts it);
@@ -31,7 +31,8 @@
  * These are the rules of POSIX kernels. An OS that calls back into user mode from inside a
  * system call and returns into the kernel (Windows user callbacks) needs further rule kinds.
  *
- * Phase 1: x86_64 and aarch64 targets, TCG only. See docs/design/syscall-pairing.md.
+ * Targets: x86_64, i386, aarch64, arm, riscv64, mips, mipsel, mips64, mips64el, ppc, ppc64; TCG
+ * only. See docs/design/syscall-pairing.md.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -57,16 +58,30 @@ enum {
     PANDA_SYSCALL_FORM_A32_SVC,         /* SVC from AArch32 EL0, under an AArch64 EL1 */
     PANDA_SYSCALL_FORM_X86_SYSENTER,    /* SYSENTER at CPL 3 */
     PANDA_SYSCALL_FORM_X86_SYSCALL32,   /* SYSCALL from 32-bit code in long mode at CPL 3 */
+    PANDA_SYSCALL_FORM_RISCV_ECALL,     /* ECALL from U-mode */
+    PANDA_SYSCALL_FORM_MIPS_SYSCALL,    /* SYSCALL in user mode */
+    PANDA_SYSCALL_FORM_PPC_SC,          /* sc 0 in problem state, in the target's word size (on
+                                         * ppc64: a 64-bit task, MSR[SF] set) */
+    PANDA_SYSCALL_FORM_PPC_SC32,        /* sc 0 in problem state from a 32-bit task on ppc64 */
+    PANDA_SYSCALL_FORM_PPC_SCV,         /* scv 0 in problem state (ppc64) */
     PANDA_SYSCALL_FORM_COUNT
 };
 
 /*
  * Registers are numbered in the form's instruction set: x86 as in ModRM (0 RAX, 1 RCX, 2 RDX,
- * 3 RBX, 4 RSP, 5 RBP, 6 RSI, 7 RDI, 8-15 R8-R15); AArch64 X0-X30; AArch32 R0-R14. The 32-bit
- * forms (X86_INT80, X86_SYSENTER, X86_SYSCALL32, A32_SVC) deliver 32-bit numbers, arguments and
- * return values (the return sign-extended). An argument register PANDA_SYSCALL_ARG_MEM(r) is
- * the word (of the form's width) in user memory at register r's value, read at the entry (0 if
- * it cannot be read): Linux's 32-bit vDSO passes argument 6 on the stack.
+ * 3 RBX, 4 RSP, 5 RBP, 6 RSI, 7 RDI, 8-15 R8-R15); AArch64 X0-X30; AArch32 R0-R14; RISC-V, MIPS
+ * and PowerPC x0-x31, $0-$31 and r0-r31. The 32-bit forms (X86_INT80, X86_SYSENTER,
+ * X86_SYSCALL32, A32_SVC, PPC_SC32, and RISCV_ECALL, MIPS_SYSCALL and PPC_SC on 32-bit targets)
+ * deliver 32-bit numbers, arguments and return values (the return sign-extended). An argument
+ * register PANDA_SYSCALL_ARG_MEM(r) is the word (of the form's width) in user memory at register
+ * r's value plus arg_off[] bytes, read at the entry (0 if it cannot be read): Linux's 32-bit x86
+ * vDSO passes argument 6 on the stack, MIPS o32 arguments 5 and 6 (16 and 20 bytes above $sp).
+ *
+ * err_flag: how a return reports an error besides its value. 0: by value alone (err_min).
+ * PANDA_SYSCALL_ERR_REG(r): register r is not 0 after an error, and the value is the positive
+ * error number (MIPS: $a3). PANDA_SYSCALL_ERR_PPC_SO: CR0.SO is set after an error, and r3 is the
+ * positive error number (PowerPC sc; scv returns negative values). The engine delivers the
+ * negated number then (the error range applies to it).
  *
  * ret_skip: the kernel returns past that many bytes after the trap, and restarts the call at the
  * instruction there. Linux's 32-bit vDSO (__kernel_vsyscall) follows its SYSENTER or SYSCALL with
@@ -91,9 +106,13 @@ typedef struct PandaSyscallAbi {
     const uint8_t *noreturn;    /* never pending: no return (exit) or not one (rt_sigreturn) */
     const uint8_t *ctx_replace; /* a return elsewhere ends the call (a successful execve) */
     const uint8_t *shared_child;/* may start a child at the return address (vfork, clone) */
+    uint8_t err_flag;           /* 0, PANDA_SYSCALL_ERR_REG(r) or PANDA_SYSCALL_ERR_PPC_SO */
+    uint8_t arg_off[6];         /* PANDA_SYSCALL_ARG_MEM arguments: bytes above the register */
 } PandaSyscallAbi;
 
 #define PANDA_SYSCALL_ARG_MEM(r) (0x80 | (r))
+#define PANDA_SYSCALL_ERR_REG(r) (0x80 | (r))
+#define PANDA_SYSCALL_ERR_PPC_SO 1
 
 /* --- Calls ------------------------------------------------------------------------------- */
 
@@ -181,16 +200,20 @@ void panda_syscall_want(int abi, int64_t nr, uint32_t want);
  * A task key is a value that is the same for every system call one task makes and differs
  * between tasks alive at the same time, read at the user/kernel boundary. No architecture has
  * a "current task" register; a key is where the OS keeps a per-task value:
- *   REG   the value of a register at the boundary (AArch64 Linux: SP_EL1, the task's kernel
- *         stack, banked while it runs at EL0)
+ *   REG   the value of a register at the boundary (Linux: AArch64 SP_EL1 and AArch32 SP_svc,
+ *         the task's kernel stack, banked while it runs in user mode; RISC-V sscratch, the task
+ *         in user mode; 32-bit PowerPC SPRG3, &current->thread)
  *   WORD  a word in guest RAM that the consumer's resolver locates for the current value of a
- *         base register (x86_64 Linux: the per-CPU top-of-stack word, at an offset from
- *         KERNEL_GS_BASE). The engine maps the word once per vCPU and base value, and reads it
- *         through that mapping; a different base value, a reset or a snapshot load makes it
- *         resolve again.
+ *         base register (Linux: x86_64's per-CPU top-of-stack word, at an offset from
+ *         KERNEL_GS_BASE; i386's TSS.sp1 at TR's base; ppc64's PACA kstack, at an offset from
+ *         SPRG1; MIPS's kernelsp[cpu], for the CPU whose EBase it is). The engine maps the word
+ *         once per vCPU and base value, and reads it through that mapping; a different base
+ *         value, a reset or a snapshot load makes it resolve again. A word is 32 bits on the
+ *         32-bit targets that have WORD keys (i386, mips, mipsel), else 64.
  * Without a declaration, or while the resolver cannot locate the word (0), pairing uses the
- * call key: the address-space root (x86 CR3, AArch64 TTBR0) with the user stack pointer. It
- * pairs a call with its return, but it is not a task identity (a task has several).
+ * call key: the address-space root (x86 CR3, ARM TTBR0, RISC-V satp, the MIPS ASID, the PowerPC
+ * PID) with the user stack pointer. It pairs a call with its return, but it is not a task
+ * identity (a task has several).
  *
  * Keys are reused once a task exits; a key identifies a live task. A call pending when its
  * task is killed stays until its set evicts it.
@@ -203,8 +226,15 @@ enum {
 };
 
 enum {
-    PANDA_TASK_REG_ARM_SP_EL1,          /* REG */
-    PANDA_TASK_REG_X86_KERNEL_GS_BASE,  /* WORD's base */
+    PANDA_TASK_REG_ARM_SP_EL1,          /* REG (aarch64) */
+    PANDA_TASK_REG_X86_KERNEL_GS_BASE,  /* WORD's base (x86_64) */
+    PANDA_TASK_REG_ARM_SP_SVC,          /* REG (arm): r13 of SVC mode */
+    PANDA_TASK_REG_RISCV_SSCRATCH,      /* REG (riscv64) */
+    PANDA_TASK_REG_PPC_SPRG3,           /* REG (ppc) */
+    PANDA_TASK_REG_X86_TR_BASE,         /* WORD's base (i386): the TSS's linear address */
+    PANDA_TASK_REG_PPC_SPRG1,           /* WORD's base (ppc64): the PACA's address */
+    PANDA_TASK_REG_MIPS_EBASE,          /* WORD's base (MIPS): CP0 EBase, constant per CPU (the
+                                         * resolver reads the CPU's index itself) */
 };
 
 /* WORD: the guest physical address of the key word for base value @base on @cpu, or 0 if it
