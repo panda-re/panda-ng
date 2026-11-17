@@ -21,6 +21,7 @@ Arguments
 
 * `load-info`: boolean, defaults to `false`. Enables loading of system call information for the selected OS profile. This allows more generic processing of system call events, without having to implement individual hooks.
 * `abi`: string. Accepted but not used: on mips64 the ABI (o32, n64 or n32) of each system call is taken from its number (4000-4999, 5000-5999, 6000-6999).
+* `task_key`: boolean, defaults to `true`. Linux on x86_64 and aarch64 only: pair returns by task (below), or with `false` by the call key (address space and user stack pointer; for tests).
 
 From Python:
 
@@ -28,10 +29,21 @@ From Python:
 panda.load_plugin("syscalls2", {"load-info": True})
 ```
 
+How returns are paired
+----------------------
+
+**Linux guests on x86_64 and aarch64.** syscalls2 declares the guest's system-call ABIs to the engine ([docs/design/syscall-pairing.md](../../docs/design/syscall-pairing.md)): x86_64 `syscall`, and a 32-bit task's i386 calls (`int 0x80`, and through the vDSO `sysenter` or `syscall` from compat mode, reported under the i386 profile); AArch64 and AArch32 `svc`. The engine recognizes these calls, keeps each one whose return a callback wants (with its `syscall_ctx_t`), and pairs it with its return by task: the per-CPU kernel stack word on x86_64, `SP_EL1` on aarch64. So concurrent calls of threads of one process each get their own return, a call returning on another vCPU is paired, and no hook is added per call. The enter callbacks run before the trap; the return callbacks once the task is back in user mode at the return address (`pc`), as before.
+- A call the kernel restarts (the task traps again) has no return callback; its new entry gets one.
+- An `execve` that succeeds has no return callback.
+- A signal handler that runs before a call returns doesn't end it: the call returns when the handler's `rt_sigreturn` brings the task back.
+- A vfork or clone child's first return (0) in its caller's address space is delivered as a return of the caller's call, before the caller's own (the tables' "double return" calls, and any `shared_child` call).
+
+**Other targets, and Windows and FreeBSD guests on x86_64.** A hook (the `hooks` plugin) at each call's return address, keyed by the return address and the process's ASID: threads of one process making the same call at the same address share the key.
+
 Dependencies
 ------------
 
-`hw_proc_id` and `hooks`, which it loads itself.
+`hw_proc_id`, and `hooks` where returns are tracked with hooks; it loads them itself.
 
 APIs and Callbacks
 ------------------
@@ -105,7 +117,7 @@ Description: Called whenever any system call returns in the guest. The `call` pa
 
 
 ### API calls
-Finally the plugin provides three API calls:
+Finally the plugin provides four API calls:
 
 Name: **get_syscall_retval**
 
@@ -136,6 +148,16 @@ const syscall_meta_t *get_syscall_meta(void)
 ```
 
 Description: Returns a pointer to a `syscall_meta_t` struct containing meta-information about the system calls of the guest operating system. Available only when the `load-info` flag of the plugin has been turned on.
+
+Name: **syscalls2_current_call**
+
+Signature:
+
+```C
+bool syscalls2_current_call(CPUState *cpu, uint64_t *id, uint32_t *flags)
+```
+
+Description: Inside an enter or return callback on a guest whose returns the engine pairs (Linux on x86_64 and aarch64): the call's id, the same at its entry and its return, and the engine's delivery flags (`panda/syscall-pair.h`: `PANDA_SYSCALL_RETURN` at a return, `PANDA_SYSCALL_CHILD` at a child's first return). Returns false elsewhere.
 
 
 
