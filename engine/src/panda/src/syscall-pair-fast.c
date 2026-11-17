@@ -57,20 +57,22 @@ static inline QEMU_ALWAYS_INLINE void sc_keep_k(const bool task, const bool std,
         goto full;                      /* a shared_child number: its watch */
     }
     if (task) {
-#if defined(TARGET_X86_64)
+#ifdef SC_KEY_WORD
         ScKey *k = &P->kc[cpu->cpu_index & (SC_VCPUS - 1)];
 
-        if (unlikely(k->kval != env->kernelgsbase)) {
+        if (unlikely(k->kval != sc_word_base(env))) {
             goto full;                  /* to resolve (again) */
         }
-        ka = *k->kword;
+        ka = sc_word_read(k->kword);
         if (unlikely(!ka)) {
             goto full;
         }
         kt = PANDA_TASK_KEY_WORD;
-#else
-        ka = env->sp_el[1];
+#elif defined(SC_KEY_REG)
+        ka = sc_task_reg(env);
         kt = PANDA_TASK_KEY_REG;
+#else
+        goto full;                      /* no task key on this target */
 #endif
         kb = 0;
     } else {
@@ -94,6 +96,7 @@ static inline QEMU_ALWAYS_INLINE void sc_keep_k(const bool task, const bool std,
     r->ka = ka;
     r->kb = kb;
     r->rflags = 0;
+    r->usp = sc_user_sp(env);
     c = &r->c;
     ci = cpu->cpu_index;
     v = &P->v[ci & (SC_VCPUS - 1)];
@@ -123,7 +126,7 @@ static inline QEMU_ALWAYS_INLINE void sc_enter_k(const bool std,
                                                               int64_t),
                                                  CPUArchState *env, uint32_t wl, int64_t nr)
 {
-#if defined(TARGET_X86_64)
+#if defined(TARGET_I386)
     if (unlikely(std ? !(env->efer & MSR_EFER_SCE) : sc_x86_faults(env, wl >> 16))) {
         return;                         /* #UD or #GP: no system call */
     }
