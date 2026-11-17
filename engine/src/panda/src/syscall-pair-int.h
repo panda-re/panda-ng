@@ -110,6 +110,8 @@ enum {
     SC_W_RET = PANDA_SYSCALL_WANT_RETURN,
     SC_W_CHILD = 1u << 2,               /* a shared_child number */
     SC_R_HANDLER = 1u << 3,             /* ScRec.rflags only: a signal handler ran */
+    SC_R_CHILD = 1u << 4,               /* ScRec.rflags only: its child under its own key
+                                         * returned (delivered once) */
 };
 
 typedef struct ScAbi {
@@ -123,6 +125,7 @@ typedef struct ScWatch {
     ScRec *r;                           /* a pending shared_child call */
     uint64_t id;
     uint64_t root;                      /* its address space */
+    uint64_t cka, ckb;                  /* the key of the child last delivered (0, 0: none) */
     uint64_t retpc;
 } ScWatch;
 
