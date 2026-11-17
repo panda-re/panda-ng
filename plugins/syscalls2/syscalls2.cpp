@@ -35,9 +35,11 @@ PANDAENDCOMMENT */
 #include <iostream>
 #include <sstream>
 #include <limits>
+#include <atomic>
 #include <mutex>
 #include <set>
 #include <tuple>
+#include <map>
 
 #include "syscalls2.h"
 #include "syscalls2_info.h"
@@ -1502,9 +1504,9 @@ void syscall_callback(unsigned int vcpu_index, void *udata){
 
 /* ### Engine pairing (SYSCALLS2_ENGINE) ################################## */
 /*
- * Linux guests on x86_64 and aarch64: the engine recognizes the calls of the ABIs declared
- * here, keeps each one whose return a callback wants (with its syscall_ctx_t, PandaSyscallCall
- * data), and pairs it with its return by task (panda/syscall-pair.h). syscalls2 runs its
+ * Linux guests: the engine recognizes the calls of the ABIs declared here, keeps each one whose
+ * return a callback wants (with its syscall_ctx_t, PandaSyscallCall data), and pairs it with its
+ * return by task (panda/syscall-pair.h). syscalls2 runs its
  * generated switches from the engine's deliveries: the entry before the trap, the return once
  * the task is back in user mode at the return address. A return the kernel restarts (the
  * task traps again: a new entry) and an execve that succeeded have no return callback, as
@@ -1519,8 +1521,10 @@ static bool engine_mode;
 #define SC2_NB 1024                         /* numbers 0-1023 apart; the rest share one */
 #if defined(TARGET_X86_64)
 #define SC2_NABI 4                          /* x86_64, i386: int 0x80, sysenter, compat syscall */
-#else
+#elif defined(TARGET_AARCH64)
 #define SC2_NABI 2                          /* AArch64, AArch32 */
+#else
+#define SC2_NABI 1
 #endif
 static int engine_abi[SC2_NABI];                        /* the engine's handles, by our ABI id */
 static ProfileType engine_profile[SC2_NABI];
@@ -1586,6 +1590,8 @@ struct LinuxAbi {
     ProfileType profile;
     uint8_t nr_reg, ret_reg, args[6], ret_skip;
     std::vector<unsigned> noreturn, ctx_replace, shared_child;
+    uint8_t err_flag;                       /* PandaSyscallAbi.err_flag */
+    uint8_t arg_off[6];
 };
 
 #if defined(TARGET_X86_64)
@@ -1676,14 +1682,33 @@ static const LinuxAbi linux_abis[SC2_NABI] = {
     { PANDA_SYSCALL_FORM_X86_SYSCALL32, PROFILE_LINUX_X86, 0, 0,
       { 3, 5, 2, 6, 7, PANDA_SYSCALL_ARG_MEM(4) }, 2, SC2_I386_EXITS },
 };
-#else
+#elif defined(TARGET_AARCH64)
 static const LinuxAbi linux_abis[SC2_NABI] = {
     { PANDA_SYSCALL_FORM_A64_SVC, PROFILE_LINUX_AARCH64, 8, 0, { 0, 1, 2, 3, 4, 5 }, 0,
       { 93, 94, 139 }, { 221, 281 }, { 220, 435 } },
     { PANDA_SYSCALL_FORM_A32_SVC, PROFILE_LINUX_ARM, 7, 0, { 0, 1, 2, 3, 4, 5 }, 0,
       { 1, 248, 119, 173 }, { 11, 387 }, { 2, 120, 190, 435 } },
 };
+#elif defined(TARGET_RISCV64)
+static const LinuxAbi linux_abis[SC2_NABI] = {
+    { PANDA_SYSCALL_FORM_RISCV_ECALL, PROFILE_LINUX_RISCV64, 17, 10, { 10, 11, 12, 13, 14, 15 },
+      0, { 93, 94, 139 }, { 221, 281 }, { 220, 435 } },
+};
 #endif
+
+/* Linux's task key, per target (docs/design/syscall-pairing.md) */
+static const PandaTaskKeyDecl LINUX_TASK_KEY = {
+    sizeof(PandaTaskKeyDecl),
+#if defined(TARGET_X86_64)
+    PANDA_TASK_KEY_WORD, PANDA_TASK_REG_X86_KERNEL_GS_BASE, x86_task_word, nullptr,
+#elif defined(TARGET_AARCH64)
+    PANDA_TASK_KEY_REG, PANDA_TASK_REG_ARM_SP_EL1, nullptr, nullptr,
+#elif defined(TARGET_RISCV64)
+    PANDA_TASK_KEY_REG, PANDA_TASK_REG_RISCV_SSCRATCH, nullptr, nullptr,   /* current */
+#else
+    PANDA_TASK_KEY_NONE, 0, nullptr, nullptr,
+#endif
+};
 
 /* Declare the Linux ABIs and the task key. False if the engine refuses (the hooks path is not
  * built for this target, so syscalls2 does not load). */
@@ -1692,17 +1717,9 @@ static bool engine_init(void *self, bool task_key)
     if (!panda_syscall_consumer(self, engine_call, nullptr, sizeof(syscall_ctx_t))) {
         return false;
     }
-    if (task_key) {
-#if defined(TARGET_X86_64)
-        PandaTaskKeyDecl k = { sizeof(k), PANDA_TASK_KEY_WORD, PANDA_TASK_REG_X86_KERNEL_GS_BASE,
-                               x86_task_word, nullptr };
-#else
-        PandaTaskKeyDecl k = { sizeof(k), PANDA_TASK_KEY_REG, PANDA_TASK_REG_ARM_SP_EL1,
-                               nullptr, nullptr };
-#endif
-        if (!panda_task_key_declare(self, &k)) {
-            return false;
-        }
+    if (task_key && LINUX_TASK_KEY.form != PANDA_TASK_KEY_NONE &&
+        !panda_task_key_declare(self, &LINUX_TASK_KEY)) {
+        return false;
     }
     for (unsigned a = 0; a < SC2_NABI; a++) {
         const LinuxAbi &L = linux_abis[a];
@@ -1720,8 +1737,13 @@ static bool engine_init(void *self, bool task_key)
         abi.nr_width = 32;          /* Linux takes the number as an int */
         abi.ret_reg = L.ret_reg;
         abi.nargs = 6;
+        while (abi.nargs && L.args[abi.nargs - 1] == 0xff) {
+            abi.nargs--;                    /* the rest are not declared */
+        }
         memcpy(abi.arg_reg, L.args, 6);
         abi.ret_skip = L.ret_skip;
+        abi.err_flag = L.err_flag;
+        memcpy(abi.arg_off, L.arg_off, 6);
         abi.err_min = -4095;
         abi.noreturn = sets[a][0];
         abi.ctx_replace = sets[a][1];
@@ -1908,7 +1930,7 @@ bool init_plugin(void *self) {
     // Linux: the engine recognizes and pairs the calls (task_key=false: pair with the call
     // key, for tests)
     const char *tk = panda_parse_string_opt(plugin_args, "task_key", "true",
-        "Linux on x86_64 and aarch64: pair returns by task key (true) or by call key (false)");
+        "Linux: pair returns by task key (true) or by call key (false)");
     bool task_key = strcmp(tk, "false") != 0 && strcmp(tk, "0") != 0;
     if (panda_os_familyno == OS_LINUX) {
         if (!engine_init(self, task_key)) {
