@@ -11,15 +11,16 @@ typedef struct syscall_ctx syscall_ctx_t;
  *     a callback wants with its context, and pairs it with its return (by task, exactly). The
  *     generated enter code stores the context in syscalls2_engine_store and sets
  *     syscalls2_engine_keep.
- *   SYSCALLS2_HOOK_RETURNS: Windows and FreeBSD guests (x86), Linux on the other targets. A hook (the hooks plugin) at the
+ *   SYSCALLS2_HOOK_RETURNS: Windows and FreeBSD guests (x86). A hook (the hooks plugin) at the
  *     return address, keyed by (return address, ASID) in running_syscalls.
  */
-#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_RISCV64) || defined(TARGET_MIPS)
+#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_RISCV64) || \
+    defined(TARGET_MIPS) || defined(TARGET_PPC)
 #define SYSCALLS2_ENGINE 1
 #else
 #define SYSCALLS2_ENGINE 0
 #endif
-/* x86 keeps the hook path for its Windows and FreeBSD profiles, the other targets for Linux */
+/* x86 keeps the hook path for its Windows and FreeBSD profiles */
 #if defined(TARGET_I386) || !SYSCALLS2_ENGINE
 #define SYSCALLS2_HOOK_RETURNS 1
 #else
