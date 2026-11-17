@@ -21,7 +21,7 @@ The trailers are part of each commit message in an `import-series.sh` tree, so
 `export-series.sh` keeps them. Add both to a new patch, and update this table when the series
 changes (the export does not rewrite this file). "Uncertain" in a note marks a judgement call.
 
-Counts: new 70, penguin 25, panda-re/qemu 6, ac88u 2.
+Counts: new 71, penguin 25, panda-re/qemu 6, ac88u 2.
 
 | # | subject | origin | license | note |
 |---|---|---|---|---|
@@ -128,3 +128,4 @@ Counts: new 70, penguin 25, panda-re/qemu 6, ac88u 2.
 | 0101 | monitor: info panda-events lists the PANDA event registry | new | GPL-2.0-or-later | the info command for the event registry (panda/src/events-hmp.c has the handler) |
 | 0102 | target: system-call pairing sites | new | GPL-2.0-or-later AND LGPL-2.1-or-later | the trap and return-to-user sites of the engine's declared-ABI system-call pairing (panda/src/syscall-pair.c) |
 | 0103 | accel/tcg, target/arm: take SVC, UNDEF and aborts to EL1 without the BQL | new | GPL-2.0-or-later AND LGPL-2.1-or-later | an optional TCGCPUOps.exception_bql_free; on Arm, SVC/UNDEF/aborts from EL0/EL1 to EL1 and the exception returns skip the BQL while every EL change hook is idle (PMU: no counter enabled; GICv3: EL0/EL1 only), so AArch64 guest system calls scale with vCPUs under MTTCG |
+| 0104 | accel/tcg: clear a lone CPU_INTERRUPT_EXITTB without the BQL | new | LGPL-2.1-or-later | cpu_handle_interrupt took the BQL only to clear the TB exit request that Arm exception entries and PowerPC rfi set, once per system call once delivery is BQL-free; cleared atomically when it is the only bit, outside record/replay |

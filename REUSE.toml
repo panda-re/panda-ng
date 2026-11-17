@@ -141,6 +141,7 @@ path = [
   "engine/patches/11.1.2/0061-accel-tcg-cpu_exec_step_atomic-runs-in-an-RCU-read-s.patch",
   "engine/patches/11.1.2/0073-physmem-size-a-resizeable-RAM-block-s-maximum-indepe.patch",
   "engine/patches/11.1.2/0078-hw-block-pflash-log-storage-writes-in-the-dirty-bitm.patch",
+  "engine/patches/11.1.2/0104-accel-tcg-clear-a-lone-CPU_INTERRUPT_EXITTB-without-.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]

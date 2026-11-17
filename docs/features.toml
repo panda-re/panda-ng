@@ -477,4 +477,4 @@ Fixes to QEMU itself that analyses depend on: a longer kernel command line on MI
 cpu_exec_step_atomic under RCU, and Arm system calls, undefined instructions and aborts taken to
 EL1 without the BQL, so that an AArch64 guest's system calls scale with vCPUs under MTTCG.
 """
-patches = ["0012", "0061", "0103"]
+patches = ["0012", "0061", "0103", "0104"]

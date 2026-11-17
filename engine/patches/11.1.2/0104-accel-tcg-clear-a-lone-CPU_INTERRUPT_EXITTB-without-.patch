@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 17 Nov 2026 14:27:38 -0500
+Subject: [PATCH] accel/tcg: clear a lone CPU_INTERRUPT_EXITTB without the BQL
+
+cpu_handle_interrupt() takes the BQL whenever interrupt_request is
+non-zero.  Exception entries and returns that change the translation
+state set only CPU_INTERRUPT_EXITTB (Arm on every exception it takes,
+PowerPC on every rfi), so once delivery itself no longer needs the BQL
+(TCGCPUOps.exception_bql_free) a system call still takes it once, here,
+just to clear that bit.
+
+When CPU_INTERRUPT_EXITTB is the only bit set, do what the locked path
+does for it without the BQL: clear it (interrupt_request is atomic) and
+forget the last TB so that it is not chained.  The locked path would
+reach no other branch: no target's cpu_exec_interrupt acts on
+CPU_INTERRUPT_EXITTB, record/replay logs nothing for it, and a bit set
+concurrently stays set, its setter's kick bringing the loop back here.
+Under record/replay the locked path is kept: in replay it consults the
+log (replay_has_interrupt()) before anything else.
+
+SPDX-License-Identifier: LGPL-2.1-or-later
+Origin: new
+---
+ accel/tcg/cpu-exec.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 62f5883a2b6828a0887d032562ecb95a53a8a293..0bb254b908d89d8e95835e6f2d1f04bd65ff7ae3 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -885,7 +885,20 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
+ #ifdef CONFIG_USER_ONLY
+     assert(!cpu_test_interrupt(cpu, ~0));
+ #else
+-    if (unlikely(cpu_test_interrupt(cpu, ~0))) {
++    if (qatomic_read(&cpu->interrupt_request) == CPU_INTERRUPT_EXITTB &&
++        replay_mode == REPLAY_MODE_NONE) {
++        /*
++         * Only a TB exit request (an exception entry or return that changed
++         * the translation state): what the locked path below does for it
++         * alone, without the BQL.  No target's cpu_exec_interrupt acts on
++         * CPU_INTERRUPT_EXITTB, interrupt_request is atomic, and a bit set
++         * concurrently stays set (the setter's kick makes the next TB exit
++         * and brings us back here).  Record/replay keeps the locked path,
++         * which consults the replay log.
++         */
++        cpu_reset_interrupt(cpu, CPU_INTERRUPT_EXITTB);
++        *last_tb = NULL;
++    } else if (unlikely(cpu_test_interrupt(cpu, ~0))) {
+         bql_lock();
+         if (cpu_test_interrupt(cpu, CPU_INTERRUPT_DEBUG)) {
+             cpu_reset_interrupt(cpu, CPU_INTERRUPT_DEBUG);
