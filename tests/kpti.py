@@ -1,34 +1,50 @@
-"""The process identifier under KPTI (x86_64), on an image built by pandare2.mkimage.
+"""The process identifier under KPTI (x86_64), on a test machine.
 
-Run: panda-python tests/kpti.py <dir>/debian-13-x86_64.json
+Run: panda-python tests/kpti.py <dir>/busybox-x86_64.json [--intel] [--isf <kernel ISF>]
+(a tests/mkbusybox.py image; the machine is tests/testmachine.py's, booted with nokaslr: built
+the first time, in seconds)
 
-The images' snapshots run on qemu64, an AMD model the kernel doesn't isolate. This boots the image
-from its disk instead (-snapshot: nothing is written back), as a GenuineIntel CPU, which
-Linux treats as Meltdown-affected: page-table isolation on, so each process has a kernel and a
-user CR3 (bit 12 apart) and the kernel switches between them on every
-entry and exit. panda_current_asid must give one identifier for both, equal to OSI's (the
-physical address of mm->pgd), and asid_changed must not fire for the switches. (QEMU's TCG
-has no PCID, so the PCID bits current_asid drops aren't exercised here.)
+With --intel the machine's CPU is GenuineIntel, which Linux treats as Meltdown-affected: page-table
+isolation on, so each process has a kernel and a user CR3 (bit 12 apart) and the kernel switches
+between them on every entry and exit. panda_current_asid must give one identifier for both, equal
+to OSI's (the physical address of mm->pgd), and asid_changed must not fire for the switches. (QEMU's
+TCG has no PCID, so the PCID bits current_asid drops aren't exercised here.) Without --intel (an
+AMD model, not isolated) the same checks run with one CR3 for both modes, as the control.
+
+OSI reads the kernel's symbols from the ISF linux_builder ships next to the kernel
+(cosi.x86_64.json.xz beside the image's -kernel), or --isf.
 """
-import json
+import argparse
 import os
 import sys
-from time import monotonic
 
-from pandare2.panda_expect import TimeoutExpired
+from testlib import Checks, progress
+from testmachine import Agent, Machine
 
-from pandare2 import Panda
+PANDA_TEST = dict(area="asid", tier="guest", fixture="busybox", arches=["x86_64"],
+                  plugins=["osi", "osi_isf", "syscalls2"], variants=dict(intel=[False, True]),
+                  timeout=600)
 
-CPU = "qemu64,vendor=GenuineIntel"   # TCG has no PCID
-panda = Panda(generic=sys.argv[1], extra_args=f"-cpu {CPU} -snapshot")
-with open(sys.argv[1]) as f:
-    image = json.load(f)
-isf = os.path.join(os.path.dirname(os.path.abspath(sys.argv[1])), image["isf"])
-PROMPT = image["prompt"]
+SYSCALLS = 20000
+MARKER = "/tmp/kpti-marker"
+
+ap = argparse.ArgumentParser()
+ap.add_argument("image")
+ap.add_argument("--intel", action="store_true")
+ap.add_argument("--isf")
+opt = ap.parse_args()
+
+m = Machine(opt.image, intel=opt.intel, append="nokaslr")   # OSI reads the ISF's addresses
+args = m.image["extra_args"]
+isf = opt.isf or os.path.join(os.path.dirname(args[args.index("-kernel") + 1]), "cosi.x86_64.json.xz")
+if not os.path.isfile(isf):
+    sys.exit(f"kpti: no kernel ISF at {isf} (linux_builder's cosi.x86_64.json.xz; or --isf)")
+panda = m.panda()
+agent = Agent(panda)
+panda.load_plugin("syscalls2", {"load-info": False})
 panda.load_plugin("osi", {"disable-autoload": "true"})
 panda.load_plugin("osi_isf", {"isf": isf})
-seen = {"changes": 0, "cr3s": set(), "user": None}
-SYSCALLS = 20000
+seen = {"changes": 0, "opens": 0, "armed": False}
 
 
 def cr3(cpu):
@@ -41,14 +57,13 @@ def asid_changed(cpu, old, new):
     return False
 
 
-@panda.ppp("syscalls2", "on_sys_openat_enter")
-def openat(cpu, pc, dfd, filename, flags, *mode):
+def opened(cpu, filename):
     # syscalls2 calls this at the system call instruction: still user mode, on the user CR3.
-    seen["openat"] = seen.get("openat", 0) + 1
-    if "user" in seen:
+    seen["opens"] += 1
+    if not seen["armed"] or "user" in seen:
         return
     try:
-        if panda.read_str(cpu, filename) != "/etc/os-release":
+        if panda.read_str(cpu, filename) != MARKER:
             return
     except ValueError:
         return
@@ -57,11 +72,22 @@ def openat(cpu, pc, dfd, filename, flags, *mode):
     panda.enable_callback("kernel_block")
 
 
+# busybox is static musl, which opens with open(2); a glibc program would use openat(2).
+@panda.ppp("syscalls2", "on_sys_open_enter")
+def sys_open(cpu, pc, filename, flags, mode):
+    opened(cpu, filename)
+
+
+@panda.ppp("syscalls2", "on_sys_openat_enter")
+def sys_openat(cpu, pc, dfd, filename, flags, mode):
+    opened(cpu, filename)
+
+
 @panda.cb_before_block_exec(enabled=False)
 def kernel_block(cpu, tb):
-    # The same system call in the kernel, past the entry code's switch to the kernel CR3. OSI reads
-    # kernel memory, which the user table doesn't map, so it is asked here.
-    if not panda.in_kernel_mode(cpu) or cr3(cpu) & 0x1000:
+    # The same system call in the kernel, past the entry code's switch to the kernel CR3 (with PTI).
+    # OSI reads kernel memory, which the user table doesn't map, so it is asked here.
+    if not panda.in_kernel_mode(cpu) or (opt.intel and cr3(cpu) & 0x1000):
         return
     proc = panda.plugins["osi"].get_current_process(cpu)
     name = panda.ffi.string(proc.name).decode() if proc != panda.ffi.NULL else None
@@ -70,36 +96,26 @@ def kernel_block(cpu, tb):
     panda.disable_callback("kernel_block")
 
 
+out = {}
+
+
 @panda.queue_blocking
 def drive():
-    console = panda.serial_console
-    console.use_unansi = False
-    # The serial console may log root in by itself (it does on debian-13): a prompt ends the wait too.
-    console.update_expectation(f"(?:login: |{PROMPT})")
-    deadline = monotonic() + 3600   # a full TCG boot
-    while True:
-        try:
-            console.expect(timeout=120)
-            break
-        except TimeoutExpired:
-            if monotonic() > deadline:
-                raise
-            console.send(b"\r")      # a getty that printed its prompt to a busy console
-    if "login" in console.last_prompt:
-        console.update_expectation(f"(?:{PROMPT}|Password: )")
-        console.sendline(b"root")
-        console.expect(timeout=300)
-    console.update_expectation(PROMPT)
-    console.sendline(b"bind 'set enable-bracketed-paste off'")
-    console.expect(timeout=120)
-    console.use_unansi = True
-    panda.run_serial_cmd("dmesg -n 1")
-    seen["meltdown"] = panda.run_serial_cmd("cat /sys/devices/system/cpu/vulnerabilities/meltdown").strip()
-    panda.run_serial_cmd("cat /etc/os-release > /dev/null")
-    # Syscalls without switches: KPTI switches CR3 twice for each.
-    seen["changes_before"] = seen["changes"]
-    panda.run_serial_cmd(f"dd if=/dev/zero of=/dev/null bs=1 count={SYSCALLS} 2>/dev/null", timeout=600)
-    seen["changes_dd"] = seen["changes"] - seen["changes_before"]
+    try:
+        m.revert(panda, agent)
+        rc, o = agent.run("cat /sys/devices/system/cpu/vulnerabilities/meltdown")
+        out["meltdown"] = o.decode().strip()
+        agent.put(MARKER, b"kpti\n", mode=0o644)
+        progress(f"cat {MARKER}")
+        seen["armed"] = True        # not the agent's own open of it, for the put
+        out["cat"] = agent.run(f"exec cat {MARKER}")
+        # System calls without process switches: with PTI, two CR3 switches each.
+        progress(f"dd: {SYSCALLS} reads and writes")
+        before = seen["changes"]
+        out["dd"] = agent.run(f"dd if=/dev/zero of=/dev/null bs=1 count={SYSCALLS} 2>&1")
+        out["changes_dd"] = seen["changes"] - before
+    except Exception as e:
+        out["error"] = repr(e)
     panda.end_analysis()
 
 
@@ -107,25 +123,32 @@ panda.run()
 
 k, u = seen.get("kernel"), seen.get("user")
 hx = lambda t: t and tuple(hex(v) if isinstance(v, int) and not isinstance(v, bool) else v for v in t)
-print(f"KPTI meltdown={seen.get('meltdown')!r} kernel(name, osi asid, current_asid, cr3, field)={hx(k)} "
-      f"user(in_kernel, current_asid, cr3, field)={hx(u)} "
-      f"asid_changed during {SYSCALLS} dd syscalls: {seen.get('changes_dd')} openat={seen.get('openat')}")
-checks = {
-    "the guest isolates page tables (PTI)": "PTI" in seen.get("meltdown", ""),
-    "user mode (the syscall instruction): CR3 is the user table (bit 12)": u is not None
-        and not u[0] and u[2] & 0x1000,
-    "kernel mode: CR3 is the same process's kernel table": k is not None and u is not None
-        and k[3] == u[2] ^ 0x1000,
-    "kernel mode: current_asid is OSI's asid (cat)": k is not None and k[0] == "cat" and k[1] == k[2],
-    "user mode: current_asid is the kernel-mode one": k is not None and u is not None and u[1] == k[2],
-    "current_asid is page aligned; current_asid_field is 0 (no PCID)": k is not None
-        and u is not None and k[2] & 0xfff == 0 and k[4] == 0 and u[3] == 0,
-    # One dd: a couple of switches to and from it, nowhere near two per syscall.
-    "asid_changed doesn't fire for KPTI's CR3 switches": seen.get("changes_dd") is not None
-        and seen["changes_dd"] < SYSCALLS // 10,
-}
-failed = False
-for name, ok in checks.items():
-    print(f"  {'PASS' if ok else 'FAIL'} {name}")
-    failed |= not ok
-sys.exit(1 if failed else 0)
+print(f"meltdown={out.get('meltdown')!r} kernel(name, osi asid, current_asid, cr3, field)={hx(k)} "
+      f"user(in_kernel, current_asid, cr3, field)={hx(u)} opens={seen['opens']} "
+      f"asid_changed during {SYSCALLS} dd syscalls: {out.get('changes_dd')}")
+C = Checks("x86_64")
+pti = opt.intel
+C.check("the guest ran the commands", "error" not in out and out.get("cat") == (0, b"kpti\n")
+        and out.get("dd", (1,))[0] == 0, out.get("error") or (out.get("cat"), out.get("dd")))
+C.check(f"the guest {'isolates' if pti else 'does not isolate'} page tables (PTI)",
+        ("PTI" in out.get("meltdown", "")) == pti, out.get("meltdown"))
+C.check("the open of the marker file was seen in user mode", u is not None and not u[0], hx(u))
+if pti:
+    C.check("user mode (the syscall instruction): CR3 is the user table (bit 12)",
+            u is not None and u[2] & 0x1000, hx(u))
+    C.check("kernel mode: CR3 is the same process's kernel table",
+            k is not None and u is not None and k[3] == u[2] ^ 0x1000, (hx(k), hx(u)))
+else:
+    C.check("kernel mode: CR3 is the user mode one",
+            k is not None and u is not None and k[3] == u[2], (hx(k), hx(u)))
+C.check("kernel mode: current_asid is OSI's asid (cat)",
+        k is not None and k[0] == "cat" and k[1] == k[2], hx(k))
+C.check("user mode: current_asid is the kernel-mode one",
+        k is not None and u is not None and u[1] == k[2], (hx(k), hx(u)))
+C.check("current_asid is page aligned; current_asid_field is 0 (no PCID)",
+        k is not None and u is not None and k[2] & 0xfff == 0 and k[4] == 0 and u[3] == 0,
+        (hx(k), hx(u)))
+# One dd: a couple of switches to and from it, nowhere near two per syscall.
+C.check("asid_changed doesn't fire for KPTI's CR3 switches",
+        out.get("changes_dd") is not None and out["changes_dd"] < SYSCALLS // 10, out.get("changes_dd"))
+sys.exit(C.report(f"kpti x86_64{' intel' if pti else ''}"))
