@@ -1,0 +1,138 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 17 Nov 2026 14:31:10 -0500
+Subject: [PATCH] target/riscv: take ECALL from U-mode and page faults to
+ S-mode without the BQL
+
+cpu_handle_exception() holds the BQL around every do_interrupt unless the
+target's TCGCPUOps.exception_bql_free says otherwise.  A RISC-V guest's
+system call is an ECALL, delivered as RISCV_EXCP_U_ECALL through that path,
+so every system call (and every page fault) takes the BQL once under
+MTTCG.  For a getppid/close storm on a Linux 6.13 guest the lock is not yet
+the limit (it runs 3.2 times faster at -smp 4 than at -smp 1), but it is
+taken for nothing: delivering the trap touches no shared state.
+
+Implement exception_bql_free for RISC-V: true for an ECALL from U-mode, an
+illegal instruction and an instruction, load or store page fault taken
+from U- or S-mode to S-mode (delegated in medeleg) with virtualization off.
+Taking one writes only the hart's own state (mstatus, scause, sepc, stval,
+htval, htinst, hstatus, pc, elp, the CTR buffer; priv, xl, load_res and
+the fixed PMU counter snapshots in riscv_cpu_set_mode()), the same state
+helper_sret writes without the BQL on the way back.  V does not change, so
+riscv_cpu_set_mode() neither flushes the TLB nor calls
+riscv_cpu_update_mip().
+
+Interrupts and RNMIs, semihosting, breakpoints, ECALLs from S- or M-mode
+(SBI calls), traps to M-mode or with V=1, causes whose bit is set in
+mvien or hvien, as raised or as promoted to a store fault (for those
+do_interrupt reads mip), and S-mode traps with Ssdbltrp keep the BQL.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ target/riscv/cpu.h            |  1 +
+ target/riscv/tcg/cpu_helper.c | 66 +++++++++++++++++++++++++++++++++++
+ target/riscv/tcg/tcg-cpu.c    |  1 +
+ 3 files changed, 68 insertions(+)
+
+diff --git a/target/riscv/cpu.h b/target/riscv/cpu.h
+index e980b5964dd6ec2aafef4df60c452e1c34e48de6..b0ca198e6950fb02c55deb86086aacc44bd8402f 100644
+--- a/target/riscv/cpu.h
++++ b/target/riscv/cpu.h
+@@ -668,6 +668,7 @@ bool riscv_cpu_option_set(RISCVCPU *cpu, const char *optname);
+ 
+ #ifndef CONFIG_USER_ONLY
+ void riscv_cpu_do_interrupt(CPUState *cpu);
++bool riscv_cpu_exception_bql_free(CPUState *cpu);
+ void riscv_isa_write_fdt(RISCVCPU *cpu, void *fdt, char *nodename);
+ void riscv_cpu_do_transaction_failed(CPUState *cs, hwaddr physaddr,
+                                      vaddr addr, unsigned size,
+diff --git a/target/riscv/tcg/cpu_helper.c b/target/riscv/tcg/cpu_helper.c
+index 12e7761d80ebc6d1abd16e47590579a56bf3d93c..0f8d19edd692e5fba9abeb1a2a9746c3c1a74531 100644
+--- a/target/riscv/tcg/cpu_helper.c
++++ b/target/riscv/tcg/cpu_helper.c
+@@ -2048,6 +2048,72 @@ static void riscv_do_nmi(CPURISCVState *env, target_ulong cause, bool virt)
+     riscv_cpu_set_mode(env, PRV_M, false);
+ }
+ 
++/*
++ * May riscv_cpu_do_interrupt() take cs->exception_index without the BQL?
++ *
++ * Yes for an ECALL from U-mode, an illegal instruction and an instruction,
++ * load or store page fault, taken from U- or S-mode to S-mode with
++ * virtualization off (V=0 before and after): the system calls and faults of
++ * an ordinary guest kernel.  Taking one writes only this hart's own state:
++ * mstatus (SPIE/SIE/SPP/SDT/SPELP), scause, sepc, stval, htval, htinst,
++ * hstatus (SPV/GVA), pc, elp, the two-stage lookup flags, the CTR buffer
++ * (Smctr/Ssctr) and, through riscv_cpu_set_mode(), priv, xl, load_res and the
++ * fixed PMU counters' per-mode snapshots.  helper_sret, which runs without
++ * the BQL, writes the same state on the way back.  With V unchanged,
++ * riscv_cpu_set_mode() neither flushes the TLB nor calls
++ * riscv_cpu_update_mip().
++ *
++ * Everything else keeps the BQL: interrupts and RNMIs, semihosting,
++ * breakpoints, ECALL from S- or M-mode (SBI calls into M-mode firmware),
++ * traps taken to M-mode or with V=1, and any cause whose bit is set in mvien
++ * or hvien (for those riscv_cpu_do_interrupt() reads mip, which devices
++ * update under the BQL).  The test mirrors riscv_cpu_do_interrupt()'s choice
++ * of target mode; when they could disagree (an S-mode double trap with
++ * Ssdbltrp) the BQL is kept.
++ */
++bool riscv_cpu_exception_bql_free(CPUState *cs)
++{
++    RISCVCPU *cpu = RISCV_CPU(cs);
++    CPURISCVState *env = &cpu->env;
++    target_ulong cause = cs->exception_index;
++
++    switch (cs->exception_index) {
++    case RISCV_EXCP_U_ECALL:
++        if (env->priv != PRV_U) {
++            return false;
++        }
++        break;
++    case RISCV_EXCP_LOAD_PAGE_FAULT:
++        if (env->excp_uw2 & RISCV_UW2_ALWAYS_STORE_AMO) {
++            cause = RISCV_EXCP_STORE_PAGE_FAULT;
++        }
++        break;
++    case RISCV_EXCP_ILLEGAL_INST:
++    case RISCV_EXCP_INST_PAGE_FAULT:
++    case RISCV_EXCP_STORE_PAGE_FAULT:
++        break;
++    default:
++        return false;
++    }
++    if (env->priv > PRV_S || env->virt_enabled) {
++        return false;
++    }
++    /*
++     * riscv_cpu_do_interrupt() tests delegation with the promoted cause but
++     * computes its injected-interrupt flags (which read mip) with the cause
++     * as raised: refuse both bits.
++     */
++    if (!((env->medeleg >> cause) & 1) ||
++        ((env->mvien | env->hvien) &
++         ((1ULL << cause) | (1ULL << cs->exception_index)))) {
++        return false;
++    }
++    if (cpu->cfg.ext_ssdbltrp && env->priv == PRV_S) {
++        return false;
++    }
++    return true;
++}
++
+ /*
+  * Handle Traps
+  *
+diff --git a/target/riscv/tcg/tcg-cpu.c b/target/riscv/tcg/tcg-cpu.c
+index 42704f011386e804aa80c023ff3e4ecdde2248e0..31e4d399e33a561b1f98b3dce32e546057af6527 100644
+--- a/target/riscv/tcg/tcg-cpu.c
++++ b/target/riscv/tcg/tcg-cpu.c
+@@ -326,6 +326,7 @@ const TCGCPUOps riscv_tcg_ops = {
+     .cpu_exec_halt = riscv_cpu_has_work,
+     .cpu_exec_reset = cpu_reset,
+     .do_interrupt = riscv_cpu_do_interrupt,
++    .exception_bql_free = riscv_cpu_exception_bql_free,
+     .do_transaction_failed = riscv_cpu_do_transaction_failed,
+     .do_unaligned_access = riscv_cpu_do_unaligned_access,
+     .debug_excp_handler = riscv_cpu_debug_excp_handler,

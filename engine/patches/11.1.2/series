@@ -104,3 +104,4 @@
 11.1.2/0104-accel-tcg-clear-a-lone-CPU_INTERRUPT_EXITTB-without-.patch
 11.1.2/0105-target-ppc-take-system-calls-from-problem-state-with.patch
 11.1.2/0106-target-mips-update-CP0-Cause-atomically.patch
+11.1.2/0107-target-riscv-take-ECALL-from-U-mode-and-page-faults-.patch
