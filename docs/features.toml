@@ -476,6 +476,6 @@ summary = """
 Fixes to QEMU itself that analyses depend on: a longer kernel command line on MIPS Malta,
 cpu_exec_step_atomic under RCU, atomic updates of MIPS CP0 Cause, and system calls (and, where
 they touch only the vCPU's own state, other synchronous exceptions) taken without the BQL on
-Arm, PowerPC and RISC-V, so that guests' system calls scale with vCPUs under MTTCG.
+Arm, PowerPC, RISC-V and LoongArch, so that guests' system calls scale with vCPUs under MTTCG.
 """
-patches = ["0012", "0061", "0103", "0104", "0105", "0106", "0107"]
+patches = ["0012", "0061", "0103", "0104", "0105", "0106", "0107", "0108"]

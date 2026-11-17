@@ -462,8 +462,8 @@ A Python wheel with the engine and plugins bundled, a Debian package, and the ni
 Fixes to QEMU itself that analyses depend on: a longer kernel command line on MIPS Malta,
 cpu_exec_step_atomic under RCU, atomic updates of MIPS CP0 Cause, and system calls (and, where
 they touch only the vCPU's own state, other synchronous exceptions) taken without the BQL on
-Arm, PowerPC and RISC-V, so that guests' system calls scale with vCPUs under MTTCG.
+Arm, PowerPC, RISC-V and LoongArch, so that guests' system calls scale with vCPUs under MTTCG.
 
 **Tests:** none yet.
 
-**Engine patches:** 0012, 0061, 0103-0107 ([series](reference/patches.md))
+**Engine patches:** 0012, 0061, 0103-0108 ([series](reference/patches.md))

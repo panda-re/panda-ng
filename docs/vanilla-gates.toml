@@ -1511,6 +1511,20 @@ current_gate = "Always on under TCG: RISC-V ECALL from U-mode, illegal instructi
 required_action = "Explicit vanilla must take the BQL around every do_interrupt as upstream does (riscv exception_bql_free unset)."
 vanilla_verified = false
 
+[[patch]]
+id = "0108"
+file = "engine/patches/11.1.2/0108-target-loongarch-take-SYSCALL-and-page-faults-withou.patch"
+sha256 = "822097eae24073f24a767264d77c2f1ae3435b1f1d9b20db9e473dd9cc0a5c77"
+class = "upstream-fix-needs-off-path"
+capability = "tcg-exception-locking"
+paths = ["target/loongarch/tcg/tcg_cpu.c"]
+functions = ["loongarch_cpu_exception_bql_free", "loongarch_tcg_ops"]
+hunk_contexts = ["static void loongarch_cpu_do_interrupt(CPUState *cs)", "const TCGCPUOps loongarch_tcg_ops = {"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Always on under TCG: LoongArch SYSCALL, page faults, INE/IPE, FP/LSX/LASX-disabled and FPE skip the BQL in cpu_handle_exception. Interrupts and the other exceptions are unchanged. No guest-visible state differs; lock acquisition does."
+required_action = "Explicit vanilla must take the BQL around every do_interrupt as upstream does (loongarch exception_bql_free unset)."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
