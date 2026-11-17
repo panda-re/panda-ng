@@ -1689,6 +1689,12 @@ static const LinuxAbi linux_abis[SC2_NABI] = {
     { PANDA_SYSCALL_FORM_A32_SVC, PROFILE_LINUX_ARM, 7, 0, { 0, 1, 2, 3, 4, 5 }, 0,
       { 1, 248, 119, 173 }, { 11, 387 }, { 2, 120, 190, 435 } },
 };
+#elif defined(TARGET_ARM)
+/* An AArch32 kernel (EABI) */
+static const LinuxAbi linux_abis[SC2_NABI] = {
+    { PANDA_SYSCALL_FORM_A32_SVC, PROFILE_LINUX_ARM, 7, 0, { 0, 1, 2, 3, 4, 5 }, 0,
+      { 1, 248, 119, 173 }, { 11, 387 }, { 2, 120, 190, 435 } },
+};
 #elif defined(TARGET_RISCV64)
 static const LinuxAbi linux_abis[SC2_NABI] = {
     { PANDA_SYSCALL_FORM_RISCV_ECALL, PROFILE_LINUX_RISCV64, 17, 10, { 10, 11, 12, 13, 14, 15 },
@@ -1703,6 +1709,8 @@ static const PandaTaskKeyDecl LINUX_TASK_KEY = {
     PANDA_TASK_KEY_WORD, PANDA_TASK_REG_X86_KERNEL_GS_BASE, x86_task_word, nullptr,
 #elif defined(TARGET_AARCH64)
     PANDA_TASK_KEY_REG, PANDA_TASK_REG_ARM_SP_EL1, nullptr, nullptr,
+#elif defined(TARGET_ARM)
+    PANDA_TASK_KEY_REG, PANDA_TASK_REG_ARM_SP_SVC, nullptr, nullptr,       /* SP_svc */
 #elif defined(TARGET_RISCV64)
     PANDA_TASK_KEY_REG, PANDA_TASK_REG_RISCV_SSCRATCH, nullptr, nullptr,   /* current */
 #else
