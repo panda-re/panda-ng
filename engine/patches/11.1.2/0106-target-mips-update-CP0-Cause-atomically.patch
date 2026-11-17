@@ -1,0 +1,186 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 17 Nov 2026 14:29:59 -0500
+Subject: [PATCH] target/mips: update CP0 Cause atomically
+
+CP0 Cause is one word written from two sides.  cpu_mips_irq_request()
+(hw/mips/mips_int.c) sets and clears the IP2-IP7 interrupt lines under
+the BQL, from device threads and the main loop's timers.  The vCPU
+writes its own bits of the same word without the BQL: mtc0 Cause
+(cpu_mips_store_cause), mtc0 Compare clearing TI
+(cpu_mips_store_compare), and a timer expiry noticed by mfc0 Count
+setting TI (cpu_mips_timer_expire).  Under MTTCG these are plain
+read-modify-writes racing with each other, so a device's interrupt line
+change can be lost (an interrupt that is never taken, e.g. a timer tick
+that stalls the guest until Count wraps) or the vCPU's update undone.
+
+Make every update of Cause an atomic read-modify-write of the bits it
+owns: qatomic_or/qatomic_and for the IP and TI bits, and a
+compare-and-swap loop (mips_cause_update) for the multi-bit fields
+written by mtc0 Cause and by exception entry (BD, CE, ExcCode).
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
+Origin: new
+---
+ hw/mips/mips_int.c                  |  7 ++++---
+ target/mips/internal.h              | 21 +++++++++++++++++++++
+ target/mips/system/cp0.c            |  4 ++--
+ target/mips/system/cp0_timer.c      |  4 ++--
+ target/mips/tcg/system/tlb_helper.c | 18 +++++++-----------
+ 5 files changed, 36 insertions(+), 18 deletions(-)
+
+diff --git a/hw/mips/mips_int.c b/hw/mips/mips_int.c
+index 26e7dd6d5f54077aa2b88fba215491bfc64b7737..c61bf79ad67bfaa6d4ae10c47518e49b3ae22f32 100644
+--- a/hw/mips/mips_int.c
++++ b/hw/mips/mips_int.c
+@@ -37,13 +37,14 @@ static void cpu_mips_irq_request(void *opaque, int irq, int level)
+ 
+     BQL_LOCK_GUARD();
+ 
++    /* atomic: a vCPU may update its own bits of Cause without the BQL */
+     if (level) {
+-        env->CP0_Cause |= 1 << (irq + CP0Ca_IP);
++        qatomic_or(&env->CP0_Cause, 1 << (irq + CP0Ca_IP));
+     } else {
+-        env->CP0_Cause &= ~(1 << (irq + CP0Ca_IP));
++        qatomic_and(&env->CP0_Cause, ~(1 << (irq + CP0Ca_IP)));
+     }
+ 
+-    if (env->CP0_Cause & CP0Ca_IP_mask) {
++    if (qatomic_read(&env->CP0_Cause) & CP0Ca_IP_mask) {
+         cpu_interrupt(cs, CPU_INTERRUPT_HARD);
+     } else {
+         cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);
+diff --git a/target/mips/internal.h b/target/mips/internal.h
+index c5c286872ebd16d0c74036e478bc6a5f4f9ced44..febfb6aa636c86fbc5ac8542cf5331bd4f266e1b 100644
+--- a/target/mips/internal.h
++++ b/target/mips/internal.h
+@@ -163,6 +163,27 @@ void sync_c0_status(CPUMIPSState *env, CPUMIPSState *cpu, int tc);
+ void cpu_mips_store_status(CPUMIPSState *env, target_ulong val);
+ void cpu_mips_store_cause(CPUMIPSState *env, target_ulong val);
+ 
++/*
++ * CP0 Cause holds this vCPU's exception state (BD, CE, ExcCode, the software
++ * interrupt bits, DC) and the interrupt lines that devices and the CP0 timer
++ * drive (IP2-7, TI).  The lines are updated under the BQL from other threads
++ * while the vCPU updates its own bits without it (mtc0 Cause and Compare, a
++ * timer expiry seen by mfc0 Count), so every update is an atomic
++ * read-modify-write of the bits it owns: neither side loses the other's.
++ */
++static inline uint32_t mips_cause_update(CPUMIPSState *env, uint32_t mask,
++                                         uint32_t val)
++{
++    int32_t old = qatomic_read(&env->CP0_Cause), seen;
++
++    while ((seen = qatomic_cmpxchg(&env->CP0_Cause, old,
++                                   (int32_t)((old & ~mask) | (val & mask))))
++           != old) {
++        old = seen;
++    }
++    return old;
++}
++
+ extern const VMStateDescription vmstate_mips_cpu;
+ 
+ static inline bool cpu_mips_hw_interrupts_enabled(CPUMIPSState *env)
+diff --git a/target/mips/system/cp0.c b/target/mips/system/cp0.c
+index ff7d3db00c73ae3227a38b7526255d0968023b8e..c668b1f462d9d3221e173e615188053f9ac25b9d 100644
+--- a/target/mips/system/cp0.c
++++ b/target/mips/system/cp0.c
+@@ -94,7 +94,7 @@ void cpu_mips_store_status(CPUMIPSState *env, target_ulong val)
+ void cpu_mips_store_cause(CPUMIPSState *env, target_ulong val)
+ {
+     uint32_t mask = 0x00C00300;
+-    uint32_t old = env->CP0_Cause;
++    uint32_t old;
+     int i;
+ 
+     if (env->insn_flags & ISA_MIPS_R2) {
+@@ -104,7 +104,7 @@ void cpu_mips_store_cause(CPUMIPSState *env, target_ulong val)
+         mask &= ~((1 << CP0Ca_WP) & val);
+     }
+ 
+-    env->CP0_Cause = (env->CP0_Cause & ~mask) | (val & mask);
++    old = mips_cause_update(env, mask, val);
+ 
+     if ((old ^ env->CP0_Cause) & (1 << CP0Ca_DC)) {
+         if (env->CP0_Cause & (1 << CP0Ca_DC)) {
+diff --git a/target/mips/system/cp0_timer.c b/target/mips/system/cp0_timer.c
+index 6aed5d3af24355559237e34813ac4593b16d21da..f5b09769dbfdb264f30293ae1fca473113ee7779 100644
+--- a/target/mips/system/cp0_timer.c
++++ b/target/mips/system/cp0_timer.c
+@@ -56,7 +56,7 @@ static void cpu_mips_timer_expire(CPUMIPSState *env)
+ {
+     cpu_mips_timer_update(env);
+     if (env->insn_flags & ISA_MIPS_R2) {
+-        env->CP0_Cause |= 1 << CP0Ca_TI;
++        qatomic_or(&env->CP0_Cause, 1 << CP0Ca_TI);
+     }
+     qemu_irq_raise(env->irq[(env->CP0_IntCtl >> CP0IntCtl_IPTI) & 0x7]);
+ }
+@@ -104,7 +104,7 @@ void cpu_mips_store_compare(CPUMIPSState *env, uint32_t value)
+         cpu_mips_timer_update(env);
+     }
+     if (env->insn_flags & ISA_MIPS_R2) {
+-        env->CP0_Cause &= ~(1 << CP0Ca_TI);
++        qatomic_and(&env->CP0_Cause, ~(1 << CP0Ca_TI));
+     }
+     qemu_irq_lower(env->irq[(env->CP0_IntCtl >> CP0IntCtl_IPTI) & 0x7]);
+ }
+diff --git a/target/mips/tcg/system/tlb_helper.c b/target/mips/tcg/system/tlb_helper.c
+index 4398c6f80b45712ba2771b4bf77a0d422dba5306..b6915e60db4de697607b8ee111a711a1317f4b3d 100644
+--- a/target/mips/tcg/system/tlb_helper.c
++++ b/target/mips/tcg/system/tlb_helper.c
+@@ -1106,7 +1106,7 @@ void mips_cpu_do_interrupt(CPUState *cs)
+         env->hflags &= ~(MIPS_HFLAG_KSU);
+         /* EJTAG probe trap enable is not implemented... */
+         if (!(env->CP0_Status & (1 << CP0St_EXL))) {
+-            env->CP0_Cause &= ~(1U << CP0Ca_BD);
++            mips_cause_update(env, 1U << CP0Ca_BD, 0);
+         }
+         env->active_tc.PC = env->exception_base + 0x480;
+         set_hflags_for_handler(env);
+@@ -1134,7 +1134,7 @@ void mips_cpu_do_interrupt(CPUState *cs)
+         env->hflags |= MIPS_HFLAG_CP0;
+         env->hflags &= ~(MIPS_HFLAG_KSU);
+         if (!(env->CP0_Status & (1 << CP0St_EXL))) {
+-            env->CP0_Cause &= ~(1U << CP0Ca_BD);
++            mips_cause_update(env, 1U << CP0Ca_BD, 0);
+         }
+         env->active_tc.PC = env->exception_base;
+         set_hflags_for_handler(env);
+@@ -1246,8 +1246,7 @@ void mips_cpu_do_interrupt(CPUState *cs)
+     case EXCP_CpU:
+         cause = 11;
+         update_badinstr = 1;
+-        env->CP0_Cause = (env->CP0_Cause & ~(0x3 << CP0Ca_CE)) |
+-                         (env->error_code << CP0Ca_CE);
++        mips_cause_update(env, 0x3 << CP0Ca_CE, env->error_code << CP0Ca_CE);
+         goto set_EPC;
+     case EXCP_OVERFLOW:
+         cause = 12;
+@@ -1304,11 +1303,9 @@ void mips_cpu_do_interrupt(CPUState *cs)
+             if (update_badinstr) {
+                 set_badinstr_registers(env);
+             }
+-            if (env->hflags & MIPS_HFLAG_BMASK) {
+-                env->CP0_Cause |= (1U << CP0Ca_BD);
+-            } else {
+-                env->CP0_Cause &= ~(1U << CP0Ca_BD);
+-            }
++            mips_cause_update(env, 1U << CP0Ca_BD,
++                              env->hflags & MIPS_HFLAG_BMASK ?
++                              1U << CP0Ca_BD : 0);
+             env->CP0_Status |= (1 << CP0St_EXL);
+             if (env->insn_flags & ISA_MIPS3) {
+                 env->hflags |= MIPS_HFLAG_64;
+@@ -1333,8 +1330,7 @@ void mips_cpu_do_interrupt(CPUState *cs)
+ 
+         env->active_tc.PC += offset;
+         set_hflags_for_handler(env);
+-        env->CP0_Cause = (env->CP0_Cause & ~(0x1f << CP0Ca_EC)) |
+-                         (cause << CP0Ca_EC);
++        mips_cause_update(env, 0x1f << CP0Ca_EC, cause << CP0Ca_EC);
+         break;
+     default:
+         abort();
