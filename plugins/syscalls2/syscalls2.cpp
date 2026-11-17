@@ -1521,6 +1521,8 @@ static bool engine_mode;
 #define SC2_NB 1024                         /* numbers 0-1023 apart; the rest share one */
 #if defined(TARGET_X86_64)
 #define SC2_NABI 4                          /* x86_64, i386: int 0x80, sysenter, compat syscall */
+#elif defined(TARGET_I386)
+#define SC2_NABI 2                          /* int 0x80, sysenter */
 #elif defined(TARGET_AARCH64)
 #define SC2_NABI 2                          /* AArch64, AArch32 */
 #else
@@ -1682,6 +1684,15 @@ static const LinuxAbi linux_abis[SC2_NABI] = {
     { PANDA_SYSCALL_FORM_X86_SYSCALL32, PROFILE_LINUX_X86, 0, 0,
       { 3, 5, 2, 6, 7, PANDA_SYSCALL_ARG_MEM(4) }, 2, SC2_I386_EXITS },
 };
+#elif defined(TARGET_I386)
+/* A 32-bit kernel: int 0x80, and the vDSO's sysenter (as on x86_64 above) */
+#define SC2_I386_EXITS { 1, 252, 119, 173 }, { 11, 358 }, { 2, 120, 190, 435 }
+static const LinuxAbi linux_abis[SC2_NABI] = {
+    { PANDA_SYSCALL_FORM_X86_INT80, PROFILE_LINUX_X86_INT80, 0, 0, { 3, 1, 2, 6, 7, 5 }, 0,
+      SC2_I386_EXITS },
+    { PANDA_SYSCALL_FORM_X86_SYSENTER, PROFILE_LINUX_X86, 0, 0,
+      { 3, 1, 2, 6, 7, PANDA_SYSCALL_ARG_MEM(5) }, 2, SC2_I386_EXITS },
+};
 #elif defined(TARGET_AARCH64)
 static const LinuxAbi linux_abis[SC2_NABI] = {
     { PANDA_SYSCALL_FORM_A64_SVC, PROFILE_LINUX_AARCH64, 8, 0, { 0, 1, 2, 3, 4, 5 }, 0,
@@ -1702,11 +1713,34 @@ static const LinuxAbi linux_abis[SC2_NABI] = {
 };
 #endif
 
+#if defined(TARGET_I386) && !defined(TARGET_X86_64)
+/*
+ * Linux i386's task key: the TSS's word that holds the running task's kernel stack top, at TR's
+ * base. Since 4.19 that is sp1 (+12): sp0 is the CPU's entry stack, next to the TSS in its
+ * cpu_entry_area; before, sp0 (+4). The TSS is mapped in every page table (the entry needs it
+ * under PTI too), so the current one translates it.
+ */
+static uint64_t i386_tss_word(void *opaque, CPUState *cpu, uint64_t base)
+{
+    uint32_t sp0 = 0, d;
+    hwaddr pa;
+
+    if (!base || panda_virtual_memory_read(cpu, base + 4, (uint8_t *)&sp0, 4) != 0) {
+        return 0;
+    }
+    d = sp0 > base ? sp0 - (uint32_t)base : (uint32_t)base - sp0;
+    pa = panda_virt_to_phys(cpu, base + (d < 0x10000 ? 12 : 4));
+    return pa == (hwaddr)-1 ? 0 : pa;
+}
+#endif
+
 /* Linux's task key, per target (docs/design/syscall-pairing.md) */
 static const PandaTaskKeyDecl LINUX_TASK_KEY = {
     sizeof(PandaTaskKeyDecl),
 #if defined(TARGET_X86_64)
     PANDA_TASK_KEY_WORD, PANDA_TASK_REG_X86_KERNEL_GS_BASE, x86_task_word, nullptr,
+#elif defined(TARGET_I386)
+    PANDA_TASK_KEY_WORD, PANDA_TASK_REG_X86_TR_BASE, i386_tss_word, nullptr,
 #elif defined(TARGET_AARCH64)
     PANDA_TASK_KEY_REG, PANDA_TASK_REG_ARM_SP_EL1, nullptr, nullptr,
 #elif defined(TARGET_ARM)
