@@ -4,7 +4,7 @@ Date: Fri, 30 Oct 2026 18:31:52 -0400
 Subject: [PATCH] tcg: taint shadow pass hooks
 
 The engine side of the taint capability (exec/taint.h, accel/tcg/taint.c
-in the overlay). With ANALYSIS_CAP_TAINT provisioned:
+in the overlay). With the taint startup capability (STARTUP_CAP_TAINT):
 
 - translator_loop runs taint_gen_tb() on a TB whose cflags carry the new
   CF_TAINT bit, after plugin injection and before optimization; a second
@@ -41,8 +41,8 @@ in the overlay). With ANALYSIS_CAP_TAINT provisioned:
   of TCG_MAX_TEMPS for a single instruction (an assertion in tb_gen_code).
   Without taint no built target has indirect globals, so this pass does
   not run there;
-- -analysis-capabilities accepts "taint", and configure_accelerators
-  refuses it without TCG (as it refuses -icount).
+- configure_accelerators refuses -capabilities taint without TCG (as it
+  refuses -icount).
 
 Every hook is behind taint_active (false unless taint is enabled in a
 replay) or the capability, so an engine without taint pays one predicted
@@ -59,7 +59,7 @@ Origin: new
  include/exec/translation-block.h |   2 +
  include/hw/core/cpu.h            |   2 +
  system/physmem.c                 |   5 ++
- system/vl.c                      |   6 ++
+ system/vl.c                      |   5 ++
  target/arm/helper.c              |  18 ++---
  target/arm/internals.h           |  27 +++++--
  target/arm/tcg/helper-a64.c      |  29 ++++++++
@@ -70,7 +70,7 @@ Origin: new
  target/mips/tcg/translate.c      |   3 +
  target/riscv/tcg/op_helper.c     |   4 ++
  tcg/tcg.c                        |  23 +++++-
- 18 files changed, 271 insertions(+), 76 deletions(-)
+ 18 files changed, 270 insertions(+), 76 deletions(-)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
 index 71750d8e6fefe0ed3335c251df655dd364705c95..9130f046cc2ea90aee795a57a0c9cd98aca0fe36 100644
@@ -277,34 +277,26 @@ index 6b5480f0bbf912af949eaa12003df8860ec83285..6b79a710ed56393bf10fa73bc557b36b
      /* No early return if dirty_log_mask is or becomes 0, because
       * physical_memory_set_dirty_range will still call
 diff --git a/system/vl.c b/system/vl.c
-index a86f3b2a1680c7a5300ec2eba26a6e54a03bf193..cc031bca8d812ca2538d862504d7a313a36756ac 100644
+index 6d941b96e3164abf901d98c4ef357b0462a7f29f..c782bc1ab4a171ac5e5abba0f6e73296f14feafa 100644
 --- a/system/vl.c
 +++ b/system/vl.c
-@@ -2576,6 +2576,10 @@ static void configure_accelerators(const char *progname)
+@@ -2577,6 +2577,11 @@ static void configure_accelerators(const char *progname)
          error_report("-icount is not allowed with hardware virtualization");
          exit(1);
      }
-+    if (analysis_policy_has(ANALYSIS_CAP_TAINT) && !tcg_enabled()) {
-+        error_report("the taint capability needs TCG (-accel tcg)");
++    if (startup_caps_has(STARTUP_CAP_TAINT) && !tcg_enabled()) {
++        error_report("-capabilities taint: taint needs TCG, and this run uses %s",
++                     current_accel_name());
 +        exit(1);
 +    }
  }
  
  static void qemu_validate_options(const QDict *machine_opts)
-@@ -2808,6 +2812,8 @@ static bool parse_analysis_capabilities(const char *value, uint32_t *result,
-             requested |= ANALYSIS_CAP_GUEST_HYPERCALL;
-         } else if (!strcmp(*name, "handoff")) {
-             requested |= ANALYSIS_CAP_HANDOFF;
-+        } else if (!strcmp(*name, "taint")) {
-+            requested |= ANALYSIS_CAP_TAINT;
-         } else {
-             error_setg(errp, "unknown analysis capability '%s'", *name);
-             return false;
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index a7fe7534b3cc9c14138d5cc850b151dd039b517a..15858f03a0814e62d96794f727367f673556457a 100644
+index 73285ca2fbe943bd6441541b3e96f32b2691822b..79bd1c5f2af83f17434d2708039ca4881960b5a2 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
-@@ -8476,23 +8476,25 @@ static void switch_mode(CPUARMState *env, int mode)
+@@ -8474,23 +8474,25 @@ static void switch_mode(CPUARMState *env, int mode)
      }
  
      if (old_mode == ARM_CPU_MODE_FIQ) {
@@ -577,10 +569,10 @@ index 34997eb4e4d050b04b413bbef5bb635c4f6b8ea4..dd363b2fcd2bdae1c67cf2d11907a810
  {
      if ((env->uncached_cpsr & CPSR_M) == mode) {
 diff --git a/target/arm/tcg/translate.c b/target/arm/tcg/translate.c
-index 4e04d65900d4b74bd48e3673dfa282ecb4715af4..adf4cd2324dbfed7bc195f8db508b51579f7b58e 100644
+index 3438a0c9a6f94ab0ec768a3257eff26adbefa6be..2f933893f766d4c1dc8e97219470f62ad5fedf59 100644
 --- a/target/arm/tcg/translate.c
 +++ b/target/arm/tcg/translate.c
-@@ -91,6 +91,9 @@ void arm_translate_init(void)
+@@ -79,6 +79,9 @@ void arm_translate_init(void)
          offsetof(CPUARMState, exclusive_val), "exclusive_val");
  
      a64_translate_init();
@@ -827,10 +819,10 @@ index 950e6afc3f2709ec49c0865b66c6f07ab6d355dd..80bb5364e8666f1331e62a16170c5ec0
                           int *max_insns, vaddr pc, void *host_pc);
  
 diff --git a/target/mips/tcg/translate.c b/target/mips/tcg/translate.c
-index 6a544a9e0e5422a02cf451d20c3f8138b14d6c29..5fedfe3cdb4f62db60bbe0fd5349f3fd519d5c4f 100644
+index f7d41dc317b44f2ce7a7f262894e9b4ef0bd59f0..0d09236de483b7cba861af5eedc26b43e5f9cf84 100644
 --- a/target/mips/tcg/translate.c
 +++ b/target/mips/tcg/translate.c
-@@ -15386,6 +15386,9 @@ void mips_tcg_init(void)
+@@ -15373,6 +15373,9 @@ void mips_tcg_init(void)
      if (TARGET_LONG_BITS == 32) {
          mxu_translate_init();
      }

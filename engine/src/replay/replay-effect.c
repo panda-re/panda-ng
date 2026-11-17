@@ -9,7 +9,7 @@
 #include "system/memory.h"
 #include "system/replay.h"
 #include "system/replay-effect.h"
-#include "system/analysis-policy.h"
+#include "system/capabilities.h"
 #include "system/hw_accel.h"
 #include "system/syscall-trap.h"
 #include "exec/cputlb.h"
@@ -100,7 +100,7 @@ static bool effect_admissible(void)
     if (!qemu_in_main_thread() || current_cpu || !bql_locked() ||
         !replay_mutex_locked() || replay_mode != REPLAY_MODE_RECORD ||
         !replay_events_enabled() || !replay_file ||
-        !analysis_policy_has(ANALYSIS_CAP_RR) ||
+        !startup_caps_has(STARTUP_CAP_RECORD) ||
         ram_effect_pending >= REPLAY_RAM_EFFECT_PENDING_MAX) {
         return false;
     }
@@ -182,8 +182,8 @@ void replay_analysis_effect_save(void *opaque)
 
 void *replay_analysis_effect_load(void)
 {
-    if (!analysis_policy_has(ANALYSIS_CAP_RR)) {
-        replay_sync_error("analysis RAM effect requires RR capability");
+    if (replay_mode != REPLAY_MODE_PLAY) {
+        replay_sync_error("analysis RAM effect outside a replay");
     }
     uint8_t version = replay_get_byte();
     uint8_t opcode = replay_get_byte();

@@ -12,7 +12,8 @@ Run: panda-python tests/construct.py [case...]      (default: every case)
 - generic: the image is the base and keywords override it; another arch raises ValueError. It
   can be YAML (extra_args as a list here) or a dict, and its isf and kconf_file are kept;
 - accel: "tcg" by default, "kvm" checked at construction (host arch, /dev/kvm; the cases expect
-  what this host can do), conflicts with -accel in extra_args and with rr=True raise, and the old
+  what this host can do), conflicts with -accel in extra_args and with capabilities=["record"]
+  raise, and the old
   extra_args=["-accel", "kvm"] maps to accel="kvm" with a DeprecationWarning; under KVM the
   TCG-only callbacks, hook and record raise NotImplementedError at the call, and the callbacks
   KVM calls register;
@@ -78,7 +79,8 @@ isf: x86.isf.json.xz
 kconf_file: x86.kernelinfo.conf
 """
 
-PRE = ["{lib}", "-analysis-capabilities", "analysis,guest-hypercall", "-plugin", "{iface}", "-L", "{bios}"]
+PRE = ["{lib}", "-plugin", "{iface}", "-L", "{bios}"]
+PRE_RECORD = ["{lib}", "-capabilities", "record", "-plugin", "{iface}", "-L", "{bios}"]
 SERIAL = ["-chardev", "socket,id=serial-pandare2,fd={fd}", "-serial", "chardev:serial-pandare2"]
 X86_IMG = ["{img}/x86.qcow2", "-display", "none", "-nic", "user,model=virtio-net-pci"]
 RR = ["-accel", "tcg,thread=single,rr-ready=on"]
@@ -98,11 +100,11 @@ MACHINE = {"arch": "aarch64", "calls": [["cpu", ["cortex-a53"]], ["ram", [0x4000
 LEGACY = {
     "generic": ({"generic": "{img}/x86.json"},
                 PRE + X86_IMG + ["-m", "1G"] + SERIAL),
-    "generic rr": ({"generic": "{img}/x86.json", "rr": True},
-                   PRE + X86_RR_DISK + X86_IMG[1:] + ["-device", "ide-hd,bus=ide.0,unit=0,drive=panda-disk"]
+    "generic record": ({"generic": "{img}/x86.json", "capabilities": ["record"]},
+                   PRE_RECORD + X86_RR_DISK + X86_IMG[1:] + ["-device", "ide-hd,bus=ide.0,unit=0,drive=panda-disk"]
                    + RR + ["-m", "1G"] + SERIAL),
-    "generic rr aarch64": ({"generic": "{img}/arm64.json", "rr": True},
-                           PRE + ARM64_RR_DISK + ARM64_ARGS + ["-device", "virtio-blk-pci,drive=panda-disk"]
+    "generic record aarch64": ({"generic": "{img}/arm64.json", "capabilities": ["record"]},
+                           PRE_RECORD + ARM64_RR_DISK + ARM64_ARGS + ["-device", "virtio-blk-pci,drive=panda-disk"]
                            + RR + ["-m", "1G"] + SERIAL),
     "generic riscv64": ({"generic": "{img}/rv64.json"},
                         PRE + ["-drive", "file={img}/rv64.qcow2,if=virtio"] + RV64_ARGS + ["-m", "1G"] + SERIAL),
@@ -110,8 +112,9 @@ LEGACY = {
                            PRE + X86_IMG + ["-icount", "shift=6,sleep=off", "-m", "1G"] + SERIAL),
     "generic extra_args str": ({"generic": "{img}/x86.json", "extra_args": "-cpu Skylake-Client -snapshot"},
                                PRE + X86_IMG + ["-cpu", "Skylake-Client", "-snapshot", "-m", "1G"] + SERIAL),
-    "generic rr extra_args": ({"generic": "{img}/x86.json", "rr": True, "extra_args": ["-icount", "shift=0"]},
-                              PRE + X86_RR_DISK + X86_IMG[1:] + ["-icount", "shift=0"]
+    "generic record extra_args": ({"generic": "{img}/x86.json", "capabilities": ["record"],
+                                   "extra_args": ["-icount", "shift=0"]},
+                              PRE_RECORD + X86_RR_DISK + X86_IMG[1:] + ["-icount", "shift=0"]
                               + ["-device", "ide-hd,bus=ide.0,unit=0,drive=panda-disk"]
                               + RR + ["-m", "1G"] + SERIAL),
     "arch os_version": ({"arch": "x86_64", "mem": "256M", "os_version": "linux-64-generic",
@@ -148,15 +151,19 @@ def argv_has(*args):
 
 # name -> (Panda keywords, [(check name, check(result) -> bool)]).
 CASES = {
-    "capabilities vanilla": ({"arch": "x86_64", "capabilities": "vanilla"},
-                              [argv_has("-analysis-capabilities", "vanilla"),
-                               ("no PANDA bridge plugin", lambda r: '-plugin' not in r.get('argv', []))]),
-    "capabilities combined": ({"arch": "x86_64", "capabilities": ["fuzz", "handoff"]},
-                              [argv_has("-analysis-capabilities", "analysis,fuzz,handoff")]),
-    "capabilities invalid": ({"arch": "x86_64", "capabilities": "vanilla,analysis"},
-                             [error("ValueError", "vanilla")]),
-    "capabilities rr missing": ({"arch": "x86_64", "rr": True, "capabilities": "analysis"},
-                                [error("ValueError", "rr capability")]),
+    "capabilities none": ({"arch": "x86_64"},
+                          [("no -capabilities", lambda r: "-capabilities" not in r.get("argv", [])),
+                           ("the PANDA bridge plugin", lambda r: "-plugin" in r.get("argv", [])),
+                           attr("capabilities", [])]),
+    "capabilities both": ({"arch": "x86_64", "capabilities": ["taint", "record"]},
+                          [argv_has("-capabilities", "record,taint"), attr("capabilities", ["record", "taint"])]),
+    "capabilities string": ({"arch": "x86_64", "capabilities": "taint"}, [argv_has("-capabilities", "taint")]),
+    "capabilities old names": ({"arch": "x86_64", "capabilities": ["analysis", "rr"]},
+                               [error("ValueError", "'analysis'", "'rr'", "'record'")]),
+    "capabilities vanilla": ({"arch": "x86_64", "capabilities": "vanilla"}, [error("ValueError", "'vanilla'")]),
+    "capabilities in extra_args": ({"arch": "x86_64", "extra_args": ["-capabilities", "record"]},
+                                   [error("ValueError", "capabilities=")]),
+    "rr= is gone": ({"generic": "{img}/x86.json", "rr": True}, [error("TypeError", "rr")]),
     "generic mem": ({"generic": "{img}/x86.json", "mem": "2G"}, [attr("mem", "2G"), argv_has("-m", "2G")]),
     "generic os_version": ({"generic": "{img}/x86.json", "os_version": "linux-64-other:6.1"},
                            [attr("os", "linux-64-other:6.1")]),
@@ -221,17 +228,13 @@ QMP = ["-chardev", "socket,id=pandare2-monitor,fd={fd}", "-object", "monitor-qmp
 HMP = QMP[:3] + ["monitor-hmp,id=pandare2-hmp,chardev=pandare2-monitor"]
 GENERIC_KVM = PRE + X86_IMG + ["-accel", "kvm", "-m", "1G"] + SERIAL
 CASES.update({
-    "capabilities analysis admission": ({"arch": "x86_64",
-                                         "after": ["assert_sealed_capabilities(p, 9)",
-                                                   "p.cb_before_block_exec(name='allowed')(lambda cpu, tb: None)"]},
-                                        [after(0, "ok"), after(1, "ok")]),
-    "capabilities vanilla admission": ({"arch": "x86_64", "capabilities": "vanilla",
-                                        "after": ["p.cb_before_block_exec(name='denied')(lambda cpu, tb: None)",
-                                                  "p.load_plugin('callstack_instr')",
-                                                  "p.queue_main_loop_wait_fn(lambda: None)",
-                                                  "assert_sealed_capabilities(p, 0)"]},
-                                       [after(i, "RuntimeError", "analysis capability") for i in range(3)]
-                                       + [after(3, "ok")]),
+    "capabilities none sealed": ({"arch": "x86_64",
+                                  "after": ["assert_sealed_capabilities(p, 0)",
+                                            "p.cb_before_block_exec(name='allowed')(lambda cpu, tb: None)"]},
+                                 [after(0, "ok"), after(1, "ok")]),
+    "capabilities record sealed": ({"arch": "x86_64", "capabilities": ["record"],
+                                    "after": ["assert_sealed_capabilities(p, 1)"]},
+                                   [after(0, "ok")]),
     "accel default": ({"generic": "{img}/x86.json"}, [attr("accel", "tcg"), no_warning()]),
     "accel tcg": ({"generic": "{img}/x86.json", "accel": "tcg"},
                   [attr("accel", "tcg"), ("argv as without accel=", lambda r: r.get("argv") == LEGACY["generic"][1])]),
@@ -307,17 +310,20 @@ CASES.update({
                ("starts no thread", lambda r: r.get("threads") == 0),
                ("logs the argv (info)", lambda r: any(l[0] == "INFO" and "-icount shift=6" in l[1] for l in r.get("logs", []))),
                ("logs no warning", lambda r: not any(l[0] == "WARNING" for l in r.get("logs", [])))]),
-    "quiet aarch64": ({"arch": "aarch64", "os_version": "linux-64-generic", "rr": True},
+    "quiet aarch64": ({"arch": "aarch64", "os_version": "linux-64-generic", "capabilities": ["record"]},
                       [("prints nothing", lambda r: "error" not in r and r.get("printed") == ""),
                        ("starts no thread", lambda r: r.get("threads") == 0)]),
     "missing disk": ({"generic": "{img}/x86.json", "qcow": "{img}/none.qcow2"},
                      [("logs a warning", lambda r: any(l[0] == "WARNING" and "none.qcow2" in l[1] for l in r.get("logs", []))),
                       ("prints nothing", lambda r: r.get("printed") == "")]),
-    "rr kvm": ({"generic": "{img}/x86.json", "rr": True, "accel": "kvm"}, [error("ValueError", "rr=True", "TCG")]),
-    "rr legacy kvm": ({"generic": "{img}/x86.json", "rr": True, "extra_args": ["-accel", "kvm"]},
-                      [error("ValueError", "rr=True")]),
-    "rr -accel": ({"generic": "{img}/x86.json", "rr": True, "extra_args": ["-accel", "tcg"]},
-                  [error("ValueError", "rr=True", "-accel")]),
+    "record kvm": ({"generic": "{img}/x86.json", "capabilities": ["record"], "accel": "kvm"},
+                   [error("ValueError", '"record"', "TCG")]),
+    "taint kvm": ({"generic": "{img}/x86.json", "capabilities": ["taint"], "accel": "kvm"},
+                  [error("ValueError", '"taint"', "TCG")]),
+    "record legacy kvm": ({"generic": "{img}/x86.json", "capabilities": ["record"], "extra_args": ["-accel", "kvm"]},
+                          [error("ValueError", '"record"', "TCG")]),
+    "record -accel": ({"generic": "{img}/x86.json", "capabilities": ["record"], "extra_args": ["-accel", "tcg"]},
+                      [error("ValueError", '"record"', "-accel")]),
 })
 
 
@@ -422,7 +428,7 @@ def child(spec):
         res["serial_fd_socket"] = fd is not None and stat.S_ISSOCK(os.fstat(fd).st_mode)
         res["attrs"] = {"arch": p.arch_name, "mem": p.mem, "os": p.os, "prompt": p.expect_prompt,
                         "qcow": p.qcow.replace(img, "{img}") if p.qcow else None,
-                        "accel": p.accel, "monitor": p.monitor,
+                        "accel": p.accel, "monitor": p.monitor, "capabilities": list(p.capabilities),
                         "isf": p.isf.replace(img, "{img}") if p.isf else None,
                         "kconf_file": p.kconf_file.replace(img, "{img}") if p.kconf_file else None}
         if "machine" in kwargs:
@@ -467,8 +473,6 @@ def main():
         if only and name not in only:
             continue
         want = list(want)
-        if kwargs.get('rr'):
-            want[2] = 'analysis,rr,guest-hypercall'
         res, r = run_case(img, kwargs)
         if res is None or "error" in res:
             check(f"legacy {name}", False, res or (r.stdout + r.stderr)[-2000:])

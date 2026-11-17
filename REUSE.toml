@@ -46,7 +46,8 @@ path = [
   "engine/patches/11.1.2/0084-replay-coalesce-repeated-schedules-of-a-pending-BH.patch",
   "engine/patches/11.1.2/0090-replay-serialize-deferred-analysis-RAM-writes-as-ord.patch",
   "engine/patches/11.1.2/0091-replay-stub-analysis-register-effects-without-TCG.patch",
-  "engine/patches/11.1.2/0088-riscv-select-snapshot-version-policy-at-registration.patch",
+  "engine/patches/11.1.2/0088-replay-recording-needs-the-record-capability.patch",
+  "engine/patches/11.1.2/0089-replay-consult-the-replay-table-when-replay-starts.patch",
   "engine/patches/11.1.2/0002-build-emit-shared-libraries-for-the-embedding-API.patch",
   "engine/patches/11.1.2/0006-target-riscv-route-guest-hypercalls-to-the-embedding.patch",
   "engine/patches/11.1.2/0007-target-loongarch-route-guest-hypercalls-to-the-embed.patch",
@@ -114,6 +115,8 @@ SPDX-License-Identifier = "GPL-2.0-or-later AND LGPL-2.1-or-later"
 [[annotations]]
 path = [
   "engine/patches/11.1.2/0085-system-cancel-transient-analysis-before-restore-and-.patch",
+  "engine/patches/11.1.2/0086-system-choose-startup-capabilities-with-capabilities.patch",
+  "engine/patches/11.1.2/0087-accel-tcg-the-record-capability-launches-a-recordabl.patch",
   "engine/patches/11.1.2/0001-system-the-embedding-API-s-core-callbacks-and-build-.patch",
   "engine/patches/11.1.2/0010-system-snapshot-ABI-and-a-migratable-vhost-user-vsoc.patch",
   "engine/patches/11.1.2/0024-system-cpu-timers-continue-the-virtual-clock-when-an.patch",
@@ -160,7 +163,6 @@ path = [
   "engine/patches/11.1.2/0060-panda-before_loadvm-hook-before-qemu_loadvm_state-lo.patch",
   "engine/patches/11.1.2/0074-block-qcow2-drop-the-active-VM-state-before-a-savevm.patch",
   "engine/patches/11.1.2/0075-system-cpu-timers-a-snapshot-load-resets-the-ticks-m.patch",
-  "engine/patches/11.1.2/0089-system-seal-capabilities-before-startup-side-effects.patch",
   "engine/patches/11.1.2/0080-migration-qemu-file-inline-the-in-buffer-case-of-the.patch",
   "engine/patches/11.1.2/0094-migration-savevm-reset-load_section_id-at-the-start-.patch",
 ]
@@ -170,8 +172,6 @@ SPDX-License-Identifier = "MIT"
 
 [[annotations]]
 path = [
-  "engine/patches/11.1.2/0086-system-provision-startup-capabilities-and-gate-guest.patch",
-  "engine/patches/11.1.2/0087-system-gate-handoff-and-snapshot-clock-adaptations.patch",
   "engine/patches/11.1.2/0018-accel-tcg-translation-time-address-hooks-and-registe.patch",
   "engine/patches/11.1.2/0035-accel-tcg-address-hooks-keep-CF_PCREL-on-outside-hoo.patch",
   "engine/patches/11.1.2/0044-panda-guest_hypercall-on-the-guest-hypercall-instruc.patch",

@@ -10,7 +10,7 @@
 // for map_memory
 #include "qapi/error.h"
 #include "system/replay.h"
-#include "system/analysis-policy.h"
+#include "system/capabilities.h"
 #include "migration/vmstate.h"
 #include "migration/snapshot.h"
 #include "qemu/error-report.h"
@@ -29,9 +29,18 @@
 #include "hw/core/panda-modules.h"
 #include "panda/events-internal.h"
 
+QEMU_BUILD_BUG_ON(PANDA_CAP_RECORD != STARTUP_CAP_RECORD);
+QEMU_BUILD_BUG_ON(PANDA_CAP_TAINT != STARTUP_CAP_TAINT);
+
 bool panda_configure_capabilities(uint32_t requested)
 {
-    return analysis_policy_seal(requested, NULL);
+    Error *err = NULL;
+
+    if (!startup_caps_seal(requested, &err)) {
+        error_report_err(err);
+        return false;
+    }
+    return true;
 }
 
 void panda_mark_hook_address(target_ulong pc)

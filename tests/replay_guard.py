@@ -1,7 +1,6 @@
 """Replay observers retain the recording's execution while mutation attempts fail.
 
 Run: panda-python tests/replay_guard.py <image.json> [workdir]
-Set RRCB_HANDOFF=1 only for fixtures whose snapshots contain handoff extensions.
 Uses rrcb's guest call graph and compares block/instruction/memory hashes and
 hypercall instruction counts against a clean replay. Attempts native writes,
 faulting reads, syscall skip/argument/return rewrites, late mutator registration
@@ -139,10 +138,7 @@ def live(image):
     """A live mutating hypercall keeps its result, even when it removes itself."""
     from pandare2 import Panda
     from testlib import MAGIC, hypercall_args, in_program, upload
-    capabilities = None
-    if os.environ.get('RRCB_HANDOFF') == '1':
-        capabilities = ('analysis', 'guest-hypercall', 'handoff')
-    panda = Panda(generic=image, capabilities=capabilities)
+    panda = Panda(generic=image)
     checks = Checks(panda.arch_name)
     reg = 'RAX' if panda.arch_name == 'x86_64' else 'X0'
     seen = {}
@@ -170,6 +166,9 @@ def live(image):
     # A live hypercall mutator no longer blocks replay; before the engine runs, nothing starts one
     checks.check('native bridge refuses replay before the engine runs',
                  panda.libpanda.panda_replay_begin(b'unused') != 0)
+    # This Panda has no record capability: a recording is refused before anything else.
+    checks.check('native bridge refuses recording without the record capability',
+                 panda.libpanda.panda_record_begin(b'unused', panda.ffi.NULL) != 0)
 
     @panda.queue_blocking
     def drive():

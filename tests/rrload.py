@@ -42,7 +42,9 @@ def child(mode, image, name, out):
     extra = None
     if mode == "startup":
         extra = ["-icount", f"shift=auto,rr=replay,rrfile={name}-rr-nondet.log,rrsnapshot=rr-{base}"]
-    panda = Panda(generic=image, rr=True, extra_args=extra)
+    # run_replay launches the recording's machine itself; the startup replay (-icount rr=replay)
+    # gets it from the record capability
+    panda = Panda(generic=image, capabilities=None if mode == "replay" else ["record"], extra_args=extra)
     lib = panda.libpanda
     seen = {}
 

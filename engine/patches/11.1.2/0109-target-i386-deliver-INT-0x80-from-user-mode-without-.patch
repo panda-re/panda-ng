@@ -50,10 +50,10 @@ index b3c8240eba4359be042ed2f581a75f55c5c6cf15..fc330af7f359620b5ef4edd94a9eb235
  bool x86_need_replay_interrupt(int interrupt_request);
  bool x86_cpu_exec_interrupt(CPUState *cpu, int int_req);
 diff --git a/target/i386/tcg/system/seg_helper.c b/target/i386/tcg/system/seg_helper.c
-index 27987c29750e0d129efa99b0d9ca95013d09d983..e2505c3ee589217c4e6816de4f6d460902318514 100644
+index 8ed8460b236289ad8817ecd05e841d58c0abdd3b..9410c6893ef21d5887054b9fa1d3dd89ef72c995 100644
 --- a/target/i386/tcg/system/seg_helper.c
 +++ b/target/i386/tcg/system/seg_helper.c
-@@ -162,6 +162,39 @@ void handle_even_inj(CPUX86State *env, int intno, int is_int,
+@@ -161,6 +161,39 @@ void handle_even_inj(CPUX86State *env, int intno, int is_int,
      }
  }
  

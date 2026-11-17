@@ -9,16 +9,23 @@ repeatedly.
 
 ## Record
 
-Make the VM recordable when you create it, with `rr=True`:
+Choose the `record` capability when you create the `Panda`:
 
 ```python
 --8<-- "tests/rr.py:panda"
 ```
 
-That adds `-accel tcg,thread=single,rr-ready=on` (one vCPU thread, and devices set up so a
-recording can begin at any point) and puts the disk behind QEMU's blkreplay driver so disk I/O
-replays too (x86_64, i386, aarch64, riscv64, mips64 and mips64el). On other targets pandare2
-warns that a replay may diverge on disk I/O. Runs that never record don't need `rr=True`.
+That launches a recordable machine, `-capabilities record` with
+`-accel tcg,thread=single,rr-ready=on` (one vCPU thread, and devices set up so a recording can
+begin at any point), and puts the disk behind QEMU's blkreplay driver so disk I/O replays too
+(x86_64, i386, aarch64, riscv64, mips64 and mips64el). On other targets pandare2 warns that a
+replay may diverge on disk I/O. Runs that never record don't need the capability, and pay
+nothing for it; without it, starting a recording is refused.
+
+The engine refuses the capability at startup, saying why, when the command line can't be
+recorded: an accelerator other than TCG, `thread=multi`, more than one vCPU, `-snapshot`,
+`-rtc base=localtime`, or a vhost backend (`vhost=on`, vhost-user, vhost-vdpa), which handles
+device I/O outside the log.
 
 `record_cmd` reverts to a snapshot (`snap_name`, default `"root"`; `None` to record from where the
 guest is), begins recording, types the command, waits for it to finish, and ends the recording.
@@ -43,9 +50,9 @@ loads that snapshot from the same image.
 
 ## Replay
 
-Replay in a fresh process, with the same `Panda` arguments as the recording (`rr=True` included:
-a replay needs the recording's command line). `run_replay` loads the start snapshot, runs to the
-end of the log and returns. The guest's serial output during the replay is in
+Replay in a fresh process, with the same `Panda` arguments as the recording, except that a replay
+needs no capability. `run_replay` launches the recording's machine (the recordable one), loads the
+start snapshot, runs to the end of the log and returns. The guest's serial output during the replay is in
 `panda.replay_serial`.
 
 ```python
@@ -90,8 +97,8 @@ API below is not an unsafe override of these guards.
 
 `panda_analysis_ram_write(address, data, length)` copies a bounded physical RAM write into
 the existing ND async queue. It returns **admission**, not completion. Admission requires
-RECORD, the startup `rr` capability, main thread with BQL and replay mutex held, and all
-vCPUs stopped. It is not callable as a synchronous vCPU callback mutation. Each request is
+an active recording (so the `record` capability), main thread with BQL and replay mutex held,
+and all vCPUs stopped. It is not callable as a synchronous vCPU callback mutation. Each request is
 limited to 64 KiB; at most 64 requests may be pending.
 
 At the existing deterministic scheduler async drain, before the next guest budget, the
@@ -100,7 +107,7 @@ Only writable direct RAM is supported: MMIO, readonly, ROMD and RAM-device range
 without writing a RAM prefix. Successful writes use the standard address-space write path
 for dirty tracking and translated-code invalidation. Replay loads and applies the event
 without the original requester, verifies the same preflight result, and refuses effects
-without the `rr` capability. Unsaved requests are canceled rather than applied at teardown.
+outside a replay. Unsaved requests are canceled rather than applied at teardown.
 
 `panda_analysis_reg_write(cpu_index, reg, data, length)` queues a register write with the same
 admission, ordering and limits. `reg` is the CPU's gdbstub register number (the numbering

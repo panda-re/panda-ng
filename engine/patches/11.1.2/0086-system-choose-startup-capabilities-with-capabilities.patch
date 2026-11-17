@@ -1,0 +1,143 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 29 Oct 2026 18:00:00 -0400
+Subject: [PATCH] system: choose startup capabilities with -capabilities
+
+A startup capability is something a run must choose before the machine
+exists: record (the run may record) and taint (shadow state reserved
+before guest memory). There are none by default; everything else needs
+no capability.
+
+-capabilities record,taint chooses them. They are sealed at the start of
+qemu_init, before option, module and plugin processing can run
+constructors that depend on them: a prepass over the real option table
+(so an option-looking argument of -append or -device is not an option)
+finds the last -capabilities. An embedding may choose them first
+(panda_configure_capabilities); a -capabilities must then repeat that
+choice. error_init moves up so the prepass can report.
+
+The policy (system/capabilities.c, in the overlay) is built here.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: new
+---
+ qemu-options.hx    | 16 ++++++++++++++++
+ system/meson.build |  1 +
+ system/vl.c        | 37 ++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 53 insertions(+), 1 deletion(-)
+
+diff --git a/qemu-options.hx b/qemu-options.hx
+index 6d6fc98da4dea3fce29ca1557a78342ba5ccf94b..30f6bd3d4197fd95752be1677e09e5c741fefa38 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -5635,6 +5635,22 @@ SRST
+         Argument passed to the plugin. (Can be given multiple times.)
+ ERST
+ 
++DEF("capabilities", HAS_ARG, QEMU_OPTION_capabilities,
++    "-capabilities record,taint\n"
++    "                choose startup capabilities (default: none)\n",
++    QEMU_ARCH_ALL)
++SRST
++``-capabilities names``
++    Choose the startup capabilities, a comma-separated list: what a run must
++    decide before the machine exists. ``record``: the run may record; it
++    launches a recordable machine, and a recording can't start without it.
++    ``taint``: reserve taint's shadow state (TCG only). There are none by
++    default. Everything else (plugins, callbacks, guest hypercalls, fast
++    snapshots, loading a snapshot taken under another accelerator or clock)
++    needs no capability. Unknown names are errors; the last ``-capabilities``
++    wins.
++ERST
++
+ DEF("module", HAS_ARG, QEMU_OPTION_module,
+     "-module path    load a panda module (external boards, devices) from a\n"
+     "                shared object built with the engine's SDK\n"
+diff --git a/system/meson.build b/system/meson.build
+index 1623762cc9463db4f76c56dea5f5ed6726660fe1..15a455aafbd66bb1ab523bcfd3c7277d38d9e894 100644
+--- a/system/meson.build
++++ b/system/meson.build
+@@ -4,6 +4,7 @@ system_ss.add(files(
+ 
+ system_ss.add(files(
+   'arch_init.c',
++  'capabilities.c',
+   'balloon.c',
+   'bootdevice.c',
+   'cpus.c',
+diff --git a/system/vl.c b/system/vl.c
+index 4afa05bb93f7eeed9808840d0c5e6ca88eddb251..133c5ec29908332ea6b5bd8d68c31b6e13528e4d 100644
+--- a/system/vl.c
++++ b/system/vl.c
+@@ -23,6 +23,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "system/capabilities.h"
+ #include "qemu/help-texts.h"
+ #include "qemu/datadir.h"
+ #include "qemu/units.h"
+@@ -2784,6 +2785,34 @@ static void qemu_init_displays(void)
+     }
+ }
+ 
++/*
++ * Choose the startup capabilities before option, module and plugin processing can run anything
++ * that depends on them. The real option table gives each option its arity, so an option-looking
++ * argument of -append or -device is not an option. The last -capabilities wins. Without one, a
++ * run has none, unless an embedding chose them first (panda_configure_capabilities); a
++ * -capabilities must then repeat that choice.
++ */
++static bool seal_startup_capabilities(int argc, char **argv, Error **errp)
++{
++    uint32_t requested = startup_caps();
++    int optind = 1;
++    const char *optarg;
++
++    while (optind < argc) {
++        if (argv[optind][0] != '-') {
++            optind++; /* positional disk image, as in normal parsing */
++        } else {
++            const QEMUOption *popt = lookup_opt(argc, argv, &optarg, &optind);
++
++            if (popt->index == QEMU_OPTION_capabilities &&
++                !startup_caps_parse(optarg, &requested, errp)) {
++                return false;
++            }
++        }
++    }
++    return startup_caps_seal(requested, errp);
++}
++
+ static void qemu_init_board(void)
+ {
+     MachineClass *machine_class = MACHINE_GET_CLASS(current_machine);
+@@ -2932,6 +2961,10 @@ void qemu_init(int argc, char **argv)
+     bool userconfig = true;
+     FILE *vmstate_dump_file = NULL;
+ 
++    /* Before option, module and plugin processing can run constructors. */
++    error_init(argv[0]);
++    seal_startup_capabilities(argc, argv, &error_fatal);
++
+     qemu_add_opts(&qemu_drive_opts);
+     qemu_add_drive_opts(&qemu_legacy_drive_opts);
+     qemu_add_drive_opts(&qemu_common_drive_opts);
+@@ -2966,7 +2999,6 @@ void qemu_init(int argc, char **argv)
+     qemu_add_run_with_opts();
+     module_call_init(MODULE_INIT_OPTS);
+ 
+-    error_init(argv[0]);
+     qemu_init_exec_dir(argv[0]);
+ 
+     os_setup_limits();
+@@ -3667,6 +3699,9 @@ void qemu_init(int argc, char **argv)
+             case QEMU_OPTION_plugin:
+                 qemu_plugin_opt_parse(optarg, &plugin_list);
+                 break;
++            case QEMU_OPTION_capabilities:
++                /* chosen by seal_startup_capabilities() */
++                break;
+             case QEMU_OPTION_module:
+                 if (is_help_option(optarg)) {
+                     printf("panda ABI %s\n", module_panda_abi());

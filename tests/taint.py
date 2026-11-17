@@ -1,7 +1,7 @@
 """Taint mode (CF_TAINT pass, capability "taint") on a recording, end to end.
 
 Run: panda-python tests/taint.py <dir>/debian-13-x86_64.json [workdir]
-(TAINT_TEST_CAPS adds capabilities: "handoff" for older snapshots.) Images: pandare2.mkimage's, or
+Images: pandare2.mkimage's, or
 tests/mkbusybox.py's for the other arches.
 
 Records, in one process, a command that writes a marker file, drops the page cache, then `cat`s the
@@ -43,16 +43,15 @@ MARKER = "taintmarker-4242"
 CLEAN = "cleanline-1764"
 CMD = ("echo taintmarker-$((2*2121)) > /root/taint.txt; sync; echo 3 > /proc/sys/vm/drop_caches; "
        "cat /root/taint.txt | cat; echo cleanline-$((42*42))")
-# pandare2's defaults (analysis, guest-hypercall, and rr for rr=True) plus taint: syscalls2 sees no
-# syscalls on Arm without guest-hypercall.
-CAPS = ["analysis", "guest-hypercall", "rr", "taint"] + os.environ.get("TAINT_TEST_CAPS", "").split()
+# The recording needs the record capability; taint runs in the replays, which need only taint.
+CAPS = {"record": ["record"]}
 # loongarch64 has no syscalls2 profile: its syscalls are caught as the exception (EXCCODE_SYS).
 SYSCALL_EXC = {"loongarch64": 11}
 WRITE, WRITEV = 64, 66  # the generic syscall table's numbers (loongarch64)
 
 
 def child(mode, image, name, out):
-    panda = Panda(generic=image, rr=True, capabilities=CAPS)
+    panda = Panda(generic=image, capabilities=CAPS.get(mode, ["taint"]))
     seen = {"icount": None, "writes": {}, "branch": 0, "pc": 0}
 
     if mode == "record":

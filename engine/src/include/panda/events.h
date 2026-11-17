@@ -67,7 +67,7 @@ typedef struct panda_event_desc {
     const char *signature;          /* PANDA_EVENT_SIGNATURE(...) */
     uint32_t args_size;             /* sizeof the argument struct; checked against the signature */
     uint32_t modes;                 /* PANDA_MODE_* the event fires in (KVM only if it does) */
-    uint32_t capability;            /* ANALYSIS_CAP_* needed besides analysis, or 0 */
+    uint32_t capability;            /* PANDA_CAP_* startup capabilities needed, or 0 */
     uint32_t flags;                 /* PANDA_EVENT_* */
 } panda_event_desc;
 

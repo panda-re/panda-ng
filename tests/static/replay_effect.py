@@ -24,7 +24,7 @@ STUBS = r'''
 #define RCU_READ_LOCK_GUARD()
 #define MEMTXATTRS_UNSPECIFIED 0
 #define MEMTX_OK 0
-#define ANALYSIS_CAP_RR 4
+#define STARTUP_CAP_RECORD 1
 #define REPLAY_ASYNC_EVENT_ANALYSIS_EFFECT 7
 #define CPU_FOREACH(cpu) for (int i=0;i<2 && ((cpu)=&cpus[i],1);i++)
 enum {REPLAY_MODE_NONE,REPLAY_MODE_RECORD,REPLAY_MODE_PLAY};
@@ -40,7 +40,7 @@ static bool qemu_in_main_thread(void) {return main_thread;}
 static bool bql_locked(void) {return bql;}
 static bool replay_mutex_locked(void) {return locked;}
 static bool replay_events_enabled(void) {return enabled;}
-static bool analysis_policy_has(int mask) {(void)mask;return cap;}
+static bool startup_caps_has(int mask) {(void)mask;return cap;}
 static bool cpu_is_stopped(CPUState *cpu) {return cpu->stopped;}
 typedef struct {bool ram,readonly,device,romd;} MemoryRegion;
 static MemoryRegion regions[]={{true,false,false,false},{true,false,false,false}};
@@ -297,10 +297,10 @@ int main(void) {
     /* Replay loads/applies from ND payload with no mutator and no producer. */
     memset(ram,0,sizeof(ram));replay_mode=REPLAY_MODE_PLAY;
     unsigned before=allocations;
-    cap=false;
-    if(!setjmp(failure)) {replay_analysis_effect_load();assert(!"unprovisioned effect accepted");}
+    replay_mode=REPLAY_MODE_RECORD;    /* an effect is loaded only in a replay */
+    if(!setjmp(failure)) {replay_analysis_effect_load();assert(!"effect outside a replay accepted");}
     assert(allocations==before && log_at==0);
-    cap=true;
+    replay_mode=REPLAY_MODE_PLAY;
     void *effect=replay_analysis_effect_load();
     replay_analysis_effect_run(effect);
     assert(ram[14]==1 && ram[17]==4 && log_at==log_len);
@@ -336,6 +336,7 @@ int main(void) {
     replay_mode=REPLAY_MODE_RECORD;
     reset();assert(replay_analysis_ram_write_request(0,data,4));
     record_one(pending[0]);
+    replay_mode=REPLAY_MODE_PLAY;
     /* Validate payload headers and address/length before allocating. */
     const unsigned bad_fields[]={0,1,2,11,12};
     for(unsigned i=0;i<sizeof(bad_fields)/sizeof(*bad_fields);i++) {
@@ -441,7 +442,7 @@ class ReplayEffect(unittest.TestCase):
             tmp = Path(tmp)
             for name in ('qemu/osdep.h', 'qemu/main-loop.h', 'qemu/rcu.h', 'hw/core/cpu.h',
                          'system/cpus.h', 'system/address-spaces.h', 'system/memory.h', 'system/replay.h',
-                         'system/analysis-policy.h', 'replay-internal.h', 'exec/gdbstub.h',
+                         'system/capabilities.h', 'replay-internal.h', 'exec/gdbstub.h',
                          'system/hw_accel.h', 'system/syscall-trap.h', 'qemu/typedefs.h',
                          'exec/cputlb.h', 'qemu/error-report.h'):
                 path = tmp / name

@@ -1,0 +1,222 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 29 Oct 2026 19:00:00 -0400
+Subject: [PATCH] accel/tcg: the record capability launches a recordable
+ machine
+
+A run that may record needs, from launch, what x-rr-begin-record can't
+change on a running VM: rr-ready's one TCG thread, one vCPU, virtio kicks
+as MMIO exits and an x86 TSC that keeps its rate under icount. The record
+capability turns rr-ready on. -accel tcg,rr-ready=on alone still builds
+that machine, for a replay, which needs it but not the capability.
+
+With the capability, startup refuses, naming the capability and the
+argument, a machine whose arguments can't be recorded: an accelerator
+other than TCG, thread=multi, more than one vCPU, the replay blockers
+(-snapshot, -rtc base=localtime), and vhost backends, which handle device
+I/O outside the log. replay_check_blockers() moves to system/replay.h for
+this, with a stub; vhost_has_dev() says whether a vhost device exists.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: new
+---
+ accel/tcg/tcg-all.c       | 14 ++++++++++++--
+ hw/virtio/vhost-stub.c    |  5 +++++
+ hw/virtio/vhost.c         |  5 +++++
+ include/hw/virtio/vhost.h |  2 ++
+ include/system/replay.h   |  8 ++++++++
+ replay/replay-internal.h  |  2 --
+ replay/stubs-system.c     |  4 ++++
+ system/vl.c               | 32 ++++++++++++++++++++++++++++++++
+ 8 files changed, 68 insertions(+), 4 deletions(-)
+
+diff --git a/accel/tcg/tcg-all.c b/accel/tcg/tcg-all.c
+index aaa4dd8ab7314fb252eb2198fc04fd706f10a31f..cca3af2c6efbe347163e40df7f4b28a635996957 100644
+--- a/accel/tcg/tcg-all.c
++++ b/accel/tcg/tcg-all.c
+@@ -38,6 +38,9 @@
+ #include "qemu/target-info.h"
+ #include "qom/compat-properties.h"
+ #ifndef CONFIG_USER_ONLY
++#include "system/capabilities.h"
++#endif
++#ifndef CONFIG_USER_ONLY
+ #include "hw/core/boards.h"
+ #include "exec/tb-flush.h"
+ #include "system/runstate.h"
+@@ -114,7 +117,13 @@ static int tcg_init_machine(AccelState *as, MachineState *ms)
+     CPUClass *cc = CPU_CLASS(object_class_by_name(target_cpu_type()));
+     bool mttcg_supported = cc->tcg_ops->mttcg_supported;
+ 
++    /* The record capability launches a recordable machine. */
++    if (startup_caps_has(STARTUP_CAP_RECORD)) {
++        s->rr_ready = true;
++    }
+     if (s->rr_ready) {
++        const char *why = startup_caps_has(STARTUP_CAP_RECORD) ?
++                          "-capabilities record" : "rr-ready";
+         /*
+          * What x-rr-begin-record cannot change on a running VM: one vCPU
+          * thread, virtio kicks as MMIO exits rather than eventfds (devices
+@@ -122,11 +131,12 @@ static int tcg_init_machine(AccelState *as, MachineState *ms)
+          * icount comes on.
+          */
+         if (s->mttcg_enabled == ON_OFF_AUTO_ON) {
+-            error_report("rr-ready needs thread=single");
++            error_report("%s: thread=multi can't be recorded (one TCG thread)",
++                         why);
+             return -1;
+         }
+         if (ms->smp.max_cpus > 1) {
+-            error_report("rr-ready: record/replay supports one vCPU (-smp 1)");
++            error_report("%s: record/replay supports one vCPU (-smp 1)", why);
+             return -1;
+         }
+         s->mttcg_enabled = ON_OFF_AUTO_OFF;
+diff --git a/hw/virtio/vhost-stub.c b/hw/virtio/vhost-stub.c
+index 353dbf2f10d4198681d1d26b24973b4c888f0216..215a9c943dd0f71ddcc0ed8ac47a211889811bf3 100644
+--- a/hw/virtio/vhost-stub.c
++++ b/hw/virtio/vhost-stub.c
+@@ -17,6 +17,11 @@ bool vhost_has_unlogged_dev(void)
+     return false;
+ }
+ 
++bool vhost_has_dev(void)
++{
++    return false;
++}
++
+ bool vhost_user_init(VhostUserState *user, CharFrontend *chr, Error **errp)
+ {
+     return false;
+diff --git a/hw/virtio/vhost.c b/hw/virtio/vhost.c
+index 029cfa91ae82b5e8cd39fff345f9972453240c3f..332e279105b974d6df4e98680b56a24363ffab01 100644
+--- a/hw/virtio/vhost.c
++++ b/hw/virtio/vhost.c
+@@ -461,6 +461,11 @@ bool vhost_has_unlogged_dev(void)
+     return false;
+ }
+ 
++bool vhost_has_dev(void)
++{
++    return !QLIST_EMPTY(&vhost_devices);
++}
++
+ static inline void vhost_dev_log_resize(struct vhost_dev *dev, uint64_t size)
+ {
+     struct vhost_log *log = vhost_log_get(dev->vhost_ops->backend_type,
+diff --git a/include/hw/virtio/vhost.h b/include/hw/virtio/vhost.h
+index 1bf48833446c78b687a15d6a8bbc590705706d1e..e5068dfd5e4082c3c39603aad80007a016146271 100644
+--- a/include/hw/virtio/vhost.h
++++ b/include/hw/virtio/vhost.h
+@@ -389,6 +389,8 @@ unsigned int vhost_get_free_memslots(void);
+  * without a shared log). Dirty logging does not see what such a device writes.
+  */
+ bool vhost_has_unlogged_dev(void);
++/* vhost_has_dev() - a vhost device exists: its backend handles device I/O. */
++bool vhost_has_dev(void);
+ 
+ int vhost_net_set_backend(struct vhost_dev *hdev,
+                           struct vhost_vring_file *file);
+diff --git a/include/system/replay.h b/include/system/replay.h
+index ce93b2d2303ad6e58240070b2117fed362fbf5c9..80ef1cf54002b6e05cc310583caae2aa6a77c9f0 100644
+--- a/include/system/replay.h
++++ b/include/system/replay.h
+@@ -216,4 +216,12 @@ bool replay_can_save_snapshot(const char *name, Error **errp);
+  */
+ void replay_check_timer_stall(void);
+ 
++/*
++ * replay_check_blockers:
++ *
++ * Whether something on the command line can't be recorded or replayed
++ * (replay_add_blocker()): true, with the first reason, if so.
++ */
++bool replay_check_blockers(Error **errp);
++
+ #endif
+diff --git a/replay/replay-internal.h b/replay/replay-internal.h
+index 7651d28fcd2cb4e1d403ad8bc951971a01f67dcb..98495cce9477411bc61e96067bd0393e67231843 100644
+--- a/replay/replay-internal.h
++++ b/replay/replay-internal.h
+@@ -226,8 +226,6 @@ void replay_vmstate_register(void);
+  */
+ bool replay_load_snapshot(const char *name, Error **errp);
+ 
+-/* x-rr-begin-record, x-rr-begin-replay (replay-begin.c) */
+-bool replay_check_blockers(Error **errp);
+ /* name the start snapshot; x-rr-begin-record reloads it before recording */
+ void replay_set_snapshot_name(const char *name);
+ extern bool replay_snapshot_reloaded;
+diff --git a/replay/stubs-system.c b/replay/stubs-system.c
+index 62defd60fd251b3d98e3e39c334de89574fe9bd6..b8d1f0d5cd95a55d25c46af20e894bb875f8d7ea 100644
+--- a/replay/stubs-system.c
++++ b/replay/stubs-system.c
+@@ -15,6 +15,10 @@ void replay_input_sync_event(void)
+ void replay_add_blocker(const char *feature)
+ {
+ }
++bool replay_check_blockers(Error **errp)
++{
++    return false;
++}
+ void replay_audio_in_start(size_t *nsamples)
+ {
+ }
+diff --git a/system/vl.c b/system/vl.c
+index 133c5ec29908332ea6b5bd8d68c31b6e13528e4d..6d941b96e3164abf901d98c4ef357b0462a7f29f 100644
+--- a/system/vl.c
++++ b/system/vl.c
+@@ -127,6 +127,7 @@
+ #include "semihosting/semihost.h"
+ #include "crypto/init.h"
+ #include "system/replay.h"
++#include "hw/virtio/vhost.h"
+ #include "qapi/qapi-events-run-state.h"
+ #include "qapi/qapi-types-audio.h"
+ #include "qapi/qapi-visit-audio.h"
+@@ -2868,6 +2869,33 @@ static void qemu_create_cli_devices(void)
+     }
+ }
+ 
++/*
++ * -capabilities record: refuse, with the reason, a machine whose arguments
++ * can't be recorded. The accelerator's own checks (one TCG thread, one vCPU)
++ * ran when it started.
++ */
++static bool record_startup_check(Error **errp)
++{
++    Error *err = NULL;
++
++    if (!tcg_enabled()) {
++        error_setg(errp, "-capabilities record: recording needs TCG, and this "
++                   "run uses %s", current_accel_name());
++        return false;
++    }
++    if (replay_check_blockers(&err)) {
++        error_propagate_prepend(errp, err, "-capabilities record: ");
++        return false;
++    }
++    if (vhost_has_dev()) {
++        error_setg(errp, "-capabilities record: a vhost backend (vhost=on, "
++                   "vhost-user, vhost-vdpa) handles device I/O outside the "
++                   "log");
++        return false;
++    }
++    return true;
++}
++
+ static bool qemu_machine_creation_done(Error **errp)
+ {
+     MachineState *machine = MACHINE(qdev_get_machine());
+@@ -2899,6 +2927,10 @@ static bool qemu_machine_creation_done(Error **errp)
+ 
+     foreach_device_config_or_exit(DEV_GDB, gdbserver_start);
+ 
++    if (startup_caps_has(STARTUP_CAP_RECORD) && !record_startup_check(errp)) {
++        return false;
++    }
++
+     if (!vga_interface_created && !default_vga &&
+         vga_interface_type != VGA_NONE) {
+         warn_report("A -vga option was passed but this machine "

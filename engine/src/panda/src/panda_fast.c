@@ -38,8 +38,14 @@
  * pages), and not under record/replay (a restore rewrites RAM and devices outside the log).
  *
  * Blocks the bitmap can't vouch for are compared page by page instead: ROM devices other than
- * pflash (pflash logs its storage writes; other models may write theirs directly, unlogged), and
- * blocks that aren't migratable (the DMA path doesn't log them).
+ * pflash (pflash logs its storage writes; other models may write theirs directly, unlogged),
+ * blocks that aren't migratable (the DMA path doesn't log them), and shared RAM (another process
+ * may write it).
+ *
+ * Discarding guest RAM (balloons, virtio-mem) zeroes pages without marking them dirty. While a
+ * fast snapshot exists, discards are disabled, as VFIO does: virtio-balloon then keeps the pages
+ * the guest gives it. A device that needs discards (virtio-mem) or ignores the switch
+ * (hv-balloon) makes panda_fast_snap refuse, naming it.
  *
  * Cost when no fast snapshot exists: none. Nothing is armed, every page's migration bit stays set
  * from RAM creation (and TCG's store path keeps setting it), so no TLB entry gets TLB_NOTDIRTY for
@@ -56,6 +62,7 @@
 #include "migration/misc.h"
 #include "hw/virtio/vhost.h"
 #include "system/replay.h"
+#include "system/replay-conflicts.h"
 #include "system/tcg.h"
 #include "migration/qemu-file.h"
 #include "io/channel-buffer.h"
@@ -95,6 +102,7 @@ static bool fast_armed;         /* we hold GLOBAL_DIRTY_DIRTY_RATE */
 static bool fast_valid;         /* the bitmap has every page written since RAM == the copy */
 static const char *fast_why;    /* why it isn't (the next restore copies all RAM) */
 static bool fast_hooked;        /* the precopy notifier and memory listener are registered */
+static bool fast_no_discard;    /* we hold ram_block_discard_disable() */
 
 static struct {
     uint64_t snaps, restores, full_restores, compare_restores;
@@ -109,9 +117,13 @@ static struct {
 
 static size_t page_size(void) { return qemu_target_page_size(); }
 
-/* A pflash logs its storage writes (they go through the model, which marks them dirty). */
+/*
+ * A pflash logs its storage writes (they go through the model, which marks them dirty). Shared
+ * RAM (share=on backends: vhost-user, ivshmem) can be written by another process, which marks
+ * nothing.
+ */
 static bool block_trackable(RAMBlock *rb) {
-    return qemu_ram_is_migratable(rb) &&
+    return qemu_ram_is_migratable(rb) && !qemu_ram_is_shared(rb) &&
            (!rb->mr->rom_device ||
             object_dynamic_cast(rb->mr->owner, TYPE_PFLASH_CFI01) ||
             object_dynamic_cast(rb->mr->owner, TYPE_PFLASH_CFI02));
@@ -289,18 +301,60 @@ static bool fast_tracking_ok(void) {
     return true;
 }
 
-/* Refuse where the dirty bitmap isn't the whole story, or a restore would break the run. */
+/*
+ * Its limits, checked at each use: refuse where the dirty bitmap isn't the whole story (not TCG),
+ * or a restore would break the run (recording; replay, through the replay table).
+ */
 static bool fast_supported(const char *fn) {
+    Error *err = NULL;
+
     if (!tcg_enabled()) {
         error_report("%s: needs TCG (KVM and HVF keep their own dirty state, which a restore "
                      "doesn't reset)", fn);
         return false;
     }
-    if (replay_mode != REPLAY_MODE_NONE) {
-        error_report("%s: not under record/replay (a restore rewrites RAM and device state "
+    if (replay_mode == REPLAY_MODE_RECORD) {
+        error_report("%s: not while recording (a restore rewrites RAM and device state "
                      "outside the log)", fn);
         return false;
     }
+    if (!replay_feature_check(REPLAY_FEATURE_FAST_RESTORE, &err)) {
+        error_reportf_err(err, "%s: ", fn);
+        return false;
+    }
+    return true;
+}
+
+static int fast_find_discarder(Object *obj, void *opaque) {
+    Object **found = opaque;
+
+    if (object_dynamic_cast(obj, "virtio-mem") || object_dynamic_cast(obj, "hv-balloon")) {
+        *found = obj;
+        return 1;
+    }
+    return 0;
+}
+
+/* Keep guest RAM from being discarded while a snapshot exists (see the top of the file). */
+static bool fast_discard_off(const char *fn) {
+    Object *dev = NULL;
+
+    if (fast_no_discard) {
+        return true;
+    }
+    object_child_foreach_recursive(object_get_root(), fast_find_discarder, &dev);
+    if (dev) {
+        g_autofree char *path = object_get_canonical_path(dev);
+        error_report("%s: refused: %s (%s) discards guest RAM without marking it dirty, so a "
+                     "restore would not put it back", fn, object_get_typename(dev), path);
+        return false;
+    }
+    if (ram_block_discard_disable(true)) {
+        error_report("%s: refused: a device requires discarding guest RAM, which a restore "
+                     "would not put back", fn);
+        return false;
+    }
+    fast_no_discard = true;
     return true;
 }
 
@@ -417,6 +471,9 @@ int panda_fast_snap(void) {
         return -1;
     }
     panda_modules_check_vmstate("fast restore");
+    if (!fast_discard_off("panda_fast_snap")) {
+        return -1;
+    }
     if (runstate_is_running()) {
         vm_stop(RUN_STATE_SAVE_VM);
     }
@@ -566,6 +623,10 @@ void panda_fast_delete(void) {
     if (fast_armed) {
         memory_global_dirty_log_stop(GLOBAL_DIRTY_DIRTY_RATE);
         fast_armed = false;
+    }
+    if (fast_no_discard) {
+        ram_block_discard_disable(false);
+        fast_no_discard = false;
     }
 }
 

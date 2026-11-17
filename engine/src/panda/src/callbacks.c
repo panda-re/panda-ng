@@ -51,7 +51,7 @@ PANDAENDCOMMENT */
 #include "system/kvm.h"
 #include "system/tcg.h"
 #include "exec/tb-flush.h"
-#include "system/analysis-policy.h"
+#include "system/capabilities.h"
 #include "qemu/error-report.h"
 #include "panda/admission.h"
 
@@ -395,12 +395,6 @@ static void do_check_export_symbols(panda_plugin *panda_plugin, const char *file
 }
 
 static bool _panda_load_plugin(const char *filename, const char *plugin_name, bool library_mode) {
-    if (!analysis_policy_is_frozen() ||
-        !analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
-        error_report("PANDA plugin loading requires sealed analysis capability");
-        return false;
-    }
-
     // static bool libpanda_loaded = false;
 
     if ((plugin_name == NULL) || (*plugin_name == '\0')) {

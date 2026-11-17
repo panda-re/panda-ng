@@ -31,7 +31,7 @@ EXPECTED = sum(sum(answer(i)) for i in range(N))
 
 def child(mode, image, name, output):
     from pandare2 import Panda
-    panda = Panda(generic=image, rr=True)
+    panda = Panda(generic=image, capabilities=['record'] if mode == 'record' else None)
     result = {'answered': 0, 'seen': [], 'checksum': None}
 
     def observe(cpu):

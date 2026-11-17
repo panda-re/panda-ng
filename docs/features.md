@@ -54,9 +54,9 @@ instance; work that drives the guest and waits for it (console commands, snapsho
 
 **Docs:** [docs/guides/getting-started.md](guides/getting-started.md), [docs/guides/python.md](guides/python.md), [python/core/README.md](https://github.com/panda-re/panda-ng/blob/main/python/core/README.md), [tests/README.md](https://github.com/panda-re/panda-ng/blob/main/tests/README.md)
 
-**Tests:** `tests/smoke.py`, `tests/static/refs.py`, `tests/api.py`, `tests/reset.py`, `tests/teardown.py`, `tests/static/capabilities.py`, `tests/static/capability_gates.py`, `tests/static/startup_capabilities.py`, `tests/static/capability_admission.py`
+**Tests:** `tests/smoke.py`, `tests/static/refs.py`, `tests/api.py`, `tests/reset.py`, `tests/teardown.py`, `tests/static/capabilities.py`, `tests/static/capability_policy.py`, `tests/static/startup_capabilities.py`, `tests/static/capability_admission.py`
 
-**Engine patches:** 0040, 0086, 0089 ([series](reference/patches.md))
+**Engine patches:** 0040, 0086 ([series](reference/patches.md))
 
 <a id="callbacks"></a>
 ## Callbacks
@@ -212,18 +212,21 @@ handle them in C.
 ## Record and replay
 
 Record a whole-system execution and replay it deterministically, with compatible observe-only
-callbacks and plugins attached during recording and replay. Launch with `-accel tcg,rr-ready=on` (pandare2 does this) so a
-recording can start at any point.
+callbacks and plugins attached during recording and replay. A run that may record chooses the
+`record` startup capability (`-capabilities record`; pandare2 `capabilities=["record"]`), which
+launches a recordable machine, so a recording can start at any point. A replay needs no
+capability; what replay allows is one table, consulted when replay starts and when a feature is
+requested.
 
-**Limits.** TCG, single-threaded. Callbacks require RR compatibility and observe-only access, except hypercall handlers, whose answers are recorded. Unlogged analysis mutations are refused during recording and replay; native raw pointers remain a trusted-code boundary. Snapshot loads are refused while recording.
+**Limits.** TCG, single-threaded. Recording without the record capability is refused, and so is the capability, at startup, for a command line that can't be recorded (not TCG, thread=multi, more than one vCPU, -snapshot, -rtc base=localtime, vhost backends). Callbacks require RR compatibility and observe-only access, except hypercall handlers, whose answers are recorded. Unlogged analysis mutations are refused during recording and replay; native raw pointers remain a trusted-code boundary. Snapshot loads are refused while recording.
 
-**Use it:** `Panda.record`, `Panda.record_cmd`, `Panda.end_record`, `Panda.run_replay`, `-accel tcg,rr-ready=on`
+**Use it:** `Panda.record`, `Panda.record_cmd`, `Panda.end_record`, `Panda.run_replay`, `-capabilities record`, `-accel tcg,rr-ready=on`
 
 **Docs:** [docs/guides/record-replay.md](guides/record-replay.md)
 
-**Tests:** `tests/rr.py`, `tests/rrcb.py`, `tests/rrstop.py`, `tests/rrload.py`, `tests/rr_blocks.py`, `tests/replay_guard.py`, `tests/static/replay_policy.py`, `tests/static/replay_native.py`, `tests/static/replay_bh.py`
+**Tests:** `tests/rr.py`, `tests/rrcb.py`, `tests/rrstop.py`, `tests/rrload.py`, `tests/rr_blocks.py`, `tests/replay_guard.py`, `tests/static/replay_policy.py`, `tests/static/replay_native.py`, `tests/static/replay_bh.py`, `tests/static/replay_conflicts.py`
 
-**Engine patches:** 0024-0027, 0029, 0036-0039, 0049-0051, 0065-0067, 0071-0072, 0083-0084, 0094-0096, 0098-0100 ([series](reference/patches.md))
+**Engine patches:** 0024-0027, 0029, 0036-0039, 0049-0051, 0065-0067, 0071-0072, 0083-0084, 0087-0089, 0094-0096, 0098-0100 ([series](reference/patches.md))
 
 <a id="recorded-ram-effects"></a>
 ## Recorded analysis RAM and register effects
@@ -232,7 +235,7 @@ Enqueue bounded physical RAM and register writes into the existing ordered ND as
 Recording logs the apply-boundary result and bytes; replay applies them without the original
 requester. Registers are named by the CPU's gdbstub register number, so no PANDA arch tables.
 
-**Limits.** Admission requires RR capability, RECORD, main thread/BQL/replay mutex and stopped vCPUs. Admission is not completion. Maximum 64 KiB per request and 64 pending requests. MMIO, readonly, ROMD and RAM-device ranges are denied as a whole. Unsaved requests are canceled at end-record. A register write must match the gdbstub register size (at most 256 bytes) and shares the pending limit. Syscall and device effects remain unsupported. The outer ND log version changes.
+**Limits.** Admission requires an active recording (so the record capability), main thread/BQL/replay mutex and stopped vCPUs. Admission is not completion. Maximum 64 KiB per request and 64 pending requests. MMIO, readonly, ROMD and RAM-device ranges are denied as a whole. Unsaved requests are canceled at end-record. A register write must match the gdbstub register size (at most 256 bytes) and shares the pending limit. Syscall and device effects remain unsupported. The outer ND log version changes.
 
 **Use it:** `panda_analysis_ram_write`, `panda_analysis_reg_write`
 
@@ -273,7 +276,7 @@ through tainted addresses. Optional label sets say which
 sources (u32 labels) reach each byte; optional events report conditional branches on tainted
 data and indirect jumps to tainted targets.
 
-**Limits.** Replay only (the `taint` startup capability brings `rr`). Helpers propagate the OR of their
+**Limits.** Replay only (the `taint` startup capability does not need `record`). Helpers propagate the OR of their
 scalar inputs into their result (x86's lazy-flags helpers have exact masks); helpers that read or
 write vector registers through pointers taint the whole region, unless an optional library of
 shadow helpers generated at build time covers them (engine/h2b). Helpers that write guest memory
@@ -302,7 +305,7 @@ and a savevm right after a loadvm takes as long as any other.
 
 **Tests:** `tests/reset.py`, `tests/api.py`
 
-**Engine patches:** 0060, 0062, 0073-0074, 0077, 0088, 0094-0100 ([series](reference/patches.md))
+**Engine patches:** 0060, 0062, 0073-0074, 0077, 0094-0100 ([series](reference/patches.md))
 
 <a id="fast-restore"></a>
 ## Fast restore
@@ -312,7 +315,7 @@ loops: `panda_fast_snap` and `panda_fast_restore`. Every clock rewinds, the x86 
 restore copies back the dirty pages (pflash storage included) and loads the device state, without
 a machine reset. tests/fuzz.py runs a fuzzing loop with it.
 
-**Limits.** TCG only, and not while recording or replaying (both refuse).
+**Limits.** TCG only; refused while recording and in replay (the replay table), and on a machine with a device that discards guest RAM without marking it dirty (virtio-mem, hv-balloon; with a snapshot held, other discards such as virtio-balloon's are switched off). Shared RAM (vhost-user, ivshmem) is compared page by page.
 
 **Use it:** `panda_fast_snap`, `panda_fast_restore`, `panda_fast_delete`
 
@@ -373,7 +376,7 @@ TCG), and so must the devices: build both engines with the same features or pass
 
 **Tests:** none yet.
 
-**Engine patches:** 0021, 0023, 0073, 0087 ([series](reference/patches.md))
+**Engine patches:** 0021, 0023, 0073 ([series](reference/patches.md))
 
 <a id="faulting-access"></a>
 ## Memory access that pages in

@@ -29,10 +29,9 @@ CMD = "head -c 32 /etc/os-release | tr a-z A-Z; echo; echo computed-$((6*7))"
 image = sys.argv[1]
 work = sys.argv[2] if len(sys.argv) > 2 else tempfile.mkdtemp(prefix="taint-example-")
 recording = os.path.join(work, "example")
-caps = ["analysis", "rr", "taint"]
 
 if not os.path.exists(recording + "-rr-nondet.log"):
-    panda = Panda(generic=image, rr=True, capabilities=caps)
+    panda = Panda(generic=image, capabilities=["record"])
 
     @panda.queue_blocking
     def record():
@@ -44,7 +43,7 @@ if not os.path.exists(recording + "-rr-nondet.log"):
     # one engine per process: replay in a fresh one
     os.execv(sys.executable, [sys.executable] + sys.argv[:1] + [image, work])
 
-panda = Panda(generic=image, rr=True, capabilities=caps)
+panda = Panda(generic=image, capabilities=["taint"])     # the replay: taint, no record
 reads = {}              # label -> (fd, bytes)
 branches = Counter()    # pc -> tainted branches there
 

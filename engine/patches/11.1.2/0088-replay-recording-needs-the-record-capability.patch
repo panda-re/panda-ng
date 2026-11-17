@@ -1,0 +1,82 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 29 Oct 2026 20:00:00 -0400
+Subject: [PATCH] replay: recording needs the record capability
+
+A recording starts (x-rr-begin-record, or -icount rr=record at startup)
+only in a run chosen with -capabilities record, and not in a replay;
+refusals name the capability. replay_record_check() (replay-conflicts.c,
+in the overlay, built here) makes that check and the existing one that
+every mutator the recording would admit is logged.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ replay/meson.build    | 1 +
+ replay/replay-begin.c | 7 ++++---
+ replay/replay.c       | 3 ++-
+ 3 files changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/replay/meson.build b/replay/meson.build
+index 6f86061e40de66f91118653db3b22e2428e29eb4..975eff5b044b31334c3934533153e810929333f1 100644
+--- a/replay/meson.build
++++ b/replay/meson.build
+@@ -11,4 +11,5 @@ system_ss.add(when: 'CONFIG_TCG', if_true: files(
+   'replay-random.c',
+   'replay-debugging.c',
+   'replay-begin.c',
++  'replay-conflicts.c',
+ ), if_false: files('stubs-system.c'))
+diff --git a/replay/replay-begin.c b/replay/replay-begin.c
+index 94f6db52addd62e12704af52fce2581ac4add10b..4d7f7297acc3d01f6d19c1106c026a3a9f7acdb7 100644
+--- a/replay/replay-begin.c
++++ b/replay/replay-begin.c
+@@ -41,6 +41,7 @@
+ #include "replay-internal.h"
+ #include "panda/hooks.h"
+ #include "system/panda-embed.h"
++#include "system/replay-conflicts.h"
+ 
+ #define MAX_NETDEVS 64
+ 
+@@ -264,6 +265,9 @@ RrBeginRecordInfo *qmp_x_rr_begin_record(const char *snapshot,
+     bool was_running = runstate_is_running();
+     FILE *probe;
+ 
++    if (!replay_record_check(errp)) {
++        return NULL;
++    }
+     if (replay_mode != REPLAY_MODE_NONE) {
+         error_setg(errp, "record/replay is already active");
+         return NULL;
+@@ -271,9 +275,6 @@ RrBeginRecordInfo *qmp_x_rr_begin_record(const char *snapshot,
+     if (replay_check_blockers(errp)) {
+         return NULL;
+     }
+-    if (!panda_callbacks_record_safe(errp) || !panda_hypercall_replay_safe(errp)) {
+-        return NULL;
+-    }
+     probe = fopen(file, "wb");
+     if (!probe) {
+         error_setg_errno(errp, errno, "cannot open '%s'", file);
+diff --git a/replay/replay.c b/replay/replay.c
+index 0e6b665d5603d09b0d06e445efafc14d49fa70b8..a68c70f5637999cb0f5e7a9ea11ce00567c02880 100644
+--- a/replay/replay.c
++++ b/replay/replay.c
+@@ -17,6 +17,7 @@
+ #include "replay-internal.h"
+ #include "panda/hooks.h"
+ #include "system/panda-embed.h"
++#include "system/replay-conflicts.h"
+ #include "qemu/main-loop.h"
+ #include "qemu/timer.h"
+ #include "qemu/option.h"
+@@ -520,7 +521,7 @@ void replay_start(void)
+         }
+     } else {
+         Error *err = NULL;
+-        if (!panda_callbacks_record_safe(&err) || !panda_hypercall_replay_safe(&err)) {
++        if (!replay_record_check(&err)) {
+             error_reportf_err(err, "Record: ");
+             exit(EXIT_FAILURE);
+         }

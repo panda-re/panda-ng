@@ -35,13 +35,12 @@ WORD = "typed-q7"
 CMD = f"echo {WORD}; uname -m"
 UART = {"aarch64": 0x09000000, "riscv64": 0x10000000}   # MMIO base of the console UART
 LABEL = 7
-# pandare2's defaults (analysis, guest-hypercall, rr) plus taint: syscalls2 sees no syscalls on Arm
-# without guest-hypercall.
-CAPS = ["analysis", "guest-hypercall", "rr", "taint"] + os.environ.get("TAINT_TEST_CAPS", "").split()
+# The recording needs the record capability; taint runs in the replays, which need only taint.
+CAPS = {"record": ["record"]}
 
 
 def child(mode, image, name, out):
-    panda = Panda(generic=image, rr=True, capabilities=CAPS)
+    panda = Panda(generic=image, capabilities=CAPS.get(mode, ["taint"]))
     base = UART[panda.arch_name]
     seen = {"icount": None, "writes": [], "reads": []}
 

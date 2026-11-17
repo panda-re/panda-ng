@@ -13,12 +13,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* The includer provides analysis_policy_*, kvm_enabled, replay_mode and PANDA_MODE_*. */
+/* The includer provides startup_caps_*, kvm_enabled, replay_mode and PANDA_MODE_*. */
 
 typedef enum PandaAdmit {
     PANDA_ADMIT_OK,
-    PANDA_ADMIT_NO_ANALYSIS,    /* analysis is not provisioned (or the policy is not sealed yet) */
-    PANDA_ADMIT_CAPABILITY,     /* the event needs a capability this run was not given */
+    PANDA_ADMIT_CAPABILITY,     /* the event needs a startup capability this run was not given */
     PANDA_ADMIT_MODES,          /* no modes, or modes the event cannot fire in */
     PANDA_ADMIT_KVM,            /* running under KVM, and the subscriber did not ask for it */
     PANDA_ADMIT_RR,             /* record/replay, and the subscriber did not ask for it */
@@ -26,17 +25,14 @@ typedef enum PandaAdmit {
 } PandaAdmit;
 
 /*
- * @supported: the modes the event can fire in. @capability: ANALYSIS_CAP_* it needs besides
- * analysis. @rr_mutate: the source logs what mutators do, so they are admitted in rr (today only
+ * @supported: the modes the event can fire in. @capability: the STARTUP_CAP_* (PANDA_CAP_*)
+ * it needs, or 0. @rr_mutate: the source logs what mutators do, so they are admitted in rr (today only
  * the hypercall site, 0092). @modes and @observe_only: what the subscriber declared.
  */
 static inline PandaAdmit panda_admit(uint32_t supported, uint32_t capability, bool rr_mutate,
                                      uint32_t modes, bool observe_only)
 {
-    if (!analysis_policy_is_frozen() || !analysis_policy_has(ANALYSIS_CAP_ANALYSIS)) {
-        return PANDA_ADMIT_NO_ANALYSIS;
-    }
-    if (capability && !analysis_policy_has(capability)) {
+    if (capability && (!startup_caps_is_frozen() || !startup_caps_has(capability))) {
         return PANDA_ADMIT_CAPABILITY;
     }
     if (!modes || (modes & ~supported)) {
@@ -60,8 +56,7 @@ static inline const char *panda_admit_reason(PandaAdmit a)
 {
     switch (a) {
     case PANDA_ADMIT_OK:            return "admitted";
-    case PANDA_ADMIT_NO_ANALYSIS:   return "analysis is not provisioned for this run";
-    case PANDA_ADMIT_CAPABILITY:    return "the event needs a capability this run does not have";
+    case PANDA_ADMIT_CAPABILITY:    return "the event needs a startup capability this run does not have";
     case PANDA_ADMIT_MODES:         return "the requested modes are empty or not ones the event fires in";
     case PANDA_ADMIT_KVM:           return "running under KVM, and the subscriber did not declare PANDA_MODE_KVM";
     case PANDA_ADMIT_RR:            return "record/replay is active, and the subscriber did not declare PANDA_MODE_RR";

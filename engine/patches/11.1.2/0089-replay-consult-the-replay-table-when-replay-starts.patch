@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 29 Oct 2026 21:00:00 -0400
+Subject: [PATCH] replay: consult the replay table when replay starts
+
+Replay is a mode, entered by loading a recording, not a capability. What
+it allows is one table (replay-conflicts.c, in the overlay): starting a
+recording, guest-visible mutation outside the log and fast restore are
+refused; hypercall answers and device input come from the log; taint and
+observe-only analysis are allowed. Features consult it when requested.
+When replay starts (x-rr-begin-replay, or -icount rr=replay at startup),
+replay_start_check() refuses what is already in use and replay would
+refuse: today, mutating callbacks and a KVM hypercall consumer, the check
+these call sites made themselves.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ replay/replay-begin.c | 2 +-
+ replay/replay.c       | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/replay/replay-begin.c b/replay/replay-begin.c
+index 4d7f7297acc3d01f6d19c1106c026a3a9f7acdb7..18f7c337f94bfe2fad4712e0a3c8a3052be0b537 100644
+--- a/replay/replay-begin.c
++++ b/replay/replay-begin.c
+@@ -353,7 +353,7 @@ RrBeginRecordInfo *qmp_x_rr_begin_replay(const char *snapshot,
+         error_setg(errp, "start the replaying VM paused (-S)");
+         return NULL;
+     }
+-    if (!panda_callbacks_replay_safe(errp) || !panda_hypercall_replay_safe(errp)) {
++    if (!replay_start_check(errp)) {
+         return NULL;
+     }
+     if (replay_check_blockers(errp)) {
+diff --git a/replay/replay.c b/replay/replay.c
+index a68c70f5637999cb0f5e7a9ea11ce00567c02880..2ecce01d52e6da1100a0a97c9b1c1749cbd09ab8 100644
+--- a/replay/replay.c
++++ b/replay/replay.c
+@@ -515,7 +515,7 @@ void replay_start(void)
+     }
+     if (replay_mode == REPLAY_MODE_PLAY) {
+         Error *err = NULL;
+-        if (!panda_callbacks_replay_safe(&err) || !panda_hypercall_replay_safe(&err)) {
++        if (!replay_start_check(&err)) {
+             error_reportf_err(err, "Replay: ");
+             exit(EXIT_FAILURE);
+         }

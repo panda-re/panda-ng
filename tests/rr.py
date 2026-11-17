@@ -18,7 +18,7 @@ from pandare2 import Panda
 
 def child(mode, image, name, out):
     # --8<-- [start:panda]
-    panda = Panda(generic=image, rr=True)
+    panda = Panda(generic=image, capabilities=["record"] if mode == "record" else None)
     # --8<-- [end:panda]
     seen = {"asids": [], "openat": 0, "icount": None}
 

@@ -19,7 +19,7 @@ Origin: new
  5 files changed, 33 insertions(+), 2 deletions(-)
 
 diff --git a/replay/meson.build b/replay/meson.build
-index 6f86061e40de66f91118653db3b22e2428e29eb4..b665124157d600b712eed7a1365c832e4b4af011 100644
+index 975eff5b044b31334c3934533153e810929333f1..aed38205f9bf82b1491d956f6a8e609703a351d6 100644
 --- a/replay/meson.build
 +++ b/replay/meson.build
 @@ -2,6 +2,7 @@ system_ss.add(when: 'CONFIG_TCG', if_true: files(
@@ -99,7 +99,7 @@ index 78e2e9394d1b31f78d1f22c4de8182ca1fd52d38..53b8fdec2ef854f589c7314dec7d9f9d
          event = g_new0(Event, 1);
          event->event_kind = event_kind;
 diff --git a/replay/replay-internal.h b/replay/replay-internal.h
-index 7651d28fcd2cb4e1d403ad8bc951971a01f67dcb..fa94be90af6ae8c83bde51b47c63ec5713c6bfdb 100644
+index 98495cce9477411bc61e96067bd0393e67231843..8ef4755356a59f079642223996d5ea23f15bd7b5 100644
 --- a/replay/replay-internal.h
 +++ b/replay/replay-internal.h
 @@ -22,6 +22,7 @@ typedef enum ReplayAsyncEventKind {
@@ -111,7 +111,7 @@ index 7651d28fcd2cb4e1d403ad8bc951971a01f67dcb..fa94be90af6ae8c83bde51b47c63ec57
  } ReplayAsyncEventKind;
  
 diff --git a/replay/replay.c b/replay/replay.c
-index dea01242c890422bee2491e64c21d9dee30d2b94..41e4fec6f3f4bc272c7d6df0a137382491470255 100644
+index 2ecce01d52e6da1100a0a97c9b1c1749cbd09ab8..b4ff835e9fe3f88c572ad5a385d6d99f07b88944 100644
 --- a/replay/replay.c
 +++ b/replay/replay.c
 @@ -26,7 +26,7 @@
@@ -132,7 +132,7 @@ index dea01242c890422bee2491e64c21d9dee30d2b94..41e4fec6f3f4bc272c7d6df0a1373824
      default:
          g_assert_not_reached();
 diff --git a/replay/stubs-system.c b/replay/stubs-system.c
-index 62defd60fd251b3d98e3e39c334de89574fe9bd6..2018b72bd7a645a947a01bd782f4d07c3dee4a08 100644
+index b8d1f0d5cd95a55d25c46af20e894bb875f8d7ea..54b36e233432c9ce28ef13f9805f7ee1e93eccde 100644
 --- a/replay/stubs-system.c
 +++ b/replay/stubs-system.c
 @@ -1,4 +1,5 @@
@@ -141,7 +141,7 @@ index 62defd60fd251b3d98e3e39c334de89574fe9bd6..2018b72bd7a645a947a01bd782f4d07c
  #include "system/replay.h"
  #include "ui/input.h"
  
-@@ -132,3 +133,10 @@ void qmp_x_rr_end_record(Error **errp)
+@@ -136,3 +137,10 @@ void qmp_x_rr_end_record(Error **errp)
  {
      error_setg(errp, "replay support not available");
  }

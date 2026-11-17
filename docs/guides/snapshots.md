@@ -127,7 +127,12 @@ same time. `tests/fastcov.py` checks the maps are exact from lap to lap.
 - After anything that rewrites RAM without dirty tracking (a `loadvm`) or reads the dirty bitmap
   (a `savevm` or a migration), the next restore copies all RAM, still correctly.
 - With a vhost device that can't log dirty pages (a vhost-user backend without a shared log), each
-  restore compares every page instead: still exact, but it reads all RAM.
+  restore compares every page instead: still exact, but it reads all RAM. Shared RAM
+  (`share=on` backends, which another process can write) is always compared that way.
+- Discarding guest RAM zeroes pages without marking them dirty. While a snapshot exists, discards
+  are switched off (virtio-balloon keeps the pages the guest gives it, as under VFIO); on a
+  machine with a device that needs them or ignores the switch (virtio-mem, hv-balloon),
+  `panda_fast_snap` refuses, naming the device.
 - Writes through host pointers from `panda_map_virt_to_host` aren't tracked.
 - If RAM blocks change after the snapshot (a device with its own RAM, such as a NIC's option
   ROM, is plugged or unplugged), restore refuses (-1); take a new snapshot.
