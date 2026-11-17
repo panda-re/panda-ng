@@ -19,12 +19,35 @@
 
 enum { HC_HELLO = 1, HC_POLL = 2, HC_REPLY = 3 };
 enum { OP_PUT = 1, OP_RUN = 2, OP_GET = 3 };
+#if defined(__mips__) || (defined(__powerpc__) && !defined(__powerpc64__))
+/* MIPS and 32-bit PowerPC (BookE): the host reaches user memory only through the TLB (software-
+ * refilled): a buffer the TLB holds (16 pages), touched again before each hypercall */
+#define SOFT_TLB 1
+#define BUF (64ul << 10)
+#else
 #define BUF (4ul << 20)
+#endif
 #define OUT "/tmp/.agent-out"
 
 struct req { u32 op, mode, flags, pathlen; u64 datalen, offset; };
 
 static char buf[BUF] __attribute__((aligned(4096)));
+
+/* Every page of buf present and writable for the host (on MIPS, in the TLB too) */
+static void touch(void)
+{
+    for (u64 i = 0; i < BUF; i += 4096) {
+        ((volatile char *)buf)[i] = ((volatile char *)buf)[i];
+    }
+}
+
+/* Before a hypercall that reads or writes buf: with a software-refilled TLB, its pages back in */
+static inline void touch_tlb(void)
+{
+#ifdef SOFT_TLB
+    touch();
+#endif
+}
 static int last_status;
 
 static void run_wait(const char *const *argv, const char *out)
@@ -120,13 +143,14 @@ void _start_c(void *sp)
         run_wait(install, 0);
     }
     hc_setup();
-    for (u64 i = 0; i < BUF; i += 4096) {       /* every page present and writable for the host */
-        ((volatile char *)buf)[i] = 0;
-    }
+    touch();
     sc(NR_write, 2, (long)"panda agent: ready\n", 19, 0, 0, 0);
     hc(HC_HELLO, (long)buf, BUF, sc(NR_getpid, 0, 0, 0, 0, 0, 0));
     for (;;) {
-        long n = hc(HC_POLL, (long)buf, BUF, 0);
+        long n;
+
+        touch_tlb();
+        n = hc(HC_POLL, (long)buf, BUF, 0);
         long status;
         u64 len = 0;
 
@@ -161,6 +185,7 @@ void _start_c(void *sp)
         default:
             status = -22;
         }
+        touch_tlb();
         hc(HC_REPLY, (long)buf, len, status);
     }
 }

@@ -27,7 +27,7 @@ export PANDA_PYTHON=$PWD/result-python/bin/python3
 | guest suite | `guest api osi_isf blocks block_activation block_toggle callbacks calls mem mmio late reset teardown asidstory tbpc hookalias rr rrcb rrstop rrload fuzz fastrestore fastcov syscalls taint taint_mmio taint_errors` | an image (below); `run.sh` runs them |
 | every arch | `busybox.sh [arch...]` | nix and network: builds `mkbusybox.py` images (a linux_builder kernel, a busybox initramfs, an ext2 disk) for 12 arches and runs `taint taint_mmio taint_errors` on them through `run.sh`, about 3 minutes. CI runs it on PRs that touch taint or record/replay, and nightly |
 | more guest tests | `physmem rr_blocks fastrestore_guards fastrestore_hotplug fastrestore_vsock` | an image; not in `run.sh`'s default list (x86_64-only, or need extra host tools: see each docstring) |
-| test machines | `testmachine.py <busybox json> [--smp N] [--intel]` | a `mkbusybox.py` image (x86_64, aarch64, armel): builds and checks its test machine (below) |
+| test machines | `testmachine.py <busybox json> [--smp N] [--intel]` | a `mkbusybox.py` image (x86_64, aarch64, armel, riscv64, mipsel, mipseb, mips64el, mips64eb, powerpc, powerpc64, powerpc64le), or an i386 one made the same way: builds and checks its test machine (below) |
 | TB flush on two vCPUs | `flush_smp.py <busybox image>` | a `mkbusybox.py` image (x86_64, aarch64 or riscv64), booted afresh with two vCPUs: a flush requested from one vCPU while another's is pending still comes before the requester runs more guest code |
 | process identifier under KPTI | `kpti.py <busybox json> [--intel]` | a `mkbusybox.py` image (x86_64) and the kernel's ISF (linux_builder's `cosi.x86_64.json.xz` beside the kernel, or `--isf`): its test machine (booted with `nokaslr`, for the ISF), as GenuineIntel (`--intel`: page-table isolation on) or AMD (off, the control); `current_asid` is OSI's for one process in user and kernel mode, and `asid_changed` doesn't fire for PTI's CR3 switches |
 | lazy translation callback | `tbtrans.py <busybox json> [--smp N]` | a `mkbusybox.py` image (x86_64, aarch64): its test machine; nothing registered keeps every vCPU off QEMU's plugin translation path, and a block, instruction or memory callback, a hook or coverage, registered before the start or in the middle of a run, switches every vCPU to it and sees the code that was already translated |
@@ -74,7 +74,11 @@ reverts to it (0.3-0.6 s) and moves files and commands through the agent's hyper
 memory (`Agent.put`, `run`, `get`): no boot and no serial console. The agent mounts `/dev`,
 `/proc`, `/sys`, tracefs and `/tmp`.
 
-Machines exist for x86_64, aarch64 and arm (busybox-armel). An arch needs:
+Machines exist for x86_64, i386, aarch64, arm (busybox-armel), riscv64, the four MIPS images and the
+three PowerPC ones. The MIPS malta and PowerPC e500 machines boot one CPU (their kernels hang
+with more). On MIPS and 32-bit PowerPC the host reaches user memory only through the guest's
+software-filled TLB, so the agent there uses a 64 KiB buffer and touches it before each hypercall;
+on big-endian guests the host packs its requests in the guest's byte order. An arch needs:
 
 1. **An image**: `mkbusybox.py <arch>` (all 12 of its arches have one).
 2. **The system layer** in `programs/sys.h`, under the compiler's arch macro: `NR_<name>` for the
