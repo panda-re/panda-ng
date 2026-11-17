@@ -184,6 +184,7 @@ SPDX-License-Identifier = "GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT"
 path = [
   "engine/patches/11.1.2/0008-target-i386-hw-i386-route-guest-hypercalls-through-a.patch",
   "engine/patches/11.1.2/0011-system-reset-request-and-QMP-command-callbacks.patch",
+  "engine/patches/11.1.2/0105-target-ppc-take-system-calls-from-problem-state-with.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
