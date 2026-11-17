@@ -170,12 +170,13 @@ Python, `panda.get_current_process`, `get_process_name` and `get_mappings` call 
 Callbacks on every system call entry and return, with decoded arguments (syscalls2), and on new
 processes (proc_start_linux).
 
-**Use it:** `syscalls2` (plugin), `proc_start_linux` (plugin)
+**Use it:** `syscalls2` (plugin), `proc_start_linux` (plugin), `panda_syscall_abi_declare`, `panda_task_key_declare`
 
-**Docs:** [docs/guides/plugins.md#using-a-plugin-from-python](guides/plugins.md#using-a-plugin-from-python), [plugins/syscalls2/README.md](https://github.com/panda-re/panda-ng/blob/main/plugins/syscalls2/README.md)
+**Docs:** [docs/guides/plugins.md#using-a-plugin-from-python](guides/plugins.md#using-a-plugin-from-python), [plugins/syscalls2/README.md](https://github.com/panda-re/panda-ng/blob/main/plugins/syscalls2/README.md), [docs/design/syscall-pairing.md](design/syscall-pairing.md)
 
 **Tests:** `tests/guest.py`, `tests/syscalls.py`, `tests/syscalls_smp.py`
 
+**Engine patches:** 0102 ([series](reference/patches.md))
 
 <a id="hooks"></a>
 ## Address hooks

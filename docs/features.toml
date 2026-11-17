@@ -163,9 +163,12 @@ summary = """
 Callbacks on every system call entry and return, with decoded arguments (syscalls2), and on new
 processes (proc_start_linux).
 """
-api = ["plugin:syscalls2", "plugin:proc_start_linux"]
-docs = ["docs/guides/plugins.md#using-a-plugin-from-python", "plugins/syscalls2/README.md"]
+api = ["plugin:syscalls2", "plugin:proc_start_linux", "c:panda_syscall_abi_declare",
+       "c:panda_task_key_declare"]
+docs = ["docs/guides/plugins.md#using-a-plugin-from-python", "plugins/syscalls2/README.md",
+        "docs/design/syscall-pairing.md"]
 tests = ["tests/guest.py", "tests/syscalls.py", "tests/syscalls_smp.py"]
+patches = ["0102"]
 
 [[feature]]
 id = "hooks"
