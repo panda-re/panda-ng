@@ -2,20 +2,27 @@
 reports, with the same number, arguments and return, on the same vCPU and in the same order.
 
 Run: panda-python tests/syscall_truth.py <images>/busybox-<arch>.json [--smp N] [--intel]
-(busybox-x86_64 and -aarch64, images from tests/mkbusybox.py). It runs on a tests/testmachine.py
-machine (built and snapshotted the first time, 4-6 s) with N vCPUs (default 1); --intel makes the
-x86 CPU GenuineIntel, whose 32-bit vDSO enters through sysenter (the default, qemu64, is AMD:
-syscall). Programs go in and the kernel's trace comes out through the agent. 10-30 s per arch once
-the machine exists. On aarch64 the arm builds of the programs also run, as 32-bit tasks.
+(tests/mkbusybox.py images: x86_64, aarch64, armel, riscv64, mipsel, mipseb, mips64el, mips64eb,
+powerpc, powerpc64, powerpc64le; an i386 one is a 32-bit Debian kernel with busybox, made the same
+way). It runs on a tests/testmachine.py machine (built and snapshotted the first time, 4-10 s) with
+N vCPUs (default 1; the MIPS malta and PowerPC e500 machines boot one CPU); --intel makes the x86
+CPU GenuineIntel, whose 32-bit vDSO on x86_64 enters through sysenter (the default, qemu64, is AMD:
+syscall). Programs go in and the kernel's trace comes out through the agent. 10-40 s per arch once
+the machine exists. On aarch64 the arm builds of the programs also run, as 32-bit tasks; on x86_64
+and i386, a 32-bit program through int 0x80 and the vDSO.
 
-On these guests (Linux on x86_64 and aarch64) syscalls2's returns come from the engine's pairing
-(panda/syscall-pair.h): its x86_64 ABI and the i386 ABIs (int 0x80, and a 32-bit task's vDSO
-entries: sysenter, and syscall from compat mode), or its AArch64 and AArch32 ABIs, keyed by task
-(x86_64: the per-CPU kernel stack word; aarch64: SP_EL1). on_all_sys_enter2 and on_all_sys_return2
+On these guests (Linux) syscalls2's returns come from the engine's pairing (panda/syscall-pair.h),
+keyed by task (x86_64: the per-CPU kernel stack word; i386: TSS.sp1; aarch64: SP_EL1; arm: SP_svc;
+riscv64: sscratch; MIPS: kernelsp[cpu]; ppc: SPRG3; ppc64: the PACA's kstack); on x86_64 its
+x86_64 ABI and the i386 ABIs (int 0x80, and a 32-bit task's vDSO
+entries: sysenter, and syscall from compat mode). on_all_sys_enter2 and on_all_sys_return2
 record every call, with the call's id from syscalls2_current_call() (the same at its entry and its
 return) and the arguments where the kernel reads them at the entry: the ABI's registers, and for
 a vDSO entry argument 2 from ebp (syscall) and argument 6 from the user stack, where
-__kernel_vsyscall pushed ebp.
+__kernel_vsyscall pushed ebp; MIPS o32 arguments 5 and 6 from the user stack (unknown, and not
+compared, when the page is not in the TLB, through which alone the host reaches it). A return's
+value is the kernel's: MIPS and PowerPC sc report an error with a flag ($a3, CR0.SO) and the
+positive error number, which the test negates.
 SC2_ARGS="task_key=false" loads syscalls2 with the call key instead. SC2_SETS_LOG=n gives the
 engine 2^n sets of 4 pending calls (PANDA_SYSCALL_PAIR_SETS_LOG; 0: one set, so that the
 workloads' blocked calls fill it): the oldest calls are evicted, so a call may have no return,
@@ -65,9 +72,11 @@ import threading
 from collections import defaultdict, namedtuple
 
 from testlib import Checks, progress
-from testmachine import Agent, Machine
+from testmachine import AGENT_ARCH, Agent, Machine, agent_key
 
-PANDA_TEST = dict(area="syscalls", tier="guest", fixture="testmachine", arches=["x86_64", "aarch64"],
+PANDA_TEST = dict(area="syscalls", tier="guest", fixture="testmachine",
+                  arches=["x86_64", "aarch64", "arm", "i386", "riscv64", "mipsel", "mips", "mips64el",
+                          "mips64", "ppc", "ppc64"],
                   plugins=["syscalls2"], variants=dict(smp=[1, 4], intel=[False, True]), timeout=1800)
 
 ap = argparse.ArgumentParser()
@@ -76,7 +85,7 @@ ap.add_argument("--smp", type=int, default=1)
 ap.add_argument("--intel", action="store_true")
 opt = ap.parse_args()
 
-ABI_X86_64, ABI_I386, ABI_AARCH64, ABI_ARM = range(4)
+ABI_X86_64, ABI_I386, ABI_AARCH64, ABI_ARM, ABI_RISCV64, ABI_O32, ABI_N64, ABI_PPC32, ABI_PPC64 = range(9)
 ENTER, RETURN = 1, 2
 M64, M32 = (1 << 64) - 1, (1 << 32) - 1
 T = "/sys/kernel/tracing"
@@ -84,20 +93,32 @@ RESTART = {-512, -513, -514, -516}      # ERESTARTSYS, ERESTARTNOINTR, ERESTARTN
 EINTR = 4
 # Per ABI: calls the kernel never ends (no exit event), calls that don't return past the call
 # (rt_sigreturn), calls that don't return when they succeed (execve), vfork, and clone.
-NO_EXIT = {ABI_X86_64: {60, 231}, ABI_I386: {1, 252}, ABI_AARCH64: {93, 94}, ABI_ARM: {1, 248}}
-SIGRETURN = {ABI_X86_64: {15}, ABI_I386: {119, 173}, ABI_AARCH64: {139}, ABI_ARM: {119, 173}}
-EXECVE = {ABI_X86_64: {59, 322}, ABI_I386: {11, 358}, ABI_AARCH64: {221, 281}, ABI_ARM: {11, 387}}
+NO_EXIT = {ABI_X86_64: {60, 231}, ABI_I386: {1, 252}, ABI_AARCH64: {93, 94}, ABI_ARM: {1, 248},
+           ABI_RISCV64: {93, 94}, ABI_O32: {4001, 4246}, ABI_N64: {5058, 5205},
+           ABI_PPC32: {1, 234}, ABI_PPC64: {1, 234}}
+SIGRETURN = {ABI_X86_64: {15}, ABI_I386: {119, 173}, ABI_AARCH64: {139}, ABI_ARM: {119, 173},
+             ABI_RISCV64: {139}, ABI_O32: {4119, 4193}, ABI_N64: {5211}, ABI_PPC32: {119, 172},
+             ABI_PPC64: {119, 172}}
+EXECVE = {ABI_X86_64: {59, 322}, ABI_I386: {11, 358}, ABI_AARCH64: {221, 281}, ABI_ARM: {11, 387},
+          ABI_RISCV64: {221, 281}, ABI_O32: {4011, 4356}, ABI_N64: {5057, 5316},
+          ABI_PPC32: {11, 362}, ABI_PPC64: {11, 362}}
 # Calls syscalls2's tables mark panda_noreturn: it reports no return for them, even a failed one
-SC2_NORETURN = {ABI_X86_64: {322}, ABI_I386: {11, 358}, ABI_AARCH64: set(), ABI_ARM: {11, 387}}
-VFORK = {ABI_X86_64: {58}, ABI_I386: {190}, ABI_AARCH64: set(), ABI_ARM: {190}}
-CLONE = {ABI_X86_64: 56, ABI_I386: 120, ABI_AARCH64: 220, ABI_ARM: 120}
+SC2_NORETURN = {ABI_X86_64: {322}, ABI_I386: {11, 358}, ABI_AARCH64: set(), ABI_ARM: {11, 387},
+                ABI_RISCV64: set(), ABI_O32: {4356}, ABI_N64: set(), ABI_PPC32: set(),
+                ABI_PPC64: set()}
+VFORK = {ABI_X86_64: {58}, ABI_I386: {190}, ABI_AARCH64: set(), ABI_ARM: {190}, ABI_RISCV64: set(),
+         ABI_O32: set(), ABI_N64: set(), ABI_PPC32: {189}, ABI_PPC64: {189}}
+CLONE = {ABI_X86_64: 56, ABI_I386: 120, ABI_AARCH64: 220, ABI_ARM: 120, ABI_RISCV64: 220,
+         ABI_O32: 4120, ABI_N64: 5055, ABI_PPC32: 120, ABI_PPC64: 120}
 CLONE3 = 435
 CLONE_VFORK = 0x4000
 ABI_GROUP = {ABI_X86_64: "x86_64 ABI", ABI_I386: "i386 ABI", ABI_AARCH64: "aarch64 ABI",
-             ABI_ARM: "arm ABI"}
+             ABI_ARM: "arm ABI", ABI_RISCV64: "riscv64 ABI", ABI_O32: "o32 ABI", ABI_N64: "n64 ABI",
+             ABI_PPC32: "ppc32 ABI", ABI_PPC64: "ppc64 ABI"}
 # syscalls2's ProfileType (syscalls2.h) of each ABI it pairs through the engine; 0, its i386
 # profile for the vDSO's entries
-PROFILE_ABI = {12: ABI_X86_64, 1: ABI_I386, 0: ABI_I386, 3: ABI_AARCH64, 2: ABI_ARM}
+PROFILE_ABI = {12: ABI_X86_64, 1: ABI_I386, 0: ABI_I386, 3: ABI_AARCH64, 2: ABI_ARM,
+               14: ABI_RISCV64, 4: ABI_O32, 6: ABI_N64, 15: ABI_PPC32, 16: ABI_PPC64}
 PROFILE_VDSO = 0
 MMAP2 = 192
 CHILD = 1 << 4                          # PANDA_SYSCALL_CHILD
@@ -116,6 +137,11 @@ SHELL = [
                      "while read x; do :; done) & done; n=$(nproc); for k in $(seq 30); do "
                      "for p in $(pidof sh); do taskset -p $((1 << (k % n))) $p > /dev/null 2>&1; "
                      "done; usleep 500; done; wait"),
+]
+# The other arches: the programs built for the machine's agent arch (testmachine.agent_key)
+OTHER = lambda b: [("return paths", [("scpaths", b)], "/tmp/scpaths")] + SHELL + [
+    ("threads", [("scwork", b)], "/tmp/scwork threads"),
+    ("signals", [("scwork", b)], "/tmp/scwork signals"),
 ]
 WORKLOADS = {
     "x86_64": [
@@ -142,9 +168,20 @@ WORKLOADS = {
 GAPS = {}
 machine = Machine(opt.image, smp=opt.smp, intel=opt.intel)
 arch = machine.arch
+if arch == "i386":
+    # a 32-bit kernel: int 0x80 and the vDSO's sysenter
+    WORKLOADS[arch] = [("i386 program", [("sctruth", "i386")], "/tmp/sctruth")] + OTHER("i386")
+elif arch not in WORKLOADS and arch in AGENT_ARCH:
+    WORKLOADS[arch] = OTHER(agent_key(machine.image))
+BYTE_ORDER = "big" if agent_key(machine.image) in ("mips", "mips64", "ppc", "ppc64") else "little"
 C = Checks(arch, GAPS)
 if arch not in WORKLOADS:
     print(f"syscall_truth: no workloads for {arch}")
+    sys.exit(C.report("SYSCALL_TRUTH skipped"))
+if arch.startswith("mips") and "task_key=false" in os.environ.get("SC2_ARGS", ""):
+    # The call key's address-space part on MIPS is the ASID, which Linux gives a process anew when
+    # it flushes its TLB entries (fork does, for copy-on-write): a fork's return is lost to it.
+    print("syscall_truth: the call key does not pair a MIPS fork (its ASID changes)")
     sys.exit(C.report("SYSCALL_TRUTH skipped"))
 EVICT = bool(os.environ.get("SC2_SETS_LOG"))
 MISSING = [0]                           # EVICT: calls with no return
@@ -212,6 +249,27 @@ class Sc2Trace:
             return a, r[0] & M32
         if abi == ABI_AARCH64:
             return [env.xregs[i] for i in range(6)], env.xregs[0]
+        if abi == ABI_RISCV64:
+            return [env.gpr[10 + i] for i in range(6)], env.gpr[10]
+        if abi in (ABI_O32, ABI_N64):
+            g, m = env.active_tc.gpr, mask_of(abi)
+            a = [g[4 + i] & m for i in range(6)]
+            if abi == ABI_O32:
+                # arguments 5 and 6 on the user stack, 16 and 20 bytes above $sp
+                for k, off in ((4, 16), (5, 20)):
+                    try:
+                        a[k] = int.from_bytes(bytes(panda.virtual_memory_read(cpu, (g[29] + off) & M32, 4)),
+                                              BYTE_ORDER)
+                    except ValueError:
+                        # not in the TLB (MIPS reaches user memory through it only): unknown,
+                        # as for syscalls2 and the engine, which read it the same way
+                        a[k] = None
+            ret = g[2] & m
+            return a, (-ret & m) if g[7] & m else ret   # $a3: an error, $v0 its number
+        if abi in (ABI_PPC32, ABI_PPC64):
+            m = mask_of(abi)
+            ret = env.gpr[3] & m
+            return [env.gpr[3 + i] & m for i in range(6)], (-ret & m) if env.crf[0] & 1 else ret
         return [env.regs[i] & M32 for i in range(6)], env.regs[0] & M32
 
     def record(self, kind, cpu, pc, ctx):
@@ -227,7 +285,7 @@ class Sc2Trace:
         abi = PROFILE_ABI.get(ctx.profile)
         if abi is None:
             return
-        vdso = arch == "x86_64" and ctx.profile == PROFILE_VDSO
+        vdso = arch in ("x86_64", "i386") and ctx.profile == PROFILE_VDSO
         args, ret = self.regs(cpu, abi, pc, vdso and kind == ENTER)
         # syscalls2's own decoding of mmap2's argument 6 (the one in ebp, or on the stack)
         arg6 = int.from_bytes(bytes(list(ctx.args[5])[:4]), "little") \
@@ -263,7 +321,7 @@ def program(name, build):
 
 
 def mask_of(abi):
-    return M32 if abi in (ABI_I386, ABI_ARM) else M64
+    return M32 if abi in (ABI_I386, ABI_ARM, ABI_O32, ABI_PPC32) else M64
 
 
 def run(name, progs, cmd, ncpu):
@@ -298,7 +356,7 @@ def run(name, progs, cmd, ncpu):
 def same_enter(f, t):
     """Is the kernel's enter f syscalls2's enter t?"""
     mask = mask_of(t.abi)
-    return ((f["nr"] - t.num) & mask) == 0 and all(((a - b) & mask) == 0
+    return ((f["nr"] - t.num) & mask) == 0 and all(b is None or ((a - b) & mask) == 0
                                                    for a, b in zip(f["args"], t.args))
 
 
@@ -345,7 +403,8 @@ def fmt_f(f):
 
 def fmt_t(t):
     kind = {ENTER: "enter", RETURN: "return"}[t.kind]
-    return (f"#{t.id} {kind} abi={t.abi} nr={t.num} ({', '.join(hex(a) for a in t.args)}) pc={t.pc:#x}"
+    return (f"#{t.id} {kind} abi={t.abi} nr={t.num} "
+            f"({', '.join('?' if a is None else hex(a) for a in t.args)}) pc={t.pc:#x}"
             + (f" = {t.ret}" if t.kind == RETURN else ""))
 
 
@@ -368,12 +427,22 @@ def check(name, ftrace, trap, lost, overrun):
             tasks[f["pid"]].append(f)
     for evs in tasks.values():
         evs.sort(key=lambda f: (f["ts"], f["cpu"], f["i"]))
+        if arch == "arm":
+            # A 32-bit ARM kernel restarts a call that has no signal handler to run without
+            # returning to user mode: its -ERESTART* exit is followed at once by the restart's
+            # enter (restart_syscall, 0, for -ERESTART_RESTARTBLOCK), which no trap makes. The
+            # task sees one call, which returns the restart's value.
+            for k in range(len(evs) - 1):
+                f, g = evs[k], evs[k + 1]
+                if (f["kind"] == "exit" and f["ret"] in RESTART and g["kind"] == "enter" and
+                        g["nr"] == (0 if f["ret"] == -516 else f["nr"])):
+                    g["krestart"] = True
 
     # Enters, CPU by CPU.
     trap_of = {}                                # (cpu, ftrace index): enter
     n_enters, enter_diffs = 0, []
     for c, evs in ftrace.items():
-        F = [f for f in evs if f["kind"] == "enter"]
+        F = [f for f in evs if f["kind"] == "enter" and not f.get("krestart")]
         if not F:
             continue
         n_enters += len(F)
@@ -427,7 +496,11 @@ def check(name, ftrace, trap, lost, overrun):
             # A task's calls are serial: its next event is this call's exit. The exit's number can
             # differ: -1 for rt_sigreturn, the i386 one after an execve of a 32-bit program.
             exit_ = nxt if nxt and nxt["kind"] == "exit" else None
-            last = k + 2 >= len(evs)
+            j = k + 2
+            while exit_ and exit_["ret"] in RESTART and j + 1 < len(evs) and \
+                    evs[j].get("krestart") and evs[j + 1]["kind"] == "exit":
+                exit_, j = evs[j + 1], j + 2            # restarted in the kernel: its value
+            last = j >= len(evs)
             rets = by_id.get(t.id, [])
             got = [r.ret for r in rets]
             if exit_ is None:
