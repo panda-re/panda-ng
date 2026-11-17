@@ -6,23 +6,24 @@ typedef struct syscall_ctx syscall_ctx_t;
 
 /*
  * How returns are paired.
- *   SYSCALLS2_ENGINE: Linux guests on x86_64 and aarch64. The engine recognizes the calls of the
- *     ABIs syscalls2 declares (panda/syscall-pair.h), keeps each one whose return a callback
- *     wants with its context, and pairs it with its return (by task, exactly). The generated
- *     enter code stores the context in syscalls2_engine_store and sets syscalls2_engine_keep.
- *   SYSCALLS2_HOOK_RETURNS: every other guest and target. A hook (the hooks plugin) at the
+ *   SYSCALLS2_ENGINE: Linux guests on the targets below. The engine recognizes the
+ *     calls of the ABIs syscalls2 declares (panda/syscall-pair.h), keeps each one whose return
+ *     a callback wants with its context, and pairs it with its return (by task, exactly). The
+ *     generated enter code stores the context in syscalls2_engine_store and sets
+ *     syscalls2_engine_keep.
+ *   SYSCALLS2_HOOK_RETURNS: Windows and FreeBSD guests (x86), Linux on the other targets. A hook (the hooks plugin) at the
  *     return address, keyed by (return address, ASID) in running_syscalls.
  */
-#if defined(TARGET_X86_64) || defined(TARGET_AARCH64)
+#if defined(TARGET_X86_64) || defined(TARGET_AARCH64) || defined(TARGET_RISCV64)
 #define SYSCALLS2_ENGINE 1
 #else
 #define SYSCALLS2_ENGINE 0
 #endif
-/* x86_64 keeps the hook path for its Windows and FreeBSD profiles */
-#if defined(TARGET_AARCH64)
-#define SYSCALLS2_HOOK_RETURNS 0
-#else
+/* x86 keeps the hook path for its Windows and FreeBSD profiles, the other targets for Linux */
+#if defined(TARGET_I386) || !SYSCALLS2_ENGINE
 #define SYSCALLS2_HOOK_RETURNS 1
+#else
+#define SYSCALLS2_HOOK_RETURNS 0
 #endif
 
 #if SYSCALLS2_ENGINE
