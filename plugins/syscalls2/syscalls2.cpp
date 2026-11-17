@@ -1525,6 +1525,8 @@ static bool engine_mode;
 #define SC2_NABI 2                          /* int 0x80, sysenter */
 #elif defined(TARGET_AARCH64)
 #define SC2_NABI 2                          /* AArch64, AArch32 */
+#elif defined(TARGET_PPC64)
+#define SC2_NABI 3                          /* sc, sc from a 32-bit task, scv */
 #else
 #define SC2_NABI 1
 #endif
@@ -1738,6 +1740,22 @@ static const LinuxAbi linux_abis[SC2_NABI] = {
       SC2_MIPS_O32_EXITS, PANDA_SYSCALL_ERR_REG(7) },
 };
 #endif
+#elif defined(TARGET_PPC)
+/* sc sets CR0.SO on an error, with the positive error number in r3; scv returns -errno */
+#define SC2_PPC_EXITS { 1, 234, 119, 172 }, { 11, 362 }, { 120, 189, 435 }
+static const LinuxAbi linux_abis[SC2_NABI] = {
+#if defined(TARGET_PPC64)
+    { PANDA_SYSCALL_FORM_PPC_SC, PROFILE_LINUX_PPC64, 0, 3, { 3, 4, 5, 6, 7, 8 }, 0,
+      SC2_PPC_EXITS, PANDA_SYSCALL_ERR_PPC_SO },
+    { PANDA_SYSCALL_FORM_PPC_SC32, PROFILE_LINUX_PPC, 0, 3, { 3, 4, 5, 6, 7, 8 }, 0,
+      SC2_PPC_EXITS, PANDA_SYSCALL_ERR_PPC_SO },
+    { PANDA_SYSCALL_FORM_PPC_SCV, PROFILE_LINUX_PPC64, 0, 3, { 3, 4, 5, 6, 7, 8 }, 0,
+      SC2_PPC_EXITS, 0 },
+#else
+    { PANDA_SYSCALL_FORM_PPC_SC, PROFILE_LINUX_PPC, 0, 3, { 3, 4, 5, 6, 7, 8 }, 0,
+      SC2_PPC_EXITS, PANDA_SYSCALL_ERR_PPC_SO },
+#endif
+};
 #endif
 
 #if defined(TARGET_I386) && !defined(TARGET_X86_64)
@@ -1758,6 +1776,69 @@ static uint64_t i386_tss_word(void *opaque, CPUState *cpu, uint64_t base)
     d = sp0 > base ? sp0 - (uint32_t)base : (uint32_t)base - sp0;
     pa = panda_virt_to_phys(cpu, base + (d < 0x10000 ? 12 : 4));
     return pa == (hwaddr)-1 ? 0 : pa;
+}
+#endif
+
+#if defined(TARGET_PPC64)
+/*
+ * Linux ppc64's task key: the PACA's kstack (the running task's kernel stack pointer), at an
+ * offset from SPRG1 (the PACA's address) that depends on the kernel's version and configuration.
+ * The offset is read from the system call entry, which loads the stack pointer from it: "mr
+ * r10,r1" then "ld r1,PACAKSAVE(r13)" in system_call_common (and system_call_vectored), found by
+ * scanning the kernel's text (at physical 0) once. The PACA is in the linear map.
+ */
+static std::atomic<int64_t> ppc64_kstack_off{INT64_MIN};
+
+static int64_t ppc64_find_kstack(CPUState *cpu)
+{
+    CPUArchState *env = (CPUArchState *)panda_cpu_env(cpu);
+    bool le = env->msr & 1;
+    std::vector<uint8_t> buf(1 << 16);
+    std::map<int64_t, unsigned> seen;
+    uint32_t prev[3] = {};
+    int64_t best = -1;
+
+    /* every entry path loads its stack so (the exception vectors also load other PACA fields
+     * after "mr r10, r1"): the most frequent offset */
+    for (uint64_t pa = 0; pa < (64ull << 20); pa += buf.size()) {
+        if (panda_physical_memory_read(pa, buf.data(), buf.size()) != 0) {
+            break;
+        }
+        for (size_t i = 0; i < buf.size(); i += 4) {
+            const uint8_t *b = &buf[i];
+            uint32_t w = le ? (uint32_t)b[0] | b[1] << 8 | b[2] << 16 | (uint32_t)b[3] << 24
+                            : (uint32_t)b[3] | b[2] << 8 | b[1] << 16 | (uint32_t)b[0] << 24;
+
+            /* ld r1, d(r13) just after mr r10, r1 */
+            if ((w & 0xffff0003) == 0xe82d0000 &&
+                (prev[0] == 0x7c2a0b78 || prev[1] == 0x7c2a0b78 || prev[2] == 0x7c2a0b78)) {
+                seen[(int16_t)(w & 0xfffc)]++;
+            }
+            prev[2] = prev[1];
+            prev[1] = prev[0];
+            prev[0] = w;
+        }
+    }
+    for (auto &kv : seen) {
+        if (kv.first > 0 && (best < 0 || kv.second > seen[best])) {
+            best = kv.first;
+        }
+    }
+    return best;
+}
+
+static uint64_t ppc64_paca_word(void *opaque, CPUState *cpu, uint64_t base)
+{
+    int64_t off = ppc64_kstack_off.load(std::memory_order_relaxed);
+
+    if ((base >> 60) != 0xc) {
+        return 0;                           /* not the linear map yet (early boot) */
+    }
+    if (off == INT64_MIN) {
+        off = ppc64_find_kstack(cpu);
+        ppc64_kstack_off.store(off, std::memory_order_relaxed);
+    }
+    return off < 0 ? 0 : (base + off) & 0x0fffffffffffffffull;
 }
 #endif
 
@@ -1861,6 +1942,10 @@ static const PandaTaskKeyDecl LINUX_TASK_KEY = {
     PANDA_TASK_KEY_REG, PANDA_TASK_REG_ARM_SP_SVC, nullptr, nullptr,       /* SP_svc */
 #elif defined(TARGET_RISCV64)
     PANDA_TASK_KEY_REG, PANDA_TASK_REG_RISCV_SSCRATCH, nullptr, nullptr,   /* current */
+#elif defined(TARGET_PPC64)
+    PANDA_TASK_KEY_WORD, PANDA_TASK_REG_PPC_SPRG1, ppc64_paca_word, nullptr,
+#elif defined(TARGET_PPC)
+    PANDA_TASK_KEY_REG, PANDA_TASK_REG_PPC_SPRG3, nullptr, nullptr,        /* &current->thread */
 #elif defined(TARGET_MIPS)
     PANDA_TASK_KEY_WORD, PANDA_TASK_REG_MIPS_EBASE, mips_kernelsp_word, nullptr,
 #else
