@@ -459,9 +459,10 @@ A Python wheel with the engine and plugins bundled, a Debian package, and the ni
 <a id="qemu-fixes"></a>
 ## QEMU fixes
 
-Fixes to QEMU itself that analyses depend on: a longer kernel command line on MIPS Malta, and
-cpu_exec_step_atomic under RCU.
+Fixes to QEMU itself that analyses depend on: a longer kernel command line on MIPS Malta,
+cpu_exec_step_atomic under RCU, and Arm system calls, undefined instructions and aborts taken to
+EL1 without the BQL, so that an AArch64 guest's system calls scale with vCPUs under MTTCG.
 
 **Tests:** none yet.
 
-**Engine patches:** 0012, 0061 ([series](reference/patches.md))
+**Engine patches:** 0012, 0061, 0103 ([series](reference/patches.md))
