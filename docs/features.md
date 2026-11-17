@@ -20,7 +20,7 @@ ubuntu-24.04 images (see
 | [Several Pandas in one process](#multi-engine) | experimental | TCG | x86_64, aarch64 |
 | [Rust plugins](#rust) | experimental | TCG | **untested** |
 | [Operating system introspection](#osi) | supported | TCG | x86_64, aarch64, riscv64 |
-| [System calls](#syscalls) | supported | TCG | x86_64, aarch64, riscv64 |
+| [System calls](#syscalls) | supported | TCG | x86_64, aarch64, riscv64, arm, i386, mips, mipsel, mips64, mips64el, ppc, ppc64 |
 | [Address hooks](#hooks) | supported | TCG | x86_64, aarch64, riscv64 |
 | [Guest hypercalls](#hypercalls) | supported | TCG, KVM | x86_64, aarch64, riscv64 |
 | [Record and replay](#record-replay) | supported | TCG | x86_64, aarch64, riscv64 |
@@ -168,13 +168,16 @@ Python, `panda.get_current_process`, `get_process_name` and `get_mappings` call 
 ## System calls
 
 Callbacks on every system call entry and return, with decoded arguments (syscalls2), and on new
-processes (proc_start_linux).
+processes (proc_start_linux). On Linux guests the engine recognizes the calls from syscalls2's
+ABI declarations and pairs each return with its call by task (panda/syscall-pair.h).
+
+**Limits.** The engine pairs x86 SYSCALL, INT 0x80, SYSENTER and compat SYSCALL, ARM SVC, RISC-V ECALL (riscv64), MIPS SYSCALL and PowerPC sc and scv. Windows and FreeBSD guests track returns with the hooks plugin; riscv32 and loongarch64 have no syscalls2 profile. MIPS SMP and 32-bit PowerPC SMP are untested (the test machines boot one CPU).
 
 **Use it:** `syscalls2` (plugin), `proc_start_linux` (plugin), `panda_syscall_abi_declare`, `panda_task_key_declare`
 
 **Docs:** [docs/guides/plugins.md#using-a-plugin-from-python](guides/plugins.md#using-a-plugin-from-python), [plugins/syscalls2/README.md](https://github.com/panda-re/panda-ng/blob/main/plugins/syscalls2/README.md), [docs/design/syscall-pairing.md](design/syscall-pairing.md)
 
-**Tests:** `tests/guest.py`, `tests/syscalls.py`, `tests/syscalls_smp.py`
+**Tests:** `tests/guest.py`, `tests/syscalls.py`, `tests/syscalls_smp.py`, `tests/syscall_truth.py`, `tests/syscall_pair_tcg.py`
 
 **Engine patches:** 0102 ([series](reference/patches.md))
 
