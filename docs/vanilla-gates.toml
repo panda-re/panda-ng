@@ -1483,6 +1483,20 @@ current_gate = "Always on under TCG: PowerPC sc/scv from problem state on BookE 
 required_action = "Explicit vanilla must take the BQL around every do_interrupt, in ppc_maybe_interrupt and in cpu_interrupt_exittb as upstream does (exception_bql_free unset, no early return)."
 vanilla_verified = false
 
+[[patch]]
+id = "0106"
+file = "engine/patches/11.1.2/0106-target-mips-update-CP0-Cause-atomically.patch"
+sha256 = "7f78c39ff7782094ea1ad048c687acc62d4b483e3cfccbb3f8cf6a7bddc5a8e9"
+class = "upstream-fix-needs-off-path"
+capability = "tcg-exception-locking"
+paths = ["hw/mips/mips_int.c", "target/mips/internal.h", "target/mips/system/cp0.c", "target/mips/system/cp0_timer.c", "target/mips/tcg/system/tlb_helper.c"]
+functions = ["cpu_mips_irq_request", "mips_cause_update", "cpu_mips_store_cause", "cpu_mips_timer_expire", "cpu_mips_store_compare", "mips_cpu_do_interrupt"]
+hunk_contexts = ["static void cpu_mips_irq_request(void *opaque, int irq, int level)", "void sync_c0_status(CPUMIPSState *env, CPUMIPSState *cpu, int tc);", "void cpu_mips_store_status(CPUMIPSState *env, target_ulong val)", "void cpu_mips_store_cause(CPUMIPSState *env, target_ulong val)", "static void cpu_mips_timer_expire(CPUMIPSState *env)", "void cpu_mips_store_compare(CPUMIPSState *env, uint32_t value)", "void mips_cpu_do_interrupt(CPUState *cs)"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Always on: every CP0 Cause update is an atomic read-modify-write of the bits it owns (qatomic_or/and for IP and TI, a cmpxchg loop for the multi-bit fields). Under the BQL alone the result equals upstream's; it differs only where upstream's plain updates race."
+required_action = "Explicit vanilla would keep upstream's plain read-modify-writes of CP0 Cause, including their race with device interrupt-line updates under MTTCG."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
