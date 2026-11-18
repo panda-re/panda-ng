@@ -42467,10 +42467,19 @@ pub type CPUARMState = CPUArchState;
 pub type ARMELChangeHookFn = ::std::option::Option<
     unsafe extern "C" fn(cpu: *mut ARMCPU, opaque: *mut ::std::os::raw::c_void),
 >;
+pub type ARMELChangeHookIdleFn = ::std::option::Option<
+    unsafe extern "C" fn(
+        cpu: *mut ARMCPU,
+        opaque: *mut ::std::os::raw::c_void,
+        from_el: ::std::os::raw::c_int,
+        to_el: ::std::os::raw::c_int,
+    ) -> bool,
+>;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ARMELChangeHook {
     pub hook: ARMELChangeHookFn,
+    pub idle: ARMELChangeHookIdleFn,
     pub opaque: *mut ::std::os::raw::c_void,
     pub node: ARMELChangeHook__bindgen_ty_1,
 }
@@ -42493,14 +42502,16 @@ const _: () = {
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ARMELChangeHook"][::std::mem::size_of::<ARMELChangeHook>() - 32usize];
+    ["Size of ARMELChangeHook"][::std::mem::size_of::<ARMELChangeHook>() - 40usize];
     ["Alignment of ARMELChangeHook"][::std::mem::align_of::<ARMELChangeHook>() - 8usize];
     ["Offset of field: ARMELChangeHook::hook"]
         [::std::mem::offset_of!(ARMELChangeHook, hook) - 0usize];
+    ["Offset of field: ARMELChangeHook::idle"]
+        [::std::mem::offset_of!(ARMELChangeHook, idle) - 8usize];
     ["Offset of field: ARMELChangeHook::opaque"]
-        [::std::mem::offset_of!(ARMELChangeHook, opaque) - 8usize];
+        [::std::mem::offset_of!(ARMELChangeHook, opaque) - 16usize];
     ["Offset of field: ARMELChangeHook::node"]
-        [::std::mem::offset_of!(ARMELChangeHook, node) - 16usize];
+        [::std::mem::offset_of!(ARMELChangeHook, node) - 24usize];
 };
 pub const PSCI_ON: ARMPSCIState = 0;
 pub const PSCI_OFF: ARMPSCIState = 1;
@@ -42942,6 +42953,9 @@ unsafe extern "C" {
     pub fn arm_cpu_do_interrupt(cpu: *mut CPUState);
 }
 unsafe extern "C" {
+    pub fn arm_cpu_exception_bql_free(cpu: *mut CPUState) -> bool;
+}
+unsafe extern "C" {
     pub fn arm_v7m_cpu_do_interrupt(cpu: *mut CPUState);
 }
 #[repr(C)]
@@ -43087,6 +43101,14 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn pmu_post_el_change(cpu: *mut ARMCPU, ignored: *mut ::std::os::raw::c_void);
+}
+unsafe extern "C" {
+    pub fn pmu_el_change_idle(
+        cpu: *mut ARMCPU,
+        ignored: *mut ::std::os::raw::c_void,
+        from_el: ::std::os::raw::c_int,
+        to_el: ::std::os::raw::c_int,
+    ) -> bool;
 }
 unsafe extern "C" {
     pub fn pmu_init(cpu: *mut ARMCPU);
@@ -44357,6 +44379,21 @@ unsafe extern "C" {
         hook: ARMELChangeHookFn,
         opaque: *mut ::std::os::raw::c_void,
     );
+}
+unsafe extern "C" {
+    pub fn arm_set_el_change_hook_idle(
+        cpu: *mut ARMCPU,
+        hook: ARMELChangeHookFn,
+        opaque: *mut ::std::os::raw::c_void,
+        idle: ARMELChangeHookIdleFn,
+    );
+}
+unsafe extern "C" {
+    pub fn arm_el_change_hooks_idle(
+        cpu: *mut ARMCPU,
+        from_el: ::std::os::raw::c_int,
+        to_el: ::std::os::raw::c_int,
+    ) -> bool;
 }
 unsafe extern "C" {
     pub fn arm_rebuild_hflags(env: *mut CPUARMState);
