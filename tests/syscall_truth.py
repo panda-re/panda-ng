@@ -346,10 +346,10 @@ def run(name, progs, cmd, ncpu):
             if not m:
                 continue
             comm, pid, cpu, ts, kind, nr, args, ret = m.groups()
-            evs.append(dict(comm=comm.strip(), pid=int(pid), cpu=int(cpu), ts=float(ts), kind=kind,
-                            nr=int(nr), args=[int(a, 16) for a in args.split(", ")] if args else None,
+            evs.append(dict(comm=comm.strip(), pid=int(pid), cpu=VCPU[int(cpu)], ts=float(ts),
+                            kind=kind, nr=int(nr), args=[int(a, 16) for a in args.split(", ")] if args else None,
                             ret=int(ret) if ret is not None else None, i=len(evs)))
-        ftrace[c] = evs
+        ftrace[VCPU[c]] = evs
     return ftrace, trap, lost, overrun, rc
 
 
@@ -544,6 +544,7 @@ def check(name, ftrace, trap, lost, overrun):
 
 
 R = {}
+VCPU = {}                                       # the kernel's CPU number: its vCPU's index
 
 
 @panda.queue_blocking
@@ -552,6 +553,14 @@ def drive():
     R["cpu"] = agent.run("grep -m1 vendor_id /proc/cpuinfo; uname -m")[1].decode()
     ncpu = int(agent.run("nproc")[1])
     R["ncpu"] = ncpu
+    # Linux numbers its CPUs from the one it booted on. On riscv64 that is the hart OpenSBI's
+    # boot-hart lottery picked, so CPU 0 can be any hart; a vCPU's index is its hart id.
+    VCPU.update((c, c) for c in range(ncpu))
+    if arch == "riscv64":
+        info = agent.run("cat /proc/cpuinfo")[1].decode()
+        VCPU.update((int(c), int(h)) for c, h in
+                    re.findall(r"^processor\s*:\s*(\d+)\s*\nhart\s*:\s*(\d+)", info, re.M))
+        R["harts"] = dict(VCPU)
     agent.run(f"echo 0 > {T}/tracing_on; echo {32768 // ncpu} > {T}/buffer_size_kb; "
               f"echo global > {T}/trace_clock; echo 8192 > {T}/saved_cmdlines_size; "
               f"echo 1 > {T}/events/raw_syscalls/enable")
@@ -584,7 +593,8 @@ for name, _, _ in WORKLOADS[arch]:
     summary.append(f"{name.replace(' ', '_')}={n}")
     print(f"{name}: kernel enters {n}; syscalls2 enters per vCPU {per_cpu}; returns on another "
           f"vCPU {moved}")
-print("guest:", " ".join(R.get("cpu", "?").split()), "vCPUs:", R.get("ncpu", "?"))
+print("guest:", " ".join(R.get("cpu", "?").split()), "vCPUs:", R.get("ncpu", "?"),
+      *(["CPU: hart", R["harts"]] if "harts" in R else []))
 print("child returns:", trace.children, "engine:", R.get("stats"))
 if EVICT:
     st = R.get("stats", {})
