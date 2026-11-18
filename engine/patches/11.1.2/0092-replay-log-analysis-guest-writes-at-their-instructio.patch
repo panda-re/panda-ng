@@ -232,7 +232,7 @@ index 91f435d29313c5e76f77852ea3ff61bde90c735b..8df412b7a53b3473235a7b708c657493
                                         cpu_gpr[0], cpu_gpr[3],
                                         cpu_gpr[4], cpu_gpr[5],
 diff --git a/target/riscv/tcg/translate.c b/target/riscv/tcg/translate.c
-index 734363a59b54cf57a87fed7880631015b8dc1263..d753fb8826d8c6ebdcf27c9bd75fe232793e2c5b 100644
+index 10b936df2bed5cf623e6a5ac6bacf40ad04ad59f..1105ce0310048aae9cf56af0881e6219c61c2d6a 100644
 --- a/target/riscv/tcg/translate.c
 +++ b/target/riscv/tcg/translate.c
 @@ -882,6 +882,7 @@ static bool gen_logic_imm_fn(DisasContext *ctx, arg_i *a,

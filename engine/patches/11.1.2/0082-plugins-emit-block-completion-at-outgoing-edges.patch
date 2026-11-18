@@ -5,7 +5,7 @@ Subject: [PATCH] plugins: emit block completion at outgoing edges
 
 Add a translation-time TB-end callback for normal completion. Emit it after outgoing CPU-state updates and before direct/indirect links or dispatcher returns; for an indirect link, before the target lookup, whose result the link takes in the same extended basic block. Move direct-link opcodes past their fallback PC updates only for instrumented translations. Faults, nonlocal exits and entry rejection do not report completion.
 
-End callbacks run after the PC has moved on. A CF_PCREL TB that has them stays shared between the virtual addresses that map it: at its start it stores the address it runs at in CPUState.plugin_tb_vaddr (TCGCPUOps.gen_tb_pc, implemented for x86 and arm), where the embedding finds it. A target without gen_tb_pc binds such a TB to its address instead.
+End callbacks run after the PC has moved on. A CF_PCREL TB that has them stays shared between the virtual addresses that map it: at its start it stores the address it runs at in CPUState.plugin_tb_vaddr (TCGCPUOps.gen_tb_pc, implemented for x86, arm and riscv), where the embedding finds it. A target without gen_tb_pc binds such a TB to its address instead.
 
 Add gated TB-entry and TB-end callbacks. The block loads a byte at a fixed offset from env (CPUState.plugin_tb_gates), tests the callback's bits and branches around the call, so the embedding turns them on and off for every vCPU without retranslation and without a scoreboard index. The gate byte and the address take two CPUState fields that were kept unused for the layout.
 
@@ -30,7 +30,10 @@ Origin: new
  target/i386/tcg/helper-tcg.h  |   2 +
  target/i386/tcg/tcg-cpu.c     |   1 +
  target/i386/tcg/translate.c   |  16 +++++
- 16 files changed, 297 insertions(+), 18 deletions(-)
+ target/riscv/tcg/tcg-cpu.c    |   1 +
+ target/riscv/tcg/tcg-cpu.h    |   2 +
+ target/riscv/tcg/translate.c  |   9 +++
+ 19 files changed, 309 insertions(+), 18 deletions(-)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
 index 18729efa3faae05ab0bbb8c8075f2ae71f40fbbd..71750d8e6fefe0ed3335c251df655dd364705c95 100644
@@ -614,6 +617,48 @@ index 2115c5cd24ba4b07ad7588c2413095dc37d15dc0..678d350f078d418a1cde08627801ae4c
 +        if (tb->cs_base) {
 +            tcg_gen_addi_i64(dst, dst, tb->cs_base);
 +        }
++        tcg_gen_ext32u_i64(dst, dst);
++    }
++}
+diff --git a/target/riscv/tcg/tcg-cpu.c b/target/riscv/tcg/tcg-cpu.c
+index ef8a88cec36e613a8ac6fdfe2023762f45c5c9d5..42704f011386e804aa80c023ff3e4ecdde2248e0 100644
+--- a/target/riscv/tcg/tcg-cpu.c
++++ b/target/riscv/tcg/tcg-cpu.c
+@@ -311,6 +311,7 @@ const TCGCPUOps riscv_tcg_ops = {
+     .translate_code = riscv_translate_code,
+     .get_tb_cpu_state = riscv_get_tb_cpu_state,
+     .synchronize_from_tb = riscv_cpu_synchronize_from_tb,
++    .gen_tb_pc = riscv_gen_tb_pc,
+     .restore_state_to_opc = riscv_restore_state_to_opc,
+     .mmu_index = riscv_cpu_mmu_index,
+     .user_mmu_index = riscv_cpu_user_mmu_index,
+diff --git a/target/riscv/tcg/tcg-cpu.h b/target/riscv/tcg/tcg-cpu.h
+index a23716a5acf08070b63c3a0123c7dbba317ee5c0..9429e9b1239179e12f6c40da002beb9ce47c5224 100644
+--- a/target/riscv/tcg/tcg-cpu.h
++++ b/target/riscv/tcg/tcg-cpu.h
+@@ -27,6 +27,8 @@ void riscv_tcg_cpu_finalize_features(RISCVCPU *cpu, Error **errp);
+ bool riscv_cpu_tcg_compatible(RISCVCPU *cpu);
+ 
+ extern const TCGCPUOps riscv_tcg_ops;
++struct TCGv_i64_d;
++void riscv_gen_tb_pc(struct TCGv_i64_d *dst, const TranslationBlock *tb);
+ 
+ struct DisasContext;
+ struct RISCVCPUConfig;
+diff --git a/target/riscv/tcg/translate.c b/target/riscv/tcg/translate.c
+index 856e003468cbd985e42577152426795dc8e0e83b..fff6153d02abd11e07936ea87b5ba138c4690eb8 100644
+--- a/target/riscv/tcg/translate.c
++++ b/target/riscv/tcg/translate.c
+@@ -1514,3 +1514,12 @@ void riscv_translate_init(void)
+     load_res = tcg_global_mem_new(tcg_env, res_offset, "load_res");
+     load_val = tcg_global_mem_new(tcg_env, val_offset, "load_val");
+ }
++
++/* The address a CF_PCREL TB runs at, at its start: as riscv_get_tb_cpu_state */
++void riscv_gen_tb_pc(TCGv_i64 dst, const TranslationBlock *tb)
++{
++    tcg_gen_ld_i64(dst, tcg_env, offsetof(CPURISCVState, pc));
++    if (FIELD_EX32(tb->flags, TB_FLAGS, XL) == MXL_RV32) {
 +        tcg_gen_ext32u_i64(dst, dst);
 +    }
 +}
