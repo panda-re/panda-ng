@@ -349,7 +349,7 @@ index 3691111adf6f30efed0df42c82889ca9cd5de017..91f435d29313c5e76f77852ea3ff61bd
                                         cpu_gpr[0], cpu_gpr[3],
                                         cpu_gpr[4], cpu_gpr[5],
 diff --git a/target/riscv/tcg/translate.c b/target/riscv/tcg/translate.c
-index 856e003468cbd985e42577152426795dc8e0e83b..734363a59b54cf57a87fed7880631015b8dc1263 100644
+index fff6153d02abd11e07936ea87b5ba138c4690eb8..10b936df2bed5cf623e6a5ac6bacf40ad04ad59f 100644
 --- a/target/riscv/tcg/translate.c
 +++ b/target/riscv/tcg/translate.c
 @@ -17,6 +17,18 @@
