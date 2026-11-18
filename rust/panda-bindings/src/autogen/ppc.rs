@@ -41999,6 +41999,9 @@ unsafe extern "C" {
     pub fn ppc_cpu_do_interrupt(cpu: *mut CPUState);
 }
 unsafe extern "C" {
+    pub fn ppc_cpu_exception_bql_free(cpu: *mut CPUState) -> bool;
+}
+unsafe extern "C" {
     pub fn ppc_cpu_exec_interrupt(cpu: *mut CPUState, int_req: ::std::os::raw::c_int) -> bool;
 }
 unsafe extern "C" {
