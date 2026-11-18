@@ -42343,6 +42343,9 @@ unsafe extern "C" {
     pub fn riscv_cpu_do_interrupt(cpu: *mut CPUState);
 }
 unsafe extern "C" {
+    pub fn riscv_cpu_exception_bql_free(cpu: *mut CPUState) -> bool;
+}
+unsafe extern "C" {
     pub fn riscv_isa_write_fdt(
         cpu: *mut RISCVCPU,
         fdt: *mut ::std::os::raw::c_void,
