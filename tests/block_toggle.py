@@ -20,7 +20,10 @@ disabled. Checks:
 - ctx sees all 1000 loop entries of every run;
 - the bridge instruments for entry and end (panda_bridge_wants) whatever is enabled, and still
   after the block callbacks are unregistered;
-- a start_block_exec registered after the others were unregistered sees the loop's entries.
+- a start_block_exec registered after the others were unregistered sees the loop's entries;
+- a block callback registered disabled while the guest runs never runs: PROBES times, "probe"
+  (start_block_exec) and "probe_end" (end_block_exec) are registered with enabled=False and
+  deleted again while a shell loop runs, without a flush.
 """
 import cffi
 import re
@@ -31,6 +34,7 @@ from testlib import Checks, progress, upload
 from pandare2 import Panda
 
 RUNS = 16
+PROBES = 3000
 MIN_TOGGLES = 100
 MODES = [(False, False), (True, False), (False, True), (True, True)]
 LABELS = ["setup", "loop", "odd", "even", "fault", "fault_store", "sys"]
@@ -81,9 +85,18 @@ def again(cpu, tb):
         S["run"]["again"] += 1
 
 
+def probe(cpu, tb):
+    S["off_calls"]["probe"] += 1
+
+
+def probe_end(cpu, tb):
+    S["off_calls"]["probe_end"] += 1
+
+
 # Registered by drive(), after the revert.
 CBS = {"entry": panda.callback.start_block_exec(entry), "end": panda.callback.end_block_exec(end),
-       "ctx": panda.callback.before_block_exec(ctx), "again": panda.callback.start_block_exec(again)}
+       "ctx": panda.callback.before_block_exec(ctx), "again": panda.callback.start_block_exec(again),
+       "probe": panda.callback.start_block_exec(probe), "probe_end": panda.callback.end_block_exec(probe_end)}
 
 
 @panda.cb_asid_changed
@@ -127,7 +140,8 @@ def flush_count():
 
 
 KIND = {"entry": panda.callback.start_block_exec, "end": panda.callback.end_block_exec,
-        "ctx": panda.callback.before_block_exec, "again": panda.callback.start_block_exec}
+        "ctx": panda.callback.before_block_exec, "again": panda.callback.start_block_exec,
+        "probe": panda.callback.start_block_exec, "probe_end": panda.callback.end_block_exec}
 
 
 def register(name):
@@ -148,6 +162,15 @@ def drive():
     for i in range(RUNS):
         runs.append(Counter(mode=MODES[i % len(MODES)]))
         runs[-1]["output"] = panda.run_serial_cmd("/tmp/block-toggle; echo rc=$?")
+    # Registered disabled while the guest runs (a shell loop keeps it busy), then deleted: neither
+    # may run in between.
+    panda.run_serial_cmd("(while :; do :; done) >/dev/null 2>&1 & echo $! > /tmp/busy")
+    for _ in range(PROBES):
+        for name in ("probe", "probe_end"):
+            register(name)
+        for name in ("probe", "probe_end"):
+            panda.delete_callback(name)
+    panda.run_serial_cmd("kill $(cat /tmp/busy)")
     S["flushes_after"], S["toggles_after"] = flush_count(), S["toggles"]
     progress(f"flush count {S['flushes_before']} -> {S['flushes_after']}, "
              f"{S['toggles_after'] - S['toggles_before']} enables/disables")
