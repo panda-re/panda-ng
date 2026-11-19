@@ -75,7 +75,10 @@ Faults and early exits have no end event. `before_block_exec` and `after_block_e
 compatibility spellings at those boundaries. The first registration of any block callback
 instruments every block for entry and end for the rest of the run (one flush; unregistering
 removes nothing); enabling, disabling, and later registering and unregistering only set a gate
-each block tests (in a run that never registers one, no helper or gate). Block callbacks preserve
+each block tests (in a run that never registers one, no helper or gate). A run that registers
+no block, instruction or memory callback, `block_translate` (the hooks and syscalls2 plugins) or
+coverage translates as QEMU without plugins; the first one turns QEMU's plugin translation path
+on for the rest of the run. Block callbacks preserve
 PC-relative sharing: a block stores the address it runs at when it starts, which `tb_pc` gives its
 end callbacks after the PC has moved on. A registered memory callback (`mmio_after_read` and `mmio_before_write`
 included) instruments every load or store even while disabled. While enabled, a physical one or
@@ -91,7 +94,7 @@ QEMU's own readers perform a device access except when RR policy refuses it.
 
 **Docs:** [docs/guides/python.md#callbacks](guides/python.md#callbacks), [docs/reference/callbacks.md](reference/callbacks.md)
 
-**Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/block_activation.py`, `tests/block_toggle.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/mmio.py`, `tests/physmem.py`
+**Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/block_activation.py`, `tests/block_toggle.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbtrans.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/mmio.py`, `tests/physmem.py`
 
 **Engine patches:** 0030, 0034, 0041-0043, 0045-0048, 0052-0053, 0057-0058, 0064, 0081-0082 ([series](reference/patches.md))
 

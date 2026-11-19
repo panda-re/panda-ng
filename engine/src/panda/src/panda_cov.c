@@ -96,6 +96,7 @@ int panda_cov_enable(uint32_t map_size, uint64_t lo, uint64_t hi)
     panda_cov.hi = hi;
     memset(panda_cov.prev, 0, sizeof(panda_cov.prev));
     panda_cov.on = true;
+    panda_bridge_tb_trans_sync();
     cov_flush();
     return 0;
 }

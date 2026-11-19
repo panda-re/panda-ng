@@ -198,7 +198,11 @@ two gates (a load, a test and a branch each) and, on x86_64 and aarch64, the add
 whether any block callback is still registered or not. Activation does not report past block
 entries or completions; an end callback enabled while a block runs (from a callback or hypercall
 in it) sees that block's end without its entry. In a run that never registers a block callback,
-blocks carry neither a helper nor a gate. Block callbacks don't tie a block to one virtual
+blocks carry neither a helper nor a gate. More generally, until a block, instruction or memory
+callback, `block_translate` (the hooks and syscalls2 plugins) or coverage is registered, QEMU
+translates as it does without plugins: no plugin pass over each block, and no extra store per
+guest load or store. The first such registration switches every vCPU to QEMU's plugin translation
+path for the rest of the run. Block callbacks don't tie a block to one virtual
 address: on targets with PC-relative translation (x86_64, aarch64) code mapped into several
 address spaces stays translated once, and each block stores the address it runs at when it
 starts, so `panda.tb_pc(cpu, tb)` in an end callback is the block's address, not the PC it moved

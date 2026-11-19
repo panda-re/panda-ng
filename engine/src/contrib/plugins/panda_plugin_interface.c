@@ -205,6 +205,6 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id, const qemu_info_
                         int argc, char **argv)
 {
     qemu_plugin_register_vcpu_init_cb(id, vcpu_init, NULL);
-    qemu_plugin_register_vcpu_tb_trans_cb(id, vcpu_tb_trans, NULL);
+    panda_bridge_set_tb_trans(id, vcpu_tb_trans);
     return 0;
 }
