@@ -48540,6 +48540,15 @@ unsafe extern "C" {
     pub fn panda_bridge_wants() -> ::std::os::raw::c_uint;
 }
 unsafe extern "C" {
+    pub fn panda_bridge_set_tb_trans(id: qemu_plugin_id_t, cb: qemu_plugin_vcpu_tb_trans_cb_t);
+}
+unsafe extern "C" {
+    pub fn panda_bridge_tb_trans_sync();
+}
+unsafe extern "C" {
+    pub fn panda_bridge_tb_trans_on(cpu_index: ::std::os::raw::c_int) -> bool;
+}
+unsafe extern "C" {
     pub fn panda_block_gates_update();
 }
 unsafe extern "C" {

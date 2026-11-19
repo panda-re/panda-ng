@@ -13,6 +13,12 @@ TranslationBlock *panda_get_tb(struct qemu_plugin_tb *tb);
 #define PANDA_BRIDGE_BLOCK 2  /* actual entry */
 #define PANDA_BRIDGE_END   4  /* normal completion, before outgoing transfer */
 unsigned panda_bridge_wants(void);
+/* The bridge's translation callback is registered with QEMU only once something needs
+ * translation-time work (panda_bridge_tb_trans_sync): until then QEMU translates as without
+ * plugins. The bridge hands it over at install. */
+void panda_bridge_set_tb_trans(qemu_plugin_id_t id, qemu_plugin_vcpu_tb_trans_cb_t cb);
+void panda_bridge_tb_trans_sync(void);
+bool panda_bridge_tb_trans_on(int cpu_index);
 /* The block gates: bits of every vCPU's CPUState.plugin_tb_gates, set while a block-entry
  * (PANDA_BLOCK_GATE_ENTRY) or block-end (PANDA_BLOCK_GATE_END) callback is enabled. */
 #define PANDA_BLOCK_GATE_ENTRY 1

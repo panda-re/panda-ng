@@ -77,6 +77,50 @@ unsigned panda_bridge_wants(void){
     return wants;
 }
 
+/* The bridge's translation callback (vcpu_tb_trans) is registered with QEMU only once something
+ * needs translation-time work: a block callback, insn_translate, a memory callback, block_translate
+ * or coverage. Until then QEMU translates as it does without plugins: no plugin_gen pass, no
+ * plugin ops, and no store of each access's value for memory callbacks. */
+static qemu_plugin_id_t tb_trans_id;
+static qemu_plugin_vcpu_tb_trans_cb_t tb_trans_cb;
+static bool tb_trans_registered;
+
+static bool panda_bridge_needs_tb_trans(void){
+    return panda_bridge_wants() || panda_memcb_rw(false) || panda_memcb_rw(true)
+           || panda_has_callback_registered(PANDA_CB_BLOCK_TRANSLATE) || panda_cov.on;
+}
+
+/* Register the bridge's translation callback the first time something needs it; never
+ * unregistered. QEMU copies its event mask to each vCPU as queued work (and flushes that vCPU's jump
+ * cache): callers that need already-translated blocks instrumented request their flush after this,
+ * so every vCPU runs the mask update before it runs code from after the flush. Called with
+ * panda_cbs_lock held (panda_cb_list_changed), and registering takes QEMU's plugin.lock: QEMU calls
+ * no PANDA code with plugin.lock held. */
+void panda_bridge_tb_trans_sync(void){
+    if (qatomic_read(&tb_trans_registered) || !tb_trans_cb || !panda_bridge_needs_tb_trans()) {
+        return;
+    }
+    /* Register first, then publish the flag: a caller that sees the flag (panda_cov_enable runs
+     * without panda_cbs_lock) may flush and translate at once, and must find tb_trans in place.
+     * Two callers can both get here; registering twice is idempotent (do_plugin_register_cb). */
+    qemu_plugin_register_vcpu_tb_trans_cb(tb_trans_id, tb_trans_cb, NULL);
+    qatomic_set(&tb_trans_registered, true);
+}
+
+void panda_bridge_set_tb_trans(qemu_plugin_id_t id, qemu_plugin_vcpu_tb_trans_cb_t cb){
+    tb_trans_id = id;
+    tb_trans_cb = cb;
+    panda_bridge_tb_trans_sync();       /* callbacks registered before the bridge was installed */
+}
+
+/* Whether a vCPU's translations go through QEMU's plugin translation path: the bit
+ * plugin_gen_tb_start tests (set by queued work on that vCPU after the registration). */
+bool panda_bridge_tb_trans_on(int cpu_index){
+    CPUState *cpu = qemu_get_cpu(cpu_index);
+    return cpu && cpu->plugin_state
+           && test_bit(QEMU_PLUGIN_EV_VCPU_TB_TRANS, cpu->plugin_state->event_mask);
+}
+
 /* The block gates: one byte per vCPU (CPUState.plugin_tb_gates), written for all vCPUs together,
  * that the instrumentation loads at a fixed offset from env and tests before it calls out. The
  * instrumentation is there while a callback of the kind is registered; the gate says whether one
