@@ -9,6 +9,10 @@ Run: panda-python tests/mkbusybox.py <arch>... -o <dir> --kernels <dir> --busybo
   --kernels  linux_builder's kernels, extracted (contains 6.13/); default $KERNEL_DIR
   --busybox  rehosting/busybox #dist (<arch>/busybox); default $BUSYBOX_DIST. It has no 32-bit
              powerpc: put Debian's (busybox-static, debian-ports powerpc) at powerpc/busybox.
+  --kernel   another kernel than linux_builder's 6.13 (one arch only), e.g. an older one with its
+             own ISF for tests/osi_isf_proc.py
+  --no-snapshot  write the image without its root snapshot: enough for tests/testmachine.py
+             machines, which boot it themselves (a kernel without the disk driver has no /root)
 Writes busybox-<arch>.json, .qcow2 and .initrd to <dir>. The pins are engine/tests/guest/prepare.sh's
 (linux_builder v4.0.1, rehosting/busybox eeba468aa), which also fetches them. As with
 pandare2.mkimage, build the images with the PANDA that will run them: it takes the snapshot.
@@ -85,10 +89,11 @@ def empty_qcow2(file, size):
         f.truncate(4 * c)                            # L1 at cluster 3: all zero
 
 
-def build(arch, out_dir, kernels, busybox):
+def build(arch, out_dir, kernels, busybox, kernel=None):
     parch, kfile, console, machine, bits = ARCHES[arch]
     name = f"busybox-{arch}"
-    kernel = path.join(kernels, "6.13", kfile)
+    default = path.join(kernels or "", "6.13", kfile)
+    kernel = kernel or default
     bb = open(path.join(busybox, arch, "busybox"), "rb").read()
     dirs = ["bin", "dev", "proc", "sys", "tmp", "root", "var", "var/tmp"]
     initrd = path.abspath(path.join(out_dir, name + ".initrd"))
@@ -106,7 +111,8 @@ def build(arch, out_dir, kernels, busybox):
                                  "-append", f"console={console} rdinit=/init panic=-1 quiet",
                                  "-display", "none", "-net", "none", "-no-reboot"],
         "hashes": None, "source": None, "isf": None, "kconf_file": None, "disk_device": DISK.get(arch),
-        "description": f"linux_builder 6.13 {arch} kernel, busybox initramfs, /root on ext2",
+        "description": f"{'linux_builder 6.13' if kernel == default else path.basename(kernel)} {arch} kernel, "
+                       "busybox initramfs, /root on ext2",
     }
     jpath = path.join(out_dir, name + ".json")
     with open(jpath, "w") as f:
@@ -143,19 +149,25 @@ def main():
     p.add_argument("-o", "--out", required=True)
     p.add_argument("--kernels", default=os.environ.get("KERNEL_DIR"))
     p.add_argument("--busybox", default=os.environ.get("BUSYBOX_DIST"))
+    p.add_argument("--kernel")
+    p.add_argument("--no-snapshot", action="store_true")
     p.add_argument("--snapshot-only", help=argparse.SUPPRESS)
     a = p.parse_args()
     if a.snapshot_only:
         snapshot(a.snapshot_only)
         return
-    if not a.kernels or not a.busybox:
-        p.error("--kernels and --busybox (or KERNEL_DIR and BUSYBOX_DIST) are required")
+    if not (a.kernels or a.kernel) or not a.busybox:
+        p.error("--kernels (or --kernel) and --busybox (or KERNEL_DIR and BUSYBOX_DIST) are required")
     arches = list(ARCHES) if a.arch == ["all"] else a.arch
+    if a.kernel and len(arches) != 1:
+        p.error("--kernel is for one arch")
     os.makedirs(a.out, exist_ok=True)
     import subprocess
     failed = []
     for arch in arches:
-        jpath = build(arch, a.out, a.kernels, a.busybox)
+        jpath = build(arch, a.out, a.kernels, a.busybox, a.kernel and path.abspath(a.kernel))
+        if a.no_snapshot:
+            continue
         rc = subprocess.run([sys.executable, __file__, "x", "-o", a.out, "--snapshot-only", jpath]).returncode
         if rc:
             failed.append(arch)
