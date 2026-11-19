@@ -19,7 +19,7 @@ ubuntu-24.04 images (see
 | [C and C++ plugins](#plugins) | supported | TCG | x86_64, aarch64, riscv64 |
 | [Several Pandas in one process](#multi-engine) | experimental | TCG | x86_64, aarch64 |
 | [Rust plugins](#rust) | experimental | TCG | **untested** |
-| [Operating system introspection](#osi) | supported | TCG | x86_64, aarch64, riscv64 |
+| [Operating system introspection](#osi) | supported | TCG | x86_64, aarch64, riscv64, arm, mips64 |
 | [System calls](#syscalls) | supported | TCG | x86_64, aarch64, riscv64, arm, i386, mips, mipsel, mips64, mips64el, ppc, ppc64 |
 | [Address hooks](#hooks) | supported | TCG | x86_64, aarch64, riscv64 |
 | [Guest hypercalls](#hypercalls) | supported | TCG, KVM | x86_64, aarch64, riscv64 |
@@ -155,13 +155,16 @@ plugins/rust_skeleton is a starting point.
 
 Processes, threads, modules, memory mappings and files of a Linux guest, from its kernel's
 symbols (an ISF file, as the test images carry). Use the osi_linux and osi_isf plugins; from
-Python, `panda.get_current_process`, `get_process_name` and `get_mappings` call them.
+Python, `panda.get_current_process`, `get_process_name` and `get_mappings` call them. osi_isf
+takes the ISF of any kernel from 2.6 to 6.x (DWARF, BTF with a System.map, or kernel-lift's for
+a stripped kernel), finds the KASLR slide itself, and reports at load what it can answer for
+that kernel.
 
 **Use it:** `osi` (plugin), `osi_linux` (plugin), `osi_isf` (plugin), `Panda.get_current_process`, `Panda.get_process_name`, `Panda.get_mappings`
 
-**Docs:** [docs/guides/getting-started.md#a-first-analysis](guides/getting-started.md#a-first-analysis), [docs/guides/plugins.md](guides/plugins.md)
+**Docs:** [docs/guides/getting-started.md#a-first-analysis](guides/getting-started.md#a-first-analysis), [docs/guides/plugins.md](guides/plugins.md), [plugins/osi_isf/README.md](https://github.com/panda-re/panda-ng/blob/main/plugins/osi_isf/README.md)
 
-**Tests:** `tests/osi_isf.py`, `tests/asidstory.py`, `tests/kpti.py`
+**Tests:** `tests/osi_isf.py`, `tests/osi_isf_proc.py`, `tests/osi_isf_check.py`, `tests/asidstory.py`, `tests/kpti.py`
 
 
 <a id="syscalls"></a>

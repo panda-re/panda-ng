@@ -14,7 +14,7 @@ Every build ships these, for every target (`plugins/config.panda`):
 | [syscalls2](https://github.com/panda-re/panda-ng/blob/main/plugins/syscalls2/README.md) | a callback on every system call's entry and return, with decoded arguments |
 | [osi](https://github.com/panda-re/panda-ng/blob/main/plugins/osi/README.md) | the OS introspection interface: current process and thread, process list, mappings, modules |
 | [osi_linux](https://github.com/panda-re/panda-ng/blob/main/plugins/osi_linux/README.md) | osi for Linux, from a kernelinfo file (`kconf_file`) |
-| osi_isf | osi for Linux, from a Volatility ISF file (`isf`) |
+| osi_isf | osi for Linux, from a Volatility ISF file (`isf`) of any kernel: DWARF, BTF (with `symbols`) or kernel-lift (with its provenance); KASLR found at run time; a capability report says what it can answer (README) |
 | [proc_start_linux](https://github.com/panda-re/panda-ng/blob/main/plugins/proc_start_linux/README.md) | a callback with each new process's auxiliary vector (argv, environment, entry point) |
 | [hooks](https://github.com/panda-re/panda-ng/blob/main/plugins/hooks/README.md) | a callback when execution reaches an address (`@panda.hook`) |
 | [hypercaller](https://github.com/panda-re/panda-ng/blob/main/plugins/hypercaller/README.md) | dispatches guest hypercalls by magic number (`@panda.hypercall`) |
