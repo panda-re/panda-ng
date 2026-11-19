@@ -33,6 +33,7 @@ build.sh), and a mkbusybox image. The hypercall is penguin's per-arch instructio
 engine routes to PANDA's guest_hypercall.
 """
 import argparse
+import atexit
 import gzip
 import hashlib
 import importlib
@@ -124,6 +125,7 @@ class Machine:
         self.dir = machine_dir(self.image, self.initrd_src, initrd, smp, intel, self.mem, append)
         self.snapshot = os.path.join(self.dir, "snapshot.qcow2")
         self.tmp = None
+        atexit.register(self.cleanup)
         if not os.path.isfile(self.snapshot):
             self.build(initrd)
 
@@ -171,7 +173,9 @@ class Machine:
     def panda(self, **kwargs):
         """A Panda for this machine, on a private copy of the snapshot."""
         from pandare2 import Panda
-        self.tmp = tempfile.mkdtemp(prefix="testmachine-")
+        sweep_tmp()
+        self.cleanup()
+        self.tmp = tempfile.mkdtemp(prefix=f"testmachine-{os.getpid()}-")
         qcow = os.path.join(self.tmp, "snapshot.qcow2")
         shutil.copy(self.snapshot, qcow)
         extra = kwargs.pop("extra_args", [])
@@ -185,9 +189,36 @@ class Machine:
         if not agent.ready.wait(timeout):
             raise TimeoutError("the agent didn't poll after the revert")
 
-    def __del__(self):
+    def cleanup(self):
+        """Remove this machine's snapshot copy and console log (kept with $TESTMACHINE_KEEP)."""
         if self.tmp and not os.environ.get("TESTMACHINE_KEEP"):
             shutil.rmtree(self.tmp, ignore_errors=True)
+            self.tmp = None
+
+    def __del__(self):
+        self.cleanup()
+
+
+def sweep_tmp():
+    """Remove the snapshot copies of test processes that have exited without cleaning up (killed,
+    or timed out): each copy's directory is named after its process."""
+    if os.environ.get("TESTMACHINE_KEEP"):
+        return
+    root = tempfile.gettempdir()
+    for name in os.listdir(root):
+        parts = name.split("-")
+        if len(parts) != 3 or parts[0] != "testmachine" or not parts[1].isdigit():
+            continue
+        path = os.path.join(root, name)
+        try:
+            os.kill(int(parts[1]), 0)
+            continue                    # still running
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            continue
+        if os.path.isdir(path) and os.stat(path).st_uid == os.getuid():
+            shutil.rmtree(path, ignore_errors=True)
 
 
 class Agent:
