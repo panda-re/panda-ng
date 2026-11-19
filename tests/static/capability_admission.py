@@ -150,7 +150,7 @@ class CapabilityAdmission(unittest.TestCase):
         load_start = text.index('static bool _panda_load_plugin(')
         load_end = text.index('    // static bool libpanda_loaded', load_start)
         load_guard = text[load_start:load_end] + '\n    dlopens++; return true;\n}\n'
-        registration = text[text.index('bool panda_register_callback_with_context_modes('):]
+        registration = text[text.rindex('static bool register_callback_with_context('):]
         self.assertLess(registration.index('!callback_mode_valid('), registration.index('g_new0('))
         c = r'''
 #include <stdbool.h>

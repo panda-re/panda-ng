@@ -376,9 +376,8 @@ bool init_plugin(void *self) {
         return false;
     #else
         pcb_sbe_execve.start_block_exec = sbe;
-        panda_register_callback_modes(self, PANDA_CB_START_BLOCK_EXEC, pcb_sbe_execve,
+        panda_register_callback_disabled(self, PANDA_CB_START_BLOCK_EXEC, pcb_sbe_execve,
             panda_callback_supported_modes(PANDA_CB_START_BLOCK_EXEC), true);
-        panda_disable_callback(self, PANDA_CB_START_BLOCK_EXEC, pcb_sbe_execve);
 
         // why? so we don't get 1000 messages telling us syscalls2 is already loaded
         void* syscalls2 = panda_get_plugin_by_name("syscalls2");

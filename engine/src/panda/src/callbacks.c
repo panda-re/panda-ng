@@ -1080,8 +1080,11 @@ void panda_register_callback(void *plugin, panda_cb_type type, panda_cb cb)
     }
 }
 
-bool panda_register_callback_modes(void *plugin, panda_cb_type type, panda_cb cb,
-                                   uint32_t modes, bool observe_only)
+static bool register_callback_with_context(void *plugin, panda_cb_type type,
+    panda_cb_with_context cb, void *context, uint32_t modes, bool observe_only, bool enabled);
+
+static bool register_callback(void *plugin, panda_cb_type type, panda_cb cb,
+                              uint32_t modes, bool observe_only, bool enabled)
 {
     /* Validate before asking for a trampoline: unsupported types may abort there. */
     if (!modes || (modes & ~panda_callback_supported_modes(type))) {
@@ -1090,12 +1093,24 @@ bool panda_register_callback_modes(void *plugin, panda_cb_type type, panda_cb cb
     panda_cb_with_context trampoline = panda_get_cb_trampoline(type);
     panda_cb* cb_context = g_new(panda_cb, 1);
     *cb_context = cb;
-    if (!panda_register_callback_with_context_modes(plugin, type, trampoline,
-                                                   cb_context, modes, observe_only)) {
+    if (!register_callback_with_context(plugin, type, trampoline, cb_context, modes,
+                                        observe_only, enabled)) {
         g_free(cb_context);
         return false;
     }
     return true;
+}
+
+bool panda_register_callback_modes(void *plugin, panda_cb_type type, panda_cb cb,
+                                   uint32_t modes, bool observe_only)
+{
+    return register_callback(plugin, type, cb, modes, observe_only, true);
+}
+
+bool panda_register_callback_disabled(void *plugin, panda_cb_type type, panda_cb cb,
+                                      uint32_t modes, bool observe_only)
+{
+    return register_callback(plugin, type, cb, modes, observe_only, false);
 }
 
 /**
@@ -1119,6 +1134,20 @@ void panda_register_callback_with_context(void *plugin, panda_cb_type type, pand
 bool panda_register_callback_with_context_modes(void *plugin, panda_cb_type type,
     panda_cb_with_context cb, void *context, uint32_t modes, bool observe_only)
 {
+    return register_callback_with_context(plugin, type, cb, context, modes, observe_only, true);
+}
+
+bool panda_register_callback_with_context_disabled(void *plugin, panda_cb_type type,
+    panda_cb_with_context cb, void *context, uint32_t modes, bool observe_only)
+{
+    return register_callback_with_context(plugin, type, cb, context, modes, observe_only, false);
+}
+
+/* The entry is published with its enabled flag already set: a callback registered disabled is
+ * never called before panda_enable_callback, by a vCPU walking the list meanwhile included. */
+static bool register_callback_with_context(void *plugin, panda_cb_type type,
+    panda_cb_with_context cb, void *context, uint32_t modes, bool observe_only, bool enabled)
+{
     panda_cb_list *plist_last = NULL;
     uint32_t supported = panda_callback_supported_modes(type);
 
@@ -1133,7 +1162,7 @@ bool panda_register_callback_with_context_modes(void *plugin, panda_cb_type type
     panda_cb_list *new_list = &entry->cb;
     new_list->entry = cb;
     new_list->owner = plugin;
-    new_list->enabled = true;
+    new_list->enabled = enabled;
     new_list->context = context;
     assert(type < PANDA_CB_LAST);
 

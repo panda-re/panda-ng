@@ -103,10 +103,9 @@ bool init_plugin(void *self) {
     observer_bridge.guest_hypercall = guest_hypercall_observer;
     mutator_bridge.guest_hypercall = guest_hypercall_mutator;
     if (!panda_register_callback_modes(self, PANDA_CB_GUEST_HYPERCALL, observer_bridge, modes, true) ||
-        !panda_register_callback_modes(self, PANDA_CB_GUEST_HYPERCALL, mutator_bridge, modes, false)) {
+        !panda_register_callback_disabled(self, PANDA_CB_GUEST_HYPERCALL, mutator_bridge, modes, false)) {
         return false;
     }
-    panda_disable_callback(self, PANDA_CB_GUEST_HYPERCALL, mutator_bridge);
     return true;
 }
 

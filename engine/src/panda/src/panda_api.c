@@ -206,6 +206,12 @@ bool panda_register_callback_modes_helper(void *plugin, panda_cb_type type,
     return panda_register_callback_modes(plugin, type, *cb, modes, observe_only);
 }
 
+bool panda_register_callback_disabled_helper(void *plugin, panda_cb_type type,
+    panda_cb *cb, uint32_t modes, bool observe_only)
+{
+    return panda_register_callback_disabled(plugin, type, *cb, modes, observe_only);
+}
+
 bool panda_enable_callback_modes_helper(void *plugin, panda_cb_type type, panda_cb *cb)
 {
     panda_enable_callback(plugin, type, *cb);
