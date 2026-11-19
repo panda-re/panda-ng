@@ -2875,16 +2875,17 @@ class Panda(TaintMixin):
         if debug:
             progress("Registered function '{}' to run on callback {}".format(name, cb.name))
 
-        if not self.libpanda.panda_register_callback_modes_helper(handle, cb.number, pcb, modes, observe_only):
+        # A callback registered disabled is in the engine's list disabled from the start: not
+        # registered enabled and then disabled, which lets a running vCPU call it in between.
+        register = (self.libpanda.panda_register_callback_modes_helper if enabled
+                    else self.libpanda.panda_register_callback_disabled_helper)
+        if not register(handle, cb.number, pcb, modes, observe_only):
             raise ValueError(f"callback {cb.name}: incompatible mode or mutating registration during record/replay")
         if name in self.registered_callbacks:
             self.delete_callback(name)
-        self.registered_callbacks[name] = {"procname": procname, "enabled": True, "callback": cb,
+        self.registered_callbacks[name] = {"procname": procname, "enabled": bool(enabled), "callback": cb,
                            "handle": handle, "pcb": pcb, "function": function,
                            "modes": modes, "observe_only": observe_only}
-
-        if not enabled: # Note the registered_callbacks dict starts with enabled true and then we update it to false as necessary here
-            self.disable_callback(name)
 
         # Block-exec callbacks run from each block's own code and fire once per block with TB
         # chaining on: no need to turn it off (PANDA 1/2 did, at 1.5-4x the run time).
