@@ -64,6 +64,14 @@ bool panda_register_callback_modes(void *plugin, panda_cb_type type, panda_cb cb
                                    uint32_t modes, bool observe_only);
 bool panda_register_callback_with_context_modes(void *plugin, panda_cb_type type,
     panda_cb_with_context cb, void *context, uint32_t modes, bool observe_only);
+/* The same, but the callback is registered disabled: it takes its place in the
+ * list (and what blocks are instrumented for follows the registration, as for any
+ * registration), and runs only once panda_enable_callback enables it. Registering
+ * enabled and then disabling leaves a window in which a running vCPU calls it. */
+bool panda_register_callback_disabled(void *plugin, panda_cb_type type, panda_cb cb,
+                                      uint32_t modes, bool observe_only);
+bool panda_register_callback_with_context_disabled(void *plugin, panda_cb_type type,
+    panda_cb_with_context cb, void *context, uint32_t modes, bool observe_only);
 /* Bridges whose subscribers change can update their declaration. Refuses a
  * change to mutating access while record/replay is active. */
 bool panda_set_callback_observe_only(void *plugin, panda_cb_type type,

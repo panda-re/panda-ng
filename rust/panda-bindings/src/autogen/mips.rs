@@ -44507,6 +44507,25 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    pub fn panda_register_callback_disabled(
+        plugin: *mut ::std::os::raw::c_void,
+        type_: panda_cb_type,
+        cb: panda_cb,
+        modes: u32,
+        observe_only: bool,
+    ) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_register_callback_with_context_disabled(
+        plugin: *mut ::std::os::raw::c_void,
+        type_: panda_cb_type,
+        cb: panda_cb_with_context,
+        context: *mut ::std::os::raw::c_void,
+        modes: u32,
+        observe_only: bool,
+    ) -> bool;
+}
+unsafe extern "C" {
     pub fn panda_set_callback_observe_only(
         plugin: *mut ::std::os::raw::c_void,
         type_: panda_cb_type,
@@ -45159,6 +45178,15 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn panda_register_callback_modes_helper(
+        plugin: *mut ::std::os::raw::c_void,
+        type_: panda_cb_type,
+        cb: *mut panda_cb,
+        modes: u32,
+        observe_only: bool,
+    ) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_register_callback_disabled_helper(
         plugin: *mut ::std::os::raw::c_void,
         type_: panda_cb_type,
         cb: *mut panda_cb,
