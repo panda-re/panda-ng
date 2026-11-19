@@ -39,7 +39,8 @@ enum class Arch { x86_64, i386, arm, aarch64, mips, riscv, ppc, loongarch, unkno
 Arch arch_from_name(const std::string &name);  // x86_64, i386, arm, aarch64, mips*, riscv*, ppc*, loongarch*
 const char *arch_name(Arch a);
 
-enum class NeedKind { Sym, SymPrefix, Field, Size, Enum };
+// ThreadSize: THREAD_SIZE, from sizeof(union thread_union) or the init_stack array.
+enum class NeedKind { Sym, SymPrefix, Field, Size, Enum, ThreadSize };
 // The shape a member must have. Width is in bytes: 0 is the pointer size, -1 any.
 enum class Shape { Any, Ptr, Int, List, Chars, Struct, Array };
 
@@ -113,12 +114,14 @@ struct Options {
     KVer version;
     std::string version_source;   // "ISF banner", "version=", "guest banner"
     bool allow_untrusted = false;
+    int64_t thread_size = 0;
 };
 
 // What a caller gives: the plugin's arguments, or osi_isf_check's.
 struct Config {
     std::string isf, provenance, symbols, version, arch;
     bool allow_untrusted = false;
+    int64_t thread_size = 0;   // THREAD_SIZE, when known from elsewhere (kernel-lift's modabi)
 };
 
 // Loads the ISF, its provenance (a lift's provenance.json: the given path, else the one the ISF's

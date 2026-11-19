@@ -101,6 +101,7 @@ struct Sax : nlohmann::json_sax<nlohmann::json> {
         const std::string &top = path[0];
         if (top == "symbols") {
             if (at({"symbols", "*", "address"})) p.symbols[path[1]] = (uint64_t)v;
+            else if (at({"symbols", "*", "type", "count"})) p.symbol_arrays[path[1]].first = v;
         } else if (top == "user_types") {
             if (at({"user_types", "*", "size"})) {
                 p.user_types[path[1]].size = v;
@@ -146,6 +147,8 @@ struct Sax : nlohmann::json_sax<nlohmann::json> {
         } else if (path[0] == "typedefs") {
             if (at({"typedefs", "*", "kind"})) p.typedefs[path[1]].first = v;
             else if (at({"typedefs", "*", "name"})) p.typedefs[path[1]].second = v;
+        } else if (at({"symbols", "*", "type", "subtype", "name"})) {
+            p.symbol_arrays[path[1]].second = v;
         } else if (at({"symbols", "linux_banner", "constant_data"})) {
             p.banner = base64_decode(v);
         } else if (at({"base_types", "pointer", "endian"})) {
