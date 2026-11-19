@@ -88,6 +88,8 @@ public:
     std::unordered_map<std::string, UserType> user_types;
     std::unordered_map<std::string, int64_t> base_sizes;
     std::unordered_map<std::string, std::pair<std::string, std::string>> typedefs;
+    // Array symbols: name -> (element count, element type name), e.g. init_stack.
+    std::unordered_map<std::string, std::pair<int64_t, std::string>> symbol_arrays;
     std::unordered_map<std::string, std::unordered_map<std::string, int64_t>> enums;
     // provenance.json: type -> member -> class
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> prov;

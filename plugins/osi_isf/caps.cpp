@@ -85,6 +85,7 @@ std::string Need::key() const {
     case NeedKind::SymPrefix: return "sym:" + a + "*";
     case NeedKind::Field: return "field:" + a + "." + b;
     case NeedKind::Size: return "size:" + a;
+    case NeedKind::ThreadSize: return "size:THREAD_SIZE";
     default: return "enum:" + a + "." + b;
     }
 }
@@ -96,7 +97,7 @@ std::string Need::want() const {
     };
     switch (kind) {
     case NeedKind::Sym: case NeedKind::SymPrefix: return "address";
-    case NeedKind::Size: return "size";
+    case NeedKind::Size: case NeedKind::ThreadSize: return "size";
     case NeedKind::Enum: return "value";
     default: break;
     }
@@ -151,6 +152,7 @@ Need Fld(const char *t, const char *p, Shape s, int w = -1, const char *tn = "",
 Need Ptr(const char *t, const char *p, bool opt = false) { return Fld(t, p, Shape::Ptr, 0, "", opt); }
 Need Int(const char *t, const char *p, int w, bool opt = false) { return Fld(t, p, Shape::Int, w, "", opt); }
 Need Size(const char *t) { return Need{NeedKind::Size, t, ""}; }
+Need ThreadSize() { return Need{NeedKind::ThreadSize, "THREAD_SIZE", ""}; }
 Need Enum(const char *e, const char *c) { return Need{NeedKind::Enum, e, c}; }
 
 std::vector<Strategy> make_strategies() {
@@ -192,7 +194,7 @@ std::vector<Strategy> make_strategies() {
                  {Sym("__entry_task"), Sym("__per_cpu_offset", true)},
                  "a per-CPU variable written at every context switch"});
     s.push_back({"current", "sp_el1 thread_info", V(3, 7), V(4, 10), {A::aarch64}, {},
-                 {Ptr("thread_info", "task"), Size("thread_union")},
+                 {Ptr("thread_info", "task"), ThreadSize()},
                  "thread_info at the base of the kernel stack (SP_EL1), THREAD_SIZE aligned"});
     // 5.18 (CURRENT_POINTER_IN_TPIDRURO): current is in TPIDRURO in the kernel and, for a
     // reader outside it, in the per-CPU __entry_task (SMP) or __current (uniprocessor).
@@ -202,10 +204,10 @@ std::vector<Strategy> make_strategies() {
     s.push_back({"current", "__current", V(5, 18), ANY, {A::arm}, {},
                  {Sym("__current")}, "uniprocessor kernels"});
     s.push_back({"current", "svc sp thread_info", V(2, 6), V(5, 18), {A::arm}, {},
-                 {Ptr("thread_info", "task"), Size("thread_union")},
+                 {Ptr("thread_info", "task"), ThreadSize()},
                  "thread_info at the base of the kernel stack (the SVC-mode sp), THREAD_SIZE aligned"});
     s.push_back({"current", "kernelsp thread_info", V(2, 6), ANY, {A::mips}, {},
-                 {Sym("kernelsp"), Ptr("thread_info", "task"), Size("thread_union")},
+                 {Sym("kernelsp"), Ptr("thread_info", "task"), ThreadSize()},
                  "kernelsp[cpu] points into the current task's stack; thread_info at its THREAD_SIZE-aligned base"});
     s.push_back({"current", "tp/sscratch", V(4, 15), ANY, {A::riscv}, {}, {},
                  "tp in the kernel, sscratch in user mode"});
@@ -380,6 +382,7 @@ bool load(const Config &cfg, isf::Profile &prof, Symbols &syms, Options &opt,
     }
     opt.arch = arch_from_name(cfg.arch);
     opt.allow_untrusted = cfg.allow_untrusted;
+    opt.thread_size = cfg.thread_size;
     if (!cfg.version.empty()) {
         opt.version = KVer::parse(cfg.version);
         opt.version_source = "version=";
@@ -497,7 +500,7 @@ void resolve_field(const isf::Profile &p, Input &in) {
     if (!in.trusted) in.problem = n.a + "." + n.b + " is " + in.cls;
 }
 
-Input resolve_need(const isf::Profile &p, const Symbols &syms, const Need &n) {
+Input resolve_need(const isf::Profile &p, const Symbols &syms, const Options &o, const Need &n) {
     Input in;
     in.need = n;
     switch (n.kind) {
@@ -531,6 +534,28 @@ Input resolve_need(const isf::Profile &p, const Symbols &syms, const Need &n) {
         if (!in.trusted) in.problem = "sizeof(" + n.a + ") is reference-carried";
         break;
     }
+    case NeedKind::ThreadSize: {
+        // sizeof(union thread_union), else init_stack[] (4.16+, where thread_union may be gone).
+        // thread_size= (e.g. kernel-lift's modabi, from the kernel's own code) comes first.
+        int64_t sz = o.thread_size > 0 ? o.thread_size : p.type_size("thread_union").value_or(0);
+        std::string from = o.thread_size > 0 ? "argument" : "thread_union";
+        auto is = p.symbol_arrays.find("init_stack");
+        if (sz <= 0 && is != p.symbol_arrays.end() && is->second.first > 0) {
+            sz = is->second.first * p.base_size(is->second.second).value_or(0);
+            from = "init_stack";
+        }
+        if (sz <= 0 || (sz & (sz - 1))) {
+            in.problem = sz ? "THREAD_SIZE " + std::to_string(sz) + " is not a power of two"
+                            : "no thread_union type or init_stack array (THREAD_SIZE)";
+            break;
+        }
+        in.present = in.shape_ok = true;
+        in.value = sz;
+        in.cls = from == "argument" ? "argument" : p.lifted ? "reference-carried" : "dwarf";
+        in.trusted = from == "argument" || !p.lifted;
+        if (!in.trusted) in.problem = "THREAD_SIZE (sizeof " + from + ") is reference-carried";
+        break;
+    }
     case NeedKind::Enum: {
         auto v = p.enum_value(n.a, n.b);
         if (!v) {
@@ -557,9 +582,10 @@ void Plan::resolve(const isf::Profile &prof, const Symbols &syms, const Options 
     values.clear();
     std::map<std::string, Input> cache;
     auto get = [&](const Need &n) {
-        std::string k = n.key();
+        // The same member can be wanted in different shapes (start_time: u64 or timespec).
+        std::string k = n.key() + "|" + std::to_string((int)n.shape) + "|" + std::to_string(n.width) + "|" + n.tname;
         auto it = cache.find(k);
-        if (it == cache.end()) it = cache.emplace(k, resolve_need(prof, syms, n)).first;
+        if (it == cache.end()) it = cache.emplace(k, resolve_need(prof, syms, o, n)).first;
         Input in = it->second;
         in.need = n;   // the same input can be optional in one strategy and required in another
         return in;

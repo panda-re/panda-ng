@@ -4,6 +4,7 @@
  * (JSON) from the ISF, provenance and symbols the plugin would be given.
  *
  *   osi_isf_check --isf F --arch A [--provenance P] [--symbols S] [--version V] [--allow-untrusted] [--text]
+ *   osi_isf_check --strategies     (the strategy table, as Markdown)
  */
 #include <cstdio>
 #include <cstring>
@@ -12,6 +13,29 @@
 #include <nlohmann/json.hpp>
 
 #include "caps.h"
+
+namespace {
+
+void print_strategies() {
+    printf("| capability | strategy | kernels | arches | reads |\n|---|---|---|---|---|\n");
+    for (const auto &st : osicaps::strategies()) {
+        std::string arches, reads;
+        for (auto a : st.arches) arches += (arches.empty() ? "" : ", ") + std::string(osicaps::arch_name(a));
+        for (const auto &n : st.needs) {
+            std::string k = n.key();
+            k = k.substr(k.find(':') + 1);
+            if (n.kind == osicaps::NeedKind::Size) k = "sizeof(" + k + ")";
+            reads += (reads.empty() ? "" : ", ") + std::string("`") + k + "`" +
+                     (n.kind == osicaps::NeedKind::Field ? " (" + n.want() + ")" : "") + (n.optional ? " (optional)" : "");
+        }
+        for (const auto &r : st.requires_caps) reads += (reads.empty() ? "" : ", ") + std::string("capability ") + r;
+        if (reads.empty()) reads = "registers only";
+        printf("| %s | %s | %s | %s | %s |\n", st.cap.c_str(), st.name.c_str(), st.range().c_str(),
+               arches.empty() ? "all" : arches.c_str(), reads.c_str());
+    }
+}
+
+}  // namespace
 
 int main(int argc, char **argv) {
     osicaps::Config cfg;
@@ -31,10 +55,19 @@ int main(int argc, char **argv) {
         else if (a == "--symbols") val(cfg.symbols);
         else if (a == "--version") val(cfg.version);
         else if (a == "--allow-untrusted") cfg.allow_untrusted = true;
+        else if (a == "--thread-size") {
+            std::string v;
+            val(v);
+            cfg.thread_size = strtoll(v.c_str(), nullptr, 0);
+        }
         else if (a == "--text") text = true;
+        else if (a == "--strategies") {
+            print_strategies();
+            return 0;
+        }
         else {
             fprintf(stderr, "usage: %s --isf F --arch A [--provenance P] [--symbols S] [--version V] "
-                            "[--allow-untrusted] [--text]\n", argv[0]);
+                            "[--allow-untrusted] [--thread-size N] [--text]\n", argv[0]);
             return 2;
         }
     }

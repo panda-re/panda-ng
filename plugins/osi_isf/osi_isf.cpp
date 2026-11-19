@@ -685,7 +685,7 @@ void choose() {
     off.mod_core_size = ms == "core_layout" ? o("module", "core_layout.size") : o("module", "core_size");
 
     off.ti_task = o("thread_info", "task");
-    off.thread_size = plan.size("thread_union");
+    off.thread_size = plan.size("THREAD_SIZE");
 
     bool ok = pair_state == Pair::Ok;
     cap.tasks = ok && plan.ok("tasks");
@@ -987,6 +987,9 @@ bool init_plugin(void *self) {
             "the kernel version, when the ISF has no linux_banner (else the guest's banner gives it)");
     cfg.allow_untrusted = panda_parse_bool_opt(args, "allow_untrusted",
             "use a kernel-lift ISF's reference-carried and unverified members (default: trusted only)");
+    cfg.thread_size = panda_parse_uint64_opt(args, "thread_size", 0,
+            "THREAD_SIZE, for the stack-based current task when the ISF's is untrusted or absent "
+            "(kernel-lift's modabi reads it from the kernel's code)");
     std::string report_path = panda_parse_string_opt(args, "report", "", "write the capability report (JSON) here");
     cfg.arch = osicaps::arch_name(ARCH);
     std::string err;
@@ -1049,7 +1052,7 @@ bool init_plugin(void *self) {
     // An exec changes the process without a switch.
     panda_require("proc_start_linux");
     PPP_REG_CB("proc_start_linux", on_rec_auxv, [](CPUState *cpu, TranslationBlock *, struct auxv_values *) {
-        if (pair_state == Pair::Ok) notify_task_change(cpu);
+        if (cap.task_change) notify_task_change(cpu);
     });
     return true;
 }
