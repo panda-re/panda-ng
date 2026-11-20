@@ -52,6 +52,8 @@ ap.add_argument("--nokaslr", action="store_true")
 ap.add_argument("--drop", action="append", default=[])
 ap.add_argument("--expect", default="")
 ap.add_argument("--kaslr-slide", action="store_true", help="the kernel must have moved (KASLR)")
+ap.add_argument("--mismatch", action="store_true",
+                help="the ISF is another kernel's: it must be refused, and OSI must answer nothing")
 opt = ap.parse_args()
 
 m = Machine(opt.image, append="nokaslr" if opt.nokaslr else "")
@@ -215,6 +217,13 @@ for c in CAPS:
 C = Checks(panda.arch_name)
 C.check("the guest ran the commands", "error" not in truth and truth.get("procs") and truth.get("cat"),
         truth.get("error"))
+if opt.mismatch:
+    smp = seen["sample"] or {}
+    C.check("the ISF is refused: not this kernel's", pr.get("state") == "mismatch", pr)
+    C.check("OSI answers nothing: no processes, current process, modules or task changes",
+            smp.get("procs", "x") is None and smp.get("current") is False and smp.get("modules", "x") is None
+            and not seen["changes"], (smp, len(seen["changes"])))
+    sys.exit(C.report(f"osi_isf_proc {panda.arch_name} {truth.get('release')} (another kernel's ISF)"))
 C.check("the ISF is paired with the kernel", pr.get("state") == "paired", pr)
 if opt.kaslr_slide:
     C.check("the kernel moved (KASLR) and the slide was found", pr.get("slide", 0) != 0, pr)
@@ -275,6 +284,8 @@ if ok["tasks"] and ok["pid"]:
             else:
                 bad = [f for f in files if not f[1] or os.path.basename(f[0]) != os.path.basename(f[1])]
                 C.check("mapping files: /proc's file names", files and not bad, bad or files)
+        else:
+            C.check("mapping_files unavailable: no mapping has a file", all(g[3] is None for g in got), got)
         if ok["heap_stack"]:
             bad = [(w, g) for w, g in pairs if w[2] in ("[heap]", "[stack]") and w[2] != g[2]]
             C.check("mappings: [heap] and [stack] as /proc labels them",
