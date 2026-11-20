@@ -30,7 +30,7 @@ static inline QEMU_ALWAYS_INLINE void sc_enter_slot(const bool std, CPUArchState
     uint32_t len = (wl >> 8) & 0xff;
 
     sc_fill(std, A, v, ci, env, c, nr, pc, len);
-    P->fn(P->ctx, cpu, c, 0, 0);
+    sc_deliver(A, cpu, c, 0, 0);
 }
 
 /*
@@ -110,7 +110,7 @@ static inline QEMU_ALWAYS_INLINE void sc_keep_k(const bool task, const bool std,
     qatomic_set(&v->dlv, r);
     qatomic_store_release(&S->tag[0], tag);
     if (wl & SC_W_ENTRY) {
-        P->fn(P->ctx, cpu, c, 0, 0);
+        sc_deliver(A, cpu, c, 0, 0);
     }
     return;
 full:
@@ -214,7 +214,7 @@ static inline QEMU_ALWAYS_INLINE void sc_ret_k(CPUArchState *env, uint64_t ka, u
     ret = sc_retval(A, env);
     cpu = env_cpu(env);
     SC_COUNT(&P->v[cpu->cpu_index & (SC_VCPUS - 1)], paired);
-    P->fn(P->ctx, cpu, &r->c, ret, sc_ret_flags(A, cpu, &r->c, ret));
+    sc_deliver(A, cpu, &r->c, ret, sc_ret_flags(A, cpu, &r->c, ret));
     qatomic_store_release(&S->tag[0], 0);       /* the dispatch is final: popped */
     qatomic_dec(&S->cnt);
 }

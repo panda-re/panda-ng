@@ -136,6 +136,15 @@ typedef struct PandaSyscallCall {
 
 Callbacks run on vCPU threads, concurrently on different vCPUs.
 
+**Routes.** `panda_syscall_route(abi, nr, enter, ret, ctx)` sends one number's entries to `enter`
+and its returns to `ret`, with `ctx`, instead of the consumer's function. Each ABI has a table of
+`nbits + 1` routes, beside its want bytes, filled with the consumer's function at the
+declaration: a delivery calls `route[min(nr, nbits)].fn[flags & RETURN]` (an index and a load
+more than one function pointer, and nothing when nothing is delivered). A consumer that
+dispatches by number itself (syscalls2: each number to its table slot) routes every number to
+the code and data that handle it, and needs no lookup of its own. Routes are set before the
+number is wanted (a delivery reads the function and `ctx` apart).
+
 ## Task keys
 
 A task key is the same for every system call one task makes and differs between tasks alive at

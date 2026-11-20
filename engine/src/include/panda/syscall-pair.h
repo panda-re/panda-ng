@@ -194,6 +194,18 @@ enum {
  */
 void panda_syscall_want(int abi, int64_t nr, uint32_t want);
 
+/*
+ * Route number @nr of ABI @abi (any number not below nbits, or negative: index nbits): its
+ * entries to @enter and its returns to @ret, with @ctx, instead of the consumer's function (NULL
+ * for either: the consumer's). Set a number's route before its want, from the consumer's thread
+ * (a delivery in flight reads the function and @ctx apart). A consumer that dispatches by number
+ * itself routes each number to the function and data that handle it, without a lookup.
+ */
+void panda_syscall_route(int abi, int64_t nr, PandaSyscallFn enter, PandaSyscallFn ret,
+                         void *ctx);
+#define PANDA_SYSCALL_HAS_ROUTE 1
+
+
 /* --- Task keys --------------------------------------------------------------------------- */
 
 /*

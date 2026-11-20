@@ -397,7 +397,7 @@ static void sc_enter(ScState *P, ScAbi *A, CPUState *cpu, CPUArchState *env, uns
         qatomic_set(&v->dlv, r);
         qatomic_store_release(&P->sets[s].tag[cl & 0xff], tag);
         if (w & SC_W_ENTRY) {
-            P->fn(P->ctx, cpu, c, 0, 0);
+            sc_deliver(P->by_id[c->abi], cpu, c, 0, 0);
         }
         return;
     }
@@ -405,7 +405,7 @@ not_kept:
     c = v->slot;
     sc_fill(false, A, v, ci, env, c, nr, pc, len);
     if (w & SC_W_ENTRY) {
-        P->fn(P->ctx, cpu, c, 0, 0);
+        sc_deliver(P->by_id[c->abi], cpu, c, 0, 0);
     }
 }
 
@@ -542,7 +542,7 @@ static bool sc_child(ScState *P, CPUState *cpu, CPUArchState *env, uint64_t pc, 
         }
         qemu_mutex_unlock(&P->lock);
         sc_vcpu(P, cpu)->st.children++;
-        P->fn(P->ctx, cpu, c, 0, sc_ret_flags(A, cpu, c, 0) | PANDA_SYSCALL_CHILD);
+        sc_deliver(P->by_id[c->abi], cpu, c, 0, sc_ret_flags(A, cpu, c, 0) | PANDA_SYSCALL_CHILD);
         return true;
     }
     return false;
@@ -582,7 +582,7 @@ void sc_return_other(CPUArchState *env, unsigned s, unsigned w, uint64_t bt, ScR
             memcpy(c, &r->c, P->slot_stride);
             qatomic_store_release(T, bt);
             v->st.children++;
-            P->fn(P->ctx, cpu, c, 0, flags | PANDA_SYSCALL_CHILD);
+            sc_deliver(P->by_id[c->abi], cpu, c, 0, flags | PANDA_SYSCALL_CHILD);
             return;
         }
     } else if (pc == restart) {
@@ -594,7 +594,7 @@ void sc_return_other(CPUArchState *env, unsigned s, unsigned w, uint64_t bt, ScR
         if (r->rflags & SC_W_CHILD) {
             sc_watch_del(P, r, r->c.id);
         }
-        P->fn(P->ctx, cpu, &r->c, 0, PANDA_SYSCALL_RETURN | PANDA_SYSCALL_ENDED);
+        sc_deliver(P->by_id[r->c.abi], cpu, &r->c, 0, PANDA_SYSCALL_RETURN | PANDA_SYSCALL_ENDED);
         qatomic_store_release(T, 0);
         qatomic_dec(&P->sets[s].cnt);
         return;
@@ -608,7 +608,7 @@ void sc_return_other(CPUArchState *env, unsigned s, unsigned w, uint64_t bt, ScR
     if (r->rflags & SC_W_CHILD) {
         sc_watch_del(P, r, r->c.id);
     }
-    P->fn(P->ctx, cpu, &r->c, ret, flags);
+    sc_deliver(P->by_id[r->c.abi], cpu, &r->c, ret, flags);
     qatomic_store_release(T, 0);                /* the dispatch is final: popped */
     qatomic_dec(&P->sets[s].cnt);
 }
@@ -1092,6 +1092,10 @@ int panda_syscall_abi_declare(void *owner, const PandaSyscallAbi *a)
     A->abi.shared_child = sc_set_copy(a->shared_child, a->nbits);
     A->want = sc_alloc_low(a->nbits + 1);
     memset(A->want, 0, a->nbits + 1);
+    A->route = g_new(ScRoute, a->nbits + 1);
+    for (uint32_t i = 0; i <= a->nbits; i++) {
+        A->route[i] = (ScRoute){ { P->fn, P->fn }, P->ctx };
+    }
     A->mask = sc_form_64(form) ? UINT64_MAX : UINT32_MAX;
     /* the fast entry functions read the target's standard layout */
     A->std = SC_HAS_STD && form == SC_TCG_FORM && A->mask == SC_STD_MASK &&
@@ -1167,6 +1171,24 @@ void panda_syscall_want(int abi, int64_t nr, uint32_t want)
     }
 }
 
+void panda_syscall_route(int abi, int64_t nr, PandaSyscallFn enter, PandaSyscallFn ret,
+                         void *ctx)
+{
+    ScState *P = qatomic_read(&sc);
+    ScAbi *A;
+    ScRoute *R;
+
+    if (!P || abi < 0 || abi >= PANDA_SYSCALL_FORM_COUNT || !(A = qatomic_read(&P->abi[abi]))) {
+        return;
+    }
+    R = &A->route[sc_index(&A->abi, nr)];
+    QEMU_LOCK_GUARD(&P->lock);
+    R->ctx = enter || ret ? ctx : P->ctx;
+    qatomic_set(&R->fn[0], enter ? enter : P->fn);
+    qatomic_set(&R->fn[1], ret ? ret : P->fn);
+}
+
+
 void panda_syscall_consumer_release(void *owner)
 {
     ScState *P = qatomic_read(&sc);
@@ -1237,6 +1259,8 @@ void panda_syscall_want(int abi, int64_t nr, uint32_t want) {}
 bool panda_task_key_declare(void *owner, const PandaTaskKeyDecl *decl) { return false; }
 uint32_t panda_task_key(CPUState *cpu, uint64_t *key) { return PANDA_TASK_KEY_NONE; }
 void panda_syscall_stats(PandaSyscallStats *out) { memset(out, 0, sizeof(*out)); }
+void panda_syscall_route(int abi, int64_t nr, PandaSyscallFn enter, PandaSyscallFn ret,
+                         void *ctx) {}
 void panda_sc_enter_c(CPUState *cpu, unsigned form, uint64_t pc, uint32_t len) {}
 void panda_syscall_pair_reset(void) {}
 
