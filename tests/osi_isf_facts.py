@@ -284,6 +284,8 @@ if ok["cmdline"]:
             # Paged out, or not in the TLB (MIPS): it must say so.
             cap_check("cmdline", f"{key} in its address space: /proc's, or unavailable with a reason",
                       unavailable(got) and "not readable" in got["unavailable"], got)
+    if outcome.get("cmdline") != "FAIL" and not isinstance(cur.get("cmdline"), list):
+        outcome["cmdline"] = "unavailable at run time (says so)"
     other = FA.get("cmdline")
     cap_check("cmdline", "argv from another address space: unavailable, or (if it was current) /proc's",
               (unavailable(other) and ("another address space" in other["unavailable"]
@@ -480,21 +482,23 @@ else:
     cap_check("lifecycle", "unavailable: no FORK, THREAD or EXEC events",
               not ev("FORK") and not ev("THREAD") and not ev("EXEC"), events[:4])
 
+# Whether an exit was the process's last is known from the thread list (or signal->live): else -1.
+LAST, NOT_LAST = ((1,), (0,)) if ok["threads"] else ((1, -1), (0, -1))
 if ok["exit_codes"]:
     by_hook = rep["capabilities"]["exit_codes"].get("strategy") == "do_exit hook"
     e7 = first_ints("exit7", -1)[0]
     k9 = first_ints("kill9", -1)[0]
-    x7 = [e for e in ev("EXIT", pid=e7) if e["group"] == 1]
+    x7 = [e for e in ev("EXIT", pid=e7) if e["group"] in LAST]
     cap_check("exit_codes", "sh -c 'exit 7': its EXIT, the process's last, status 7 << 8",
               x7 and x7[-1]["status"] == 7 << 8, ev("EXIT", pid=e7))
     if by_hook:
-        x9 = [e for e in ev("EXIT", pid=k9) if e["group"] == 1]
+        x9 = [e for e in ev("EXIT", pid=k9) if e["group"] in LAST]
         cap_check("exit_codes", "killed by SIGKILL: status 9", x9 and x9[-1]["status"] == 9, ev("EXIT", pid=k9))
     tx = ev("EXIT", pid=tp) if ok["lifecycle"] else []
     cap_check("exit_codes", "threads: one exits alone (4 << 8, not the last), the process ends with 3 << 8",
-              any(e["status"] == 4 << 8 and e["group"] == 0 for e in tx) and
-              any(e["status"] == 3 << 8 and e["group"] == 1 for e in tx) and tstatus == 3, (tx, tstatus))
-    cx = [e for e in ev("EXIT", pid=cp_child) if e["group"] == 1] if ok["lifecycle"] else []
+              any(e["status"] == 4 << 8 and e["group"] in NOT_LAST for e in tx) and
+              any(e["status"] == 3 << 8 and e["group"] in LAST for e in tx) and tstatus == 3, (tx, tstatus))
+    cx = [e for e in ev("EXIT", pid=cp_child) if e["group"] in LAST] if ok["lifecycle"] else []
     cap_check("exit_codes", "the CLONE_PARENT child: 5 << 8", cx and cx[-1]["status"] == 5 << 8, cx)
 else:
     cap_check("exit_codes", "unavailable: no EXIT events", not ev("EXIT"), ev("EXIT")[:3])
