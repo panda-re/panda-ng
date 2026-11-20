@@ -170,7 +170,13 @@ WORKLOADS = {
 
 # Not yet declared to the engine: GAP while they fail, XPASS (a failure) once fixed.
 GAPS = {}
-machine = Machine(opt.image, smp=opt.smp, intel=opt.intel)
+try:
+    machine = Machine(opt.image, smp=opt.smp, intel=opt.intel)
+except NotImplementedError as e:
+    # no test machine agent for this arch (loongarch64 in tests/busybox.sh's set)
+    print(f"syscall_truth: {e}")
+    print("SYSCALL_TRUTH skipped")
+    sys.exit(0)
 arch = machine.arch
 if arch == "i386":
     # a 32-bit kernel: int 0x80 and the vDSO's sysenter
