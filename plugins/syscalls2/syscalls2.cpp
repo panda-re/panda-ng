@@ -43,13 +43,26 @@ PANDAENDCOMMENT */
 
 #include "syscalls2.h"
 #include "syscalls2_info.h"
-#include "hw_proc_id/hw_proc_id_ext.h"
 #if SYSCALLS2_HOOK_RETURNS
 #include "hooks/hooks_int_fns.h"
 #endif
 
+#if defined(TARGET_MIPS)
+static target_ulong mips_task_id(CPUState *cpu);
+#endif
+
+/*
+ * syscall_ctx_t.asid: the address space (hw_proc_id's identifier, without its plugin). On MIPS,
+ * where the ASID is not a process identity, the running task's thread_info, which the kernel
+ * keeps in $28 (what hw_proc_id caches from every kernel block), here read from kernelsp[cpu]
+ * when it is needed, at no cost per block.
+ */
 target_ulong syscalls_get_id(CPUState *cpu){
-    return get_id(cpu);
+#if defined(TARGET_MIPS)
+    return mips_task_id(cpu);
+#else
+    return panda_current_asid(cpu);
+#endif
 }
 
 #if SYSCALLS2_ENGINE
@@ -1204,7 +1217,7 @@ static inline std::string context_map_t_dump(context_map_t &cm) {
  * matches the return address of an executing system call.
  */
 void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
-    target_ulong current_asid = get_id(cpu);
+    target_ulong current_asid = syscalls_get_id(cpu);
     target_ulong pc = panda_tb_pc(cpu, tb);
     auto k = std::make_pair(pc, current_asid);
     [[maybe_unused]] int no = -1;
@@ -1245,7 +1258,7 @@ void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
         const syscall_meta_t *sm = syscall_meta;
         std::lock_guard<std::mutex> g(running_syscalls_lock);
         std::string remaining = context_map_t_dump(running_syscalls);
-        LOG_DEBUG("returned: %s:" TARGET_PTR_FMT, (no > sm->max_generic ? "N/A" : si[no].name), get_id(cpu));
+        LOG_DEBUG("returned: %s:" TARGET_PTR_FMT, (no > sm->max_generic ? "N/A" : si[no].name), syscalls_get_id(cpu));
         LOG_DEBUG("remaining %zu: %s\n", running_syscalls.size(), remaining.c_str());
 #endif
     }
@@ -1491,12 +1504,12 @@ void syscall_callback(unsigned int vcpu_index, void *udata){
         std::lock_guard<std::mutex> g(running_syscalls_lock);
         std::string remaining = context_map_t_dump(running_syscalls);
         const char *c = (rr_get_guest_instr_count() > 7726588867 ? "X" : "");
-        LOG_DEBUG("started%s: %s:" TARGET_PTR_FMT, c, (no > sm->max_generic ? "N/A" : si[no].name), get_id(cpu));
+        LOG_DEBUG("started%s: %s:" TARGET_PTR_FMT, c, (no > sm->max_generic ? "N/A" : si[no].name), syscalls_get_id(cpu));
         LOG_DEBUG("remaining %zu: %s\n", running_syscalls.size(), remaining.c_str());
     }
 #endif
 #ifdef DEBUG
-        syscallCounter[get_id(cpu)]++;
+        syscallCounter[syscalls_get_id(cpu)]++;
 #endif
     // free(sysinfo);
 }
@@ -1854,6 +1867,7 @@ static uint64_t ppc64_paca_word(void *opaque, CPUState *cpu, uint64_t base)
 struct MipsKsp {
     uint64_t pa;                            /* kernelsp's physical address; 0: not found */
     unsigned reg, shift;                    /* CP0 4 (Context) or 20 (XContext), >> shift */
+    uint32_t tmask;                         /* _THREAD_MASK (THREAD_SIZE - 1); 0: not found */
 };
 static std::atomic<int> mips_ksp_state{0};  /* 0 not scanned, 1 scanning or done */
 static MipsKsp mips_ksp;
@@ -1863,6 +1877,7 @@ static MipsKsp mips_find_kernelsp(void)
 {
     std::vector<uint8_t> buf(1 << 16);
     std::map<std::tuple<uint64_t, unsigned, unsigned>, unsigned> seen;
+    std::map<uint32_t, unsigned> masks;
     uint32_t w[8] = {};
     MipsKsp best = {};
     unsigned n = 0;
@@ -1876,6 +1891,12 @@ static MipsKsp mips_find_kernelsp(void)
             memmove(w, w + 1, 7 * sizeof(w[0]));
             w[7] = TARGET_BIG_ENDIAN ? (uint32_t)b[3] | b[2] << 8 | b[1] << 16 | (uint32_t)b[0] << 24
                                      : (uint32_t)b[0] | b[1] << 8 | b[2] << 16 | (uint32_t)b[3] << 24;
+            /* every exception entry (SAVE_SOME) points $28 at the task's thread_info, at the
+             * base of its kernel stack: "ori $28, sp, _THREAD_MASK; xori $28, _THREAD_MASK" */
+            if ((w[6] & 0xffff0000) == 0x37bc0000 && (w[7] & 0xffff0000) == 0x3b9c0000 &&
+                (w[6] & 0xffff) == (w[7] & 0xffff) && ((w[6] + 1) & w[6] & 0xffff) == 0) {
+                masks[w[6] & 0xffff]++;
+            }
             /* w[0] (d)mfc0 k0, rd; w[1] lui k1, hi; w[2] (d)srl(32) k0, k0, sa; w[3] (d)addu k1,
              * k1, k0; the load of the stack pointer within the next 4 */
             if ((w[0] & 0xffdf07ff) != 0x401a0000 || (w[1] & 0xffff0000) != 0x3c1b0000 ||
@@ -1903,17 +1924,21 @@ static MipsKsp mips_find_kernelsp(void)
     for (auto &kv : seen) {
         if (kv.second > n) {
             n = kv.second;
-            best = { std::get<0>(kv.first), std::get<1>(kv.first), std::get<2>(kv.first) };
+            best = { std::get<0>(kv.first), std::get<1>(kv.first), std::get<2>(kv.first), 0 };
+        }
+    }
+    n = 0;
+    for (auto &kv : masks) {
+        if (kv.second > n) {
+            n = kv.second;
+            best.tmask = kv.first;
         }
     }
     return best;
 }
 
-static uint64_t mips_kernelsp_word(void *opaque, CPUState *cpu, uint64_t base)
+static const MipsKsp &mips_ksp_get(void)
 {
-    CPUArchState *env = (CPUArchState *)panda_cpu_env(cpu);
-    uint64_t r;
-
     if (mips_ksp_state.load(std::memory_order_acquire) != 2) {
         std::lock_guard<std::mutex> g(mips_ksp_lock);
         if (mips_ksp_state.load(std::memory_order_relaxed) != 2) {
@@ -1921,11 +1946,38 @@ static uint64_t mips_kernelsp_word(void *opaque, CPUState *cpu, uint64_t base)
             mips_ksp_state.store(2, std::memory_order_release);
         }
     }
-    if (!mips_ksp.pa) {
+    return mips_ksp;
+}
+
+static uint64_t mips_kernelsp_word(void *opaque, CPUState *cpu, uint64_t base)
+{
+    CPUArchState *env = (CPUArchState *)panda_cpu_env(cpu);
+    const MipsKsp &k = mips_ksp_get();
+    uint64_t r;
+
+    if (!k.pa) {
         return 0;
     }
-    r = mips_ksp.reg == 20 ? (uint64_t)env->CP0_XContext : (uint64_t)env->CP0_Context;
-    return mips_ksp.pa + (r >> mips_ksp.shift);
+    r = k.reg == 20 ? (uint64_t)env->CP0_XContext : (uint64_t)env->CP0_Context;
+    return k.pa + (r >> k.shift);
+}
+
+/* The running task's thread_info: kernelsp[cpu] (its kernel stack) without the stack's offset.
+ * 0 while kernelsp or the mask is not found (a uniprocessor kernel's kernelsp has no index). */
+static target_ulong mips_task_id(CPUState *cpu)
+{
+    const MipsKsp &k = mips_ksp_get();
+    uint8_t b[sizeof(target_ulong)];
+    uint64_t pa, v = 0;
+
+    if (!k.pa || !k.tmask || !(pa = mips_kernelsp_word(nullptr, cpu, 0)) ||
+        panda_physical_memory_read(pa, b, sizeof(b)) != 0) {
+        return 0;
+    }
+    for (unsigned i = 0; i < sizeof(b); i++) {
+        v |= (uint64_t)b[TARGET_BIG_ENDIAN ? i : sizeof(b) - 1 - i] << (8 * (sizeof(b) - 1 - i));
+    }
+    return (target_ulong)v & ~(target_ulong)k.tmask;
 }
 #endif
 
@@ -2212,8 +2264,6 @@ bool init_plugin(void *self) {
 #if defined(SYSCALL_RETURN_DEBUG)
     assert((syscall_info != NULL) && "syscall return debugging requires loading syscall info");
 #endif
-    panda_require("hw_proc_id");
-    assert(init_hw_proc_id_api());
 
     // done parsing arguments
     panda_free_args(plugin_args);
