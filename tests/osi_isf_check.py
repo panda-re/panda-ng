@@ -27,8 +27,12 @@ import tempfile
 
 PANDA_TEST = dict(area="osi", tier="static", args=["{plugin_dir}"], timeout=900)
 
-CAPS = ["tasks", "pid", "name", "ppid", "thread_group", "asid", "start_time", "current", "mappings",
-        "mapping_files", "mount_paths", "heap_stack", "modules", "task_change"]
+CAPS = ["tasks", "pid", "name", "ppid", "thread_group", "asid", "start_time", "current", "threads",
+        "file_paths", "mappings", "mapping_files", "mount_paths", "heap_stack", "modules", "task_change",
+        "lifecycle", "exit_codes", "reparent", "pid_reuse", "cmdline", "exe_path", "fs_paths", "creds",
+        "cap_sets", "open_files", "sockets", "vma_details"]
+# The capabilities of the first round (the OSI interface), and those of process facts and lifecycle.
+OSI_CAPS = CAPS[:16]
 BITS = {"x86_64": 64, "i386": 32, "aarch64": 64, "arm": 32, "mips": 32, "mips64": 64, "riscv64": 64}
 
 
@@ -76,9 +80,80 @@ def era_isf(ver, arch, banner=True):
     task = [("tasks", struct("list_head")), ("pid", base("int")), ("tgid", base("int")),
             ("comm", array(16, base("char"))), ("mm", ptr("mm_struct")),
             ("real_parent", ptr("task_struct")), ("group_leader", ptr("task_struct")),
-            ("start_time", base("long long unsigned int") if v >= (3, 17) else struct("timespec"))]
+            ("start_time", base("long long unsigned int") if v >= (3, 17) else struct("timespec")),
+            ("signal", ptr("signal_struct")), ("fs", ptr("fs_struct")), ("files", ptr("files_struct"))]
+    # Threads: signal->thread_head and task->thread_node since 3.14; the thread_group ring until 6.7.
+    if v < (6, 7):
+        task.append(("thread_group", struct("list_head")))
+    if v >= (3, 14):
+        task.append(("thread_node", struct("list_head")))
+    t("atomic_t", [("counter", base("int"))], 4)
+    t("signal_struct", [("live", struct("atomic_t"))] + ([("thread_head", struct("list_head"))] if v >= (3, 14) else []))
+    # Credentials: task->cred since 2.6.29 (kuid_t since 3.5), the task's own ids before; capability
+    # sets a u64 since 6.3, u32 cap[2] since 2.6.25.
+    ids = ["uid", "gid", "suid", "sgid", "euid", "egid", "fsuid", "fsgid"]
+    capsets = ["cap_effective", "cap_permitted", "cap_inheritable", "cap_bset"]
+    if v >= (6, 3):
+        t("kernel_cap_struct", [("val", base("long long unsigned int"))], 8)
+    else:
+        t("kernel_cap_struct", [("cap", array(2, base("unsigned int")))], 8)
+    if v >= (3, 5):
+        t("kuid_t", [("val", base("unsigned int"))], 4)
+    idtype = struct("kuid_t") if v >= (3, 5) else base("unsigned int")
+    if v >= (2, 6, 29):
+        task.append(("cred", ptr("cred")))
+        t("cred", [(i, idtype) for i in ids] + [(c, struct("kernel_cap_struct")) for c in capsets])
+    else:
+        task += [(i, base("unsigned int")) for i in ids]
+        task += [(c, struct("kernel_cap_struct") if v >= (2, 6, 25) else base("unsigned int")) for c in capsets[:3]]
     t("task_struct", task)
-    mm = [("pgd", ptr("pgd_t")), ("start_brk", ul), ("brk", ul), ("start_stack", ul)]
+    # cwd and root: struct path since 2.6.25 (a seqcount since 2.6.36, seqcount_spinlock_t 5.10),
+    # dentries and vfsmounts before.
+    if v >= (2, 6, 25):
+        fs = [("root", struct("path")), ("pwd", struct("path"))]
+        if v >= (5, 10):
+            t("seqcount", [("sequence", base("unsigned int"))], 4)
+            t("seqcount_spinlock", [("seqcount", struct("seqcount"))], 4)
+            fs.append(("seq", struct("seqcount_spinlock")))
+        elif v >= (2, 6, 36):
+            t("seqcount", [("sequence", base("unsigned int"))], 4)
+            fs.append(("seq", struct("seqcount")))
+    else:
+        fs = [("root", ptr("dentry")), ("pwd", ptr("dentry")), ("rootmnt", ptr("vfsmount")), ("pwdmnt", ptr("vfsmount"))]
+    t("fs_struct", fs)
+    t("files_struct", [("fdt", ptr("fdtable"))])
+    t("fdtable", [("max_fds", base("unsigned int")), ("fd", {"kind": "pointer", "subtype": ptr("file")})])
+    t("inode", [("i_mode", base("short unsigned int")), ("i_ino", ul)])
+    t("file_system_type", [("name", ptr("char", "base"))])
+    t("super_block", [("s_type", ptr("file_system_type"))])
+    # Sockets: inet_sock's num/dport/rcv_saddr/daddr, inet_-prefixed from 2.6.33; the addresses
+    # in sock_common from 2.6.38, the ports from 3.5; IPv6 addresses there from 3.13.
+    common = [("skc_family", base("short unsigned int")), ("skc_state", base("unsigned char"))]
+    if v >= (2, 6, 38):
+        common += [("skc_daddr", base("unsigned int")), ("skc_rcv_saddr", base("unsigned int"))]
+    if v >= (3, 5):
+        common += [("skc_dport", base("short unsigned int")), ("skc_num", base("short unsigned int"))]
+    if v >= (3, 13):
+        t("in6_addr", [("u6_addr8", array(16, base("unsigned char")))], 16)
+        common += [("skc_v6_daddr", struct("in6_addr")), ("skc_v6_rcv_saddr", struct("in6_addr"))]
+    t("sock_common", common)
+    t("sock", [("__sk_common", struct("sock_common"))])
+    if v < (2, 6, 33):
+        inet = [("num", base("short unsigned int")), ("dport", base("short unsigned int")),
+                ("rcv_saddr", base("unsigned int")), ("daddr", base("unsigned int"))]
+    else:
+        inet = [] if v >= (3, 5) else [("inet_num", base("short unsigned int")), ("inet_dport", base("short unsigned int"))]
+        if v < (2, 6, 38):
+            inet += [("inet_rcv_saddr", base("unsigned int")), ("inet_daddr", base("unsigned int"))]
+    t("inet_sock", [("sk", struct("sock"))] + inet)
+    t("socket", [("type", base("short int")), ("sk", ptr("sock"))])
+    t("sockaddr_un", [("sun_family", base("short unsigned int")), ("sun_path", array(108, base("char")))], 110)
+    t("unix_address", [("len", base("int")), ("name", array(0, struct("sockaddr_un")))])
+    t("unix_sock", [("sk", struct("sock")), ("addr", ptr("unix_address"))])
+    mm = [("pgd", ptr("pgd_t")), ("start_brk", ul), ("brk", ul), ("start_stack", ul), ("arg_start", ul),
+          ("arg_end", ul), ("env_start", ul), ("env_end", ul)]
+    if v >= (2, 6, 26):
+        mm.append(("exe_file", ptr("file")))
     mm.append(("mm_mt", struct("maple_tree")) if v >= (6, 1) else ("mmap", ptr("vm_area_struct")))
     if v >= (6, 1):
         # Since 6.1 everything but cpu_bitmap is in an anonymous struct.
@@ -96,9 +171,12 @@ def era_isf(ver, arch, banner=True):
         vma.append(("vm_next", ptr("vm_area_struct")))
     t("vm_area_struct", vma)
     t("path", [("mnt", ptr("vfsmount")), ("dentry", ptr("dentry"))])
-    t("file", [("f_path", struct("path"))])
+    t("file", [("f_path", struct("path")) if v >= (2, 6, 20) else ("f_dentry", ptr("dentry")),
+               ("f_flags", base("unsigned int")), ("f_pos", base("long long int")),
+               ("private_data", ptr("void", "base"))])
     t("qstr", [("name", ptr("char", "base"))])
-    t("dentry", [("d_parent", ptr("dentry")), ("d_name", struct("qstr"))])
+    t("dentry", [("d_parent", ptr("dentry")), ("d_name", struct("qstr")), ("d_inode", ptr("inode")),
+                 ("d_sb", ptr("super_block"))])
     if v >= (3, 3):
         t("vfsmount", [("mnt_root", ptr("dentry"))])
         t("mount", [("mnt_parent", ptr("mount")), ("mnt_mountpoint", ptr("dentry")), ("mnt", struct("vfsmount"))])
@@ -121,6 +199,7 @@ def era_isf(ver, arch, banner=True):
     types["thread_union"] = {"kind": "union", "size": 8192 if p == 4 else 16384, "fields": {}}
 
     syms = {"init_task": 0xc0800000, "modules": 0xc0810000, "finish_task_switch.isra.0": 0xc0100000,
+            "do_exit": 0xc0110000,
             "__per_cpu_offset": 0xc0820000, "_stext": 0xc0008000, "_etext": 0xc0600000}
     if arch in ("x86_64", "i386"):
         if v >= (6, 2):
@@ -140,8 +219,9 @@ def era_isf(ver, arch, banner=True):
         text = f"Linux version {'.'.join(map(str, ver))} (synthetic) #1 SMP\n\0".encode()
         symbols["linux_banner"] = {"address": 0xc0700000, "constant_data": base64.b64encode(text).decode(),
                                    "type": array(0, base("char"))}
-    sizes = {"char": 1, "int": 4, "unsigned int": 4, "long int": p, "long unsigned int": p,
-             "long long unsigned int": 8, "long long int": 8}
+    sizes = {"char": 1, "unsigned char": 1, "short int": 2, "short unsigned int": 2, "int": 4,
+             "unsigned int": 4, "long int": p, "long unsigned int": p, "long long unsigned int": 8,
+             "long long int": 8}
     base_types = {n: {"size": s, "signed": "unsigned" not in n, "kind": "int", "endian": "little"}
                   for n, s in sizes.items()}
     base_types["pointer"] = {"size": p, "signed": False, "kind": "int", "endian": "little"}
@@ -167,10 +247,19 @@ def expect(ver, arch):
         e["current"] = "kernelsp thread_info"
     elif arch == "riscv64":
         e["current"] = "tp/sscratch"
+    e["threads"] = "signal->thread_head" if v >= (3, 14) else "thread_group ring"
+    e["file_paths"] = "f_path.dentry" if v >= (2, 6, 20) else "f_dentry"
+    e["exit_codes"] = "do_exit hook"
+    e["exe_path"] = "mm->exe_file" if v >= (2, 6, 26) else None
+    e["fs_paths"] = "fs_struct paths" if v >= (2, 6, 25) else "fs_struct dentries"
+    e["creds"] = "task->cred" if v >= (2, 6, 29) else "task_struct ids"
+    e["cap_sets"] = "cred u64" if v >= (6, 3) else "cred u32[]" if v >= (2, 6, 29) else \
+        "task_struct u32[]" if v >= (2, 6, 25) else "task_struct u32"
+    e["sockets"] = "sock_common" if v >= (3, 5) else "inet_sock inet_*" if v >= (2, 6, 33) else "inet_sock"
     return e
 
 
-ERAS = [((2, 6, 31), "x86_64"), ((2, 6, 36), "arm"), ((3, 4, 0), "mips"), ((3, 10, 0), "x86_64"),
+ERAS = [((2, 6, 24), "arm"), ((2, 6, 31), "x86_64"), ((2, 6, 36), "arm"), ((3, 4, 0), "mips"), ((3, 10, 0), "x86_64"),
         ((3, 14, 77), "arm"), ((3, 18, 140), "aarch64"), ((4, 10, 0), "mips64"), ((4, 14, 0), "arm"),
         ((5, 10, 229), "x86_64"), ((5, 10, 0), "aarch64"), ((6, 1, 0), "i386"), ((6, 6, 0), "x86_64"),
         ((6, 6, 0), "arm"), ((6, 13, 0), "arm"), ((6, 13, 0), "mips"), ((6, 12, 0), "riscv64")]
@@ -215,10 +304,15 @@ def check_eras(tool, C):
         rep = tool.report(tool.write(era_isf(ver, arch)), tool_arch(arch))
         exp = expect(ver, arch)
         caps = rep["capabilities"]
+        # None: the era has no strategy for it (exe_file is 2.6.26+).
         bad = {c: (caps[c]["status"], caps[c].get("strategy"), caps[c].get("reason"))
-               for c in CAPS if caps[c]["status"] != "available"
-               or (exp[c] != c and caps[c].get("strategy") != exp[c])}
+               for c in CAPS if (caps[c]["status"] != "available") != (exp[c] is None)
+               or (exp[c] not in (c, None) and caps[c].get("strategy") != exp[c])}
         C.check(f"{'.'.join(map(str, ver))} {arch}: every capability, with its era's strategy", not bad, bad)
+
+
+def ul_type(isf):
+    return base("long unsigned int")
 
 
 def cap_reason(rep, cap):
@@ -248,8 +342,10 @@ def check_damage(tool, C):
     rep = tool.report(tool.write(damaged(lambda i: i["user_types"]["task_struct"]["fields"]["pid"].update(
         type=base("long long int")))), "x86_64")
     st, why = cap_reason(rep, "pid")
-    C.check("an 8-byte pid: pid unavailable (width), the rest available",
-            st == "unavailable" and "8 bytes" in why and others_ok(rep, ["pid"]), (st, why))
+    on_pid = ["pid", "threads", "lifecycle", "exit_codes", "reparent", "pid_reuse", "cmdline"]
+    C.check("an 8-byte pid: pid unavailable (width), and what needs it; the rest available",
+            st == "unavailable" and "8 bytes" in why and others_ok(rep, on_pid)
+            and all(rep["capabilities"][c]["status"] == "unavailable" for c in on_pid), (st, why))
 
     # The wrong type for the era: a timespec start_time in a 6.6 kernel is no u64, and the
     # timespec strategy is for kernels before 3.17.
@@ -357,6 +453,53 @@ def check_damage(tool, C):
     C.check("no thread_union, no init_stack: current unavailable (THREAD_SIZE)",
             st == "unavailable" and "THREAD_SIZE" in why, (st, why))
 
+    # Process facts and lifecycle.
+    def drop(t, m):
+        return lambda i: i["user_types"][t]["fields"].pop(m)
+    rep = tool.report(tool.write(damaged(lambda i: (drop("task_struct", "thread_node")(i),
+                                                    drop("signal_struct", "thread_head")(i)),
+                                         ver=(6, 13, 0), arch="arm")), "arm")
+    st, why = cap_reason(rep, "threads")
+    C.check("6.13 without thread_head/thread_node: threads unavailable (the thread_group ring is gone since 6.7)",
+            st == "unavailable" and "thread_head" in why and others_ok(rep, ["threads"]), (st, why))
+    rep = tool.report(tool.write(damaged(lambda i: i["user_types"]["cred"]["fields"].update(
+        {k: {"offset": v["offset"], "type": base("unsigned int")} for k, v in i["user_types"]["cred"]["fields"].items()
+         if not k.startswith("cap_")}), ver=(3, 10, 0))), "x86_64")
+    ins = {x["input"]: x.get("used") for x in rep["capabilities"]["creds"]["inputs"]}
+    C.check("3.10 with plain uid_t in cred (no strict type checks): creds from the uid alternative",
+            rep["capabilities"]["creds"]["status"] == "available" and ins.get("cred.uid.val|uid") == "uid", ins)
+    rep = tool.report(tool.write(damaged(lambda i: i["user_types"]["kernel_cap_struct"].update(
+        fields={"val": {"offset": 0, "type": base("long long unsigned int")}}), ver=(6, 1, 0), arch="i386")), "i386")
+    st, why = cap_reason(rep, "cap_sets")
+    C.check("6.1 with a u64 kernel_cap_t: cap_sets unavailable (the u64 strategy is for 6.3+)",
+            st == "unavailable" and "6.3" in why, (st, why))
+    rep = tool.report(tool.write(damaged(lambda i: i["user_types"]["sock_common"]["fields"].pop("skc_num"))), "x86_64")
+    st, why = cap_reason(rep, "sockets")
+    C.check("no skc_num (nor inet_num): sockets unavailable, open files available",
+            st == "unavailable" and "skc_num" in why and others_ok(rep, ["sockets"]), (st, why))
+    rep = tool.report(tool.write(damaged(lambda i: i["user_types"]["unix_sock"]["fields"].pop("addr"))), "x86_64")
+    C.check("no unix_sock.addr: sockets available without unix socket paths",
+            rep["capabilities"]["sockets"]["status"] == "available"
+            and any("addr" in d for d in rep["capabilities"]["sockets"].get("degraded", [])),
+            rep["capabilities"]["sockets"].get("degraded"))
+    rep = tool.report(tool.write(damaged(lambda i: i["user_types"]["mm_struct"]["fields"]["exe_file"].update(
+        type=ul_type(i)), ver=(5, 10, 229))), "x86_64")
+    st, why = cap_reason(rep, "exe_path")
+    C.check("exe_file an integer: exe_path unavailable (shape)", st == "unavailable" and "not a pointer" in why
+            and others_ok(rep, ["exe_path"]), (st, why))
+    rep = tool.report(tool.write(damaged(lambda i: i["symbols"].pop("do_exit"))), "x86_64")
+    C.check("no do_exit symbol: exit statuses from the exit system calls",
+            rep["capabilities"]["exit_codes"].get("strategy") == "exit system calls", cap_reason(rep, "exit_codes"))
+    rep = tool.report(tool.write(damaged(lambda i: i["user_types"]["file"]["fields"].pop("f_path"))), "x86_64")
+    gone = [c for c in CAPS if rep["capabilities"][c]["status"] == "unavailable"]
+    C.check("no file.f_path: file paths, and everything that names files, unavailable",
+            sorted(gone) == sorted(["file_paths", "mapping_files", "mount_paths", "exe_path", "fs_paths",
+                                    "open_files", "sockets"]), gone)
+    lc = write_lift((6, 6, 0), "x86_64", carried={"cred": ["euid"]}, name="liftcred")
+    st, why = cap_reason(tool.report(lc, "x86_64"), "creds")
+    C.check("lift, cred.euid reference-carried: creds unavailable (untrusted)",
+            st == "unavailable" and "euid" in why and "untrusted" in why, (st, why))
+
     rep = tool.report(lf, "x86_64", "--allow-untrusted")
     C.check("lift with --allow-untrusted: pid, asid and mappings available from untrusted inputs",
             all(rep["capabilities"][c]["status"] == "available-untrusted" for c in ("pid", "asid", "mappings")),
@@ -369,10 +512,12 @@ def check_damage(tool, C):
             cap_reason(rep, "name"))
     # No strategy for an arch: a clear reason.
     rep = tool.report(tool.write(good), "ppc")
-    C.check("ppc: current unavailable (no strategy for ppc), the rest available",
+    needs_current = ["current", "task_change", "lifecycle", "exit_codes", "reparent", "pid_reuse", "cmdline"]
+    C.check("ppc: current unavailable (no strategy for ppc), so what needs it; the rest available",
             cap_reason(rep, "current") == ("unavailable", "no strategy for ppc")
-            and rep["capabilities"]["task_change"]["status"] == "unavailable" and others_ok(rep, ["current", "task_change"]),
-            cap_reason(rep, "current"))
+            and all(rep["capabilities"][c]["status"] == "unavailable" for c in needs_current)
+            and others_ok(rep, needs_current),
+            {c: cap_reason(rep, c) for c in CAPS if rep["capabilities"][c]["status"] != "available"})
 
 
 # ---------------------------------------------------------------- the corpus
@@ -418,7 +563,8 @@ def check_corpus(tool, C, manifest, out):
                "reasons": {c: rep["capabilities"][c].get("reason") for c in CAPS
                            if rep["capabilities"][c]["status"] == "unavailable"}}
         if e.get("truth"):
-            truth = tool.report(e["truth"], e.get("truth_arch", e["arch"]))
+            # Every strategy's inputs, so that a lift that falls back to a later strategy is graded too.
+            truth = tool.report(e["truth"], e.get("truth_arch", e["arch"]), "--all-attempts")
             wrong = {c: grade(rep, truth, c) for c in CAPS if rep["capabilities"][c]["status"] == "available"}
             wrong = {c: w for c, w in wrong.items() if w}
             # What a trusted ISF would also give: capabilities lost to trust, for the matrix.
