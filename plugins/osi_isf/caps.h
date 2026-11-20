@@ -46,7 +46,10 @@ enum class Shape { Any, Ptr, Int, List, Chars, Struct, Array };
 
 struct Need {
     NeedKind kind;
-    std::string a, b;     // Sym: name; Field: type, member path; Size: type; Enum: enum, constant
+    // Sym: name (alternatives split by '|'); Field: type, member path (alternative paths split by
+    // '|': a member renamed or moved across versions, the first that resolves); Size: type;
+    // Enum: enum, constant
+    std::string a, b;
     Shape shape = Shape::Any;
     int width = -1;
     std::string tname;    // Struct: the struct's name ("timespec"; alternatives split by '|')
@@ -74,6 +77,7 @@ struct Input {
     int64_t count = 0;    // array element count
     int64_t width = 0;    // the resolved member's width in bytes
     std::string cls;      // provenance class (fields), symbol source (symbols)
+    std::string used;     // the alternative member path that resolved, when there are several
     std::string problem;  // why it isn't usable
     bool usable(bool allow_untrusted) const { return present && shape_ok && (trusted || allow_untrusted); }
 };
@@ -115,6 +119,7 @@ struct Options {
     std::string version_source;   // "ISF banner", "version=", "guest banner"
     bool allow_untrusted = false;
     int64_t thread_size = 0;
+    bool attempt_all = false;     // resolve every strategy, also those after the chosen one (reports)
 };
 
 // What a caller gives: the plugin's arguments, or osi_isf_check's.
