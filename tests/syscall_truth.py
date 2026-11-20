@@ -23,7 +23,11 @@ __kernel_vsyscall pushed ebp; MIPS o32 arguments 5 and 6 from the user stack (un
 compared, when the page is not in the TLB, through which alone the host reaches it). A return's
 value is the kernel's: MIPS and PowerPC sc report an error with a flag ($a3, CR0.SO) and the
 positive error number, which the test negates.
-SC2_ARGS="task_key=false" loads syscalls2 with the call key instead. SC2_SETS_LOG=n gives the
+SC2_ARGS="task_key=false" loads syscalls2 with the call key instead. SC2_ON_ALL=1 records with
+on_all_sys_enter and on_all_sys_return instead (the callbacks without a syscall_ctx_t: the
+number and the address), the ABI from the trap (its instruction, the task's mode, the number's
+range): the same checks but syscalls2's own decoding of mmap2's argument 6, which needs the
+context. SC2_SETS_LOG=n gives the
 engine 2^n sets of 4 pending calls (PANDA_SYSCALL_PAIR_SETS_LOG; 0: one set, so that the
 workloads' blocked calls fill it): the oldest calls are evicted, so a call may have no return,
 but a return delivered must still be its call's, and there must be no more calls without a
@@ -184,6 +188,7 @@ if arch.startswith("mips") and "task_key=false" in os.environ.get("SC2_ARGS", ""
     print("syscall_truth: the call key does not pair a MIPS fork (its ASID changes)")
     sys.exit(C.report("SYSCALL_TRUTH skipped"))
 EVICT = bool(os.environ.get("SC2_SETS_LOG"))
+ON_ALL = bool(os.environ.get("SC2_ON_ALL"))
 MISSING = [0]                           # EVICT: calls with no return
 if EVICT:
     os.environ["PANDA_SYSCALL_PAIR_SETS_LOG"] = os.environ["SC2_SETS_LOG"]
@@ -219,6 +224,18 @@ class Sc2Trace:
         self.children = 0
         self.tls = threading.local()        # cffi releases the GIL in the call: per-vCPU buffers
 
+        if ON_ALL:
+            @panda.ppp("syscalls2", "on_all_sys_enter", name="truth_enter")
+            def enter(cpu, pc, no):
+                if self.on:
+                    self.record(ENTER, cpu, pc, None, no)
+
+            @panda.ppp("syscalls2", "on_all_sys_return", name="truth_return")
+            def ret(cpu, pc, no):
+                if self.on:
+                    self.record(RETURN, cpu, pc, None, no)
+            return
+
         @panda.ppp("syscalls2", "on_all_sys_enter2", name="truth_enter")
         def enter(cpu, pc, call, ctx):
             if self.on:
@@ -228,6 +245,31 @@ class Sc2Trace:
         def ret(cpu, pc, call, ctx):
             if self.on:
                 self.record(RETURN, cpu, pc, ctx)
+
+    def on_all_abi(self, kind, cpu, pc, no):
+        """SC2_ON_ALL: (ABI, vDSO entry) of a call, from the trap: at a return, @pc is where it
+        returned, after the trap (x86: 2 bytes; a vDSO call: past the int $0x80 after it)"""
+        env = panda.cpu_env(cpu)
+        if arch in ("x86_64", "i386"):
+            # int $0x80 (from any task, and after a vDSO entry, where its returns land)
+            int80 = bytes(panda.virtual_memory_read(cpu, pc - 2 if kind == RETURN else pc, 2)) \
+                == b"\xcd\x80"
+            if int80:
+                return ABI_I386, False
+            if arch == "x86_64" and env.hflags & (1 << 15):     # HF_CS64: a 64-bit task
+                return ABI_X86_64, False
+            return ABI_I386, kind == ENTER                      # a vDSO entry
+        if arch == "aarch64":
+            return (ABI_AARCH64 if env.aarch64 else ABI_ARM), False
+        if arch == "arm":
+            return ABI_ARM, False
+        if arch == "riscv64":
+            return ABI_RISCV64, False
+        if arch.startswith("mips"):
+            return (ABI_O32 if 4000 <= no < 5000 else ABI_N64), False
+        if arch.startswith("ppc"):
+            return (ABI_PPC64 if arch.startswith("ppc64") and env.msr >> 63 else ABI_PPC32), False
+        return None, False
 
     def regs(self, cpu, abi, pc, vdso):
         env = panda.cpu_env(cpu)
@@ -272,7 +314,7 @@ class Sc2Trace:
             return [env.gpr[3 + i] & m for i in range(6)], (-ret & m) if env.crf[0] & 1 else ret
         return [env.regs[i] & M32 for i in range(6)], env.regs[0] & M32
 
-    def record(self, kind, cpu, pc, ctx):
+    def record(self, kind, cpu, pc, ctx, on_all_no=None):
         t = self.tls
         if not hasattr(t, "idp"):
             t.idp, t.flp = self.ffi.new("uint64_t *"), self.ffi.new("uint32_t *")
@@ -282,15 +324,25 @@ class Sc2Trace:
         if t.flp[0] & CHILD:
             self.children += 1
             return
-        abi = PROFILE_ABI.get(ctx.profile)
-        if abi is None:
-            return
-        vdso = arch in ("x86_64", "i386") and ctx.profile == PROFILE_VDSO
+        if ctx is None:
+            # the callback's target_ulong number is syscall_ctx_t.no (an int) sign-extended
+            bits = 32 if arch in ("i386", "arm", "mipsel", "mips", "ppc") else 64
+            no = on_all_no - (1 << bits) if on_all_no >= 1 << (bits - 1) else on_all_no
+            abi, vdso = self.on_all_abi(kind, cpu, pc, no)
+            if abi is None:
+                return
+            arg6 = None
+        else:
+            abi = PROFILE_ABI.get(ctx.profile)
+            if abi is None:
+                return
+            no = ctx.no
+            vdso = arch in ("x86_64", "i386") and ctx.profile == PROFILE_VDSO
+            # syscalls2's own decoding of mmap2's argument 6 (the one in ebp, or on the stack)
+            arg6 = int.from_bytes(bytes(list(ctx.args[5])[:4]), "little") \
+                if kind == ENTER and abi == ABI_I386 and ctx.no == MMAP2 else None
         args, ret = self.regs(cpu, abi, pc, vdso and kind == ENTER)
-        # syscalls2's own decoding of mmap2's argument 6 (the one in ebp, or on the stack)
-        arg6 = int.from_bytes(bytes(list(ctx.args[5])[:4]), "little") \
-            if kind == ENTER and abi == ABI_I386 and ctx.no == MMAP2 else None
-        self.events.append(Event(kind, abi, cpu.cpu_index, vdso, t.idp[0], ctx.no,
+        self.events.append(Event(kind, abi, cpu.cpu_index, vdso, t.idp[0], no,
                                  args if kind == ENTER else [0] * 6, pc, ret if kind == RETURN else 0,
                                  arg6))
 
@@ -464,8 +516,9 @@ def check(name, ftrace, trap, lost, overrun):
                 if t.sc2arg6 != f["args"][5]:
                     bad6.append((fmt_f(f), t.sc2arg6))
         n6 = sum(1 for t in trap_of.values() if t.sc2arg6 is not None)
-        C.check(p + "mmap2's argument 6, as syscalls2 decodes it, is the kernel's",
-                n6 >= 400 and not bad6, dict(calls=n6, bad=bad6[:5]))
+        if not ON_ALL:
+            C.check(p + "mmap2's argument 6, as syscalls2 decodes it, is the kernel's",
+                    n6 >= 400 and not bad6, dict(calls=n6, bad=bad6[:5]))
 
     # Returns, call by call.
     bad, counted = defaultdict(list), defaultdict(int)
