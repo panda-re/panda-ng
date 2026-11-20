@@ -1029,6 +1029,7 @@ static unsigned panda_translation_shape(void)
 
 static void panda_cb_list_changed(panda_cb_type type, bool was_registered)
 {
+    panda_bridge_trans_update();
     panda_bridge_tb_trans_sync();       /* before any flush below */
     unsigned shape = panda_translation_shape();
     if (shape != panda_tb_shape) {

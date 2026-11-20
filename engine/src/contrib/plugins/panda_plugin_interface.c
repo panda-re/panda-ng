@@ -149,10 +149,11 @@ static void cov_exec(unsigned int cpu_index, void *udata)
 static void vcpu_tb_trans(struct qemu_plugin_tb *tb, void *userdata)
 {
     CPUState *cpu = panda_cpu_in_translate();
-    unsigned wants = panda_bridge_wants();
+    unsigned trans = panda_bridge_trans();      /* what to register, kept by the registrations */
+    unsigned wants = trans & 0xff;
 
     panda_block_translate_begin(cpu);
-    int mem_rw[2] = { panda_memcb_rw(false), panda_memcb_rw(true) };
+    int mem_rw[2] = { (trans >> 8) & 0xff, (trans >> 16) & 0xff };
     size_t n_insns = qemu_plugin_tb_n_insns(tb);
 
     if ((wants & PANDA_BRIDGE_INSN) || mem_rw[0] || mem_rw[1]) {
@@ -188,7 +189,9 @@ static void vcpu_tb_trans(struct qemu_plugin_tb *tb, void *userdata)
                                                   PANDA_BLOCK_GATE_END, real_tb);
     }
 
-    panda_callbacks_block_translate(cpu, tb);
+    if (trans & PANDA_BRIDGE_TRANS_BT) {
+        panda_callbacks_block_translate(cpu, tb);
+    }
 }
 
 // static void vcpu_exit(qemu_plugin_id_t id, unsigned int vcpu_index)

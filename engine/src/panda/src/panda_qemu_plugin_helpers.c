@@ -78,6 +78,21 @@ unsigned panda_bridge_wants(void){
     return wants;
 }
 
+static unsigned bridge_trans;
+
+unsigned panda_bridge_trans(void){
+    return qatomic_read(&bridge_trans);
+}
+
+void panda_bridge_trans_update(void){
+    unsigned w = panda_bridge_wants() | (unsigned) panda_memcb_rw(false) << 8
+                 | (unsigned) panda_memcb_rw(true) << 16;
+    if (panda_has_callback_registered(PANDA_CB_BLOCK_TRANSLATE)) {
+        w |= PANDA_BRIDGE_TRANS_BT;
+    }
+    qatomic_set(&bridge_trans, w);
+}
+
 /* The bridge's translation callback (vcpu_tb_trans) is registered with QEMU only once something
  * needs translation-time work: a block callback, insn_translate, a memory callback, block_translate
  * or coverage. Until then QEMU translates as it does without plugins: no plugin_gen pass, no
@@ -152,7 +167,8 @@ void panda_bridge_tb_trans_sync(void){
 void panda_bridge_set_tb_trans(qemu_plugin_id_t id, qemu_plugin_vcpu_tb_trans_cb_t cb){
     tb_trans_id = id;
     tb_trans_cb = cb;
-    panda_bridge_tb_trans_sync();       /* callbacks registered before the bridge was installed */
+    panda_bridge_trans_update();        /* callbacks registered before the bridge was installed */
+    panda_bridge_tb_trans_sync();
 }
 
 /* Whether a vCPU's translations go through QEMU's plugin translation path: the bit
