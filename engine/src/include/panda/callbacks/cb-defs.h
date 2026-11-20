@@ -238,7 +238,10 @@ typedef union panda_cb {
         none
 
        Notes:
-        This is a good place to add instrumentation
+        This is a good place to add instrumentation: QEMU plugin callbacks registered on
+        @tb's instructions run when they execute. A memory callback registered so
+        (qemu_plugin_register_vcpu_mem_cb) is ignored, with a warning, while no PANDA memory
+        callback is registered: blocks are then translated without memory instrumentation.
     */
     void (*block_translate)(CPUState *env, struct qemu_plugin_tb *tb);
 

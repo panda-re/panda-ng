@@ -18,6 +18,7 @@
 #include "qemu/plugin-memory.h"
 #include "exec/memopidx.h"
 #include "qemu/rcu.h"
+#include "qemu/lockable.h"
 #include "system/memory.h"
 
 
@@ -82,34 +83,69 @@ unsigned panda_bridge_wants(void){
  * or coverage. Until then QEMU translates as it does without plugins: no plugin_gen pass, no
  * plugin ops, and no store of each access's value for memory callbacks.
  *
- * It is registered with a declaration that lets QEMU emit less for it
- * (QEMU_PLUGIN_TB_TRANS_MEM_VALUE_IN_CB): the bridge reads an access's value only in its memory
- * callback (vcpu_mem), so QEMU stores the values of the accesses of instructions with memory
- * callbacks only. */
+ * It is registered with declarations (enum qemu_plugin_tb_trans_flags) that let QEMU emit less for
+ * it: the bridge reads an access's value only in its memory callback (vcpu_mem), and while no
+ * PANDA memory callback is registered it registers none. The second changes with the registered
+ * memory callbacks; the bridge registers again with the new flags from panda_cb_list_changed,
+ * before the flush that a change of the memory callbacks requests anyway, so blocks translated
+ * without memory instrumentation are dropped before a memory callback needs them. A translation
+ * that started before such a registration keeps the flags it started with; if the bridge then asks
+ * for memory callbacks on it, QEMU ignores them (and warns once), and the flush drops the block.
+ *
+ * Other code that registers a memory callback through QEMU's plugin API from a block_translate
+ * callback (pandare2 exposes qemu_plugin_register_vcpu_mem_cb) gets nothing while no PANDA memory
+ * callback is registered: QEMU ignores it, with a warning. Register a PANDA memory callback
+ * instead. */
 static qemu_plugin_id_t tb_trans_id;
 static qemu_plugin_vcpu_tb_trans_cb_t tb_trans_cb;
 static bool tb_trans_registered;
+static uint32_t tb_trans_flags;
+/* Serializes the registrations: panda_cov_enable calls panda_bridge_tb_trans_sync without
+ * panda_cbs_lock, and the flags registered last must be computed from the callbacks registered
+ * last. Taken inside panda_cbs_lock, and takes QEMU's plugin.lock. */
+static QemuMutex tb_trans_lock;
+
+static void __attribute__((constructor)) tb_trans_lock_init(void){
+    qemu_mutex_init(&tb_trans_lock);
+}
+
+static uint32_t panda_bridge_tb_trans_flags(void){
+    uint32_t f = QEMU_PLUGIN_TB_TRANS_MEM_VALUE_IN_CB;
+    if (!panda_memcb_rw(false) && !panda_memcb_rw(true)) {
+        f |= QEMU_PLUGIN_TB_TRANS_NO_MEM_CBS;
+    }
+    return f;
+}
 
 static bool panda_bridge_needs_tb_trans(void){
     return panda_bridge_wants() || panda_memcb_rw(false) || panda_memcb_rw(true)
            || panda_has_callback_registered(PANDA_CB_BLOCK_TRANSLATE) || panda_cov.on;
 }
 
-/* Register the bridge's translation callback the first time something needs it; never
- * unregistered. QEMU copies its event mask to each vCPU as queued work (and flushes that vCPU's jump
- * cache): callers that need already-translated blocks instrumented request their flush after this,
- * so every vCPU runs the mask update before it runs code from after the flush. Called with
- * panda_cbs_lock held (panda_cb_list_changed), and registering takes QEMU's plugin.lock: QEMU calls
- * no PANDA code with plugin.lock held. */
+/* Register the bridge's translation callback the first time something needs it, never
+ * unregistered, and again whenever its flags change. QEMU copies its event mask to each vCPU as
+ * queued work (and flushes that vCPU's jump cache): callers that need already-translated blocks
+ * instrumented request their flush after this, so every vCPU runs the mask update before it runs
+ * code from after the flush. Called with panda_cbs_lock held (panda_cb_list_changed), and
+ * registering takes QEMU's plugin.lock: QEMU calls no PANDA code with plugin.lock held. */
 void panda_bridge_tb_trans_sync(void){
-    if (qatomic_read(&tb_trans_registered) || !tb_trans_cb || !panda_bridge_needs_tb_trans()) {
+    if (!tb_trans_cb) {
         return;
     }
-    /* Register first, then publish the flag: a caller that sees the flag (panda_cov_enable runs
-     * without panda_cbs_lock) may flush and translate at once, and must find tb_trans in place.
-     * Two callers can both get here; registering twice is idempotent (do_plugin_register_cb). */
-    qemu_plugin_register_vcpu_tb_trans_cb_flags(tb_trans_id, tb_trans_cb,
-                                                QEMU_PLUGIN_TB_TRANS_MEM_VALUE_IN_CB, NULL);
+    QEMU_LOCK_GUARD(&tb_trans_lock);
+    uint32_t f = panda_bridge_tb_trans_flags();
+    if (qatomic_read(&tb_trans_registered)) {
+        if (f != qatomic_read(&tb_trans_flags)) {
+            qatomic_set(&tb_trans_flags, f);
+            qemu_plugin_register_vcpu_tb_trans_cb_flags(tb_trans_id, tb_trans_cb, f, NULL);
+        }
+        return;
+    }
+    if (!panda_bridge_needs_tb_trans()) {
+        return;
+    }
+    qatomic_set(&tb_trans_flags, f);
+    qemu_plugin_register_vcpu_tb_trans_cb_flags(tb_trans_id, tb_trans_cb, f, NULL);
     qatomic_set(&tb_trans_registered, true);
 }
 

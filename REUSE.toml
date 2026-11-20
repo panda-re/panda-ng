@@ -128,6 +128,7 @@ path = [
   "engine/patches/11.1.2/0069-vl-M-PATH-NAME-and-module-PATH-load-panda-modules.patch",
   "engine/patches/11.1.2/0071-replay-a-snapshot-load-judges-its-virtual-timers-at-.patch",
   "engine/patches/11.1.2/0072-replay-mark-the-begin-record-start-snapshot-refuse-l.patch",
+  "engine/patches/11.1.2/0112-plugins-a-translation-callback-can-declare-it-regist.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]

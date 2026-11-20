@@ -193,7 +193,10 @@ blocks carry neither a helper nor a gate. More generally, until a block, instruc
 callback, `block_translate` (the hooks and syscalls2 plugins) or coverage is registered, QEMU
 translates as it does without plugins: no plugin pass over each block, and no extra store per
 guest load or store. The first such registration switches every vCPU to QEMU's plugin translation
-path for the rest of the run. Block callbacks don't tie a block to one virtual
+path for the rest of the run. On that path, blocks get memory instrumentation only while a memory
+callback is registered: a memory callback registered through QEMU's plugin API
+(`qemu_plugin_register_vcpu_mem_cb`) from a `block_translate` callback is ignored, with a warning,
+while no PANDA memory callback is registered. Register a PANDA memory callback instead. Block callbacks don't tie a block to one virtual
 address: on targets with PC-relative translation (x86_64, aarch64) code mapped into several
 address spaces stays translated once, and each block stores the address it runs at when it
 starts, so `panda.tb_pc(cpu, tb)` in an end callback is the block's address, not the PC it moved

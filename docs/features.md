@@ -78,7 +78,9 @@ removes nothing); enabling, disabling, and later registering and unregistering o
 each block tests (in a run that never registers one, no helper or gate). A run that registers
 no block, instruction or memory callback, `block_translate` (the hooks and syscalls2 plugins) or
 coverage translates as QEMU without plugins; the first one turns QEMU's plugin translation path
-on for the rest of the run. Block callbacks preserve
+on for the rest of the run. On that path blocks have memory instrumentation only while a memory
+callback is registered: a memory callback registered through QEMU's plugin API from
+`block_translate` is ignored, with a warning, while no PANDA memory callback is. Block callbacks preserve
 PC-relative sharing: a block stores the address it runs at when it starts, which `tb_pc` gives its
 end callbacks after the PC has moved on. A registered memory callback (`mmio_after_read` and `mmio_before_write`
 included) instruments every load or store even while disabled. While enabled, a physical one or
@@ -96,7 +98,7 @@ QEMU's own readers perform a device access except when RR policy refuses it.
 
 **Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/block_activation.py`, `tests/block_toggle.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbtrans.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/mmio.py`, `tests/physmem.py`
 
-**Engine patches:** 0030, 0034, 0041-0043, 0045-0048, 0052-0053, 0057-0058, 0064, 0081-0082, 0110-0111 ([series](reference/patches.md))
+**Engine patches:** 0030, 0034, 0041-0043, 0045-0048, 0052-0053, 0057-0058, 0064, 0081-0082, 0110-0112 ([series](reference/patches.md))
 
 <a id="plugins"></a>
 ## C and C++ plugins

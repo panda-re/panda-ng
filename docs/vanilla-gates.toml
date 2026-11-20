@@ -1567,6 +1567,20 @@ current_gate = "Opt-in: only when every plugin with a translation callback regis
 required_action = "Have the bridge register without the declaration in vanilla, or show no plugin reads the dropped values."
 vanilla_verified = false
 
+[[patch]]
+id = "0112"
+file = "engine/patches/11.1.2/0112-plugins-a-translation-callback-can-declare-it-regist.patch"
+sha256 = "5651fd126999d5bd77ebbd280d5f6924a5f27a77a6669985ed66be42e3ce62e6"
+class = "runtime-gate"
+capability = "plugin-extensions"
+paths = ["accel/tcg/plugin-gen.c", "include/plugins/qemu-plugin.h", "include/tcg/tcg.h", "plugins/api.c", "tcg/tcg-op-ldst.c"]
+functions = ["insn_mem_cbs_allowed", "qemu_plugin_register_vcpu_mem_cb", "qemu_plugin_register_vcpu_mem_inline_per_vcpu", "plugin_gen_tb_start", "plugin_maybe_preserve_addr", "plugin_gen_mem_before", "plugin_gen_mem_after_store", "plugin_gen_mem_callbacks_i32", "plugin_gen_mem_callbacks_i64", "plugin_gen_mem_callbacks_i128"]
+hunk_contexts = ["bool plugin_gen_tb_start(CPUState *cpu, const DisasContextBase *db)", "void qemu_plugin_register_vcpu_tb_trans_cb(qemu_plugin_id_t id,", "struct TCGContext {", "void qemu_plugin_register_vcpu_insn_exec_inline_per_vcpu(", "void qemu_plugin_register_vcpu_mem_cb(struct qemu_plugin_insn *insn,", "void qemu_plugin_register_vcpu_mem_inline_per_vcpu(", "static void maybe_free_addr(TCGTemp *addr, TCGTemp *copy)", "static void", "plugin_gen_mem_callbacks_i32(TCGv_i32 val,", "plugin_gen_mem_callbacks_i64(TCGv_i64 val,", "plugin_gen_mem_callbacks_i128(TCGv_i128 val,"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Opt-in: only when every plugin with a translation callback registered it with QEMU_PLUGIN_TB_TRANS_NO_MEM_CBS are blocks translated without plugin memory ops, and memory callbacks registered on them ignored. The PANDA bridge declares it while no PANDA memory callback is registered."
+required_action = "Have the bridge register without the declaration in vanilla, or admit the declaration only under a capability."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
