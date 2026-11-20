@@ -80,7 +80,12 @@ unsigned panda_bridge_wants(void){
 /* The bridge's translation callback (vcpu_tb_trans) is registered with QEMU only once something
  * needs translation-time work: a block callback, insn_translate, a memory callback, block_translate
  * or coverage. Until then QEMU translates as it does without plugins: no plugin_gen pass, no
- * plugin ops, and no store of each access's value for memory callbacks. */
+ * plugin ops, and no store of each access's value for memory callbacks.
+ *
+ * It is registered with a declaration that lets QEMU emit less for it
+ * (QEMU_PLUGIN_TB_TRANS_MEM_VALUE_IN_CB): the bridge reads an access's value only in its memory
+ * callback (vcpu_mem), so QEMU stores the values of the accesses of instructions with memory
+ * callbacks only. */
 static qemu_plugin_id_t tb_trans_id;
 static qemu_plugin_vcpu_tb_trans_cb_t tb_trans_cb;
 static bool tb_trans_registered;
@@ -103,7 +108,8 @@ void panda_bridge_tb_trans_sync(void){
     /* Register first, then publish the flag: a caller that sees the flag (panda_cov_enable runs
      * without panda_cbs_lock) may flush and translate at once, and must find tb_trans in place.
      * Two callers can both get here; registering twice is idempotent (do_plugin_register_cb). */
-    qemu_plugin_register_vcpu_tb_trans_cb(tb_trans_id, tb_trans_cb, NULL);
+    qemu_plugin_register_vcpu_tb_trans_cb_flags(tb_trans_id, tb_trans_cb,
+                                                QEMU_PLUGIN_TB_TRANS_MEM_VALUE_IN_CB, NULL);
     qatomic_set(&tb_trans_registered, true);
 }
 

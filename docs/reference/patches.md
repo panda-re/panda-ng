@@ -2,7 +2,7 @@
 
 # The engine patch series
 
-QEMU 11.1.2 plus 110 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
+QEMU 11.1.2 plus 111 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
@@ -116,3 +116,4 @@ QEMU 11.1.2 plus 110 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0108 | target/loongarch: take SYSCALL and page faults without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | GPL-2.0-or-later |
 | 0109 | target/i386: deliver INT 0x80 from user mode without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | LGPL-2.1-or-later |
 | 0110 | plugins: no marker ops per instruction | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later |
+| 0111 | plugins: a translation callback can declare where it reads access values | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later |

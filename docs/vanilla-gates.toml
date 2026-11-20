@@ -1553,6 +1553,20 @@ current_gate = "Runs only on QEMU's plugin translation path (a plugin with a tra
 required_action = "Select upstream's marker ops for vanilla, or show the generated code is equivalent for every plugin."
 vanilla_verified = false
 
+[[patch]]
+id = "0111"
+file = "engine/patches/11.1.2/0111-plugins-a-translation-callback-can-declare-where-it-.patch"
+sha256 = "e63b53b46b9e76c59ade50afa020517aee74bf767a13e4499bb8d374f49cf61f"
+class = "runtime-gate"
+capability = "plugin-extensions"
+paths = ["accel/tcg/plugin-gen.c", "include/plugins/qemu-plugin.h", "include/qemu/plugin.h", "plugins/api.c", "plugins/core.c", "plugins/plugin.h"]
+functions = ["qemu_plugin_register_vcpu_tb_trans_cb_flags", "qemu_plugin_tb_trans_flags", "plugin_register_tb_trans_cb", "plugin_mem_value_store", "plugin_gen_inject", "plugin_gen_tb_start"]
+hunk_contexts = ["static void gen_store_tb_vaddr(const TCGCPUOps *ops, const TranslationBlock *tb)", "static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb,", "bool plugin_gen_tb_start(CPUState *cpu, const DisasContextBase *db)", "void qemu_plugin_register_vcpu_tb_trans_cb(qemu_plugin_id_t id,", "struct qemu_plugin_tb {", "CPUPluginState *qemu_plugin_create_vcpu_state(void);", "plugin_register_cb_udata(qemu_plugin_id_t id, enum qemu_plugin_event ev,", "struct qemu_plugin_ctx {"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Opt-in: only when every plugin with a translation callback registered it with QEMU_PLUGIN_TB_TRANS_MEM_VALUE_IN_CB (plain qemu_plugin_register_vcpu_tb_trans_cb declares nothing) are the access-value stores of instructions without memory callbacks dropped. The PANDA bridge declares it."
+required_action = "Have the bridge register without the declaration in vanilla, or show no plugin reads the dropped values."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
