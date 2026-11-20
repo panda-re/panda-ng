@@ -409,12 +409,11 @@ not_kept:
     }
 }
 
-void sc_enter_full(CPUArchState *env, uint32_t wl, int64_t nr)
+void sc_enter_full(CPUArchState *env, uint32_t wl, int64_t nr, uint64_t pc)
 {
     ScState *P = sc;
-    uint32_t len = (wl >> 8) & 0xff;
 
-    sc_enter(P, P->abi[wl >> 16], env_cpu(env), env, wl & 0xff, nr, sc_tcg_pc(env, len), len);
+    sc_enter(P, P->abi[wl >> 16], env_cpu(env), env, wl & 0xff, nr, pc, (wl >> 8) & 0xff);
 }
 
 void panda_sc_enter_c(CPUState *cpu, unsigned form, uint64_t pc, uint32_t len)
@@ -431,7 +430,13 @@ void panda_sc_enter_c(CPUState *cpu, unsigned form, uint64_t pc, uint32_t len)
     nr = sc_nr(A, env);
     w = qatomic_read(&A->want[sc_index(&A->abi, nr)]);
     if (w) {
-        sc_enter(P, A, cpu, env, w, nr, pc, len);
+        /* the fast functions (the general layout), as from translated code */
+        w |= len << 8 | form << 16;
+        if (P->key_form != PANDA_TASK_KEY_CALL) {
+            sc_enter_c_task(env, w, nr, pc);
+        } else {
+            sc_enter_c_call(env, w, nr, pc);
+        }
     }
 }
 
@@ -1089,9 +1094,25 @@ int panda_syscall_abi_declare(void *owner, const PandaSyscallAbi *a)
     memset(A->want, 0, a->nbits + 1);
     A->mask = sc_form_64(form) ? UINT64_MAX : UINT32_MAX;
     /* the fast entry functions read the target's standard layout */
-    A->std = SC_HAS_STD && form == SC_TCG_FORM && A->mask == UINT64_MAX && a->nargs == 6 &&
-             !memcmp(a->arg_reg, std_args, 6) && a->nr_reg == SC_STD_NR &&
-             a->ret_reg == SC_STD_RET && !a->ret_skip;
+    A->std = SC_HAS_STD && form == SC_TCG_FORM && A->mask == SC_STD_MASK &&
+             a->nargs == SC_STD_NARGS && !memcmp(a->arg_reg, std_args, SC_STD_NARGS) &&
+             a->nr_reg == SC_STD_NR && a->ret_reg == SC_STD_RET && !a->ret_skip;
+    /* the other layouts: a table of the argument registers, if no argument is in memory */
+    A->regs = true;
+    for (unsigned k = 0; k < 6; k++) {
+        unsigned size = 0;
+
+        if (k >= a->nargs) {
+            continue;                   /* aoff 0, amask 0: the argument is 0 */
+        }
+        if (a->arg_reg[k] & 0x80) {
+            A->regs = false;
+            break;
+        }
+        A->aoff[k] = sc_reg_off(form, a->arg_reg[k], &size);
+        A->aw4 = size == 4;
+        A->amask[k] = A->mask;
+    }
     if (a->shared_child) {
         P->child = true;
     }

@@ -19,7 +19,7 @@
 
 /* An entry whose return is not wanted: written into the vCPU's slot, delivered */
 static inline QEMU_ALWAYS_INLINE void sc_enter_slot(const bool std, CPUArchState *env,
-                                                    uint32_t wl, int64_t nr)
+                                                    uint32_t wl, int64_t nr, uint64_t pc)
 {
     ScState *P = sc;
     ScAbi *A = std ? P->abi[SC_TCG_FORM] : P->abi[wl >> 16];
@@ -29,7 +29,7 @@ static inline QEMU_ALWAYS_INLINE void sc_enter_slot(const bool std, CPUArchState
     PandaSyscallCall *c = v->slot;
     uint32_t len = (wl >> 8) & 0xff;
 
-    sc_fill(std, A, v, ci, env, c, nr, sc_tcg_pc(env, len), len);
+    sc_fill(std, A, v, ci, env, c, nr, pc, len);
     P->fn(P->ctx, cpu, c, 0, 0);
 }
 
@@ -39,7 +39,8 @@ static inline QEMU_ALWAYS_INLINE void sc_enter_slot(const bool std, CPUArchState
  * claimed at once. The record is published before the delivery (dlv names it meanwhile).
  */
 static inline QEMU_ALWAYS_INLINE void sc_keep_k(const bool task, const bool std,
-                                                CPUArchState *env, uint32_t wl, int64_t nr)
+                                                CPUArchState *env, uint32_t wl, int64_t nr,
+                                                uint64_t pc)
 {
     ScState *P = sc;
     CPUState *cpu = env_cpu(env);
@@ -102,7 +103,7 @@ static inline QEMU_ALWAYS_INLINE void sc_keep_k(const bool task, const bool std,
     v = &P->v[ci & (SC_VCPUS - 1)];
     A = std ? P->abi[SC_TCG_FORM] : P->abi[wl >> 16];
     len = (wl >> 8) & 0xff;
-    sc_fill(std, A, v, ci, env, c, nr, sc_tcg_pc(env, len), len);
+    sc_fill(std, A, v, ci, env, c, nr, pc, len);
     c->key = task ? ka : ka ^ kb;
     c->keytype = kt;
     SC_COUNT(v, kept);
@@ -113,7 +114,7 @@ static inline QEMU_ALWAYS_INLINE void sc_keep_k(const bool task, const bool std,
     }
     return;
 full:
-    sc_enter_full(env, wl, nr);
+    sc_enter_full(env, wl, nr, pc);
 }
 
 /*
@@ -123,26 +124,28 @@ full:
  */
 static inline QEMU_ALWAYS_INLINE void sc_enter_k(const bool std,
                                                  void (*keep)(CPUArchState *, uint32_t,
-                                                              int64_t),
+                                                              int64_t, uint64_t),
                                                  CPUArchState *env, uint32_t wl, int64_t nr)
 {
+    uint64_t pc = sc_tcg_pc(env, (wl >> 8) & 0xff);
+
 #if defined(TARGET_I386)
     if (unlikely(std ? !(env->efer & MSR_EFER_SCE) : sc_x86_faults(env, wl >> 16))) {
         return;                         /* #UD or #GP: no system call */
     }
 #endif
     if (likely(!(wl & SC_W_RET))) {
-        sc_enter_slot(std, env, wl, nr);
+        sc_enter_slot(std, env, wl, nr, pc);
         return;
     }
-    keep(env, wl, nr);
+    keep(env, wl, nr, pc);
 }
 
 #define SC_ENTER_FNS(name, task, std)                                                          \
 static void __attribute__((noinline)) sc_keep_##name(CPUArchState *env, uint32_t wl,         \
-                                                     int64_t nr)                               \
+                                                     int64_t nr, uint64_t pc)                  \
 {                                                                                              \
-    sc_keep_k(task, std, env, wl, nr);                                                         \
+    sc_keep_k(task, std, env, wl, nr, pc);                                                     \
 }                                                                                              \
 void sc_enter_h_##name(CPUArchState *env, uint32_t wl, int64_t nr)                             \
 {                                                                                              \
@@ -153,6 +156,26 @@ SC_ENTER_FNS(task_s, true, true)
 SC_ENTER_FNS(task, true, false)
 SC_ENTER_FNS(call_s, false, true)
 SC_ENTER_FNS(call, false, false)
+
+/* From C trap sites: the general layout, the PC given (no x86 fault test: the site runs after
+ * the trap was taken) */
+void sc_enter_c_task(CPUArchState *env, uint32_t wl, int64_t nr, uint64_t pc)
+{
+    if (likely(!(wl & SC_W_RET))) {
+        sc_enter_slot(false, env, wl, nr, pc);
+        return;
+    }
+    sc_keep_task(env, wl, nr, pc);
+}
+
+void sc_enter_c_call(CPUArchState *env, uint32_t wl, int64_t nr, uint64_t pc)
+{
+    if (likely(!(wl & SC_W_RET))) {
+        sc_enter_slot(false, env, wl, nr, pc);
+        return;
+    }
+    sc_keep_call(env, wl, nr, pc);
+}
 
 /*
  * A return to user mode whose set holds calls (or while a child watch is set): the common case,
