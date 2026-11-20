@@ -81,7 +81,7 @@ struct Clone {
 };
 
 struct Exec {
-    uint64_t id;
+    uint64_t id, mm;   // the call, and the address space it was made in
     Sys sys;
     std::string old_exe, filename;
     bool has_old, has_filename;
@@ -104,6 +104,7 @@ std::mutex mu;
 std::map<uint64_t, Clone> clones;                // by call id
 std::map<int32_t, Clone> awaiting;               // returned calls whose child wasn't found yet, by its id
 std::map<int32_t, Exec> execs;                   // by process id
+std::map<int32_t, uint64_t> exec_mm;             // process id -> the mm its last EXEC was reported in
 std::unordered_map<int32_t, uint64_t> known;     // task id -> start time of the task last seen with it
 std::vector<Orphan> orphans;
 thread_local std::vector<Ev> outq;
@@ -243,7 +244,10 @@ void exited(CPUState *cpu, uint64_t ts, int32_t status, int group) {
     outq.push_back(v);
     for (auto it = clones.begin(); it != clones.end();)
         it = it->second.creator == ts ? clones.erase(it) : std::next(it);
-    if (group == 1) execs.erase(t.pid);
+    if (group == 1) {
+        execs.erase(t.pid);
+        exec_mm.erase(t.pid);
+    }
     // Children move within the process while it has tasks left (no change of parent process
     // to report), so an exit not known to be the last notes them too.
     if (group != 0) collect_orphans(cpu, t.pid);
@@ -271,6 +275,37 @@ int last_of_group(CPUState *cpu, uint64_t ts) {
     return last;
 }
 
+void exec_event(CPUState *cpu, uint64_t ts, std::map<int32_t, Exec>::iterator e) {
+    Task t = task_info(cpu, ts);
+    uint64_t mm = field_ptr(cpu, ts, off.task_mm);
+    auto r = exec_mm.find(t.pid);
+    if (e == execs.end() && r != exec_mm.end() && r->second == mm) return;   // reported already
+    exec_mm[t.pid] = mm;
+    Ev v = new_ev(OSI_ISF_EXEC, t, ts);
+    if (e != execs.end()) {
+        v.sys = SYS_NAMES[e->second.sys];
+        v.has_sys = true;
+        v.old_exe = e->second.old_exe;
+        v.has_old = e->second.has_old;
+        v.filename = e->second.filename;
+        v.has_filename = e->second.has_filename;
+        execs.erase(e);
+    }
+    v.new_exe = program_of(cpu, ts);
+    v.has_new = !v.new_exe.empty();
+    outq.push_back(v);
+}
+
+// An execve whose program has started though proc_start_linux didn't see it start (it reads the
+// auxiliary vector from user memory, which may not be readable): the task has another mm.
+void exec_seen(CPUState *cpu, uint64_t ts) {
+    if (execs.empty() || !ts) return;
+    auto e = execs.find(tgid_of(cpu, ts));
+    if (e == execs.end()) return;
+    uint64_t mm = field_ptr(cpu, ts, off.task_mm);
+    if (mm && mm != e->second.mm) exec_event(cpu, ts, e);
+}
+
 void on_enter(CPUState *cpu, Sys sys) {
     if (!cap.lifecycle) return;
     uint64_t id;
@@ -283,6 +318,7 @@ void on_enter(CPUState *cpu, Sys sys) {
     {
         std::lock_guard<std::mutex> l(mu);
         ensure_known(cpu, ts);
+        exec_seen(cpu, ts);
         switch (sys) {
         case S_FORK: case S_VFORK: case S_CLONE: case S_CLONE3: {
             Clone c;
@@ -305,6 +341,7 @@ void on_enter(CPUState *cpu, Sys sys) {
         case S_EXECVE: case S_EXECVEAT: {
             Exec e;
             e.id = id;
+            e.mm = field_ptr(cpu, ts, off.task_mm);
             e.sys = sys;
             e.old_exe = program_of(cpu, ts);
             e.has_old = !e.old_exe.empty();
@@ -391,6 +428,7 @@ void exit_hook(CPUState *cpu, TranslationBlock *tb, struct hook *h) {
     {
         std::lock_guard<std::mutex> l(mu);
         ensure_known(cpu, ts);
+        exec_seen(cpu, ts);
         exited(cpu, ts, code, last_of_group(cpu, ts));
     }
     deliver(cpu);
@@ -457,6 +495,7 @@ void lifecycle_task_change(CPUState *cpu) {
     {
         std::lock_guard<std::mutex> l(mu);
         ensure_known(cpu, ts);
+        exec_seen(cpu, ts);
         if (!orphans.empty()) check_orphans(cpu);
     }
     deliver(cpu);
@@ -469,21 +508,7 @@ void lifecycle_program_start(CPUState *cpu) {
     {
         std::lock_guard<std::mutex> l(mu);
         ensure_known(cpu, ts);
-        Task t = task_info(cpu, ts);
-        Ev v = new_ev(OSI_ISF_EXEC, t, ts);
-        auto e = execs.find(t.pid);
-        if (e != execs.end()) {
-            v.sys = SYS_NAMES[e->second.sys];
-            v.has_sys = true;
-            v.old_exe = e->second.old_exe;
-            v.has_old = e->second.has_old;
-            v.filename = e->second.filename;
-            v.has_filename = e->second.has_filename;
-            execs.erase(e);
-        }
-        v.new_exe = program_of(cpu, ts);
-        v.has_new = !v.new_exe.empty();
-        outq.push_back(v);
+        exec_event(cpu, ts, execs.find(tgid_of(cpu, ts)));
     }
     deliver(cpu);
 }

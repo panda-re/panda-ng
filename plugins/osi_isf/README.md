@@ -257,7 +257,8 @@ With `lifecycle=true`, osi_isf calls `on_osi_isf_event(CPUState *cpu, const OsiI
   start are known and not reported. `clone_flags` is clone's or clone3's argument (clone3's read
   from the caller's memory), `CLONE_VM | CLONE_VFORK` for vfork and 0 for fork.
 - **Exec**: the old program (`exe_path`, else the name) at execve's entry, the new one when the
-  program starts (proc_start_linux). A failed execve reports nothing.
+  program starts (proc_start_linux), or, when that can't read the new program's stack (MIPS),
+  when the task is next seen with another mm. A failed execve reports nothing.
 - **Exit**: the strategy `do_exit hook` reads do_exit's argument, which is every task's end and
   its wait status (signals included). `group_exit` is 1 for the last of the process's tasks
   to enter do_exit (with the thread list; `signal->live` without it, which can race). Without the
