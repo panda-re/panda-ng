@@ -244,9 +244,12 @@ set (an ABI has `shared_child` numbers), the check also loads the watch count.
 ### The functions translated code calls
 
 They are chosen when the site is translated: one entry function per task key form (the
-declared one, or the call key) and register layout (the target's standard one, x86_64 or
-AArch64, or any), and one return function per key form (a one-word task key, or the two-word
-call key). Each handles the common case and passes anything else, before it changes anything, to
+declared one, or the call key) and register layout (the target's standard one: the trap form
+whose arguments are the target's argument registers in its word size, e.g. MIPS o32's four, or
+any), and one return function per key form (a one-word task key, or the two-word call key). An
+ABI of another layout whose arguments are all registers reads them through a table of offsets
+built at the declaration. The trap sites taken in C (INT 0x80, A32 SVC) test the number's want
+byte first and then enter the same functions (the general layout), with the trap's address. Each handles the common case and passes anything else, before it changes anything, to
 a general function:
 
 - entry: the number's entry alone is wanted: the call is written into the vCPU's slot and

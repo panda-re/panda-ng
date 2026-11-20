@@ -119,6 +119,10 @@ typedef struct ScAbi {
     uint8_t *want;                      /* [nbits + 1], read by translated code */
     uint64_t mask;                      /* the form's register width */
     bool std;                           /* the target's standard layout (SC_TCG_FORM, SC_STD_*) */
+    bool regs;                          /* every argument in a register: aoff[], amask[] */
+    bool aw4;                           /* ... registers of 4 bytes in env */
+    uint32_t aoff[6];                   /* each argument's register, as an offset in env */
+    uint64_t amask[6];                  /* ... and its mask (0: not an argument) */
 } ScAbi;
 
 typedef struct ScWatch {
@@ -466,10 +470,9 @@ static inline uint64_t sc_tcg_pc(CPUArchState *env, uint32_t len)
 #define SC_TASK_REG PANDA_TASK_REG_MIPS_EBASE
 #define SC_WORD_BASE_OFF offsetof(CPUMIPSState, CP0_EBase)
 #define SC_WORD_BASE_BITS TARGET_LONG_BITS
-#if defined(TARGET_MIPS64)
-#define SC_HAS_STD 1                    /* n64: $a0-$a5 */
-#else
-#define SC_HAS_STD 0                    /* o32: arguments 5 and 6 on the stack */
+#define SC_HAS_STD 1
+#if !defined(TARGET_MIPS64)
+#define SC_STD_NARGS 4                  /* o32: $a0-$a3 (5 and 6 are on the stack) */
 #endif
 
 static inline uint64_t sc_reg(CPUArchState *env, unsigned form, unsigned r)
@@ -479,9 +482,16 @@ static inline uint64_t sc_reg(CPUArchState *env, unsigned form, unsigned r)
 
 static inline void sc_std_args_read(CPUArchState *env, uint64_t *a)
 {
+#if defined(TARGET_MIPS64)
     for (unsigned k = 0; k < 6; k++) {
         a[k] = env->active_tc.gpr[4 + k];
     }
+#else
+    for (unsigned k = 0; k < 4; k++) {
+        a[k] = env->active_tc.gpr[4 + k];
+    }
+    a[4] = a[5] = 0;
+#endif
 }
 
 static inline uint64_t sc_word_base(CPUArchState *env)
@@ -583,6 +593,45 @@ static inline uint64_t sc_tcg_pc(CPUArchState *env, uint32_t len)
     return env->nip;
 }
 #endif
+
+/* The standard layout's arguments, and its register width: the target's word (a 32-bit
+ * target's registers read as they are hold the form's 32-bit values) */
+#ifndef SC_STD_NARGS
+#define SC_STD_NARGS 6
+#endif
+#define SC_STD_MASK ((uint64_t)(target_ulong)-1)
+
+/*
+ * A register of a form's instruction set (as sc_reg), as its offset in env and its size there
+ * (4 or 8 bytes): the entry functions read every argument of an ABI whose arguments are all
+ * registers through a table (ScAbi.aoff).
+ */
+static inline size_t sc_reg_off(unsigned form, unsigned r, unsigned *size)
+{
+#if defined(TARGET_I386)
+    *size = sizeof(target_ulong);
+    return offsetof(CPUX86State, regs[r & (CPU_NB_REGS - 1)]);
+#elif defined(TARGET_AARCH64)
+    if (form == PANDA_SYSCALL_FORM_A32_SVC) {
+        *size = 4;
+        return offsetof(CPUARMState, regs[r & 15]);
+    }
+    *size = 8;
+    return offsetof(CPUARMState, xregs[r & 31]);
+#elif defined(TARGET_ARM)
+    *size = 4;
+    return offsetof(CPUARMState, regs[r & 15]);
+#elif defined(TARGET_RISCV64)
+    *size = 8;
+    return offsetof(CPURISCVState, gpr[r & 31]);
+#elif defined(TARGET_MIPS)
+    *size = sizeof(target_ulong);
+    return offsetof(CPUMIPSState, active_tc.gpr[r & 31]);
+#elif defined(TARGET_PPC)
+    *size = sizeof(target_ulong);
+    return offsetof(CPUPPCState, gpr[r & 31]);
+#endif
+}
 
 /* The task key form, for the preprocessor */
 #if defined(SC_WORD_BASE_OFF)
@@ -705,6 +754,18 @@ static inline QEMU_ALWAYS_INLINE void sc_fill(const bool std, ScAbi *A, ScVcpu *
     c->pc = pc;
     if (std) {
         sc_std_args_read(env, c->args);
+    } else if (likely(A->regs)) {
+        const uint8_t *e = (const uint8_t *)env;
+
+        if (A->aw4) {
+            for (unsigned k = 0; k < 6; k++) {
+                c->args[k] = *(const uint32_t *)(e + A->aoff[k]) & A->amask[k];
+            }
+        } else {
+            for (unsigned k = 0; k < 6; k++) {
+                c->args[k] = *(const uint64_t *)(e + A->aoff[k]) & A->amask[k];
+            }
+        }
     } else {
         unsigned form = A->abi.form;
 
@@ -723,8 +784,8 @@ void sc_watch_add(ScState *P, ScRec *r, CPUArchState *env) G_GNUC_INTERNAL;
 
 /* An entry the fast functions do not handle (any key, any set, a key to resolve again, a
  * shared_child number): @wl and @nr as the translated code's (the want byte, the trap's length
- * << 8, the form << 16; the number as the ABI takes it) */
-void sc_enter_full(CPUArchState *env, uint32_t wl, int64_t nr) G_GNUC_INTERNAL;
+ * << 8, the form << 16; the number as the ABI takes it), @pc the trap's address */
+void sc_enter_full(CPUArchState *env, uint32_t wl, int64_t nr, uint64_t pc) G_GNUC_INTERNAL;
 
 /* A return the fast functions do not handle: the key's set holds other calls, or none and a
  * child watch is set */
@@ -744,6 +805,9 @@ void sc_enter_h_task(CPUArchState *env, uint32_t wl, int64_t nr) G_GNUC_INTERNAL
 void sc_enter_h_call_s(CPUArchState *env, uint32_t wl, int64_t nr) G_GNUC_INTERNAL;
 void sc_enter_h_call(CPUArchState *env, uint32_t wl, int64_t nr) G_GNUC_INTERNAL;
 void sc_ret_h_task(CPUArchState *env, uint64_t ka) G_GNUC_INTERNAL;
+/* From C trap sites (panda_sc_enter_c), whose number is wanted: @pc the trap's address */
+void sc_enter_c_task(CPUArchState *env, uint32_t wl, int64_t nr, uint64_t pc) G_GNUC_INTERNAL;
+void sc_enter_c_call(CPUArchState *env, uint32_t wl, int64_t nr, uint64_t pc) G_GNUC_INTERNAL;
 void sc_ret_h_call(CPUArchState *env, uint64_t ka, uint64_t kb) G_GNUC_INTERNAL;
 
 #endif /* SC_TARGET */
