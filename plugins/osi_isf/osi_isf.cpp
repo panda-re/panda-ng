@@ -28,10 +28,7 @@ PANDAENDCOMMENT */
 
 #include <nlohmann/json.hpp>
 
-#include "caps.h"
-#include "isf.h"
-
-#include "panda.h"
+#include "guest.h"
 #include "osi/osi_types.h"
 #include "osi/os_intro.h"
 #include "hooks/hooks_int_fns.h"
@@ -45,7 +42,7 @@ void uninit_plugin(void *);
 #include "osi_isf_int_fns.h"
 }
 
-namespace {
+namespace osiisf {
 
 #if defined(TARGET_X86_64)
 constexpr osicaps::Arch ARCH = osicaps::Arch::x86_64;
@@ -72,32 +69,12 @@ osicaps::Symbols syms;
 osicaps::Plan plan;
 std::vector<std::string> notes;
 
-constexpr uint64_t PAGE_SIZE_GUEST = 4096;
 constexpr int MAX_TASKS = 1 << 16;
 constexpr int MAX_VMAS = 1 << 16;
 constexpr int MAX_PATH_DEPTH = 64;
 
-// Offsets from the plan: -1 where no chosen strategy declared the member.
-struct {
-    int64_t task_tasks, task_pid, task_tgid, task_comm, task_comm_size, task_mm, task_real_parent,
-        task_group_leader, task_start_time, ts_sec, ts_nsec, ts_width;
-    int64_t mm_pgd, mm_mt, mm_mmap, mm_start_brk, mm_brk, mm_start_stack;
-    int64_t mt_root;
-    int64_t r64_pivot, r64_slot, r64_npivot, r64_nslot;
-    int64_t a64_pivot, a64_slot, a64_npivot, a64_nslot;
-    int64_t vma_start, vma_end, vma_next, vma_mm, vma_flags, vma_file, vma_pgoff;
-    int64_t file_dentry, dentry_parent, dentry_name;
-    int64_t file_mnt, mount_mnt, mnt_parent, mnt_mountpoint, mnt_root;
-    int64_t mod_list, mod_name, mod_name_size, mod_mem, mod_mem_size, mm_base, mm_size, mod_text,
-        mod_core_base, mod_core_size;
-    int64_t ti_task, thread_size;
-} off;
-
-// Capabilities, as decided by the plan (all false until the ISF is paired with the kernel).
-struct {
-    bool tasks, pid, name, ppid, thread_group, asid, start_time, current, mappings, mapping_files,
-        mount_paths, heap_stack, modules, task_change;
-} cap;
+Offsets off;
+Caps cap;
 
 enum class Current { None, PerCpu, Global, StackArm, StackArm64, StackMips, RegRiscv } current_kind;
 enum class StartTime { None, Ns, Timespec } start_kind;
@@ -383,22 +360,40 @@ std::string dentry_name(CPUState *cpu, uint64_t dentry) {
     return read_cstr(cpu, field_ptr(cpu, dentry, off.dentry_name), 256);
 }
 
-// The file's path: from the root of the mount tree with mount_paths, else from the root of the
-// file's own filesystem.
-std::string file_path(CPUState *cpu, uint64_t file) {
-    uint64_t dentry = field_ptr(cpu, file, off.file_dentry);
-    uint64_t mnt = 0;  // struct mount, or struct vfsmount before 3.3
-    if (cap.mount_paths) {
-        uint64_t vfsmnt = field_ptr(cpu, file, off.file_mnt);
-        mnt = vfsmnt ? vfsmnt - off.mount_mnt : 0;
+// The top of the mount tree a struct mount (or vfsmount) is in.
+uint64_t mount_top(CPUState *cpu, uint64_t mnt) {
+    for (int i = 0; mnt && i < MAX_PATH_DEPTH; i++) {
+        uint64_t up = field_ptr(cpu, mnt, off.mnt_parent);
+        if (up == 0 || up == mnt) break;
+        mnt = up;
     }
+    return mnt;
+}
+
+uint64_t file_dentry(CPUState *cpu, uint64_t file) { return field_ptr(cpu, file, off.file_dentry); }
+
+uint64_t file_vfsmnt(CPUState *cpu, uint64_t file) {
+    return cap.mount_paths ? field_ptr(cpu, file, off.file_mnt) : 0;
+}
+
+std::string path_of(CPUState *cpu, uint64_t dentry, uint64_t vfsmnt, uint64_t root_dentry, uint64_t root_mnt,
+                    bool *detached) {
+    // struct mount (3.3+) holds the vfsmount at mount_mnt; before, the vfsmount is the mount.
+    uint64_t mnt = cap.mount_paths && vfsmnt ? vfsmnt - off.mount_mnt : 0;
+    uint64_t root_m = cap.mount_paths && root_mnt ? root_mnt - off.mount_mnt : 0;
+    if (detached) *detached = false;
     std::vector<std::string> parts;
     for (int i = 0; dentry && i < MAX_PATH_DEPTH; i++) {
+        if (root_dentry && dentry == root_dentry && (!root_m || mnt == root_m)) break;  // the process's root
         uint64_t parent = field_ptr(cpu, dentry, off.dentry_parent);
         bool fs_root = parent == dentry || parent == 0;
         if (mnt && (fs_root || dentry == field_ptr(cpu, mnt + off.mount_mnt, off.mnt_root))) {
             uint64_t up = field_ptr(cpu, mnt, off.mnt_parent);
-            if (up == 0 || up == mnt) break;  // the root mount
+            if (up == 0 || up == mnt) {
+                // The top of a mount tree: the root's, or an internal mount's.
+                if (detached && root_m && mnt != mount_top(cpu, root_m)) *detached = true;
+                break;
+            }
             dentry = field_ptr(cpu, mnt, off.mnt_mountpoint);
             mnt = up;
             continue;
@@ -410,6 +405,12 @@ std::string file_path(CPUState *cpu, uint64_t file) {
     std::string path;
     for (auto it = parts.rbegin(); it != parts.rend(); ++it) path += "/" + *it;
     return path.empty() ? "/" : path;
+}
+
+// The file's path: from the root of the mount tree with mount_paths, else from the root of the
+// file's own filesystem.
+std::string file_path(CPUState *cpu, uint64_t file) {
+    return path_of(cpu, file_dentry(cpu, file), file_vfsmnt(cpu, file));
 }
 
 enum : uint32_t {
@@ -538,6 +539,7 @@ void pair_done(CPUState *cpu, uint64_t s, const std::string &how) {
     printf(PLUGIN_NAME ": paired with the running kernel (%s)%s\n", how.c_str(),
            s ? (", KASLR slide " + std::to_string((int64_t)s)).c_str() : "");
     choose();
+    if (cap.lifecycle) lifecycle_start(cpu);
 }
 
 void pair_fail(const std::string &why) {
@@ -602,23 +604,29 @@ bool paired(CPUState *cpu) {
 uint64_t slid(uint64_t a) { return a && is_kernel_ptr(a) ? a + slide : a; }
 
 void task_switched(CPUState *cpu, TranslationBlock *tb, struct hook *h) {
+    // Lifecycle first: a task seen for the first time is reported created before it is switched to.
+    if (cap.lifecycle) lifecycle_task_change(cpu);
     notify_task_change(cpu);
+}
+
+void add_kernel_hook(uint64_t addr, void (*fn)(CPUState *, TranslationBlock *, struct hook *)) {
+    void *hooks = panda_get_plugin_by_name("hooks");
+    auto add_hook = hooks ? (void (*)(struct hook *))dlsym(hooks, "add_hook") : nullptr;
+    if (!add_hook || !addr) return;
+    struct hook h = {};
+    h.addr = addr;
+    h.asid = 0;
+    h.type = PANDA_CB_START_BLOCK_EXEC;
+    h.cb.start_block_exec = fn;
+    h.km = MODE_KERNEL_ONLY;
+    h.enabled = true;
+    add_hook(&h);
 }
 
 void add_task_switch_hook() {
     static bool added = false;
     if (added || !cap.task_change) return;
-    void *hooks = panda_get_plugin_by_name("hooks");
-    auto add_hook = hooks ? (void (*)(struct hook *))dlsym(hooks, "add_hook") : nullptr;
-    if (!add_hook) return;
-    struct hook h = {};
-    h.addr = sym_fts;
-    h.asid = 0;
-    h.type = PANDA_CB_START_BLOCK_EXEC;
-    h.cb.start_block_exec = task_switched;
-    h.km = MODE_KERNEL_ONLY;
-    h.enabled = true;
-    add_hook(&h);
+    add_kernel_hook(sym_fts, task_switched);
     added = true;
 }
 
@@ -702,6 +710,22 @@ void choose() {
     cap.heap_stack = ok && plan.ok("heap_stack");
     cap.modules = ok && plan.ok("modules");
     cap.task_change = ok && plan.ok("task_change");
+    cap.threads = ok && plan.ok("threads");
+    cap.file_paths = ok && plan.ok("file_paths");
+    // Lifecycle events cost hooks and system-call returns: only with lifecycle=true.
+    bool lc = ok && lifecycle_requested;
+    cap.lifecycle = lc && plan.ok("lifecycle");
+    cap.exit_codes = lc && plan.ok("exit_codes");
+    cap.reparent = lc && plan.ok("reparent");
+    cap.pid_reuse = lc && plan.ok("pid_reuse");
+    cap.cmdline = ok && plan.ok("cmdline");
+    cap.exe_path = ok && plan.ok("exe_path");
+    cap.fs_paths = ok && plan.ok("fs_paths");
+    cap.creds = ok && plan.ok("creds");
+    cap.cap_sets = ok && plan.ok("cap_sets");
+    cap.open_files = ok && plan.ok("open_files");
+    cap.sockets = ok && plan.ok("sockets");
+    cap.vma_details = ok && plan.ok("vma_details");
 
     const std::string &st = plan.strategy("start_time");
     start_kind = !cap.start_time ? StartTime::None : st == "struct timespec" ? StartTime::Timespec : StartTime::Ns;
@@ -738,6 +762,7 @@ void choose() {
             current_kind = Current::RegRiscv;
         }
     }
+    facts_choose();
     if (ok) add_task_switch_hook();
 }
 
@@ -949,10 +974,15 @@ std::string report_json() {
     }
     if (!pair_detail.empty()) p["detail"] = pair_detail;
     j["pairing"] = p;
+    // The lifecycle capabilities run only when asked for (lifecycle=true).
+    for (const char *c : {"lifecycle", "exit_codes", "reparent", "pid_reuse"})
+        if (j["capabilities"].contains(c)) j["capabilities"][c]["enabled"] = lifecycle_requested;
     return j.dump(1);
 }
 
-}  // namespace
+}  // namespace osiisf
+
+using namespace osiisf;
 
 /* ******************************************************************
  The plugin's own API
@@ -967,13 +997,27 @@ const char *osi_isf_report(void) {
 }
 
 // 2: available, 1: available from untrusted inputs, 0: not available (or the ISF isn't paired
-// with the kernel yet, or doesn't match it), -1: no such capability.
+// with the kernel yet, or doesn't match it, or a lifecycle capability without lifecycle=true),
+// -1: no such capability.
 int osi_isf_capability(const char *name) {
     const osicaps::CapResult *c = plan.cap(name ? name : "");
     if (!c) return -1;
     if (pair_state != Pair::Ok) return 0;
+    std::string n = name;
+    if (!lifecycle_requested && (n == "lifecycle" || n == "exit_codes" || n == "reparent" || n == "pid_reuse"))
+        return 0;
     return c->status == osicaps::Status::Available ? 2 : c->status == osicaps::Status::Untrusted ? 1 : 0;
 }
+
+// Facts about process pid (its thread group), as JSON; with start_time not 0, only if the process
+// with that id started then (a pid reused since is another process). NULL before the ISF is
+// paired with the kernel. Free it with osi_isf_free.
+char *osi_isf_facts(CPUState *cpu, int32_t pid, uint64_t start_time, const char *which) {
+    if (!paired(cpu)) return NULL;
+    return g_strdup(facts_json(cpu, pid, start_time, which ? which : "all").c_str());
+}
+
+void osi_isf_free(char *s) { g_free(s); }
 
 bool init_plugin(void *self) {
     panda_arg_list *args = panda_get_args(PLUGIN_NAME);
@@ -991,6 +1035,8 @@ bool init_plugin(void *self) {
             "THREAD_SIZE, for the stack-based current task when the ISF's is untrusted or absent "
             "(kernel-lift's modabi reads it from the kernel's code)");
     std::string report_path = panda_parse_string_opt(args, "report", "", "write the capability report (JSON) here");
+    lifecycle_requested = panda_parse_bool_opt(args, "lifecycle",
+            "report process and thread creation, exec, exit, reparenting and pid reuse (on_osi_isf_event)");
     cfg.arch = osicaps::arch_name(ARCH);
     std::string err;
     bool ok = osicaps::load(cfg, prof, syms, plan.opt, notes, err);
@@ -1048,10 +1094,12 @@ bool init_plugin(void *self) {
 
     // finish_task_switch runs first thing in the task switched to, so current is already the new
     // task; the hook goes in once the ISF is paired (at the slid address).
-    if (plan.ok("task_change")) panda_require("hooks");
+    if (plan.ok("task_change") || (lifecycle_requested && plan.ok("exit_codes"))) panda_require("hooks");
     // An exec changes the process without a switch.
     panda_require("proc_start_linux");
+    if (lifecycle_requested) lifecycle_init();
     PPP_REG_CB("proc_start_linux", on_rec_auxv, [](CPUState *cpu, TranslationBlock *, struct auxv_values *) {
+        if (cap.lifecycle) lifecycle_program_start(cpu);
         if (cap.task_change) notify_task_change(cpu);
     });
     return true;

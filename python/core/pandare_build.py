@@ -101,6 +101,7 @@ def handle_python(arch, total, plugin_dir):
 		"hypercaller/hypercaller.h",
 		"proc_start_linux/proc_start_linux_ppp.h",
 		"hypersyscalls/hypersyscalls.h",
+		"osi_isf/osi_isf_types.h",
 	]
 	for header in ppp_headers:
 		total += copy_ppp_header(join(plugin_dir, header))
