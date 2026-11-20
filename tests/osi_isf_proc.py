@@ -26,9 +26,11 @@ A capability the report says is unavailable must answer "not available" (NULL, o
 ISF first (a damaged ISF); --expect checks the report's statuses.
 """
 import argparse
+import atexit
 import json
 import lzma
 import os
+import shutil
 import sys
 import tempfile
 
@@ -63,6 +65,7 @@ isf = opt.isf or os.path.join(os.path.dirname(kernel), f"cosi.{os.path.basename(
 if not os.path.isfile(isf):
     sys.exit(f"osi_isf_proc: no ISF at {isf} (--isf)")
 work = tempfile.mkdtemp(prefix="osi_isf_proc-")
+atexit.register(shutil.rmtree, work, True)
 if opt.drop:
     with (lzma.open if isf.endswith(".xz") else open)(isf, "rt") as f:
         d = json.load(f)
@@ -334,9 +337,4 @@ if ok["task_change"]:
 else:
     C.check("task_change unavailable: no task changes reported", not seen["changes"], len(seen["changes"]))
 
-with open(os.path.join(work, "report.json"), "w") as f:
-    json.dump(rep, f, indent=1)
-rc = C.report(f"osi_isf_proc {panda.arch_name} {truth.get('release')}")
-import shutil
-shutil.rmtree(work, ignore_errors=True)
-sys.exit(rc)
+sys.exit(C.report(f"osi_isf_proc {panda.arch_name} {truth.get('release')}"))
