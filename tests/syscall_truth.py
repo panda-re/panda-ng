@@ -23,11 +23,16 @@ __kernel_vsyscall pushed ebp; MIPS o32 arguments 5 and 6 from the user stack (un
 compared, when the page is not in the TLB, through which alone the host reaches it). A return's
 value is the kernel's: MIPS and PowerPC sc report an error with a flag ($a3, CR0.SO) and the
 positive error number, which the test negates.
-SC2_ARGS="task_key=false" loads syscalls2 with the call key instead. SC2_ON_ALL=1 records with
-on_all_sys_enter and on_all_sys_return instead (the callbacks without a syscall_ctx_t: the
-number and the address), the ABI from the trap (its instruction, the task's mode, the number's
-range): the same checks but syscalls2's own decoding of mmap2's argument 6, which needs the
-context. SC2_SETS_LOG=n gives the
+SC2_ARGS="task_key=false" loads syscalls2 with the call key instead. SC2_MODE selects how the
+calls are recorded: "context" (the default) with on_all_sys_enter2 and on_all_sys_return2; "all"
+(or SC2_ON_ALL=1)
+with on_all_sys_enter and on_all_sys_return (no syscall_ctx_t: the ABI from the trap, its
+instruction, the task's mode, the number's range; the same checks but syscalls2's own decoding of
+mmap2's argument 6, which needs the context); "typed" as "all", and the calls' own typed
+callbacks (on_sys_read_enter, ...) of a handful of calls (TYPED) as well: each of those calls the
+kernel makes gets exactly one of its own enter callbacks, with the kernel's arguments as the
+callback's types give them, and one return callback with the same arguments when it returns; no
+other call gets one. SC2_SETS_LOG=n gives the
 engine 2^n sets of 4 pending calls (PANDA_SYSCALL_PAIR_SETS_LOG; 0: one set, so that the
 workloads' blocked calls fill it): the oldest calls are evicted, so a call may have no return,
 but a return delivered must still be its call's, and there must be no more calls without a
@@ -188,7 +193,18 @@ if arch.startswith("mips") and "task_key=false" in os.environ.get("SC2_ARGS", ""
     print("syscall_truth: the call key does not pair a MIPS fork (its ASID changes)")
     sys.exit(C.report("SYSCALL_TRUTH skipped"))
 EVICT = bool(os.environ.get("SC2_SETS_LOG"))
-ON_ALL = bool(os.environ.get("SC2_ON_ALL"))
+MODE = os.environ.get("SC2_MODE") or ("all" if os.environ.get("SC2_ON_ALL") else "context")
+assert MODE in ("context", "all", "typed"), MODE
+# SC2_MODE=typed: the calls whose own callbacks are subscribed (those of the arch's ABIs that have
+# them; none with a 64-bit argument on a 32-bit ABI, whose two words the test does not decode)
+TYPED = ["sys_read", "sys_write", "sys_close", "sys_openat", "sys_wait4", "sys_rt_sigprocmask",
+         "sys_getppid", "sys_lseek", "sys_llseek", "sys_nanosleep", "sys_nanosleep_time32",
+         "sys_clock_nanosleep", "sys_clock_nanosleep_time32", "sys_mmap", "sys_mmap_pgoff",
+         "sys_mmap2", "sys_clone", "sys_newfstatat", "sys_fstatat64"]
+# Each ABI's table (plugins/syscalls2/generated-in) and its numbers' range
+PROTOTYPES = {ABI_X86_64: ("x64", 0), ABI_I386: ("x86", 0), ABI_AARCH64: ("arm64", 0),
+              ABI_ARM: ("arm", 0), ABI_RISCV64: ("riscv64", 0), ABI_O32: ("mips", 4000),
+              ABI_N64: ("mips64", 5000), ABI_PPC32: ("ppc", 0), ABI_PPC64: ("ppc64", 0)}
 MISSING = [0]                           # EVICT: calls with no return
 if EVICT:
     os.environ["PANDA_SYSCALL_PAIR_SETS_LOG"] = os.environ["SC2_SETS_LOG"]
@@ -223,8 +239,11 @@ class Sc2Trace:
         self.events = []
         self.children = 0
         self.tls = threading.local()        # cffi releases the GIL in the call: per-vCPU buffers
-
-        if ON_ALL:
+        self.typed = defaultdict(list)      # (id, ENTER or RETURN): [(name, args)]
+        self.typed_nr = {}                  # ABI: {number: subscribed name}
+        if MODE == "typed":
+            self.subscribe_typed()
+        if MODE != "context":
             @panda.ppp("syscalls2", "on_all_sys_enter", name="truth_enter")
             def enter(cpu, pc, no):
                 if self.on:
@@ -246,9 +265,49 @@ class Sc2Trace:
             if self.on:
                 self.record(RETURN, cpu, pc, ctx)
 
+    def subscribe_typed(self):
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "plugins", "syscalls2",
+                            "generated-in")
+        line = re.compile(r"(\d+) .+ (\w+) ?\(.*\);")
+        for abi, (table, base) in PROTOTYPES.items():
+            nrs = {}
+            for ln in open(os.path.join(root, f"linux_{table}_prototypes.txt")):
+                m = line.match(ln)
+                if m and m.group(2) in TYPED and base <= int(m.group(1)) < base + 1000:
+                    nrs[int(m.group(1))] = m.group(2)
+            self.typed_nr[abi] = nrs
+        names = sorted({n for nrs in self.typed_nr.values() for n in nrs.values()})
+        self.typed_types = {}
+        for name in names:
+            try:
+                ctype = panda.ffi.typeof(f"on_{name}_enter_t")
+            except Exception:
+                continue                    # not this target's
+            # each argument's width in the callback's type
+            self.typed_types[name] = [64 if a.cname in ("uint64_t", "int64_t") else 32
+                                      for a in ctype.args[2:]]
+            for kind, suffix in ((ENTER, "enter"), (RETURN, "return")):
+                def cb(cpu, pc, *args, _name=name, _kind=kind):
+                    if self.on:
+                        self.record_typed(_kind, cpu, _name, args)
+                panda.ppp("syscalls2", f"on_{name}_{suffix}", name=f"typed_{name}_{suffix}")(cb)
+
+    def record_typed(self, kind, cpu, name, args):
+        t = self.tls
+        if not hasattr(t, "idp"):
+            t.idp, t.flp = self.ffi.new("uint64_t *"), self.ffi.new("uint32_t *")
+        if not self.lib.syscalls2_current_call(
+                self.ffi.cast("void *", int(panda.ffi.cast("uintptr_t", cpu))), t.idp, t.flp):
+            self.typed[(None, kind)].append((name, list(args)))
+            return
+        if t.flp[0] & CHILD:
+            return
+        self.typed[(t.idp[0], kind)].append((name, list(args)))
+
     def on_all_abi(self, kind, cpu, pc, no):
-        """SC2_ON_ALL: (ABI, vDSO entry) of a call, from the trap: at a return, @pc is where it
-        returned, after the trap (x86: 2 bytes; a vDSO call: past the int $0x80 after it)"""
+        """SC2_MODE all and typed: (ABI, vDSO entry) of a call, from the trap: at a return, @pc
+        is where it returned, after the trap (x86: 2 bytes; a vDSO call: past the int $0x80
+        after it)"""
         env = panda.cpu_env(cpu)
         if arch in ("x86_64", "i386"):
             # int $0x80 (from any task, and after a vDSO entry, where its returns land)
@@ -348,11 +407,12 @@ class Sc2Trace:
 
     def start(self):
         self.events = []
+        self.typed = defaultdict(list)
         self.on = True
 
     def stop(self):
         self.on = False
-        return self.events, 0
+        return (self.events, dict(self.typed)), 0
 
     def stats(self):
         s = self.ffi.new("PandaSyscallStats *")
@@ -460,8 +520,48 @@ def fmt_t(t):
             + (f" = {t.ret}" if t.kind == RETURN else ""))
 
 
+def check_typed(p, ftrace, trap, trap_of, by_id, typed):
+    """SC2_MODE=typed: each subscribed call has its own enter callback once, with the kernel's
+    arguments, and its own return callback once (the same arguments) if it returned; no own
+    callback outside a delivery"""
+    bad, n = [], 0
+    for (c, i), t in trap_of.items():
+        f = ftrace[c][i]
+        name = trace.typed_nr.get(t.abi, {}).get(t.num)
+        if name not in trace.typed_types:
+            name = None
+        got = typed.get((t.id, ENTER), [])
+        rets = [r for r in by_id.get(t.id, [])]
+        got_r = typed.get((t.id, RETURN), [])
+        if name is None:
+            if got or got_r:
+                bad.append((fmt_f(f), "own callbacks for a call not subscribed", got, got_r))
+            continue
+        n += 1
+        if len(got) != 1 or got[0][0] != name:
+            bad.append((fmt_f(f), f"want one {name} enter", got))
+            continue
+        args = got[0][1]
+        for k, (a, w) in enumerate(zip(args, trace.typed_types[name])):
+            if t.args[k] is None:
+                continue                    # MIPS o32 5th/6th not readable: unknown
+            m = M32 if w == 32 or mask_of(t.abi) == M32 else M64
+            if (a - f["args"][k]) & m:
+                bad.append((fmt_f(f), f"argument {k}", hex(a & m), hex(f["args"][k] & m)))
+                break
+        if len(got_r) != len(rets) or any(r[0] != name or r[1] != args for r in got_r):
+            bad.append((fmt_f(f), f"want {len(rets)} {name} return(s) with the entry's arguments",
+                        got_r))
+    # outside a delivery; (the calls not in the window are its edges' on some vCPU: a return of a
+    # call entered before it, an entry its stop interrupted; ids are not ordered across vCPUs)
+    stray = [k for k in typed if k[0] is None]
+    C.check(p + "typed callbacks: each subscribed call's own, with the kernel's arguments",
+            n >= 20 and not bad and not stray, dict(calls=n, nbad=len(bad), bad=bad[:5], stray=stray[:5]))
+
+
 def check(name, ftrace, trap, lost, overrun):
     p = f"{name}: "
+    trap, typed = trap
     C.check(p + "nothing was lost (ftrace overruns)",
             lost == 0 and not any(overrun.values()), dict(lost=lost, overrun=overrun))
     enters = defaultdict(list)                  # cpu: [enter]
@@ -516,7 +616,7 @@ def check(name, ftrace, trap, lost, overrun):
                 if t.sc2arg6 != f["args"][5]:
                     bad6.append((fmt_f(f), t.sc2arg6))
         n6 = sum(1 for t in trap_of.values() if t.sc2arg6 is not None)
-        if not ON_ALL:
+        if MODE == "context":
             C.check(p + "mmap2's argument 6, as syscalls2 decodes it, is the kernel's",
                     n6 >= 400 and not bad6, dict(calls=n6, bad=bad6[:5]))
 
@@ -589,6 +689,8 @@ def check(name, ftrace, trap, lost, overrun):
     for group, n in counted.items():
         C.check(p + f"{group}: each call's return is the kernel's", not bad[group],
                 f"{len(bad[group])} of {n} calls: {bad[group][:5]}")
+    if MODE == "typed":
+        check_typed(p, ftrace, trap, trap_of, by_id, typed)
     if name == "i386 program":
         # the reads ended by signals (EINTR), the wait4 restarted at the vDSO's int $0x80
         C.check(p + "signals interrupted calls made through the vDSO", vdso_restarts >= 11,
@@ -658,4 +760,4 @@ if EVICT:
     C.check("every call with no return was evicted or not kept (no return lost otherwise)",
             MISSING[0] <= dropped, dict(missing=MISSING[0], evicted=st.get("evicted"),
                                         not_kept=st.get("not_kept")))
-sys.exit(C.report(f"SYSCALL_TRUTH arch={arch} smp={opt.smp} " + " ".join(summary)))
+sys.exit(C.report(f"SYSCALL_TRUTH arch={arch} smp={opt.smp} mode={MODE} " + " ".join(summary)))
