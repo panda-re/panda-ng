@@ -4,6 +4,7 @@
  * (JSON) from the ISF, provenance and symbols the plugin would be given.
  *
  *   osi_isf_check --isf F --arch A [--provenance P] [--symbols S] [--version V] [--allow-untrusted] [--text]
+ *                 [--all-attempts]   (every strategy's inputs, also those after the chosen one)
  *   osi_isf_check --strategies     (the strategy table, as Markdown)
  */
 #include <cstdio>
@@ -25,6 +26,8 @@ void print_strategies() {
             std::string k = n.key();
             k = k.substr(k.find(':') + 1);
             if (n.kind == osicaps::NeedKind::Size) k = "sizeof(" + k + ")";
+            // Alternatives are split by '|', which a Markdown table cell must escape.
+            for (size_t p = k.find('|'); p != std::string::npos; p = k.find('|', p + 2)) k.replace(p, 1, "\\|");
             reads += (reads.empty() ? "" : ", ") + std::string("`") + k + "`" +
                      (n.kind == osicaps::NeedKind::Field ? " (" + n.want() + ")" : "") + (n.optional ? " (optional)" : "");
         }
@@ -39,7 +42,7 @@ void print_strategies() {
 
 int main(int argc, char **argv) {
     osicaps::Config cfg;
-    bool text = false;
+    bool text = false, all_attempts = false;
     for (int i = 1; i < argc; i++) {
         std::string a = argv[i];
         auto val = [&](std::string &dst) {
@@ -61,13 +64,14 @@ int main(int argc, char **argv) {
             cfg.thread_size = strtoll(v.c_str(), nullptr, 0);
         }
         else if (a == "--text") text = true;
+        else if (a == "--all-attempts") all_attempts = true;
         else if (a == "--strategies") {
             print_strategies();
             return 0;
         }
         else {
             fprintf(stderr, "usage: %s --isf F --arch A [--provenance P] [--symbols S] [--version V] "
-                            "[--allow-untrusted] [--thread-size N] [--text]\n", argv[0]);
+                            "[--allow-untrusted] [--thread-size N] [--text] [--all-attempts]\n", argv[0]);
             return 2;
         }
     }
@@ -89,6 +93,7 @@ int main(int argc, char **argv) {
         return 2;
     }
     osicaps::Plan plan;
+    opt.attempt_all = all_attempts;
     plan.resolve(prof, syms, opt);
     if (text) {
         for (const auto &n : notes) printf("note: %s\n", n.c_str());
