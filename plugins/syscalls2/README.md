@@ -179,6 +179,16 @@ bool syscalls2_current_call(CPUState *cpu, uint64_t *id, uint32_t *flags)
 
 Description: Inside an enter or return callback on a guest whose returns the engine pairs (Linux): the call's id, the same at its entry and its return, and the engine's delivery flags (`panda/syscall-pair.h`: `PANDA_SYSCALL_RETURN` at a return, `PANDA_SYSCALL_CHILD` at a child's first return). Returns false elsewhere.
 
+Name: **syscalls2_current_args**
+
+Signature:
+
+```C
+bool syscalls2_current_args(CPUState *cpu, int64_t *nr, uint64_t args[6])
+```
+
+Description: Where `syscalls2_current_call` answers: the call's number and its six argument registers as they were at its entry, the same at its return. A callback that registers on calls whose argument types differ between profiles (or that doesn't need them typed) reads them here. Returns false elsewhere.
+
 
 
 Example

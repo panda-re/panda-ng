@@ -184,6 +184,16 @@ std::vector<Strategy> make_strategies() {
                   Int("timespec", "tv_sec", 0), Int("timespec", "tv_nsec", 0)},
                  "tv_sec * 1e9 + tv_nsec"});
 
+    // A process's threads: 3.14 added signal->thread_head (task->thread_node), 6.7 removed the
+    // thread_group ring. The mm is the address space's identity, shared by CLONE_VM tasks.
+    s.push_back({"threads", "signal->thread_head", V(3, 14), ANY, {}, {"pid", "thread_group"},
+                 {Ptr("task_struct", "signal"), Fld("signal_struct", "thread_head", Shape::List),
+                  Fld("task_struct", "thread_node", Shape::List), Ptr("task_struct", "mm")},
+                 "every thread of the group on its signal_struct's list"});
+    s.push_back({"threads", "thread_group ring", V(2, 6), V(6, 7), {}, {"pid", "thread_group"},
+                 {Fld("task_struct", "thread_group", Shape::List), Ptr("task_struct", "mm")},
+                 "the group's threads on a ring through the leader"});
+
     // The current task, per arch and era.
     s.push_back({"current", "pcpu_hot.current_task", V(6, 2), ANY, {A::x86_64, A::i386}, {},
                  {Sym("pcpu_hot"), Ptr("pcpu_hot", "current_task"), Sym("__per_cpu_offset", true)},
@@ -225,19 +235,20 @@ std::vector<Strategy> make_strategies() {
                  {Ptr("task_struct", "mm"), Ptr("mm_struct", "mmap"), Ptr("vm_area_struct", "vm_next"),
                   Int("vm_area_struct", "vm_start", 0), Int("vm_area_struct", "vm_end", 0),
                   Ptr("vm_area_struct", "vm_mm"), Int("vm_area_struct", "vm_flags", 0, true)}, ""});
-    s.push_back({"mapping_files", "f_path.dentry", V(2, 6, 20), ANY, {}, {"mappings"},
-                 {Ptr("vm_area_struct", "vm_file"), Ptr("file", "f_path.dentry"), Ptr("dentry", "d_parent"),
-                  Ptr("dentry", "d_name.name"), Int("vm_area_struct", "vm_pgoff", 0, true)},
+    // A file's path: the dentries' names up to the root of its filesystem (f_path since 2.6.20).
+    s.push_back({"file_paths", "f_path.dentry", V(2, 6, 20), ANY, {}, {},
+                 {Ptr("file", "f_path.dentry"), Ptr("dentry", "d_parent"), Ptr("dentry", "d_name.name")},
                  "the path within the file's filesystem"});
-    s.push_back({"mapping_files", "f_dentry", V(2, 6), V(2, 6, 20), {}, {"mappings"},
-                 {Ptr("vm_area_struct", "vm_file"), Ptr("file", "f_dentry"), Ptr("dentry", "d_parent"),
-                  Ptr("dentry", "d_name.name"), Int("vm_area_struct", "vm_pgoff", 0, true)}, ""});
+    s.push_back({"file_paths", "f_dentry", V(2, 6), V(2, 6, 20), {}, {},
+                 {Ptr("file", "f_dentry"), Ptr("dentry", "d_parent"), Ptr("dentry", "d_name.name")}, ""});
+    s.push_back({"mapping_files", "vm_file", ANY, ANY, {}, {"mappings", "file_paths"},
+                 {Ptr("vm_area_struct", "vm_file"), Int("vm_area_struct", "vm_pgoff", 0, true)}, ""});
     // Crossing mount points: struct mount (3.3+) wraps the vfsmount; before, vfsmount had it all.
-    s.push_back({"mount_paths", "struct mount", V(3, 3), ANY, {}, {"mapping_files"},
+    s.push_back({"mount_paths", "struct mount", V(3, 3), ANY, {}, {"file_paths"},
                  {Ptr("file", "f_path.mnt"), Fld("mount", "mnt", Shape::Struct, -1, "vfsmount"),
                   Ptr("mount", "mnt_parent"), Ptr("mount", "mnt_mountpoint"), Ptr("vfsmount", "mnt_root")},
                  "file paths from the root of the mount tree"});
-    s.push_back({"mount_paths", "vfsmount", V(2, 6, 20), V(3, 3), {}, {"mapping_files"},
+    s.push_back({"mount_paths", "vfsmount", V(2, 6, 20), V(3, 3), {}, {"file_paths"},
                  {Ptr("file", "f_path.mnt"), Ptr("vfsmount", "mnt_parent"), Ptr("vfsmount", "mnt_mountpoint"),
                   Ptr("vfsmount", "mnt_root")}, "file paths from the root of the mount tree"});
     s.push_back({"heap_stack", "mm_struct brk/start_stack", ANY, ANY, {}, {},
@@ -258,6 +269,114 @@ std::vector<Strategy> make_strategies() {
     s.push_back({"task_change", "finish_task_switch", ANY, ANY, {}, {"current"},
                  {SymPrefix("finish_task_switch")},
                  "a hook on finish_task_switch, which runs first in the task switched to"});
+
+    // Lifecycle events from system calls (syscalls2 on the engine's pairing; lifecycle=true): the
+    // creator and its clone flags at fork/vfork/clone/clone3's entry, the child at its return (or
+    // as soon as the child is seen first), execve's old image at its entry and the new one when the
+    // program starts.
+    s.push_back({"lifecycle", "system calls", ANY, ANY, {}, {"tasks", "pid", "current", "ppid", "thread_group"},
+                 {Ptr("task_struct", "real_parent")},
+                 "fork, vfork, clone, clone3 and execve through syscalls2 (the engine's pairing)"});
+    // Exit statuses: do_exit(code) is every task's end (signals included); its argument is the
+    // wait status. signal->live reaching 0 marks the process's end.
+    s.push_back({"exit_codes", "do_exit hook", ANY, ANY, {}, {"lifecycle"},
+                 {Sym("do_exit"), Ptr("task_struct", "signal"), Int("signal_struct", "live.counter", 4, true)},
+                 "a hook on do_exit, its first argument the wait status"});
+    s.push_back({"exit_codes", "exit system calls", ANY, ANY, {}, {"lifecycle"}, {},
+                 "exit and exit_group entries: voluntary exits only, not deaths by signal"});
+    s.push_back({"reparent", "children at the parent's exit", ANY, ANY, {},
+                 {"exit_codes", "tasks", "ppid", "task_change"}, {},
+                 "an exiting process's children, checked at the following task changes"});
+    s.push_back({"pid_reuse", "(pid, start_time)", ANY, ANY, {}, {"lifecycle", "start_time"}, {},
+                 "a new task whose id an earlier task had, with another start time"});
+
+    // Process facts. Arguments and environment are user memory: readable only in the current
+    // address space, and only where it is paged in.
+    s.push_back({"cmdline", "mm arg/env ranges", ANY, ANY, {}, {"pid", "current"},
+                 {Ptr("task_struct", "mm"), Int("mm_struct", "arg_start", 0), Int("mm_struct", "arg_end", 0),
+                  Int("mm_struct", "env_start", 0), Int("mm_struct", "env_end", 0)},
+                 "argv and environment from the process's memory, in the current address space"});
+    s.push_back({"exe_path", "mm->exe_file", V(2, 6, 26), ANY, {}, {"file_paths"},
+                 {Ptr("task_struct", "mm"), Ptr("mm_struct", "exe_file")}, ""});
+    // cwd and root: struct path since 2.6.25 (its lock a rwlock, then a spinlock with a seqcount,
+    // 5.10's seqcount_spinlock_t), a dentry and a vfsmount before.
+    s.push_back({"fs_paths", "fs_struct paths", V(2, 6, 25), ANY, {}, {"file_paths"},
+                 {Ptr("task_struct", "fs"), Fld("fs_struct", "root", Shape::Struct, -1, "path"),
+                  Fld("fs_struct", "pwd", Shape::Struct, -1, "path"), Ptr("path", "mnt"), Ptr("path", "dentry"),
+                  Int("fs_struct", "seq.sequence|seq.seqcount.sequence", 4, true)},
+                 "an odd or changed seqcount means a torn read, read again"});
+    s.push_back({"fs_paths", "fs_struct dentries", V(2, 6), V(2, 6, 25), {}, {"file_paths"},
+                 {Ptr("task_struct", "fs"), Ptr("fs_struct", "root"), Ptr("fs_struct", "pwd"),
+                  Ptr("fs_struct", "rootmnt"), Ptr("fs_struct", "pwdmnt")}, ""});
+    // Credentials: task->cred since 2.6.29 (kuid_t/kgid_t wrap them since 3.5, unless the
+    // kernel was built without strict type checks before 3.14), the task's own fields before.
+    s.push_back({"creds", "task->cred", V(2, 6, 29), ANY, {}, {},
+                 {Ptr("task_struct", "cred"), Int("cred", "uid.val|uid", 4), Int("cred", "gid.val|gid", 4),
+                  Int("cred", "suid.val|suid", 4), Int("cred", "sgid.val|sgid", 4), Int("cred", "euid.val|euid", 4),
+                  Int("cred", "egid.val|egid", 4), Int("cred", "fsuid.val|fsuid", 4),
+                  Int("cred", "fsgid.val|fsgid", 4)}, ""});
+    s.push_back({"creds", "task_struct ids", V(2, 6), V(2, 6, 29), {}, {},
+                 {Int("task_struct", "uid", 4), Int("task_struct", "gid", 4), Int("task_struct", "suid", 4),
+                  Int("task_struct", "sgid", 4), Int("task_struct", "euid", 4), Int("task_struct", "egid", 4),
+                  Int("task_struct", "fsuid", 4), Int("task_struct", "fsgid", 4)}, ""});
+    // Capability sets: kernel_cap_t is a u64 since 6.3, u32 cap[2] from 2.6.25, a u32 before.
+    s.push_back({"cap_sets", "cred u64", V(6, 3), ANY, {}, {},
+                 {Ptr("task_struct", "cred"), Int("cred", "cap_effective.val", 8), Int("cred", "cap_permitted.val", 8),
+                  Int("cred", "cap_inheritable.val", 8), Int("cred", "cap_bset.val", 8, true)}, ""});
+    s.push_back({"cap_sets", "cred u32[]", V(2, 6, 29), V(6, 3), {}, {},
+                 {Ptr("task_struct", "cred"), Fld("cred", "cap_effective.cap", Shape::Array, 4),
+                  Fld("cred", "cap_permitted.cap", Shape::Array, 4), Fld("cred", "cap_inheritable.cap", Shape::Array, 4),
+                  Fld("cred", "cap_bset.cap", Shape::Array, 4, "", true)}, ""});
+    s.push_back({"cap_sets", "task_struct u32[]", V(2, 6, 25), V(2, 6, 29), {}, {},
+                 {Fld("task_struct", "cap_effective.cap", Shape::Array, 4),
+                  Fld("task_struct", "cap_permitted.cap", Shape::Array, 4),
+                  Fld("task_struct", "cap_inheritable.cap", Shape::Array, 4)}, ""});
+    s.push_back({"cap_sets", "task_struct u32", V(2, 6), V(2, 6, 25), {}, {},
+                 {Int("task_struct", "cap_effective", 4), Int("task_struct", "cap_permitted", 4),
+                  Int("task_struct", "cap_inheritable", 4)}, ""});
+
+    // What a process touches. The fd table: files->fdt since 2.6.14. A file's kind and inode
+    // number come from its dentry's inode (f_inode is 3.9+); a pseudo filesystem's name (pipefs,
+    // sockfs, anon_inodefs) names the files that have no path.
+    s.push_back({"open_files", "files->fdt", V(2, 6, 14), ANY, {}, {"file_paths"},
+                 {Ptr("task_struct", "files"), Ptr("files_struct", "fdt"), Int("fdtable", "max_fds", 4),
+                  Ptr("fdtable", "fd"), Int("file", "f_flags", 4), Int("file", "f_pos", 8),
+                  Ptr("dentry", "d_inode"), Int("inode", "i_ino", 0), Int("inode", "i_mode", 2),
+                  Ptr("dentry", "d_sb", true), Ptr("super_block", "s_type", true),
+                  Ptr("file_system_type", "name", true)}, ""});
+    // Sockets: the inet addresses and ports moved from inet_sock (num, dport, rcv_saddr, daddr;
+    // inet_-prefixed from 2.6.33) into sock_common (skc_*: addresses in 2.6.38, ports later).
+    auto sock_common = [](std::vector<Need> v) {
+        std::vector<Need> c = {Ptr("file", "private_data"), Int("socket", "type", 2), Ptr("socket", "sk"),
+                               Int("inet_sock", "sk.__sk_common.skc_family", 2),
+                               Int("inet_sock", "sk.__sk_common.skc_state", 1)};
+        c.insert(c.end(), v.begin(), v.end());
+        for (Need n : {Ptr("unix_sock", "addr", true), Int("unix_address", "len", 4, true),
+                       Fld("unix_address", "name", Shape::Any, -1, "", true),
+                       Fld("sockaddr_un", "sun_path", Shape::Chars, -1, "", true),
+                       Fld("inet_sock", "sk.__sk_common.skc_v6_rcv_saddr", Shape::Struct, -1, "in6_addr", true),
+                       Fld("inet_sock", "sk.__sk_common.skc_v6_daddr", Shape::Struct, -1, "in6_addr", true)})
+            c.push_back(n);
+        return c;
+    };
+    s.push_back({"sockets", "sock_common", V(2, 6, 38), ANY, {}, {"open_files"},
+                 sock_common({Int("inet_sock", "sk.__sk_common.skc_rcv_saddr", 4),
+                              Int("inet_sock", "sk.__sk_common.skc_daddr", 4),
+                              Int("inet_sock", "sk.__sk_common.skc_num", 2),
+                              Int("inet_sock", "sk.__sk_common.skc_dport", 2)}),
+                 "unix socket paths and IPv6 addresses where the ISF has them"});
+    s.push_back({"sockets", "inet_sock inet_*", V(2, 6, 33), ANY, {}, {"open_files"},
+                 sock_common({Int("inet_sock", "sk.__sk_common.skc_rcv_saddr|inet_rcv_saddr", 4),
+                              Int("inet_sock", "sk.__sk_common.skc_daddr|inet_daddr", 4),
+                              Int("inet_sock", "inet_num", 2), Int("inet_sock", "inet_dport", 2)}), ""});
+    s.push_back({"sockets", "inet_sock", V(2, 6), V(2, 6, 33), {}, {"open_files"},
+                 sock_common({Int("inet_sock", "rcv_saddr", 4), Int("inet_sock", "daddr", 4),
+                              Int("inet_sock", "num", 2), Int("inet_sock", "dport", 2)}), ""});
+    // VMA details: vm_flags's VM_READ/WRITE/EXEC/MAYSHARE bits (the same since 2.6) and vm_pgoff.
+    s.push_back({"vma_details", "vm_flags, vm_pgoff", ANY, ANY, {}, {"mappings"},
+                 {Int("vm_area_struct", "vm_flags", 0), Int("vm_area_struct", "vm_pgoff", 0),
+                  Ptr("vm_area_struct", "vm_file"), Ptr("dentry", "d_inode", true), Int("inode", "i_ino", 0, true)},
+                 "permissions, the file offset (in 4 KiB pages) and the file's inode"});
     return s;
 }
 
@@ -270,9 +389,11 @@ const std::vector<Strategy> &strategies() {
 
 const std::vector<std::string> &capability_names() {
     // Dependencies first.
-    static const std::vector<std::string> c = {"tasks", "pid", "name", "ppid", "thread_group", "asid",
-                                               "start_time", "current", "mappings", "mapping_files",
-                                               "mount_paths", "heap_stack", "modules", "task_change"};
+    static const std::vector<std::string> c = {
+        "tasks", "pid", "name", "ppid", "thread_group", "asid", "start_time", "current", "threads",
+        "file_paths", "mappings", "mapping_files", "mount_paths", "heap_stack", "modules", "task_change",
+        "lifecycle", "exit_codes", "reparent", "pid_reuse", "cmdline", "exe_path", "fs_paths", "creds",
+        "cap_sets", "open_files", "sockets", "vma_details"};
     return c;
 }
 
@@ -421,7 +542,16 @@ int64_t width_of(const isf::Profile &p, const std::string &kind0, const std::str
 
 void resolve_field(const isf::Profile &p, Input &in) {
     const Need &n = in.need;
-    auto r = p.resolve(n.a, n.b);
+    // Alternative paths (a member renamed or moved across versions): the first that resolves.
+    std::optional<isf::Resolved> r;
+    for (size_t st = 0; !r && st <= n.b.size();) {
+        size_t bar = n.b.find('|', st);
+        std::string path = n.b.substr(st, bar == std::string::npos ? std::string::npos : bar - st);
+        r = p.resolve(n.a, path);
+        if (r && n.b.find('|') != std::string::npos) in.used = path;
+        if (bar == std::string::npos) break;
+        st = bar + 1;
+    }
     if (!r) {
         in.problem = p.user_types.count(n.a) ? "no member " + n.b : "no type " + n.a;
         return;
@@ -472,7 +602,7 @@ void resolve_field(const isf::Profile &p, Input &in) {
         in.shape_ok = true;
     }
     if (!in.shape_ok) {
-        in.problem = n.a + "." + n.b + " is " + is + ", not a " + n.want();
+        in.problem = n.a + "." + (in.used.empty() ? n.b : in.used) + " is " + is + ", not a " + n.want();
         return;
     }
     // Provenance: every named hop must be trusted. kernel-lift classes the members of anonymous
@@ -602,7 +732,7 @@ void Plan::resolve(const isf::Profile &prof, const Symbols &syms, const Options 
     for (const std::string &name : capability_names()) {
         CapResult cr;
         cr.cap = name;
-        bool any_for_arch = false;
+        bool any_for_arch = false, chosen = false;
         const Attempt *fallback = nullptr;  // usable only with untrusted inputs
         for (const Strategy &st : strategies()) {
             if (st.cap != name || !st.for_arch(o.arch)) continue;
@@ -632,13 +762,13 @@ void Plan::resolve(const isf::Profile &prof, const Symbols &syms, const Options 
             } else if (!untrusted.empty()) {
                 at.outcome = "untrusted: " + join(untrusted);
             } else {
-                at.outcome = "chosen";
-            }
-            if (!in_range && missing.empty()) {
-                // keep it in the report only
+                at.outcome = chosen ? "usable (another was chosen)" : "chosen";
             }
             cr.attempts.push_back(at);
-            if (at.outcome == "chosen") break;
+            if (at.outcome == "chosen") {
+                chosen = true;
+                if (!o.attempt_all) break;
+            }
         }
         // The chosen strategy, else the first in range whose only problem is trust.
         for (Attempt &at : cr.attempts) {
@@ -766,6 +896,7 @@ nlohmann::json input_json(const Input &in) {
         }
     }
     if (!in.cls.empty()) j["class"] = in.cls;
+    if (!in.used.empty()) j["used"] = in.used;
     j["ok"] = in.present && in.shape_ok;
     j["trusted"] = in.trusted;
     if (!in.problem.empty()) j["problem"] = in.problem;

@@ -158,13 +158,15 @@ symbols (an ISF file, as the test images carry). Use the osi_linux and osi_isf p
 Python, `panda.get_current_process`, `get_process_name` and `get_mappings` call them. osi_isf
 takes the ISF of any kernel from 2.6 to 6.x (DWARF, BTF with a System.map, or kernel-lift's for
 a stripped kernel), finds the KASLR slide itself, and reports at load what it can answer for
-that kernel.
+that kernel. It also gives a process's facts (threads, argv and environment, executable, cwd
+and root, credentials, open files with sockets and pipes, mappings with permissions) and, with
+`lifecycle=true`, process and thread creation, exec, exit, reparenting and pid reuse events.
 
 **Use it:** `osi` (plugin), `osi_linux` (plugin), `osi_isf` (plugin), `Panda.get_current_process`, `Panda.get_process_name`, `Panda.get_mappings`
 
 **Docs:** [docs/guides/getting-started.md#a-first-analysis](guides/getting-started.md#a-first-analysis), [docs/guides/plugins.md](guides/plugins.md), [plugins/osi_isf/README.md](https://github.com/panda-re/panda-ng/blob/main/plugins/osi_isf/README.md)
 
-**Tests:** `tests/osi_isf.py`, `tests/osi_isf_proc.py`, `tests/osi_isf_check.py`, `tests/asidstory.py`, `tests/kpti.py`
+**Tests:** `tests/osi_isf.py`, `tests/osi_isf_proc.py`, `tests/osi_isf_facts.py`, `tests/osi_isf_check.py`, `tests/asidstory.py`, `tests/kpti.py`
 
 
 <a id="syscalls"></a>
