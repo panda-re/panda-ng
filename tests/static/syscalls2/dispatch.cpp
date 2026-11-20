@@ -90,10 +90,12 @@ static int n_read, n_read_ret, n_all, n_all_ret, n_unknown, n_e2, n_r2, n_openat
 static uint32_t r_fd, r_count; static uint64_t r_buf;
 static int32_t o_dfd; static uint64_t p_pos;
 static uint64_t all_no, unk_no, cur_id; static bool cur_ok;
+static int64_t cur_nr; static uint64_t cur_args[6]; static bool args_ok;
 static syscall_ctx_t e2_ctx, r2_ctx;
 static void read_enter(CPUState *, target_ulong pc, uint32_t fd, uint64_t buf, uint32_t count) {
     ++n_read; r_fd = fd; r_buf = buf; r_count = count;
     uint32_t fl; cur_ok = syscalls2_current_call(&cpu, &cur_id, &fl);
+    args_ok = syscalls2_current_args(&cpu, &cur_nr, cur_args);
 }
 static void read_ret(CPUState *, target_ulong, uint32_t fd, uint64_t buf, uint32_t count) {
     ++n_read_ret; r_fd = fd; r_buf = buf; r_count = count;
@@ -139,8 +141,11 @@ static void tests() {
     a.enter();
     CHECK(n_read == 1 && r_fd == 5 && r_buf == 0x7fff12345678ull && r_count == 0x40);
     CHECK(cur_ok && cur_id == a.c->id);
+    CHECK(args_ok && cur_nr == 0 && cur_args[0] == 0xffffffff00000005ull && cur_args[2] == 0x100000040ull);
     uint64_t id; uint32_t fl;
     CHECK(!syscalls2_current_call(&cpu, &id, &fl));                // outside a callback
+    int64_t nr; uint64_t args[6];
+    CHECK(!syscalls2_current_args(&cpu, &nr, args));
     Call b(1, 3, { 7, 0xf7f00000, 12 });                            // i386: the x64 type's widths
     b.enter();
     CHECK(n_read == 2 && r_fd == 7 && r_buf == 0xf7f00000 && r_count == 12);

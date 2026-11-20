@@ -5,6 +5,7 @@ typedef void syscall_info_t;
 typedef void syscall_meta_t;
 typedef void uint32_t;
 typedef void uint64_t;
+typedef void int64_t;
 typedef void bool;
 typedef void target_long;
 typedef void CPUState;

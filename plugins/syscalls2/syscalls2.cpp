@@ -2067,6 +2067,11 @@ bool syscalls2_current_call(CPUState *cpu, uint64_t *id, uint32_t *flags)
     return false;
 }
 
+bool syscalls2_current_args(CPUState *cpu, int64_t *nr, uint64_t args[6])
+{
+    return false;
+}
+
 static void sc2_changed(unsigned l)
 {
 }
