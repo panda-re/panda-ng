@@ -127,7 +127,8 @@ def era_isf(ver, arch, banner=True):
             syms["pcpu_hot"] = 0x2000
             t("pcpu_hot", [("current_task", ptr("task_struct"))])
         else:
-            syms["current_task"] = 0x2000
+            # Before 2.6.34 per-CPU variables were named per_cpu__<name>.
+            syms["current_task" if v >= (2, 6, 34) else "per_cpu__current_task"] = 0x2000
     elif arch == "aarch64" and v >= (4, 10):
         syms["__entry_task"] = 0xc0830000
     elif arch == "arm" and v >= (5, 18):

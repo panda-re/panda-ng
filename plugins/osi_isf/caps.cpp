@@ -189,7 +189,8 @@ std::vector<Strategy> make_strategies() {
                  {Sym("pcpu_hot"), Ptr("pcpu_hot", "current_task"), Sym("__per_cpu_offset", true)},
                  "a per-CPU variable; __per_cpu_offset is absent on uniprocessor kernels"});
     s.push_back({"current", "current_task", V(2, 6, 30), V(6, 2), {A::x86_64, A::i386}, {},
-                 {Sym("current_task"), Sym("__per_cpu_offset", true)}, "a per-CPU variable"});
+                 {Sym("current_task|per_cpu__current_task"), Sym("__per_cpu_offset", true)},
+                 "a per-CPU variable (per_cpu__current_task before 2.6.34)"});
     s.push_back({"current", "__entry_task", V(4, 10), ANY, {A::aarch64}, {},
                  {Sym("__entry_task"), Sym("__per_cpu_offset", true)},
                  "a per-CPU variable written at every context switch"});
@@ -506,8 +507,16 @@ Input resolve_need(const isf::Profile &p, const Symbols &syms, const Options &o,
     switch (n.kind) {
     case NeedKind::Sym:
     case NeedKind::SymPrefix: {
+        // Alternatives split by '|' (per-CPU variables were per_cpu__<name> before 2.6.34).
         std::string src;
-        auto a = n.kind == NeedKind::Sym ? syms.get(n.a, &src) : syms.get_prefix(n.a, &src);
+        std::optional<uint64_t> a;
+        for (size_t st = 0; !a && st <= n.a.size();) {
+            size_t bar = n.a.find('|', st);
+            std::string name = n.a.substr(st, bar == std::string::npos ? std::string::npos : bar - st);
+            a = n.kind == NeedKind::Sym ? syms.get(name, &src) : syms.get_prefix(name, &src);
+            if (bar == std::string::npos) break;
+            st = bar + 1;
+        }
         if (!a) {
             in.problem = "no symbol " + n.a;
             break;
@@ -723,6 +732,11 @@ int64_t Plan::width(const std::string &type, const std::string &path) const {
 uint64_t Plan::sym(const std::string &name) const {
     const Input *in = value("sym:" + name);
     if (!in) in = value("sym:" + name + "*");
+    if (!in) {
+        // A symbol with alternatives ("current_task|per_cpu__current_task").
+        auto it = values.lower_bound("sym:" + name + "|");
+        if (it != values.end() && it->first.rfind("sym:" + name + "|", 0) == 0) in = &it->second;
+    }
     return in ? (uint64_t)in->value : 0;
 }
 
