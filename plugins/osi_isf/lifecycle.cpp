@@ -102,6 +102,7 @@ struct Ev {
 
 std::mutex mu;
 std::map<uint64_t, Clone> clones;                // by call id
+std::map<int32_t, Clone> awaiting;               // returned calls whose child wasn't found yet, by its id
 std::map<int32_t, Exec> execs;                   // by process id
 std::unordered_map<int32_t, uint64_t> known;     // task id -> start time of the task last seen with it
 std::vector<Orphan> orphans;
@@ -175,10 +176,21 @@ void ensure_known(CPUState *cpu, uint64_t ts) {
     uint64_t st = cap.start_time ? start_time(cpu, ts) : 0;
     auto it = known.find(tid);
     if (it != known.end() && it->second == st) return;
+    // The call returned this id before the child could be found (a thread, without the thread
+    // list to look it up in; or a child in another pid namespace, by chance with the same id).
+    auto aw = awaiting.find(tid);
+    if (aw != awaiting.end()) {
+        Clone c = aw->second;
+        awaiting.erase(aw);
+        report_child(cpu, c, ts);
+        return;
+    }
     uint64_t rp = field_ptr(cpu, ts, off.task_real_parent);
     int32_t pid = tgid_of(cpu, ts);
     for (auto &[id, c] : clones) {
-        if (c.reported.count(ts)) continue;
+        // A call makes one child: a call that reported its child can't be this one's (a
+        // CLONE_PARENT child's parent can have a fork of its own pending, whose child ran first).
+        if (!c.reported.empty()) continue;
         bool via_parent = c.flags_known ? (c.flags & (K_CLONE_PARENT | K_CLONE_THREAD)) != 0 : pid == c.ct.pid;
         if (via_parent ? rp != c.creator_parent : rp != c.creator) continue;
         if (via_parent && (c.flags & K_CLONE_THREAD) && pid != c.ct.pid) continue;
@@ -231,20 +243,32 @@ void exited(CPUState *cpu, uint64_t ts, int32_t status, int group) {
     outq.push_back(v);
     for (auto it = clones.begin(); it != clones.end();)
         it = it->second.creator == ts ? clones.erase(it) : std::next(it);
-    if (group == 1) {
-        execs.erase(t.pid);
-        collect_orphans(cpu, t.pid);
-    }
+    if (group == 1) execs.erase(t.pid);
+    // Children move within the process while it has tasks left (no change of parent process
+    // to report), so an exit not known to be the last notes them too.
+    if (group != 0) collect_orphans(cpu, t.pid);
 }
 
-// 1: the process's last task, 0: not, -1: unknown.
+std::map<int32_t, std::set<int32_t>> exiting;   // process id -> its tasks that started exiting
+
+// 1: the last of the process's tasks to start exiting, 0: not, -1: unknown. Every task of the
+// group that the thread list still holds must have entered do_exit (signal->live, read at the
+// entry, would race: a task that entered before can still be on its way to its decrement).
 int last_of_group(CPUState *cpu, uint64_t ts) {
-    if (o_live >= 0) {
+    int32_t pid = tgid_of(cpu, ts);
+    std::set<int32_t> &ex = exiting[pid];
+    ex.insert(field_int(cpu, ts, off.task_pid));
+    int last = -1;
+    if (cap.threads) {
+        last = 1;
+        for (uint64_t t : threads_of(cpu, group_leader(cpu, ts)))
+            if (!ex.count(field_int(cpu, t, off.task_pid))) last = 0;
+    } else if (o_live >= 0) {
         uint64_t sig = field_ptr(cpu, ts, o_signal);
-        if (sig) return field_int(cpu, sig, o_live) <= 1;
+        if (sig) last = field_int(cpu, sig, o_live) <= 1;
     }
-    if (cap.threads) return threads_of(cpu, group_leader(cpu, ts)).size() <= 1;
-    return -1;
+    if (last == 1) exiting.erase(pid);
+    return last;
 }
 
 void on_enter(CPUState *cpu, Sys sys) {
@@ -325,9 +349,15 @@ void on_return(CPUState *cpu, Sys sys) {
                     if (child && !it->second.reported.count(child)) report_child(cpu, it->second, child);
                 } else {
                     // The caller's return: the child's id (in the caller's pid namespace).
-                    if (ret > 0) {
+                    if (ret > 0 && it->second.reported.empty()) {
                         uint64_t child = find_task(cpu, (int32_t)ret);
-                        if (child && !it->second.reported.count(child)) report_child(cpu, it->second, child);
+                        if (child) {
+                            report_child(cpu, it->second, child);
+                        } else {
+                            // Reported when it is first seen.
+                            if (awaiting.size() >= 256) awaiting.erase(awaiting.begin());
+                            awaiting[(int32_t)ret] = it->second;
+                        }
                     }
                     clones.erase(it);
                 }

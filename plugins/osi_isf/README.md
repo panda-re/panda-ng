@@ -241,7 +241,7 @@ With `lifecycle=true`, osi_isf calls `on_osi_isf_event(CPUState *cpu, const OsiI
 | `OSI_ISF_FORK` | a new process: fork, vfork, clone without `CLONE_THREAD` | the child (`pid`, `tid`, `start_time`, `taskd`), the creator (`creator_pid`, `creator_tid`, `creator_start`), `ppid` the parent at creation, `clone_flags`, `syscall` |
 | `OSI_ISF_THREAD` | a new thread (`CLONE_THREAD`) | as FORK |
 | `OSI_ISF_EXEC` | a program started | `old_exe`, `new_exe`, `filename` (execve's path), `syscall` |
-| `OSI_ISF_EXIT` | a task ended | `exit_status` (the wait status: code << 8, or the signal), `group_exit` (1 the process's last task) |
+| `OSI_ISF_EXIT` | a task is ending (do_exit) | `exit_status` (the wait status: code << 8, or the signal), `group_exit` (1 the process's last task) |
 | `OSI_ISF_REPARENT` | a process got a new parent | `ppid`, `old_ppid` |
 | `OSI_ISF_PID_REUSE` | a task got an id an earlier task had (before its FORK or THREAD) | `old_start`, the earlier task's start time |
 
@@ -259,7 +259,8 @@ With `lifecycle=true`, osi_isf calls `on_osi_isf_event(CPUState *cpu, const OsiI
 - **Exec**: the old program (`exe_path`, else the name) at execve's entry, the new one when the
   program starts (proc_start_linux). A failed execve reports nothing.
 - **Exit**: the strategy `do_exit hook` reads do_exit's argument, which is every task's end and
-  its wait status (signals included); `signal->live` tells the process's last task. Without the
+  its wait status (signals included). `group_exit` is 1 for the last of the process's tasks
+  to enter do_exit (with the thread list; `signal->live` without it, which can race). Without the
   symbol, the exit and exit_group calls give voluntary exits only.
 - **Reparent**: at a process's end its children are noted, and each is reported when a later
   task change finds its parent changed.
