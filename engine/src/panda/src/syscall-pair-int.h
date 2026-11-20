@@ -114,9 +114,16 @@ enum {
                                          * returned (delivered once) */
 };
 
+/* Where a number's deliveries go (panda_syscall_route): fn[0] its entries, fn[1] its returns */
+typedef struct ScRoute {
+    PandaSyscallFn fn[2];
+    void *ctx;
+} ScRoute;
+
 typedef struct ScAbi {
     PandaSyscallAbi abi;                /* the number sets copied */
     uint8_t *want;                      /* [nbits + 1], read by translated code */
+    ScRoute *route;                     /* [nbits + 1]: the consumer's, or the routed ones */
     uint64_t mask;                      /* the form's register width */
     bool std;                           /* the target's standard layout (SC_TCG_FORM, SC_STD_*) */
     bool regs;                          /* every argument in a register: aoff[], amask[] */
@@ -206,6 +213,15 @@ static inline bool sc_bit(const uint8_t *set, uint64_t i)
 static inline uint64_t sc_index(const PandaSyscallAbi *a, int64_t nr)
 {
     return (uint64_t)nr < a->nbits ? (uint64_t)nr : a->nbits;
+}
+
+/* A delivery: to the number's route (the consumer's function unless routed), last (a tail call) */
+static inline QEMU_ALWAYS_INLINE void sc_deliver(ScAbi *A, CPUState *cpu, PandaSyscallCall *c,
+                                                 int64_t ret, uint32_t flags)
+{
+    const ScRoute *R = &A->route[sc_index(&A->abi, c->nr)];
+
+    R->fn[flags & PANDA_SYSCALL_RETURN](R->ctx, cpu, c, ret, flags);
 }
 
 /* --- Architecture ------------------------------------------------------------------------ */
