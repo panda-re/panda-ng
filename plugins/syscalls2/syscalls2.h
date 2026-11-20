@@ -3,14 +3,14 @@
 #include <mutex>
 typedef struct CPUState CPUState;
 typedef struct syscall_ctx syscall_ctx_t;
+struct sc2_table;
 
 /*
  * How returns are paired.
  *   SYSCALLS2_ENGINE: Linux guests on the targets below. The engine recognizes the
  *     calls of the ABIs syscalls2 declares (panda/syscall-pair.h), keeps each one whose return
- *     a callback wants with its context, and pairs it with its return (by task, exactly). The
- *     generated enter code stores the context in syscalls2_engine_store and sets
- *     syscalls2_engine_keep.
+ *     a callback wants, and pairs it with its return (by task, exactly). syscalls2 tells it
+ *     which numbers' entries and returns its subscribers want.
  *   SYSCALLS2_HOOK_RETURNS: Windows and FreeBSD guests (x86). A hook (the hooks plugin) at the
  *     return address, keyed by (return address, ASID) in running_syscalls.
  */
@@ -28,10 +28,23 @@ typedef struct syscall_ctx syscall_ctx_t;
 #endif
 
 #if SYSCALLS2_ENGINE
-extern thread_local syscall_ctx_t *syscalls2_engine_store;
-extern thread_local bool syscalls2_engine_keep;
-#else
-#define syscalls2_engine_store ((syscall_ctx_t *)nullptr)
+struct PandaSyscallCall;
+/* Per vCPU, while syscalls2 delivers one of the engine's calls on it (not thread_local: in a
+ * plugin each access to one calls __tls_get_addr) */
+typedef struct syscalls2_vcpu {
+    const struct PandaSyscallCall *call;    /* the call being delivered */
+    union {
+        struct {
+            uint32_t flags;                 /* the delivery's */
+            uint32_t changed;               /* a subscription changed during the delivery */
+        };
+        uint64_t flags_changed;
+    };
+    uint64_t a[6];                          /* the arguments, for the call's own callbacks */
+} __attribute__((aligned(64))) syscalls2_vcpu_t;
+#define SYSCALLS2_VCPUS 256
+extern syscalls2_vcpu_t syscalls2_vcpus[SYSCALLS2_VCPUS];
+#define SYSCALLS2_VCPU(cpu) (&syscalls2_vcpus[(cpu)->cpu_index & (SYSCALLS2_VCPUS - 1)])
 #endif
 
 #if SYSCALLS2_HOOK_RETURNS
@@ -67,12 +80,12 @@ enum ProfileType {
     PROFILE_LAST
 };
 
-// enter_switch:  the generated function that invokes the enter callback
-// return_switch:  the generated function that invokes the return callback
+// table:  the profile's system calls (sc2_tables.h, generated/syscall_table_*.cpp)
 // get_return_val:  function to get the return value for this system call
 // calc_retaddr:  function to fetch the address this system call returns to
 // get_32, get_s32, get_64 and get_s64:  used at syscall_enter to get the
-//   requested argument to the system call as the given type
+//   requested argument to the system call as the given type (the hooks path's raw argument
+//   words, and the API of the same names)
 // get_return_32, get_return_s32, get_return_64, get_return_s64:  not really
 //   sure, but maybe like the above 4 but to be called during syscall_return???
 // windows_return_addr_register:  used to calculate where to read the return
@@ -80,8 +93,7 @@ enum ProfileType {
 // windows_arg_offset:  offset from EDX where args start
 // syscall_interrupt_number:  interrupt used for system calls (ignored if NA)
 struct Profile {
-    void         (*enter_switch)(CPUState *, int profile, target_ulong, int);
-    void         (*return_switch)(CPUState *, target_ulong, const syscall_ctx_t *);
+    const sc2_table *table;
     target_long  (*get_return_val )(CPUState *);
     target_ulong (*calc_retaddr )(CPUState *, target_ulong);
     uint32_t     (*get_32 )(CPUState *, syscall_ctx_t*, uint32_t);
@@ -99,37 +111,9 @@ struct Profile {
     void *syscall_meta;
 };
 
-// In generated, run the following to get this list
-// grep -hE '^.*syscall_(enter|return)_switch_[^(]*\(' *.cpp | sed 's/ {$/;/'
-void syscall_enter_switch_freebsd_x64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_linux_arm64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_linux_riscv64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_linux_arm(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_linux_mips(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_linux_mips64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_linux_mips64n32(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_linux_x64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_linux_x86(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_linux_ppc(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_linux_ppc64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_windows_2000_x86(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_windows_7_x64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_windows_7_x86(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_windows_xpsp2_x86(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_enter_switch_windows_xpsp3_x86(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_return_switch_freebsd_x64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_linux_arm64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_linux_riscv64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_linux_arm(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_linux_mips(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_linux_mips64n32(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_linux_mips64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_linux_x64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_linux_x86(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_linux_ppc(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_linux_ppc64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_windows_2000_x86(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_windows_7_x64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_windows_7_x86(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_windows_xpsp2_x86(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
-void syscall_return_switch_windows_xpsp3_x86(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
+/* Each profile's table (generated/syscall_table_<os>_<arch>.cpp) */
+extern const sc2_table sc2_table_freebsd_x64, sc2_table_linux_arm64, sc2_table_linux_riscv64,
+    sc2_table_linux_arm, sc2_table_linux_mips, sc2_table_linux_mips64, sc2_table_linux_mips64n32,
+    sc2_table_linux_x64, sc2_table_linux_x86, sc2_table_linux_ppc, sc2_table_linux_ppc64,
+    sc2_table_windows_2000_x86, sc2_table_windows_7_x64, sc2_table_windows_7_x86,
+    sc2_table_windows_xpsp2_x86, sc2_table_windows_xpsp3_x86;

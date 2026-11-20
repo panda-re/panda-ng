@@ -29,6 +29,13 @@ From Python:
 panda.load_plugin("syscalls2", {"load-info": True})
 ```
 
+How calls are dispatched
+------------------------
+
+Each profile's system calls are generated as data (`generated/syscall_table_<os>_<arch>.cpp`): per number, its arguments' kinds (which raw argument word, and 32 bits, 32 bits sign-extended, 64 bits or a pair of 32-bit words), its flags (`panda_noreturn`, `panda_doublereturn`) and its callback name. A call is dispatched with two lookups: its number's entry, and the subscriber list of its name. Its arguments are decoded from the words the engine captured at the entry (never read again from the registers), and each `on_sys_*` callback is called through the invoker of its own type, which passes them as that type's arguments. `on_all_sys_enter` / `on_all_sys_return` get the number and address without any decoding, and a `syscall_ctx_t` is built only for `on_all_sys_enter2` / `on_all_sys_return2`, or when a kept call's return needs arguments the engine does not capture (MIPS o32's 5th and 6th, on the user stack).
+
+The subscriber lists are kept up to date at each `ppp_add_cb_*` / `ppp_remove_cb_*` (and `registerExecPreCallback`), and with them the engine's wants for the numbers they concern: a number nobody subscribes to is not delivered at all (its want byte, tested in translated code), and its return is wanted only if something wants it. A callback that subscribes to a call's return from that call's entry callback gets that call's return.
+
 How returns are paired
 ----------------------
 

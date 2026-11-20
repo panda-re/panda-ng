@@ -80,6 +80,7 @@ KNOWN_ARCH = {
         'rt_callno_reg': 'env->active_tc.gpr[2]', # register holding syscall number at runtime ($v0)
         'rt_sp_reg': 'env->active_tc.gpr[29]',    # register holding stack pointer at runtime ($sp)
         'qemu_target': 'defined(TARGET_MIPS) && defined(TARGET_MIPS64)',    # qemu target name for this arch - used in guards
+        'table_range': (5000, 5999),            # o32 and n32 are the mips and mips64n32 tables'
     },
     'mips64n32': {
         'bits': 32,
@@ -88,6 +89,8 @@ KNOWN_ARCH = {
         'qemu_target': 'defined(TARGET_MIPS) && !defined(TARGET_MIPS64)',    # qemu target name for this arch - used in guards
         'runner_target': 'defined(TARGET_MIPS) && defined(TARGET_MIPS64)',    # alternative target if another arch could be used
         'boilerplate_target': '0',
+        'table_range': (6000, 6999),            # the numbers this profile's table serves
+        'fast_slots': 6,                        # argument registers the engine captures
     },
     'mips': {
         'bits': 32,
@@ -95,6 +98,8 @@ KNOWN_ARCH = {
         'rt_sp_reg': 'env->active_tc.gpr[29]',    # register holding stack pointer at runtime ($sp)
         'qemu_target': 'defined(TARGET_MIPS) && !defined(TARGET_MIPS64)',    # qemu target name for this arch - used in guards
         'runner_target': 'defined(TARGET_MIPS)',    # alternative target if another arch could be used
+        'table_range': (4000, 4999),
+        'fast_slots': 4,                        # o32: arguments 5-8 are on the user stack
     },
     'ppc64': {
         'bits': 64,
@@ -124,13 +129,14 @@ GENERATED_FILES = [
     ('syscalls_ext_typedefs.tpl', '.h'),
     ('syscalls_numbers.tpl', '.h'),
     ('syscalls_args.tpl', '.h'),
-    ('syscall_ppp_register_enter.tpl', '.cpp'),
-    ('syscall_ppp_register_return.tpl', '.cpp'),
+    ('syscall_names.tpl', '.h'),
     ('syscall_ppp_boilerplate_enter.tpl', '.cpp'),
     ('syscall_ppp_boilerplate_return.tpl', '.cpp'),
-    ('syscall_ppp_extern_enter.tpl', '.h'),
-    ('syscall_ppp_extern_return.tpl', '.h'),
 ]
+
+# A table's numbers from base on are in its dense array up to this many; any above (ARM's private
+# calls at 0x0f0001-) are looked up in its short sparse list.
+DENSE_MAX = 4096
 
 
 ##############################################################################
@@ -149,7 +155,7 @@ class EmptyArgumentError(ArgumentError):
 class Argument(object):
     ''' Wraps a system call argument.
     '''
-    charre = re.compile("char.*\*")
+    charre = re.compile(r"char.*\*")
 
     # the "reserved" list consists of system call argument names that also
     # happen to be reserved words; "cpu" is reserved because the generated
@@ -440,6 +446,42 @@ class SysCall(object):
             + [f'{x.ctype} {x.name}' for x in self.args]
         )
     
+    def kinds(self):
+        ''' Returns (op, slot) per argument: which raw argument word(s) hold it and how its value
+            is made from them. A 64-bit argument of a 32-bit ABI is two words (the second the
+            high half; on arm the pair starts at an even word).
+        '''
+        kinds = []
+        argpos = 0
+        for arg in self.args:
+            ctype = arg.ctype
+            if self.arch_bits == 32 and ctype in ['uint64_t', 'int64_t']:
+                if self.target_context['arch'] == 'arm' and argpos % 2 != 0:
+                    argpos += 1
+                kinds.append(('PAIR', argpos))
+                argpos += 2
+            elif ctype in ['uint64_t', 'int64_t']:
+                kinds.append(('X64', argpos))
+                argpos += 1
+            elif ctype == 'int32_t':
+                kinds.append(('S32', argpos))
+                argpos += 1
+            else:
+                assert ctype == 'uint32_t', f'Unexpected type {ctype} for {self.name}'
+                kinds.append(('U32', argpos))
+                argpos += 1
+        return kinds
+
+    def kind_macros(self):
+        out = []
+        for op, slot in self.kinds():
+            assert slot + (1 if op == 'PAIR' else 0) < 32, f'{self.name}: argument word {slot} out of range'
+            out.append(f'SC2_{op}({slot})')
+        return out
+
+    def slots_used(self):
+        return max([slot + (2 if op == 'PAIR' else 1) for op, slot in self.kinds()], default=0)
+
     def temp_assignments(self):
         values = []
         argnum, argpos = 0, 0
@@ -493,7 +535,7 @@ if __name__ == '__main__':
     ), f'Template directory {args.templates} does not exist.'
 
     # Fields: <no> <return-type> <name><signature with spaces>
-    prototype_linere = re.compile("(\d+) (.+) (\w+) ?\((.*)\);")
+    prototype_linere = re.compile(r"(\d+) (.+) (\w+) ?\((.*)\);")
 
     # Create a Jinja2 environment for rendering templates.
     # Setting undefined to StrictUndefined will raise an error if a variable
@@ -518,6 +560,8 @@ if __name__ == '__main__':
         'global_max_syscall_args': 0,
         'global_max_syscall_no': 0,
         'global_max_syscall_generic_no': 0,
+        'global_max_slots': 0,
+        'tables': [],
     }
 
     # load extra target context
@@ -624,13 +668,28 @@ if __name__ == '__main__':
         global_context['global_max_syscall_generic_no'] = max(
                 global_context['global_max_syscall_generic_no'], target_context['max_syscall_generic_no'])
 
-        # Render per-target output files.
-        j2tpl = j2env.get_template('syscall_switch_enter.tpl')
-        with open(os.path.join(args.outdir, f"{args.prefix}syscall_switch_enter_{_os}_{_arch}.cpp"), "w+") as of:
-            logging.info("Writing %s", of.name)
-            of.write(j2tpl.render(target_context))
-        j2tpl = j2env.get_template('syscall_switch_return.tpl')
-        with open(os.path.join(args.outdir, f"{args.prefix}syscall_switch_return_{_os}_{_arch}.cpp"), "w+") as of:
+        # Render the per-target table: per number, its arguments' kinds, flags and name.
+        lo, hi = target_context['arch_conf'].get('table_range', (0, None))
+        by_no = {}
+        for sc in syscalls:
+            for no in sc.nos:
+                if no >= lo and (hi is None or no <= hi):
+                    assert no not in by_no, f'{_target}: number {no} twice'
+                    by_no[no] = sc
+        dense = sorted(no for no in by_no if no < lo + DENSE_MAX)
+        target_context['table'] = {
+            'base': lo,
+            'count': (max(dense) + 1 - lo) if dense else 0,
+            'dense': [(no, by_no[no]) for no in dense],
+            'sparse': [(no, by_no[no]) for no in sorted(by_no) if no >= lo + DENSE_MAX],
+            'slots': max([sc.slots_used() for sc in by_no.values()], default=0),
+            'fast_slots': target_context['arch_conf'].get('fast_slots', 6),
+        }
+        global_context['global_max_slots'] = max(global_context['global_max_slots'],
+                                                 target_context['table']['slots'])
+        global_context['tables'].append(f'{_os}_{_arch}')
+        j2tpl = j2env.get_template('syscall_table.tpl')
+        with open(os.path.join(args.outdir, f"{args.prefix}syscall_table_{_os}_{_arch}.cpp"), "w+") as of:
             logging.info("Writing %s", of.name)
             of.write(j2tpl.render(target_context))
 
@@ -656,6 +715,9 @@ if __name__ == '__main__':
         with open(os.path.join(args.outdir, of_name), 'w') as of:
             logging.info("Writing %s", of.name)
             of.write(j2tpl.render(syscalls=outvals))
+
+    # Every callback name of every target (syscall_names.h: the dispatch's name ids)
+    global_context['names'] = sorted({sc.name for scs in global_context['syscalls'].values() for sc in scs})
 
     # Render big files.
     for tpl, ext in GENERATED_FILES:
