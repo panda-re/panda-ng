@@ -52,13 +52,35 @@ bool unxz(const std::string &in, std::string &out, std::string &err) {
     return true;
 }
 
+std::string base64_decode(const std::string &in) {
+    static const std::string chars =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string out;
+    uint32_t acc = 0;
+    int bits = 0;
+    for (char c : in) {
+        size_t v = chars.find(c);
+        if (v == std::string::npos) continue;  // padding, line breaks
+        acc = (acc << 6) | (uint32_t)v;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            out.push_back((char)((acc >> bits) & 0xff));
+        }
+    }
+    return out;
+}
+
 // Tracks the key path from the root and stores the leaves OSI reads:
-//   symbols.<name>.address
+//   symbols.<name>.address, symbols.linux_banner.constant_data
 //   user_types.<type>.size, user_types.<type>.fields.<field>.{offset,anonymous}
-//   user_types.<type>.fields.<field>.type.{kind,name,count}
-//   base_types.pointer.{size,endian}
+//   user_types.<type>.fields.<field>.type.{kind,name,count}, ...type.subtype.{kind,name}
+//   base_types.<name>.size, base_types.pointer.endian
+//   typedefs.<name>.{kind,name}
 //   enums.<enum>.constants.<name>
-//   metadata.linux.symbols[0].name
+//   metadata.linux.symbols[0].name, metadata.producer.name
+//   metadata.kernel_lift.{unverified_needed[],inferred_needed[],provenance}
+//   metadata.kernel_lift.dynamic_verified.<type.member>.offset
 struct Sax : nlohmann::json_sax<nlohmann::json> {
     Profile &p;
     std::vector<std::string> path;
@@ -79,6 +101,7 @@ struct Sax : nlohmann::json_sax<nlohmann::json> {
         const std::string &top = path[0];
         if (top == "symbols") {
             if (at({"symbols", "*", "address"})) p.symbols[path[1]] = (uint64_t)v;
+            else if (at({"symbols", "*", "type", "count"})) p.symbol_arrays[path[1]].first = v;
         } else if (top == "user_types") {
             if (at({"user_types", "*", "size"})) {
                 p.user_types[path[1]].size = v;
@@ -88,9 +111,15 @@ struct Sax : nlohmann::json_sax<nlohmann::json> {
                 p.user_types[path[1]].fields[path[3]].count = v;
             }
         } else if (top == "base_types") {
-            if (at({"base_types", "pointer", "size"})) p.pointer_size = (int)v;
+            if (at({"base_types", "*", "size"})) {
+                p.base_sizes[path[1]] = v;
+                if (path[1] == "pointer") p.pointer_size = (int)v;
+            }
         } else if (top == "enums") {
             if (at({"enums", "*", "constants", "*"})) p.enums[path[1]][path[3]] = v;
+        } else if (top == "metadata") {
+            if (at({"metadata", "kernel_lift", "dynamic_verified", "*", "offset"}))
+                p.dynamic_verified[path[3]] = v;
         }
     }
 
@@ -110,17 +139,42 @@ struct Sax : nlohmann::json_sax<nlohmann::json> {
                 p.user_types[path[1]].fields[path[3]].kind = v;
             } else if (at({"user_types", "*", "fields", "*", "type", "name"})) {
                 p.user_types[path[1]].fields[path[3]].type_name = v;
+            } else if (at({"user_types", "*", "fields", "*", "type", "subtype", "kind"})) {
+                p.user_types[path[1]].fields[path[3]].subtype_kind = v;
+            } else if (at({"user_types", "*", "fields", "*", "type", "subtype", "name"})) {
+                p.user_types[path[1]].fields[path[3]].subtype_name = v;
             }
+        } else if (path[0] == "typedefs") {
+            if (at({"typedefs", "*", "kind"})) p.typedefs[path[1]].first = v;
+            else if (at({"typedefs", "*", "name"})) p.typedefs[path[1]].second = v;
+        } else if (at({"symbols", "*", "type", "subtype", "name"})) {
+            p.symbol_arrays[path[1]].second = v;
+        } else if (at({"symbols", "linux_banner", "constant_data"})) {
+            p.banner = base64_decode(v);
         } else if (at({"base_types", "pointer", "endian"})) {
             p.big_endian = v == "big";
-        } else if (p.kernel.empty() && at({"metadata", "linux", "symbols", "#", "name"})) {
-            p.kernel = v;
+        } else if (path[0] == "metadata") {
+            if (p.kernel.empty() && at({"metadata", "linux", "symbols", "#", "name"})) {
+                p.kernel = v;
+            } else if (at({"metadata", "producer", "name"})) {
+                p.producer = v;
+            } else if (at({"metadata", "kernel_lift", "unverified_needed", "#"})) {
+                p.unverified_needed.insert(v);
+            } else if (at({"metadata", "kernel_lift", "inferred_needed", "#"})) {
+                p.inferred_needed.insert(v);
+            } else if (at({"metadata", "kernel_lift", "provenance"})) {
+                p.provenance_name = v;
+            }
         }
         return true;
     }
     bool binary(binary_t &) override { return true; }
     bool start_object(std::size_t) override { path.emplace_back(); return true; }
-    bool key(string_t &k) override { path.back() = k; return true; }
+    bool key(string_t &k) override {
+        path.back() = k;
+        if (path.size() == 2 && path[0] == "metadata" && k == "kernel_lift") p.lifted = true;
+        return true;
+    }
     bool end_object() override { path.pop_back(); return true; }
     bool start_array(std::size_t) override { path.emplace_back("#"); return true; }
     bool end_array() override { path.pop_back(); return true; }
@@ -149,8 +203,9 @@ bool Profile::load(const std::string &path, std::string &err) {
         err = sax.error.empty() ? "JSON parse failed" : sax.error;
         return false;
     }
-    if (symbols.empty() || user_types.empty()) {
-        err = path + " has no symbols or user_types; is it an ISF?";
+    // A BTF-derived ISF has types and no symbols (they come from System.map or kallsyms).
+    if (user_types.empty()) {
+        err = path + " has no user_types; is it an ISF?";
         return false;
     }
     return true;
@@ -177,54 +232,127 @@ std::optional<int64_t> Profile::type_size(const std::string &type) const {
     return it->second.size;
 }
 
-std::optional<std::pair<int64_t, const Field *>> Profile::member(const std::string &type,
-                                                                 const std::string &name,
-                                                                 int depth) const {
+std::optional<int64_t> Profile::base_size(const std::string &name) const {
+    auto it = base_sizes.find(name);
+    if (it == base_sizes.end()) return std::nullopt;
+    return it->second;
+}
+
+std::pair<std::string, std::string> Profile::untypedef(std::string kind, std::string name) const {
+    for (int i = 0; kind == "typedef" && i < 16; i++) {
+        auto it = typedefs.find(name);
+        if (it == typedefs.end()) break;
+        kind = it->second.first;
+        name = it->second.second;
+    }
+    return {kind, name};
+}
+
+std::optional<Resolved> Profile::member(const std::string &type, const std::string &name, int depth) const {
     auto t = user_types.find(type);
     if (t == user_types.end() || depth > 8) return std::nullopt;
     auto f = t->second.fields.find(name);
-    if (f != t->second.fields.end()) return std::make_pair(f->second.offset, &f->second);
+    if (f != t->second.fields.end()) {
+        Resolved r;
+        r.offset = f->second.offset;
+        r.leaf = &f->second;
+        r.hops.emplace_back(type, name);
+        return r;
+    }
     for (const auto &[k, sub] : t->second.fields) {
         bool anon = sub.anonymous || k.rfind("unnamed_field", 0) == 0;
         if (anon && (sub.kind == "struct" || sub.kind == "union")) {
-            if (auto r = member(sub.type_name, name, depth + 1))
-                return std::make_pair(sub.offset + r->first, r->second);
+            if (auto r = member(sub.type_name, name, depth + 1)) {
+                r->offset += sub.offset;
+                r->hops.insert(r->hops.begin(), {type, k});
+                return r;
+            }
         }
     }
     return std::nullopt;
 }
 
-const Field *Profile::field(const std::string &type, const std::string &path) const {
+std::optional<Resolved> Profile::resolve(const std::string &type, const std::string &path) const {
     std::string t = type;
-    const Field *f = nullptr;
-    size_t start = 0;
-    while (start <= path.size()) {
-        size_t dot = path.find('.', start);
-        std::string part = path.substr(start, dot == std::string::npos ? std::string::npos : dot - start);
-        auto r = member(t, part, 0);
-        if (!r) return nullptr;
-        f = r->second;
-        t = f->type_name;
-        if (dot == std::string::npos) break;
-        start = dot + 1;
-    }
-    return f;
-}
-
-std::optional<int64_t> Profile::offset(const std::string &type, const std::string &path) const {
-    std::string t = type;
-    int64_t off = 0;
+    Resolved out;
     size_t start = 0;
     while (true) {
         size_t dot = path.find('.', start);
         std::string part = path.substr(start, dot == std::string::npos ? std::string::npos : dot - start);
         auto r = member(t, part, 0);
         if (!r) return std::nullopt;
-        off += r->first;
-        t = r->second->type_name;
-        if (dot == std::string::npos) return off;
+        out.offset += r->offset;
+        out.leaf = r->leaf;
+        out.hops.insert(out.hops.end(), r->hops.begin(), r->hops.end());
+        if (dot == std::string::npos) return out;
+        // Through a typedef'd struct member too.
+        t = untypedef(r->leaf->kind, r->leaf->type_name).second;
         start = dot + 1;
     }
+}
+
+const Field *Profile::field(const std::string &type, const std::string &path) const {
+    auto r = resolve(type, path);
+    return r ? r->leaf : nullptr;
+}
+
+std::optional<int64_t> Profile::offset(const std::string &type, const std::string &path) const {
+    auto r = resolve(type, path);
+    if (!r) return std::nullopt;
+    return r->offset;
+}
+
+bool Profile::load_provenance(const std::string &path, std::string &err) {
+    std::string raw;
+    if (!read_file(path, raw, err)) return false;
+    nlohmann::json j = nlohmann::json::parse(raw, nullptr, false);
+    if (j.is_discarded() || !j.is_object() || !j.contains("fields") || !j["fields"].is_object()) {
+        err = path + " is not a kernel-lift provenance.json (no fields)";
+        return false;
+    }
+    for (auto &[type, classes] : j["fields"].items()) {
+        if (!classes.is_object()) continue;
+        auto &m = prov[type];
+        for (auto &[cls, members] : classes.items()) {
+            if (cls == "non_emitting_transfer_status") continue;
+            if (members.is_object()) {
+                for (auto &[name, _] : members.items()) m.emplace(name, cls);
+            } else if (members.is_array()) {
+                for (auto &name : members)
+                    if (name.is_string()) m.emplace(name.get<std::string>(), cls);
+            }
+        }
+    }
+    // Needed fields carry their class too ("type.member": {"class": ...}).
+    if (j.contains("needed") && j["needed"].is_object()) {
+        for (auto &[key, rec] : j["needed"].items()) {
+            size_t dot = key.find('.');
+            if (dot == std::string::npos || !rec.is_object() || !rec.contains("class") || !rec["class"].is_string())
+                continue;
+            prov[key.substr(0, dot)].emplace(key.substr(dot + 1), rec["class"].get<std::string>());
+        }
+    }
+    provenance_loaded = true;
+    return true;
+}
+
+std::string Profile::field_class(const std::string &type, const std::string &member, int64_t offset) const {
+    if (!lifted) return "dwarf";
+    std::string key = type + "." + member;
+    if (unverified_needed.count(key)) return "unverified-needed";
+    auto dv = dynamic_verified.find(key);
+    if (dv != dynamic_verified.end() && dv->second == offset) return "dynamic-verified";
+    auto t = prov.find(type);
+    if (t != prov.end()) {
+        auto m = t->second.find(member);
+        if (m != t->second.end()) return m->second;
+    }
+    if (inferred_needed.count(key)) return "inferred";
+    return "unknown";
+}
+
+bool Profile::trusted_class(const std::string &cls) {
+    return cls == "dwarf" || cls == "target-verified" || cls == "dynamic-verified" || cls == "inferred";
 }
 
 std::optional<int64_t> Profile::enum_value(const std::string &enum_name, const std::string &constant) const {

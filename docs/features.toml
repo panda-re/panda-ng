@@ -142,16 +142,21 @@ id = "osi"
 name = "Operating system introspection"
 status = "supported"
 accel = ["TCG"]
-tested_on = ["x86_64", "aarch64", "riscv64"]
+tested_on = ["x86_64", "aarch64", "riscv64", "arm", "mips64"]
 summary = """
 Processes, threads, modules, memory mappings and files of a Linux guest, from its kernel's
 symbols (an ISF file, as the test images carry). Use the osi_linux and osi_isf plugins; from
-Python, `panda.get_current_process`, `get_process_name` and `get_mappings` call them.
+Python, `panda.get_current_process`, `get_process_name` and `get_mappings` call them. osi_isf
+takes the ISF of any kernel from 2.6 to 6.x (DWARF, BTF with a System.map, or kernel-lift's for
+a stripped kernel), finds the KASLR slide itself, and reports at load what it can answer for
+that kernel.
 """
 api = ["plugin:osi", "plugin:osi_linux", "plugin:osi_isf", "py:Panda.get_current_process",
        "py:Panda.get_process_name", "py:Panda.get_mappings"]
-docs = ["docs/guides/getting-started.md#a-first-analysis", "docs/guides/plugins.md"]
-tests = ["tests/osi_isf.py", "tests/asidstory.py", "tests/kpti.py"]
+docs = ["docs/guides/getting-started.md#a-first-analysis", "docs/guides/plugins.md",
+        "plugins/osi_isf/README.md"]
+tests = ["tests/osi_isf.py", "tests/osi_isf_proc.py", "tests/osi_isf_check.py", "tests/asidstory.py",
+         "tests/kpti.py"]
 
 [[feature]]
 id = "syscalls"
