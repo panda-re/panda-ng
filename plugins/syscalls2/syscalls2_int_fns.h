@@ -12,6 +12,11 @@ const syscall_meta_t *get_syscall_meta(void);
 // first return). False elsewhere.
 bool syscalls2_current_call(CPUState *cpu, uint64_t *id, uint32_t *flags);
 
+// Inside an enter or return callback where syscalls2_current_call answers: the call's number and
+// its six argument registers as they were at its entry (the engine's PandaSyscallCall). False
+// elsewhere.
+bool syscalls2_current_args(CPUState *cpu, int64_t *nr, uint64_t args[6]);
+
 // BEGIN_PYPANDA_NEEDS_THIS -- do not delete this comment bc pypanda
 // api autogen needs it.  And don't put any compiler directives
 // between this and END_PYPANDA_NEEDS_THIS except includes of other

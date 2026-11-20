@@ -878,5 +878,17 @@ bool syscalls2_current_call(CPUState *cpu, uint64_t *id, uint32_t *flags)
     return true;
 }
 
+bool syscalls2_current_args(CPUState *cpu, int64_t *nr, uint64_t args[6])
+{
+    const PandaSyscallCall *c = sc2_current(cpu, nullptr);
+
+    if (!c) {
+        return false;
+    }
+    *nr = c->nr;
+    memcpy(args, c->args, sizeof(c->args));
+    return true;
+}
+
 #endif /* SYSCALLS2_ENGINE */
 
