@@ -106,7 +106,7 @@ Counts: new 76, penguin 25, panda-re/qemu 6, ac88u 2.
 | 0079 | migration/vmstate: skip per-field vmdesc bookkeeping when there is no vmdesc | penguin | GPL-2.0-or-later | qemu_builder workspace/fastsnap2 (5170d14) patch 0016; no third-party code (fastsnap's adopted qemu-libafl-bridge files, device-save.c and channel-buffer-writeback.c, are not taken) |
 | 0080 | migration/qemu-file: inline the in-buffer case of the byte reader | penguin | MIT | qemu_builder workspace/fastsnap2 (5170d14) patch 0017; no third-party code |
 | 0081 | accel/tcg: no PANDA or hook calls in the CPU loop while nothing uses them | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT | idle-cost fixes: chaining in tcg_cflags, gated loop calls, CF_HOOKS |
-| 0082 | plugins: emit block completion at outgoing edges | new | GPL-2.0-or-later AND LGPL-2.1-or-later | normal-completion TCG exits, no deferred PANDA block bookkeeping |
+| 0082 | plugins: emit block completion at outgoing edges | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT | normal-completion TCG exits, no deferred PANDA block bookkeeping; gated callbacks as one TCG op (plugin_gate) on x86_64 hosts |
 | 0083 | replay: guard guest state against analysis mutations | new | GPL-2.0-or-later | observer-only RR; reject unlogged analysis effects |
 | 0084 | replay: coalesce repeated schedules of a pending BH | new | GPL-2.0-or-later | match ordinary BH pending semantics; retain self-reschedules |
 | 0085 | system: cancel transient analysis before restore and reset | new | GPL-2.0-or-later AND MIT | abandon host in-flight state independently of load success |

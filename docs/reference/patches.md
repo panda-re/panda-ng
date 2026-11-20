@@ -87,7 +87,7 @@ QEMU 11.1.2 plus 109 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0079 | migration/vmstate: skip per-field vmdesc bookkeeping when there is no vmdesc | [fast-restore](../features.md#fast-restore) | penguin | GPL-2.0-or-later |
 | 0080 | migration/qemu-file: inline the in-buffer case of the byte reader | [fast-restore](../features.md#fast-restore) | penguin | MIT |
 | 0081 | accel/tcg: no PANDA or hook calls in the CPU loop while nothing uses them | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
-| 0082 | plugins: emit block completion at outgoing edges | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0082 | plugins: emit block completion at outgoing edges | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
 | 0083 | replay: guard guest state against analysis mutations | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
 | 0084 | replay: coalesce repeated schedules of a pending BH | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
 | 0085 | system: cancel transient analysis before restore and reset | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later AND MIT |
