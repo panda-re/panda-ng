@@ -37547,6 +37547,17 @@ unsafe extern "C" {
         userdata: *mut ::std::os::raw::c_void,
     );
 }
+pub const QEMU_PLUGIN_TB_TRANS_MEM_VALUE_IN_CB: qemu_plugin_tb_trans_flags = 1;
+pub const QEMU_PLUGIN_TB_TRANS_NO_MEM_CBS: qemu_plugin_tb_trans_flags = 2;
+pub type qemu_plugin_tb_trans_flags = ::std::os::raw::c_uint;
+unsafe extern "C" {
+    pub fn qemu_plugin_register_vcpu_tb_trans_cb_flags(
+        id: qemu_plugin_id_t,
+        cb: qemu_plugin_vcpu_tb_trans_cb_t,
+        flags: u32,
+        userdata: *mut ::std::os::raw::c_void,
+    );
+}
 unsafe extern "C" {
     pub fn qemu_plugin_register_vcpu_tb_exec_cb(
         tb: *mut qemu_plugin_tb,
@@ -38838,10 +38849,12 @@ pub struct qemu_plugin_insn {
     pub len: u8,
     pub calls_helpers: bool,
     pub mem_helper: bool,
+    pub start_op: *mut TCGOp,
+    pub end_op: *mut TCGOp,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of qemu_plugin_insn"][::std::mem::size_of::<qemu_plugin_insn>() - 32usize];
+    ["Size of qemu_plugin_insn"][::std::mem::size_of::<qemu_plugin_insn>() - 48usize];
     ["Alignment of qemu_plugin_insn"][::std::mem::align_of::<qemu_plugin_insn>() - 8usize];
     ["Offset of field: qemu_plugin_insn::vaddr"]
         [::std::mem::offset_of!(qemu_plugin_insn, vaddr) - 0usize];
@@ -38855,6 +38868,10 @@ const _: () = {
         [::std::mem::offset_of!(qemu_plugin_insn, calls_helpers) - 25usize];
     ["Offset of field: qemu_plugin_insn::mem_helper"]
         [::std::mem::offset_of!(qemu_plugin_insn, mem_helper) - 26usize];
+    ["Offset of field: qemu_plugin_insn::start_op"]
+        [::std::mem::offset_of!(qemu_plugin_insn, start_op) - 32usize];
+    ["Offset of field: qemu_plugin_insn::end_op"]
+        [::std::mem::offset_of!(qemu_plugin_insn, end_op) - 40usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -38898,10 +38915,11 @@ pub struct qemu_plugin_tb {
     pub vaddr_read: bool,
     pub cbs: *mut GArray,
     pub end_cbs: *mut GArray,
+    pub tb_trans_flags: u32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of qemu_plugin_tb"][::std::mem::size_of::<qemu_plugin_tb>() - 40usize];
+    ["Size of qemu_plugin_tb"][::std::mem::size_of::<qemu_plugin_tb>() - 48usize];
     ["Alignment of qemu_plugin_tb"][::std::mem::align_of::<qemu_plugin_tb>() - 8usize];
     ["Offset of field: qemu_plugin_tb::insns"]
         [::std::mem::offset_of!(qemu_plugin_tb, insns) - 0usize];
@@ -38913,6 +38931,8 @@ const _: () = {
     ["Offset of field: qemu_plugin_tb::cbs"][::std::mem::offset_of!(qemu_plugin_tb, cbs) - 24usize];
     ["Offset of field: qemu_plugin_tb::end_cbs"]
         [::std::mem::offset_of!(qemu_plugin_tb, end_cbs) - 32usize];
+    ["Offset of field: qemu_plugin_tb::tb_trans_flags"]
+        [::std::mem::offset_of!(qemu_plugin_tb, tb_trans_flags) - 40usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -38937,6 +38957,9 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn qemu_plugin_tb_trans_cb(cpu: *mut CPUState, tb: *mut qemu_plugin_tb);
+}
+unsafe extern "C" {
+    pub fn qemu_plugin_tb_trans_flags() -> u32;
 }
 unsafe extern "C" {
     pub fn qemu_plugin_vcpu_idle_cb(cpu: *mut CPUState);
@@ -39333,6 +39356,7 @@ pub struct qemu_plugin_ctx {
     pub installing: bool,
     pub uninstalling: bool,
     pub resetting: bool,
+    pub tb_trans_flags: u32,
 }
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -39370,7 +39394,17 @@ const _: () = {
         [::std::mem::offset_of!(qemu_plugin_ctx, uninstalling) - 145usize];
     ["Offset of field: qemu_plugin_ctx::resetting"]
         [::std::mem::offset_of!(qemu_plugin_ctx, resetting) - 146usize];
+    ["Offset of field: qemu_plugin_ctx::tb_trans_flags"]
+        [::std::mem::offset_of!(qemu_plugin_ctx, tb_trans_flags) - 148usize];
 };
+unsafe extern "C" {
+    pub fn plugin_register_tb_trans_cb(
+        id: qemu_plugin_id_t,
+        func: *mut ::std::os::raw::c_void,
+        flags: u32,
+        udata: *mut ::std::os::raw::c_void,
+    );
+}
 unsafe extern "C" {
     pub fn plugin_id_to_ctx_locked(id: qemu_plugin_id_t) -> *mut qemu_plugin_ctx;
 }
@@ -45898,67 +45932,68 @@ pub const INDEX_op_goto_tb: TCGOpcode = 73;
 pub const INDEX_op_goto_ptr: TCGOpcode = 74;
 pub const INDEX_op_plugin_cb: TCGOpcode = 75;
 pub const INDEX_op_plugin_mem_cb: TCGOpcode = 76;
-pub const INDEX_op_qemu_ld: TCGOpcode = 77;
-pub const INDEX_op_qemu_st: TCGOpcode = 78;
-pub const INDEX_op_qemu_ld2: TCGOpcode = 79;
-pub const INDEX_op_qemu_st2: TCGOpcode = 80;
-pub const INDEX_op_mov_vec: TCGOpcode = 81;
-pub const INDEX_op_dup_vec: TCGOpcode = 82;
-pub const INDEX_op_ld_vec: TCGOpcode = 83;
-pub const INDEX_op_st_vec: TCGOpcode = 84;
-pub const INDEX_op_dupm_vec: TCGOpcode = 85;
-pub const INDEX_op_add_vec: TCGOpcode = 86;
-pub const INDEX_op_sub_vec: TCGOpcode = 87;
-pub const INDEX_op_mul_vec: TCGOpcode = 88;
-pub const INDEX_op_neg_vec: TCGOpcode = 89;
-pub const INDEX_op_abs_vec: TCGOpcode = 90;
-pub const INDEX_op_ssadd_vec: TCGOpcode = 91;
-pub const INDEX_op_usadd_vec: TCGOpcode = 92;
-pub const INDEX_op_sssub_vec: TCGOpcode = 93;
-pub const INDEX_op_ussub_vec: TCGOpcode = 94;
-pub const INDEX_op_smin_vec: TCGOpcode = 95;
-pub const INDEX_op_umin_vec: TCGOpcode = 96;
-pub const INDEX_op_smax_vec: TCGOpcode = 97;
-pub const INDEX_op_umax_vec: TCGOpcode = 98;
-pub const INDEX_op_and_vec: TCGOpcode = 99;
-pub const INDEX_op_or_vec: TCGOpcode = 100;
-pub const INDEX_op_xor_vec: TCGOpcode = 101;
-pub const INDEX_op_andc_vec: TCGOpcode = 102;
-pub const INDEX_op_orc_vec: TCGOpcode = 103;
-pub const INDEX_op_nand_vec: TCGOpcode = 104;
-pub const INDEX_op_nor_vec: TCGOpcode = 105;
-pub const INDEX_op_eqv_vec: TCGOpcode = 106;
-pub const INDEX_op_not_vec: TCGOpcode = 107;
-pub const INDEX_op_shli_vec: TCGOpcode = 108;
-pub const INDEX_op_shri_vec: TCGOpcode = 109;
-pub const INDEX_op_sari_vec: TCGOpcode = 110;
-pub const INDEX_op_rotli_vec: TCGOpcode = 111;
-pub const INDEX_op_shls_vec: TCGOpcode = 112;
-pub const INDEX_op_shrs_vec: TCGOpcode = 113;
-pub const INDEX_op_sars_vec: TCGOpcode = 114;
-pub const INDEX_op_rotls_vec: TCGOpcode = 115;
-pub const INDEX_op_shlv_vec: TCGOpcode = 116;
-pub const INDEX_op_shrv_vec: TCGOpcode = 117;
-pub const INDEX_op_sarv_vec: TCGOpcode = 118;
-pub const INDEX_op_rotlv_vec: TCGOpcode = 119;
-pub const INDEX_op_rotrv_vec: TCGOpcode = 120;
-pub const INDEX_op_cmp_vec: TCGOpcode = 121;
-pub const INDEX_op_bitsel_vec: TCGOpcode = 122;
-pub const INDEX_op_cmpsel_vec: TCGOpcode = 123;
-pub const INDEX_op_last_generic: TCGOpcode = 124;
-pub const INDEX_op_x86_shufps_vec: TCGOpcode = 125;
-pub const INDEX_op_x86_blend_vec: TCGOpcode = 126;
-pub const INDEX_op_x86_packss_vec: TCGOpcode = 127;
-pub const INDEX_op_x86_packus_vec: TCGOpcode = 128;
-pub const INDEX_op_x86_psrldq_vec: TCGOpcode = 129;
-pub const INDEX_op_x86_vperm2i128_vec: TCGOpcode = 130;
-pub const INDEX_op_x86_punpckl_vec: TCGOpcode = 131;
-pub const INDEX_op_x86_punpckh_vec: TCGOpcode = 132;
-pub const INDEX_op_x86_vpshldi_vec: TCGOpcode = 133;
-pub const INDEX_op_x86_vpshldv_vec: TCGOpcode = 134;
-pub const INDEX_op_x86_vpshrdv_vec: TCGOpcode = 135;
-pub const INDEX_op_x86_vgf2p8affineqb_vec: TCGOpcode = 136;
-pub const NB_OPS: TCGOpcode = 137;
+pub const INDEX_op_plugin_gate: TCGOpcode = 77;
+pub const INDEX_op_qemu_ld: TCGOpcode = 78;
+pub const INDEX_op_qemu_st: TCGOpcode = 79;
+pub const INDEX_op_qemu_ld2: TCGOpcode = 80;
+pub const INDEX_op_qemu_st2: TCGOpcode = 81;
+pub const INDEX_op_mov_vec: TCGOpcode = 82;
+pub const INDEX_op_dup_vec: TCGOpcode = 83;
+pub const INDEX_op_ld_vec: TCGOpcode = 84;
+pub const INDEX_op_st_vec: TCGOpcode = 85;
+pub const INDEX_op_dupm_vec: TCGOpcode = 86;
+pub const INDEX_op_add_vec: TCGOpcode = 87;
+pub const INDEX_op_sub_vec: TCGOpcode = 88;
+pub const INDEX_op_mul_vec: TCGOpcode = 89;
+pub const INDEX_op_neg_vec: TCGOpcode = 90;
+pub const INDEX_op_abs_vec: TCGOpcode = 91;
+pub const INDEX_op_ssadd_vec: TCGOpcode = 92;
+pub const INDEX_op_usadd_vec: TCGOpcode = 93;
+pub const INDEX_op_sssub_vec: TCGOpcode = 94;
+pub const INDEX_op_ussub_vec: TCGOpcode = 95;
+pub const INDEX_op_smin_vec: TCGOpcode = 96;
+pub const INDEX_op_umin_vec: TCGOpcode = 97;
+pub const INDEX_op_smax_vec: TCGOpcode = 98;
+pub const INDEX_op_umax_vec: TCGOpcode = 99;
+pub const INDEX_op_and_vec: TCGOpcode = 100;
+pub const INDEX_op_or_vec: TCGOpcode = 101;
+pub const INDEX_op_xor_vec: TCGOpcode = 102;
+pub const INDEX_op_andc_vec: TCGOpcode = 103;
+pub const INDEX_op_orc_vec: TCGOpcode = 104;
+pub const INDEX_op_nand_vec: TCGOpcode = 105;
+pub const INDEX_op_nor_vec: TCGOpcode = 106;
+pub const INDEX_op_eqv_vec: TCGOpcode = 107;
+pub const INDEX_op_not_vec: TCGOpcode = 108;
+pub const INDEX_op_shli_vec: TCGOpcode = 109;
+pub const INDEX_op_shri_vec: TCGOpcode = 110;
+pub const INDEX_op_sari_vec: TCGOpcode = 111;
+pub const INDEX_op_rotli_vec: TCGOpcode = 112;
+pub const INDEX_op_shls_vec: TCGOpcode = 113;
+pub const INDEX_op_shrs_vec: TCGOpcode = 114;
+pub const INDEX_op_sars_vec: TCGOpcode = 115;
+pub const INDEX_op_rotls_vec: TCGOpcode = 116;
+pub const INDEX_op_shlv_vec: TCGOpcode = 117;
+pub const INDEX_op_shrv_vec: TCGOpcode = 118;
+pub const INDEX_op_sarv_vec: TCGOpcode = 119;
+pub const INDEX_op_rotlv_vec: TCGOpcode = 120;
+pub const INDEX_op_rotrv_vec: TCGOpcode = 121;
+pub const INDEX_op_cmp_vec: TCGOpcode = 122;
+pub const INDEX_op_bitsel_vec: TCGOpcode = 123;
+pub const INDEX_op_cmpsel_vec: TCGOpcode = 124;
+pub const INDEX_op_last_generic: TCGOpcode = 125;
+pub const INDEX_op_x86_shufps_vec: TCGOpcode = 126;
+pub const INDEX_op_x86_blend_vec: TCGOpcode = 127;
+pub const INDEX_op_x86_packss_vec: TCGOpcode = 128;
+pub const INDEX_op_x86_packus_vec: TCGOpcode = 129;
+pub const INDEX_op_x86_psrldq_vec: TCGOpcode = 130;
+pub const INDEX_op_x86_vperm2i128_vec: TCGOpcode = 131;
+pub const INDEX_op_x86_punpckl_vec: TCGOpcode = 132;
+pub const INDEX_op_x86_punpckh_vec: TCGOpcode = 133;
+pub const INDEX_op_x86_vpshldi_vec: TCGOpcode = 134;
+pub const INDEX_op_x86_vpshldv_vec: TCGOpcode = 135;
+pub const INDEX_op_x86_vpshrdv_vec: TCGOpcode = 136;
+pub const INDEX_op_x86_vgf2p8affineqb_vec: TCGOpcode = 137;
+pub const NB_OPS: TCGOpcode = 138;
 pub type TCGOpcode = ::std::os::raw::c_uint;
 pub type tcg_insn_unit = u8;
 #[repr(C)]
@@ -46864,17 +46899,19 @@ pub struct TCGContext {
     pub cpu: *mut CPUState,
     pub ldst_labels: TCGContext__bindgen_ty_1,
     pub pool_labels: *mut TCGLabelPoolData,
+    pub plugin_gates: TCGContext__bindgen_ty_2,
     pub exitreq_label: *mut TCGLabel,
     pub plugin_tb: *mut qemu_plugin_tb,
     pub plugin_db: *const DisasContextBase,
     pub plugin_insn: *mut qemu_plugin_insn,
+    pub plugin_mem: bool,
     pub carry_live: bool,
     pub const_table: [*mut GHashTable; 6usize],
     pub free_temps: [TCGTempSet; 6usize],
     pub temps: [TCGTemp; 512usize],
-    pub ops: TCGContext__bindgen_ty_2,
-    pub free_ops: TCGContext__bindgen_ty_2,
-    pub labels: TCGContext__bindgen_ty_3,
+    pub ops: TCGContext__bindgen_ty_3,
+    pub free_ops: TCGContext__bindgen_ty_3,
+    pub labels: TCGContext__bindgen_ty_4,
     pub emit_before_op: *mut TCGOp,
     pub reg_to_temp: [*mut TCGTemp; 32usize],
     pub gen_insn_end_off: [u16; 512usize],
@@ -46899,10 +46936,10 @@ const _: () = {
         [::std::mem::offset_of!(TCGContext__bindgen_ty_1, sqh_last) - 8usize];
 };
 #[repr(C)]
-#[derive(Copy, Clone)]
-pub union TCGContext__bindgen_ty_2 {
-    pub tqh_first: *mut TCGOp,
-    pub tqh_circ: QTailQLink,
+#[derive(Debug, Copy, Clone)]
+pub struct TCGContext__bindgen_ty_2 {
+    pub sqh_first: *mut TCGPluginGate,
+    pub sqh_last: *mut *mut TCGPluginGate,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
@@ -46910,16 +46947,16 @@ const _: () = {
         [::std::mem::size_of::<TCGContext__bindgen_ty_2>() - 16usize];
     ["Alignment of TCGContext__bindgen_ty_2"]
         [::std::mem::align_of::<TCGContext__bindgen_ty_2>() - 8usize];
-    ["Offset of field: TCGContext__bindgen_ty_2::tqh_first"]
-        [::std::mem::offset_of!(TCGContext__bindgen_ty_2, tqh_first) - 0usize];
-    ["Offset of field: TCGContext__bindgen_ty_2::tqh_circ"]
-        [::std::mem::offset_of!(TCGContext__bindgen_ty_2, tqh_circ) - 0usize];
+    ["Offset of field: TCGContext__bindgen_ty_2::sqh_first"]
+        [::std::mem::offset_of!(TCGContext__bindgen_ty_2, sqh_first) - 0usize];
+    ["Offset of field: TCGContext__bindgen_ty_2::sqh_last"]
+        [::std::mem::offset_of!(TCGContext__bindgen_ty_2, sqh_last) - 8usize];
 };
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct TCGContext__bindgen_ty_3 {
-    pub sqh_first: *mut TCGLabel,
-    pub sqh_last: *mut *mut TCGLabel,
+#[derive(Copy, Clone)]
+pub union TCGContext__bindgen_ty_3 {
+    pub tqh_first: *mut TCGOp,
+    pub tqh_circ: QTailQLink,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
@@ -46927,14 +46964,31 @@ const _: () = {
         [::std::mem::size_of::<TCGContext__bindgen_ty_3>() - 16usize];
     ["Alignment of TCGContext__bindgen_ty_3"]
         [::std::mem::align_of::<TCGContext__bindgen_ty_3>() - 8usize];
-    ["Offset of field: TCGContext__bindgen_ty_3::sqh_first"]
-        [::std::mem::offset_of!(TCGContext__bindgen_ty_3, sqh_first) - 0usize];
-    ["Offset of field: TCGContext__bindgen_ty_3::sqh_last"]
-        [::std::mem::offset_of!(TCGContext__bindgen_ty_3, sqh_last) - 8usize];
+    ["Offset of field: TCGContext__bindgen_ty_3::tqh_first"]
+        [::std::mem::offset_of!(TCGContext__bindgen_ty_3, tqh_first) - 0usize];
+    ["Offset of field: TCGContext__bindgen_ty_3::tqh_circ"]
+        [::std::mem::offset_of!(TCGContext__bindgen_ty_3, tqh_circ) - 0usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct TCGContext__bindgen_ty_4 {
+    pub sqh_first: *mut TCGLabel,
+    pub sqh_last: *mut *mut TCGLabel,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of TCGContext__bindgen_ty_4"]
+        [::std::mem::size_of::<TCGContext__bindgen_ty_4>() - 16usize];
+    ["Alignment of TCGContext__bindgen_ty_4"]
+        [::std::mem::align_of::<TCGContext__bindgen_ty_4>() - 8usize];
+    ["Offset of field: TCGContext__bindgen_ty_4::sqh_first"]
+        [::std::mem::offset_of!(TCGContext__bindgen_ty_4, sqh_first) - 0usize];
+    ["Offset of field: TCGContext__bindgen_ty_4::sqh_last"]
+        [::std::mem::offset_of!(TCGContext__bindgen_ty_4, sqh_last) - 8usize];
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of TCGContext"][::std::mem::size_of::<TCGContext>() - 30888usize];
+    ["Size of TCGContext"][::std::mem::size_of::<TCGContext>() - 30904usize];
     ["Alignment of TCGContext"][::std::mem::align_of::<TCGContext>() - 8usize];
     ["Offset of field: TCGContext::pool_cur"]
         [::std::mem::offset_of!(TCGContext, pool_cur) - 0usize];
@@ -46989,36 +47043,40 @@ const _: () = {
         [::std::mem::offset_of!(TCGContext, ldst_labels) - 176usize];
     ["Offset of field: TCGContext::pool_labels"]
         [::std::mem::offset_of!(TCGContext, pool_labels) - 192usize];
+    ["Offset of field: TCGContext::plugin_gates"]
+        [::std::mem::offset_of!(TCGContext, plugin_gates) - 200usize];
     ["Offset of field: TCGContext::exitreq_label"]
-        [::std::mem::offset_of!(TCGContext, exitreq_label) - 200usize];
+        [::std::mem::offset_of!(TCGContext, exitreq_label) - 216usize];
     ["Offset of field: TCGContext::plugin_tb"]
-        [::std::mem::offset_of!(TCGContext, plugin_tb) - 208usize];
+        [::std::mem::offset_of!(TCGContext, plugin_tb) - 224usize];
     ["Offset of field: TCGContext::plugin_db"]
-        [::std::mem::offset_of!(TCGContext, plugin_db) - 216usize];
+        [::std::mem::offset_of!(TCGContext, plugin_db) - 232usize];
     ["Offset of field: TCGContext::plugin_insn"]
-        [::std::mem::offset_of!(TCGContext, plugin_insn) - 224usize];
+        [::std::mem::offset_of!(TCGContext, plugin_insn) - 240usize];
+    ["Offset of field: TCGContext::plugin_mem"]
+        [::std::mem::offset_of!(TCGContext, plugin_mem) - 248usize];
     ["Offset of field: TCGContext::carry_live"]
-        [::std::mem::offset_of!(TCGContext, carry_live) - 232usize];
+        [::std::mem::offset_of!(TCGContext, carry_live) - 249usize];
     ["Offset of field: TCGContext::const_table"]
-        [::std::mem::offset_of!(TCGContext, const_table) - 240usize];
+        [::std::mem::offset_of!(TCGContext, const_table) - 256usize];
     ["Offset of field: TCGContext::free_temps"]
-        [::std::mem::offset_of!(TCGContext, free_temps) - 288usize];
-    ["Offset of field: TCGContext::temps"][::std::mem::offset_of!(TCGContext, temps) - 672usize];
-    ["Offset of field: TCGContext::ops"][::std::mem::offset_of!(TCGContext, ops) - 29344usize];
+        [::std::mem::offset_of!(TCGContext, free_temps) - 304usize];
+    ["Offset of field: TCGContext::temps"][::std::mem::offset_of!(TCGContext, temps) - 688usize];
+    ["Offset of field: TCGContext::ops"][::std::mem::offset_of!(TCGContext, ops) - 29360usize];
     ["Offset of field: TCGContext::free_ops"]
-        [::std::mem::offset_of!(TCGContext, free_ops) - 29360usize];
+        [::std::mem::offset_of!(TCGContext, free_ops) - 29376usize];
     ["Offset of field: TCGContext::labels"]
-        [::std::mem::offset_of!(TCGContext, labels) - 29376usize];
+        [::std::mem::offset_of!(TCGContext, labels) - 29392usize];
     ["Offset of field: TCGContext::emit_before_op"]
-        [::std::mem::offset_of!(TCGContext, emit_before_op) - 29392usize];
+        [::std::mem::offset_of!(TCGContext, emit_before_op) - 29408usize];
     ["Offset of field: TCGContext::reg_to_temp"]
-        [::std::mem::offset_of!(TCGContext, reg_to_temp) - 29400usize];
+        [::std::mem::offset_of!(TCGContext, reg_to_temp) - 29416usize];
     ["Offset of field: TCGContext::gen_insn_end_off"]
-        [::std::mem::offset_of!(TCGContext, gen_insn_end_off) - 29656usize];
+        [::std::mem::offset_of!(TCGContext, gen_insn_end_off) - 29672usize];
     ["Offset of field: TCGContext::gen_insn_data"]
-        [::std::mem::offset_of!(TCGContext, gen_insn_data) - 30680usize];
+        [::std::mem::offset_of!(TCGContext, gen_insn_data) - 30696usize];
     ["Offset of field: TCGContext::jmp_trans"]
-        [::std::mem::offset_of!(TCGContext, jmp_trans) - 30688usize];
+        [::std::mem::offset_of!(TCGContext, jmp_trans) - 30704usize];
 };
 unsafe extern "C" {
     pub static mut tcg_ctx: *mut TCGContext;
@@ -47555,6 +47613,9 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn tcg_op_remove(s: *mut TCGContext, op: *mut TCGOp);
+}
+unsafe extern "C" {
+    pub fn tcg_plugin_gate_supported() -> bool;
 }
 unsafe extern "C" {
     pub fn tcg_remove_ops_after(op: *mut TCGOp);
@@ -48588,6 +48649,12 @@ unsafe extern "C" {
     pub fn panda_bridge_tb_trans_sync();
 }
 unsafe extern "C" {
+    pub fn panda_bridge_trans() -> ::std::os::raw::c_uint;
+}
+unsafe extern "C" {
+    pub fn panda_bridge_trans_update();
+}
+unsafe extern "C" {
     pub fn panda_bridge_tb_trans_on(cpu_index: ::std::os::raw::c_int) -> bool;
 }
 unsafe extern "C" {
@@ -48779,5 +48846,10 @@ pub struct TCGLabelQemuLdst {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct TCGLabelPoolData {
+    pub _address: u8,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct TCGPluginGate {
     pub _address: u8,
 }

@@ -7,33 +7,42 @@ Add a translation-time TB-end callback for normal completion. Emit it after outg
 
 End callbacks run after the PC has moved on. A CF_PCREL TB that has them stays shared between the virtual addresses that map it: at its start it stores the address it runs at in CPUState.plugin_tb_vaddr (TCGCPUOps.gen_tb_pc, implemented for x86, arm and riscv), where the embedding finds it. A target without gen_tb_pc binds such a TB to its address instead.
 
-Add gated TB-entry and TB-end callbacks. The block loads a byte at a fixed offset from env (CPUState.plugin_tb_gates), tests the callback's bits and branches around the call, so the embedding turns them on and off for every vCPU without retranslation and without a scoreboard index. The gate byte and the address take two CPUState fields that were kept unused for the layout.
+Add gated TB-entry and TB-end callbacks. The gate is a byte at a fixed offset from env (CPUState.plugin_tb_gates), so the embedding turns the callbacks on and off for every vCPU without retranslation and without a scoreboard index. The gate byte and the address take two CPUState fields that were kept unused for the layout. plugin_cb_flags is set around a gated call as around any callback, but the call itself syncs no registers (TCG_CALL_NO_RWG): every global is in env before the gate, and no register copy of one is used after it.
+
+On hosts whose backend implements it (x86_64), a gated callback is one TCG op, plugin_gate, so the gate ends no basic block. Liveness treats it as an op with side effects (globals synced before it), the optimizer forgets what it knows of globals and memory at it, and the register allocator drops the register copies of globals at it and has the backend preserve the call-clobbered registers that hold temps around the call. The backend tests the gate byte inline and places the call by the gate's state at translation: inline, behind a forward branch, if the gate is open, else after the block's code, behind a branch taken when the gate is open, returning to the code after the test. Targets with indirect globals, and other hosts, load the byte, test the callback's bits and branch around the call.
 
 Remove deferred PANDA completion delivery and pending-block reads from the CPU loop.
 
-SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT
 Origin: new
 ---
- accel/tcg/cpu-exec.c          |  14 +---
- accel/tcg/plugin-gen.c        | 127 +++++++++++++++++++++++++++++++++-
- include/accel/tcg/cpu-ops.h   |   9 +++
- include/hw/core/cpu.h         |  14 +++-
- include/plugins/qemu-plugin.h |  64 +++++++++++++++++
+ accel/tcg/cpu-exec.c          |  14 +--
+ accel/tcg/plugin-gen.c        | 199 +++++++++++++++++++++++++++++++++-
+ include/accel/tcg/cpu-ops.h   |   9 ++
+ include/hw/core/cpu.h         |  14 ++-
+ include/plugins/qemu-plugin.h |  64 +++++++++++
  include/qemu/plugin.h         |   2 +
- plugins/api.c                 |  31 +++++++++
- plugins/core.c                |  15 ++++
- plugins/plugin.h              |   6 ++
+ include/tcg/tcg-opc.h         |   9 ++
+ include/tcg/tcg.h             |  21 ++++
+ plugins/api.c                 |  31 ++++++
+ plugins/core.c                |  15 +++
+ plugins/plugin.h              |   6 +
  target/arm/cpu.c              |   1 +
  target/arm/internals.h        |   2 +
  target/arm/tcg/cpu-v7m.c      |   1 +
- target/arm/tcg/translate.c    |  10 +++
+ target/arm/tcg/translate.c    |  10 ++
  target/i386/tcg/helper-tcg.h  |   2 +
  target/i386/tcg/tcg-cpu.c     |   1 +
- target/i386/tcg/translate.c   |  16 +++++
+ target/i386/tcg/translate.c   |  16 +++
  target/riscv/tcg/tcg-cpu.c    |   1 +
  target/riscv/tcg/tcg-cpu.h    |   2 +
- target/riscv/tcg/translate.c  |   9 +++
- 19 files changed, 309 insertions(+), 18 deletions(-)
+ target/riscv/tcg/translate.c  |   9 ++
+ tcg/optimize.c                |  14 +++
+ tcg/tcg-has.h                 |   3 +
+ tcg/tcg.c                     | 130 ++++++++++++++++++++++
+ tcg/x86_64/tcg-target-has.h   |   2 +
+ tcg/x86_64/tcg-target.c.inc   |  67 ++++++++++++
+ 26 files changed, 627 insertions(+), 18 deletions(-)
 
 diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
 index 18729efa3faae05ab0bbb8c8075f2ae71f40fbbd..71750d8e6fefe0ed3335c251df655dd364705c95 100644
@@ -75,44 +84,116 @@ index 18729efa3faae05ab0bbb8c8075f2ae71f40fbbd..71750d8e6fefe0ed3335c251df655dd3
  
          cpu->exception_index = panda_callbacks_before_handle_exception(cpu, exception);
 diff --git a/accel/tcg/plugin-gen.c b/accel/tcg/plugin-gen.c
-index 9e6430bd6af81efb49b18e54f47fab916050c344..7d8b13287513a931dcb7259307db225801d2e783 100644
+index 9e6430bd6af81efb49b18e54f47fab916050c344..c3ebd2640f5db4f04ba4bef24ba1163be432968a 100644
 --- a/accel/tcg/plugin-gen.c
 +++ b/accel/tcg/plugin-gen.c
-@@ -28,6 +28,7 @@
+@@ -28,6 +28,8 @@
  #include "exec/plugin-gen.h"
  #include "exec/translator.h"
  #include "exec/translation-block.h"
 +#include "accel/tcg/cpu-ops.h"
++#include "exec/helper-head.h.inc"
  
  enum plugin_gen_from {
      PLUGIN_GEN_FROM_TB,
-@@ -203,6 +204,25 @@ static void gen_udata_cond_cb(struct qemu_plugin_conditional_cb *cb)
+@@ -203,6 +205,96 @@ static void gen_udata_cond_cb(struct qemu_plugin_conditional_cb *cb)
      tcg_temp_free_ptr(ptr);
  }
  
 +/*
-+ * A callback behind the vCPU's gate byte: one load, test and branch around
-+ * the call (no scoreboard index: the byte is at a fixed offset from env).
++ * Gated callbacks: a callback behind bits of the vCPU's gate byte
++ * (CPUState.plugin_tb_gates, at a fixed offset from env, so no scoreboard
++ * index), which the embedding turns on and off without retranslation.
++ *
++ * plugin_cb_flags is set around the call as for any callback, so the plugin
++ * API grants the callback the register access it registered with. The call
++ * itself needs no register sync of its own (TCG_CALL_NO_RWG): the gate syncs
++ * every global to CPUState before it, and no register copy of a global is used
++ * after it, so the callback reads and writes the guest registers in CPUState.
++ */
++static TCGHelperInfo gated_cb_info = {
++    .flags = TCG_CALL_NO_RWG,
++    /* qemu_plugin_vcpu_udata_cb_t: void (*)(uint32_t, void *) */
++    .typemask = dh_typemask(void, 0) | dh_typemask(i32, 1) | dh_typemask(ptr, 2),
++};
++
++/*
++ * Where the host backend has it, the gate and the call are one op,
++ * plugin_gate (tcg/tcg.c): no branch or label in the ops, so the gate does
++ * not end a basic block. The op's liveness (an op with side effects: globals
++ * synced before it) and its register allocation (register copies of globals
++ * dropped at it) give the sync above.
++ *
++ * The backend tests the gate byte inline and places the call by the gate's
++ * state now: inline, behind a forward branch, when the gate is open; out of
++ * line, after the block's code, when it is closed. Gates change without
++ * retranslation, but a block translated while its gate is open most likely
++ * runs with it open, and a closed gate then costs no taken branch.
++ */
++static void gen_plugin_gate(struct qemu_plugin_conditional_cb *cb)
++{
++    TCGOp *op = tcg_emit_op(INDEX_op_plugin_gate, 6);
++    TCGArg ctl = (cb->imm & TCG_PLUGIN_GATE_MASK)
++        | ((TCGArg)tcg_call_to_qemu_plugin_cb_flags(cb->info->flags)
++           << TCG_PLUGIN_GATE_FLAGS_SHIFT);
++
++    if (qatomic_read(&current_cpu->plugin_tb_gates) & cb->imm) {
++        ctl |= TCG_PLUGIN_GATE_INLINE;
++    }
++    /* as gen_cpu_index: a constant unless vCPUs run in parallel */
++    if (tcg_cflags_has(current_cpu, CF_PARALLEL)) {
++        ctl |= TCG_PLUGIN_GATE_LOAD_CPU;
++        op->args[5] = offsetof(CPUState, cpu_index) - sizeof(CPUState);
++    } else {
++        op->args[5] = current_cpu->cpu_index;
++    }
++    op->args[0] = ctl;
++    op->args[1] = (uintptr_t)cb->f.vcpu_udata;
++    op->args[2] = (uintptr_t)cb->userp;
++    op->args[3] = offsetof(CPUState, plugin_tb_gates) - sizeof(CPUState);
++    op->args[4] = offsetof(CPUState, neg.plugin_cb_flags) - sizeof(CPUState);
++}
++
++/*
++ * Elsewhere: load the gate byte, test it and branch around the call. The
++ * conditional branch syncs every global to CPUState, and the label after the
++ * call ends the basic block, which drops every register copy of a global.
 + */
 +static void gen_udata_gated_cb(struct qemu_plugin_conditional_cb *cb)
 +{
-+    TCGv_i32 gates = tcg_temp_ebb_new_i32();
-+    TCGLabel *after_cb = gen_new_label();
++    TCGv_i32 gates, cpu_index;
++    TCGLabel *after_cb;
 +
++    if (tcg_plugin_gate_supported()) {
++        gen_plugin_gate(cb);
++        return;
++    }
++
++    gates = tcg_temp_ebb_new_i32();
++    after_cb = gen_new_label();
 +    tcg_gen_ld8u_i32(gates, tcg_env,
 +                     offsetof(CPUState, plugin_tb_gates) - sizeof(CPUState));
 +    tcg_gen_brcondi_i32(TCG_COND_TSTEQ, gates, cb->imm, after_cb);
 +    tcg_temp_free_i32(gates);
-+    gen_udata_cb(&(struct qemu_plugin_regular_cb) {
-+        .f = cb->f, .info = cb->info, .userp = cb->userp,
-+    });
++
++    cpu_index = gen_cpu_index();
++    tcg_gen_st_i32(tcg_constant_i32(
++                       tcg_call_to_qemu_plugin_cb_flags(cb->info->flags)),
++                   tcg_env,
++                   offsetof(CPUState, neg.plugin_cb_flags) - sizeof(CPUState));
++    tcg_gen_call2(cb->f.vcpu_udata, &gated_cb_info, NULL,
++                  tcgv_i32_temp(cpu_index),
++                  tcgv_ptr_temp(tcg_constant_ptr(cb->userp)));
++    tcg_gen_st_i32(tcg_constant_i32(QEMU_PLUGIN_CB_NO_REGS), tcg_env,
++                   offsetof(CPUState, neg.plugin_cb_flags) - sizeof(CPUState));
++    tcg_temp_free_i32(cpu_index);
 +    gen_set_label(after_cb);
 +}
 +
  static void gen_inline_add_u64_cb(struct qemu_plugin_inline_cb *cb)
  {
      TCGv_ptr ptr = gen_plugin_u64_ptr(cb->entry);
-@@ -258,6 +278,9 @@ static void inject_cb(struct qemu_plugin_dyn_cb *cb)
+@@ -258,6 +350,9 @@ static void inject_cb(struct qemu_plugin_dyn_cb *cb)
      case PLUGIN_CB_COND:
          gen_udata_cond_cb(&cb->cond);
          break;
@@ -122,7 +203,7 @@ index 9e6430bd6af81efb49b18e54f47fab916050c344..7d8b13287513a931dcb7259307db2258
      case PLUGIN_CB_INLINE_ADD_U64:
          gen_inline_add_u64_cb(&cb->inline_insn);
          break;
-@@ -290,7 +313,65 @@ static void inject_mem_cb(struct qemu_plugin_dyn_cb *cb,
+@@ -290,7 +385,65 @@ static void inject_mem_cb(struct qemu_plugin_dyn_cb *cb,
      }
  }
  
@@ -189,7 +270,7 @@ index 9e6430bd6af81efb49b18e54f47fab916050c344..7d8b13287513a931dcb7259307db2258
  {
      TCGOp *op, *next;
      int insn_idx = -1;
-@@ -313,8 +394,28 @@ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb)
+@@ -313,8 +466,28 @@ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb)
       */
      tcg_temp_ebb_reset_freed(tcg_ctx);
  
@@ -218,7 +299,7 @@ index 9e6430bd6af81efb49b18e54f47fab916050c344..7d8b13287513a931dcb7259307db2258
          case INDEX_op_insn_start:
              insn_idx++;
              break;
-@@ -349,6 +450,9 @@ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb)
+@@ -349,6 +522,9 @@ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb)
              case PLUGIN_GEN_FROM_TB:
                  assert(insn == NULL);
  
@@ -228,7 +309,7 @@ index 9e6430bd6af81efb49b18e54f47fab916050c344..7d8b13287513a931dcb7259307db2258
                  cbs = plugin_tb->cbs;
                  for (i = 0, n = (cbs ? cbs->len : 0); i < n; i++) {
                      inject_cb(
-@@ -427,6 +531,9 @@ bool plugin_gen_tb_start(CPUState *cpu, const DisasContextBase *db)
+@@ -427,6 +603,9 @@ bool plugin_gen_tb_start(CPUState *cpu, const DisasContextBase *db)
          if (ptb->cbs) {
              g_array_set_size(ptb->cbs, 0);
          }
@@ -238,7 +319,7 @@ index 9e6430bd6af81efb49b18e54f47fab916050c344..7d8b13287513a931dcb7259307db2258
          ptb->n = 0;
          ptb->mem_helper = false;
          ptb->vaddr_read = false;
-@@ -500,6 +607,22 @@ void plugin_gen_tb_end(CPUState *cpu, size_t num_insns)
+@@ -500,6 +679,22 @@ void plugin_gen_tb_end(CPUState *cpu, size_t num_insns)
      /* collect instrumentation requests */
      qemu_plugin_tb_trans_cb(cpu, ptb);
  
@@ -261,7 +342,7 @@ index 9e6430bd6af81efb49b18e54f47fab916050c344..7d8b13287513a931dcb7259307db2258
      /*
       * A CF_PCREL TB runs at every virtual address that maps its physical
       * page.  If a plugin read the address while instrumenting it, the
-@@ -511,7 +634,7 @@ void plugin_gen_tb_end(CPUState *cpu, size_t num_insns)
+@@ -511,7 +706,7 @@ void plugin_gen_tb_end(CPUState *cpu, size_t num_insns)
      }
  
      /* inject the instrumentation at the appropriate places */
@@ -431,6 +512,65 @@ index 080eac2cd1c5b4c934c591e924b157faf0612a53..99421677b35452224ca06e43520edf4e
  };
  
  /**
+diff --git a/include/tcg/tcg-opc.h b/include/tcg/tcg-opc.h
+index 61f1c28858bd0a715b1b2c0f036a6f17709aac33..e445003ad859de366e253e54afbb80eb11bee08f 100644
+--- a/include/tcg/tcg-opc.h
++++ b/include/tcg/tcg-opc.h
+@@ -117,6 +117,15 @@ DEF(goto_ptr, 0, 1, 0, TCG_OPF_BB_EXIT | TCG_OPF_BB_END)
+ 
+ DEF(plugin_cb, 0, 0, 1, TCG_OPF_NOT_PRESENT)
+ DEF(plugin_mem_cb, 0, 1, 1, TCG_OPF_NOT_PRESENT)
++/*
++ * A gated plugin callback (accel/tcg/plugin-gen.c), on hosts with
++ * TCG_TARGET_HAS_plugin_gate. Constant args: control (TCG_PLUGIN_GATE_*),
++ * function, its data, env offset of the gate byte, env offset of
++ * plugin_cb_flags, vCPU index (or env offset to load it from). An op with side
++ * effects: globals are synced before it. No basic block ends at it. See
++ * tcg_reg_alloc_plugin_gate.
++ */
++DEF(plugin_gate, 0, 0, 6, TCG_OPF_NOT_PRESENT | TCG_OPF_SIDE_EFFECTS)
+ 
+ DEF(qemu_ld, 1, 1, 1, TCG_OPF_CALL_CLOBBER | TCG_OPF_SIDE_EFFECTS | TCG_OPF_INT)
+ DEF(qemu_st, 0, 2, 1, TCG_OPF_CALL_CLOBBER | TCG_OPF_SIDE_EFFECTS | TCG_OPF_INT)
+diff --git a/include/tcg/tcg.h b/include/tcg/tcg.h
+index 7669dc1c2dbda1f17bb14a72cfa1e6a50a9cbe70..efc019d2aac744a1ca0fa3749d326f914f0e4b74 100644
+--- a/include/tcg/tcg.h
++++ b/include/tcg/tcg.h
+@@ -387,6 +387,8 @@ struct TCGContext {
+     /* These structures are private to tcg-target.c.inc.  */
+     QSIMPLEQ_HEAD(, TCGLabelQemuLdst) ldst_labels;
+     struct TCGLabelPoolData *pool_labels;
++    /* plugin_gate calls placed after the block's code */
++    QSIMPLEQ_HEAD(, TCGPluginGate) plugin_gates;
+ 
+     TCGLabel *exitreq_label;
+ 
+@@ -786,6 +788,25 @@ void tcg_gen_call7(void *func, TCGHelperInfo *, TCGTemp *ret,
+ TCGOp *tcg_emit_op(TCGOpcode opc, unsigned nargs);
+ void tcg_op_remove(TCGContext *s, TCGOp *op);
+ 
++/* plugin_gate, args[0]: the gate bits to test */
++#define TCG_PLUGIN_GATE_MASK        0xff
++/* plugin_gate, args[0]: enum qemu_plugin_cb_flags, for plugin_cb_flags */
++#define TCG_PLUGIN_GATE_FLAGS_SHIFT 8
++#define TCG_PLUGIN_GATE_FLAGS_MASK  0xff
++/* plugin_gate, args[0]: the call inline (else after the block's code) */
++#define TCG_PLUGIN_GATE_INLINE      (1u << 16)
++/* plugin_gate, args[0]: args[5] is the env offset of the vCPU index */
++#define TCG_PLUGIN_GATE_LOAD_CPU    (1u << 17)
++
++/**
++ * tcg_plugin_gate_supported:
++ *
++ * Whether this translation can emit plugin_gate: the host backend implements
++ * it, and the target has no indirect globals (which liveness_pass_2 would
++ * keep in temps across the op).
++ */
++bool tcg_plugin_gate_supported(void);
++
+ /**
+  * tcg_remove_ops_after:
+  * @op: target operation
 diff --git a/plugins/api.c b/plugins/api.c
 index 6e77ca84524f1233d23f3973ca2fc8b7e4067a98..8cde31a52aad230012312ce6ae24c53fa261af85 100644
 --- a/plugins/api.c
@@ -662,3 +802,309 @@ index 856e003468cbd985e42577152426795dc8e0e83b..fff6153d02abd11e07936ea87b5ba138
 +        tcg_gen_ext32u_i64(dst, dst);
 +    }
 +}
+diff --git a/tcg/optimize.c b/tcg/optimize.c
+index 2dc6e32b536e51f4c52bed2c1ab5d73a4e31b064..b954154763680a23d93233c1124937f06c86b4ed 100644
+--- a/tcg/optimize.c
++++ b/tcg/optimize.c
+@@ -3274,6 +3274,20 @@ void tcg_optimize(TCGContext *s)
+             finish_ebb(&ctx);
+             done = true;
+             break;
++        case INDEX_op_plugin_gate:
++            /*
++             * As a call that reads and writes globals and memory: the
++             * callback may read and change any guest state.
++             */
++            for (i = 0; i < s->nb_globals; i++) {
++                if (test_bit(i, ctx.temps_used.l)) {
++                    reset_ts(&ctx, &s->temps[i]);
++                }
++            }
++            remove_mem_copy_all(&ctx);
++            ctx.prev_mb = NULL;
++            done = true;
++            break;
+         default:
+             done = finish_folding(&ctx, op);
+             break;
+diff --git a/tcg/tcg-has.h b/tcg/tcg-has.h
+index 27771dc7f07a33b7cdf10c7213c9fd2cee79b632..ef4e171a4dc977547b50e2408078060da6edb065 100644
+--- a/tcg/tcg-has.h
++++ b/tcg/tcg-has.h
+@@ -36,6 +36,9 @@
+ #else
+ #define TCG_TARGET_MAYBE_vec            1
+ #endif
++#ifndef TCG_TARGET_HAS_plugin_gate
++#define TCG_TARGET_HAS_plugin_gate      0
++#endif
+ #ifndef TCG_TARGET_HAS_v64
+ #define TCG_TARGET_HAS_v64              0
+ #endif
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index db43589fa2fba025804b29fcade3482724542a6c..59bf94405ea47229651832b336a775d026aab4ce 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -74,6 +74,12 @@ typedef struct TCGLabelQemuLdst TCGLabelQemuLdst;
+ static bool tcg_out_qemu_ld_slow_path(TCGContext *s, TCGLabelQemuLdst *l);
+ static bool tcg_out_qemu_st_slow_path(TCGContext *s, TCGLabelQemuLdst *l);
+ 
++#if TCG_TARGET_HAS_plugin_gate
++typedef struct TCGPluginGate TCGPluginGate;
++static void tcg_out_plugin_gate(TCGContext *s, TCGPluginGate *g);
++static bool tcg_out_plugin_gate_slow_path(TCGContext *s, TCGPluginGate *g);
++#endif
++
+ /* The CIE and FDE header definitions will be common to all hosts.  */
+ typedef struct {
+     uint32_t len __attribute__((aligned((sizeof(void *)))));
+@@ -109,6 +115,21 @@ struct TCGLabelQemuLdst {
+     QSIMPLEQ_ENTRY(TCGLabelQemuLdst) next;
+ };
+ 
++#if TCG_TARGET_HAS_plugin_gate
++/* A plugin_gate op, for the backend (see tcg_reg_alloc_plugin_gate). */
++struct TCGPluginGate {
++    TCGArg ctl;                 /* TCG_PLUGIN_GATE_* */
++    TCGArg func, userp;         /* the callback and its data */
++    TCGArg cpu;                 /* vCPU index, or env offset to load it */
++    intptr_t gate_ofs;          /* env offset of the gate byte */
++    intptr_t flags_ofs;         /* env offset of plugin_cb_flags */
++    TCGRegSet save;             /* call-clobbered registers to preserve */
++    TCGLabel *label;            /* the call (out of line) or past it */
++    const tcg_insn_unit *raddr; /* out of line: where the call returns */
++    QSIMPLEQ_ENTRY(TCGPluginGate) next;
++};
++#endif
++
+ static void tcg_register_jit_int(const void *buf, size_t size,
+                                  const void *debug_frame,
+                                  size_t debug_frame_size)
+@@ -6559,6 +6580,100 @@ static void tcg_out_st_helper_args(TCGContext *s, const TCGLabelQemuLdst *ldst,
+     tcg_out_helper_load_common_args(s, ldst, parm, info, next_arg);
+ }
+ 
++#if TCG_TARGET_HAS_plugin_gate
++/*
++ * plugin_gate: a gated plugin callback as one op. The backend tests the gate
++ * byte in env against the op's mask and, when a bit is set, stores the
++ * callback's flags to plugin_cb_flags, calls func(cpu_index, userp) and clears
++ * plugin_cb_flags. With TCG_PLUGIN_GATE_INLINE the call is inline, behind a
++ * branch taken when the gate is closed; without it, the call goes after the
++ * block's code (tcg_out_plugin_gate_finalize), behind a branch taken when the
++ * gate is open, and returns to the code after the test.
++ *
++ * Contract with the rest of TCG, since no basic block ends at the op and the
++ * call is not a TCG call op:
++ * - Globals: liveness treats the op as an op with side effects
++ *   (la_global_sync), so every global is in its canonical location in env
++ *   before it and the callback reads the guest state from there. The callback
++ *   may change that state: every register or constant copy of a global is
++ *   dropped here, on both paths, so code after the op loads it again. The
++ *   optimizer forgets what it knows of globals and memory at the op.
++ * - Other temps keep their registers: the call-clobbered ones that hold a
++ *   temp are saved and restored around the call by the backend (in
++ *   g->save); vector registers, which it does not save, are spilled here.
++ * - Indirect globals are excluded (tcg_plugin_gate_supported): liveness_pass_2
++ *   keeps them in direct temps across ops with side effects.
++ * - The out-of-line call runs from code after the block's last instruction:
++ *   the callback must not unwind to an instruction (cpu_restore_state). Gated
++ *   callbacks cannot ask for that (QEMU_PLUGIN_CB_RW_REGS_PC is refused).
++ */
++static void tcg_reg_alloc_plugin_gate(TCGContext *s, const TCGOp *op)
++{
++    TCGPluginGate *g = tcg_malloc(sizeof(*g));
++    TCGRegSet allocated = s->reserved_regs;
++
++    *g = (TCGPluginGate) {
++        .ctl = op->args[0],
++        .func = op->args[1],
++        .userp = op->args[2],
++        .gate_ofs = op->args[3],
++        .flags_ofs = op->args[4],
++        .cpu = op->args[5],
++        .label = gen_new_label(),
++    };
++
++    /* Globals: already in env (liveness); drop the copies. */
++    for (int i = 0; i < s->nb_globals; i++) {
++        TCGTemp *ts = &s->temps[i];
++
++        if (ts->kind != TEMP_FIXED
++            && (ts->val_type == TEMP_VAL_REG
++                || ts->val_type == TEMP_VAL_CONST)) {
++            temp_sync(s, ts, allocated, 0, 1);
++        }
++    }
++
++    /* Other temps in call-clobbered registers: preserved around the call. */
++    for (int r = 0; r < TCG_TARGET_NB_REGS; r++) {
++        TCGTemp *ts = s->reg_to_temp[r];
++
++        if (ts && tcg_regset_test_reg(tcg_target_call_clobber_regs, r)) {
++            if (ts->base_type >= TCG_TYPE_V64) {
++                tcg_reg_free(s, r, allocated);
++            } else {
++                tcg_regset_set_reg(g->save, r);
++            }
++        }
++    }
++
++    tcg_out_plugin_gate(s, g);
++    if (!(g->ctl & TCG_PLUGIN_GATE_INLINE)) {
++        QSIMPLEQ_INSERT_TAIL(&s->plugin_gates, g, next);
++    }
++}
++
++static int tcg_out_plugin_gate_finalize(TCGContext *s)
++{
++    TCGPluginGate *g;
++
++    QSIMPLEQ_FOREACH(g, &s->plugin_gates, next) {
++        if (!tcg_out_plugin_gate_slow_path(s, g)) {
++            return -2;
++        }
++        /* as tcg_out_ldst_finalize */
++        if (unlikely((void *)s->code_ptr > s->code_gen_highwater)) {
++            return -1;
++        }
++    }
++    return 0;
++}
++#endif
++
++bool tcg_plugin_gate_supported(void)
++{
++    return TCG_TARGET_HAS_plugin_gate && !tcg_ctx->nb_indirects;
++}
++
+ int tcg_gen_code(TCGContext *s, TranslationBlock *tb, uint64_t pc_start)
+ {
+     int i, num_insns;
+@@ -6650,6 +6765,7 @@ int tcg_gen_code(TCGContext *s, TranslationBlock *tb, uint64_t pc_start)
+ 
+     QSIMPLEQ_INIT(&s->ldst_labels);
+     s->pool_labels = NULL;
++    QSIMPLEQ_INIT(&s->plugin_gates);
+ 
+     s->gen_insn_data =
+         tcg_malloc(sizeof(uint64_t) * s->gen_tb->icount * INSN_START_WORDS);
+@@ -6709,6 +6825,14 @@ int tcg_gen_code(TCGContext *s, TranslationBlock *tb, uint64_t pc_start)
+             assert_carry_dead(s);
+             tcg_reg_alloc_call(s, op);
+             break;
++        case INDEX_op_plugin_gate:
++#if TCG_TARGET_HAS_plugin_gate
++            assert_carry_dead(s);
++            tcg_reg_alloc_plugin_gate(s, op);
++            break;
++#else
++            g_assert_not_reached();
++#endif
+         case INDEX_op_exit_tb:
+             tcg_out_exit_tb(s, op->args[0]);
+             break;
+@@ -6754,6 +6878,12 @@ int tcg_gen_code(TCGContext *s, TranslationBlock *tb, uint64_t pc_start)
+     if (i < 0) {
+         return i;
+     }
++#if TCG_TARGET_HAS_plugin_gate
++    i = tcg_out_plugin_gate_finalize(s);
++    if (i < 0) {
++        return i;
++    }
++#endif
+     i = tcg_out_pool_finalize(s);
+     if (i < 0) {
+         return i;
+diff --git a/tcg/x86_64/tcg-target-has.h b/tcg/x86_64/tcg-target-has.h
+index d249c1b3e7f913cdc06ca084f0c325a323a02c5a..b4a65fe0e6752a0c4e348d2adfd76d2a4ebcc1a5 100644
+--- a/tcg/x86_64/tcg-target-has.h
++++ b/tcg/x86_64/tcg-target-has.h
+@@ -32,6 +32,8 @@
+ #define TCG_TARGET_HAS_qemu_ldst_i128   (cpuinfo & CPUINFO_ATOMIC_VMOVDQA)
+ 
+ #define TCG_TARGET_HAS_tst              1
++/* plugin_gate (tcg_out_plugin_gate) */
++#define TCG_TARGET_HAS_plugin_gate      1
+ 
+ /* We do not support older SSE systems, only beginning with AVX1.  */
+ #define TCG_TARGET_HAS_v64              have_avx1
+diff --git a/tcg/x86_64/tcg-target.c.inc b/tcg/x86_64/tcg-target.c.inc
+index 1fc45e4ec6403c2eca4e2f833cc6a2f927f05411..bb576a1f0c26859e3a88b56b47ba74a41e6f15b1 100644
+--- a/tcg/x86_64/tcg-target.c.inc
++++ b/tcg/x86_64/tcg-target.c.inc
+@@ -1875,6 +1875,73 @@ static bool tcg_out_qemu_st_slow_path(TCGContext *s, TCGLabelQemuLdst *l)
+     return true;
+ }
+ 
++/*
++ * plugin_gate (tcg_reg_alloc_plugin_gate): the call. The registers in
++ * g->save hold temps live across it and are pushed around it, keeping the
++ * stack 16-byte aligned for the call. Globals need nothing: they are in env.
++ */
++static void tcg_out_plugin_gate_call(TCGContext *s, const TCGPluginGate *g)
++{
++    TCGReg a0 = tcg_target_call_iarg_regs[0];
++    TCGReg a1 = tcg_target_call_iarg_regs[1];
++    uint32_t flags = (g->ctl >> TCG_PLUGIN_GATE_FLAGS_SHIFT)
++                     & TCG_PLUGIN_GATE_FLAGS_MASK;
++    int n = 0;
++
++    for (int r = 0; r < TCG_TARGET_NB_REGS; r++) {
++        if (tcg_regset_test_reg(g->save, r)) {
++            tcg_out_push(s, r);
++            n++;
++        }
++    }
++    if (n & 1) {
++        tcg_out_addi(s, TCG_REG_ESP, -8);
++    }
++    tcg_out_sti(s, TCG_TYPE_I32, flags, TCG_AREG0, g->flags_ofs);
++    if (g->ctl & TCG_PLUGIN_GATE_LOAD_CPU) {
++        tcg_out_ld(s, TCG_TYPE_I32, a0, TCG_AREG0, g->cpu);
++    } else {
++        tcg_out_movi(s, TCG_TYPE_I32, a0, g->cpu);
++    }
++    tcg_out_movi(s, TCG_TYPE_PTR, a1, g->userp);
++    tcg_out_call(s, (const tcg_insn_unit *)g->func, NULL);
++    tcg_out_sti(s, TCG_TYPE_I32, 0, TCG_AREG0, g->flags_ofs);
++    if (n & 1) {
++        tcg_out_addi(s, TCG_REG_ESP, 8);
++    }
++    for (int r = TCG_TARGET_NB_REGS - 1; r >= 0; r--) {
++        if (tcg_regset_test_reg(g->save, r)) {
++            tcg_out_pop(s, r);
++        }
++    }
++}
++
++/*
++ * plugin_gate: "test byte [env + gate_ofs], mask", then the call inline
++ * behind a forward "je", or a "jne" to the call after the block's code.
++ */
++static void tcg_out_plugin_gate(TCGContext *s, TCGPluginGate *g)
++{
++    tcg_out_modrm_offset(s, OPC_GRP3_Eb, EXT3_TESTi, TCG_AREG0, g->gate_ofs);
++    tcg_out8(s, g->ctl & TCG_PLUGIN_GATE_MASK);
++    if (g->ctl & TCG_PLUGIN_GATE_INLINE) {
++        tcg_out_jxx(s, JCC_JE, g->label, false);
++        tcg_out_plugin_gate_call(s, g);
++        tcg_out_label(s, g->label);
++    } else {
++        tcg_out_jxx(s, JCC_JNE, g->label, false);
++        g->raddr = tcg_splitwx_to_rx(s->code_ptr);
++    }
++}
++
++static bool tcg_out_plugin_gate_slow_path(TCGContext *s, TCGPluginGate *g)
++{
++    tcg_out_label(s, g->label);
++    tcg_out_plugin_gate_call(s, g);
++    tcg_out_jmp(s, g->raddr);
++    return true;
++}
++
+ #ifdef CONFIG_USER_ONLY
+ static HostAddress x86_guest_base = {
+     .index = -1

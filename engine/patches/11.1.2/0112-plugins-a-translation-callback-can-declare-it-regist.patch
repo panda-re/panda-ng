@@ -1,0 +1,183 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 19 Nov 2026 17:20:12 -0500
+Subject: [PATCH] plugins: a translation callback can declare it registers no
+ memory callbacks
+
+Add QEMU_PLUGIN_TB_TRANS_NO_MEM_CBS (qemu_plugin_register_vcpu_tb_trans_cb_flags()): the plugin registers no memory callback from its translation callback. When every plugin with a translation callback declares it, a translation emits no plugin memory ops (TCGContext.plugin_mem): no address copies, no plugin_mem_cb markers, no stores of access values. A memory callback registered for an instruction of such a block is ignored, with a warning printed once: the block has nothing to call it from. Such blocks get memory instrumentation only when translated again, after a registration without the flag.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND MIT
+Origin: new
+---
+ accel/tcg/plugin-gen.c        |  2 ++
+ include/plugins/qemu-plugin.h | 10 ++++++++++
+ include/tcg/tcg.h             |  3 +++
+ plugins/api.c                 | 24 ++++++++++++++++++++++--
+ tcg/tcg-op-ldst.c             | 12 ++++++------
+ 5 files changed, 43 insertions(+), 8 deletions(-)
+
+diff --git a/accel/tcg/plugin-gen.c b/accel/tcg/plugin-gen.c
+index 801d33934e0d9ad54c75e6051a4ef53cede79009..698dda23138a4f0c7424acf826280ed851a6f7ab 100644
+--- a/accel/tcg/plugin-gen.c
++++ b/accel/tcg/plugin-gen.c
+@@ -666,6 +666,8 @@ bool plugin_gen_tb_start(CPUState *cpu, const DisasContextBase *db)
+         ptb->insns = g_ptr_array_new();
+     }
+     ptb->tb_trans_flags = qemu_plugin_tb_trans_flags();
++    tcg_ctx->plugin_mem =
++        !(ptb->tb_trans_flags & QEMU_PLUGIN_TB_TRANS_NO_MEM_CBS);
+ 
+     tcg_gen_plugin_cb(PLUGIN_GEN_FROM_TB);
+     return true;
+diff --git a/include/plugins/qemu-plugin.h b/include/plugins/qemu-plugin.h
+index fba79a0bd4a0e41393b76252a283bd2ff0c7aa3d..25f8c9e0695919a2414a350473b2f1a2e0381a24 100644
+--- a/include/plugins/qemu-plugin.h
++++ b/include/plugins/qemu-plugin.h
+@@ -457,9 +457,19 @@ void qemu_plugin_register_vcpu_tb_trans_cb(qemu_plugin_id_t id,
+  * @QEMU_PLUGIN_TB_TRANS_MEM_VALUE_IN_CB: the plugin calls
+  *   qemu_plugin_mem_get_value() only from its own memory callbacks. The value
+  *   of an access is then saved only for instructions with memory callbacks.
++ * @QEMU_PLUGIN_TB_TRANS_NO_MEM_CBS: the plugin registers no memory callback
++ *   (qemu_plugin_register_vcpu_mem_cb(),
++ *   qemu_plugin_register_vcpu_mem_inline_per_vcpu()) from its translation
++ *   callback. Blocks are then translated without what memory callbacks
++ *   need, and a memory callback registered for one of their instructions
++ *   anyway is ignored, with a warning (once). Blocks translated so keep no
++ *   memory instrumentation until they are translated again: a plugin that
++ *   starts to need memory callbacks registers again without the flag, and
++ *   has the translation cache flushed.
+  */
+ enum qemu_plugin_tb_trans_flags {
+     QEMU_PLUGIN_TB_TRANS_MEM_VALUE_IN_CB = 1 << 0,
++    QEMU_PLUGIN_TB_TRANS_NO_MEM_CBS = 1 << 1,
+ };
+ 
+ /**
+diff --git a/include/tcg/tcg.h b/include/tcg/tcg.h
+index efc019d2aac744a1ca0fa3749d326f914f0e4b74..696409c0b41aed52529699d88bb1bd3e6c718ae9 100644
+--- a/include/tcg/tcg.h
++++ b/include/tcg/tcg.h
+@@ -405,6 +405,9 @@ struct TCGContext {
+ 
+     /* descriptor of the instruction being translated */
+     struct qemu_plugin_insn *plugin_insn;
++
++    /* guest accesses get plugin memory ops (no QEMU_PLUGIN_TB_TRANS_NO_MEM_CBS) */
++    bool plugin_mem;
+ #endif
+ 
+     /* For host-specific values. */
+diff --git a/plugins/api.c b/plugins/api.c
+index 89d0d64b855c536c4daba505c29830947204154d..48c8beeca086c692bef1a6d18bb1396e523f4037 100644
+--- a/plugins/api.c
++++ b/plugins/api.c
+@@ -39,6 +39,7 @@
+ #include "qemu/main-loop.h"
+ #include "qemu/plugin.h"
+ #include "qemu/log.h"
++#include "qemu/error-report.h"
+ #include "system/memory.h"
+ #include "accel/tcg/cpu-loop.h"
+ #include "tcg/tcg.h"
+@@ -210,6 +211,21 @@ void qemu_plugin_register_vcpu_insn_exec_inline_per_vcpu(
+ }
+ 
+ 
++/*
++ * A block translated while every translation callback declared
++ * QEMU_PLUGIN_TB_TRANS_NO_MEM_CBS has no memory instrumentation: a memory
++ * callback for one of its instructions is ignored.
++ */
++static bool insn_mem_cbs_allowed(void)
++{
++    if (unlikely(!tcg_ctx->plugin_mem)) {
++        warn_report_once("plugin: memory callback ignored: every translation "
++                         "callback declared QEMU_PLUGIN_TB_TRANS_NO_MEM_CBS");
++        return false;
++    }
++    return true;
++}
++
+ /*
+  * We always plant memory instrumentation because they don't finalise until
+  * after the operation has complete.
+@@ -220,7 +236,9 @@ void qemu_plugin_register_vcpu_mem_cb(struct qemu_plugin_insn *insn,
+                                       enum qemu_plugin_mem_rw rw,
+                                       void *udata)
+ {
+-    plugin_register_vcpu_mem_cb(&insn->mem_cbs, cb, flags, rw, udata);
++    if (insn_mem_cbs_allowed()) {
++        plugin_register_vcpu_mem_cb(&insn->mem_cbs, cb, flags, rw, udata);
++    }
+ }
+ 
+ void qemu_plugin_register_vcpu_mem_inline_per_vcpu(
+@@ -230,7 +248,9 @@ void qemu_plugin_register_vcpu_mem_inline_per_vcpu(
+     qemu_plugin_u64 entry,
+     uint64_t imm)
+ {
+-    plugin_register_inline_op_on_entry(&insn->mem_cbs, rw, op, entry, imm);
++    if (insn_mem_cbs_allowed()) {
++        plugin_register_inline_op_on_entry(&insn->mem_cbs, rw, op, entry, imm);
++    }
+ }
+ 
+ void qemu_plugin_register_vcpu_tb_trans_cb(qemu_plugin_id_t id,
+diff --git a/tcg/tcg-op-ldst.c b/tcg/tcg-op-ldst.c
+index 412e6a082a76f7eb62a3869652793d211789e8be..99d0af30ed9b6ccbd9b3493f2a356e76f9987f80 100644
+--- a/tcg/tcg-op-ldst.c
++++ b/tcg/tcg-op-ldst.c
+@@ -151,7 +151,7 @@ static void maybe_free_addr(TCGTemp *addr, TCGTemp *copy)
+ static TCGv_i64 plugin_maybe_preserve_addr(TCGTemp *addr)
+ {
+ #ifdef CONFIG_PLUGIN
+-    if (tcg_ctx->plugin_insn != NULL) {
++    if (tcg_ctx->plugin_insn != NULL && tcg_ctx->plugin_mem) {
+         /* Save a copy of the vaddr for use after a load.  */
+         TCGv_i64 temp = tcg_temp_ebb_new_i64();
+         if (tcg_ctx->addr_type == TCG_TYPE_I32) {
+@@ -194,7 +194,7 @@ static void
+ plugin_gen_mem_before(TCGTemp *addr, MemOpIdx oi, enum qemu_plugin_mem_rw rw)
+ {
+ #ifdef CONFIG_PLUGIN
+-    if (tcg_ctx->plugin_insn != NULL) {
++    if (tcg_ctx->plugin_insn != NULL && tcg_ctx->plugin_mem) {
+         plugin_gen_mem_callbacks(NULL, addr, oi, rw | QEMU_PLUGIN_MEM_BEFORE);
+     }
+ #endif
+@@ -204,7 +204,7 @@ static void
+ plugin_gen_mem_after_store(TCGTemp *addr, MemOpIdx oi)
+ {
+ #ifdef CONFIG_PLUGIN
+-    if (tcg_ctx->plugin_insn != NULL) {
++    if (tcg_ctx->plugin_insn != NULL && tcg_ctx->plugin_mem) {
+         plugin_gen_mem_callbacks(NULL, addr, oi, QEMU_PLUGIN_MEM_W);
+     }
+ #endif
+@@ -216,7 +216,7 @@ plugin_gen_mem_callbacks_i32(TCGv_i32 val,
+                              MemOpIdx oi, enum qemu_plugin_mem_rw rw)
+ {
+ #ifdef CONFIG_PLUGIN
+-    if (tcg_ctx->plugin_insn != NULL) {
++    if (tcg_ctx->plugin_insn != NULL && tcg_ctx->plugin_mem) {
+         tcg_gen_st_i32(val, tcg_env,
+                        offsetof(CPUState, neg.plugin_mem_value_low) -
+                        sizeof(CPUState) + (HOST_BIG_ENDIAN * 4));
+@@ -231,7 +231,7 @@ plugin_gen_mem_callbacks_i64(TCGv_i64 val,
+                              MemOpIdx oi, enum qemu_plugin_mem_rw rw)
+ {
+ #ifdef CONFIG_PLUGIN
+-    if (tcg_ctx->plugin_insn != NULL) {
++    if (tcg_ctx->plugin_insn != NULL && tcg_ctx->plugin_mem) {
+         tcg_gen_st_i64(val, tcg_env,
+                        offsetof(CPUState, neg.plugin_mem_value_low) -
+                        sizeof(CPUState));
+@@ -246,7 +246,7 @@ plugin_gen_mem_callbacks_i128(TCGv_i128 val,
+                              MemOpIdx oi, enum qemu_plugin_mem_rw rw)
+ {
+ #ifdef CONFIG_PLUGIN
+-    if (tcg_ctx->plugin_insn != NULL) {
++    if (tcg_ctx->plugin_insn != NULL && tcg_ctx->plugin_mem) {
+         tcg_gen_st_i64(TCGV128_LOW(val), tcg_env,
+                        offsetof(CPUState, neg.plugin_mem_value_low) -
+                        sizeof(CPUState));
