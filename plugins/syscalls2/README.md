@@ -56,7 +56,7 @@ How returns are paired
 Dependencies
 ------------
 
-`hw_proc_id`, and `hooks` where returns are tracked with hooks (Windows and FreeBSD guests); it loads them itself.
+`hooks` where returns are tracked with hooks (Windows and FreeBSD guests); it loads it itself. `syscall_ctx_t.asid` is `hw_proc_id`'s identifier, computed without that plugin: the address space (`panda_current_asid`), and on MIPS the running task's `thread_info` (read from the kernel's `kernelsp[cpu]` and `_THREAD_MASK` when a context is built, rather than cached from every kernel block). syscalls2 does not load `hw_proc_id`: a plugin that uses it loads it itself.
 
 APIs and Callbacks
 ------------------
