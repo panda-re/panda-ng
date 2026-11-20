@@ -43,28 +43,29 @@ lists some reserved, unimplemented numbers and omits some retired calls. A nixpk
 Without nix: `PYTHON=<python3 with jinja2> plugins/syscalls2/scripts/regen.sh <linux source
 tree or .tar.xz>`.
 
-## Dispatch cost and subscriptions
+## Dispatch
 
-The generated enter dispatcher reads arguments only for a specific entry callback,
-`on_all_sys_enter2`, or a return callback that needs saved arguments. An entry callback that only
-uses `on_all_sys_enter` needs no argument reads. Return hooks and `running_syscalls` entries are
-created only when a specific, unknown, or all-syscall return callback is subscribed. Registering
-an unrelated call's return callback does not force every syscall through return tracking.
-New saved contexts are constructed directly in the map; an existing return-PC/ASID key is
-replaced, preserving the previous overwrite behavior without zero-initializing every new entry.
+`syscall_parser.py` writes each profile's table (`generated/syscall_table_<os>_<arch>.cpp`, from
+`generated-tpl/syscall_table.tpl`): per number its arguments' kinds, flags and callback name id
+(`generated/syscall_names.h`). The layers, in the plugin:
 
-The return subscription is checked after all entry callbacks run, including context callbacks,
-so an entry callback may subscribe to its own return. As before, argument saving is decided
-before entry callbacks run: register before entry to receive the original arguments. A return
-listener registered after the entry dispatch finishes does not retroactively track in-flight
-calls. No-return calls still omit return hooks, and clone3/fork keep their double-return state.
+- `sc2_tables.h`: the tables' types, pure data;
+- `sc2_subs.h`: the subscriber lists' interface (`sc2_add`, `sc2_remove`; published lists the
+  dispatch runs without a lock; each change recomputes the engine's wants of the list's numbers);
+- `sc2_dispatch.inc`: the dispatch (decoding by kind, contexts, the engine's deliveries and wants);
+- `sc2_compat.h`: the exported `ppp_add_cb_*` / `ppp_remove_cb_*` functions
+  (`generated/syscall_ppp_boilerplate_*.cpp`) and the invokers of the positional callback types.
 
-`nix build .#checks.x86_64-linux.syscalls2-dispatch` compiles the real generated x64 dispatcher
-and real PPP registry against a counted engine boundary. It checks argument reads, hook/context
-creation, specific/global/unknown and context callbacks, subscription changes during entry,
-no-return calls and double-return metadata. The resulting standalone binary also accepts
-`--bench idle|enter|return|all-return` for dispatch-only measurements; this excludes guest/kernel
-execution and actual hook installation costs. `tests/syscalls.py` tests the callbacks on guests.
+A callback name's type is the first typedef of that name in the target's `syscalls_ext_typedefs`
+headers, as before; its invoker converts each decoded argument to that type's (an i386 call on
+x86_64 gets the x64 type's widths, zero- or sign-extended as the i386 argument's own type says).
+
+`tests/static/syscalls_dispatch.sh` (the flake check `syscalls2-dispatch`) compiles the dispatch,
+the x64 and i386 tables and the PPP functions against a stub engine: the wants after each
+subscription change, the arguments each kind gives, the keep decision, contexts and unknown
+numbers. `<binary> --bench idle|typed|all|context` times an entry and its return through the
+dispatch alone. `tests/syscall_truth.py` (with `SC2_MODE=all|typed`) and `tests/syscalls2_wants.py`
+test it on guests.
 
 ## Extracting system call prototypes (Windows)
 
@@ -102,10 +103,10 @@ In `syscall_parser.py`, it may be necessary to add a new architecture and/or OS,
 
 ## Modifying syscalls2 hand-written code
 
-Modify `syscalls2.h` to add function prototypes for the generated enter and return callbacks.  See the comment above the list in the file for directions on how to easily generate this list from the files created by `make_all_generated.sh`.
+Modify `syscalls2.h` to declare the new profile's table (`sc2_table_<os>_<arch>`).
 
 Modify `syscalls2.cpp` to add a new profile for your new target, and add code to select it under the appropriate conditions when the plugin is initialized.
 
 Review `syscalls2_info.c` and tweak if necessary to ensure the correct syscalls information file will be loaded for the new target.
 
-And now, finally, rebuild the plugins (`nix build .#plugins`). `meson.build` compiles every `generated/syscall_switch_*.cpp` and `generated/dso_info_*.c`, so new generated files need no build change.
+And now, finally, rebuild the plugins (`nix build .#plugins`). `meson.build` compiles every `generated/syscall_table_*.cpp` and `generated/dso_info_*.c`, so new generated files need no build change.

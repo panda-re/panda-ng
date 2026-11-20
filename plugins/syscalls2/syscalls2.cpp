@@ -43,6 +43,7 @@ PANDAENDCOMMENT */
 
 #include "syscalls2.h"
 #include "syscalls2_info.h"
+#include "sc2_compat.h"
 #if SYSCALLS2_HOOK_RETURNS
 #include "hooks/hooks_int_fns.h"
 #endif
@@ -66,12 +67,14 @@ target_ulong syscalls_get_id(CPUState *cpu){
 }
 
 #if SYSCALLS2_ENGINE
-/* The call being delivered on this vCPU (syscalls2_current_call; the engine's arguments) */
-static thread_local const PandaSyscallCall *cur_call;
-static thread_local uint32_t cur_flags;
+syscalls2_vcpu_t syscalls2_vcpus[SYSCALLS2_VCPUS];
 #endif
 
 void syscall_callback(unsigned int vcpu_index, void *udata);
+#if SYSCALLS2_ENGINE
+static inline const PandaSyscallCall *sc2_current(CPUState *cpu, uint32_t *flags);
+static uint64_t sc2_slow_word(CPUState *cpu, unsigned i);
+#endif
 
 #if SYSCALLS2_HOOK_RETURNS
 void (*hooks_add_hook)(struct hook*);
@@ -84,12 +87,10 @@ void registerExecPreCallback(void (*callback)(CPUState*, target_ulong));
 // API calls
 #include "syscalls2_int_fns.h"
 
-// PPP code
+// The exported PPP functions (sc2_tables.h)
 #include "syscalls_ext_typedefs.h"
 #include "generated/syscall_ppp_boilerplate_enter.cpp"
 #include "generated/syscall_ppp_boilerplate_return.cpp"
-#include "generated/syscall_ppp_register_enter.cpp"
-#include "generated/syscall_ppp_register_return.cpp"
 }
 
 // Forward declarations
@@ -133,13 +134,10 @@ target_ulong calc_retaddr_linux_riscv(CPUState *cpu, target_ulong pc);
 target_long get_return_val_riscv(CPUState *cpu);
 target_ulong calc_retaddr_linux_ppc(CPUState *cpu, target_ulong pc);
 
-void syscall_enter_linux_mips64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno);
-void syscall_return_linux_mips64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx);
 
 Profile profiles[PROFILE_LAST] = {
     { /* PROFILE_LINUX_X86 */
-        .enter_switch = syscall_enter_switch_linux_x86,
-        .return_switch = syscall_return_switch_linux_x86,
+        .table = &sc2_table_linux_x86,
         .get_return_val = get_return_val_x86,
         .calc_retaddr = calc_retaddr_linux_x86,
         .get_32 = get_32_linux_x86,
@@ -155,8 +153,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x80,
     },
     { /* PROFILE_LINUX_X86_INT80 */
-        .enter_switch = syscall_enter_switch_linux_x86,
-        .return_switch = syscall_return_switch_linux_x86,
+        .table = &sc2_table_linux_x86,
         .get_return_val = get_return_val_x86,
         .calc_retaddr = calc_retaddr_linux_x86_int80,
         .get_32 = get_32_linux_x86,
@@ -172,8 +169,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x80,
     },
     { /* PROFILE_LINUX_ARM */
-        .enter_switch = syscall_enter_switch_linux_arm,
-        .return_switch = syscall_return_switch_linux_arm,
+        .table = &sc2_table_linux_arm,
         .get_return_val = get_return_val_arm,
         .calc_retaddr = calc_retaddr_linux_arm,
         .get_32 = get_32_linux_arm,
@@ -189,8 +185,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x80,
     },
     {   /* PROFILE_LINUX_AARCH64 */
-        .enter_switch = syscall_enter_switch_linux_arm64,
-        .return_switch = syscall_return_switch_linux_arm64,
+        .table = &sc2_table_linux_arm64,
         .get_return_val = get_return_val_arm,
         .calc_retaddr = calc_retaddr_linux_arm,
         .get_32 = get_32_linux_arm,
@@ -206,8 +201,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x80,
     },
     {   /* Linux MIPS32 */
-        .enter_switch = syscall_enter_switch_linux_mips,
-        .return_switch = syscall_return_switch_linux_mips,
+        .table = &sc2_table_linux_mips,
         .get_return_val = get_return_val_mips,
         .calc_retaddr = calc_retaddr_linux_mips,
         .get_32 = get_32_linux_mips,
@@ -223,8 +217,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x80,
     },
     {   /* Linux MIPS64N32: identical to MIPS64 */
-        .enter_switch = syscall_enter_linux_mips64,
-        .return_switch = syscall_return_linux_mips64,
+        .table = &sc2_table_linux_mips64n32,
         .get_return_val = get_return_val_mips,
         .calc_retaddr = calc_retaddr_linux_mips,
         .get_32 = get_32_linux_mips,
@@ -240,8 +233,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x80,
     },
     {   /* Linux MIPS64 */
-        .enter_switch = syscall_enter_linux_mips64,
-        .return_switch = syscall_return_linux_mips64,
+        .table = &sc2_table_linux_mips64,
         .get_return_val = get_return_val_mips,
         .calc_retaddr = calc_retaddr_linux_mips,
         .get_32 = get_32_linux_mips,
@@ -257,8 +249,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x80,
     },
     {   /* PROFILE_WINDOWS_2000_X86 */
-        .enter_switch = syscall_enter_switch_windows_2000_x86,
-        .return_switch = syscall_return_switch_windows_2000_x86,
+        .table = &sc2_table_windows_2000_x86,
         .get_return_val = get_return_val_x86,
         .calc_retaddr = calc_retaddr_windows_x86,
         .get_32 = get_32_windows_x86,
@@ -278,8 +269,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x2E,
     },
     {   /* PROFILE_WINDOWS_XPSP2_X86 */
-        .enter_switch = syscall_enter_switch_windows_xpsp2_x86,
-        .return_switch = syscall_return_switch_windows_xpsp2_x86,
+        .table = &sc2_table_windows_xpsp2_x86,
         .get_return_val = get_return_val_x86,
         .calc_retaddr = calc_retaddr_windows_x86,
         .get_32 = get_32_windows_x86,
@@ -299,8 +289,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x80,
     },
     {   /* PROFILE_WINDOWS_XPSP3_X86 */
-        .enter_switch = syscall_enter_switch_windows_xpsp3_x86,
-        .return_switch = syscall_return_switch_windows_xpsp3_x86,
+        .table = &sc2_table_windows_xpsp3_x86,
         .get_return_val = get_return_val_x86,
         .calc_retaddr = calc_retaddr_windows_x86,
         .get_32 = get_32_windows_x86,
@@ -320,8 +309,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x80,
     },
     {   /* PROFILE_WINDOWS_7_X86 */
-        .enter_switch = syscall_enter_switch_windows_7_x86,
-        .return_switch = syscall_return_switch_windows_7_x86,
+        .table = &sc2_table_windows_7_x86,
         .get_return_val = get_return_val_x86,
         .calc_retaddr = calc_retaddr_windows_x86,
         .get_32 = get_32_windows_x86,
@@ -341,8 +329,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x80,
     },
     {   /* PROFILE_WINDOWS_7_X64 */
-        .enter_switch = syscall_enter_switch_windows_7_x64,
-        .return_switch = syscall_return_switch_windows_7_x64,
+        .table = &sc2_table_windows_7_x64,
         .get_return_val = get_return_val_x64,
         .calc_retaddr = calc_retaddr_windows_x64,
         .get_32 = get_32_windows_x64,
@@ -362,8 +349,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x80,
     },
     {   /* PROFILE_LINUX_X64 */
-        .enter_switch = syscall_enter_switch_linux_x64,
-        .return_switch = syscall_return_switch_linux_x64,
+        .table = &sc2_table_linux_x64,
         .get_return_val = get_return_val_x86,
         .calc_retaddr = calc_retaddr_linux_x64,
         .get_32 = get_32_linux_x64,
@@ -379,8 +365,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x80,
     },
     {   /* PROFILE_FREEBSD_X64 */
-        .enter_switch = syscall_enter_switch_freebsd_x64,
-        .return_switch = syscall_return_switch_freebsd_x64,
+        .table = &sc2_table_freebsd_x64,
         .get_return_val = get_return_val_x86,
         .calc_retaddr = calc_retaddr_linux_x64, // Not auto-gen, using the Linux impl
         .get_32 = get_32_linux_x64,             // Not auto-gen, using the Linux impl
@@ -396,8 +381,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x80,
     },
     {   /* PROFILE_LINUX_RISCV64 */
-        .enter_switch = syscall_enter_switch_linux_riscv64,
-        .return_switch = syscall_return_switch_linux_riscv64,
+        .table = &sc2_table_linux_riscv64,
         .get_return_val = get_return_val_riscv,
         .calc_retaddr = calc_retaddr_linux_riscv,
         .get_32 = get_32_linux_riscv,
@@ -413,8 +397,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = -1,
     },
     {   /* PROFILE_LINUX_PPC */
-        .enter_switch = syscall_enter_switch_linux_ppc,
-        .return_switch = syscall_return_switch_linux_ppc,
+        .table = &sc2_table_linux_ppc,
         .get_return_val = get_return_val_ppc,
         .calc_retaddr = calc_retaddr_linux_ppc,
         .get_32 = get_32_linux_ppc,
@@ -430,8 +413,7 @@ Profile profiles[PROFILE_LAST] = {
         .syscall_interrupt_number = 0x0,
     },
     {   /* PROFILE_LINUX_PPC64 */
-        .enter_switch = syscall_enter_switch_linux_ppc64,
-        .return_switch = syscall_return_switch_linux_ppc64,
+        .table = &sc2_table_linux_ppc64,
         .get_return_val = get_return_val_ppc,
         .calc_retaddr = calc_retaddr_linux_ppc,
         .get_32 = get_32_linux_ppc,
@@ -674,6 +656,7 @@ uint32_t get_linux_x86_argnum(CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) 
 #if defined(TARGET_I386)
     CPUArchState *env = (CPUArchState*)panda_cpu_env(cpu);
 #if SYSCALLS2_ENGINE
+    const PandaSyscallCall *cur_call = sc2_current(cpu, nullptr);
     if (cur_call && ctx->profile == PROFILE_LINUX_X86 && argnum < 6) {
         // a vDSO entry: the engine read the arguments where the kernel does (argument 6 on
         // the stack; with syscall, argument 2 in ebp)
@@ -797,16 +780,8 @@ uint32_t get_32_linux_mips (CPUState *cpu, syscall_ctx *ctx, uint32_t argnum) {
             // Args 1-4 in $a0-$a3 which are regs 4-7 in gpr
             return (uint32_t) env->active_tc.gpr[argnum+4];
         } else {
-            // Args 5-8 on the stack
-            // 4 <= argnum < 8
-            uint32_t buf;
-            target_ulong arg_stack_addr = env->active_tc.gpr[29] + 16 + ((argnum - 4) * 4);
-            int res = panda_virtual_memory_read(cpu, arg_stack_addr, (uint8_t*)&buf, 4);
-            if (res < 0) {
-                // TODO: we need an error propagation methodology in this codebase, func sig assumes success
-                buf = 0;
-            }
-            return buf;
+            // Args 5-8 on the stack, in the guest's byte order (0 if they cannot be read)
+            return (uint32_t)sc2_slow_word(cpu, argnum);
         }
 #ifdef TARGET_MIPS64
     } else if (ctx->no >= 6000 && ctx->no < 7000) {
@@ -1014,6 +989,7 @@ target_long get_return_val (CPUState *cpu, syscall_ctx *ctx) {
 }
 target_ulong calc_retaddr (CPUState *cpu, syscall_ctx *ctx, target_ulong pc) {
 #if SYSCALLS2_ENGINE
+    const PandaSyscallCall *cur_call = sc2_current(cpu, nullptr);
     if (cur_call) {
         return cur_call->pc + cur_call->len;    /* the engine's: where the call returns */
     }
@@ -1129,52 +1105,48 @@ void sysinfo_load_profile(int profile, syscall_info_t **syscall_info, syscall_me
     }
 }
 
-/**
- * MIPS64 supports 3 ABIs: o32, n32, and n64. This complicates our efforts.
-*/
-void syscall_enter_linux_mips64(CPUState *cpu, int profile, target_ptr_t pc, int static_callno) {
-    #if defined(TARGET_MIPS) && defined(TARGET_MIPS64)
-    if (static_callno == -1){
-        CPUArchState *env = (CPUArchState*) panda_cpu_env(cpu);
-        static_callno = env->active_tc.gpr[2]; 
+#if SYSCALLS2_ENGINE
+static bool engine_mode;
+#define SC2_NB 1024                         /* numbers 0-1023 apart; the rest share one */
+#if defined(TARGET_X86_64)
+#define SC2_NABI 4                          /* x86_64, i386: int 0x80, sysenter, compat syscall */
+#elif defined(TARGET_I386)
+#define SC2_NABI 2                          /* int 0x80, sysenter */
+#elif defined(TARGET_AARCH64)
+#define SC2_NABI 2                          /* AArch64, AArch32 */
+#elif defined(TARGET_PPC64)
+#define SC2_NABI 3                          /* sc, sc from a 32-bit task, scv */
+#else
+#define SC2_NABI 1
+#endif
+#if defined(TARGET_MIPS)
+#undef SC2_NB
+#define SC2_NB 7000                         /* o32 4000-, n64 5000-, n32 6000- */
+#endif
+static int engine_abi[SC2_NABI];                        /* the engine's handles, by our ABI id */
+static ProfileType engine_profile[SC2_NABI];
+static uint8_t engine_want[SC2_NABI][SC2_NB + 1];      /* what the engine was told */
+
+/* A raw argument word the engine does not capture: MIPS o32's 5th to 8th, on the user stack in
+ * the guest's byte order (0 if it cannot be read) */
+static uint64_t sc2_slow_word(CPUState *cpu, unsigned i)
+{
+#if defined(TARGET_MIPS)
+    CPUArchState *env = (CPUArchState *)panda_cpu_env(cpu);
+    uint8_t b[4];
+
+    if (i >= 4 && panda_virtual_memory_read(cpu, env->active_tc.gpr[29] + 16 + (i - 4) * 4,
+                                            b, 4) >= 0) {
+        return TARGET_BIG_ENDIAN ? (uint32_t)b[0] << 24 | b[1] << 16 | b[2] << 8 | b[3]
+                                 : (uint32_t)b[3] << 24 | b[2] << 16 | b[1] << 8 | b[0];
     }
-    if (static_callno >= 4000 && static_callno <= 4999) {
-        profile = PROFILE_LINUX_MIPS32;
-		syscall_enter_switch_linux_mips(cpu, profile, pc, static_callno);
-	}else if (static_callno >= 5000 && static_callno <= 5999) {
-        profile = PROFILE_LINUX_MIPS64;
-        syscall_enter_switch_linux_mips64(cpu, profile, pc, static_callno);
-    }else if (static_callno >= 6000 && static_callno <= 6999) {
-        profile = PROFILE_LINUX_MIPS64N32;
-        syscall_enter_switch_linux_mips64n32(cpu, profile, pc, static_callno);
-    }else{
-        assert("syscall_enter_linux_mips64: static_callno not found");
-    }
-    #endif
+#endif
+    return 0;
 }
 
+#endif
 
-void syscall_return_linux_mips64(CPUState *cpu, target_ptr_t pc, const syscall_ctx_t *ctx) {
-    #if defined(TARGET_MIPS) && defined(TARGET_MIPS64)
-    if (ctx->no >= 4000 && ctx->no <= 4999) {
-		syscall_return_switch_linux_mips(cpu, pc, ctx);
-	}else if (ctx->no >= 5000 && ctx->no <= 5999) {
-        syscall_return_switch_linux_mips64(cpu, pc, ctx);
-    }else if (ctx->no >= 6000 && ctx->no <= 6999) {
-        syscall_return_switch_linux_mips64n32(cpu, pc, ctx);
-    }else{
-        assert("syscall_return_linux_mips64: ctx->no not found");
-    }
-    #endif
-}
-
-
-static std::vector<void (*)(CPUState*, target_ulong)> preExecCallbacks;
-
-void registerExecPreCallback(void (*callback)(CPUState*, target_ulong)){
-    preExecCallbacks.push_back(callback);
-}
-
+#include "sc2_dispatch.inc"
 
 #if SYSCALLS2_HOOK_RETURNS
 /**
@@ -1216,6 +1188,7 @@ static inline std::string context_map_t_dump(context_map_t &cm) {
  * @brief Checks if the translation block that is about to be executed
  * matches the return address of an executing system call.
  */
+static void sc2_hook_return(CPUState *cpu, target_ulong pc, const syscall_ctx_t *ctx);
 void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
     target_ulong current_asid = syscalls_get_id(cpu);
     target_ulong pc = panda_tb_pc(cpu, tb);
@@ -1245,7 +1218,7 @@ void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
     }
     if (found) {
         no = ctx.no;
-        profiles[ctx.profile].return_switch(cpu, pc, &ctx);
+        sc2_hook_return(cpu, pc, &ctx);
         if (again) {
             return;
         }
@@ -1267,6 +1240,110 @@ void hook_syscall_return(CPUState *cpu, TranslationBlock *tb, struct hook* h) {
     return;
 }
 #endif /* SYSCALLS2_HOOK_RETURNS */
+
+#if SYSCALLS2_HOOK_RETURNS
+/* ### The hooks path's dispatch (Windows and FreeBSD guests) ############ */
+/* A call's entry: its arguments read from the registers (and stack) by the profile's getters */
+static void sc2_hook_enter(CPUState *cpu, ProfileType p, target_ulong pc, int static_callno)
+{
+    CPUArchState *env = (CPUArchState *)panda_cpu_env(cpu);
+    const Profile &P = profiles[p];
+    syscall_ctx_t ctx = {};
+    const sc2_sys *sys;
+    const sc2_list *L, *R;
+    uint64_t a[SC2_MAX_ARGS];
+    bool noret, save;
+    unsigned name;
+
+    ctx.profile = p;
+#if defined(TARGET_I386)
+    ctx.no = static_callno == -1 ? (int)env->regs[R_EAX] : static_callno;
+#else
+    (void)env;
+    ctx.no = static_callno;             /* no hooks-path profile on these targets */
+#endif
+    ctx.asid = syscalls_get_id(cpu);
+    ctx.retaddr = calc_retaddr(cpu, &ctx, pc);
+    sys = sc2_lookup(P.table, ctx.no);
+    sys = sys ? sys : &sc2_none;
+    name = sys->name;
+    ctx.double_return = sys->flags & SC2_F_DOUBLE;
+    noret = sys->flags & SC2_F_NORET;
+    L = sc2_get(SC2_LIST(name, SC2_ENTER));
+    /* as the switches: the arguments are read for the call's own callback, or saved for a context
+     * callback or the call's own return callback */
+    save = name && (sc2_get(SC2_XLIST(SC2_L_ENTER2)) ||
+                    (!noret && (sc2_get(SC2_XLIST(SC2_L_RETURN2)) ||
+                                sc2_get(SC2_LIST(name, SC2_RETURN)))));
+    if (name && (L || save)) {
+        uint64_t w[SC2_MAX_SLOTS];
+        unsigned n = sc2_slots_used(sys);
+
+        for (unsigned k = 0; k < n; k++) {
+            w[k] = P.table->bits == 64 ? P.get_64(cpu, &ctx, k) : P.get_32(cpu, &ctx, k);
+        }
+        sc2_decode(sys, w, a);
+        if (save) {
+            sc2_ctx_args(&ctx, sys, a);
+        }
+    }
+    if (L && name) {
+        sc2_run(L, cpu, pc, a);
+    } else if (L) {
+        sc2_run_nr(L, cpu, pc, (target_ulong)ctx.no);
+    }
+    if ((L = sc2_get(SC2_XLIST(SC2_L_ALL_ENTER)))) {
+        sc2_run_nr(L, cpu, pc, (target_ulong)ctx.no);
+    }
+    if ((L = sc2_get(SC2_XLIST(SC2_L_ENTER2)))) {
+        sc2_run_ctx(L, cpu, pc, sc2_info(p, ctx.no), &ctx);
+    }
+    /* read after the callbacks: one may subscribe to this return */
+    R = sc2_get(SC2_LIST(name, SC2_RETURN));
+    if (noret || !(R || sc2_get(SC2_XLIST(SC2_L_ALL_RETURN)) || sc2_get(SC2_XLIST(SC2_L_RETURN2)))) {
+        return;
+    }
+    struct hook h;
+    h.addr = ctx.retaddr;
+    h.asid = ctx.asid;
+    h.cb.before_tcg_codegen = hook_syscall_return;
+    h.type = PANDA_CB_BEFORE_TCG_CODEGEN;
+    h.enabled = true;
+    h.km = MODE_ANY; //you'd expect this to be user only
+    hooks_add_hook(&h);
+
+    // The return may run on another vCPU: the map is shared, under its lock.
+    std::lock_guard<std::mutex> running_guard(running_syscalls_lock);
+    auto stored = running_syscalls.emplace(std::make_pair(ctx.retaddr, ctx.asid), ctx);
+    if (!stored.second) {
+        stored.first->second = ctx;
+    }
+}
+
+/* A call's return: its arguments as saved at the entry */
+static void sc2_hook_return(CPUState *cpu, target_ulong pc, const syscall_ctx_t *ctx)
+{
+    const sc2_sys *sys = sc2_lookup(profiles[ctx->profile].table, ctx->no);
+    const sc2_list *L;
+    uint64_t a[SC2_MAX_ARGS];
+    unsigned name;
+
+    sys = sys ? sys : &sc2_none;
+    name = sys->name;
+    if ((L = sc2_get(SC2_LIST(name, SC2_RETURN))) && name) {
+        sc2_ctx_decode(ctx, sys, a);
+        sc2_run(L, cpu, pc, a);
+    } else if (L) {
+        sc2_run_nr(L, cpu, pc, (target_ulong)ctx->no);
+    }
+    if ((L = sc2_get(SC2_XLIST(SC2_L_ALL_RETURN)))) {
+        sc2_run_nr(L, cpu, pc, (target_ulong)ctx->no);
+    }
+    if ((L = sc2_get(SC2_XLIST(SC2_L_RETURN2)))) {
+        sc2_run_ctx(L, cpu, pc, sc2_info(ctx->profile, ctx->no), ctx);
+    }
+}
+#endif
 
 #ifdef DEBUG
 static std::map<target_ulong,target_ulong> syscallCounter;
@@ -1493,11 +1570,15 @@ void syscall_callback(unsigned int vcpu_index, void *udata){
     const syscall_meta_t *sm = syscall_meta;
 #endif
         // run any code we need to update our state
-        for(const auto callback : preExecCallbacks){
-            callback(cpu, pc);
+        if (sc2_npre.load(std::memory_order_relaxed)) {
+            sc2_run_pre(cpu, pc);
         }
-        // Call into autogenerated code for the current syscall!
-        profiles[profile].enter_switch(cpu, profile, pc, callno);
+#if SYSCALLS2_HOOK_RETURNS
+        sc2_hook_enter(cpu, profile, pc, callno);
+#else
+        (void)profile;
+        (void)callno;
+#endif
 
 #if defined(SYSCALL_RETURN_DEBUG) && defined(TARGET_I386) && SYSCALLS2_HOOK_RETURNS
     if (no >= 0 && !si[no].noreturn) {
@@ -1527,78 +1608,6 @@ void syscall_callback(unsigned int vcpu_index, void *udata){
  * caller's call (the caller's own return follows).
  */
 #if SYSCALLS2_ENGINE
-thread_local syscall_ctx_t *syscalls2_engine_store;
-thread_local bool syscalls2_engine_keep;
-
-static bool engine_mode;
-#define SC2_NB 1024                         /* numbers 0-1023 apart; the rest share one */
-#if defined(TARGET_X86_64)
-#define SC2_NABI 4                          /* x86_64, i386: int 0x80, sysenter, compat syscall */
-#elif defined(TARGET_I386)
-#define SC2_NABI 2                          /* int 0x80, sysenter */
-#elif defined(TARGET_AARCH64)
-#define SC2_NABI 2                          /* AArch64, AArch32 */
-#elif defined(TARGET_PPC64)
-#define SC2_NABI 3                          /* sc, sc from a 32-bit task, scv */
-#else
-#define SC2_NABI 1
-#endif
-#if defined(TARGET_MIPS)
-#undef SC2_NB
-#define SC2_NB 7000                         /* o32 4000-, n64 5000-, n32 6000- */
-#endif
-static int engine_abi[SC2_NABI];                        /* the engine's handles, by our ABI id */
-static ProfileType engine_profile[SC2_NABI];
-static uint8_t engine_want[SC2_NABI][SC2_NB + 1];      /* what the engine was told */
-
-static void engine_call(void *opaque, CPUState *cpu, PandaSyscallCall *c, int64_t ret,
-                        uint32_t flags)
-{
-    syscall_ctx_t *ctx = (syscall_ctx_t *)c->data;
-
-    cur_call = c;
-    cur_flags = flags;
-    if (!(flags & PANDA_SYSCALL_RETURN)) {
-        unsigned i = (uint64_t)c->nr < SC2_NB ? (unsigned)c->nr : SC2_NB;
-        uint8_t want;
-
-        syscalls2_engine_store = ctx;
-        syscalls2_engine_keep = false;
-        for (const auto callback : preExecCallbacks) {
-            callback(cpu, c->pc);
-        }
-        profiles[engine_profile[c->abi]].enter_switch(cpu, engine_profile[c->abi], c->pc, -1);
-        syscalls2_engine_store = nullptr;
-        cur_call = nullptr;
-        /* what the next call of this number will want: the engine keeps it at once */
-        want = PANDA_SYSCALL_WANT_ENTRY | (syscalls2_engine_keep ? PANDA_SYSCALL_WANT_RETURN : 0);
-        if (engine_want[c->abi][i] != want) {
-            engine_want[c->abi][i] = want;
-            panda_syscall_want(engine_abi[c->abi], c->nr, want);
-        }
-        /* this call: as the engine did (kept or not), or the other way (last: the engine
-         * copies or drops the call) */
-        if (syscalls2_engine_keep != (c->keytype != PANDA_TASK_KEY_NONE)) {
-            panda_syscall_keep(cpu, c, syscalls2_engine_keep);
-        }
-        return;
-    }
-    if (!(flags & (PANDA_SYSCALL_RESTART | PANDA_SYSCALL_ENDED))) {
-        profiles[ctx->profile].return_switch(cpu, c->pc + c->len, ctx);
-    }
-    cur_call = nullptr;
-}
-
-bool syscalls2_current_call(CPUState *cpu, uint64_t *id, uint32_t *flags)
-{
-    if (!cur_call) {
-        return false;
-    }
-    *id = cur_call->id;
-    *flags = cur_flags;
-    return true;
-}
-
 static void engine_set(uint8_t *set, unsigned n)
 {
     set[n >> 3] |= 1u << (n & 7);
@@ -2009,7 +2018,7 @@ static const PandaTaskKeyDecl LINUX_TASK_KEY = {
  * built for this target, so syscalls2 does not load). */
 static bool engine_init(void *self, bool task_key)
 {
-    if (!panda_syscall_consumer(self, engine_call, nullptr, sizeof(syscall_ctx_t))) {
+    if (!panda_syscall_consumer(self, engine_call, nullptr, sizeof(sc2_data))) {
         return false;
     }
     if (task_key && LINUX_TASK_KEY.form != PANDA_TASK_KEY_NONE &&
@@ -2048,20 +2057,18 @@ static bool engine_init(void *self, bool task_key)
         if (engine_abi[a] < 0) {
             return false;
         }
-        /* every entry (the generated switches run for each one, as before); returns are
-         * learned per number from the callbacks, at each entry */
-        for (unsigned n = 0; n <= SC2_NB; n++) {
-            engine_want[a][n] = PANDA_SYSCALL_WANT_ENTRY;
-            panda_syscall_want(engine_abi[a], n, PANDA_SYSCALL_WANT_ENTRY);
-        }
     }
-    engine_mode = true;
+    sc2_engine_start();
     return true;
 }
 #else
 bool syscalls2_current_call(CPUState *cpu, uint64_t *id, uint32_t *flags)
 {
     return false;
+}
+
+static void sc2_changed(unsigned l)
+{
 }
 #endif /* SYSCALLS2_ENGINE */
 
