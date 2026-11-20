@@ -1,0 +1,166 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 19 Nov 2026 17:17:00 -0500
+Subject: [PATCH] plugins: no marker ops per instruction
+
+Record, for each instruction, the op before its translation (its insn_start, or the ops emitted right after it) and its last op, instead of emitting a plugin_cb marker at its start and one after its end. plugin_gen_inject emits each instruction's callbacks and its reset of plugin_mem_cbs at those positions before it walks the ops. Ops are removed during translation only from the end (tcg_remove_ops_after), with the instructions that emitted them, so the recorded positions stay in the stream. What a translation callback sees is unchanged; translation emits, walks and removes two ops fewer per instruction.
+
+While injecting, tcg_ctx->plugin_insn is cleared: an injected callback call is not a helper of the last instruction, and no longer makes it arm plugin_mem_cbs for helper memory accesses it does not make.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ accel/tcg/plugin-gen.c | 74 +++++++++++++++++++++++++-----------------
+ include/qemu/plugin.h  |  4 +++
+ 2 files changed, 49 insertions(+), 29 deletions(-)
+
+diff --git a/accel/tcg/plugin-gen.c b/accel/tcg/plugin-gen.c
+index c3ebd2640f5db4f04ba4bef24ba1163be432968a..b552069e89d285da0b7993c1b2d0291b693a14dd 100644
+--- a/accel/tcg/plugin-gen.c
++++ b/accel/tcg/plugin-gen.c
+@@ -14,10 +14,11 @@
+  * Injecting the desired instrumentation could be done with a second
+  * translation pass that combined the instrumentation requests, but that
+  * would be ugly and inefficient since we would decode the guest code twice.
+- * Instead, during TB translation we add "plugin_cb" marker opcodes
+- * for all possible instrumentation events, and then once we collect the
+- * instrumentation requests from plugins, we generate code for those markers
+- * or remove them if they have no requests.
++ * Instead, during TB translation we add "plugin_cb" marker opcodes for the
++ * TB's start and exits and "plugin_mem_cb" markers for its memory accesses,
++ * and record each instruction's first and last op, and then once we collect
++ * the instrumentation requests from plugins, we generate code at those
++ * places and remove the markers.
+  */
+ #include "qemu/osdep.h"
+ #include "qemu/plugin.h"
+@@ -33,8 +34,6 @@
+ 
+ enum plugin_gen_from {
+     PLUGIN_GEN_FROM_TB,
+-    PLUGIN_GEN_FROM_INSN,
+-    PLUGIN_GEN_AFTER_INSN,
+     PLUGIN_GEN_AFTER_TB,
+ };
+ 
+@@ -470,6 +469,39 @@ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb,
+         plugin_move_direct_exits();
+     }
+ 
++    /*
++     * The calls injected here are not the instruction's helpers: none of
++     * them may mark an instruction as calling helpers (tcg_gen_callN).
++     */
++    tcg_ctx->plugin_insn = NULL;
++
++    /*
++     * Each instruction's callbacks go after the op that preceded its
++     * translation (its insn_start, or the ops emitted right after it), and
++     * the reset of plugin_mem_cbs after its last op. Ops are removed during
++     * translation only from the end (tcg_remove_ops_after), together with
++     * the instructions that emitted them, so these positions are still in
++     * the stream.
++     */
++    for (size_t k = 0; k < plugin_tb->n; k++) {
++        struct qemu_plugin_insn *insn = g_ptr_array_index(plugin_tb->insns, k);
++        const GArray *cbs = insn->insn_cbs;
++        int n = cbs ? cbs->len : 0;
++
++        if (n || insn->calls_helpers) {
++            tcg_ctx->emit_before_op = QTAILQ_NEXT(insn->start_op, link);
++            gen_enable_mem_helper(plugin_tb, insn);
++            for (int i = 0; i < n; i++) {
++                inject_cb(&g_array_index(cbs, struct qemu_plugin_dyn_cb, i));
++            }
++        }
++        if (insn->mem_helper) {
++            tcg_ctx->emit_before_op = QTAILQ_NEXT(insn->end_op, link);
++            gen_disable_mem_helper();
++        }
++    }
++    tcg_ctx->emit_before_op = NULL;
++
+     QTAILQ_FOREACH_SAFE(op, &tcg_ctx->ops, link, next) {
+         switch (op->opc) {
+         case INDEX_op_goto_tb:
+@@ -512,13 +544,6 @@ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb,
+                 }
+                 break;
+ 
+-            case PLUGIN_GEN_AFTER_INSN:
+-                assert(insn != NULL);
+-                if (insn->mem_helper) {
+-                    gen_disable_mem_helper();
+-                }
+-                break;
+-
+             case PLUGIN_GEN_FROM_TB:
+                 assert(insn == NULL);
+ 
+@@ -532,18 +557,6 @@ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb,
+                 }
+                 break;
+ 
+-            case PLUGIN_GEN_FROM_INSN:
+-                assert(insn != NULL);
+-
+-                gen_enable_mem_helper(plugin_tb, insn);
+-
+-                cbs = insn->insn_cbs;
+-                for (i = 0, n = (cbs ? cbs->len : 0); i < n; i++) {
+-                    inject_cb(
+-                        &g_array_index(cbs, struct qemu_plugin_dyn_cb, i));
+-                }
+-                break;
+-
+             default:
+                 g_assert_not_reached();
+             }
+@@ -639,17 +652,19 @@ void plugin_gen_insn_start(CPUState *cpu, const DisasContextBase *db)
+     tcg_ctx->plugin_insn = insn;
+     insn->calls_helpers = false;
+     insn->mem_helper = false;
+-    if (insn->insn_cbs) {
++    /* most instructions got no callback last time */
++    if (insn->insn_cbs && insn->insn_cbs->len) {
+         g_array_set_size(insn->insn_cbs, 0);
+     }
+-    if (insn->mem_cbs) {
++    if (insn->mem_cbs && insn->mem_cbs->len) {
+         g_array_set_size(insn->mem_cbs, 0);
+     }
+ 
+     pc = db->pc_next;
+     insn->vaddr = pc;
+ 
+-    tcg_gen_plugin_cb(PLUGIN_GEN_FROM_INSN);
++    /* no marker op: the instruction's callbacks go after this op */
++    insn->start_op = tcg_last_op();
+ }
+ 
+ void plugin_gen_insn_end(void)
+@@ -659,7 +674,8 @@ void plugin_gen_insn_end(void)
+ 
+     pinsn->len = db->fake_insn ? db->record_len : db->pc_next - pinsn->vaddr;
+ 
+-    tcg_gen_plugin_cb(PLUGIN_GEN_AFTER_INSN);
++    /* no marker op: the reset of plugin_mem_cbs goes after this op */
++    pinsn->end_op = tcg_last_op();
+ }
+ 
+ /*
+diff --git a/include/qemu/plugin.h b/include/qemu/plugin.h
+index 99421677b35452224ca06e43520edf4e25cd9a0a..34f078cd7f29a70ab93a96b1ab259ee0e1072231 100644
+--- a/include/qemu/plugin.h
++++ b/include/qemu/plugin.h
+@@ -145,6 +145,10 @@ struct qemu_plugin_insn {
+ 
+     /* if set, the instruction calls helpers that might access guest memory */
+     bool mem_helper;
++
++    /* the op before the instruction's own ops, and its last op */
++    struct TCGOp *start_op;
++    struct TCGOp *end_op;
+ };
+ 
+ /* A scoreboard is an array of values, indexed by vcpu_index */

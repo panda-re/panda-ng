@@ -1539,6 +1539,20 @@ current_gate = "Always on under TCG: x86 INT 0x80 from CPL 3 in protected mode (
 required_action = "Explicit vanilla must take the BQL around every do_interrupt as upstream does (x86 exception_bql_free unset)."
 vanilla_verified = false
 
+[[patch]]
+id = "0110"
+file = "engine/patches/11.1.2/0110-plugins-no-marker-ops-per-instruction.patch"
+sha256 = "314d39f2e7ed264a0c04bc55052fa847b52efa51dcfba9ff55f3338196d68775"
+class = "runtime-gate"
+capability = "plugin-extensions"
+paths = ["accel/tcg/plugin-gen.c", "include/qemu/plugin.h"]
+functions = ["plugin_gen_inject", "plugin_gen_insn_start", "plugin_gen_insn_end"]
+hunk_contexts = ["static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb,", "void plugin_gen_insn_start(CPUState *cpu, const DisasContextBase *db)", "void plugin_gen_insn_end(void)", "struct qemu_plugin_insn {"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Runs only on QEMU's plugin translation path (a plugin with a translation callback); without one translation is unchanged. On that path the instruction callbacks are emitted at recorded positions instead of at marker ops; the code generated is the same except for two redundant plugin_mem_cbs stores at a block's last instruction."
+required_action = "Select upstream's marker ops for vanilla, or show the generated code is equivalent for every plugin."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
