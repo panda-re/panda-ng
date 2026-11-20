@@ -178,9 +178,10 @@ truth = {}
 def drive():
     try:
         m.revert(panda, agent)
-        agent.run("cp /bin/busybox /tmp/busybox")
+        # A shell's background job opens /dev/null, which only devtmpfs (2.6.32+) makes.
+        agent.run("[ -e /dev/null ] || mknod /dev/null c 1 3; cp /bin/busybox /tmp/busybox")
         rc, o = agent.run("/tmp/busybox sleep 1000 > /tmp/sleep.out 2>&1 & echo $!")
-        seen["pid"] = int(o.split()[-1])
+        seen["pid"] = int([w for w in o.split() if w.isdigit()][-1])
         rc, o = agent.run(f"echo $$; uname -r; cat /proc/{seen['pid']}/maps; echo ====; cat /proc/modules; "
                           "echo ====; for p in /proc/[0-9]*; do cat $p/stat 2>/dev/null; echo; done")
         head, mods, stats = o.decode(errors="replace").split("====\n")
@@ -294,7 +295,9 @@ if ok["current"]:
     recs = [r for r, t in seen["changes"] if r and r[1] == cat.get("pid")] if ok["pid"] else []
     if ok["task_change"] and ok["pid"]:
         C.check("task change into cat: OSI's current process is cat's pid", recs, len(seen["changes"]))
-        r = recs[-1] if recs else None     # the last: after the exec
+        # The last while cat has its mm: after the exec, before exit_mm.
+        live = [x for x in recs if x[3]] if ok["asid"] else recs
+        r = (live or recs or [None])[-1]
         if r and ok["name"]:
             C.check("current process: named cat", any(x[0] == "cat" for x in recs), recs[:3])
         if r and ok["ppid"]:
@@ -302,12 +305,16 @@ if ok["current"]:
         # On MIPS the engine's current_asid is EntryHi's ASID, not the page directory's address.
         same_asid = not panda.arch_name.startswith("mips")
         if r and ok["asid"] and same_asid:
-            C.check("current process: its asid is the CPU's", r[3] == r[4], r)
+            C.check("current process: its asid is the CPU's", r[3] == r[4], recs[-4:])
         threads = [t for (r2, t) in seen["changes"] if r2 and r2[1] == cat.get("pid")]
         C.check("current thread: cat's pid and tid", threads and threads[0] == (cat["pid"], cat["pid"]), threads[:2])
-        users = [u for u in seen["user"] if u and u[0] == cat.get("pid")]
-        C.check("current process in user mode: cat, in its address space",
-                users and (not ok["asid"] or not same_asid or users[0][2] == users[0][3]), seen["user"][-5:])
+        # The first user-mode block after each task change; cat's, if one came before the next
+        # change, else every process's.
+        users = [u for u in seen["user"] if u and u[0] == cat.get("pid")] or \
+            [u for u in seen["user"] if u and u[0] in tp]
+        C.check("current process in user mode: a /proc process (cat), in its address space",
+                users and (not ok["asid"] or not same_asid or all(u[2] == u[3] for u in users)),
+                [u for u in users if u[2] != u[3]][:4] or seen["user"][-4:])
     C.check("sample: a current process", smp.get("current"), smp)
 else:
     C.check("current unavailable: get_current_process answers NULL", smp.get("current") is False, smp)
