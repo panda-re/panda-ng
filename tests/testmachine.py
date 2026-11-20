@@ -205,7 +205,7 @@ class Machine:
 
     def cleanup(self):
         """Remove this machine's snapshot copy and console log (kept with $TESTMACHINE_KEEP)."""
-        if self.tmp and not os.environ.get("TESTMACHINE_KEEP"):
+        if getattr(self, "tmp", None) and not os.environ.get("TESTMACHINE_KEEP"):
             shutil.rmtree(self.tmp, ignore_errors=True)
             self.tmp = None
 

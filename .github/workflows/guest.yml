@@ -119,8 +119,9 @@ jobs:
             out/**/*.log
           retention-days: 14
 
-  # Taint and record/replay on the arches no cloud image covers (tests/busybox.sh: 12 arches on
-  # busybox guests, minutes). ci.yml runs the same on PRs that touch taint or record/replay.
+  # Taint, record/replay and syscall_truth on the arches no cloud image covers (tests/busybox.sh:
+  # 12 arches on busybox guests, minutes). ci.yml runs the taint tests on PRs that touch taint or
+  # record/replay.
   busybox:
     if: >-
       github.event_name != 'pull_request' ||
@@ -151,11 +152,13 @@ jobs:
         with:
           path: ${{ env.XDG_CACHE_HOME }}/panda-busybox
           key: panda-busybox-${{ hashFiles('tests/busybox.sh') }}
-      - name: Taint and record/replay on 12 arches
+      # syscall_truth: syscalls2 against the guest kernel's own trace of every system call.
+      - name: Taint, record/replay and system calls on 12 arches
         env:
           PANDA_PYTHON: ${{ github.workspace }}/result-python/bin/python3
           DL: ${{ env.XDG_CACHE_HOME }}/panda-busybox
           OUT: ${{ github.workspace }}/out
+          TESTS: taint taint_mmio taint_errors syscall_truth
         run: tests/busybox.sh
       - name: Results
         if: always()
