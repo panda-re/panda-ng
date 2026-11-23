@@ -198,7 +198,7 @@
                 # Additive APIs are not part of the generated flattened ABI headers.
                 mkdir -p $out/include/panda
                 cp include/panda/analysis-effect.h include/panda/guest-write.h include/panda/events.h \
-                  include/panda/syscall-pair.h \
+                  include/panda/syscall-pair.h include/panda/address-hook.h \
                   $out/include/panda/
                 # libqemu-system-<target>.so, libqemu-kvm-<target>.so and libpanda-<target>-softmmu.so
                 # are links of the same objects; only the soname differs, and all of them are
@@ -1219,6 +1219,13 @@
             buildInputs = [ pkgs.glib ];
           } ''
             python3 ${./.}/tests/static/events_registry.py
+            touch $out
+          '';
+          hooks-events = pkgs.runCommandCC "hooks-events-check" {
+            nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
+            buildInputs = [ pkgs.glib ];
+          } ''
+            python3 ${./.}/tests/static/hooks_events.py
             touch $out
           '';
           lifecycle = pkgs.runCommandCC "analysis-lifecycle-check" {
