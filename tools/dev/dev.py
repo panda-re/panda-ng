@@ -54,7 +54,8 @@ CONFIGURE = ["--enable-plugins", "--enable-panda", "--disable-docs", "--disable-
              "--disable-gtk", "--disable-sdl", "--disable-opengl", "--disable-virglrenderer",
              "--disable-spice", "--disable-vnc", "--disable-containers"]
 # The engine's additive API headers the flake installs into include/panda (mkEngine).
-PANDA_HEADERS = ("analysis-effect.h", "guest-write.h", "events.h", "syscall-pair.h")
+PANDA_HEADERS = ("analysis-effect.h", "guest-write.h", "events.h", "syscall-pair.h",
+                 "address-hook.h")
 # QEMU's firmware bundle in the build tree (configure's default prefix, /usr/local).
 FIRMWARE = BUILD / "qemu-bundle/usr/local/share/qemu"
 

@@ -14,9 +14,12 @@
  * one field-list macro per event, from which PANDA_EVENT_STRUCT and PANDA_EVENT_SIGNATURE build the
  * struct and the signature string, so the two cannot drift:
  *
- *     #define HOOKS_HIT_ARGS(F) F(cpu, ptr) F(pc, u64) F(hook, ptr)
- *     PANDA_EVENT_STRUCT(hooks_hit_args, HOOKS_HIT_ARGS);
- *     ev = panda_event_find(&HOOKS_NS, "hooks.hit", PANDA_EVENT_SIGNATURE(HOOKS_HIT_ARGS));
+ *     #define PANDA_HOOKS_HIT_ARGS(F) \
+ *         PANDA_EVENT_PTR(F, cpu, CPUState) PANDA_EVENT_PTR(F, tb, TranslationBlock) \
+ *         F(pc, u64) F(hook, ptr)
+ *     PANDA_EVENT_STRUCT(panda_hooks_hit_args, PANDA_HOOKS_HIT_ARGS);
+ *     ev = panda_event_find(&PANDA_EVENT_NS, "hooks.hit",
+ *                           PANDA_EVENT_SIGNATURE(PANDA_HOOKS_HIT_ARGS));
  *     sub = panda_subscribe(self, ev, on_hit, ctx, PANDA_MODE_ANALYSIS, PANDA_SUB_OBSERVE);
  *
  * Signature grammar: comma-separated name:type fields, laid out with natural alignment after

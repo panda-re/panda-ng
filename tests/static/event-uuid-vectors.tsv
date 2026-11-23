@@ -34,3 +34,6 @@
 40c975de-b1b1-4814-923b-7b613e2fef15	t.regs	cpu:ptr,regs : u64 [ 04 ]	cpu:ptr,regs:u64[4]	78b8042b-07d2-5a9e-9da5-eb76791af67f
 40c975de-b1b1-4814-923b-7b613e2fef15	t.regs	cpu:ptr,regs:u64[8]	cpu:ptr,regs:u64[8]	6ff1e3a4-ef7d-5227-b3fe-6857dd313635
 40c975de-b1b1-4814-923b-7b613e2fef15	t.mixed	a:bool,d:u8,b:i16[3],c:ptr<u32[d]>|e:bool,f:u8[2]	a:u8,d:u8,b:i16[3],c:ptr<u32[d]>	48aab041-c519-54e8-b374-f23c906115e9
+# The in-tree plugins' events in PANDA_EVENT_NS, as their headers build them
+# (plugins/hooks/hooks_events.h).
+40c975de-b1b1-4814-923b-7b613e2fef15	hooks.hit	cpu:ptr<CPUState>,tb:ptr<TranslationBlock>,pc:u64,hook:ptr	cpu:ptr<CPUState>,tb:ptr<TranslationBlock>,pc:u64,hook:ptr	897c05a7-0330-57d9-ab21-90141ea42422
