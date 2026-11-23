@@ -3,8 +3,8 @@
 Run: panda-python tests/tbtrans.py <dir>/busybox-<arch>.json [--smp N] [--case NAME]
 (an image from tests/mkbusybox.py; the machine is tests/testmachine.py's)
 
-Until a block, instruction or memory callback, block_translate (the hooks plugin) or coverage is
-registered, QEMU translates as it does without plugins. Whether a vCPU translates through QEMU's
+Until a block, instruction or memory callback, block_translate or coverage is registered, QEMU
+translates as it does without plugins. Whether a vCPU translates through QEMU's
 plugin path is the bit plugin_gen_tb_start tests (panda_bridge_tb_trans_on). Each case runs in a
 child process (the first registration happens once per process) and runs
 tests/programs/blocks_<arch>.S (a loop whose block "loop" runs N times, then two stores) several
@@ -20,8 +20,9 @@ times through the guest agent:
   (third run: nothing), enabled at hypercall 1 of the fourth run (the whole run), deleted at its
   hypercall 2 (fifth run: nothing, the plugin path stays on) and registered again at hypercall 1
   of the sixth run (the whole run);
-- hook: a hook on the loop (panda.hook, which loads the hooks plugin: block_translate) added
-  from the host thread between two runs: it fires N times in the next run;
+- hook: a hook on the loop (panda.hook, the hooks plugin, on the engine's address hooks) added
+  from the host thread between two runs: it fires N times in the next run, and no vCPU ever
+  translates through the plugin path;
 - cov: edge coverage turned on at hypercall 1 of the second run: the map gets the program's edges.
 With --smp N > 1 the program runs on whichever vCPU the guest picks, and every vCPU must switch.
 There only the cases whose Python callbacks run for the program's code alone run (none,
@@ -241,8 +242,8 @@ elif kind in ("block", "insn", "mem"):
             (dict(st["calls"]), want))
     C.check("no call while it is disabled or deleted", not st["stray"], dict(st["stray"]))
 elif kind == "hook":
-    C.check("no vCPU translates through the plugin path before the hook", bits.get(1) == off, bits)
-    C.check("every vCPU translates through the plugin path after it", bits.get(2) == on, bits)
+    C.check("no vCPU translates through the plugin path, before the hook or after it",
+            all(b == off for b in bits.values()), bits)
     C.check(f"the hook fires N={N} times in each run after it is added",
             st["calls"][2] == N and st["calls"][3] == N, dict(st["calls"]))
 elif kind == "cov":

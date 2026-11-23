@@ -3,7 +3,8 @@
 Run: panda-python tests/guest.py <dir>/debian-13-x86_64.json
 
 Reverts to the root snapshot, runs a known command and a hypercall program on the guest, and checks
-what asid_changed, syscalls2, proc_start_linux and hypercaller report.
+what asid_changed, syscalls2, proc_start_linux, osi_linux's task changes (from its hook on the
+kernel's task switch, through the hooks plugin) and hypercaller report.
 """
 import struct
 import sys
@@ -59,7 +60,7 @@ panda.load_plugin("hypersyscalls")
 panda.load_plugin("osi", {"disable-autoload": "true"})
 panda.load_plugin("osi_linux")
 # --8<-- [end:plugins]
-seen = {"asid": 0, "openat": [], "auxv": [], "hypercall": []}
+seen = {"asid": 0, "openat": [], "auxv": [], "hypercall": [], "task_change": 0, "task_names": set()}
 
 
 @panda.cb_asid_changed
@@ -84,6 +85,14 @@ def auxv(cpu, tb, av):
     osi = (panda.ffi.string(proc.name).decode(), proc.pid) if proc != panda.ffi.NULL else None
     seen["auxv"].append((panda.ffi.string(av.execfn).decode(), argv, osi))
 # --8<-- [end:ppp]
+
+
+@panda.ppp("osi", "on_task_change")
+def task_change(cpu):
+    seen["task_change"] += 1
+    proc = panda.plugins["osi"].get_current_process(cpu)
+    if proc != panda.ffi.NULL and proc.name != panda.ffi.NULL:
+        seen["task_names"].add((panda.ffi.string(proc.name).decode(), proc.pid))
 
 
 @panda.hypercall(MAGIC)
@@ -115,13 +124,16 @@ os_release_opens = [f for f in seen["openat"] if f == "/etc/os-release"]
 cat_starts = [a for a in seen["auxv"] if a[1] == ["cat", "/etc/os-release"]]
 print(f"GUEST arch={arch} os_id={seen['os_id']!r} pid={seen['pid']} asid_changes={seen['asid']} "
       f"openat_os_release={len(os_release_opens)} cat_auxv={cat_starts[:1]} "
-      f"hypercalls={[hex(m) for m in seen['hypercall']]} hc={seen['hc']!r}")
+      f"hypercalls={[hex(m) for m in seen['hypercall']]} hc={seen['hc']!r} "
+      f"task_changes={seen['task_change']}")
 checks = {
     "command output": seen["os_id"].startswith("ID="),
     "asid_changed": seen["asid"] > 0,
     "syscalls2 openat(/etc/os-release)": len(os_release_opens) > 0,
     "proc_start_linux argv": len(cat_starts) > 0 and cat_starts[0][0].endswith("/cat"),
     "osi_linux name and pid": len(cat_starts) > 0 and cat_starts[0][2] == ("cat", seen["pid"]),
+    "osi_linux task changes, cat among them": seen["task_change"] > 0
+        and ("cat", seen["pid"]) in seen["task_names"],
     "hypercaller": seen["hypercall"] == [MAGIC] and seen["hc"].endswith("rc=0"),
     "hypersyscalls loaded": seen.get("hypersyscalls", False),
 }

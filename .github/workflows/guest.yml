@@ -153,12 +153,13 @@ jobs:
           path: ${{ env.XDG_CACHE_HOME }}/panda-busybox
           key: panda-busybox-${{ hashFiles('tests/busybox.sh') }}
       # syscall_truth: syscalls2 against the guest kernel's own trace of every system call.
-      - name: Taint, record/replay and system calls on 12 arches
+      # hooks: the hooks plugin (x86_64 and aarch64).
+      - name: Taint, record/replay, system calls and hooks on 12 arches
         env:
           PANDA_PYTHON: ${{ github.workspace }}/result-python/bin/python3
           DL: ${{ env.XDG_CACHE_HOME }}/panda-busybox
           OUT: ${{ github.workspace }}/out
-          TESTS: taint taint_mmio taint_errors syscall_truth
+          TESTS: taint taint_mmio taint_errors syscall_truth hooks
         run: tests/busybox.sh
       - name: Results
         if: always()
