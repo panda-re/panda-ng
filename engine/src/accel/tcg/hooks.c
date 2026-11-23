@@ -66,6 +66,7 @@
 #include "hooks-internal.h"
 #include "system/tcg.h"
 #include "qemu/timer.h"
+#include "panda/events-internal.h"
 #include "trace.h"
 
 typedef struct TCGHookSite {
@@ -100,6 +101,15 @@ static bool pages_pending;              /* sites inserted before the page size *
 #define MAX_TARGETED 1024
 
 static GPtrArray *graveyard;            /* removed guarded hooks */
+
+/*
+ * The block of the hook being called on this thread (tcg_hook_tb), and the
+ * tcg_hook_ra it was set with: a callback that leaves by longjmp leaves them
+ * behind, and tcg_hook_ra is then cleared (patch 0030) or set by someone
+ * else (the syscall trap), never to the same return address.
+ */
+static __thread TranslationBlock *hook_tb;
+static __thread uintptr_t hook_tb_ra;
 
 static QemuMutex index_lock;
 static GHashTable *tb_index;            /* bucket -> GPtrArray of TBs */
@@ -164,6 +174,13 @@ void tcg_hooks_tb_linked(TranslationBlock *tb)
     qemu_mutex_unlock(&index_lock);
 }
 
+/* Freed after a grace period (panda_events_call_rcu: a hook removed before the machine is up
+ * waits until it is). */
+static void hook_free_rcu(struct rcu_head *head)
+{
+    g_free(container_of(head, TCGHook, rcu));
+}
+
 void tcg_hooks_tb_flush(void)
 {
     qemu_mutex_lock(&index_lock);
@@ -175,7 +192,7 @@ void tcg_hooks_tb_flush(void)
     for (guint i = 0; i < graveyard->len; i++) {
         TCGHook *h = g_ptr_array_index(graveyard, i);
         g_free(h->guards);
-        g_free_rcu(h, rcu);
+        panda_events_call_rcu(&h->rcu, hook_free_rcu);
     }
     g_ptr_array_set_size(graveyard, 0);
     qemu_mutex_unlock(&hooks_lock);
@@ -416,7 +433,7 @@ void tcg_hook_remove(TCGHook *h)
     }
     qatomic_dec(&h->site->nhooks);
     qemu_mutex_unlock(&hooks_lock);
-    g_free_rcu(h, rcu);
+    panda_events_call_rcu(&h->rcu, hook_free_rcu);
 }
 
 /*
@@ -570,27 +587,39 @@ void tcg_hook_set_pc(CPUState *cpu, vaddr pc)
     }
     cpu_set_pc(cpu, pc);
     cpu->tcg_hook_ra = 0;
+    hook_tb = NULL;
     cpu_loop_exit(cpu);
+}
+
+TranslationBlock *tcg_hook_tb(CPUState *cpu)
+{
+    uintptr_t ra = cpu->tcg_hook_ra;
+
+    return ra && ra == hook_tb_ra ? hook_tb : NULL;
 }
 
 /*
  * The helper.  Entered from translated code with every TCG global saved
  * (call flags 0), and the globals are reloaded afterwards, so callbacks
  * may write registers.  vCPU threads run translated code inside an RCU
- * read-side critical section, which protects the hook list.
+ * read-side critical section, which protects the hook list.  @tb is the
+ * block the call was emitted in, for tcg_hook_tb().
  */
 static void QEMU_DISABLE_CFI __attribute__((noinline))
-tcg_hook_helper(CPUArchState *env, void *opaque)
+tcg_hook_helper(CPUArchState *env, void *opaque, void *tb)
 {
     TCGHookSite *s = opaque;
     CPUState *cpu = env_cpu(env);
     TCGHook *h;
 
     cpu->tcg_hook_ra = (uintptr_t)__builtin_return_address(0);
+    hook_tb = tb;
+    hook_tb_ra = cpu->tcg_hook_ra;
     QLIST_FOREACH_RCU(h, &s->hooks, next) {
         h->fn(cpu, s->pc, h->opaque);
     }
     cpu->tcg_hook_ra = 0;
+    hook_tb = NULL;
 }
 
 /* A guard that could not be compiled: evaluated here, from the gdbstub. */
@@ -636,7 +665,7 @@ static bool guard_holds(CPUState *cpu, const TCGHookGuard *g)
 }
 
 static void QEMU_DISABLE_CFI __attribute__((noinline))
-tcg_hook_one_helper(CPUArchState *env, void *opaque)
+tcg_hook_one_helper(CPUArchState *env, void *opaque, void *tb)
 {
     TCGHook *h = opaque;
     CPUState *cpu = env_cpu(env);
@@ -650,8 +679,11 @@ tcg_hook_one_helper(CPUArchState *env, void *opaque)
         }
     }
     cpu->tcg_hook_ra = (uintptr_t)__builtin_return_address(0);
+    hook_tb = tb;
+    hook_tb_ra = cpu->tcg_hook_ra;
     h->fn(cpu, h->site->pc, h->opaque);
     cpu->tcg_hook_ra = 0;
+    hook_tb = NULL;
 }
 
 static TCGHelperInfo tcg_hook_one_info = {
@@ -659,7 +691,7 @@ static TCGHelperInfo tcg_hook_one_info = {
     .name = "tcg_hook_one",
     .flags = 0,
     .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1) |
-                dh_typemask(ptr, 2),
+                dh_typemask(ptr, 2) | dh_typemask(ptr, 3),
 };
 
 /* The TCG global holding the guest register at @off in the CPU state, if any. */
@@ -734,7 +766,7 @@ static bool gen_guard(TCGHookGuard *g, TCGLabel *skip)
     return true;
 }
 
-static void gen_guarded(TCGHook *h)
+static void gen_guarded(TCGHook *h, TranslationBlock *tb)
 {
     TCGv_ptr hp = tcg_constant_ptr(h);
     TCGv_i32 live = tcg_temp_ebb_new_i32();
@@ -747,8 +779,9 @@ static void gen_guarded(TCGHook *h)
         /* only the translating thread writes this, before the code runs */
         h->guards[i].compiled = gen_guard(&h->guards[i], skip);
     }
-    tcg_gen_call2(tcg_hook_one_helper, &tcg_hook_one_info, NULL,
-                  tcgv_ptr_temp(tcg_env), tcgv_ptr_temp(hp));
+    tcg_gen_call3(tcg_hook_one_helper, &tcg_hook_one_info, NULL,
+                  tcgv_ptr_temp(tcg_env), tcgv_ptr_temp(hp),
+                  tcgv_ptr_temp(tcg_constant_ptr(tb)));
     gen_set_label(skip);
 }
 
@@ -757,7 +790,7 @@ static TCGHelperInfo tcg_hook_info = {
     .name = "tcg_hook",
     .flags = 0,
     .typemask = dh_typemask(void, 0) | dh_typemask(ptr, 1) |
-                dh_typemask(ptr, 2),
+                dh_typemask(ptr, 2) | dh_typemask(ptr, 3),
 };
 
 void tcg_hooks_gen(DisasContextBase *db)
@@ -779,7 +812,7 @@ void tcg_hooks_gen(DisasContextBase *db)
     }
     WITH_RCU_READ_LOCK_GUARD() {
         QLIST_FOREACH_RCU(h, &s->ghooks, next) {
-            gen_guarded(h);
+            gen_guarded(h, db->tb);
         }
     }
     site = tcg_constant_ptr(s);
@@ -788,7 +821,8 @@ void tcg_hooks_gen(DisasContextBase *db)
     tcg_gen_ld_i32(n, site, offsetof(TCGHookSite, nhooks));
     tcg_gen_brcondi_i32(TCG_COND_EQ, n, 0, skip);
     tcg_temp_free_i32(n);
-    tcg_gen_call2(tcg_hook_helper, &tcg_hook_info, NULL,
-                  tcgv_ptr_temp(tcg_env), tcgv_ptr_temp(site));
+    tcg_gen_call3(tcg_hook_helper, &tcg_hook_info, NULL,
+                  tcgv_ptr_temp(tcg_env), tcgv_ptr_temp(site),
+                  tcgv_ptr_temp(tcg_constant_ptr(db->tb)));
     gen_set_label(skip);
 }

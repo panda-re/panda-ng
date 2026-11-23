@@ -117,6 +117,13 @@ static inline uintptr_t tcg_hook_retaddr(CPUState *cpu)
     return cpu->tcg_hook_ra;
 }
 
+/*
+ * From a callback: the translated block the hooked instruction is in (the
+ * one its call was emitted in), or NULL outside a callback.  It holds no
+ * reference: valid until the callback returns.
+ */
+TranslationBlock *tcg_hook_tb(CPUState *cpu);
+
 /* From a callback: make PC and lazily computed state exact. */
 void tcg_hook_restore_state(CPUState *cpu);
 
