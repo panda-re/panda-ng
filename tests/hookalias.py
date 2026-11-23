@@ -14,6 +14,9 @@ import sys
 
 from pandare2 import Panda
 
+PANDA_TEST = dict(area="hooks", tier="guest", fixture="cloud-debian-13", arches=["x86_64"],
+                  plugins=["hooks"])
+
 panda = Panda(generic=sys.argv[1])
 fired = {}
 # Each reader reads the line before it exits: one that exited right after its open returned could

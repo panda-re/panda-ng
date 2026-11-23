@@ -66,15 +66,16 @@ jobs:
       # Taint and the record/replay under it on 12 arches (tests/busybox.sh: small busybox guests,
       # about 3 minutes with the download), only when the PR touches what they depend on: the
       # engine (TCG, record/replay, the targets' snapshot state), pandare2's taint and disk set-up,
-      # syscalls2, or the tests. Pushes to main always run it. The nightly guest suite runs it too.
-      - name: Does the change touch taint or record/replay?
+      # syscalls2, the hooks plugin, or the tests. Pushes to main always run it. The nightly guest
+      # suite runs it too. tests/hooks.py runs on the x86_64 and aarch64 guests (the others skip it).
+      - name: Does the change touch taint, record/replay or hooks?
         id: busybox
         run: |
           if [ "${{ github.event_name }}" != pull_request ]; then echo run=1 >> "$GITHUB_OUTPUT"; exit 0; fi
           # The checkout is the PR's merge commit; diffing its tree against the base's needs no history.
           git fetch -q --depth=1 origin ${{ github.event.pull_request.base.sha }}
           if git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD | grep -qE \
-              '^(engine/|flake\.(nix|lock)$|plugins/syscalls2/|python/core/pandare2/(taint|panda|qcows_internal)\.py$|tests/(taint|taint_mmio|mkbusybox)\.py$|tests/(busybox|run)\.sh$)'; then
+              '^(engine/|flake\.(nix|lock)$|plugins/(syscalls2|hooks)/|python/core/pandare2/(taint|panda|qcows_internal)\.py$|tests/(taint|taint_mmio|mkbusybox|hooks|testmachine)\.py$|tests/hooks_c\.c$|tests/programs/hooks_|tests/(busybox|run)\.sh$)'; then
             echo run=1 >> "$GITHUB_OUTPUT"
           else
             echo "no taint or record/replay paths changed: skipping the busybox guests"
@@ -85,7 +86,7 @@ jobs:
         with:
           path: ~/.cache/panda-busybox
           key: panda-busybox-${{ hashFiles('tests/busybox.sh') }}
-      - name: Taint and record/replay on 12 arches (busybox guests)
+      - name: Taint, record/replay and hooks on 12 arches (busybox guests)
         if: steps.busybox.outputs.run
         # Its busybox comes from the pandare cache (the busybox-dist job fills it); a miss means
         # cross-building 11 arches here, hours. Fail quickly instead and re-run once it's cached.
@@ -94,6 +95,7 @@ jobs:
           PANDA_PYTHON: ${{ github.workspace }}/result-python/bin/python3
           OUT: ${{ github.workspace }}/busybox-out
           IMAGES: ${{ runner.temp }}/busybox-images
+          TESTS: taint taint_mmio taint_errors hooks
         run: tests/busybox.sh
       - name: Busybox-guest logs
         if: failure() && steps.busybox.outputs.run

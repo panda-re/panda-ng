@@ -15,9 +15,8 @@ block's address. Between hypercalls 1 and 2 the test runs, in Python, what the p
 - hooks (the hooks plugin through Panda.hook): a hook at a block start fires once per execution;
   at an address inside a block too; one that disables itself fires once; a kernel-only hook on user
   code never fires; a before_block_exec-typed hook fires like the default.
-Hooks are added at hypercall 1 (the program's code after it isn't translated yet). Not checked: a
-hook's asid filter (waits for tbpc's process identifier); after_block_exec-typed hooks (the hooks
-plugin calls every hook with the before_tcg_codegen signature, so those would get wrong arguments).
+Hooks are added at hypercall 1 (the program's code after it isn't translated yet). tests/hooks.py
+checks the rest of the hooks plugin (every hook type, the asid filter, late and removed hooks).
 """
 import sys
 from collections import Counter
