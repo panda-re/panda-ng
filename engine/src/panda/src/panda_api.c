@@ -28,6 +28,8 @@
 #include "accel/tcg/hooks.h"
 #include "hw/core/panda-modules.h"
 #include "panda/events-internal.h"
+#include "panda/address-hook.h"
+#include "qemu/rcu.h"
 
 QEMU_BUILD_BUG_ON(PANDA_CAP_RECORD != STARTUP_CAP_RECORD);
 QEMU_BUILD_BUG_ON(PANDA_CAP_TAINT != STARTUP_CAP_TAINT);
@@ -46,6 +48,49 @@ bool panda_configure_capabilities(uint32_t requested)
 void panda_mark_hook_address(target_ulong pc)
 {
     tcg_hooks_mark_pc(pc);
+}
+
+PandaAddressHook *panda_address_hook_insert(uint64_t pc, panda_address_hook_fn fn, void *opaque)
+{
+    if (!fn) {
+        return NULL;
+    }
+    return (PandaAddressHook *)tcg_hook_insert(pc, (TCGHookFn)fn, opaque);
+}
+
+void panda_address_hook_remove(PandaAddressHook *hook)
+{
+    tcg_hook_remove((TCGHook *)hook);
+}
+
+struct TranslationBlock *panda_address_hook_tb(struct CPUState *cpu)
+{
+    return cpu ? tcg_hook_tb(cpu) : NULL;
+}
+
+typedef struct PandaFreeRcu {
+    struct rcu_head rcu;
+    void *ptr;
+} PandaFreeRcu;
+
+static void panda_free_rcu_cb(struct rcu_head *head)
+{
+    PandaFreeRcu *f = container_of(head, PandaFreeRcu, rcu);
+
+    free(f->ptr);
+    g_free(f);
+}
+
+void panda_free_rcu(void *ptr)
+{
+    PandaFreeRcu *f;
+
+    if (!ptr) {
+        return;
+    }
+    f = g_new(PandaFreeRcu, 1);
+    f->ptr = ptr;
+    panda_events_call_rcu(&f->rcu, panda_free_rcu_cb);     /* or once the machine is up */
 }
 
 // call main_aux and run everything up to and including panda_callbacks_after_machine_init.
