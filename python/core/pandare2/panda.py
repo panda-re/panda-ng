@@ -31,6 +31,7 @@ from shlex import quote as shlex_quote, split as shlex_split
 from time import sleep
 from cffi import FFI
 from functools import lru_cache
+from sys import _getframe
 
 from .utils import progress, warn, make_iso, debug, blocking, GArrayIterator, plugin_list
 from .panda_expect import Expect
@@ -48,26 +49,36 @@ logger = logging.getLogger("pandare2")
 
 
 _WRAPPER_MAKERS = {}
+# The code objects of the observe-only callback wrappers. A guest-writing helper refuses to run
+# while one of them is on its thread's stack (Panda._check_guest_mutation): the stack is the
+# thread's own, so this needs no per-call bookkeeping in the wrappers. It holds their ids: code
+# objects compare equal by content (not by filename), and an observe-only wrapper's source is the
+# same as a hypercall handler's. The code objects stay alive in _WRAPPER_MAKERS.
+_OBSERVER_CODES = set()
 
 
-def _wrapper_maker(nargs, kind):
+def _wrapper_maker(nargs, kind, observe_only=False, rr_check=False):
     '''
-    make(fun, stopped, raised) -> a function of exactly nargs arguments that calls fun, for
-    Panda._catching. kind: "void", "bool", "int", or "passthrough" (returns its second argument
-    when fun can't give a result). Generated once per (nargs, kind): a fixed argument list is
-    cheaper per call than *args.
+    make(fun, stopped, raised, rr, refuse) -> a function of exactly nargs arguments that calls
+    fun, for Panda._catching. kind: "void", "bool", "int", or "passthrough" (returns its second
+    argument when fun can't give a result). rr_check: before fun, `if rr[0]: refuse()` (rr is the
+    engine's replay_mode). observe_only: the wrapper's code object goes in _OBSERVER_CODES.
+    Generated once per key, so each callback is one Python frame around fun: a fixed argument
+    list is cheaper per call than *args.
     '''
-    key = (nargs, kind)
+    key = (nargs, kind, observe_only, rr_check)
     if key not in _WRAPPER_MAKERS:
         a = ", ".join(f"a{i}" for i in range(nargs))
         neutral = {"void": "None", "bool": "False", "int": "0", "passthrough": "a1"}[kind]
         ret = {"void": "return None", "bool": "return bool(r)"}.get(
             kind, f"return {neutral} if r is None else r")
-        src = (f"def make(fun, stopped, raised):\n"
+        check = "            if rr[0]:\n                refuse()\n" if rr_check else ""
+        src = (f"def make(fun, stopped, raised, rr, refuse):\n"
                f"    def call({a}):\n"
                f"        if stopped:\n"
                f"            return {neutral}\n"
                f"        try:\n"
+               f"{check}"
                f"            r = fun({a})\n"
                f"        except Exception as e:\n"
                f"            raised(e)\n"
@@ -75,7 +86,9 @@ def _wrapper_maker(nargs, kind):
                f"        {ret}\n"
                f"    return call\n")
         ns = {}
-        exec(src, ns)
+        exec(compile(src, f"<pandare2 callback wrapper {key}>", "exec"), ns)
+        if observe_only:
+            _OBSERVER_CODES.add(id(ns["make"](None, None, None, None, None).__code__))
         _WRAPPER_MAKERS[key] = ns["make"]
     return _WRAPPER_MAKERS[key]
 
@@ -2709,8 +2722,11 @@ class Panda(TaintMixin):
         Refuse a guest write from an observe-only Python callback, even live. Whether record/
         replay can log a write is the engine's answer (panda.guest raises GuestWriteRefused).
         '''
-        if getattr(self._callback_access, 'observers', 0):
-            raise GuestWriteRefused(operation, 1, "guest mutation is forbidden in an observe-only callback")
+        f = _getframe(1)
+        while f is not None:
+            if id(f.f_code) in _OBSERVER_CODES:
+                raise GuestWriteRefused(operation, 1, "guest mutation is forbidden in an observe-only callback")
+            f = f.f_back
 
     def _check_unlogged_mutation(self, operation):
         '''Refuse a change to the guest that record/replay cannot log (reset, map_memory, set_pc).'''
@@ -2747,17 +2763,35 @@ class Panda(TaintMixin):
         mutator = not observe_only and not hypercall
         if mutator and not self.libpanda.panda_guest_mutation_allowed():
             raise ValueError(f"callback {fun.__name__!r}: record/replay requires observe_only=True")
-        original = fun
-        def checked(*args):
-            if mutator and not self.libpanda.panda_guest_mutation_allowed():
-                raise PermissionError(f"callback {original.__name__!r}: record/replay requires observe_only=True")
-            observers = getattr(self._callback_access, 'observers', 0)
-            self._callback_access.observers = observers + bool(observe_only)
+        name = fun.__name__
+
+        def refuse():
+            raise PermissionError(f"callback {name!r}: record/replay requires observe_only=True")
+        make = _wrapper_maker(nargs, kind, observe_only=bool(observe_only), rr_check=mutator)
+        return make(fun, self._exit, self._callback_raised, self._replay_mode_cell() if mutator else None, refuse)
+
+    def _replay_mode_cell(self):
+        '''
+        The engine's replay_mode as an int* (nonzero while recording or replaying: what
+        panda_guest_mutation_allowed() answers), read by the mutating callbacks' wrappers on each
+        call without a call into the engine. Falls back to an object that asks the engine.
+        '''
+        cell = getattr(self, "_rr_cell", None)
+        if cell is None:
             try:
-                return original(*args)
-            finally:
-                self._callback_access.observers = observers
-        return _wrapper_maker(nargs, kind)(checked, self._exit, self._callback_raised)
+                rf = FFI()
+                rf.cdef("extern int replay_mode;")
+                self._rr_lib = rf.dlopen(self.libpanda_path, rf.RTLD_NOW | rf.RTLD_NOLOAD)
+                cell = rf.addressof(self._rr_lib, "replay_mode")
+            except (OSError, AttributeError, KeyError, TypeError):
+                allowed = self.libpanda.panda_guest_mutation_allowed
+
+                class _Ask:
+                    def __getitem__(self, i):
+                        return not allowed()
+                cell = _Ask()
+            self._rr_cell = cell
+        return cell
 
     def _callback_raised(self, e):
         '''A Python callback raised e (called in its except block).'''
