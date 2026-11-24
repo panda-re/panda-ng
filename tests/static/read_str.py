@@ -60,7 +60,7 @@ class Mem:
             l = min(self.page - (addr % self.page), mx - n)
             data = [self.byte(addr + i) for i in range(l)]
             if None in data:
-                return -1
+                return -1 - n
             ffi.memmove(buf + n, bytes(data), l)
             if 0 in data:
                 return n + data.index(0)
@@ -75,7 +75,7 @@ def old_read_str(mem, ptr, max_length=None):
     while max_length is None or idx < max_length:
         b = mem.byte(ptr)
         if b is None:
-            raise ValueError("unreadable")
+            raise ValueError(f"Failed to read guest memory at {ptr:x} got err=-1")
         if b == 0:
             break
         r += bytes([b])
@@ -87,6 +87,7 @@ def old_read_str(mem, ptr, max_length=None):
 def make(mem, engine_helper):
     p = ns['P']()
     p.ffi, p.bits, p._engine_started, p._osi_linux_loaded = ffi, 64, True, False
+    p._addr_mask = (1 << 64) - 1
     p._needs_engine = lambda what: None
     p._read_str_c = mem.read_str if engine_helper else None
     p.libpanda = type('L', (), {'panda_virtual_memory_read_external': staticmethod(mem.read)})()
@@ -119,9 +120,10 @@ class ReadStr(unittest.TestCase):
         for ptr, mx in ptrs:
             try:
                 want = old_read_str(m, ptr, mx)
-            except ValueError:
-                with self.assertRaises(ValueError, msg=(hex(ptr), mx)):
+            except ValueError as e:
+                with self.assertRaises(ValueError, msg=(hex(ptr), mx)) as got:
                     p.read_str(None, ptr, mx)
+                self.assertEqual(str(got.exception), str(e), (hex(ptr), mx))
                 continue
             self.assertEqual(p.read_str(None, ptr, mx), want, (hex(ptr), mx))
 

@@ -400,7 +400,8 @@ int panda_virtual_memory_read_external(CPUState *cpu, target_ulong addr, char *b
  * Return:
  * * n >= 0 and < @max - the string's length: @buf[n] is its NUL
  * * @max             - no NUL in the first @max bytes
- * * -1               - a page before the NUL could not be read (as a byte-by-byte read would fail)
+ * * -1 - k (< 0)     - the page at @addr + k, before any NUL, could not be read (where a
+ *                      byte-by-byte read would fail)
  */
 int panda_virtual_memory_read_str(CPUState *cpu, target_ulong addr, char *buf, int max);
 

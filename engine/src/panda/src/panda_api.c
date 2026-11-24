@@ -306,7 +306,7 @@ int panda_virtual_memory_read_str(CPUState *cpu, target_ulong addr, char *buf, i
 			l = max - n;
 		}
 		if (panda_virtual_memory_read(cpu, addr, (uint8_t *) buf + n, l) != 0) {
-			return -1;
+			return -1 - n;
 		}
 		char *nul = memchr(buf + n, 0, l);
 		if (nul) {

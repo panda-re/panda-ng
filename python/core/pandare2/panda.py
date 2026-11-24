@@ -1723,6 +1723,14 @@ class Panda(TaintMixin):
         A string that runs into memory that can't be read raises ValueError, as the byte-at-a-
         time read did; with max_length, only the first max_length bytes need to be readable.
         '''
+        rs = self._read_str_c
+        if rs is not None and max_length is None and type(ptr) is int and self._engine_started \
+                and not self._osi_linux_loaded:
+            # the common case, a string shorter than 4 KiB, in one frame and one engine call
+            buf = self.ffi.new("char[4096]")
+            got = rs(cpu, ptr & self._addr_mask, buf, 4096)
+            if 0 <= got < 4096:
+                return self.ffi.buffer(buf, got)[:].decode("utf8", "ignore")
         self._needs_engine("reading guest memory")
         if not isinstance(ptr, int):
             raise ValueError(f"Unsupported read from address {repr(ptr)}")
@@ -1753,7 +1761,7 @@ class Panda(TaintMixin):
                 buf = ffi.new("char[]", n)
                 got = rs(cpu, ptr, buf, n)
                 if got < 0:
-                    raise ValueError(f"Failed to read guest memory at {ptr:x}")
+                    raise ValueError(f"Failed to read guest memory at {(ptr - 1 - got) & mask:x} got err=-1")
                 out.append(ffi.buffer(buf, got)[:])
                 if got < n:
                     break
@@ -1771,7 +1779,7 @@ class Panda(TaintMixin):
                 # the first unreadable byte
                 for k in range(n):
                     if read(cpu, (ptr + k) & mask, buf, 1) != 0:
-                        raise ValueError(f"Failed to read guest memory at {(ptr + k) & mask:x}")
+                        raise ValueError(f"Failed to read guest memory at {(ptr + k) & mask:x} got err=-1")
                     if buf[0] == b"\0":
                         return b"".join(out)
                     out.append(buf[0])
