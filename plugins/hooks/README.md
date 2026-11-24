@@ -20,7 +20,12 @@ None.
 Dependencies
 ------------
 
-`hw_proc_id`, which it loads itself: a hook's `asid` is compared with its `get_id`.
+On MIPS, `hw_proc_id`, which it loads itself when the first hook with an `asid` is added: a
+hook's `asid` is compared with its `get_id`, the running task's pointer. hw_proc_id keeps that
+with a callback on every block, which on its own doubles a translation-heavy run, so it is not
+loaded otherwise. Adding the first such hook from a vCPU thread (a callback) can't load it: load
+hw_proc_id first (`panda_require`, or `panda.load_plugin` before the run), or the hook is refused
+with a message. Elsewhere `get_id` is `panda_current_asid`, which the plugin calls itself.
 
 APIs and Callbacks
 ------------------
@@ -29,21 +34,28 @@ APIs and Callbacks
 void add_hook(struct hook*)
 ```
 
-Adds a hook. The plugin copies the struct, so the caller's copy can go away.
+Adds a hook. The plugin copies the struct, so the caller's copy can go away, and changes to it
+after `add_hook` returns do nothing: to disable a hook, set `enabled = false` on the `struct hook`
+its callback gets (the plugin's copy), from the callback or from a pointer kept from it.
 
-Adding the same function at the same address, asid and `type` again is ignored (its `km` and
-`context` don't count). A hook added disabled is ignored: nothing could enable the plugin's copy.
+Adding the same hook at the same address again is ignored while the first is enabled: the same
+function, `asid`, `type`, `km` and `context`. The same function with another `context` or `km`
+is another hook. A hook added disabled is ignored: nothing could enable the plugin's copy.
 
 ```
 void enable_hooking()
 void disable_hooking()
 ```
 
-Turn every hook on and off at once, from the next hit. Hooking is on when the plugin loads.
+Turn every hook on and off at once, from the next hit. Hooking is on when the plugin loads. With
+several vCPUs, a hook whose callback was already running on another vCPU when
+`disable_hooking()` returned may still finish; none starts after.
 
 Unloading the plugin removes its engine hooks while the vCPUs are paused, before the library is
 closed: no hook runs once the unload has happened. An unload asked for from a vCPU's callback
-(a hook, a hypercall) happens a little later, in the main loop, so hooks can still run until then.
+(a hook, a hypercall) happens a little later, in the main loop, so hooks can still run until then
+(in practice the main loop pauses the vCPUs within the same phase of a guest program:
+`tests/hooks.py unload-hot`).
 
 Events
 ------
@@ -65,11 +77,10 @@ panda_subscribe(self, panda_hooks_hit_event(), on_hit, NULL, PANDA_MODE_ANALYSIS
                 PANDA_SUB_OBSERVE);
 ```
 
-`hooks_int_fns.h` also declares `add_symbol_hook(struct symbol_hook*)`, which hooked a symbol
-(an optional library name and a symbol name) through classic PANDA's `dynamic_symbols` plugin.
-panda-ng doesn't ship `dynamic_symbols`, and this plugin doesn't implement `add_symbol_hook`.
-So pandare2's `hook_symbol` (which calls `add_symbol_hook`) and `hook_symbol_resolution` (which
-calls `dynamic_symbols`) don't work.
+Classic PANDA's `add_symbol_hook(struct symbol_hook*)` (a symbol through its `dynamic_symbols`
+plugin) is not provided: panda-ng doesn't ship `dynamic_symbols`, and the declaration is gone
+from `hooks_int_fns.h`, so a caller fails to build or to resolve the symbol instead of linking
+against a function that never existed.
 
 Hook callbacks
 --------------
@@ -101,7 +112,7 @@ struct hook
 | field | meaning |
 |---|---|
 | `addr` | the virtual address of the instruction to hook |
-| `asid` | run only when `hw_proc_id`'s `get_id` equals this; 0 for every address space |
+| `asid` | run only when `hw_proc_id`'s `get_id` equals this (`panda_current_asid` outside MIPS); 0 for every address space |
 | `type` | a `panda_cb_type`: which `cb` member is called (above); not when the hook runs |
 | `cb` | the function, in the `hooks_panda_cb` union |
 | `km` | `MODE_ANY`, `MODE_KERNEL_ONLY` or `MODE_USER_ONLY` |
