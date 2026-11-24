@@ -41,6 +41,10 @@ void disable_hooking()
 
 Turn every hook on and off at once, from the next hit. Hooking is on when the plugin loads.
 
+Unloading the plugin removes its engine hooks while the vCPUs are paused, before the library is
+closed: no hook runs once the unload has happened. An unload asked for from a vCPU's callback
+(a hook, a hypercall) happens a little later, in the main loop, so hooks can still run until then.
+
 Events
 ------
 

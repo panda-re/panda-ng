@@ -31,8 +31,11 @@ phase, or not at all. Each case runs in a child process:
 - path: the hooks plugin loaded with no hooks, then a hook added at hypercall 3: whether any vCPU
   translates through QEMU's plugin path (panda_bridge_tb_trans_on) before and after. Expected: never
   (the hooks are the engine's own);
-- unload: a C and a Python hook, then the hooks plugin unloaded at hypercall 3: R 0 0, and the
-  program finishes;
+- unload: a C and a Python hook, then the hooks plugin unloaded at hypercall 3. An unload asked
+  for from a vCPU's callback is done by the main loop, with the vCPUs paused, shortly after: the
+  hooks may still fire in phase 2 until then (as many times as the plugin was still loaded, the
+  same count for both, give or take the one at h0 before h1), the plugin is gone by hypercall 4, and no hook fires after it is gone:
+  R, at most R, 0, and the program finishes;
 - smp (--smp > 1): the program on every vCPU at once, with a C hook counting at h0 and one at h1
   that adds a self-disabling hook at h0 on every hit (the hooks at h0 replaced while every vCPU
   runs them): h0's counter is exactly vCPUs * 3R, h1's too.
@@ -283,7 +286,7 @@ def at_hc3(cpu):
         st["bits"]["before-hook"] = tb_trans_on()
         counter_hook("h0", L["h0"])
     elif case == "unload":
-        panda.unload_plugin("hooks")
+        panda.unload_plugin("hooks")    # asynchronous from here (a vCPU): see the docstring
 
 
 def at_hc4(cpu):
@@ -291,6 +294,9 @@ def at_hc4(cpu):
         counter_hook("h0", st["labels"]["h0"])
     elif case == "remove":
         panda.plugins["hooks"].enable_hooking()
+    elif case == "unload":
+        st["unloaded_by_hc4"] = panda.libpanda.panda_get_plugin_by_name(b"hooks") == panda.ffi.NULL
+        st["c_at_hc4"] = hookc.hookc_get(0)
 
 
 def hypercall(cpu):
@@ -423,9 +429,15 @@ elif case == "path":
             bits.get("before-hook") == [False] * opt.smp, bits)
     C.check("with a hook: still none", bits.get("end") == [False] * opt.smp, bits)
 elif case == "unload":
-    C.check("C hook: R in phase 1, none after the unload", hookc.hookc_get(0) == R,
-            hookc.hookc_get(0))
-    expect("py", [R, 0, 0])
+    py = per.get("py", ZERO)
+    c_end, c_hc4 = hookc.hookc_get(0), st.get("c_at_hc4")
+    C.check("the plugin is unloaded by hypercall 4", st.get("unloaded_by_hc4") is True,
+            st.get("unloaded_by_hc4"))
+    C.check("Python hook: R in phase 1, at most R while the unload is pending, none after",
+            py[0] == R and py[1] <= R and py[2] == 0, py)
+    C.check("C hook: as many hits as the Python hook before the unload, none after it",
+            c_hc4 is not None and c_hc4 - R in (py[1], py[1] + 1) and c_end == c_hc4,
+            (c_hc4, c_end, py))
 elif case == "smp":
     n = opt.smp
     C.check(f"every copy of the program ran ({n})", out.get("run") and
