@@ -43763,12 +43763,6 @@ unsafe extern "C" {
     pub fn panda_virt_to_phys(env: *mut CPUState, addr: target_ulong) -> hwaddr;
 }
 unsafe extern "C" {
-    pub fn enter_priv(cpu: *mut CPUState) -> bool;
-}
-unsafe extern "C" {
-    pub fn exit_priv(cpu: *mut CPUState);
-}
-unsafe extern "C" {
     pub fn panda_virtual_memory_rw(
         cpu: *mut CPUState,
         addr: target_ulong,

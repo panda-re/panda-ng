@@ -6,6 +6,7 @@
 #include "panda/debug.h"
 #include "panda/plugin.h"
 #include "panda/common.h"
+#include "translate-int.h"
 #if defined(TARGET_ARM)
 #include "target/arm/internals.h"
 #endif
@@ -186,6 +187,45 @@ static void x86_kpti_note(CPUState *cpu, uint64_t old_cr3, uint64_t new_cr3)
             "process to panda_current_asid\n", PANDA_CORE_NAME);
 }
 #endif
+
+/*
+ * A guest virtual page's translation, for an analysis read or write (@access false) or for the
+ * CPU's own access to it (@access true: the plugin helpers' physical address before the access).
+ *
+ * cpu_translate_for_debug_kernel walks as the guest's kernel would: the supervisor's regime with
+ * the current tables, without the checks that depend on privilege, whatever the CPU's privilege
+ * is. Privilege only decides whether an address translates, not where to, so that view answers
+ * wherever the CPU's does, with the same address, and more: a callback in user mode reads kernel
+ * memory (MIPS segments, LoongArch's direct-map windows, RISC-V and PowerPC supervisor pages,
+ * arm64 E0PD), one in the kernel reads user memory that a user-access control blocks (RISC-V SUM,
+ * PowerPC radix KUAP). Where the CPU doesn't translate at all (RISC-V M-mode, PowerPC real mode)
+ * the two differ, and the kernel's view is the one a virtual address means. An analysis read
+ * takes it first, then the CPU's (for an address the kernel doesn't map, e.g. firmware's own in
+ * M-mode); the CPU's own access takes the CPU's first. On x86, where privilege changes no debug
+ * walk, the kernel's view under KPTI is the process's kernel table (CR3 bit 12 clear): its user
+ * table maps no kernel data. Nothing here changes the CPU's state, and the kernel's view doesn't
+ * depend on the CPU's privilege, so another thread may translate while the CPU runs and changes
+ * level.
+ */
+bool panda_translate_page(CPUState *cpu, vaddr page, TranslateForDebugResult *res, bool access)
+{
+    bool ok = access
+        ? cpu_translate_for_debug(cpu, page, res) || cpu_translate_for_debug_kernel(cpu, page, res)
+        : cpu_translate_for_debug_kernel(cpu, page, res) || cpu_translate_for_debug(cpu, page, res);
+
+    if (ok) {
+        return true;
+    }
+#if defined(TARGET_I386)
+    CPUX86State *env = cpu_env(cpu);
+    uint64_t cr3 = env->cr[3];
+
+    if (x86_kpti && (env->hflags & HF_LMA_MASK) && (cr3 & 0x1000)) {
+        return x86_cpu_translate_for_debug_cr3(cpu, cr3 & ~0x1000ULL, page, res);
+    }
+#endif
+    return false;
+}
 
 #if defined(TARGET_ARM)
 /* The EL whose TTBRs map EL0 and the kernel: 2 in an EL2 host regime (VHE: E2H and TGE). */
@@ -506,151 +546,6 @@ Int128 panda_find_max_ram_address(void) {
 
   return curr_max;
 }
-#endif
-
-#if defined(TARGET_ARM)
-#define CPSR_M (0x1fU)
-#define ARM_CPU_MODE_SVC 0x13
-thread_local int saved_cpsr = -1;
-thread_local int saved_r13 = -1;
-thread_local bool in_fake_priv = false;
-thread_local int saved_pstate = -1;
-
-// Force the guest into supervisor mode by directly modifying its cpsr and r13
-// See https://developer.arm.com/docs/ddi0595/b/aarch32-system-registers/cpsr
-bool enter_priv(CPUState* cpu) {
-    CPUARMState* env = (CPUARMState*) cpu_env(cpu);
-
-    if (env->aarch64) {
-        saved_pstate = env->pstate;
-        env->pstate |= 1<<2; // Set bits 2-4 to 1 - EL1
-        if (saved_pstate == env->pstate) {
-            return false;
-        }
-    }else{
-        saved_cpsr = env->uncached_cpsr;
-        env->uncached_cpsr = (env->uncached_cpsr) | (ARM_CPU_MODE_SVC & CPSR_M);
-        if (env->uncached_cpsr == saved_cpsr) {
-            // No change was made
-            return false;
-        }
-    }
-
-    assert(!in_fake_priv && "enter_priv called when already entered");
-
-    if (!env->aarch64) {
-        // arm32: save r13 for osi - Should we also restore other banked regs like r_14? Seems unnecessary?
-        saved_r13 = env->regs[13];
-        // If we're not already in SVC mode, load the saved SVC r13 from the SVC mode's banked_r13
-        if ((((CPUARMState*)cpu_env(cpu))->uncached_cpsr & CPSR_M) != ARM_CPU_MODE_SVC) {
-            env->regs[13] = env->banked_r13[ /*SVC_MODE=>*/ 1 ];
-        }
-    }
-    in_fake_priv = true;
-    return true;
-}
-
-// return to whatever mode we were in previously (might be a NO-OP if we were in svc)
-// Assumes you've called enter_svc first
-void exit_priv(CPUState* cpu) {
-    //printf("RESTORING CSPR TO 0x%x\n", saved_cpsr);
-    assert(in_fake_priv && "exit called when not faked");
-
-    CPUARMState* env = ((CPUARMState*)cpu_env(cpu));
-
-    if (env->aarch64) {
-        assert(saved_pstate != -1 && "Must call enter_svc before reverting with exit_svc");
-        env->pstate = saved_pstate;
-    }else{
-        assert(saved_cpsr != -1 && "Must call enter_svc before reverting with exit_svc");
-        env->uncached_cpsr = saved_cpsr;
-        env->regs[13] = saved_r13;
-    }
-    in_fake_priv = false;
-}
-
-
-#elif defined(TARGET_MIPS)
-// MIPS
-thread_local int saved_hflags = -1;
-thread_local bool in_fake_priv = false;
-
-// Force the guest into supervisor mode by modifying env->hflags
-// save old hflags and restore after the read
-bool enter_priv(CPUState* cpu) {
-    saved_hflags = ((CPUMIPSState*)cpu_env(cpu))->hflags;
-    CPUMIPSState *env =  (CPUMIPSState*)cpu_env(cpu);
-
-    // Already in kernel mode?
-    if (!(env->hflags & MIPS_HFLAG_UM) && !(env->hflags & MIPS_HFLAG_SM)) {
-        // No point in changing permissions
-        return false;
-    }
-
-    // Disable usermode & supervisor mode - puts us in kernel mode
-    ((CPUMIPSState*)cpu_env(cpu))->hflags = ((CPUMIPSState*)cpu_env(cpu))->hflags & ~MIPS_HFLAG_UM;
-    ((CPUMIPSState*)cpu_env(cpu))->hflags = ((CPUMIPSState*)cpu_env(cpu))->hflags & ~MIPS_HFLAG_SM;
-
-    in_fake_priv = true;
-
-    return true;
-}
-
-void exit_priv(CPUState* cpu) {
-    assert(in_fake_priv && "exit called when not faked");
-    ((CPUMIPSState*)cpu_env(cpu))->hflags = saved_hflags;
-    in_fake_priv = false;
-}
-
-#elif defined(TARGET_I386)
-
-thread_local uint32_t saved_hflags = 0;
-thread_local bool in_fake_priv = false;
-bool enter_priv(CPUState *cpu){
-    if (panda_in_kernel_mode(cpu)){
-        return false;
-    }
-    CPUX86State *env = (CPUX86State *)cpu_env(cpu);
-    saved_hflags = env->hflags;
-    in_fake_priv = true;
-    env->hflags = env->hflags | HF_CPL_MASK;
-    return true;
-}
-
-void exit_priv(CPUState *cpu){
-    assert(in_fake_priv && "exit called when not faked");
-    CPUX86State *env = (CPUX86State *)cpu_env(cpu);
-    env->hflags = saved_hflags;
-    in_fake_priv = false;
-}
-
-#elif defined(TARGET_RISCV)
-
-// The debug page walk checks U against the CPU's privilege (riscv_env_mmu_index): from U-mode,
-// kernel pages are refused. Walk as S-mode; env->priv only, no mode switch, so no TLB flush.
-thread_local privilege_mode_t saved_priv;
-thread_local bool in_fake_priv = false;
-bool enter_priv(CPUState *cpu){
-    CPURISCVState *env = (CPURISCVState *)cpu_env(cpu);
-    if (env->priv != PRV_U) {
-        return false;
-    }
-    saved_priv = env->priv;
-    env->priv = PRV_S;
-    in_fake_priv = true;
-    return true;
-}
-
-void exit_priv(CPUState *cpu){
-    assert(in_fake_priv && "exit called when not faked");
-    ((CPURISCVState *)cpu_env(cpu))->priv = saved_priv;
-    in_fake_priv = false;
-}
-
-#else
-// Other architectures don't require special permissions for PANDA's memory access fns
-bool enter_priv(CPUState* cpu) {return false;};
-void exit_priv(CPUState* cpu)  {};
 #endif
 
 /* vim:set shiftwidth=4 ts=4 sts=4 et: */

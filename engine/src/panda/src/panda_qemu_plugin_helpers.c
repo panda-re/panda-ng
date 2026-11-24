@@ -19,6 +19,7 @@
 #include "exec/memopidx.h"
 #include "qemu/rcu.h"
 #include "system/memory.h"
+#include "translate-int.h"
 
 
 CPUState* panda_cpu_by_index(int index){
@@ -154,7 +155,7 @@ uint64_t panda_bridge_virt_to_phys(CPUState *cpu, uint64_t vaddr){
     return pa == (hwaddr) -1 ? (uint64_t) -1 : (uint64_t) pa;
 }
 
-/* On a TLB miss before the access: the page walk (as panda_virt_to_phys, privileged if need be)
+/* On a TLB miss before the access: the page walk (panda_translate_page, as panda_virt_to_phys)
  * and, if @is_io, whether the access will go to a device. That is what tlb_set_page_full decides
  * (TLB_MMIO) when the access fills the TLB: a load goes to a device unless the page is RAM or ROMD
  * (a ROM device's reads come from its RAM), a store unless the page is RAM (a ROMD write goes to
@@ -162,13 +163,7 @@ uint64_t panda_bridge_virt_to_phys(CPUState *cpu, uint64_t vaddr){
 static uint64_t before_phys_walk(CPUState *cpu, uint64_t vaddr, bool is_store, bool *is_io){
     TranslateForDebugResult res;
     uint64_t page = vaddr & TARGET_PAGE_MASK;
-    bool ok = cpu_translate_for_debug(cpu, page, &res);
-
-    if (!ok && enter_priv(cpu)) {
-        ok = cpu_translate_for_debug(cpu, page, &res);
-        exit_priv(cpu);
-    }
-    if (!ok) {
+    if (!panda_translate_page(cpu, page, &res, true)) {
         return (uint64_t) -1;
     }
     hwaddr pa = (res.physaddr & TARGET_PAGE_MASK) | (vaddr & ~TARGET_PAGE_MASK);

@@ -86,8 +86,6 @@ int panda_physical_memory_rw(hwaddr addr, uint8_t *buf, int len, bool is_write);
 int panda_physical_memory_read(hwaddr addr, uint8_t *buf, int len);
 int panda_physical_memory_write(hwaddr addr, uint8_t *buf, int len);
 hwaddr panda_virt_to_phys(CPUState * env, target_ulong addr);
-bool enter_priv(CPUState * cpu);
-void exit_priv(CPUState * cpu);
 int panda_virtual_memory_rw(CPUState * cpu, target_ulong addr,
                             uint8_t * buf, int len, bool is_write);
 int panda_virtual_memory_read(CPUState * env, target_ulong addr,
