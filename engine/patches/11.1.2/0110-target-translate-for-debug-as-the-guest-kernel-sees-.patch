@@ -1,0 +1,672 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 24 Nov 2026 00:07:25 -0500
+Subject: [PATCH] target: translate for debug as the guest kernel sees an
+ address
+
+cpu_translate_for_debug() walks the page tables in the CPU's current
+translation regime, and on several targets that regime's privilege decides
+whether an address translates at all, even for a debug walk that checks no
+access permissions:
+
+- arm64: under TCR_ELx.E0PD1 the TTBR1 half faults at EL0 before any
+  permission check (aa64_va_parameters);
+- RISC-V: a U-mode walk refuses supervisor pages, and an S-mode walk without
+  mstatus.SUM refuses user pages (get_physical_address);
+- MIPS: user and supervisor modes take an address error outside their
+  segments (kseg0/1/2/3, xkphys, xkseg);
+- PowerPC: problem state can't read supervisor pages (hash keys, BookE
+  UR/SR, radix EAA privilege), and a radix kernel whose AMR blocks user
+  pages (Linux's KUAP) can't read them;
+- LoongArch: a direct-map window applies only to the privilege levels its
+  DMW enables (Linux enables PLV0 only), and PTE.PLV refuses PLV3.
+
+A debugger or an analysis that reads guest memory while the CPU runs user
+code has no way to ask for the kernel's view without changing the CPU's
+privilege, which is unsafe from another thread.
+
+Add SysemuCPUOps.translate_for_debug_kernel and cpu_translate_for_debug_kernel():
+the same translation in the regime the CPU's supervisor uses, with the
+current page tables, whatever the CPU's privilege is, and without the checks
+that depend on privilege. It changes no CPU state. Implement it for:
+
+- Arm: an EL0 regime's privileged counterpart (E10_0 -> E10_1, E20_0 ->
+  E20_2, E30_0 -> E30_3_PAN; M-profile User -> Priv), same tables;
+- RISC-V: S-mode with SUM (MMUIdx_S_SUM, two-stage when virtualized);
+- MIPS: kernel mode (ERL keeps its own view);
+- PowerPC Book3S (hash and radix) and BookE 2.06: supervisor state, with
+  translation on for Book3S and the address space kept for BookE; then
+  problem state, for user pages a protection key blocks the kernel from;
+- LoongArch: PLV0 (not in direct-address mode).
+
+x86 needs none: its debug walk checks no privilege.
+
+On PowerPC, BookE 2.06 and radix took the privilege of a translation from
+MSR[PR] rather than from the mmu_idx: take it from the mmu_idx, which has
+the same value for every access the CPU makes (hreg_compute_hflags_value).
+
+For x86, add x86_cpu_translate_for_debug_cr3(): the debug walk with a given
+page-table root and the CPU's other paging controls, for a caller that
+knows another table of the same address space (the kernel half of a
+page-table isolation pair). x86_cpu_translate_for_debug() calls it with CR3.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: new
+---
+ hw/core/cpu-system.c             |  9 +++++
+ include/hw/core/cpu.h            | 24 ++++++++++++
+ include/hw/core/sysemu-cpu-ops.h | 15 ++++++++
+ target/arm/cpu.c                 |  1 +
+ target/arm/internals.h           |  3 ++
+ target/arm/ptw.c                 | 42 +++++++++++++++++++++
+ target/i386/cpu.h                |  2 +
+ target/i386/helper.c             | 25 ++++++++++---
+ target/loongarch/cpu-mmu.h       |  2 +
+ target/loongarch/cpu.c           |  1 +
+ target/loongarch/cpu_helper.c    | 24 ++++++++++++
+ target/mips/cpu.c                |  1 +
+ target/mips/internal.h           |  2 +
+ target/mips/system/physaddr.c    | 28 ++++++++++++++
+ target/ppc/cpu.h                 |  2 +
+ target/ppc/cpu_init.c            |  1 +
+ target/ppc/mmu-booke.c           |  7 +++-
+ target/ppc/mmu-radix64.c         | 11 +++---
+ target/ppc/mmu_common.c          | 64 ++++++++++++++++++++++++++++++++
+ target/riscv/cpu.c               |  1 +
+ target/riscv/cpu.h               |  2 +
+ target/riscv/tcg/cpu_helper.c    | 35 ++++++++++++++---
+ 22 files changed, 285 insertions(+), 17 deletions(-)
+
+diff --git a/hw/core/cpu-system.c b/hw/core/cpu-system.c
+index 936b73985ab855e301ea3fbdc554e0037d9e7724..c629e346461e308493385b0a728de4efe9ab687f 100644
+--- a/hw/core/cpu-system.c
++++ b/hw/core/cpu-system.c
+@@ -80,6 +80,15 @@ bool cpu_translate_for_debug(CPUState *cpu, vaddr addr,
+     }
+ }
+ 
++bool cpu_translate_for_debug_kernel(CPUState *cpu, vaddr addr,
++                                    TranslateForDebugResult *result)
++{
++    if (!cpu->cc->sysemu_ops->translate_for_debug_kernel) {
++        return false;
++    }
++    return cpu->cc->sysemu_ops->translate_for_debug_kernel(cpu, addr, result);
++}
++
+ int cpu_asidx_from_attrs(CPUState *cpu, MemTxAttrs attrs)
+ {
+     int ret = 0;
+diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
+index 8c60551a391dd330162a9e284bde1a7ca0b18710..feb491fb1273ffa2b0adce58c16ae0ce2bf225f4 100644
+--- a/include/hw/core/cpu.h
++++ b/include/hw/core/cpu.h
+@@ -810,6 +810,30 @@ typedef struct TranslateForDebugResult {
+ bool cpu_translate_for_debug(CPUState *cpu, vaddr addr,
+                              TranslateForDebugResult *result);
+ 
++/**
++ * cpu_translate_for_debug_kernel:
++ * @cpu: The CPU use for the virtual-to-physical translation
++ * @addr: The virtual address
++ * @result: Struct filled in with results of translation
++ *
++ * As cpu_translate_for_debug(), but as the guest's kernel sees @addr: in
++ * the translation regime of the CPU's supervisor (with the current page
++ * tables), whatever privilege level the CPU is at, and without the checks
++ * that depend on privilege. Where privilege only decides whether an address
++ * translates, not where to, this succeeds wherever cpu_translate_for_debug()
++ * does and gives the same address. The CPU's state is not changed, so it may
++ * be called while the CPU runs.
++ *
++ * The answer doesn't depend on the CPU's current privilege level, so it
++ * stays the kernel's view while the CPU changes level.
++ *
++ * Returns: false on translation failure, or if the CPU's translation
++ * doesn't depend on privilege (cpu_translate_for_debug() answers for it);
++ * true on success, and fills in the fields of @result.
++ */
++bool cpu_translate_for_debug_kernel(CPUState *cpu, vaddr addr,
++                                    TranslateForDebugResult *result);
++
+ /** cpu_asidx_from_attrs:
+  * @cpu: CPU
+  * @attrs: memory transaction attributes
+diff --git a/include/hw/core/sysemu-cpu-ops.h b/include/hw/core/sysemu-cpu-ops.h
+index 9a45596169a31823a0d4c1566fa4273a840bcd7c..e42cd2dcf5cbdb6634e8f2429f7666ca7ae082e8 100644
+--- a/include/hw/core/sysemu-cpu-ops.h
++++ b/include/hw/core/sysemu-cpu-ops.h
+@@ -58,6 +58,21 @@ typedef struct SysemuCPUOps {
+      */
+     bool (*translate_for_debug)(CPUState *cpu, vaddr addr,
+                                 TranslateForDebugResult *result);
++    /**
++     * @translate_for_debug_kernel: Callback for translating a virtual
++     * address as @translate_for_debug does, but as the guest's kernel sees
++     * it: in the translation regime the CPU's supervisor uses with the
++     * current page tables, whatever the CPU's privilege level is now, and
++     * with the access controls that depend on privilege (user/supervisor
++     * page permissions, user-access enables such as RISC-V SUM, address
++     * regions reserved to the kernel) not applied. It must not change the
++     * CPU's state, and it doesn't depend on the CPU's current privilege
++     * level, so the answer stays the kernel's view while the CPU changes
++     * level. Returns false on translation failure. NULL if privilege
++     * doesn't change what translates.
++     */
++    bool (*translate_for_debug_kernel)(CPUState *cpu, vaddr addr,
++                                       TranslateForDebugResult *result);
+     /**
+      * @asidx_from_attrs: Callback to return the CPU AddressSpace to use for
+      *       a memory access with the specified memory transaction attributes.
+diff --git a/target/arm/cpu.c b/target/arm/cpu.c
+index 1ebb3bccf1029deac8901fbdac027d1f4d36675b..df265037b1017ed4b0de1f188d6af1fad44b4939 100644
+--- a/target/arm/cpu.c
++++ b/target/arm/cpu.c
+@@ -2634,6 +2634,7 @@ static vaddr aarch64_untagged_addr(CPUState *cs, vaddr x)
+ static const struct SysemuCPUOps arm_sysemu_ops = {
+     .has_work = arm_cpu_has_work,
+     .translate_for_debug = arm_cpu_translate_for_debug,
++    .translate_for_debug_kernel = arm_cpu_translate_for_debug_kernel,
+     .asidx_from_attrs = arm_asidx_from_attrs,
+     .write_elf32_note = arm_cpu_write_elf32_note,
+     .write_elf64_note = arm_cpu_write_elf64_note,
+diff --git a/target/arm/internals.h b/target/arm/internals.h
+index e8c2ebdc819063821838994a1364bb0f5e071fcd..6663f59295d0f258bb3ee445fcd23a51d28db76d 100644
+--- a/target/arm/internals.h
++++ b/target/arm/internals.h
+@@ -1613,6 +1613,9 @@ void arm_log_exception(CPUState *cs);
+ /* Implementation of SysemuCPUOps::translate_for_debug */
+ bool arm_cpu_translate_for_debug(CPUState *cs, vaddr addr,
+                                  TranslateForDebugResult *result);
++/* Implementation of SysemuCPUOps::translate_for_debug_kernel */
++bool arm_cpu_translate_for_debug_kernel(CPUState *cs, vaddr addr,
++                                        TranslateForDebugResult *result);
+ 
+ #endif /* !CONFIG_USER_ONLY */
+ 
+diff --git a/target/arm/ptw.c b/target/arm/ptw.c
+index 9afc1aa0e7c7971cc6a670af8dde781bf8a77492..bfb5d372011695937b5fdf2d0f78c5afa3c9601c 100644
+--- a/target/arm/ptw.c
++++ b/target/arm/ptw.c
+@@ -4149,3 +4149,45 @@ bool arm_cpu_translate_for_debug(CPUState *cs, vaddr addr,
+         return false;
+     }
+ }
++
++/*
++ * The kernel's view: an EL0 regime's privileged counterpart, which uses the
++ * same translation tables. Debug walks check no permissions, so what this
++ * adds is what is refused to EL0 before any permission check: the TTBR1
++ * half under TCR_ELx.E0PD1, and the TTBR0 half under E0PD0.
++ */
++bool arm_cpu_translate_for_debug_kernel(CPUState *cs, vaddr addr,
++                                        TranslateForDebugResult *result)
++{
++    CPUARMState *env = cpu_env(cs);
++    ARMMMUIdx mmu_idx;
++
++    switch (arm_mmu_idx(env)) {
++    case ARMMMUIdx_E10_0:
++        mmu_idx = ARMMMUIdx_E10_1;
++        break;
++    case ARMMMUIdx_E20_0:
++        mmu_idx = ARMMMUIdx_E20_2;
++        break;
++    case ARMMMUIdx_E30_0:
++        mmu_idx = ARMMMUIdx_E30_3_PAN;
++        break;
++    case ARMMMUIdx_MUser:
++        mmu_idx = ARMMMUIdx_MPriv;
++        break;
++    case ARMMMUIdx_MUserNegPri:
++        mmu_idx = ARMMMUIdx_MPrivNegPri;
++        break;
++    case ARMMMUIdx_MSUser:
++        mmu_idx = ARMMMUIdx_MSPriv;
++        break;
++    case ARMMMUIdx_MSUserNegPri:
++        mmu_idx = ARMMMUIdx_MSPrivNegPri;
++        break;
++    default:
++        /* Already privileged: the current regime is the kernel's */
++        mmu_idx = arm_mmu_idx(env);
++        break;
++    }
++    return arm_cpu_get_phys_addr(env, addr, result, mmu_idx);
++}
+diff --git a/target/i386/cpu.h b/target/i386/cpu.h
+index e6a197602d874bec5e99fa936675052f7759d44f..a3d2f2d2bcb835637ea084425ea608efe7098a9f 100644
+--- a/target/i386/cpu.h
++++ b/target/i386/cpu.h
+@@ -2588,6 +2588,8 @@ int x86_cpu_pending_interrupt(CPUState *cs, int interrupt_request);
+ 
+ bool x86_cpu_translate_for_debug(CPUState *cpu, vaddr addr,
+                                  TranslateForDebugResult *result);
++bool x86_cpu_translate_for_debug_cr3(CPUState *cpu, uint64_t cr3, vaddr addr,
++                                     TranslateForDebugResult *result);
+ int cpu_get_pic_interrupt(CPUX86State *s);
+ 
+ /* MS-DOS compatibility mode FPU exception support */
+diff --git a/target/i386/helper.c b/target/i386/helper.c
+index 93be0b9357e69e1feb38f0f076631b02c5b72046..fc557174e4dbf784d8e38bcbd0eec4389ba0c414 100644
+--- a/target/i386/helper.c
++++ b/target/i386/helper.c
+@@ -258,8 +258,14 @@ void cpu_x86_update_cr4(CPUX86State *env, uint32_t new_cr4)
+ }
+ 
+ #if !defined(CONFIG_USER_ONLY)
+-bool x86_cpu_translate_for_debug(CPUState *cs, vaddr addr,
+-                                 TranslateForDebugResult *result)
++/*
++ * x86_cpu_translate_for_debug_cr3: as x86_cpu_translate_for_debug, with
++ * @cr3 as the page table root instead of CR3 (the other paging controls are
++ * the CPU's). For a caller that knows another table the guest uses for the
++ * same address space, e.g. the kernel's half of a page-table isolation pair.
++ */
++bool x86_cpu_translate_for_debug_cr3(CPUState *cs, uint64_t cr3, vaddr addr,
++                                     TranslateForDebugResult *result)
+ {
+     X86CPU *cpu = X86_CPU(cs);
+     CPUX86State *env = &cpu->env;
+@@ -291,14 +297,14 @@ bool x86_cpu_translate_for_debug(CPUState *cs, vaddr addr,
+             }
+ 
+             if (la57) {
+-                pml5e_addr = ((env->cr[3] & ~0xfff) +
++                pml5e_addr = ((cr3 & ~0xfff) +
+                         (((addr >> 48) & 0x1ff) << 3)) & a20_mask;
+                 pml5e = x86_ldq_phys(cs, pml5e_addr);
+                 if (!(pml5e & PG_PRESENT_MASK)) {
+                     return false;
+                 }
+             } else {
+-                pml5e = env->cr[3];
++                pml5e = cr3;
+             }
+ 
+             pml4e_addr = ((pml5e & PG_ADDRESS_MASK) +
+@@ -322,7 +328,7 @@ bool x86_cpu_translate_for_debug(CPUState *cs, vaddr addr,
+         } else
+ #endif
+         {
+-            pdpe_addr = ((env->cr[3] & ~0x1f) + ((addr >> 27) & 0x18)) &
++            pdpe_addr = ((cr3 & ~0x1f) + ((addr >> 27) & 0x18)) &
+                 a20_mask;
+             pdpe = x86_ldq_phys(cs, pdpe_addr);
+             if (!(pdpe & PG_PRESENT_MASK))
+@@ -353,7 +359,7 @@ bool x86_cpu_translate_for_debug(CPUState *cs, vaddr addr,
+         uint32_t pde;
+ 
+         /* page directory entry */
+-        pde_addr = ((env->cr[3] & ~0xfff) + ((addr >> 20) & 0xffc)) & a20_mask;
++        pde_addr = ((cr3 & ~0xfff) + ((addr >> 20) & 0xffc)) & a20_mask;
+         pde = x86_ldl_phys(cs, pde_addr);
+         if (!(pde & PG_PRESENT_MASK))
+             return false;
+@@ -385,6 +391,13 @@ out:
+     return true;
+ }
+ 
++bool x86_cpu_translate_for_debug(CPUState *cs, vaddr addr,
++                                 TranslateForDebugResult *result)
++{
++    return x86_cpu_translate_for_debug_cr3(cs, cpu_env(cs)->cr[3], addr,
++                                           result);
++}
++
+ typedef struct MCEInjectionParams {
+     Monitor *mon;
+     int bank;
+diff --git a/target/loongarch/cpu-mmu.h b/target/loongarch/cpu-mmu.h
+index 54fb732d62d91e8dc2a8e06a983b8912ce1126e9..0f233d19aaeb3791c4e6012e8fff05c99d35c9cf 100644
+--- a/target/loongarch/cpu-mmu.h
++++ b/target/loongarch/cpu-mmu.h
+@@ -100,6 +100,8 @@ TLBRet loongarch_ptw(CPULoongArchState *env, MMUContext *context,
+ void get_dir_base_width(CPULoongArchState *env, uint64_t *dir_base,
+                         uint64_t *dir_width, unsigned int level);
+ hwaddr loongarch_cpu_get_phys_addr_debug(CPUState *cpu, vaddr addr);
++bool loongarch_cpu_translate_for_debug_kernel(CPUState *cs, vaddr addr,
++                                              TranslateForDebugResult *result);
+ uint64_t loongarch_palen_mask(CPULoongArchState *env);
+ 
+ #endif  /* LOONGARCH_CPU_MMU_H */
+diff --git a/target/loongarch/cpu.c b/target/loongarch/cpu.c
+index bf7f807811075770fb24dce6a1e433b1655b322f..88d02146bf53026cd05e8747eab514a5c1abd32c 100644
+--- a/target/loongarch/cpu.c
++++ b/target/loongarch/cpu.c
+@@ -872,6 +872,7 @@ static const struct SysemuCPUOps loongarch_sysemu_ops = {
+     .has_work = loongarch_cpu_has_work,
+     .write_elf64_note = loongarch_cpu_write_elf64_note,
+     .get_phys_addr_debug = loongarch_cpu_get_phys_addr_debug,
++    .translate_for_debug_kernel = loongarch_cpu_translate_for_debug_kernel,
+ };
+ 
+ static int64_t loongarch_cpu_get_arch_id(CPUState *cs)
+diff --git a/target/loongarch/cpu_helper.c b/target/loongarch/cpu_helper.c
+index 123cad3d930974becf51b12f4f88c43ef2d2f3bc..53f0f8a6e54c6f44d5cebce3a03be64c3bf927e2 100644
+--- a/target/loongarch/cpu_helper.c
++++ b/target/loongarch/cpu_helper.c
+@@ -376,6 +376,30 @@ hwaddr loongarch_cpu_get_phys_addr_debug(CPUState *cs, vaddr addr)
+     return context.physical;
+ }
+ 
++/*
++ * The kernel's view: privilege level 0, for which the kernel's direct map
++ * windows (CSR.DMWn with only PLV0 enabled, as Linux sets them) and its
++ * pages (PTE.PLV 0) translate. Direct-address mode translates as it does
++ * for every privilege level.
++ */
++bool loongarch_cpu_translate_for_debug_kernel(CPUState *cs, vaddr addr,
++                                              TranslateForDebugResult *result)
++{
++    CPULoongArchState *env = cpu_env(cs);
++    MMUContext context;
++
++    context.addr = addr;
++    if (get_physical_address(env, &context, MMU_DATA_LOAD, MMU_KERNEL_IDX,
++                             1) != TLBRET_MATCH) {
++        return false;
++    }
++    result->physaddr = context.physical;
++    result->attrs = MEMTXATTRS_UNSPECIFIED;
++    result->attrs.debug = 1;
++    result->lg_page_size = TARGET_PAGE_BITS;
++    return true;
++}
++
+ uint64_t loongarch_palen_mask(CPULoongArchState *env)
+ {
+     /* PALEN stores physical address bits - 1 */
+diff --git a/target/mips/cpu.c b/target/mips/cpu.c
+index 2ac92a0ccd62295a818fd60abbe88e18bc752c7f..0e419f78c3d5e3f926475df06dd5f35678b9ec84 100644
+--- a/target/mips/cpu.c
++++ b/target/mips/cpu.c
+@@ -610,6 +610,7 @@ static ObjectClass *mips_cpu_class_by_name(const char *cpu_model)
+ static const struct SysemuCPUOps mips_sysemu_ops = {
+     .has_work = mips_cpu_has_work,
+     .get_phys_addr_debug = mips_cpu_get_phys_addr_debug,
++    .translate_for_debug_kernel = mips_cpu_translate_for_debug_kernel,
+     .legacy_vmsd = &vmstate_mips_cpu,
+ };
+ #endif
+diff --git a/target/mips/internal.h b/target/mips/internal.h
+index febfb6aa636c86fbc5ac8542cf5331bd4f266e1b..e269f07e9e37e0f8af0eebd91e9260df3a2881a5 100644
+--- a/target/mips/internal.h
++++ b/target/mips/internal.h
+@@ -119,6 +119,8 @@ int get_physical_address(CPUMIPSState *env, hwaddr *physical,
+                          int *prot, target_ulong real_address,
+                          MMUAccessType access_type, int mmu_idx);
+ hwaddr mips_cpu_get_phys_addr_debug(CPUState *cpu, vaddr addr);
++bool mips_cpu_translate_for_debug_kernel(CPUState *cs, vaddr addr,
++                                         TranslateForDebugResult *result);
+ 
+ typedef struct r4k_tlb_t r4k_tlb_t;
+ struct r4k_tlb_t {
+diff --git a/target/mips/system/physaddr.c b/target/mips/system/physaddr.c
+index 746dbf8aa4eeb4a72c1e60b574839f21047103f5..ece3f654b1806ecfcdb122bd0c408df8fe8b0e90 100644
+--- a/target/mips/system/physaddr.c
++++ b/target/mips/system/physaddr.c
+@@ -19,6 +19,7 @@
+ #include "qemu/osdep.h"
+ #include "cpu.h"
+ #include "exec/page-protection.h"
++#include "exec/target_page.h"
+ #include "../internal.h"
+ 
+ static int is_seg_am_mapped(unsigned int am, bool eu, int mmu_idx)
+@@ -239,3 +240,30 @@ hwaddr mips_cpu_get_phys_addr_debug(CPUState *cs, vaddr addr)
+     }
+     return phys_addr;
+ }
++
++/*
++ * The kernel's view: kernel mode, to which every segment is accessible
++ * (user and supervisor modes take an address error outside their segments).
++ * Error level keeps its own view (kuseg unmapped).
++ */
++bool mips_cpu_translate_for_debug_kernel(CPUState *cs, vaddr addr,
++                                         TranslateForDebugResult *result)
++{
++    CPUMIPSState *env = cpu_env(cs);
++    int mmu_idx = mips_env_mmu_index(env);
++    hwaddr phys_addr;
++    int prot;
++
++    if (mmu_idx != MMU_ERL_IDX) {
++        mmu_idx = MIPS_HFLAG_KM;
++    }
++    if (get_physical_address(env, &phys_addr, &prot, addr, MMU_DATA_LOAD,
++                             mmu_idx) != TLBRET_MATCH) {
++        return false;
++    }
++    result->physaddr = phys_addr;
++    result->attrs = MEMTXATTRS_UNSPECIFIED;
++    result->attrs.debug = 1;
++    result->lg_page_size = TARGET_PAGE_BITS;
++    return true;
++}
+diff --git a/target/ppc/cpu.h b/target/ppc/cpu.h
+index bc4fc68617a6231ffbfbea3a3af16ebbc198700e..7027b4413abcf8969d210bf55aa11e009a2f0f92 100644
+--- a/target/ppc/cpu.h
++++ b/target/ppc/cpu.h
+@@ -1641,6 +1641,8 @@ int ppc_cpu_gdb_read_register(CPUState *cpu, GByteArray *buf, int reg);
+ int ppc_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
+ #ifndef CONFIG_USER_ONLY
+ hwaddr ppc_cpu_get_phys_addr_debug(CPUState *cpu, vaddr addr);
++bool ppc_cpu_translate_for_debug_kernel(CPUState *cs, vaddr addr,
++                                        TranslateForDebugResult *result);
+ #endif
+ int ppc64_cpu_write_elf64_note(WriteCoreDumpFunction f, CPUState *cs,
+                                int cpuid, DumpState *s);
+diff --git a/target/ppc/cpu_init.c b/target/ppc/cpu_init.c
+index f0ba26e9561a7447cf8b17fb3993bca5761a392e..6579d4e832764ccdb9c6b674cfc11d5806c28518 100644
+--- a/target/ppc/cpu_init.c
++++ b/target/ppc/cpu_init.c
+@@ -7506,6 +7506,7 @@ static void ppc_disas_set_info(const CPUState *cs, disassemble_info *info)
+ static const struct SysemuCPUOps ppc_sysemu_ops = {
+     .has_work = ppc_cpu_has_work,
+     .get_phys_addr_debug = ppc_cpu_get_phys_addr_debug,
++    .translate_for_debug_kernel = ppc_cpu_translate_for_debug_kernel,
+     .write_elf32_note = ppc32_cpu_write_elf32_note,
+     .write_elf64_note = ppc64_cpu_write_elf64_note,
+     .internal_is_big_endian = ppc_cpu_is_big_endian,
+diff --git a/target/ppc/mmu-booke.c b/target/ppc/mmu-booke.c
+index 9cc66c613b7b04908fc18d3e4bccb119d46c7e5a..6fc22e0d00747629e7f3669a1c3befac3f26e90c 100644
+--- a/target/ppc/mmu-booke.c
++++ b/target/ppc/mmu-booke.c
+@@ -301,7 +301,12 @@ static bool mmubooke206_get_as(CPUPPCState *env,
+         return true;
+     } else {
+         *as_out = FIELD_EX64(env->msr, MSR, DS);
+-        *pr_out = FIELD_EX64(env->msr, MSR, PR);
++        /*
++         * The access's privilege: bit 0 of the mmu_idx is !MSR[PR]
++         * (hreg_compute_hflags_value), except for a debug translation in
++         * another privilege (ppc_cpu_translate_for_debug_kernel).
++         */
++        *pr_out = !(mmu_idx & 1);
+         return false;
+     }
+ }
+diff --git a/target/ppc/mmu-radix64.c b/target/ppc/mmu-radix64.c
+index a09ba2b8d1a8598708b74132bc64004f23e69458..2daf6b79d07b8a05ca73e58922536305410dd23b 100644
+--- a/target/ppc/mmu-radix64.c
++++ b/target/ppc/mmu-radix64.c
+@@ -235,8 +235,6 @@ static bool ppc_radix64_check_prot(PowerPCCPU *cpu, MMUAccessType access_type,
+                                    uint64_t pte, int *fault_cause, int *prot,
+                                    int mmu_idx, bool partition_scoped)
+ {
+-    CPUPPCState *env = &cpu->env;
+-
+     /* Check Page Attributes (pte58:59) */
+     if ((pte & R_PTE_ATT) == R_PTE_ATT_NI_IO && access_type == MMU_INST_FETCH) {
+         /*
+@@ -247,9 +245,12 @@ static bool ppc_radix64_check_prot(PowerPCCPU *cpu, MMUAccessType access_type,
+         return true;
+     }
+ 
+-    /* Determine permissions allowed by Encoded Access Authority */
+-    if (!partition_scoped && (pte & R_PTE_EAA_PRIV) &&
+-        FIELD_EX64(env->msr, MSR, PR)) {
++    /*
++     * Determine permissions allowed by Encoded Access Authority. The
++     * privilege is the access's (mmu_idx), which is MSR[PR]'s except for a
++     * debug translation in another privilege (ppc_cpu_translate_for_debug_kernel).
++     */
++    if (!partition_scoped && (pte & R_PTE_EAA_PRIV) && mmuidx_pr(mmu_idx)) {
+         *prot = 0;
+     } else if (mmuidx_pr(mmu_idx) || (pte & R_PTE_EAA_PRIV) ||
+                partition_scoped) {
+diff --git a/target/ppc/mmu_common.c b/target/ppc/mmu_common.c
+index 2499e619f852fd7c13ec4abe99dfac165f3781b9..8ccb82a6933a9dc8629ea02a27649a11a610cdf4 100644
+--- a/target/ppc/mmu_common.c
++++ b/target/ppc/mmu_common.c
+@@ -867,3 +867,67 @@ hwaddr ppc_cpu_get_phys_addr_debug(CPUState *cs, vaddr addr)
+     }
+     return -1;
+ }
++
++static bool ppc_debug_xlate(PowerPCCPU *cpu, vaddr addr, int dmmu_idx,
++                            int immu_idx, hwaddr *raddr)
++{
++    int s, p;
++
++    /* As ppc_cpu_get_phys_addr_debug: code TLBs may be separate */
++    return ppc_xlate(cpu, addr, MMU_DATA_LOAD, raddr, &s, &p, dmmu_idx,
++                     false) ||
++           ppc_xlate(cpu, addr, MMU_INST_FETCH, raddr, &s, &p, immu_idx,
++                     false);
++}
++
++/*
++ * The kernel's view: supervisor state (MSR[PR] clear), with translation on
++ * for Book3S (real mode doesn't translate) and in the same address space
++ * (MSR[IS]/[DS]) for BookE. Where the kernel's own accesses to user pages
++ * are blocked by a protection key (Book3S radix AMR, as Linux's KUAP sets
++ * it in the kernel), problem state reads them: that is tried second.
++ */
++bool ppc_cpu_translate_for_debug_kernel(CPUState *cs, vaddr addr,
++                                        TranslateForDebugResult *result)
++{
++    PowerPCCPU *cpu = POWERPC_CPU(cs);
++    CPUPPCState *env = &cpu->env;
++    int didx = ppc_env_mmu_index(env, false);
++    int iidx = ppc_env_mmu_index(env, true);
++    int kd, ki, ud, ui;
++    hwaddr raddr;
++
++    switch (env->mmu_model) {
++    case POWERPC_MMU_BOOKE206:
++        /* bit 0: !PR, bit 1: AS, bit 2: GS */
++        kd = didx | 1;
++        ki = iidx | 1;
++        break;
++#if defined(TARGET_PPC64)
++    case POWERPC_MMU_64B:
++    case POWERPC_MMU_2_03:
++    case POWERPC_MMU_2_06:
++    case POWERPC_MMU_2_07:
++    case POWERPC_MMU_3_00:
++#endif
++    case POWERPC_MMU_32B:
++        /* bit 0: !PR, bit 1: real mode, bit 2: HV */
++        kd = (didx | 1) & ~2;
++        ki = (iidx | 1) & ~2;
++        break;
++    default:
++        /* BookE 2.0x, 4xx and 6xx take the privilege from the MSR */
++        return false;
++    }
++    ud = kd & ~1;
++    ui = ki & ~1;
++    if (!ppc_debug_xlate(cpu, addr, kd, ki, &raddr) &&
++        !ppc_debug_xlate(cpu, addr, ud, ui, &raddr)) {
++        return false;
++    }
++    result->physaddr = raddr | (addr & ~TARGET_PAGE_MASK);
++    result->attrs = MEMTXATTRS_UNSPECIFIED;
++    result->attrs.debug = 1;
++    result->lg_page_size = TARGET_PAGE_BITS;
++    return true;
++}
+diff --git a/target/riscv/cpu.c b/target/riscv/cpu.c
+index b04beee5cba2bd27ee5bd026068de539567bd6db..209ec3ba34cfa8e5215f0854bff65e4b1c9d7076 100644
+--- a/target/riscv/cpu.c
++++ b/target/riscv/cpu.c
+@@ -2929,6 +2929,7 @@ static const struct SysemuCPUOps riscv_sysemu_ops = {
+     .legacy_vmsd = &vmstate_riscv_cpu,
+ #ifdef CONFIG_TCG
+     .translate_for_debug = riscv_cpu_translate_for_debug,
++    .translate_for_debug_kernel = riscv_cpu_translate_for_debug_kernel,
+     .monitor_get_register = riscv_monitor_get_register_legacy,
+ #endif
+ };
+diff --git a/target/riscv/cpu.h b/target/riscv/cpu.h
+index b0ca198e6950fb02c55deb86086aacc44bd8402f..588ce65889b523e3a0b8eba26b32a3acecf5ff59 100644
+--- a/target/riscv/cpu.h
++++ b/target/riscv/cpu.h
+@@ -677,6 +677,8 @@ void riscv_cpu_do_transaction_failed(CPUState *cs, hwaddr physaddr,
+                                      MemTxResult response, uintptr_t retaddr);
+ bool riscv_cpu_translate_for_debug(CPUState *cs, vaddr addr,
+                                    TranslateForDebugResult *result);
++bool riscv_cpu_translate_for_debug_kernel(CPUState *cs, vaddr addr,
++                                          TranslateForDebugResult *result);
+ bool riscv_cpu_exec_interrupt(CPUState *cs, int interrupt_request);
+ void riscv_cpu_swap_hypervisor_regs(CPURISCVState *env);
+ int riscv_cpu_claim_interrupts(RISCVCPU *cpu, uint64_t interrupts);
+diff --git a/target/riscv/tcg/cpu_helper.c b/target/riscv/tcg/cpu_helper.c
+index 0f8d19edd692e5fba9abeb1a2a9746c3c1a74531..54711335b80a5018bebf3d40b1269f0faabca156 100644
+--- a/target/riscv/tcg/cpu_helper.c
++++ b/target/riscv/tcg/cpu_helper.c
+@@ -1553,14 +1553,12 @@ static void raise_mmu_exception(CPURISCVState *env, target_ulong address,
+     env->two_stage_indirect_lookup = two_stage_indirect;
+ }
+ 
+-bool riscv_cpu_translate_for_debug(CPUState *cs, vaddr addr,
+-                                   TranslateForDebugResult *result)
++static bool riscv_translate_for_debug_idx(CPURISCVState *env, vaddr addr,
++                                          int mmu_idx,
++                                          TranslateForDebugResult *result)
+ {
+-    RISCVCPU *cpu = RISCV_CPU(cs);
+-    CPURISCVState *env = &cpu->env;
+     hwaddr phys_addr;
+     int prot;
+-    int mmu_idx = riscv_env_mmu_index(&cpu->env, false);
+ 
+     if (get_physical_address(env, &phys_addr, &prot, addr, NULL, 0, mmu_idx,
+                              true, env->virt_enabled, true, false)) {
+@@ -1582,6 +1580,33 @@ bool riscv_cpu_translate_for_debug(CPUState *cs, vaddr addr,
+     return true;
+ }
+ 
++bool riscv_cpu_translate_for_debug(CPUState *cs, vaddr addr,
++                                   TranslateForDebugResult *result)
++{
++    CPURISCVState *env = cpu_env(cs);
++
++    return riscv_translate_for_debug_idx(env, addr,
++                                         riscv_env_mmu_index(env, false),
++                                         result);
++}
++
++/*
++ * The kernel's view: S-mode with SUM, which reads both supervisor and user
++ * pages, through satp (vsatp when virtualized). That is also the view from
++ * U-mode, and from M-mode, where translate_for_debug does no translation.
++ */
++bool riscv_cpu_translate_for_debug_kernel(CPUState *cs, vaddr addr,
++                                          TranslateForDebugResult *result)
++{
++    CPURISCVState *env = cpu_env(cs);
++    int mmu_idx = MMUIdx_S_SUM | (env->virt_enabled ? MMU_2STAGE_BIT : 0);
++
++    if (!riscv_cpu_cfg(env)->mmu || !riscv_has_ext(env, RVS)) {
++        return false;
++    }
++    return riscv_translate_for_debug_idx(env, addr, mmu_idx, result);
++}
++
+ void riscv_cpu_do_transaction_failed(CPUState *cs, hwaddr physaddr,
+                                      vaddr addr, unsigned size,
+                                      MMUAccessType access_type,
