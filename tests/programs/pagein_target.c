@@ -1,0 +1,180 @@
+/*
+ * The guest program of tests/pagein.py: memory a page-in request can and can't reach, and a
+ * register check while requests are served around it.
+ *
+ * usage: pagein_target <dir> <seconds> <mode: spin|sleep>
+ *
+ * Maps at fixed addresses (the test knows them):
+ *   0x7e0000000000 TAG    1 page, present
+ *   0x7e0010000000 FILE   64 pages of <dir>/pt.<pid>, dropped from the page cache: a read does I/O
+ *   0x7e0020000000 ANON   64 pages never touched (zero)
+ *   0x7e0030000000 WR     64 pages never touched: the test writes a pattern, we check it at exit
+ *   0x7e0040000000 HOLE   no mapping
+ *   0x7e0050000000 TRUNC  a file mapping truncated to 0 (touching it is SIGBUS)
+ *   0x7e0060000000 NONE   PROT_NONE
+ *   0x7e0070000000 RO     a read-only private file mapping (a write must be refused)
+ *   0x7e0080000000 NONE2  written, then mprotect(PROT_NONE): a non-present PTE that isn't empty
+ *   0x7e0090000000 SW     written, then MADV_PAGEOUT: swap entries when swap is on
+ * Then hypercall READY(TAG) and, for <seconds>: spin (a user-mode loop that keeps two copies of
+ * a recurrence in registers and counts mismatches) or sleep (in nanosleep), touching nothing
+ * above. Then it checks FILE (pattern), ANON (zero), WR (the test's pattern, if the test wrote it),
+ * and reports DONE(mismatches, bad bytes) by hypercall, prints it, exits 0.
+ * Faults: SIGSEGV/SIGBUS handlers print and exit 99/98 (the test fails on either).
+ */
+#define _GNU_SOURCE
+#include <fcntl.h>
+#include <signal.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <time.h>
+#include <unistd.h>
+
+#define PG 4096UL
+#define NP 64
+#define TAG   0x7e0000000000UL
+#define FILEA 0x7e0010000000UL
+#define ANON  0x7e0020000000UL
+#define WR    0x7e0030000000UL
+#define TRUNC 0x7e0050000000UL
+#define NONE  0x7e0060000000UL
+#define RO    0x7e0070000000UL
+#define NONE2 0x7e0080000000UL
+#define SW    0x7e0090000000UL
+#define MAGIC 0x46525431L      /* "FRT1" */
+
+static inline uint64_t pat(uint64_t va) { return va ^ 0xa5a5a5a5a5a5a5a5ULL; }
+
+#if defined(__x86_64__)
+static long hc(long op, long a, long b)
+{
+    register long r10 __asm__("r10") = b;
+    long ret = MAGIC;
+    __asm__ volatile("out %%eax, $0x88" : "+a"(ret) : "D"(MAGIC), "S"(op), "d"(a), "r"(r10)
+                     : "memory");
+    return ret;
+}
+#include <sys/io.h>
+static void hc_setup(void) { ioperm(0x88, 4, 1); }
+#elif defined(__aarch64__)
+static long hc(long op, long a, long b)
+{
+    register long x8 __asm__("x8") = MAGIC, x0 __asm__("x0") = MAGIC;
+    register long x1 __asm__("x1") = op, x2 __asm__("x2") = a, x3 __asm__("x3") = b;
+    __asm__ volatile(".inst 0xd500501f" : "+r"(x0) : "r"(x8), "r"(x1), "r"(x2), "r"(x3)
+                     : "memory");
+    return x0;
+}
+static void hc_setup(void) {}
+#elif defined(__riscv)
+static long hc(long op, long a, long b)
+{
+    register long a7 __asm__("a7") = MAGIC, a0 __asm__("a0") = MAGIC;
+    register long a1 __asm__("a1") = op, a2 __asm__("a2") = a, a3 __asm__("a3") = b;
+    __asm__ volatile(".4byte 0x00004013" : "+r"(a0) : "r"(a7), "r"(a1), "r"(a2), "r"(a3)
+                     : "memory");
+    return a0;
+}
+static void hc_setup(void) {}
+#endif
+
+static void onsig(int s)
+{
+    printf("PT SIGNAL %d\n", s);
+    fflush(stdout);
+    _exit(s == SIGBUS ? 98 : 99);
+}
+
+static long now_ms(void)
+{
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return t.tv_sec * 1000L + t.tv_nsec / 1000000;
+}
+
+int main(int argc, char **argv)
+{
+    const char *dir = argc > 1 ? argv[1] : "/tmp";
+    int secs = argc > 2 ? atoi(argv[2]) : 5;
+    int spin = argc > 3 && !strcmp(argv[3], "spin");
+    char path[256], tpath[256];
+
+    signal(SIGSEGV, onsig);
+    signal(SIGBUS, onsig);
+    hc_setup();
+    snprintf(path, sizeof path, "%s/pt.%d", dir, getpid());
+    snprintf(tpath, sizeof tpath, "%s/ptt.%d", dir, getpid());
+    int fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
+    for (uint64_t p = 0; p < NP; p++) {
+        uint64_t buf[PG / 8];
+        for (unsigned i = 0; i < PG / 8; i++) buf[i] = pat(FILEA + p * PG + i * 8);
+        write(fd, buf, PG);
+    }
+    fsync(fd);
+    uint64_t *tag = mmap((void *)TAG, PG, PROT_READ | PROT_WRITE,
+                         MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+    uint64_t *file = mmap((void *)FILEA, NP * PG, PROT_READ, MAP_SHARED | MAP_FIXED, fd, 0);
+    uint64_t *anon = mmap((void *)ANON, NP * PG, PROT_READ | PROT_WRITE,
+                          MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+    uint64_t *wr = mmap((void *)WR, NP * PG, PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+    mmap((void *)NONE, NP * PG, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+    mmap((void *)RO, NP * PG, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd, 0);
+    int tfd = open(tpath, O_RDWR | O_CREAT | O_TRUNC, 0644);
+    ftruncate(tfd, NP * PG);
+    mmap((void *)TRUNC, NP * PG, PROT_READ, MAP_SHARED | MAP_FIXED, tfd, 0);
+    ftruncate(tfd, 0);
+    uint64_t *n2 = mmap((void *)NONE2, NP * PG, PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+    for (unsigned i = 0; i < NP * PG / 8; i++) n2[i] = pat(NONE2 + i * 8);
+    mprotect(n2, NP * PG, PROT_NONE);
+    uint64_t *sw = mmap((void *)SW, NP * PG, PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+    for (unsigned i = 0; i < NP * PG / 8; i++) sw[i] = pat(SW + i * 8);
+    madvise(sw, NP * PG, 21 /* MADV_PAGEOUT */);
+    madvise(file, NP * PG, MADV_DONTNEED);
+    posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED);
+    tag[0] = 0x5441475441475441ULL;
+    tag[1] = getpid();
+
+    hc(1, TAG, getpid());               /* READY */
+
+    long end = now_ms() + secs * 1000L, mism = 0, iters = 0;
+    if (spin) {
+        while (now_ms() < end) {
+            /* two copies of one recurrence, kept in registers across the loop */
+            register uint64_t x = 0x1234567 + iters, y = 0x1234567 + iters;
+            for (int i = 0; i < 100000; i++) {
+                x = x * 6364136223846793005ULL + 1442695040888963407ULL;
+                y = y * 6364136223846793005ULL + 1442695040888963407ULL;
+                __asm__ volatile("" : "+r"(x), "+r"(y));
+                if (x != y) {
+                    mism++;
+                    y = x;
+                }
+            }
+            iters++;
+        }
+    } else {
+        while (now_ms() < end) {
+            struct timespec ts = { 0, 2000000 };
+            nanosleep(&ts, NULL);
+            iters++;
+        }
+    }
+    long bad = 0, wrote = tag[2];       /* the test sets tag[2] when it wrote WR */
+    for (unsigned i = 0; i < NP * PG / 8; i++) {
+        if (file[i] != pat(FILEA + i * 8)) bad++;
+        if (anon[i] != 0) bad++;
+        if (wrote && wr[i] != pat(WR + i * 8)) bad++;
+        if (sw[i] != pat(SW + i * 8)) bad++;
+    }
+    printf("PT DONE iters %ld mismatches %ld bad %ld wrote %ld\n", iters, mism, bad, wrote);
+    fflush(stdout);
+    hc(2, mism, bad);                   /* DONE */
+    unlink(path);
+    unlink(tpath);
+    return 0;
+}
