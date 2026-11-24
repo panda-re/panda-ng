@@ -428,6 +428,24 @@ void panda_pagein_service(CPUState *cs)
     now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
     qemu_mutex_lock(&lock);
 
+    /*
+     * A recording or replay started after these were queued: serving them now would put a system
+     * call in the recording that its replay never makes. Refuse them; a thread that is in the
+     * kernel on our behalf keeps the registers it has (they can't be put back unlogged).
+     */
+    if (!replay_analysis_write_allowed()) {
+        while ((h = QTAILQ_FIRST(&held))) {
+            QTAILQ_REMOVE(&held, h, next);
+            g_free(h);
+        }
+        QTAILQ_FOREACH_SAFE(r, &reqs, next, rn) {
+            if (ndone < ARRAY_SIZE(done)) {
+                pagein_finish(r, PANDA_PAGEIN_ERECORD, 0, &done[ndone++]);
+            }
+        }
+        goto out;
+    }
+
     /* Requests whose process never came back in time; their held registers stay */
     QTAILQ_FOREACH_SAFE(r, &reqs, next, rn) {
         if (ndone < ARRAY_SIZE(done) && now > r->deadline) {
