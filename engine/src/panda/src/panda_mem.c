@@ -6,6 +6,7 @@
 #include "panda/plugin.h"
 #include "system/replay-effect.h"
 #include "panda/guest-write.h"
+#include "translate-int.h"
 
 /* (not kernel-doc)
  * panda_physical_memory_rw() - Copy data between host and guest.
@@ -134,30 +135,20 @@ static hwaddr phys_page_debug(CPUState *env, target_ulong page)
 {
     TranslateForDebugResult res;
 
-    if (!cpu_translate_for_debug(env, page, &res)) {
+    if (!panda_translate_page(env, page, &res, false)) {
         return -1;
     }
     return res.physaddr & TARGET_PAGE_MASK;
 }
 
 hwaddr panda_virt_to_phys(CPUState *env, target_ulong addr) {
-    target_ulong page;
-    hwaddr phys_addr;
-    bool changed_priv = false;
-    page = addr & TARGET_PAGE_MASK;
-    phys_addr = phys_page_debug(env, page);
-    // As panda_virtual_memory_rw: a kernel address translated from user mode (arm64 EL0
-    // can't see TTBR1's mappings) needs privileged mode.
-    if (phys_addr == -1 && (changed_priv = enter_priv(env))) {
-        phys_addr = phys_page_debug(env, page);
-        exit_priv(env);
-    }
+    hwaddr phys_addr = phys_page_debug(env, addr & TARGET_PAGE_MASK);
+
     if (phys_addr == -1) {
         // no physical page mapped
         return -1;
     }
-    phys_addr += (addr & ~TARGET_PAGE_MASK);
-    return phys_addr;
+    return phys_addr + (addr & ~TARGET_PAGE_MASK);
 }
 
 /* (not kernel-doc)
@@ -177,8 +168,8 @@ hwaddr panda_virt_to_phys(CPUState *env, target_ulong addr) {
  * write indicated by len. Also note that if the virtual address is
  * not mapped, then the read or write will fail.
  *
- * We switch into privileged mode if the access fails. The mode is always reset
- * before we return.
+ * Each page is translated as the CPU sees it, else as the guest's kernel does
+ * (panda_translate_page); the CPU's state is not changed.
  * 
  * Return:
  * * 0      - Read/write succeeded
@@ -194,20 +185,12 @@ int panda_virtual_memory_rw(CPUState *env, target_ulong addr,
     int ret;
     hwaddr phys_addr;
     target_ulong page;
-    bool changed_priv = false;
 
     while (len > 0) {
         page = addr & TARGET_PAGE_MASK;
         phys_addr = phys_page_debug(env, page);
-        // If we failed and we aren't in priv mode and we CAN go into it, toggle modes and try again
-        if (phys_addr == -1  && !changed_priv && (changed_priv=enter_priv(env))) {
-            phys_addr = phys_page_debug(env, page);
-            //if (phys_addr != -1) printf("[panda dbg] virt->phys failed until privileged mode\n");
-        }
-
-        // No physical page mapped, even after potential privileged switch, abort
+        // No physical page mapped: abort
         if (phys_addr == -1)  {
-            if (changed_priv) exit_priv(env); // Cleanup mode if necessary
             return -1;
         }
 
@@ -217,15 +200,7 @@ int panda_virtual_memory_rw(CPUState *env, target_ulong addr,
         }
         phys_addr += (addr & ~TARGET_PAGE_MASK);
         ret = panda_physical_memory_rw(phys_addr, buf, l, is_write);
-
-        // Failed and privileged mode wasn't already enabled - enable priv and retry if we can
-        if (ret != MEMTX_OK && !changed_priv && (changed_priv = enter_priv(env))) {
-            ret = panda_physical_memory_rw(phys_addr, buf, l, is_write);
-            //if (ret == MEMTX_OK) printf("[panda dbg] accessing phys failed until privileged mode\n");
-        }
-        // Still failed, even after potential privileged switch, abort
         if (ret != MEMTX_OK) {
-            if (changed_priv) exit_priv(env); // Cleanup mode if necessary
             return ret;
         }
 
@@ -233,7 +208,6 @@ int panda_virtual_memory_rw(CPUState *env, target_ulong addr,
         buf += l;
         addr += l;
     }
-    if (changed_priv) exit_priv(env); // Clear privileged mode if necessary
     return 0;
 }
 
