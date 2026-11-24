@@ -266,10 +266,12 @@ void disable_hooking() {
     __atomic_store_n(&hooking, false, __ATOMIC_RELAXED);
 }
 
+// The same hook: every field the caller sets but addr and enabled. km and context count: the same
+// function with another mode or context is another hook.
 static bool same_hook(const struct hook *a, const struct hook *b)
 {
-    return a->asid == b->asid && a->type == b->type &&
-           a->cb.before_tcg_codegen == b->cb.before_tcg_codegen;
+    return a->asid == b->asid && a->type == b->type && a->km == b->km &&
+           a->context == b->context && a->cb.before_tcg_codegen == b->cb.before_tcg_codegen;
 }
 
 void add_hook(struct hook* h) {
@@ -296,8 +298,8 @@ void add_hook(struct hook* h) {
     hook_list *cur = s->list;
     uint32_t n = cur ? cur->n : 0, at = n;
 
-    // The same function at the same address, asid and type is added once (syscalls2 adds its
-    // return hook on every system call).
+    // The same hook at the same address is added once (syscalls2 adds its return hook on every
+    // system call).
     for (uint32_t i = 0; i < n; i++) {
         if (hook_enabled(cur->h[i]) && same_hook(cur->h[i], h)) {
             return;

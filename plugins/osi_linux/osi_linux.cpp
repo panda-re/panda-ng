@@ -1363,7 +1363,7 @@ bool init_plugin(void *self) {
                 printf("couldn't load add_hook from hooks\n");
                 return false;
             }
-            struct hook h;
+            struct hook h = {};
             h.addr = ki.task.switch_task_hook_addr;
             h.asid = 0;
             h.type = PANDA_CB_START_BLOCK_EXEC;
