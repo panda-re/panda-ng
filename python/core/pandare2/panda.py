@@ -442,6 +442,7 @@ class Panda(TaintMixin):
         # panda.arch is a subclass with architecture-specific functions
 
         self.guest = Guest(self)  # guest writes: panda.guest.write_virt, .set_reg, .env(cpu), ...
+        self._cpu_envs = {}     # CPUState * -> CPUArchState * (cpu_env); the arch's accessors use it
         self.arch = None # Keep this with the following docstring such that pydoc generats good docs for it; this is a useful variable!
         """
         A reference to an auto-instantiated `pandare.arch.PandaArch` subclass (e.g., `pandare.arch.X86Arch`)
@@ -527,6 +528,8 @@ class Panda(TaintMixin):
         self.libpanda = self.ffi.dlopen(self.libpanda_path, self.ffi.RTLD_NOW |
                                         (self.ffi.RTLD_GLOBAL if self._engine_global else self.ffi.RTLD_LOCAL))
         self.C = self.ffi.dlopen(None)
+        self._vmr_c = self.libpanda.panda_virtual_memory_read_external
+        self._addr_mask = (1 << self.bits) - 1
         requested = sum(1 << CAPABILITIES.index(name) for name in self.capabilities)
         if not self.libpanda.panda_configure_capabilities(requested):
             raise ValueError("the engine refused the startup capabilities (the reason is on stderr): "
@@ -655,7 +658,6 @@ class Panda(TaintMixin):
         self.register_cb_decorators()
         self.plugin_register_count = 0
         self.registered_callbacks = {} # name -> {procname: "bash", enabled: False, callback: None}
-        self._callback_access = threading.local()
 
         # Register asid_changed CB if and only if a callback requires procname
         self._registered_asid_changed_internal_cb = False
@@ -1534,7 +1536,20 @@ class Panda(TaintMixin):
             ValueError: if memory access fails or fmt is unsupported
         '''
 
+        if fmt == 'bytearray' and self._engine_started and type(addr) is int and not self._osi_linux_loaded:
+            # the common case in one frame (_memory_read below does the same, and the rest)
+            buf = self.ffi.new("char[]", length)
+            err = self._vmr_c(cpu, addr & self._addr_mask, buf, length)
+            if err != 0:
+                raise ValueError(f"Failed to read guest memory at {addr:x} got err={err}")
+            return self.ffi.unpack(buf, length)
         return self._memory_read(cpu, addr, length, physical=False, fmt=fmt)
+
+    def _vmr_fn(self):
+        '''The virtual-memory read the helpers use: osi_linux's when it is loaded, else the engine's.'''
+        if self._osi_linux_loaded:
+            return self.plugins["osi_linux"].osi_linux_virtual_memory_read
+        return self.libpanda.panda_virtual_memory_read_external
 
     def _memory_read(self, env, addr, length, physical=False, fmt='bytearray'):
         '''
@@ -1547,22 +1562,13 @@ class Panda(TaintMixin):
             raise ValueError(f"Unsupported read from address {repr(addr)}")
 
         buf = self.ffi.new("char[]", length)
-
-        # Force CFFI to parse addr as an unsigned value. Otherwise we get OverflowErrors
-        # when it decides that it's negative
-        ptr_typ = f'uint{self.bits}_t'
-        addr_u = int(self.ffi.cast(ptr_typ, addr))
-
-        buf_a = self.ffi.cast("char*", buf)
-        length_a = self.ffi.cast("int", length)
+        # cffi takes Python ints for the address and length; masking keeps a negative address
+        # from overflowing the unsigned argument (as the cast to uint<bits>_t did)
+        addr_u = addr & ((1 << self.bits) - 1)
         if physical:
-            err = self.libpanda.panda_physical_memory_read_external(addr_u, buf_a, length_a)
+            err = self.libpanda.panda_physical_memory_read_external(addr_u, buf, length)
         else:
-            # [OPTIMIZED] Use cached flag instead of re-allocating C strings to check loading status
-            if self._osi_linux_loaded:
-                err = self.plugins["osi_linux"].osi_linux_virtual_memory_read(env, addr_u, buf_a, length_a)
-            else:
-                err = self.libpanda.panda_virtual_memory_read_external(env, addr_u, buf_a, length_a)
+            err = self._vmr_fn()(env, addr_u, buf, length)
 
         if err != 0:
             # TODO: We should support a custom error class instead of a generic ValueError
@@ -2079,7 +2085,13 @@ class Panda(TaintMixin):
         '''
         cpu_env with caching to reduce overhead of repeated calls.
         '''
-        return self.libpanda.panda_cpu_env(cpu)
+        # A CPU's CPUArchState is part of its CPU object (a fixed offset from the CPUState), so the
+        # pointer is the same for the CPU's lifetime: look it up once per CPU. cffi pointers hash
+        # and compare by address.
+        env = self._cpu_envs.get(cpu)
+        if env is None:
+            env = self._cpu_envs[cpu] = self.libpanda.panda_cpu_env(cpu)
+        return env
 
     ##################### OSI FUNCTIONS ###########
     #Convenience functions to interact with the Operating System Instrospection (OSI) class of plugins.

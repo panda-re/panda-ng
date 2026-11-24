@@ -10,6 +10,10 @@ import binascii
 import struct
 from .utils import telescope
 
+from cffi import FFI as _FFI
+CData = _FFI().CData      # every cffi cdata object is an instance
+
+
 class PandaArch():
     '''
     Base class for architecture-specific implementations for PANDA-supported architectures
@@ -99,6 +103,9 @@ class PandaArch():
         Return value in a `reg` which is either a register name or index (e.g., "R0" or 0)
         '''
         if isinstance(reg, str):
+            idx = self.registers.get(reg)
+            if idx is not None and reg != 'PC':
+                return self._get_reg_val(cpu, idx)
             reg = reg.upper()
             if reg == 'PC':
                 return self.get_pc(cpu)
@@ -427,7 +434,7 @@ class Aarch64Arch(PandaArch):
                 if len(args) > 0:
                     # double check that it's a cpustate
                     cpu = args[0]
-                    if "_cffi_backend" in str(type(cpu)):
+                    if isinstance(cpu, CData):
                         # check if we're in arm32 mode
                         if self.panda.cpu_env(cpu).aarch64 == 0:
                             func = getattr(self.arm32, name)
@@ -436,8 +443,35 @@ class Aarch64Arch(PandaArch):
             return wrap
 
         for attr in dir(self):
-            if callable(getattr(self, attr)) and not attr.startswith('_'):
+            if callable(getattr(self, attr)) and not attr.startswith('_') and attr != 'cpu_env':
                 setattr(self, attr, arm32_dec(getattr(self, attr), attr))
+
+        # get_pc and get_reg, the per-callback ones, without the wrapper's generic dispatch: the
+        # mode test on the CPU's (cached) CPUArchState, then the field
+        envs, arm32, registers = panda._cpu_envs, self.arm32, self.registers
+        wrapped_get_pc, wrapped_get_reg = self.get_pc, self.get_reg
+
+        def get_pc(cpu):
+            if isinstance(cpu, CData):
+                env = envs.get(cpu)
+                if env is None:
+                    env = panda.cpu_env(cpu)
+                if env.aarch64 != 0:
+                    return env.pc
+            return wrapped_get_pc(cpu)
+
+        def get_reg(cpu, reg):
+            if isinstance(cpu, CData):
+                idx = reg if type(reg) is int else registers.get(reg)
+                if idx is not None and 0 <= idx < 32:
+                    env = envs.get(cpu)
+                    if env is None:
+                        env = panda.cpu_env(cpu)
+                    if env.aarch64 != 0:
+                        return env.xregs[idx]
+            return wrapped_get_reg(cpu, reg)
+        get_pc.__doc__, get_reg.__doc__ = Aarch64Arch.get_pc.__doc__, PandaArch.get_reg.__doc__
+        self.get_pc, self.get_reg = get_pc, get_reg
 
     def get_pc(self, cpu):
         '''
@@ -958,6 +992,7 @@ class X86_64Arch(PandaArch):
         self.reg_retval['default'] = self.reg_retval['sysv']
 
         self.registers = {regnames[idx]: idx for idx in range(len(regnames)) }
+        self._gpr_any_case = {**self.registers, **{n.lower(): i for n, i in self.registers.items()}}
 
         # Internal state to support some of the weird x86-64 registers
         self.reg_names_general = ['EAX', 'ECX', 'EDX', 'EBX', 'ESP', 'EBP', 'ESI', 'EDI']
@@ -985,7 +1020,10 @@ class X86_64Arch(PandaArch):
         '''
         Overloaded function to return the x86_64 current program counter
         '''
-        return self.cpu_env(cpu).eip
+        env = self.panda._cpu_envs.get(cpu)
+        if env is None:
+            env = self.panda.cpu_env(cpu)
+        return env.eip
 
     def get_retval(self, cpu, convention='default'):
         '''
@@ -1028,7 +1066,10 @@ class X86_64Arch(PandaArch):
         '''
         Return an x86_64 register
         '''
-        return self.cpu_env(cpu).regs[reg]
+        env = self.panda._cpu_envs.get(cpu)
+        if env is None:
+            env = self.panda.cpu_env(cpu)
+        return env.regs[reg]
 
     def _set_reg_val(self, cpu, reg, val):
         '''
@@ -1059,6 +1100,12 @@ class X86_64Arch(PandaArch):
         if isinstance(reg, int):
             # If reg is an int, it should be an offset into our register array
             return self._get_reg_val(cpu, reg)
+        idx = self._gpr_any_case.get(reg)
+        if idx is not None:          # RAX..R15, any case: no string work
+            env = self.panda._cpu_envs.get(cpu)
+            if env is None:
+                env = self.panda.cpu_env(cpu)
+            return env.regs[idx]
 
         reg = reg.upper()
         env = self.cpu_env(cpu)
