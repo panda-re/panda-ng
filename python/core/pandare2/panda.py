@@ -32,6 +32,7 @@ from time import sleep
 from cffi import FFI
 from functools import lru_cache
 from sys import _getframe
+from struct import unpack as struct_unpack
 
 from .utils import progress, warn, make_iso, debug, blocking, GArrayIterator, plugin_list
 from .panda_expect import Expect
@@ -1591,12 +1592,8 @@ class Panda(TaintMixin):
             bytelen = int(self.bits/8)
             if (length % bytelen != 0):
                 raise ValueError(f"Memory of size {length} does not evenly divide into {bytelen} byte chunks")
-            chunks = []
-            for start in range(0, length, bytelen):
-                data = r[start:start+bytelen]
-                int_data = int.from_bytes(data, byteorder=self.endianness)
-                chunks.append(int_data)
-            return chunks
+            order = "<" if self.endianness == "little" else ">"
+            return list(struct_unpack(f"{order}{length // bytelen}{'I' if bytelen == 4 else 'Q'}", r))
 
         else:
             raise ValueError("fmt={} unsupported".format(fmt))
