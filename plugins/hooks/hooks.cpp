@@ -54,6 +54,7 @@ struct hook_list {
     uint32_t n;
     bool any_asid;          // a hook filters by asid: on_hit needs get_id()
     bool any_mode;          // a hook filters by kernel/user mode
+    bool direct;            // one hook, no filter: on_hit's short path
     struct hook *h[];       // the plugin's copies: hooks with an asid first, then asid 0 ones
 };
 
@@ -129,6 +130,7 @@ static void list_finish(hook_list *l)
         l->any_asid |= l->h[i]->asid != 0;
         l->any_mode |= l->h[i]->km != MODE_ANY;
     }
+    l->direct = l->n == 1 && !l->any_asid && !l->any_mode;
 }
 
 // Publish @l (NULL if empty) as @s's hooks, with writers held. The old array is freed after the
@@ -225,6 +227,23 @@ static void on_hit(CPUState *cpu, uint64_t pc, void *opaque)
     bool drop = false;
 
     if (!l || !__atomic_load_n(&hooking, __ATOMIC_RELAXED)) {
+        return;
+    }
+    if (l->direct) {
+        // One hook without a filter, the common case: no loop, no filter, no flags.
+        struct hook *h = l->h[0];
+        if (hook_enabled(h)) {
+            tb = (TranslationBlock *)panda_address_hook_tb(cpu);
+            call_hook(cpu, tb, pc, h);
+            if (panda_event_wanted(hit_event)) {
+                struct panda_hooks_hit_args a = {sizeof(a), cpu, tb, pc, h};
+                panda_event_emit(hit_event, &a);
+            }
+            if (hook_enabled(h)) {
+                return;
+            }
+        }
+        site_drop_disabled(s);
         return;
     }
     target_ulong asid = l->any_asid ? proc_id(cpu) : 0;
