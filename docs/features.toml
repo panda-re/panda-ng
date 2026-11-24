@@ -185,12 +185,12 @@ id = "hooks"
 name = "Address hooks"
 status = "supported"
 accel = ["TCG"]
-tested_on = ["x86_64", "aarch64", "riscv64"]
+tested_on = ["x86_64", "aarch64", "arm", "riscv64", "mips", "ppc64"]
 summary = "Run a callback when the guest reaches an address, optionally only in one address space (the hooks plugin)."
 api = ["plugin:hooks"]
 docs = ["docs/guides/python.md#callbacks", "plugins/hooks/README.md"]
-tests = ["tests/calls.py", "tests/hookalias.py", "tests/hooks.py", "tests/hooks_rr.py",
-         "tests/static/hooks_events.py"]
+tests = ["tests/calls.py", "tests/hookalias.py", "tests/hooks.py", "tests/hookeng.py",
+         "tests/hooks_rr.py", "tests/static/hooks_events.py"]
 
 [[feature]]
 id = "hypercalls"

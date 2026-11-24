@@ -5,10 +5,21 @@
  *
  * The translator emits a direct call at a hooked instruction, so code without hooks runs
  * unchanged, and the page holding a hook is translated for its virtual address (no CF_PCREL
- * sharing between mappings). A hook matches its address in every address space: the callback
+ * sharing between mappings). Translating code on pages without hooks costs a compare per
+ * instruction, on every target. A hook matches its address in every address space: the callback
  * filters by process itself. Inserting the first hook at an address invalidates the blocks that
- * contain it; one at an address that had a hook before needs no invalidation. TCG only: under
- * KVM a hook is accepted and never called.
+ * contain it; one at an address that had a hook before needs no invalidation, until a TB flush
+ * forgets addresses that have no hooks left (the engine requests one when thousands have piled
+ * up), and the pages that held only those go back to CF_PCREL sharing.
+ *
+ * @pc must be where an instruction starts (on arm, a Thumb instruction's address without the Thumb
+ * bit). A hook inside an instruction is never called: the engine warns once when it translates
+ * that instruction and the one after it in the same block. A MIPS branch delay slot works: its
+ * hook runs before the delay-slot instruction, after the branch was decided.
+ *
+ * TCG only: once the accelerator is known and is not TCG (KVM), panda_address_hook_insert()
+ * returns NULL. Hooks inserted before the accelerator was chosen are kept but never called under
+ * KVM, and the engine warns once.
  *
  * In the callback, general-purpose registers are current and may be written. The program
  * counter and lazily computed state (x86 flags) are not; panda_current_pc() reads the value the
@@ -34,7 +45,10 @@ typedef struct PandaAddressHook PandaAddressHook;
 /* @pc is the hooked address, @opaque what panda_address_hook_insert was given. */
 typedef void (*panda_address_hook_fn)(struct CPUState *cpu, uint64_t pc, void *opaque);
 
-/* Insert a hook. Callable from any thread, a hook callback included. NULL if it cannot hook. */
+/* Insert a hook. Callable from any thread, a hook callback included. NULL if it cannot hook: no
+ * @fn, or the accelerator is not TCG. A hook inserted from a callback takes effect when the
+ * inserting vCPU leaves its current block: not at a later instruction of that block (unless the
+ * address already had a hook), but from the next block on (its successor included). */
 PandaAddressHook *panda_address_hook_insert(uint64_t pc, panda_address_hook_fn fn, void *opaque);
 
 /* Remove a hook (NULL is ignored). Callable from any thread, a hook callback included. Once this
