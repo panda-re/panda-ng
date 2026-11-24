@@ -76,8 +76,8 @@ compatibility spellings at those boundaries. The first registration of any block
 instruments every block for entry and end for the rest of the run (one flush; unregistering
 removes nothing); enabling, disabling, and later registering and unregistering only set a gate
 each block tests (in a run that never registers one, no helper or gate). A run that registers
-no block, instruction or memory callback, `block_translate` (the hooks and syscalls2 plugins) or
-coverage translates as QEMU without plugins; the first one turns QEMU's plugin translation path
+no block, instruction or memory callback, `block_translate` (syscalls2's Windows and FreeBSD
+profiles) or coverage translates as QEMU without plugins; the first one turns QEMU's plugin translation path
 on for the rest of the run. Block callbacks preserve
 PC-relative sharing: a block stores the address it runs at when it starts, which `tb_pc` gives its
 end callbacks after the PC has moved on. A registered memory callback (`mmio_after_read` and `mmio_before_write`
@@ -195,7 +195,7 @@ Run a callback when the guest reaches an address, optionally only in one address
 
 **Docs:** [docs/guides/python.md#callbacks](guides/python.md#callbacks), [plugins/hooks/README.md](https://github.com/panda-re/panda-ng/blob/main/plugins/hooks/README.md)
 
-**Tests:** `tests/calls.py`, `tests/hookalias.py`
+**Tests:** `tests/calls.py`, `tests/hookalias.py`, `tests/hooks.py`, `tests/hooks_rr.py`, `tests/static/hooks_events.py`
 
 
 <a id="hypercalls"></a>
