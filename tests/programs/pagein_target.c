@@ -15,6 +15,8 @@
  *   0x7e0070000000 RO     a read-only private file mapping (a write must be refused)
  *   0x7e0080000000 NONE2  written, then mprotect(PROT_NONE): a non-present PTE that isn't empty
  *   0x7e0090000000 SW     written, then MADV_PAGEOUT: swap entries when swap is on
+ *   0x7e00a0000000 GUARDR anonymous, with MADV_GUARD_INSTALL guard pages (Linux 6.13+)
+ *   0x7e00b0000000 GROW   a MAP_GROWSDOWN region; the test asks for the page below it
  * Then hypercall READY(TAG) and, for <seconds>: spin (a user-mode loop that keeps two copies of
  * a recurrence in registers and counts mismatches) or sleep (in nanosleep), touching nothing
  * above. Then it checks FILE (pattern), ANON (zero), WR (the test's pattern, if the test wrote it),
@@ -43,6 +45,8 @@
 #define RO    0x7e0070000000UL
 #define NONE2 0x7e0080000000UL
 #define SW    0x7e0090000000UL
+#define GUARDR 0x7e00a0000000UL
+#define GROW  0x7e00b0000000UL
 #define MAGIC 0x46525431L      /* "FRT1" */
 
 static inline uint64_t pat(uint64_t va) { return va ^ 0xa5a5a5a5a5a5a5a5ULL; }
@@ -134,6 +138,11 @@ int main(int argc, char **argv)
                         MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
     for (unsigned i = 0; i < NP * PG / 8; i++) sw[i] = pat(SW + i * 8);
     madvise(sw, NP * PG, 21 /* MADV_PAGEOUT */);
+    mmap((void *)GUARDR, NP * PG, PROT_READ | PROT_WRITE,
+         MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+    tag[3] = madvise((void *)GUARDR, NP * PG, 102 /* MADV_GUARD_INSTALL */) == 0;
+    mmap((void *)GROW, NP * PG, PROT_READ | PROT_WRITE,
+         MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_GROWSDOWN, -1, 0);
     madvise(file, NP * PG, MADV_DONTNEED);
     posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED);
     tag[0] = 0x5441475441475441ULL;
@@ -171,7 +180,10 @@ int main(int argc, char **argv)
         if (wrote && wr[i] != pat(WR + i * 8)) bad++;
         if (sw[i] != pat(SW + i * 8)) bad++;
     }
-    printf("PT DONE iters %ld mismatches %ld bad %ld wrote %ld\n", iters, mism, bad, wrote);
+    unsigned char vec;
+    long grew = mincore((void *)(GROW - PG), PG, &vec) == 0;   /* did the stack VMA expand? */
+    printf("PT DONE iters %ld mismatches %ld bad %ld wrote %ld grew %ld\n", iters, mism, bad, wrote,
+           grew);
     fflush(stdout);
     hc(2, mism, bad);                   /* DONE */
     unlink(path);

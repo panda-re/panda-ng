@@ -36,12 +36,18 @@ import time
 from testlib import Checks, progress
 from testmachine import Agent, Machine
 
-PANDA_TEST = dict(area="pagein", tier="guest", fixture="testmachine", arches=["x86_64", "aarch64"],
-                  plugins=["hypercaller"], variants=dict(smp=[1, 4]), timeout=900)
+# Every test-machine arch: x86_64, aarch64 and riscv64 serve requests; the others check that
+# they are refused. --stress 2000 is the long form.
+PANDA_TEST = dict(area="pagein", tier="guest", fixture="testmachine",
+                  arches=["x86_64", "aarch64", "riscv64", "arm", "i386", "mipsel", "mips", "mips64el",
+                          "mips64", "ppc", "ppc64"],
+                  plugins=["hypercaller"],
+                  variants=dict(smp=[1, 4], intel=dict(values=[False, True], arches=["x86_64"])),
+                  timeout=900)
 
 MAGIC = 0x46525431
 PG, NP = 4096, 64
-TAG, FILEA, ANON, WR, HOLE, TRUNC, NONE, RO, NONE2, SW = (0x7e0000000000 + i * 0x10000000 for i in range(10))
+TAG, FILEA, ANON, WR, HOLE, TRUNC, NONE, RO, NONE2, SW, GUARDR, GROW = (0x7e0000000000 + i * 0x10000000 for i in range(12))
 KADDR = {"x86_64": 0xffffffff81000000, "aarch64": 0xffff800080000000, "riscv64": 0xffffffff80000000}
 BAD = re.compile(r"(Oops|BUG:|Kernel panic|Unable to handle|general protection|segfault|"
                  r"Internal error|Call Trace|PT SIGNAL)", re.I)
@@ -62,20 +68,21 @@ ap.add_argument("image")
 ap.add_argument("--smp", type=int, default=1)
 ap.add_argument("--stress", type=int, default=200)
 ap.add_argument("--secs", type=int, default=0)
+ap.add_argument("--intel", action="store_true")
 ap.add_argument("--json")
 opt = ap.parse_args()
 
-m = Machine(opt.image, smp=opt.smp)
+m = Machine(opt.image, smp=opt.smp, intel=opt.intel)
 panda = m.panda()
 arch = m.arch
 C = Checks(arch)
 agent = Agent(panda)
 from programs.pagein_programs import PROGRAMS  # noqa: E402
-from pandare2.pagein import (PageInFailed, PageInTimeout, PageInWouldBlock)  # noqa: E402
+from pandare2.pagein import (PageInFailed, PageInRefused, PageInTimeout, PageInWouldBlock)  # noqa: E402
 
 st = dict(asid=None, ready=threading.Event(), done=threading.Event(), done_args=None,
           cb_sync=None, cb_block=None, k_budget=0, counts={}, wrong=0, lock=threading.Lock(),
-          outstanding=0, alldone=threading.Event())
+          outstanding=0, alldone=threading.Event(), kb_budget=0)
 
 
 def count(ctx, what):
@@ -115,7 +122,7 @@ def submit(ctx, addr, n):
         st["outstanding"] += 1
         st["alldone"].clear()
     try:
-        panda.pagein.read(st["asid"], addr, n, completion(ctx, addr))
+        panda.pagein.read(st["asid"], addr, n, completion(ctx, addr), timeout_ns=30_000_000_000)
     except Exception as e:
         count(ctx, "refused:" + type(e).__name__)
         with st["lock"]:
@@ -203,6 +210,18 @@ def kctx(cpu, old, new):
     return False
 
 
+@panda.cb_start_block_exec(name="kblock", enabled=False)
+def kblock(cpu, tb):
+    # kernel mode, anywhere: interrupts, softirqs, spinlocks held, the scheduler
+    if st["kb_budget"] > 0 and panda.arch.get_pc(cpu) >> 63:     # a kernel address
+        st["kb_budget"] -= 1
+        rng = random.Random(st["kb_budget"] + 99)
+        a, n = rand_target(rng)
+        submit("kernel-block", a, n)
+        if st["kb_budget"] == 0:
+            panda.disable_callback("kblock")    # a Python call per block stalls the guest
+
+
 def other_thread(n, seed):
     rng = random.Random(seed)
     for _ in range(n):
@@ -211,13 +230,50 @@ def other_thread(n, seed):
         time.sleep(0.002)
 
 
+def refused_only():
+    """Targets without a system-call injector: every request is refused, with its reason, and the
+    guest is unaffected."""
+    m.revert(panda, agent)
+    asids = []
+
+    @panda.cb_asid_changed(name="any")
+    def any_asid(cpu, old, new):
+        if not asids:
+            asids.append(new)
+        return False
+    agent.run("ls / >/dev/null")
+    panda.disable_callback("any")
+    try:
+        panda.pagein.read(asids[0] if asids else 0x1000, 0x400000, 8, lambda d, e: None)
+        C.check("no injector: a request is refused", False, "accepted")
+    except PageInRefused as e:
+        C.check("no injector: a request is refused, with its reason", e.status == -6, str(e))
+        progress(f"pagein: {e}")
+    try:
+        panda.virtual_memory_read(None, 0x400000, 8, fault=True, asid=0x1000)
+        C.check("no injector: fault=True is refused", False, "returned")
+    except PageInRefused as e:
+        C.check("no injector: fault=True is refused", e.status == -6, str(e))
+    st_, out = agent.run("echo alive")
+    C.check("the guest runs on", out.strip() == b"alive", repr(out))
+    panda.end_analysis()
+
+
 @panda.queue_blocking
 def drive():
+    if arch not in PROGRAMS:
+        return refused_only()
     m.revert(panda, agent)
     agent.put("/tmp/pt", base64.b64decode(PROGRAMS[arch]))
-    st_, out = agent.run("chmod +x /tmp/pt; mkdir -p /mnt; (mkfs.ext2 -q -F /dev/vda && mount /dev/vda /mnt) "
-                         ">/dev/null 2>&1; mount | grep -c ' /mnt ' ; true")
+    # a filesystem and swap on loop devices (the machine has no disk): file pages through the
+    # block layer, swapped pages out and back
+    st_, out = agent.run("chmod +x /tmp/pt; mkdir -p /mnt; dd if=/dev/zero of=/tmp/disk.img bs=1M count=24 2>/dev/null; "
+                         "losetup /dev/loop0 /tmp/disk.img && mke2fs -q -F /dev/loop0 >/dev/null 2>&1 && "
+                         "mount -t ext2 /dev/loop0 /mnt; dd if=/dev/zero of=/tmp/swap.img bs=1M count=16 2>/dev/null; "
+                         "losetup /dev/loop1 /tmp/swap.img && mkswap /dev/loop1 >/dev/null && swapon /dev/loop1; "
+                         "grep -c loop1 /proc/swaps >&2; mount | grep -c ' /mnt '; true")
     d = "/mnt" if out.strip().endswith(b"1") else "/tmp"
+    progress(f"pagein: setup: {out.decode(errors='replace').strip()!r}")
     secs = opt.secs or (8 + opt.stress // 100)
     agent.run(f"(/tmp/pt {d} {secs} spin > /tmp/pt.out 2>&1; echo exit=$? >> /tmp/pt.out) &")
     if not st["ready"].wait(120):
@@ -253,7 +309,13 @@ def drive():
 
     sw = panda.virtual_memory_read(None, SW + 11 * PG, 128, fault=True, asid=asid)
     C.check("thread: swapped-out page swaps in", check_data(SW + 11 * PG, bytes(sw)))
-    bad = {"PROT_NONE after a write": NONE2, "no mapping": HOLE + 8, "truncated file": TRUNC + PG, "PROT_NONE": NONE,
+    guard = panda.virtual_memory_read(None, TAG + 24, 8, fault=True, asid=asid)
+    if guard != bytes(8):
+        bad_guard = {"guard region (MADV_GUARD_INSTALL)": GUARDR + 3 * PG}
+    else:
+        bad_guard = {}
+        progress("pagein: the guest kernel has no MADV_GUARD_INSTALL")
+    bad = {**bad_guard, "below a MAP_GROWSDOWN region": GROW - PG, "PROT_NONE after a write": NONE2, "no mapping": HOLE + 8, "truncated file": TRUNC + PG, "PROT_NONE": NONE,
            "kernel address": KADDR[arch]}
     for name, addr in bad.items():
         try:
@@ -279,9 +341,11 @@ def drive():
 
     # the stress: requests from every context while the program spins
     t = time.monotonic()
-    third = max(1, opt.stress // 3)
+    third = max(1, opt.stress // 4)
     st["k_budget"] = third
+    st["kb_budget"] = third
     panda.enable_callback("kctx")
+    panda.enable_callback("kblock")
     th = threading.Thread(target=other_thread, args=(third, 1))
     th.start()
     rng = random.Random(7)
@@ -292,11 +356,13 @@ def drive():
     if not st["alldone"].wait(300):
         C.check("stress: every request completed", False, f"{st['outstanding']} outstanding")
     panda.disable_callback("kctx")
+    panda.disable_callback("kblock")
     progress(f"pagein: stress {time.monotonic() - t:.1f}s {json.dumps(st['counts'])}")
     wrong = sum(v.get("WRONG", 0) for v in st["counts"].values())
     C.check("stress: every request completed", st["outstanding"] == 0, str(st["outstanding"]))
     C.check("stress: no wrong data", wrong == 0, str(wrong))
-    C.check("stress: requests from kernel mode were made", "kernel-callback" in st["counts"])
+    C.check("stress: requests from kernel mode were made",
+            "kernel-callback" in st["counts"] or "kernel-block" in st["counts"], str(list(st["counts"])))
 
     if not st["done"].wait(secs * 30 + 120):
         C.check("program finished", False, "no DONE hypercall")
@@ -312,7 +378,11 @@ def drive():
         C.check("a process that exited: PageInTimeout", True)
     _, out = agent.run("cat /tmp/pt.out; dmesg | tail -n 40")
     txt = out.decode(errors="replace")
+    for l in txt.splitlines():
+        if l.startswith("PT ") or l.startswith("exit="):
+            progress(f"pagein: program: {l}")
     C.check("program exited 0 (no SIGSEGV/SIGBUS)", "exit=0" in txt, txt[-400:])
+    C.check("the MAP_GROWSDOWN region did not grow", "grew 0" in txt, txt[-400:])
     badlines = [l for l in (txt + m.console_tail(n=20000)).splitlines() if BAD.search(l)]
     C.check("guest: no oops, BUG or signal", not badlines, "; ".join(badlines[:5]))
     st["stats"] = panda.pagein.stats()

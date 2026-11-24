@@ -75,9 +75,7 @@ class PageIn:
         self._lock = threading.Lock()
         self._pending = {}
         self._token = 0
-        ffi = panda.ffi
-        self._cb = ffi.callback("void(uint64_t, int, int, const uint8_t *, size_t, void *)",
-                                self._done)
+        self._cb = None             # the cffi completion, made at the first request
 
     def error(self, what, status, guest_errno=0):
         reason = self._panda.ffi.string(self._panda.libpanda.panda_pagein_strerror(status)).decode()
@@ -105,6 +103,9 @@ class PageIn:
     def _submit(self, what, asid, addr, length, wdata, done, timeout_ns):
         ffi, C = self._panda.ffi, self._panda.libpanda
         self._panda._needs_engine(what)
+        if self._cb is None:
+            self._cb = ffi.callback("void(uint64_t, int, int, const uint8_t *, size_t, void *)",
+                                    self._done)
         with self._lock:
             self._token += 1
             token = self._token
