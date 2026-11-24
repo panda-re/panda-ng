@@ -63,6 +63,7 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu/error-report.h"
 #include "qemu/qht.h"
 #include "qemu/rcu.h"
 #include "qemu/rcu_queue.h"
@@ -93,6 +94,7 @@ typedef struct TCGHookSite {
     vaddr pc;
     int32_t nhooks;                     /* read by generated code */
     bool dead;                          /* no hooks: writers only */
+    bool warned;                        /* found inside an instruction */
     QLIST_HEAD(, TCGHook) hooks;
     QLIST_HEAD(, TCGHook) ghooks;       /* guarded: code emitted per hook */
     struct rcu_head rcu;
@@ -590,9 +592,12 @@ static void hooks_commit(CPUState *cpu, run_on_cpu_data unused)
          * A TCG+KVM build under -accel kvm: no translated code to
          * invalidate, and tb_flush() would abort.  Callers may insert
          * hooks before they know the accelerator; the sites stay,
-         * unused.
+         * unused.  panda_address_hook_insert() refuses hooks once the
+         * accelerator is known.
          */
         qemu_mutex_unlock(&hooks_lock);
+        warn_report_once("address hooks need TCG: the hooks inserted before the "
+                         "accelerator was chosen will never be called");
         return;
     }
     flush = !flushed || pcs->len > MAX_TARGETED;
@@ -1160,10 +1165,28 @@ void tcg_hooks_gen_chunk(DisasContextBase *db)
     TCGHookChunk *c = NULL;
 
     tcg_hooks_xl.chunk = pc >> TCG_HOOKS_CHUNK_BITS;
+    tcg_hooks_xl.prev = -1;
     if (page_marked(pc)) {
         c = chunk_lookup(tcg_hooks_xl.chunk);
     }
     tcg_hooks_xl.sites = c ? qatomic_rcu_read(&c->sites) : NULL;
+}
+
+/*
+ * Sites strictly between the previous instruction of this block (in this
+ * chunk) and @pc are inside that instruction: their hooks can never be
+ * called.  Say so, once per site.
+ */
+static void warn_inside(const TCGHookSiteArray *a, vaddr prev, vaddr pc)
+{
+    for (unsigned i = 0; i < a->n; i++) {
+        TCGHookSite *s = a->s[i];
+
+        if (s->pc > prev && s->pc < pc && !qatomic_xchg(&s->warned, true)) {
+            warn_report("address hook at 0x%" VADDR_PRIx " is inside the instruction at "
+                        "0x%" VADDR_PRIx ": it will never be called", s->pc, prev);
+        }
+    }
 }
 
 void tcg_hooks_gen_insn(DisasContextBase *db)
@@ -1174,6 +1197,10 @@ void tcg_hooks_gen_insn(DisasContextBase *db)
     TCGv_i32 n;
     TCGLabel *skip;
 
+    if (tcg_hooks_xl.prev != (vaddr)-1 && db->pc_next > tcg_hooks_xl.prev + 1) {
+        warn_inside(tcg_hooks_xl.sites, tcg_hooks_xl.prev, db->pc_next);
+    }
+    tcg_hooks_xl.prev = db->pc_next;
     if (!s) {
         return;
     }

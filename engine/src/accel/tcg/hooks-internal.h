@@ -67,6 +67,7 @@ typedef struct TCGHookSiteArray TCGHookSiteArray;
 typedef struct TCGHooksXlate {
     vaddr chunk;
     const TCGHookSiteArray *sites;
+    vaddr prev;                 /* the block's previous instruction in this chunk, or -1 */
 } TCGHooksXlate;
 extern __thread TCGHooksXlate tcg_hooks_xl;
 
