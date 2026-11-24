@@ -37,6 +37,9 @@ phase, or not at all. Each case runs in a child process:
   pauses the vCPUs, runs uninit_plugin, which removes the engine hooks, and closes the library);
   the test waits for the plugin to be gone, then runs the program again: no hook fires, and the
   program finishes;
+- unload-hot: a C hook at h0, and the unload of the hooks plugin asked for from the handler of
+  hypercall 3, on the vCPU: the unload happens in the main loop, which pauses the vCPUs before
+  the program gets through its next phase: R hits, all in phase 1;
 - smp (--smp > 1): the program on every vCPU at once, with a C hook counting at h0 and one at h1
   that adds a self-disabling hook at h0 on every hit (the hooks at h0 replaced while every vCPU
   runs them): h0's counter is exactly vCPUs * 3R, h1's too.
@@ -67,7 +70,7 @@ LABELS = ["h0", "h1", "h2", "p0", "x0", "xs", "x1"]
 TYPES = ["start_block_exec", "before_block_exec", "end_block_exec", "after_block_translate",
          "before_block_exec_invalidate_opt", "after_block_exec", "before_block_translate"]
 CASES = [f"type-{t}" for t in TYPES] + ["c", "filters", "multi", "late", "remove", "alias",
-                                         "alias-late", "cross", "path", "unload"]
+                                         "alias-late", "cross", "path", "unload", "unload-hot"]
 SMP_CASES = ["smp", "path"]
 KSYM = {"x86_64": "__x64_sys_getpid", "aarch64": "__arm64_sys_getpid"}
 
@@ -274,6 +277,8 @@ def at_hc1(cpu):
     elif case == "cross":
         for k in ("x0", "xs", "x1"):
             counter_hook(k, L[k])
+    elif case == "unload-hot":
+        hookc.hookc_add(L["h0"], 0, 0)
     elif case == "unload" and not st.get("added"):     # the first run only
         st["added"] = True
         hookc.hookc_add(L["h0"], 0, 0)
@@ -293,6 +298,8 @@ def at_hc3(cpu):
     elif case == "path":
         st["bits"]["before-hook"] = tb_trans_on()
         counter_hook("h0", L["h0"])
+    elif case == "unload-hot":
+        panda.unload_plugin("hooks")            # from this vCPU: the main loop unloads it
 
 
 def at_hc4(cpu):
@@ -344,9 +351,9 @@ def put_program():
 def drive():
     try:
         st["bits"]["start"] = tb_trans_on()
-        if case in ("path", "c", "unload", "smp"):
+        if case in ("path", "c", "unload", "unload-hot", "smp"):
             panda.load_plugin("hooks")
-        if case in ("c", "unload"):
+        if case in ("c", "unload", "unload-hot"):
             load_hookc()
         m.revert(panda, agent)
         put_program()
@@ -365,6 +372,12 @@ def drive():
         else:
             out["run"] = agent.run("/tmp/hooks; echo rc=$?", timeout=300)
             agent.run("true")
+        if case == "unload-hot":
+            t = time.monotonic()
+            while panda.libpanda.panda_get_plugin_by_name(b"hooks") != panda.ffi.NULL \
+                    and time.monotonic() - t < 60:
+                time.sleep(0.05)
+            st["gone"] = panda.libpanda.panda_get_plugin_by_name(b"hooks") == panda.ffi.NULL
         if case == "unload":
             st["before"] = (hookc.hookc_get(0), dict(hits["py"]))
             panda.unload_plugin("hooks")        # done later, by the main loop
@@ -452,6 +465,10 @@ elif case == "unload":
             out.get("run2") and out["run2"][0] == 0 and b"rc=0" in out["run2"][1], out.get("run2"))
     C.check("no hook fires after the unload", hookc.hookc_get(0) == c_before and
             dict(hits["py"]) == py_before, (hookc.hookc_get(0), dict(hits["py"])))
+elif case == "unload-hot":
+    C.check("no hook runs after the phase the unload was asked for in: R hits, all in phase 1",
+            hookc.hookc_get(0) == R, hookc.hookc_get(0))
+    C.check("the plugin is gone (the main loop unloaded it)", st.get("gone") is True, st.get("gone"))
 elif case == "smp":
     n = opt.smp
     C.check(f"every copy of the program ran ({n})", out.get("run") and
