@@ -92,3 +92,20 @@ uint64_t hookc_get(int i)
     return i < 0 ? __atomic_load_n(&bad_args, __ATOMIC_RELAXED)
                  : i < NCOUNT ? __atomic_load_n(&counts[i], __ATOMIC_RELAXED) : 0;
 }
+
+/* hookc_add with an asid and a kernel/user mode (enum kernel_mode), for measurements */
+void hookc_add_f(uint64_t addr, int fn, int counter, uint64_t asid, int km)
+{
+    void (*fns[])(CPUState *, TranslationBlock *, struct hook *) = {
+        hookc_count, hookc_once, hookc_churn };
+    struct hook h = {0};
+
+    h.addr = addr;
+    h.asid = asid;
+    h.type = codegen_type;
+    h.cb.before_tcg_codegen = fns[fn];
+    h.km = (enum kernel_mode)km;
+    h.enabled = true;
+    h.context = (void *)(uintptr_t)counter;
+    add(&h);
+}

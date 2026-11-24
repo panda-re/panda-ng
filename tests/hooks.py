@@ -14,7 +14,8 @@ phase, or not at all. Each case runs in a child process:
   of that type's signature (cpu; the block holding h0; the hook, at h0, of that type; pc for
   before_block_translate, an exit code for after_block_exec);
 - c: C hooks (tests/hooks_c.c) of type before_tcg_codegen: one counting at h0, one that disables
-  itself at h1 (fires once);
+  itself at h1 (fires once); at h2 the same function with two contexts (two hooks, R per phase
+  each), the second added twice (still one);
 - filters: asid (the program's, and another: never), kernel/user mode (kernel=True on user code:
   never), and hooks in kernel code: getpid's kernel function (from /proc/kallsyms) with
   kernel=True fires R per phase in the program's process, with kernel=False never;
@@ -235,6 +236,11 @@ def at_hc1(cpu):
     elif case == "c":
         hookc.hookc_add(L["h0"], 0, 0)
         hookc.hookc_add(L["h1"], 1, 1)
+        # the same function at h2 with two contexts (counters 4 and 5): two hooks; the second
+        # added again: still one
+        hookc.hookc_add(L["h2"], 0, 4)
+        hookc.hookc_add(L["h2"], 0, 5)
+        hookc.hookc_add(L["h2"], 0, 5)
     elif case == "filters":
         counter_hook("asid", L["h0"], asid=st["asid"], kernel=False)
         counter_hook("other-asid", L["h1"], asid=st["asid"] + 0x1000, kernel=False)
@@ -396,6 +402,9 @@ elif case == "c":
     C.check("C counting hook at h0: R per phase, 3R in all", hookc.hookc_get(0) == 3 * R,
             hookc.hookc_get(0))
     C.check("C hook that disables itself at h1: once", hookc.hookc_get(1) == 1, hookc.hookc_get(1))
+    C.check("the same function with another context is another hook; the same hook twice is one",
+            (hookc.hookc_get(4), hookc.hookc_get(5)) == (3 * R, 3 * R),
+            (hookc.hookc_get(4), hookc.hookc_get(5)))
     C.check("C hooks got a cpu and a block", hookc.hookc_get(-1) == 0, hookc.hookc_get(-1))
 elif case == "filters":
     expect("asid", RRR)

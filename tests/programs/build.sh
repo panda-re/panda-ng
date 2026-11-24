@@ -5,14 +5,14 @@
 # fastcov_<arch>.S for tests/fastcov.py, syscalls_<arch>.S for tests/syscalls.py, answers_<arch>.S
 # for tests/hypercall_rr.py, flushsmp_<arch>.S for tests/flush_smp.py, agent.c for tests/testmachine.py,
 # sctruth_<arch>.S, scpaths.c and scwork.c for tests/syscall_truth.py, osifacts.c for tests/osi_isf_facts.py,
-# hooks_<arch>.S for tests/hooks.py.
+# hooks_<arch>.S for tests/hooks.py, hookeng.c for tests/hookeng.py.
 # A <name>.c program is freestanding (no libc; tests/programs/sys.h is its system layer), built
 # with gcc -nostdlib for each arch in its list below; a <name>_<arch>.S is assembled for each arch
 # it exists for. i386 is a 32-bit task on the x86_64 guest.
 # The ELFs are static, text at 0x400000 (the agent's at 0x10000000, hooks' at 0x20000000), stripped. Arguments: the names to build (default: all).
 set -e
 cd "$(dirname "$0")"
-names=${*:-api blocks mem calls procs adbits mmio fastcov syscalls answers flushsmp agent scpaths sctruth scwork osifacts hooks}
+names=${*:-api blocks mem calls procs adbits mmio fastcov syscalls answers flushsmp agent scpaths sctruth scwork osifacts hooks hookeng}
 # nix builds here are substitutions from the binary cache; never more than one job
 NIX="nix build --no-link --print-out-paths --max-jobs 1 --cores 8"
 for name in $names; do
@@ -20,12 +20,13 @@ for name in $names; do
   # The agent away from the programs (testlib.PROGRAM_BASE), so that its calls are never theirs.
   text=0x400000; [ $name = agent ] && text=0x10000000
   # hooks: away from busybox's own text (static, at 0x401000), which every shell runs
-  [ $name = hooks ] && text=0x20000000
+  [ $name = hooks ] || [ $name = hookeng ] && text=0x20000000
   case $name in
     agent | scpaths | scwork) archs="x86_64 aarch64 arm i386 riscv64 mipsel mips mips64el mips64 ppc ppc64 ppc64le"
       src=${name}.c ;;
     sctruth) archs="x86_64 i386" src="${name}_<arch>.S" ;;
     osifacts) archs="x86_64 aarch64 arm mips64" src=${name}.c ;;
+    hookeng) archs="x86_64 aarch64 arm mips ppc64" src=${name}.c ;;
     hooks) archs="x86_64 aarch64" src="${name}_<arch>.S" ;;
     *) archs="x86_64 aarch64 riscv64" src="${name}_<arch>.S" ;;
   esac

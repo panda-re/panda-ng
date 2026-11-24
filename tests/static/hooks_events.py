@@ -69,6 +69,7 @@ enum { PANDA_MODE_ANALYSIS = 1, PANDA_MODE_FUZZ = 2, PANDA_MODE_RR = 4, PANDA_MO
 void panda_require(const char *name);
 void panda_enable_precise_pc(void);
 bool panda_in_kernel_external(const CPUState *cpu);
+target_ulong panda_current_asid(CPUState *cpu);
 }
 ''',
 "hw_proc_id/hw_proc_id_ext.h": r'''
@@ -211,6 +212,8 @@ extern "C" void panda_enable_precise_pc(void) {}
 extern "C" bool panda_in_kernel_external(const CPUState *cpu) { return cpu->kernel; }
 static int get_ids;
 target_ulong get_id(CPUState *cpu) { get_ids++; return cpu->asid; }
+/* outside MIPS the plugin compares asids with panda_current_asid() itself */
+extern "C" target_ulong panda_current_asid(CPUState *cpu) { get_ids++; return cpu->asid; }
 bool init_hw_proc_id_api(void) { return true; }
 
 /* --- hook functions and a subscriber --------------------------------------------------------- */
@@ -238,8 +241,8 @@ static void fa(CPUState *cpu, TranslationBlock *tb, struct hook *h)
     note(h->context ? (const char *)h->context : "a", h->addr);
 }
 static void fb(CPUState *cpu, TranslationBlock *tb, struct hook *h) { note("b", h->addr); }
-/* Two more like fa: a duplicate is the same function at the same address, asid and type, whatever
- * its mode (as the old plugin's std::set compared them). */
+/* Two more like fa, for hooks of another mode. A duplicate is the same function, asid, type, mode
+ * and context at the same address. */
 static void fk(CPUState *cpu, TranslationBlock *tb, struct hook *h) { fa(cpu, tb, h); }
 static void fu(CPUState *cpu, TranslationBlock *tb, struct hook *h) { fa(cpu, tb, h); }
 static void fonce(CPUState *cpu, TranslationBlock *tb, struct hook *h)
@@ -417,7 +420,7 @@ int main(void)
     struct hook s2 = mk(0x500000, fa, 0x1000, MODE_ANY, "asid1000");
     struct hook s3 = mk(0x500000, fk, 0, MODE_KERNEL_ONLY, "kernel");
     struct hook s4 = mk(0x500000, fu, 0, MODE_USER_ONLY, "user");
-    struct hook s6 = mk(0x500000, fa, 0, MODE_KERNEL_ONLY, "dup");     /* s1's duplicate */
+    struct hook s6 = mk(0x500000, fa, 0, MODE_ANY, "any");             /* s1's duplicate */
     struct hook s5 = mk(0x500000, fa, 0x2000, MODE_USER_ONLY, "asid2000user");
     add_hook(&s1); add_hook(&s2); add_hook(&s3); add_hook(&s4); add_hook(&s5); add_hook(&s6);
     CHECK(panda_sub_enable(sub, false), "quiet");
