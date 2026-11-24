@@ -201,7 +201,20 @@ class Machine:
         agent.ready.clear()
         panda.revert_sync(SNAPSHOT)
         if not agent.ready.wait(timeout):
-            raise TimeoutError("the agent didn't poll after the revert")
+            raise TimeoutError("the agent didn't poll after the revert; guest console since "
+                               "the revert (last 2 KiB):\n" + self.console_tail() +
+                               "\nwhen the snapshot was taken (last 2 KiB):\n" +
+                               self.console_tail(os.path.join(self.dir, "console.log")))
+
+    def console_tail(self, path=None, n=2048):
+        """The end of a guest console log: by default this machine's current Panda's."""
+        try:
+            with open(path or os.path.join(self.tmp, "console.log"), "rb") as f:
+                f.seek(0, os.SEEK_END)
+                f.seek(max(0, f.tell() - n))
+                return f.read().decode(errors="replace")
+        except (OSError, TypeError):
+            return "(no console log)"
 
     def cleanup(self):
         """Remove this machine's snapshot copy and console log (kept with $TESTMACHINE_KEEP)."""
