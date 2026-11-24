@@ -14,7 +14,7 @@ PANDAENDCOMMENT */
  * add_hook() on the engine's address hooks (panda/address-hook.h).
  *
  * Each hooked address is a site: one engine hook whose callback (on_hit) walks the hooks added
- * there and filters them in C, by asid (hw_proc_id's get_id) and kernel/user mode, before calling
+ * there and filters them in C, by asid (proc_id()) and kernel/user mode, before calling
  * each one's function and emitting hooks.hit (hooks_events.h). The hooks at an address are an
  * array that writers replace and vCPUs read without a lock: the vCPUs run hooks inside an RCU
  * read-side critical section, so a replaced array and a removed hook are freed by the engine after
@@ -72,6 +72,42 @@ static panda_event_id hit_event;
 void* self = NULL;
 
 static void on_hit(CPUState *cpu, uint64_t pc, void *opaque);
+
+/*
+ * The identifier a hook's asid is compared with: hw_proc_id's get_id(). Outside MIPS that is
+ * panda_current_asid(), called directly. On MIPS hw_proc_id caches the task pointer from every
+ * kernel block (a start_block_exec callback, which costs every block on every run), so it is
+ * loaded only once a hook with an asid is added.
+ */
+static inline target_ulong proc_id(CPUState *cpu)
+{
+#if defined(TARGET_MIPS)
+    return get_id(cpu);
+#else
+    return panda_current_asid(cpu);
+#endif
+}
+
+#if defined(TARGET_MIPS)
+static bool have_proc_id;                               // hw_proc_id is loaded (writers)
+
+// With writers held. False if hw_proc_id is not loaded and cannot be loaded from this thread.
+static bool need_proc_id(void)
+{
+    if (have_proc_id) {
+        return true;
+    }
+    if (!panda_get_plugin_by_name("hw_proc_id")) {
+        if (current_cpu) {
+            // loading a plugin from a vCPU thread is not safe
+            return false;
+        }
+        panda_require("hw_proc_id");
+    }
+    have_proc_id = init_hw_proc_id_api();
+    return have_proc_id;
+}
+#endif
 
 // A hook's enabled flag: written by its function (on any vCPU) or by whoever kept a pointer to it.
 static inline bool hook_enabled(const struct hook *h)
@@ -191,7 +227,7 @@ static void on_hit(CPUState *cpu, uint64_t pc, void *opaque)
     if (!l || !__atomic_load_n(&hooking, __ATOMIC_RELAXED)) {
         return;
     }
-    target_ulong asid = l->any_asid ? get_id(cpu) : 0;
+    target_ulong asid = l->any_asid ? proc_id(cpu) : 0;
     bool in_kernel = l->any_mode ? panda_in_kernel_external(cpu) : false;
     for (uint32_t i = 0; i < l->n; i++) {
         struct hook *h = l->h[i];
@@ -243,6 +279,14 @@ void add_hook(struct hook* h) {
         return;
     }
     std::lock_guard<std::mutex> g(writers);
+#if defined(TARGET_MIPS)
+    if (h->asid != 0 && !need_proc_id()) {
+        fprintf(stderr, "hooks: a hook with an asid needs hw_proc_id on MIPS; load it before the "
+                "guest runs, or add the first such hook from outside a vCPU. Hook at 0x%" PRIx64
+                " not added\n", h->addr);
+        return;
+    }
+#endif
     hook_site *&s = sites[h->addr];
     if (s == NULL) {
         s = (hook_site *)calloc(1, sizeof(*s));
@@ -277,9 +321,6 @@ void add_hook(struct hook* h) {
 
 bool init_plugin(void *_self) {
     self = _self;
-    panda_enable_precise_pc();
-    panda_require("hw_proc_id");
-    assert(init_hw_proc_id_api());
 
     panda_event_desc desc;
     memset(&desc, 0, sizeof(desc));
