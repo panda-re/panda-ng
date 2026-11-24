@@ -530,6 +530,10 @@ class Panda(TaintMixin):
         self.C = self.ffi.dlopen(None)
         self._vmr_c = self.libpanda.panda_virtual_memory_read_external
         self._addr_mask = (1 << self.bits) - 1
+        try:        # an engine before panda_virtual_memory_read_str: read_str reads page by page
+            self._read_str_c = self.libpanda.panda_virtual_memory_read_str
+        except AttributeError:
+            self._read_str_c = None
         requested = sum(1 << CAPABILITIES.index(name) for name in self.capabilities)
         if not self.libpanda.panda_configure_capabilities(requested):
             raise ValueError("the engine refused the startup capabilities (the reason is on stderr): "
@@ -1733,9 +1737,10 @@ class Panda(TaintMixin):
         most max_length of them. Raises ValueError where a byte-by-byte read would fail (at an
         unreadable byte before the NUL and within max_length).
 
-        One read per page: the rest of ptr's page, then whole pages, the NUL found with
-        bytes.find (so it reads past the NUL, within the page holding it). The place for other
-        readers (e.g. one that pages memory in).
+        With the engine's read (no osi_linux) it is one panda_virtual_memory_read_str call per
+        4 KiB; otherwise (osi_linux's read) one read per page: the rest of
+        ptr's page, then whole pages, the NUL found with bytes.find. Either reads past the NUL
+        within the page holding it. The place for other readers (e.g. one that pages memory in).
         '''
         if max_length is not None and max_length <= 0:
             return b""
@@ -1744,6 +1749,20 @@ class Panda(TaintMixin):
         ptr &= mask
         out = []
         left = -1 if max_length is None else max_length
+        if not self._osi_linux_loaded and self._read_str_c is not None:
+            rs, size = self._read_str_c, 4096
+            while left:
+                n = size if left < 0 else min(size, left)
+                buf = ffi.new("char[]", n)
+                got = rs(cpu, ptr, buf, n)
+                if got < 0:
+                    raise ValueError(f"Failed to read guest memory at {ptr:x}")
+                out.append(ffi.buffer(buf, got)[:])
+                if got < n:
+                    break
+                left -= n
+                ptr = (ptr + n) & mask
+            return b"".join(out)
         read = self._vmr_fn()
         while left:
             n = 4096 - (ptr & 4095)

@@ -47245,6 +47245,14 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn panda_virtual_memory_read_str(
+        cpu: *mut CPUState,
+        addr: target_ulong,
+        buf: *mut ::std::os::raw::c_char,
+        max: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn panda_virtual_memory_write_external(
         cpu: *mut CPUState,
         addr: target_ulong,
