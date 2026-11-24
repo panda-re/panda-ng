@@ -33706,6 +33706,13 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    pub fn cpu_translate_for_debug_kernel(
+        cpu: *mut CPUState,
+        addr: vaddr,
+        result: *mut TranslateForDebugResult,
+    ) -> bool;
+}
+unsafe extern "C" {
     pub fn cpu_asidx_from_attrs(cpu: *mut CPUState, attrs: MemTxAttrs) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
@@ -42647,6 +42654,14 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn x86_cpu_translate_for_debug(
         cpu: *mut CPUState,
+        addr: vaddr,
+        result: *mut TranslateForDebugResult,
+    ) -> bool;
+}
+unsafe extern "C" {
+    pub fn x86_cpu_translate_for_debug_cr3(
+        cpu: *mut CPUState,
+        cr3: u64,
         addr: vaddr,
         result: *mut TranslateForDebugResult,
     ) -> bool;
