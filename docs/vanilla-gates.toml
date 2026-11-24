@@ -1539,6 +1539,20 @@ current_gate = "Always on under TCG: x86 INT 0x80 from CPL 3 in protected mode (
 required_action = "Explicit vanilla must take the BQL around every do_interrupt as upstream does (x86 exception_bql_free unset)."
 vanilla_verified = false
 
+[[patch]]
+id = "0110"
+file = "engine/patches/11.1.2/0110-target-translate-for-debug-as-the-guest-kernel-sees-.patch"
+sha256 = "02b78cdf3efb340c9058dc3fe8b44f99829d6217787687c815e17a84681a3fb1"
+class = "upstream-fix-needs-off-path"
+capability = "analysis-memory-access"
+paths = ["hw/core/cpu-system.c", "include/hw/core/cpu.h", "include/hw/core/sysemu-cpu-ops.h", "target/arm/cpu.c", "target/arm/internals.h", "target/arm/ptw.c", "target/i386/cpu.h", "target/i386/helper.c", "target/loongarch/cpu-mmu.h", "target/loongarch/cpu.c", "target/loongarch/cpu_helper.c", "target/mips/cpu.c", "target/mips/internal.h", "target/mips/system/physaddr.c", "target/ppc/cpu.h", "target/ppc/cpu_init.c", "target/ppc/mmu-booke.c", "target/ppc/mmu-radix64.c", "target/ppc/mmu_common.c", "target/riscv/cpu.c", "target/riscv/cpu.h", "target/riscv/tcg/cpu_helper.c"]
+functions = ["cpu_translate_for_debug_kernel", "SysemuCPUOps.translate_for_debug_kernel", "x86_cpu_translate_for_debug_cr3", "mmubooke206_get_as", "ppc_radix64_check_prot"]
+hunk_contexts = ["bool cpu_translate_for_debug(CPUState *cpu, vaddr addr,", "typedef struct SysemuCPUOps {", "static bool mmubooke206_get_as(CPUPPCState *env,", "static bool ppc_radix64_check_prot(PowerPCCPU *cpu, MMUAccessType access_type,", "hwaddr ppc_cpu_get_phys_addr_debug(CPUState *cs, vaddr addr)"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "The kernel-view debug translation runs only when called (PANDA's guest memory reads); it changes no CPU state. PowerPC radix and BookE 2.06 permission checks take the privilege from the MMU index instead of MSR[PR], which is the same for the CPU's own accesses."
+required_action = "Explicit vanilla must keep upstream's MSR[PR]-based PowerPC radix/BookE checks and must not route debug reads through the kernel view."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
@@ -1708,7 +1722,7 @@ vanilla_verified = false
 id = "guest-state-api"
 class = "runtime-gate"
 capability = "analysis-guest-access"
-paths = ["engine/src/panda/src/panda_arch.c", "engine/src/panda/src/panda_mem.c", "engine/src/panda/src/wrap_ops.c"]
+paths = ["engine/src/panda/src/panda_arch.c", "engine/src/panda/src/panda_mem.c", "engine/src/panda/src/translate-int.h", "engine/src/panda/src/wrap_ops.c"]
 functions = ["panda_set_retval", "panda_set_syscall_arg", "panda_virtual_memory_rw", "panda_physical_memory_rw"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
 current_gate = "Guest access helpers and writable/raw CPU state APIs rely on RR/observer policy, not explicit vanilla capability."
