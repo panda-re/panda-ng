@@ -12,6 +12,15 @@
  * hook count before calling, so removing the last hook leaves a load and a
  * branch until the block is retranslated.
  *
+ * A site without hooks is dead.  A TB flush removes all translated code, so
+ * it reclaims the dead sites (freed after a grace period) and rebuilds the
+ * page bitmap from the live ones: pages that lost their hooks translate
+ * with CF_PCREL again.  Without that, per-process hooks over a long run
+ * (an entry point hooked in every program under ASLR) would grow both
+ * without bound.  Once dead sites outnumber live ones and pass
+ * DEAD_SITES_FLUSH, or the graveyard of removed guarded hooks passes
+ * GRAVEYARD_FLUSH, a flush is requested for that purpose.
+ *
  * CF_PCREL stays on, except on the guest virtual pages that hold a site:
  * a lookup there asks for a block translated for its virtual address
  * (tcg_hooks_cflags), and only such blocks get hook calls.  While hooks
@@ -83,8 +92,10 @@
 typedef struct TCGHookSite {
     vaddr pc;
     int32_t nhooks;                     /* read by generated code */
+    bool dead;                          /* no hooks: writers only */
     QLIST_HEAD(, TCGHook) hooks;
     QLIST_HEAD(, TCGHook) ghooks;       /* guarded: code emitted per hook */
+    struct rcu_head rcu;
 } TCGHookSite;
 
 /* A chunk's sites, sorted by pc.  Never changed once published. */
@@ -97,6 +108,7 @@ struct TCGHookSiteArray {
 typedef struct TCGHookChunk {
     vaddr chunk;                        /* pc >> TCG_HOOKS_CHUNK_BITS */
     TCGHookSiteArray *sites;            /* RCU */
+    struct rcu_head rcu;
 } TCGHookChunk;
 
 struct TCGHook {
@@ -125,6 +137,13 @@ static GArray *newbits;                 /* page bits set since the last commit *
 static bool commit_queued;
 static bool flushed;                    /* the first commit flushed */
 static bool pages_pending;              /* sites inserted before the page size */
+static GHashTable *marks;               /* pcs given to tcg_hooks_mark_pc() */
+static unsigned nsites, ndead, nreclaims;
+static bool reclaim_queued;
+
+/* see the header comment */
+#define DEAD_SITES_FLUSH 4096
+#define GRAVEYARD_FLUSH  1024
 
 /* invalidating more pcs than this at once flushes everything instead */
 #define MAX_TARGETED 1024
@@ -175,6 +194,7 @@ static void __attribute__((constructor)) tcg_hooks_init(void)
     pending = g_array_new(false, false, sizeof(vaddr));
     newbits = g_array_new(false, false, sizeof(unsigned long));
     graveyard = g_ptr_array_new();
+    marks = g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
     qemu_mutex_init(&index_lock);
     qemu_mutex_init(&regloc_lock);
     regloc = g_hash_table_new_full(g_bytes_hash, g_bytes_equal,
@@ -234,13 +254,15 @@ static void hook_free_rcu(struct rcu_head *head)
     g_free(container_of(head, TCGHook, rcu));
 }
 
+static void reclaim(void);
+
 void tcg_hooks_tb_flush(void)
 {
     qemu_mutex_lock(&index_lock);
     g_hash_table_remove_all(tb_index);
     qemu_mutex_unlock(&index_lock);
 
-    /* no translated code refers to removed guarded hooks any more */
+    /* no translated code refers to removed guarded hooks or to sites any more */
     qemu_mutex_lock(&hooks_lock);
     for (guint i = 0; i < graveyard->len; i++) {
         TCGHook *h = g_ptr_array_index(graveyard, i);
@@ -248,6 +270,8 @@ void tcg_hooks_tb_flush(void)
         panda_events_call_rcu(&h->rcu, hook_free_rcu);
     }
     g_ptr_array_set_size(graveyard, 0);
+    reclaim();
+    reclaim_queued = false;
     qemu_mutex_unlock(&hooks_lock);
 }
 
@@ -342,6 +366,141 @@ static void for_each_site(SiteFn fn, void *opaque)
     void *args[2] = { (void *)fn, opaque };
 
     qht_iter(&chunks, chunk_iter, args);
+}
+
+static void site_free_rcu(struct rcu_head *head)
+{
+    g_free(container_of(head, TCGHookSite, rcu));
+}
+
+static void chunk_free_rcu(struct rcu_head *head)
+{
+    g_free(container_of(head, TCGHookChunk, rcu));
+}
+
+static void collect_chunk(void *p, uint32_t h, void *up)
+{
+    g_ptr_array_add(up, p);
+}
+
+static void mark_page(vaddr pc);
+
+static void mark_site_page(TCGHookSite *s, void *unused)
+{
+    mark_page(s->pc);
+}
+
+/* Mark the pages of every site and of tcg_hooks_mark_pc()'s pcs. */
+static void mark_all(void)
+{
+    GHashTableIter it;
+    gpointer k;
+
+    for_each_site(mark_site_page, NULL);
+    g_hash_table_iter_init(&it, marks);
+    while (g_hash_table_iter_next(&it, &k, NULL)) {
+        mark_page(*(vaddr *)k);
+    }
+}
+
+/*
+ * Drop the dead sites and rebuild the page bitmap.  With hooks_lock held,
+ * when no translated code refers to a site: from a TB flush (exclusive or
+ * serial context), or before any vCPU exists.
+ */
+static void reclaim(void)
+{
+    g_autoptr(GPtrArray) all = g_ptr_array_new();
+
+    if (!ndead) {
+        return;
+    }
+    qht_iter(&chunks, collect_chunk, all);
+    for (guint i = 0; i < all->len; i++) {
+        TCGHookChunk *c = g_ptr_array_index(all, i);
+        TCGHookSiteArray *old = c->sites, *a;
+        unsigned kept = 0;
+
+        a = g_malloc(sizeof(*a) + old->n * sizeof(a->s[0]));
+        for (unsigned j = 0; j < old->n; j++) {
+            TCGHookSite *st = old->s[j];
+
+            if (st->dead) {
+                panda_events_call_rcu(&st->rcu, site_free_rcu);
+                nsites--;
+            } else {
+                a->s[kept++] = st;
+            }
+        }
+        a->n = kept;
+        if (kept == old->n) {
+            g_free(a);
+        } else if (kept) {
+            chunk_publish(c, a);
+        } else {
+            g_free(a);
+            qht_remove(&chunks, c, chunk_hash(c->chunk));
+            chunk_publish(c, NULL);
+            panda_events_call_rcu(&c->rcu, chunk_free_rcu);
+        }
+    }
+    ndead = 0;
+    nreclaims++;
+    if (target_page.decided) {
+        for (size_t i = 0; i < ARRAY_SIZE(tcg_hooks_pages); i++) {
+            qatomic_set(&tcg_hooks_pages[i], 0);
+        }
+        mark_all();
+    }
+    g_array_set_size(newbits, 0);       /* nothing is translated */
+}
+
+static void reclaim_work(CPUState *cpu, run_on_cpu_data unused)
+{
+    /* tcg_hooks_tb_flush() reclaims */
+    tb_flush__exclusive_or_serial();
+}
+
+/* Too many dead sites or removed guarded hooks: flush.  With hooks_lock held. */
+static void maybe_reclaim(void)
+{
+    CPUState *cpu = current_cpu ? current_cpu : first_cpu;
+
+    if (reclaim_queued ||
+        !((ndead >= DEAD_SITES_FLUSH && ndead * 2 > nsites) ||
+          graveyard->len >= GRAVEYARD_FLUSH)) {
+        return;
+    }
+    if (!cpu) {
+        reclaim();                      /* nothing translated yet */
+        return;
+    }
+    if (!tcg_enabled()) {
+        return;
+    }
+    reclaim_queued = true;
+    async_safe_run_on_cpu(cpu, reclaim_work, RUN_ON_CPU_NULL);
+}
+
+/* @s lost or gained its last hook.  With hooks_lock held. */
+static void site_update_dead(TCGHookSite *s)
+{
+    bool dead = !s->nhooks && QLIST_EMPTY(&s->ghooks);
+
+    if (dead != s->dead) {
+        s->dead = dead;
+        ndead += dead ? 1 : -1;
+    }
+}
+
+void tcg_hooks_stats(TCGHooksStats *st)
+{
+    qemu_mutex_lock(&hooks_lock);
+    st->sites = nsites;
+    st->dead_sites = ndead;
+    st->graveyard = graveyard->len;
+    st->reclaims = nreclaims;
+    qemu_mutex_unlock(&hooks_lock);
 }
 
 int tcg_hook_count(vaddr pc)
@@ -517,11 +676,6 @@ static void mark_page(vaddr pc)
     }
 }
 
-static void mark_site_page(TCGHookSite *s, void *unused)
-{
-    mark_page(s->pc);
-}
-
 /*
  * An embedder may insert hooks before the target page size is decided;
  * it is by the time a vCPU exists, and nothing is translated before.
@@ -530,7 +684,7 @@ void tcg_hooks_vcpu_init(CPUState *cpu)
 {
     qemu_mutex_lock(&hooks_lock);
     if (pages_pending) {
-        for_each_site(mark_site_page, NULL);
+        mark_all();
         g_array_set_size(newbits, 0);   /* nothing was translated yet */
         pages_pending = false;
     }
@@ -568,6 +722,7 @@ static TCGHook *hook_insert(vaddr pc, TCGHookFn fn, void *opaque,
         QLIST_INIT(&s->hooks);
         QLIST_INIT(&s->ghooks);
         site_add(s);
+        nsites++;
         queue_commit(pc);
     } else if (n) {
         queue_commit(pc);               /* its code is emitted per hook */
@@ -579,6 +734,7 @@ static TCGHook *hook_insert(vaddr pc, TCGHookFn fn, void *opaque,
         QLIST_INSERT_HEAD_RCU(&s->hooks, h, next);
         qatomic_inc(&s->nhooks);
     }
+    site_update_dead(s);
     qemu_mutex_unlock(&hooks_lock);
     return h;
 }
@@ -587,6 +743,7 @@ void tcg_hooks_mark_pc(vaddr pc)
 {
     qemu_mutex_lock(&hooks_lock);
     qatomic_set(&tcg_hooks_enabled, true);
+    g_hash_table_add(marks, g_memdup2(&pc, sizeof(pc)));
     if (target_page.decided) {
         mark_page(pc);
     } else {
@@ -620,10 +777,14 @@ void tcg_hook_remove(TCGHook *h)
         /* translated code may still test its live flag: keep it until a flush */
         qatomic_set(&h->live, 0);
         g_ptr_array_add(graveyard, h);
+        site_update_dead(h->site);
+        maybe_reclaim();
         qemu_mutex_unlock(&hooks_lock);
         return;
     }
     qatomic_dec(&h->site->nhooks);
+    site_update_dead(h->site);
+    maybe_reclaim();
     qemu_mutex_unlock(&hooks_lock);
     panda_events_call_rcu(&h->rcu, hook_free_rcu);
 }
