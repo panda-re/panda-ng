@@ -107,3 +107,6 @@
 11.1.2/0107-target-riscv-take-ECALL-from-U-mode-and-page-faults-.patch
 11.1.2/0108-target-loongarch-take-SYSCALL-and-page-faults-withou.patch
 11.1.2/0109-target-i386-deliver-INT-0x80-from-user-mode-without-.patch
+11.1.2/0110-plugins-no-marker-ops-per-instruction.patch
+11.1.2/0111-plugins-a-translation-callback-can-declare-where-it-.patch
+11.1.2/0112-plugins-a-translation-callback-can-declare-it-regist.patch

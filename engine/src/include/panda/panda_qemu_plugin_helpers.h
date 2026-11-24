@@ -18,6 +18,13 @@ unsigned panda_bridge_wants(void);
  * plugins. The bridge hands it over at install. */
 void panda_bridge_set_tb_trans(qemu_plugin_id_t id, qemu_plugin_vcpu_tb_trans_cb_t cb);
 void panda_bridge_tb_trans_sync(void);
+/* What the bridge's translation callback does, in one word kept by panda_cb_list_changed (under
+ * panda_cbs_lock, after every registration or unregistration) and at install:
+ * panda_bridge_wants() | panda_memcb_rw(false) << 8 | panda_memcb_rw(true) << 16, and
+ * PANDA_BRIDGE_TRANS_BT while a block_translate callback is registered. */
+#define PANDA_BRIDGE_TRANS_BT (1u << 24)
+unsigned panda_bridge_trans(void);
+void panda_bridge_trans_update(void);
 bool panda_bridge_tb_trans_on(int cpu_index);
 /* The block gates: bits of every vCPU's CPUState.plugin_tb_gates, set while a block-entry
  * (PANDA_BLOCK_GATE_ENTRY) or block-end (PANDA_BLOCK_GATE_END) callback is enabled. */

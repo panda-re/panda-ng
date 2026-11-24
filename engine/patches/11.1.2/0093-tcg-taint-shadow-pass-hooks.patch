@@ -855,10 +855,10 @@ index 91434dcac0405210063895d886d7cc03e7034262..fec281b0061d1200056e9855fb332334
          /*
           * This means that we're dealing with an I/O page. Section 4.2
 diff --git a/tcg/tcg.c b/tcg/tcg.c
-index db43589fa2fba025804b29fcade3482724542a6c..475a5cec64b8a905fe7dc8ebe87a299f3ad02a95 100644
+index 59bf94405ea47229651832b336a775d026aab4ce..8c560f29b876a9d2b7590bcb5b905616d23b2c08 100644
 --- a/tcg/tcg.c
 +++ b/tcg/tcg.c
-@@ -4279,11 +4279,30 @@ liveness_pass_2(TCGContext *s)
+@@ -4300,11 +4300,30 @@ liveness_pass_2(TCGContext *s)
      int nb_temps, i;
      bool changes = false;
      TCGOp *op, *op_next;

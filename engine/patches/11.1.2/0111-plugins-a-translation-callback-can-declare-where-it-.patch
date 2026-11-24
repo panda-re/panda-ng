@@ -1,0 +1,237 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 19 Nov 2026 17:19:12 -0500
+Subject: [PATCH] plugins: a translation callback can declare where it reads
+ access values
+
+Add qemu_plugin_register_vcpu_tb_trans_cb_flags(), which registers a translation callback with declarations (enum qemu_plugin_tb_trans_flags), and its first flag, QEMU_PLUGIN_TB_TRANS_MEM_VALUE_IN_CB: the plugin calls qemu_plugin_mem_get_value() only from its own memory callbacks. qemu_plugin_register_vcpu_tb_trans_cb() declares nothing, so plugins that do not opt in keep the current behaviour.
+
+A translation reads what every plugin with a translation callback declared (qemu_plugin_tb_trans_flags) when it starts. When all of them declared MEM_VALUE_IN_CB, plugin_gen_inject removes the stores of each access's value to plugin_mem_value_low/high for instructions without memory callbacks: nothing can read those values. The value a helper's access passes at run time is unchanged.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ accel/tcg/plugin-gen.c        | 39 +++++++++++++++++++++++++++++++++++
+ include/plugins/qemu-plugin.h | 33 +++++++++++++++++++++++++++++
+ include/qemu/plugin.h         |  4 ++++
+ plugins/api.c                 | 10 ++++++++-
+ plugins/core.c                | 31 ++++++++++++++++++++++++++++
+ plugins/plugin.h              |  5 +++++
+ 6 files changed, 121 insertions(+), 1 deletion(-)
+
+diff --git a/accel/tcg/plugin-gen.c b/accel/tcg/plugin-gen.c
+index b552069e89d285da0b7993c1b2d0291b693a14dd..801d33934e0d9ad54c75e6051a4ef53cede79009 100644
+--- a/accel/tcg/plugin-gen.c
++++ b/accel/tcg/plugin-gen.c
+@@ -441,11 +441,38 @@ static void gen_store_tb_vaddr(const TCGCPUOps *ops, const TranslationBlock *tb)
+     tcg_temp_free_i64(pc);
+ }
+ 
++/*
++ * A store of an access's value to CPUState.neg.plugin_mem_value_*, which
++ * tcg-op-ldst.c emits for qemu_plugin_mem_get_value() next to each guest
++ * access while translating for plugins.
++ */
++static bool plugin_mem_value_store(const TCGOp *op)
++{
++    const intptr_t low =
++        offsetof(CPUState, neg.plugin_mem_value_low) - sizeof(CPUState);
++    const intptr_t high =
++        offsetof(CPUState, neg.plugin_mem_value_high) - sizeof(CPUState);
++    intptr_t ofs;
++
++    if (op->opc != INDEX_op_st || arg_temp(op->args[1]) != tcgv_ptr_temp(tcg_env)) {
++        return false;
++    }
++    ofs = op->args[2];
++    return ofs == low || ofs == low + 4 || ofs == high;
++}
++
+ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb,
+                               const TCGCPUOps *store_vaddr)
+ {
+     TCGOp *op, *next;
+     int insn_idx = -1;
++    /*
++     * Every plugin translating the block reads an access's value only in its
++     * memory callbacks: the value stores of instructions without memory
++     * callbacks are dead.
++     */
++    bool drop_values =
++        plugin_tb->tb_trans_flags & QEMU_PLUGIN_TB_TRANS_MEM_VALUE_IN_CB;
+ 
+     if (unlikely(qemu_loglevel_mask(LOG_TB_OP_PLUGIN)
+                  && qemu_log_in_addr_range(tcg_ctx->plugin_db->pc_first))) {
+@@ -524,6 +551,17 @@ static void plugin_gen_inject(struct qemu_plugin_tb *plugin_tb,
+             insn_idx++;
+             break;
+ 
++        case INDEX_op_st:
++            if (drop_values && insn_idx >= 0 && plugin_mem_value_store(op)) {
++                struct qemu_plugin_insn *insn =
++                    g_ptr_array_index(plugin_tb->insns, insn_idx);
++
++                if (!insn->mem_cbs || !insn->mem_cbs->len) {
++                    tcg_op_remove(tcg_ctx, op);
++                }
++            }
++            break;
++
+         case INDEX_op_plugin_cb:
+         {
+             enum plugin_gen_from from = op->args[0];
+@@ -627,6 +665,7 @@ bool plugin_gen_tb_start(CPUState *cpu, const DisasContextBase *db)
+         tcg_ctx->plugin_tb = ptb;
+         ptb->insns = g_ptr_array_new();
+     }
++    ptb->tb_trans_flags = qemu_plugin_tb_trans_flags();
+ 
+     tcg_gen_plugin_cb(PLUGIN_GEN_FROM_TB);
+     return true;
+diff --git a/include/plugins/qemu-plugin.h b/include/plugins/qemu-plugin.h
+index 8e90d9b70baea6e861677b32da030eb667426b4d..fba79a0bd4a0e41393b76252a283bd2ff0c7aa3d 100644
+--- a/include/plugins/qemu-plugin.h
++++ b/include/plugins/qemu-plugin.h
+@@ -448,6 +448,39 @@ void qemu_plugin_register_vcpu_tb_trans_cb(qemu_plugin_id_t id,
+                                            qemu_plugin_vcpu_tb_trans_cb_t cb,
+                                            void *userdata);
+ 
++/**
++ * enum qemu_plugin_tb_trans_flags - what a translation callback declares
++ *
++ * Each flag lets QEMU translate with less code for plugins, when every
++ * plugin with a translation callback declares it.
++ *
++ * @QEMU_PLUGIN_TB_TRANS_MEM_VALUE_IN_CB: the plugin calls
++ *   qemu_plugin_mem_get_value() only from its own memory callbacks. The value
++ *   of an access is then saved only for instructions with memory callbacks.
++ */
++enum qemu_plugin_tb_trans_flags {
++    QEMU_PLUGIN_TB_TRANS_MEM_VALUE_IN_CB = 1 << 0,
++};
++
++/**
++ * qemu_plugin_register_vcpu_tb_trans_cb_flags() - register a translate cb
++ * @id: plugin ID
++ * @cb: callback function
++ * @flags: what the plugin declares (enum qemu_plugin_tb_trans_flags)
++ * @userdata: user data for callback
++ *
++ * As qemu_plugin_register_vcpu_tb_trans_cb(), with declarations. Registering
++ * again, with either function, replaces the callback and its flags
++ * (qemu_plugin_register_vcpu_tb_trans_cb() declares none). The flags apply
++ * to translations that start after the call; blocks translated before keep
++ * their code until they are flushed.
++ */
++QEMU_PLUGIN_API
++void qemu_plugin_register_vcpu_tb_trans_cb_flags(qemu_plugin_id_t id,
++                                                 qemu_plugin_vcpu_tb_trans_cb_t cb,
++                                                 uint32_t flags,
++                                                 void *userdata);
++
+ /**
+  * qemu_plugin_register_vcpu_tb_exec_cb() - register execution callback
+  * @tb: the opaque qemu_plugin_tb handle for the translation
+diff --git a/include/qemu/plugin.h b/include/qemu/plugin.h
+index 34f078cd7f29a70ab93a96b1ab259ee0e1072231..43a23543fae86c4ddac1688cfe570fe4531e28df 100644
+--- a/include/qemu/plugin.h
++++ b/include/qemu/plugin.h
+@@ -170,6 +170,9 @@ struct qemu_plugin_tb {
+ 
+     GArray *cbs;
+     GArray *end_cbs;
++
++    /* what every plugin translating this block declared (tb_trans flags) */
++    uint32_t tb_trans_flags;
+ };
+ 
+ /**
+@@ -191,6 +194,7 @@ CPUPluginState *qemu_plugin_create_vcpu_state(void);
+ void qemu_plugin_vcpu_init_hook(CPUState *cpu);
+ void qemu_plugin_vcpu_exit_hook(CPUState *cpu);
+ void qemu_plugin_tb_trans_cb(CPUState *cpu, struct qemu_plugin_tb *tb);
++uint32_t qemu_plugin_tb_trans_flags(void);
+ void qemu_plugin_vcpu_idle_cb(CPUState *cpu);
+ void qemu_plugin_vcpu_resume_cb(CPUState *cpu);
+ void qemu_plugin_vcpu_interrupt_cb(CPUState *cpu, uint64_t from);
+diff --git a/plugins/api.c b/plugins/api.c
+index 7301a28495095592222a6834fa708d2fcfe273dd..89d0d64b855c536c4daba505c29830947204154d 100644
+--- a/plugins/api.c
++++ b/plugins/api.c
+@@ -237,7 +237,15 @@ void qemu_plugin_register_vcpu_tb_trans_cb(qemu_plugin_id_t id,
+                                            qemu_plugin_vcpu_tb_trans_cb_t cb,
+                                            void *userdata)
+ {
+-    plugin_register_cb_udata(id, QEMU_PLUGIN_EV_VCPU_TB_TRANS, cb, userdata);
++    plugin_register_tb_trans_cb(id, cb, 0, userdata);
++}
++
++void qemu_plugin_register_vcpu_tb_trans_cb_flags(qemu_plugin_id_t id,
++                                                 qemu_plugin_vcpu_tb_trans_cb_t cb,
++                                                 uint32_t flags,
++                                                 void *userdata)
++{
++    plugin_register_tb_trans_cb(id, cb, flags, userdata);
+ }
+ 
+ void qemu_plugin_register_vcpu_syscall_cb(qemu_plugin_id_t id,
+diff --git a/plugins/core.c b/plugins/core.c
+index 356f3e97ad600ac0094837c96a1e6700b346ebd6..f4e295e20e3b720809311c205689f06477b5efc0 100644
+--- a/plugins/core.c
++++ b/plugins/core.c
+@@ -202,6 +202,37 @@ plugin_register_cb_udata(qemu_plugin_id_t id, enum qemu_plugin_event ev,
+     do_plugin_register_cb(id, ev, func, udata);
+ }
+ 
++/*
++ * The translation callback and what the plugin declares with it (enum
++ * qemu_plugin_tb_trans_flags), set together under the lock.
++ */
++void plugin_register_tb_trans_cb(qemu_plugin_id_t id, void *func,
++                                 uint32_t flags, void *udata)
++{
++    QEMU_LOCK_GUARD(&plugin.lock);
++    qatomic_set(&plugin_id_to_ctx_locked(id)->tb_trans_flags, func ? flags : 0);
++    do_plugin_register_cb(id, QEMU_PLUGIN_EV_VCPU_TB_TRANS, func, udata);
++}
++
++/*
++ * What every plugin with a translation callback declared; 0 without one.
++ * Read where a translation starts (plugin_gen_tb_start), in cpu_exec's RCU
++ * read-side section, as qemu_plugin_tb_trans_cb walks the same list.
++ */
++uint32_t qemu_plugin_tb_trans_flags(void)
++{
++    struct qemu_plugin_cb *cb;
++    uint32_t flags = UINT32_MAX;
++    bool any = false;
++
++    QLIST_FOREACH_RCU(cb, &plugin.cb_lists[QEMU_PLUGIN_EV_VCPU_TB_TRANS],
++                      entry) {
++        flags &= qatomic_read(&cb->ctx->tb_trans_flags);
++        any = true;
++    }
++    return any ? flags : 0;
++}
++
+ CPUPluginState *qemu_plugin_create_vcpu_state(void)
+ {
+     return g_new0(CPUPluginState, 1);
+diff --git a/plugins/plugin.h b/plugins/plugin.h
+index 2ace8f12da7aef804a0efcc36cfebf1c4465ebc1..d790a7e1257fffd916c20ebffd6bef1061d39ee6 100644
+--- a/plugins/plugin.h
++++ b/plugins/plugin.h
+@@ -65,8 +65,13 @@ struct qemu_plugin_ctx {
+     bool installing;
+     bool uninstalling;
+     bool resetting;
++    /* enum qemu_plugin_tb_trans_flags, from the tb_trans registration */
++    uint32_t tb_trans_flags;
+ };
+ 
++void plugin_register_tb_trans_cb(qemu_plugin_id_t id, void *func,
++                                 uint32_t flags, void *udata);
++
+ struct qemu_plugin_ctx *plugin_id_to_ctx_locked(qemu_plugin_id_t id);
+ 
+ void plugin_register_inline_op_on_entry(GArray **arr,

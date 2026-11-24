@@ -3720,6 +3720,11 @@ static void taint_op(Pass *p, TCGOp *op, TCGOp *next)
     case INDEX_op_discard: case INDEX_op_mb:
     case INDEX_op_plugin_cb: case INDEX_op_plugin_mem_cb:
         return;
+    case INDEX_op_plugin_gate:
+        /* A gated plugin callback, which may read labels: run the batched label steps first, as
+         * the conditional branch of a gated call does. It changes no temp and ends no block. */
+        lab_flush(p);
+        return;
     case INDEX_op_call:
         taint_call(p, op);
         return;

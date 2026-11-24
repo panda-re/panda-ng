@@ -2,7 +2,7 @@
 
 # The engine patch series
 
-QEMU 11.1.2 plus 109 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
+QEMU 11.1.2 plus 112 patches (`engine/patches/11.1.2/`). `engine/README.md` explains how to change the series; `ORIGINS.md` there says where each patch comes from.
 
 | # | subject | feature | origin | license |
 |---|---|---|---|---|
@@ -87,7 +87,7 @@ QEMU 11.1.2 plus 109 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0079 | migration/vmstate: skip per-field vmdesc bookkeeping when there is no vmdesc | [fast-restore](../features.md#fast-restore) | penguin | GPL-2.0-or-later |
 | 0080 | migration/qemu-file: inline the in-buffer case of the byte reader | [fast-restore](../features.md#fast-restore) | penguin | MIT |
 | 0081 | accel/tcg: no PANDA or hook calls in the CPU loop while nothing uses them | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
-| 0082 | plugins: emit block completion at outgoing edges | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0082 | plugins: emit block completion at outgoing edges | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT |
 | 0083 | replay: guard guest state against analysis mutations | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
 | 0084 | replay: coalesce repeated schedules of a pending BH | [record-replay](../features.md#record-replay) | new | GPL-2.0-or-later |
 | 0085 | system: cancel transient analysis before restore and reset | [fast-restore](../features.md#fast-restore) | new | GPL-2.0-or-later AND MIT |
@@ -115,3 +115,6 @@ QEMU 11.1.2 plus 109 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0107 | target/riscv: take ECALL from U-mode and page faults to S-mode without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | GPL-2.0-or-later |
 | 0108 | target/loongarch: take SYSCALL and page faults without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | GPL-2.0-or-later |
 | 0109 | target/i386: deliver INT 0x80 from user mode without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | LGPL-2.1-or-later |
+| 0110 | plugins: no marker ops per instruction | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later |
+| 0111 | plugins: a translation callback can declare where it reads access values | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later |
+| 0112 | plugins: a translation callback can declare it registers no memory callbacks | [callbacks](../features.md#callbacks) | new | GPL-2.0-or-later AND MIT |
