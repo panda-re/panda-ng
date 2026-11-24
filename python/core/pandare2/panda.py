@@ -1719,17 +1719,58 @@ class Panda(TaintMixin):
         Returns:
             string: Data read from memory
 
+        A string that runs into memory that can't be read raises ValueError, as the byte-at-a-
+        time read did; with max_length, only the first max_length bytes need to be readable.
         '''
-        r = b""
-        idx = 0
-        while (max_length is None or idx < max_length):
-            next_char = self.virtual_memory_read(cpu, ptr, 1) # If this raises an exn, don't mask it
-            if next_char == b"\x00":
+        self._needs_engine("reading guest memory")
+        if not isinstance(ptr, int):
+            raise ValueError(f"Unsupported read from address {repr(ptr)}")
+        return self._read_cstr(cpu, ptr, max_length).decode("utf8", "ignore")
+
+    def _read_cstr(self, cpu, ptr, max_length=None):
+        '''
+        The bytes of the NUL-terminated string at guest virtual address ptr, without the NUL, at
+        most max_length of them. Raises ValueError where a byte-by-byte read would fail (at an
+        unreadable byte before the NUL and within max_length).
+
+        One read per page: the rest of ptr's page, then whole pages, the NUL found with
+        bytes.find (so it reads past the NUL, within the page holding it). The place for other
+        readers (e.g. one that pages memory in).
+        '''
+        if max_length is not None and max_length <= 0:
+            return b""
+        ffi = self.ffi
+        mask = (1 << self.bits) - 1
+        ptr &= mask
+        out = []
+        left = -1 if max_length is None else max_length
+        read = self._vmr_fn()
+        while left:
+            n = 4096 - (ptr & 4095)
+            if 0 < left < n:
+                n = left
+            buf = ffi.new("char[]", n)
+            if read(cpu, ptr, buf, n) != 0:
+                # 4 KiB need not be the guest's page size: go on a byte at a time to the NUL or
+                # the first unreadable byte
+                for k in range(n):
+                    if read(cpu, (ptr + k) & mask, buf, 1) != 0:
+                        raise ValueError(f"Failed to read guest memory at {(ptr + k) & mask:x}")
+                    if buf[0] == b"\0":
+                        return b"".join(out)
+                    out.append(buf[0])
+                left -= n
+                ptr = (ptr + n) & mask
+                continue
+            chunk = ffi.buffer(buf, n)[:]
+            nul = chunk.find(b"\0")
+            if nul >= 0:
+                out.append(chunk[:nul])
                 break
-            r += next_char
-            ptr += 1
-            idx += 1
-        return r.decode("utf8", "ignore")
+            out.append(chunk)
+            left -= n
+            ptr = (ptr + n) & mask
+        return b"".join(out)
 
     def to_unsigned_guest(self, x):
         '''
