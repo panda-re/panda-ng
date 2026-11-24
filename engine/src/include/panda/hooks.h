@@ -14,6 +14,7 @@
 
 /* Bits of panda_loop_hooks: what the CPU loop calls into PANDA for. Nothing set, no call. */
 #define PANDA_LOOP_EXCEPTION 1      /* a before_handle_exception callback is registered */
+#define PANDA_LOOP_PAGEIN 2         /* page-in requests are waiting (include/panda/pagein.h) */
 
 #ifdef CONFIG_PANDA
 
@@ -64,6 +65,12 @@ void panda_before_loadvm(void);
 /* Stopped-vCPU destructive restore/reset boundary: cancel transient analysis,
  * independently of whether the transition subsequently succeeds. */
 void panda_analysis_reset(void);
+/* The CPU loop, between blocks, while PANDA_LOOP_PAGEIN is set: serve page-in requests. May
+ * leave the loop (cpu_loop_exit) after changing the CPU state. */
+void panda_pagein_service(CPUState *cpu);
+void panda_pagein_cancel_all(void);
+/* Set by the page-in injector for the exception it raises: the system call is not the program's */
+extern __thread bool panda_pagein_injecting;
 
 #else
 
@@ -91,6 +98,9 @@ static inline void panda_callbacks_main_loop_wait(void) {}
 static inline void panda_callbacks_after_loadvm(CPUState *env) {}
 static inline void panda_before_loadvm(void) {}
 static inline void panda_analysis_reset(void) {}
+static inline void panda_pagein_service(CPUState *cpu) {}
+static inline void panda_pagein_cancel_all(void) {}
+#define panda_pagein_injecting false
 static inline bool panda_callbacks_asid_changed(CPUState *cpu, uint64_t oldval, uint64_t newval)
 {
     return false;
