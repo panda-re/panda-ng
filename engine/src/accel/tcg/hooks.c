@@ -1,8 +1,13 @@
 /*
  * TCG address hooks: call a host function before a guest instruction.
  *
- * Sites (one per hooked address) live in a QHT that the translator reads
- * lock-free under RCU.  A site is never freed: translated code embeds its
+ * Sites (one per hooked address) are kept per 1 KiB chunk of guest
+ * virtual addresses: a QHT of chunks, each with an array of its sites
+ * sorted by pc, replaced as a whole (RCU) when a site is added.  The
+ * translator reads them lock-free under RCU, once per chunk of a block
+ * (tcg_hooks_gen(), hooks-internal.h), and before that tests the page
+ * bitmap, so code on pages without sites costs a compare per instruction
+ * on every target.  A site is never freed: translated code embeds its
  * address.  Its hooks are an RCU list, and generated code tests the site's
  * hook count before calling, so removing the last hook leaves a load and a
  * branch until the block is retranslated.
@@ -29,9 +34,15 @@
  * batch flushes everything (blocks translated before hooks were in use
  * may cross pages), later ones invalidate only the blocks whose guest
  * range contains them.  To find those without scanning every block,
- * blocks linked without CF_PCREL are indexed by guest virtual page (4 KiB
- * buckets) until the next flush; a block's memory stays valid until then
- * even after it is invalidated.
+ * blocks linked without CF_PCREL that touch a marked page are indexed by
+ * guest virtual page (4 KiB buckets) until the next flush; a block's
+ * memory stays valid until then even after it is invalidated.  Other
+ * blocks are not indexed, so the common path takes no lock.  When a
+ * batch marks a page bit that was clear, blocks already linked on pages
+ * with that bit are not in the index: if any vCPU translates without
+ * CF_PCREL (mips, ppc, loongarch, ...), the commit walks all blocks once
+ * and indexes those.  With CF_PCREL everywhere there are none: a block
+ * on a page is translated without CF_PCREL only once its bit is set.
  *
  * A guarded hook carries conditions that the generated code tests before
  * calling it: on guest registers (read from their TCG globals) or on a
@@ -76,6 +87,18 @@ typedef struct TCGHookSite {
     QLIST_HEAD(, TCGHook) ghooks;       /* guarded: code emitted per hook */
 } TCGHookSite;
 
+/* A chunk's sites, sorted by pc.  Never changed once published. */
+struct TCGHookSiteArray {
+    struct rcu_head rcu;
+    unsigned n;
+    TCGHookSite *s[];
+};
+
+typedef struct TCGHookChunk {
+    vaddr chunk;                        /* pc >> TCG_HOOKS_CHUNK_BITS */
+    TCGHookSiteArray *sites;            /* RCU */
+} TCGHookChunk;
+
 struct TCGHook {
     struct rcu_head rcu;
     TCGHookSite *site;
@@ -89,10 +112,16 @@ struct TCGHook {
 
 bool tcg_hooks_enabled;
 unsigned long tcg_hooks_pages[BITS_TO_LONGS(1 << TCG_HOOKS_PAGE_BITS)];
+/*
+ * Zero until the first hook: tcg_hooks_enabled is never cleared, so the
+ * cache is never stale when tcg_hooks_gen() starts being called mid-block.
+ */
+__thread TCGHooksXlate tcg_hooks_xl;
 
 static QemuMutex hooks_lock;            /* writers: sites, lists, pending */
-static struct qht sites;
+static struct qht chunks;
 static GArray *pending;                 /* new site pcs to invalidate */
+static GArray *newbits;                 /* page bits set since the last commit */
 static bool commit_queued;
 static bool flushed;                    /* the first commit flushed */
 static bool pages_pending;              /* sites inserted before the page size */
@@ -124,26 +153,27 @@ typedef struct RegLoc {
 static QemuMutex regloc_lock;
 static GHashTable *regloc;
 
-static bool site_cmp(const void *a, const void *b)
+static bool chunk_cmp(const void *a, const void *b)
 {
-    return ((const TCGHookSite *)a)->pc == ((const TCGHookSite *)b)->pc;
+    return ((const TCGHookChunk *)a)->chunk == ((const TCGHookChunk *)b)->chunk;
 }
 
-static bool site_key_cmp(const void *p, const void *userp)
+static bool chunk_key_cmp(const void *p, const void *userp)
 {
-    return ((const TCGHookSite *)p)->pc == *(const vaddr *)userp;
+    return ((const TCGHookChunk *)p)->chunk == *(const vaddr *)userp;
 }
 
-static uint32_t site_hash(vaddr pc)
+static uint32_t chunk_hash(vaddr chunk)
 {
-    return qemu_xxhash2(pc);
+    return qemu_xxhash2(chunk);
 }
 
 static void __attribute__((constructor)) tcg_hooks_init(void)
 {
     qemu_mutex_init(&hooks_lock);
-    qht_init(&sites, site_cmp, 64, QHT_MODE_AUTO_RESIZE);
+    qht_init(&chunks, chunk_cmp, 64, QHT_MODE_AUTO_RESIZE);
     pending = g_array_new(false, false, sizeof(vaddr));
+    newbits = g_array_new(false, false, sizeof(unsigned long));
     graveyard = g_ptr_array_new();
     qemu_mutex_init(&index_lock);
     qemu_mutex_init(&regloc_lock);
@@ -153,16 +183,23 @@ static void __attribute__((constructor)) tcg_hooks_init(void)
                                      (GDestroyNotify)g_ptr_array_unref);
 }
 
-void tcg_hooks_tb_linked(TranslationBlock *tb)
+static inline bool page_marked(vaddr pc)
 {
-    uint64_t b, last;
+    unsigned long b = tcg_hooks_page_bit(pc);
 
-    if (tb_cflags(tb) & CF_PCREL) {
-        return;                         /* not keyed by virtual address */
-    }
-    b = BUCKET(tb->pc);
-    last = BUCKET(tb->pc + (tb->size ? tb->size - 1 : 0));
-    qemu_mutex_lock(&index_lock);
+    return qatomic_read(&tcg_hooks_pages[BIT_WORD(b)]) & BIT_MASK(b);
+}
+
+static inline vaddr tb_last_byte(const TranslationBlock *tb)
+{
+    return tb->pc + (tb->size ? tb->size - 1 : 0);
+}
+
+/* With index_lock held. */
+static void index_add(TranslationBlock *tb)
+{
+    uint64_t b = BUCKET(tb->pc), last = BUCKET(tb_last_byte(tb));
+
     for (; b <= last; b++) {
         GPtrArray *a = g_hash_table_lookup(tb_index, &b);
         if (!a) {
@@ -171,6 +208,22 @@ void tcg_hooks_tb_linked(TranslationBlock *tb)
         }
         g_ptr_array_add(a, tb);
     }
+}
+
+void tcg_hooks_tb_linked(TranslationBlock *tb)
+{
+    if (tb_cflags(tb) & CF_PCREL) {
+        return;                         /* not keyed by virtual address */
+    }
+    /*
+     * A block on pages whose bits are clear is found by the commit's
+     * walk if one of them is marked later (see the header comment).
+     */
+    if (!page_marked(tb->pc) && !page_marked(tb_last_byte(tb))) {
+        return;
+    }
+    qemu_mutex_lock(&index_lock);
+    index_add(tb);
     qemu_mutex_unlock(&index_lock);
 }
 
@@ -198,9 +251,97 @@ void tcg_hooks_tb_flush(void)
     qemu_mutex_unlock(&hooks_lock);
 }
 
+static TCGHookChunk *chunk_lookup(vaddr chunk)
+{
+    return qht_lookup_custom(&chunks, &chunk, chunk_hash(chunk), chunk_key_cmp);
+}
+
+static TCGHookSite *array_find(const TCGHookSiteArray *a, vaddr pc)
+{
+    unsigned lo = 0, hi = a ? a->n : 0;
+
+    while (lo < hi) {
+        unsigned mid = (lo + hi) / 2;
+
+        if (a->s[mid]->pc < pc) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    return a && lo < a->n && a->s[lo]->pc == pc ? a->s[lo] : NULL;
+}
+
+/* Under RCU. */
 static TCGHookSite *site_lookup(vaddr pc)
 {
-    return qht_lookup_custom(&sites, &pc, site_hash(pc), site_key_cmp);
+    TCGHookChunk *c = chunk_lookup(pc >> TCG_HOOKS_CHUNK_BITS);
+
+    return c ? array_find(qatomic_rcu_read(&c->sites), pc) : NULL;
+}
+
+static void array_free_rcu(struct rcu_head *head)
+{
+    g_free(container_of(head, TCGHookSiteArray, rcu));
+}
+
+/* Publish @a as @c's sites.  With hooks_lock held. */
+static void chunk_publish(TCGHookChunk *c, TCGHookSiteArray *a)
+{
+    TCGHookSiteArray *old = c->sites;
+
+    qatomic_rcu_set(&c->sites, a);
+    if (old) {
+        panda_events_call_rcu(&old->rcu, array_free_rcu);
+    }
+}
+
+/* Add a new site to its chunk.  With hooks_lock held. */
+static void site_add(TCGHookSite *s)
+{
+    vaddr key = s->pc >> TCG_HOOKS_CHUNK_BITS;
+    TCGHookChunk *c = chunk_lookup(key);
+    TCGHookSiteArray *old, *a;
+    unsigned n, at;
+
+    if (!c) {
+        c = g_new0(TCGHookChunk, 1);
+        c->chunk = key;
+        qht_insert(&chunks, c, chunk_hash(key), NULL);
+    }
+    old = c->sites;
+    n = old ? old->n : 0;
+    a = g_malloc(sizeof(*a) + (n + 1) * sizeof(a->s[0]));
+    a->n = n + 1;
+    for (at = 0; at < n && old->s[at]->pc < s->pc; at++) {
+        a->s[at] = old->s[at];
+    }
+    a->s[at] = s;
+    for (unsigned i = at; i < n; i++) {
+        a->s[i + 1] = old->s[i];
+    }
+    chunk_publish(c, a);
+}
+
+typedef void (*SiteFn)(TCGHookSite *s, void *opaque);
+
+static void chunk_iter(void *p, uint32_t h, void *up)
+{
+    TCGHookChunk *c = p;
+    void **args = up;
+    TCGHookSiteArray *a = c->sites;
+
+    for (unsigned i = 0; a && i < a->n; i++) {
+        ((SiteFn)args[0])(a->s[i], args[1]);
+    }
+}
+
+/* Call @fn on every site.  With hooks_lock held. */
+static void for_each_site(SiteFn fn, void *opaque)
+{
+    void *args[2] = { (void *)fn, opaque };
+
+    qht_iter(&chunks, chunk_iter, args);
 }
 
 int tcg_hook_count(vaddr pc)
@@ -240,17 +381,50 @@ static unsigned collect(vaddr pc, GPtrArray *tbs)
     return seen;
 }
 
+static int bit_cmp(gconstpointer a, gconstpointer b)
+{
+    unsigned long x = *(const unsigned long *)a, y = *(const unsigned long *)b;
+
+    return x < y ? -1 : x > y;
+}
+
+static bool bit_in(GArray *bits, vaddr pc)
+{
+    unsigned long b = tcg_hooks_page_bit(pc);
+
+    return bsearch(&b, bits->data, bits->len, sizeof(unsigned long), bit_cmp);
+}
+
+/*
+ * tcg_tb_foreach() callback: index the live blocks without CF_PCREL that
+ * touch a page whose bit was just set.  With index_lock held.
+ */
+static gboolean index_newly_marked(gpointer key, gpointer value, gpointer data)
+{
+    TranslationBlock *tb = value;
+    GArray *bits = data;
+
+    if (!(tb_cflags(tb) & (CF_PCREL | CF_INVALID)) &&
+        (bit_in(bits, tb->pc) || bit_in(bits, tb_last_byte(tb)))) {
+        index_add(tb);
+    }
+    return false;
+}
+
 static void hooks_commit(CPUState *cpu, run_on_cpu_data unused)
 {
     CPUState *c;
     g_autoptr(GArray) pcs = NULL;
-    bool flush;
+    g_autoptr(GArray) bits = NULL;
+    bool flush, any_abs = false;
     int64_t t0 = get_clock();
     unsigned scanned = 0, invalidated = 0;
 
     qemu_mutex_lock(&hooks_lock);
     pcs = pending;
     pending = g_array_new(false, false, sizeof(vaddr));
+    bits = newbits;
+    newbits = g_array_new(false, false, sizeof(unsigned long));
     commit_queued = false;
     if (!tcg_enabled()) {
         /*
@@ -271,12 +445,14 @@ static void hooks_commit(CPUState *cpu, run_on_cpu_data unused)
         if (c->cflags_next_tb != -1) {
             c->cflags_next_tb |= CF_HOOKS;
         }
+        any_abs |= !tcg_cflags_has(c, CF_PCREL);
     }
 
     if (flush) {
         tb_flush__exclusive_or_serial();
     } else if (pcs->len) {
         g_autoptr(GPtrArray) tbs = g_ptr_array_new();
+        g_autoptr(GHashTable) seen = g_hash_table_new(NULL, NULL);
 
         /* a jump-cache hit is not checked against the hooked pages */
         CPU_FOREACH(c) {
@@ -284,14 +460,24 @@ static void hooks_commit(CPUState *cpu, run_on_cpu_data unused)
         }
 
         qemu_mutex_lock(&index_lock);
+        if (bits->len && any_abs) {
+            g_array_sort(bits, bit_cmp);
+            tcg_tb_foreach(index_newly_marked, bits);
+            scanned += tcg_nb_tbs();
+        }
         for (guint i = 0; i < pcs->len; i++) {
             scanned += collect(g_array_index(pcs, vaddr, i), tbs);
         }
         qemu_mutex_unlock(&index_lock);
+        /* a block linked while its page bit was being set may be indexed twice */
         for (guint i = 0; i < tbs->len; i++) {
-            tb_phys_invalidate(g_ptr_array_index(tbs, i), -1);
+            TranslationBlock *tb = g_ptr_array_index(tbs, i);
+
+            if (g_hash_table_add(seen, tb)) {
+                tb_phys_invalidate(tb, -1);
+                invalidated++;
+            }
         }
-        invalidated = tbs->len;
     }
     trace_tcg_hooks_commit(flush, pcs->len, scanned, invalidated,
                            get_clock() - t0);
@@ -319,16 +505,21 @@ static void queue_commit(vaddr pc)
     }
 }
 
+/* Set @pc's page bit; remember it for the next commit if it was clear. */
 static void mark_page(vaddr pc)
 {
     unsigned long b = tcg_hooks_page_bit(pc);
+    unsigned long old = qatomic_fetch_or(&tcg_hooks_pages[BIT_WORD(b)],
+                                         BIT_MASK(b));
 
-    qatomic_or(&tcg_hooks_pages[BIT_WORD(b)], BIT_MASK(b));
+    if (!(old & BIT_MASK(b))) {
+        g_array_append_val(newbits, b);
+    }
 }
 
-static void mark_site_page(void *p, uint32_t h, void *up)
+static void mark_site_page(TCGHookSite *s, void *unused)
 {
-    mark_page(((TCGHookSite *)p)->pc);
+    mark_page(s->pc);
 }
 
 /*
@@ -339,7 +530,8 @@ void tcg_hooks_vcpu_init(CPUState *cpu)
 {
     qemu_mutex_lock(&hooks_lock);
     if (pages_pending) {
-        qht_iter(&sites, mark_site_page, NULL);
+        for_each_site(mark_site_page, NULL);
+        g_array_set_size(newbits, 0);   /* nothing was translated yet */
         pages_pending = false;
     }
     if (tcg_hooks_enabled) {
@@ -375,7 +567,7 @@ static TCGHook *hook_insert(vaddr pc, TCGHookFn fn, void *opaque,
         s->pc = pc;
         QLIST_INIT(&s->hooks);
         QLIST_INIT(&s->ghooks);
-        qht_insert(&sites, s, site_hash(pc), NULL);
+        site_add(s);
         queue_commit(pc);
     } else if (n) {
         queue_commit(pc);               /* its code is emitted per hook */
@@ -793,20 +985,34 @@ static TCGHelperInfo tcg_hook_info = {
                 dh_typemask(ptr, 2) | dh_typemask(ptr, 3),
 };
 
-void tcg_hooks_gen(DisasContextBase *db)
+/*
+ * A block starts or runs onto a new chunk: find its sites, if its page is
+ * marked.  Translation runs inside an RCU read-side critical section
+ * (cpu_exec, cpu_exec_step_atomic), which keeps the array alive while the
+ * block is translated.  A site added meanwhile reaches this block through
+ * the commit: its page bit is set before the site is published, and the
+ * block is indexed when linked or found by the commit's walk.
+ */
+void tcg_hooks_gen_chunk(DisasContextBase *db)
 {
-    TCGHookSite *s;
+    vaddr pc = db->pc_next;
+    TCGHookChunk *c = NULL;
+
+    tcg_hooks_xl.chunk = pc >> TCG_HOOKS_CHUNK_BITS;
+    if (page_marked(pc)) {
+        c = chunk_lookup(tcg_hooks_xl.chunk);
+    }
+    tcg_hooks_xl.sites = c ? qatomic_rcu_read(&c->sites) : NULL;
+}
+
+void tcg_hooks_gen_insn(DisasContextBase *db)
+{
+    TCGHookSite *s = array_find(tcg_hooks_xl.sites, db->pc_next);
     TCGHook *h;
     TCGv_ptr site;
     TCGv_i32 n;
     TCGLabel *skip;
 
-    if (tb_cflags(db->tb) & CF_PCREL) {
-        return;                 /* not on a hooked page: tcg_hooks_cflags() */
-    }
-    WITH_RCU_READ_LOCK_GUARD() {
-        s = site_lookup(db->pc_next);
-    }
     if (!s) {
         return;
     }
