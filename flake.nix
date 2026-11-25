@@ -1181,6 +1181,11 @@
             python3 ${./.}/tests/static/replay_policy.py
             touch $out
           '';
+          # panda.inject's generator driver (pandare2/inject.py) and its number table, no engine.
+          inject-driver = pkgs.runCommand "inject-driver-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            python3 ${./.}/tests/static/inject_driver.py
+            touch $out
+          '';
           startup-capabilities = pkgs.runCommandCC "startup-capabilities-check" {
             nativeBuildInputs = [ pkgs.python3 pkgs.pkg-config ];
             buildInputs = [ pkgs.glib ];
