@@ -76,7 +76,7 @@ static bool inited;
 static QTAILQ_HEAD(, PageinReq) reqs = QTAILQ_HEAD_INITIALIZER(reqs);
 static QTAILQ_HEAD(, PageinRegs) held = QTAILQ_HEAD_INITIALIZER(held);
 static unsigned nreqs;
-static uint64_t next_id = 1;
+static uint64_t next_id G_GNUC_UNUSED = 1;    /* unused without an injector */
 static uint64_t st_submitted, st_injected, st_completed, st_status[11];
 
 /* Completions to run after the lock is dropped */
@@ -514,7 +514,7 @@ static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
 static int pagein_user(CPUState *cs, uint64_t *sp)
 {
     CPULoongArchState *env = cpu_env(cs);
-    if (FIELD_EX64(env->CSR_CRMD, CSR_CRMD, PLV) != 3) {
+    if (FIELD_EX64(env_sys(env)->CSR_CRMD, CSR_CRMD, PLV) != 3) {
         return 0;
     }
     *sp = env->gpr[3];
@@ -772,7 +772,7 @@ out:
 /* A snapshot load or reset: the state the held registers belong to is gone */
 void panda_pagein_cancel_all(void)
 {
-    Done d;
+    Done d = { 0 };
     PageinReq *r;
     PageinRegs *h;
 

@@ -4,7 +4,8 @@
  *
  * usage: pagein_target <dir> <seconds> <mode: spin|sleep>
  *
- * Maps at fixed addresses (the test knows them):
+ * Maps at fixed addresses, BASE + n * STEP (64-bit: 0x7e0000000000 + n * 0x10000000; MIPS64
+ * 0x5000000000; 32-bit 0x50000000 + n * 0x01000000), and tells the test BASE and STEP:
  *   0x7e0000000000 TAG    1 page, present
  *   0x7e0010000000 FILE   64 pages of <dir>/pt.<pid>, dropped from the page cache: a read does I/O
  *   0x7e0020000000 ANON   64 pages never touched (zero)
@@ -36,17 +37,28 @@
 
 #define PG 4096UL
 #define NP 64
-#define TAG   0x7e0000000000UL
-#define FILEA 0x7e0010000000UL
-#define ANON  0x7e0020000000UL
-#define WR    0x7e0030000000UL
-#define TRUNC 0x7e0050000000UL
-#define NONE  0x7e0060000000UL
-#define RO    0x7e0070000000UL
-#define NONE2 0x7e0080000000UL
-#define SW    0x7e0090000000UL
-#define GUARDR 0x7e00a0000000UL
-#define GROW  0x7e00b0000000UL
+/* the layout: BASE + n * STEP; the READY hypercall tells the test BASE and STEP */
+#if __SIZEOF_LONG__ == 4
+#define BASE 0x50000000UL           /* below every 32-bit kernel's split (MIPS: 2 GiB) */
+#define STEP 0x01000000UL
+#elif defined(__mips__)
+#define BASE 0x5000000000UL         /* MIPS64 user segments may have only 40 bits */
+#define STEP 0x10000000UL
+#else
+#define BASE 0x7e0000000000UL
+#define STEP 0x10000000UL
+#endif
+#define TAG    (BASE + 0 * STEP)
+#define FILEA  (BASE + 1 * STEP)
+#define ANON   (BASE + 2 * STEP)
+#define WR     (BASE + 3 * STEP)
+#define TRUNC  (BASE + 5 * STEP)
+#define NONE   (BASE + 6 * STEP)
+#define RO     (BASE + 7 * STEP)
+#define NONE2  (BASE + 8 * STEP)
+#define SW     (BASE + 9 * STEP)
+#define GUARDR (BASE + 10 * STEP)
+#define GROW   (BASE + 11 * STEP)
 #define MAGIC 0x46525431L      /* "FRT1" */
 
 static inline uint64_t pat(uint64_t va) { return va ^ 0xa5a5a5a5a5a5a5a5ULL; }
@@ -80,6 +92,39 @@ static long hc(long op, long a, long b)
     __asm__ volatile(".4byte 0x00004013" : "+r"(a0) : "r"(a7), "r"(a1), "r"(a2), "r"(a3)
                      : "memory");
     return a0;
+}
+static void hc_setup(void) {}
+#elif defined(__arm__)
+/* penguin's arm hypercall: mcr p7, 0, r0, c0, c0, 0 (the number in r7) */
+static long hc(long op, long a, long b)
+{
+    register long r7 __asm__("r7") = MAGIC, r0 __asm__("r0") = MAGIC;
+    register long r1 __asm__("r1") = op, r2 __asm__("r2") = a, r3 __asm__("r3") = b;
+    __asm__ volatile("mcr p7, 0, r0, c0, c0, 0" : "+r"(r0) : "r"(r7), "r"(r1), "r"(r2), "r"(r3)
+                     : "memory");
+    return r0;
+}
+static void hc_setup(void) {}
+#elif defined(__mips__)
+/* penguin's mips hypercall: movz $0, $0, $0 (the number in $v0) */
+static long hc(long op, long a, long b)
+{
+    register long v0 __asm__("$2") = MAGIC, a0 __asm__("$4") = MAGIC;
+    register long a1 __asm__("$5") = op, a2 __asm__("$6") = a, a3 __asm__("$7") = b;
+    __asm__ volatile(".word 0x0000000a" : "+r"(v0) : "r"(a0), "r"(a1), "r"(a2), "r"(a3)
+                     : "memory");
+    return v0;
+}
+static void hc_setup(void) {}
+#elif defined(__powerpc__)
+/* penguin's ppc hypercall: xori 10, 10, 0 (the number in r0) */
+static long hc(long op, long a, long b)
+{
+    register long r0 __asm__("r0") = MAGIC, r3 __asm__("r3") = MAGIC;
+    register long r4 __asm__("r4") = op, r5 __asm__("r5") = a, r6 __asm__("r6") = b;
+    __asm__ volatile(".long 0x694a0000" : "+r"(r3) : "r"(r0), "r"(r4), "r"(r5), "r"(r6)
+                     : "memory");
+    return r3;
 }
 static void hc_setup(void) {}
 #endif
@@ -148,7 +193,7 @@ int main(int argc, char **argv)
     tag[0] = 0x5441475441475441ULL;
     tag[1] = getpid();
 
-    hc(1, TAG, getpid());               /* READY */
+    hc(1, TAG, STEP);                   /* READY: the layout */
 
     long end = now_ms() + secs * 1000L, mism = 0, iters = 0;
     if (spin) {

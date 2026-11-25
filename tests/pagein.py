@@ -25,6 +25,7 @@ the end checks its own memory. Checks:
 import argparse
 import base64
 import errno
+import gzip
 import json
 import random
 import re
@@ -47,10 +48,27 @@ PANDA_TEST = dict(area="pagein", tier="guest", fixture="testmachine",
 
 MAGIC = 0x46525431
 PG, NP = 4096, 64
+# The program's layout: BASE + n * STEP, which it reports in its READY hypercall (layout())
 TAG, FILEA, ANON, WR, HOLE, TRUNC, NONE, RO, NONE2, SW, GUARDR, GROW = (0x7e0000000000 + i * 0x10000000 for i in range(12))
-KADDR = {"x86_64": 0xffffffff81000000, "aarch64": 0xffff800080000000, "riscv64": 0xffffffff80000000}
+KADDR = {"x86_64": 0xffffffff81000000, "aarch64": 0xffff800080000000, "riscv64": 0xffffffff80000000,
+         "arm": 0xc0008000, "mipsel": 0x80100000, "mips": 0x80100000, "mips64el": 0xffffffff80100000,
+         "mips64": 0xffffffff80100000, "ppc": 0xc0000000, "ppc64": 0xc000000000000000,
+         "loongarch64": 0x9000000000200000}
+
+
+def layout(base, step):
+    global TAG, FILEA, ANON, WR, HOLE, TRUNC, NONE, RO, NONE2, SW, GUARDR, GROW
+    TAG, FILEA, ANON, WR, HOLE, TRUNC, NONE, RO, NONE2, SW, GUARDR, GROW = (base + i * step for i in range(12))
 BAD = re.compile(r"(Oops|BUG:|Kernel panic|Unable to handle|general protection|segfault|"
                  r"Internal error|Call Trace|PT SIGNAL)", re.I)
+
+
+E = "<"     # the guest's byte order, from the agent once it has polled
+
+
+def Q(v):
+    """A 64-bit word as the guest stores it"""
+    return struct.pack(E + "Q", v & (2**64 - 1))
 
 
 def pat(va):
@@ -59,7 +77,7 @@ def pat(va):
 
 def expect_file(addr, n):
     a0 = addr & ~7
-    words = b"".join(struct.pack("<Q", pat(a0 + i)) for i in range(0, n + 16, 8))
+    words = b"".join(Q(pat(a0 + i)) for i in range(0, n + 16, 8))
     return words[addr - a0:addr - a0 + n]
 
 
@@ -75,6 +93,8 @@ opt = ap.parse_args()
 m = Machine(opt.image, smp=opt.smp, intel=opt.intel)
 panda = m.panda()
 arch = m.arch
+# the program build: ppc64 machines run big- or little-endian kernels
+prog = "ppc64le" if arch == "ppc64" and "64le" in str(m.image.get("extra_args")) else arch
 C = Checks(arch)
 agent = Agent(panda)
 from programs.pagein_programs import PROGRAMS  # noqa: E402
@@ -96,7 +116,7 @@ def check_data(addr, data):
         return data == expect_file(addr, len(data))
     if SW <= addr < SW + NP * PG:
         a0 = addr & ~7
-        return data == b"".join(struct.pack("<Q", pat(a0 + i)) for i in range(0, len(data) + 16, 8))[addr - a0:addr - a0 + len(data)]
+        return data == b"".join(Q(pat(a0 + i)) for i in range(0, len(data) + 16, 8))[addr - a0:addr - a0 + len(data)]
     if ANON <= addr < ANON + NP * PG:
         return data == bytes(len(data))
     return True
@@ -168,11 +188,12 @@ def rand_target(rng):
 def hc(cpu):
     op, a, b = (panda.arch.get_arg(cpu, i, convention="syscall") for i in range(2, 5))
     if op == 1:                                          # READY: a user-mode callback
+        layout(a, b)
         st["asid"] = panda.current_asid(cpu)
         st["ptes"] = {}
-        for name, a in dict(file_dropped=FILEA, anon_untouched=ANON, hole=HOLE, prot_none_untouched=NONE,
+        for name, a in ({} if arch not in ("x86_64", "aarch64") else dict(file_dropped=FILEA, anon_untouched=ANON, hole=HOLE, prot_none_untouched=NONE,
                             truncated=TRUNC, prot_none_after_write=NONE2, swapped=SW, tag_present=TAG,
-                            stack_guard=0).items():
+                            stack_guard=0)).items():
             if a == 0:
                 continue
             try:
@@ -261,10 +282,12 @@ def refused_only():
 
 @panda.queue_blocking
 def drive():
-    if arch not in PROGRAMS:
+    if prog not in PROGRAMS:
         return refused_only()
+    global E
     m.revert(panda, agent)
-    agent.put("/tmp/pt", base64.b64decode(PROGRAMS[arch]))
+    E = agent.order or "<"
+    agent.put("/tmp/pt", gzip.decompress(base64.b64decode(PROGRAMS[prog])))
     # a filesystem and swap on loop devices (the machine has no disk): file pages through the
     # block layer, swapped pages out and back
     st_, out = agent.run("chmod +x /tmp/pt; mkdir -p /mnt; dd if=/dev/zero of=/tmp/disk.img bs=1M count=24 2>/dev/null; "
@@ -285,7 +308,7 @@ def drive():
         progress(f"pagein: pte {k}: {v}")
     asid = st["asid"]
     pi = panda.pagein
-    C.check("callback: fault=True returns present bytes", st["cb_sync"][:8] == struct.pack("<Q", 0x5441475441475441))
+    C.check("callback: fault=True returns present bytes", st["cb_sync"][:8] == Q(0x5441475441475441))
     C.check("callback: fault=True on a missing page raises PageInWouldBlock",
             st["cb_block"] == "PageInWouldBlock", st["cb_block"])
 
@@ -301,9 +324,9 @@ def drive():
     s = panda.read_str(None, FILEA + 20 * PG, max_length=24, fault=True, asid=asid)
     C.check("thread: read_str(fault=True)", len(s) > 0)
     progress(f"pagein: basic reads {time.monotonic() - t:.2f}s")
-    wdata = b"".join(struct.pack("<Q", pat(WR + i)) for i in range(0, NP * PG, 8))
+    wdata = b"".join(Q(pat(WR + i)) for i in range(0, NP * PG, 8))
     panda.virtual_memory_write(None, WR, wdata, fault=True, asid=asid)
-    panda.virtual_memory_write(None, TAG + 16, struct.pack("<Q", 1), fault=True, asid=asid)
+    panda.virtual_memory_write(None, TAG + 16, Q(1), fault=True, asid=asid)
     C.check("thread: write paged in for writing, reads back",
             bytes(panda.virtual_memory_read(None, WR + 5 * PG, 64, fault=True, asid=asid)) == wdata[5 * PG:5 * PG + 64])
 
