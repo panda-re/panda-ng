@@ -1,0 +1,121 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Tue, 24 Nov 2026 11:19:29 -0500
+Subject: [PATCH] accel/tcg, target/arm, target/i386: serve injection sessions
+ between blocks
+
+Injection sessions (src/include/panda/inject.h; page-in requests,
+src/include/panda/pagein.h, are one kind) wait until a vCPU reaches a
+user-mode instruction boundary of their target.  The CPU loop calls
+panda_inject_service() before each block lookup while any session or held
+register set is outstanding (PANDA_LOOP_INJECT in panda_loop_hooks); with
+nothing outstanding it costs the load and test of panda_loop_hooks that the
+exception hook already makes.
+
+The service makes the task enter the kernel as if it had executed a system
+call instruction at that boundary.  On AArch64 and AArch32 that is an SVC
+exception raised from the loop, on i386 (and 32-bit tasks of x86_64) an INT
+0x80: arm_cpu_do_interrupt and do_interrupt_all take the injector's flag
+(panda_inject_take_raising) and report neither to the system-call entry
+nor to the syscall trap, which would otherwise see a call the program never
+made.
+
+Vendored source: src/panda/src/inject.c, inject-arch.h, inject-int.h,
+src/panda/src/pagein.c, src/include/panda/inject.h,
+src/include/panda/pagein.h.
+
+SPDX-License-Identifier: GPL-2.0-or-later
+Origin: new
+---
+ accel/tcg/cpu-exec.c         | 4 ++++
+ target/arm/helper.c          | 6 ++++--
+ target/i386/tcg/seg_helper.c | 9 +++++++--
+ 3 files changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 0bb254b908d89d8e95835e6f2d1f04bd65ff7ae3..d901c0e82f4be7c8dd5fa99cece47fac40a1328e 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -1042,6 +1042,10 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
+ 
+         while (!cpu_handle_interrupt(cpu, &last_tb)) {
+             TranslationBlock *tb;
++
++            if (panda_loop_wants(PANDA_LOOP_INJECT)) {
++                panda_inject_service(cpu);      /* may leave the loop */
++            }
+             TCGTBCPUState s = cpu->cc->tcg_ops->get_tb_cpu_state(cpu);
+             s.cflags = cpu->cflags_next_tb;
+ 
+diff --git a/target/arm/helper.c b/target/arm/helper.c
+index ec1b296e06d38420c468ceeb9e88565cd4fc46dc..dea041bd3f438679e29ee00ee078dd840a1b5e7b 100644
+--- a/target/arm/helper.c
++++ b/target/arm/helper.c
+@@ -9867,6 +9867,8 @@ void arm_cpu_do_interrupt(CPUState *cs)
+     unsigned int new_el = env->exception.target_el;
+     uint64_t last_pc = cs->cc->get_pc(cs);
+     bool hooks = true, unlock = false;
++    /* an injected system call (panda/inject.h): the program did not make it */
++    bool injected = panda_inject_take_raising();
+ 
+     assert(!arm_feature(env, ARM_FEATURE_M));
+ 
+@@ -9900,7 +9902,7 @@ void arm_cpu_do_interrupt(CPUState *cs)
+     }
+ #endif
+ 
+-    if (cs->exception_index == EXCP_SWI && !is_a64(env) &&
++    if (cs->exception_index == EXCP_SWI && !injected && !is_a64(env) &&
+         panda_sc_enter_inline(PANDA_SYSCALL_FORM_A32_SVC) && arm_current_el(env) == 0 &&
+         /* under an AArch64 kernel, or an AArch32 one on a CPU without AArch64 */
+         (arm_feature(env, ARM_FEATURE_AARCH64) ? arm_el_is_aa64(env, 1) : true)) {
+@@ -9913,7 +9915,7 @@ void arm_cpu_do_interrupt(CPUState *cs)
+             return;
+         }
+     }
+-    if (cs->exception_index == EXCP_SWI && syscall_trap_enabled() &&
++    if (cs->exception_index == EXCP_SWI && !injected && syscall_trap_enabled() &&
+         arm_current_el(env) == 0 && arm_sc_enter(env)) {
+         return;
+     }
+diff --git a/target/i386/tcg/seg_helper.c b/target/i386/tcg/seg_helper.c
+index 8f30befa76f46d6f9dab3190887c1a92d6c93f3b..5cfcd25bbfa3abb0f926d569f30d0ecd1709841b 100644
+--- a/target/i386/tcg/seg_helper.c
++++ b/target/i386/tcg/seg_helper.c
+@@ -33,6 +33,7 @@
+ #include "system/syscall-trap.h"
+ #ifndef CONFIG_USER_ONLY
+ #include "panda/syscall-pair-tcg.h"
++#include "panda/hooks.h"
+ #endif
+ 
+ #ifdef TARGET_X86_64
+@@ -1318,6 +1319,10 @@ void do_interrupt_all(X86CPU *cpu, int intno, int is_int,
+ {
+     CPUX86State *env = &cpu->env;
+     uint64_t last_pc = env->eip + env->segs[R_CS].base;
++#ifndef CONFIG_USER_ONLY
++    /* an injected system call (panda/inject.h): the program did not make it */
++    bool injected = panda_inject_take_raising();
++#endif
+ 
+     if (qemu_loglevel_mask(CPU_LOG_INT)) {
+         if ((env->cr[0] & CR0_PE_MASK)) {
+@@ -1354,7 +1359,7 @@ void do_interrupt_all(X86CPU *cpu, int intno, int is_int,
+         }
+     }
+ #ifndef CONFIG_USER_ONLY
+-    if (is_int && intno == 0x80 && !is_hw &&
++    if (is_int && intno == 0x80 && !is_hw && !injected &&
+         panda_sc_enter_inline(PANDA_SYSCALL_FORM_X86_INT80) &&
+         (env->cr[0] & CR0_PE_MASK) && (env->hflags & HF_CPL_MASK) == 3) {
+         /* a declared system-call ABI: the engine's entry (EIP is past the INT) */
+@@ -1367,7 +1372,7 @@ void do_interrupt_all(X86CPU *cpu, int intno, int is_int,
+     }
+ #endif
+ #ifndef CONFIG_USER_ONLY
+-    if (is_int && intno == 0x80 && !is_hw && syscall_trap_enabled() &&
++    if (is_int && intno == 0x80 && !is_hw && !injected && syscall_trap_enabled() &&
+         (env->cr[0] & CR0_PE_MASK) && (env->hflags & HF_CPL_MASK) == 3 &&
+         x86_sc_i386(env, next_eip, 2, R_ECX, R_ESP, false)) {
+         return;

@@ -95,6 +95,8 @@ bool replay_record_check(Error **errp)
     if (!replay_feature_check(REPLAY_FEATURE_RECORD, errp)) {
         return false;
     }
-    /* A recording logs what the mutators it admits do; the rest would make it unreplayable. */
-    return panda_callbacks_record_safe(errp) && panda_hypercall_replay_safe(errp);
+    /* A recording logs what the mutators it admits do; the rest would make it unreplayable.
+     * A thread inside an injected system call would come back to registers nothing logged. */
+    return panda_callbacks_record_safe(errp) && panda_hypercall_replay_safe(errp) &&
+           panda_inject_record_safe(errp);
 }

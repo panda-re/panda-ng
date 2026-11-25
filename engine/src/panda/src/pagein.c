@@ -1,53 +1,29 @@
 /*
- * Page-in requests (include/panda/pagein.h) for this target.
+ * Page-in requests (include/panda/pagein.h): injection sessions (include/panda/inject.h) whose
+ * call is madvise(MADV_POPULATE_READ/WRITE).
  *
- * A request waits in a queue until a vCPU reaches a user-mode instruction boundary of the
- * request's address space (the CPU loop calls panda_pagein_service() there while anything is
- * queued: PANDA_LOOP_PAGEIN). If the range is already accessible it completes at once. Otherwise
- * the thread's registers are saved, the thread is made to enter the kernel as if it had executed
- * a system call instruction just before its current PC, with madvise(MADV_POPULATE_READ/WRITE)
- * in the argument registers, and the kernel returns to that PC. The first user-mode boundary of
- * the same address space with the same stack pointer is that return (or a restart of it): the
- * registers are put back, the range is accessed without faulting, and the request completes.
- *
- * Only system calls the guest could have made itself; never a fault the guest would not take.
+ * A request is a session for the request's address space. At a user-mode boundary of it, a
+ * range that is already accessible is copied at once, with no system call. Otherwise the thread
+ * makes madvise() for the range; when it is back, the range is copied without faulting, and the
+ * thread's registers go back. The guest kernel decides what it maps: an address it won't map
+ * completes with its errno, never with a signal or an oops.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "qemu/osdep.h"
 #include "qemu/main-loop.h"
 #include "qemu/timer.h"
-#include "qemu/rcu.h"
 #include "hw/core/cpu.h"
 #include "exec/cpu-common.h"
-#include "accel/tcg/cpu-ops.h"
-#include "accel/tcg/cpu-mmu-index.h"
-#include "accel/tcg/cpu-loop.h"
-#include "accel/tcg/probe.h"
-#include "system/tcg.h"
 #include "system/replay-analysis.h"
 #include "panda/common.h"
-#include "panda/hooks.h"
+#include "panda/inject.h"
 #include "panda/pagein.h"
 #include "plugins/qemu-plugin.h"
-#if defined(TARGET_I386)
-#include "target/i386/tcg/helper-tcg.h"
-#endif
-#if defined(TARGET_ARM)
-#include "target/arm/internals.h"
-#include "target/arm/syndrome.h"
-#endif
-#if defined(TARGET_MIPS)
-#include "target/mips/internal.h"
-#endif
-#if defined(TARGET_PPC)
-#include "target/ppc/internal.h"
-#endif
 
 #define MADV_POPULATE_READ 22
 #define MADV_POPULATE_WRITE 23
-#define PAGEIN_TIMEOUT_NS (5 * NANOSECONDS_PER_SECOND)
-#define PAGEIN_MAX_ROUNDS 6         /* injections per request (page size probes, reclaim) */
+#define PAGEIN_MAX_ROUNDS 6         /* system calls per request (page size probes, reclaim) */
 
 /*
  * The guest kernel's page size, as a shift, once known: madvise wants a start aligned to it,
@@ -56,108 +32,51 @@
  * 64 KiB; the first alignment that works, from a start not aligned to the next one, is it.
  */
 static int guest_page_shift;
-static uint32_t token_seq, token_salt;
-static bool no_token;           /* PANDA_PAGEIN_NO_TOKEN (diagnosis only) */
 
 typedef struct PageinReq {
-    QTAILQ_ENTRY(PageinReq) next;
     uint64_t id, asid, addr;
     size_t len;
     uint8_t *buf;               /* read: filled at completion; write: the bytes */
-    bool write, inflight;
+    bool write;
     size_t done_len;            /* copied so far, page by page (after the call) */
     bool populated;             /* the last call succeeded: what's missing is a TLB miss away */
     int rounds, touches;
     int shift, first_errno;     /* the start's alignment for the next call; its first answer */
-    int64_t deadline;
+    int status, guest_errno;    /* the answer, once next() decided it */
+    uint64_t timeout_ns;
     panda_pagein_cb_t cb;
     void *opaque;
 } PageinReq;
 
-/* A thread that is in the kernel on our behalf: its registers, to put back */
-typedef struct PageinRegs {
-    QTAILQ_ENTRY(PageinRegs) next;
-    uint64_t asid, sp, pc;
-    uint64_t token;             /* in the marker register while the call is out */
-    unsigned len;               /* the system call instruction's length, for a restart */
-    PageinReq *req;             /* NULL once the request is gone (timeout, cancel) */
-    /* the thread's registers: general purpose ones, and what the target keeps besides */
-    uint64_t r[32];
-    uint64_t x[12];
-} PageinRegs;
-
 static QemuMutex lock;
 static bool inited;
-static bool debug;              /* PANDA_PAGEIN_DEBUG: log each call and its answer */
-static QTAILQ_HEAD(, PageinReq) reqs = QTAILQ_HEAD_INITIALIZER(reqs);
-static QTAILQ_HEAD(, PageinRegs) held = QTAILQ_HEAD_INITIALIZER(held);
+static uint64_t next_id = 1;
 static unsigned nreqs;
-static uint64_t next_id G_GNUC_UNUSED = 1;    /* unused without an injector */
-static uint64_t st_submitted, st_injected, st_completed, st_abandoned, st_stale, st_overframes;
-static uint64_t st_status[11];
+static uint64_t st_submitted, st_injected, st_completed, st_abandoned, st_status[11];
 
-/* Completions to run after the lock is dropped */
-typedef struct Done {
-    PageinReq *req;
-    int status, guest_errno;
-} Done;
+/* madvise's number for each injector ABI */
+static const int64_t nr_madvise[PANDA_INJECT_ABI_COUNT] = {
+    [PANDA_INJECT_ABI_X86_64] = 28,
+    [PANDA_INJECT_ABI_I386] = 219,
+    [PANDA_INJECT_ABI_AARCH64] = 233,
+    [PANDA_INJECT_ABI_ARM_EABI] = 220,
+    [PANDA_INJECT_ABI_RISCV64] = 233,
+    [PANDA_INJECT_ABI_MIPS_O32] = 4218,
+    [PANDA_INJECT_ABI_MIPS_N64] = 5027,
+    [PANDA_INJECT_ABI_PPC] = 205,
+    [PANDA_INJECT_ABI_PPC64] = 205,
+    [PANDA_INJECT_ABI_LOONGARCH64] = 233,
+};
 
 static void pagein_init(void)
 {
     if (!qatomic_read(&inited)) {
-        static QemuMutex init_lock;
         static gsize once;
         if (g_once_init_enter(&once)) {
-            qemu_mutex_init(&init_lock);
             qemu_mutex_init(&lock);
-            debug = getenv("PANDA_PAGEIN_DEBUG") != NULL;
-            token_salt = g_random_int();
-            no_token = getenv("PANDA_PAGEIN_NO_TOKEN") != NULL;
             qatomic_set(&inited, true);
             g_once_init_leave(&once, 1);
         }
-    }
-}
-
-/* lock held: what the CPU loop has to look at */
-static void pagein_update_loop_bit(void)
-{
-    if (QTAILQ_EMPTY(&reqs) && QTAILQ_EMPTY(&held)) {
-        qatomic_and(&panda_loop_hooks, ~PANDA_LOOP_PAGEIN);
-    } else {
-        qatomic_or(&panda_loop_hooks, PANDA_LOOP_PAGEIN);
-    }
-}
-
-/* lock held */
-static void pagein_finish(PageinReq *r, int status, int guest_errno, Done *d)
-{
-    QTAILQ_REMOVE(&reqs, r, next);
-    nreqs--;
-    PageinRegs *h;
-    QTAILQ_FOREACH(h, &held, next) {
-        if (h->req == r) {
-            h->req = NULL;      /* the registers still go back */
-        }
-    }
-    st_completed++;
-    if (status <= 0 && status >= -10) {
-        st_status[-status]++;
-    }
-    d->req = r;
-    d->status = status;
-    d->guest_errno = guest_errno;
-}
-
-static void pagein_complete(Done *d, int n)
-{
-    for (int i = 0; i < n; i++) {
-        PageinReq *r = d[i].req;
-        bool data = d[i].status == PANDA_PAGEIN_OK;
-        r->cb(r->id, d[i].status, d[i].guest_errno, data ? r->buf : NULL, data ? r->len : 0,
-              r->opaque);
-        g_free(r->buf);
-        g_free(r);
     }
 }
 
@@ -189,11 +108,15 @@ void panda_pagein_stats(uint64_t *submitted, uint64_t *injected, uint64_t *compl
                         uint64_t *abandoned, uint64_t *stale, uint64_t *overframes,
                         uint64_t by_status[11])
 {
+    PandaInjectStats is;
+
+    /* the token rule's counters are the injection sessions' (page-in's are among them) */
+    panda_inject_stats(&is);
+    *stale = is.stale;
+    *overframes = is.overframes;
     pagein_init();
     qemu_mutex_lock(&lock);
     *abandoned = st_abandoned;
-    *stale = st_stale;
-    *overframes = st_overframes;
     *submitted = st_submitted;
     *injected = st_injected;
     *completed = st_completed;
@@ -201,504 +124,6 @@ void panda_pagein_stats(uint64_t *submitted, uint64_t *injected, uint64_t *compl
     qemu_mutex_unlock(&lock);
 }
 
-/*
- * Target pieces: is this vCPU at a user-mode boundary of a task we can inject into, its stack
- * pointer, the system call's return register, and the injection.
- */
-/*
- * pagein_user(): 1 if the vCPU is at a user-mode boundary we can inject at (*sp set), 0 if not
- * (kernel mode, or a moment we can't use: a branch delay slot), -1 if it is a user task we can't
- * serve (another ABI). pagein_retval(): the call's result, -errno on failure.
- */
-#if defined(TARGET_X86_64)
-#define PAGEIN_NR_MADVISE 28
-static int pagein_user(CPUState *cs, uint64_t *sp)
-{
-    CPUX86State *env = cpu_env(cs);
-    if ((env->hflags & HF_CPL_MASK) != 3) {
-        return 0;
-    }
-    *sp = env->regs[R_ESP];
-    /* a 32-bit task: madvise is another number, entered another way */
-    return (env->hflags & HF_CS64_MASK) ? 1 : -1;
-}
-static void pagein_save(CPUState *cs, PageinRegs *h)
-{
-    CPUX86State *env = cpu_env(cs);
-    for (int i = 0; i < CPU_NB_REGS; i++) {
-        h->r[i] = env->regs[i];
-    }
-    h->x[0] = cpu_compute_eflags(env);
-    h->pc = env->eip;
-    h->len = 2;
-}
-static int64_t pagein_retval(CPUState *cs)
-{
-    return (int64_t)cpu_env(cs)->regs[R_EAX];
-}
-/* r12: preserved by system calls and saved in a signal frame; ours while the call is out */
-static uint64_t pagein_marker_get(CPUState *cs) { return cpu_env(cs)->regs[12]; }
-static void pagein_marker_set(CPUState *cs, uint64_t v) { cpu_env(cs)->regs[12] = v; }
-static void pagein_restore(CPUState *cs, PageinRegs *h)
-{
-    CPUX86State *env = cpu_env(cs);
-    for (int i = 0; i < CPU_NB_REGS; i++) {
-        env->regs[i] = h->r[i];
-    }
-    cpu_load_eflags(env, h->x[0], TF_MASK | AC_MASK | ID_MASK | NT_MASK | RF_MASK);
-    if (env->eip == h->pc || env->eip == h->pc - h->len) {
-        env->eip = h->pc;
-    }
-}
-/* What SYSCALL does in long mode (helper_syscall), returning to the current RIP */
-static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
-{
-    CPUX86State *env = cpu_env(cs);
-    int selector = (env->star >> 32) & 0xffff;
-
-    env->regs[R_EAX] = PAGEIN_NR_MADVISE;
-    env->regs[R_EDI] = a0;
-    env->regs[R_ESI] = a1;
-    env->regs[R_EDX] = a2;
-    env->regs[R_ECX] = env->eip;
-    env->regs[11] = cpu_compute_eflags(env) & ~RF_MASK;
-    env->eflags &= ~(env->fmask | RF_MASK);
-    cpu_load_eflags(env, env->eflags, 0);
-    cpu_x86_load_seg_cache(env, R_CS, selector & 0xfffc, 0, 0xffffffff,
-                           DESC_G_MASK | DESC_P_MASK | DESC_S_MASK | DESC_CS_MASK |
-                           DESC_R_MASK | DESC_A_MASK | DESC_L_MASK);
-    cpu_x86_load_seg_cache(env, R_SS, (selector + 8) & 0xfffc, 0, 0xffffffff,
-                           DESC_G_MASK | DESC_B_MASK | DESC_P_MASK | DESC_S_MASK |
-                           DESC_W_MASK | DESC_A_MASK);
-    env->eip = env->lstar;
-    cpu_loop_exit_noexc(cs);
-}
-#elif defined(TARGET_ARM)
-/*
- * AArch64 tasks (aarch64 target): SVC with x8 = 233. AArch32 tasks (arm target, or a compat
- * task under an AArch64 kernel): EABI SVC 0 with r7 = 220. Either way the exception's return
- * address is the current PC (QEMU's SVC has already stepped past the instruction). An AArch32
- * task in ARM state on an AArch32 kernel is served only right after an SVC #0 (pagein_user).
- */
-static int pagein_user(CPUState *cs, uint64_t *sp)
-{
-    CPUARMState *env = cpu_env(cs);
-    if (arm_current_el(env) != 0) {
-        return 0;
-    }
-    if (!is_a64(env) && !env->thumb && !arm_el_is_aa64(env, 1)) {
-        /*
-         * An AArch32 kernel with OABI compatibility reads the SVC instruction before the return
-         * address and takes a non-zero immediate as an old-ABI call number: inject only where
-         * that word is an SVC #0 (right after one of the thread's own system calls). Thumb
-         * entries and AArch64 kernels take the number from r7 alone.
-         */
-        GByteArray *b = g_byte_array_new();
-        bool svc0 = qemu_plugin_read_memory_vaddr_fault(env->regs[15] - 4, b, 4,
-                                                        QEMU_PLUGIN_VADDR_USER, false) ==
-                    QEMU_PLUGIN_VADDR_OK &&
-                    (ldl_le_p(b->data) & 0x0fffffff) == 0x0f000000;
-        g_byte_array_unref(b);
-        if (!svc0) {
-            return 0;
-        }
-    }
-    *sp = is_a64(env) ? env->xregs[31] : env->regs[13];
-    return 1;
-}
-static void pagein_save(CPUState *cs, PageinRegs *h)
-{
-    CPUARMState *env = cpu_env(cs);
-    h->x[0] = is_a64(env);
-    if (h->x[0]) {
-        for (int i = 0; i < 31; i++) {
-            h->r[i] = env->xregs[i];
-        }
-        h->pc = env->pc;
-        h->len = 4;
-    } else {
-        for (int i = 0; i < 15; i++) {
-            h->r[i] = env->regs[i];
-        }
-        h->pc = env->regs[15];
-        h->len = env->thumb ? 2 : 4;
-    }
-}
-static int64_t pagein_retval(CPUState *cs)
-{
-    CPUARMState *env = cpu_env(cs);
-    return is_a64(env) ? (int64_t)env->xregs[0] : (int64_t)(int32_t)env->regs[0];
-}
-/* x28 (AArch64) or r8 (AArch32): preserved by system calls and saved in a signal frame */
-static uint64_t pagein_marker_get(CPUState *cs)
-{
-    CPUARMState *env = cpu_env(cs);
-    return is_a64(env) ? env->xregs[28] : env->regs[8];
-}
-static void pagein_marker_set(CPUState *cs, uint64_t v)
-{
-    CPUARMState *env = cpu_env(cs);
-    if (is_a64(env)) {
-        env->xregs[28] = v;
-    } else {
-        env->regs[8] = (uint32_t)v;
-    }
-}
-static void pagein_restore(CPUState *cs, PageinRegs *h)
-{
-    CPUARMState *env = cpu_env(cs);
-    if (h->x[0]) {
-        for (int i = 0; i < 31; i++) {
-            env->xregs[i] = h->r[i];
-        }
-        if (env->pc == h->pc || env->pc == h->pc - h->len) {
-            env->pc = h->pc;
-        }
-    } else {
-        for (int i = 0; i < 15; i++) {
-            env->regs[i] = h->r[i];
-        }
-        if (env->regs[15] == h->pc || env->regs[15] == h->pc - h->len) {
-            env->regs[15] = h->pc;
-        }
-    }
-}
-static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
-{
-    CPUARMState *env = cpu_env(cs);
-
-    if (is_a64(env)) {
-        env->xregs[8] = 233;
-        env->xregs[0] = a0;
-        env->xregs[1] = a1;
-        env->xregs[2] = a2;
-        env->exception.syndrome = syn_aa64_svc(0);
-    } else {
-        env->regs[7] = 220;
-        env->regs[0] = a0;
-        env->regs[1] = a1;
-        env->regs[2] = a2;
-        env->exception.syndrome = syn_aa32_svc(0, env->thumb);
-    }
-    env->exception.target_el = 1;
-    panda_pagein_injecting = true;      /* not the syscall trap's: the program didn't make it */
-    cs->exception_index = EXCP_SWI;
-    cpu_loop_exit(cs);
-}
-#elif defined(TARGET_RISCV64)
-static int pagein_user(CPUState *cs, uint64_t *sp)
-{
-    CPURISCVState *env = cpu_env(cs);
-    if (env->priv != PRV_U || env->virt_enabled) {
-        return 0;
-    }
-    if (env->xl != MXL_RV64) {
-        return -1;
-    }
-    *sp = env->gpr[2];
-    return 1;
-}
-static void pagein_save(CPUState *cs, PageinRegs *h)
-{
-    CPURISCVState *env = cpu_env(cs);
-    for (int i = 0; i < 32; i++) {
-        h->r[i] = env->gpr[i];
-    }
-    h->pc = env->pc;
-    h->len = 4;
-}
-static int64_t pagein_retval(CPUState *cs)
-{
-    return (int64_t)cpu_env(cs)->gpr[10];
-}
-/* s11 */
-static uint64_t pagein_marker_get(CPUState *cs) { return cpu_env(cs)->gpr[27]; }
-static void pagein_marker_set(CPUState *cs, uint64_t v) { cpu_env(cs)->gpr[27] = v; }
-static void pagein_restore(CPUState *cs, PageinRegs *h)
-{
-    CPURISCVState *env = cpu_env(cs);
-    for (int i = 1; i < 32; i++) {
-        env->gpr[i] = h->r[i];
-    }
-    if (env->pc == h->pc || env->pc == h->pc - h->len) {
-        env->pc = h->pc;
-    }
-}
-/* An ECALL 4 bytes before the current PC: the kernel returns past it, to the PC */
-static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
-{
-    CPURISCVState *env = cpu_env(cs);
-
-    env->gpr[17] = 233;
-    env->gpr[10] = a0;
-    env->gpr[11] = a1;
-    env->gpr[12] = a2;
-    env->pc -= 4;
-    cs->exception_index = RISCV_EXCP_U_ECALL;
-    cpu_loop_exit(cs);
-}
-#elif defined(TARGET_MIPS)
-/*
- * A SYSCALL 4 bytes before the current PC (the kernel steps EPC past it): o32 madvise (4218) on
- * 32-bit targets, n64 madvise (5027) on 64-bit ones, where the kernel takes the ABI from the
- * number's range, so o32 and n32 tasks are served too. Not in a delay slot, not MIPS16 or
- * microMIPS, and not at the start of a page (the CPU may read the instruction at EPC into
- * BadInstr).
- */
-static int pagein_user(CPUState *cs, uint64_t *sp)
-{
-    CPUMIPSState *env = cpu_env(cs);
-    if ((env->hflags & MIPS_HFLAG_MODE) != MIPS_HFLAG_UM) {
-        return 0;
-    }
-    if (env->hflags & MIPS_HFLAG_M16) {
-        return -1;
-    }
-    if ((env->hflags & MIPS_HFLAG_BMASK) ||
-        (env->active_tc.PC & (qemu_target_page_size() - 1)) < 4) {
-        return 0;
-    }
-    *sp = env->active_tc.gpr[29];
-    return 1;
-}
-static void pagein_save(CPUState *cs, PageinRegs *h)
-{
-    CPUMIPSState *env = cpu_env(cs);
-    for (int i = 0; i < 32; i++) {
-        h->r[i] = env->active_tc.gpr[i];
-    }
-    h->x[0] = env->active_tc.HI[0];
-    h->x[1] = env->active_tc.LO[0];
-    h->pc = env->active_tc.PC;
-    h->len = 4;
-}
-/* v0 is the errno when a3 is set */
-static int64_t pagein_retval(CPUState *cs)
-{
-    CPUMIPSState *env = cpu_env(cs);
-    int64_t v0 = (target_long)env->active_tc.gpr[2];
-    return env->active_tc.gpr[7] ? -v0 : v0;
-}
-/* s7 */
-static uint64_t pagein_marker_get(CPUState *cs) { return cpu_env(cs)->active_tc.gpr[23]; }
-static void pagein_marker_set(CPUState *cs, uint64_t v) { cpu_env(cs)->active_tc.gpr[23] = v; }
-static void pagein_restore(CPUState *cs, PageinRegs *h)
-{
-    CPUMIPSState *env = cpu_env(cs);
-    for (int i = 1; i < 32; i++) {
-        env->active_tc.gpr[i] = h->r[i];
-    }
-    env->active_tc.HI[0] = h->x[0];
-    env->active_tc.LO[0] = h->x[1];
-    if (env->active_tc.PC == h->pc || env->active_tc.PC == h->pc - h->len) {
-        env->active_tc.PC = h->pc;
-    }
-}
-static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
-{
-    CPUMIPSState *env = cpu_env(cs);
-
-#if defined(TARGET_MIPS64)
-    env->active_tc.gpr[2] = 5027;
-#else
-    env->active_tc.gpr[2] = 4218;
-#endif
-    env->active_tc.gpr[4] = a0;
-    env->active_tc.gpr[5] = a1;
-    env->active_tc.gpr[6] = a2;
-    env->active_tc.PC -= 4;
-    cs->exception_index = EXCP_SYSCALL;
-    env->error_code = 0;
-    cpu_loop_exit(cs);
-}
-#elif defined(TARGET_PPC)
-/*
- * sc with r0 = 205, from 4 bytes before the current NIP (the exception entry steps SRR0 past
- * it). On ppc64, 64-bit tasks only (MSR.SF).
- */
-static int pagein_user(CPUState *cs, uint64_t *sp)
-{
-    CPUPPCState *env = cpu_env(cs);
-    if (!FIELD_EX64(env->msr, MSR, PR)) {
-        return 0;
-    }
-#if defined(TARGET_PPC64)
-    if (!FIELD_EX64(env->msr, MSR, SF)) {
-        return -1;
-    }
-#endif
-    *sp = env->gpr[1];
-    return 1;
-}
-static void pagein_save(CPUState *cs, PageinRegs *h)
-{
-    CPUPPCState *env = cpu_env(cs);
-    for (int i = 0; i < 32; i++) {
-        h->r[i] = env->gpr[i];
-    }
-    for (int i = 0; i < 8; i++) {
-        h->x[i] = env->crf[i];
-    }
-    /* sc may change the volatile special registers too (Linux zeroes some on the way out) */
-    h->x[8] = env->lr;
-    h->x[9] = env->ctr;
-    h->x[10] = cpu_read_xer(env);
-    h->pc = env->nip;
-    h->len = 4;
-}
-/* r3 is the errno when CR0.SO is set */
-static int64_t pagein_retval(CPUState *cs)
-{
-    CPUPPCState *env = cpu_env(cs);
-    int64_t r3 = (target_long)env->gpr[3];
-    return (env->crf[0] & 1) ? -r3 : r3;
-}
-/* r30: non-volatile across sc */
-static uint64_t pagein_marker_get(CPUState *cs) { return cpu_env(cs)->gpr[30]; }
-static void pagein_marker_set(CPUState *cs, uint64_t v) { cpu_env(cs)->gpr[30] = v; }
-static void pagein_restore(CPUState *cs, PageinRegs *h)
-{
-    CPUPPCState *env = cpu_env(cs);
-    for (int i = 0; i < 32; i++) {
-        env->gpr[i] = h->r[i];
-    }
-    for (int i = 0; i < 8; i++) {
-        env->crf[i] = h->x[i];
-    }
-    env->lr = h->x[8];
-    env->ctr = h->x[9];
-    cpu_write_xer(env, h->x[10]);
-    if (env->nip == h->pc || env->nip == h->pc - h->len) {
-        env->nip = h->pc;
-    }
-}
-static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
-{
-    CPUPPCState *env = cpu_env(cs);
-
-    env->gpr[0] = 205;
-    env->gpr[3] = a0;
-    env->gpr[4] = a1;
-    env->gpr[5] = a2;
-    env->nip -= 4;
-    cs->exception_index = POWERPC_EXCP_SYSCALL;
-    env->error_code = 0;
-    cpu_loop_exit(cs);
-}
-#elif defined(TARGET_LOONGARCH64)
-/* SYSCALL with a7 = 233, 4 bytes before the current PC (the kernel steps ERA past it) */
-static int pagein_user(CPUState *cs, uint64_t *sp)
-{
-    CPULoongArchState *env = cpu_env(cs);
-    if (FIELD_EX64(env_sys(env)->CSR_CRMD, CSR_CRMD, PLV) != 3) {
-        return 0;
-    }
-    /* the exception entry reads the instruction at ERA into BADI: not across a page start */
-    if ((env->pc & (qemu_target_page_size() - 1)) < 4) {
-        return 0;
-    }
-    *sp = env->gpr[3];
-    return 1;
-}
-static void pagein_save(CPUState *cs, PageinRegs *h)
-{
-    CPULoongArchState *env = cpu_env(cs);
-    for (int i = 0; i < 32; i++) {
-        h->r[i] = env->gpr[i];
-    }
-    h->pc = env->pc;
-    h->len = 4;
-}
-static int64_t pagein_retval(CPUState *cs)
-{
-    return (int64_t)cpu_env(cs)->gpr[4];
-}
-/* s8 */
-static uint64_t pagein_marker_get(CPUState *cs) { return cpu_env(cs)->gpr[31]; }
-static void pagein_marker_set(CPUState *cs, uint64_t v) { cpu_env(cs)->gpr[31] = v; }
-static void pagein_restore(CPUState *cs, PageinRegs *h)
-{
-    CPULoongArchState *env = cpu_env(cs);
-    for (int i = 1; i < 32; i++) {
-        env->gpr[i] = h->r[i];
-    }
-    if (env->pc == h->pc || env->pc == h->pc - h->len) {
-        env->pc = h->pc;
-    }
-}
-static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
-{
-    CPULoongArchState *env = cpu_env(cs);
-
-    env->gpr[11] = 233;
-    env->gpr[4] = a0;
-    env->gpr[5] = a1;
-    env->gpr[6] = a2;
-    env->pc -= 4;
-    cs->exception_index = EXCCODE_SYS;
-    cpu_loop_exit(cs);
-}
-#else
-#define PAGEIN_NO_INJECTOR 1
-#endif
-
-__thread bool panda_pagein_injecting;
-
-int panda_pagein_submit(uint64_t asid, uint64_t addr, size_t len, const uint8_t *wdata,
-                        uint64_t timeout_ns, panda_pagein_cb_t cb, void *opaque, uint64_t *id)
-{
-    pagein_init();
-    if (!replay_analysis_write_allowed()) {
-        return PANDA_PAGEIN_ERECORD;     /* the system call would not be in the recording */
-    }
-    if (!tcg_enabled()) {
-        return PANDA_PAGEIN_EACCEL;
-    }
-#ifdef PAGEIN_NO_INJECTOR
-    return PANDA_PAGEIN_EARCH;
-#else
-    if (!cb || len == 0 || len > PANDA_PAGEIN_MAX_LEN || addr + len < addr) {
-        return PANDA_PAGEIN_EINVAL;
-    }
-    PageinReq *r = g_new0(PageinReq, 1);
-    r->asid = asid;
-    r->addr = addr;
-    r->len = len;
-    r->write = wdata != NULL;
-    r->buf = wdata ? g_memdup2(wdata, len) : g_malloc0(len);
-    r->cb = cb;
-    r->opaque = opaque;
-    r->deadline = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
-                  (timeout_ns ? timeout_ns : PAGEIN_TIMEOUT_NS);
-    qemu_mutex_lock(&lock);
-    if (nreqs >= PANDA_PAGEIN_MAX_OUTSTANDING) {
-        qemu_mutex_unlock(&lock);
-        g_free(r->buf);
-        g_free(r);
-        return PANDA_PAGEIN_EBUSY;
-    }
-    r->id = next_id++;
-    if (id) {
-        *id = r->id;
-    }
-    QTAILQ_INSERT_TAIL(&reqs, r, next);
-    nreqs++;
-    st_submitted++;
-    pagein_update_loop_bit();
-    qemu_mutex_unlock(&lock);
-
-    /* Every vCPU back to its loop, where the request is looked at */
-    CPUState *cs;
-    WITH_RCU_READ_LOCK_GUARD() {
-        CPU_FOREACH(cs) {
-            cpu_exit(cs);
-        }
-    }
-    return PANDA_PAGEIN_QUEUED;
-#endif
-}
-
-#ifndef PAGEIN_NO_INJECTOR
 /* At a user-mode boundary of r's address space: copy without faulting */
 static int pagein_copy_range(PageinReq *r, uint64_t off, size_t len)
 {
@@ -747,9 +172,7 @@ static int pagein_copy(PageinReq *r, bool partial)
     }
     return QEMU_PLUGIN_VADDR_OK;
 }
-#endif
 
-#ifndef PAGEIN_NO_INJECTOR
 /* The first page of r the CPU can't reach without a fault, or -1 */
 static uint64_t pagein_first_missing(PageinReq *r)
 {
@@ -772,303 +195,195 @@ static uint64_t pagein_first_missing(PageinReq *r)
     return bad;
 }
 
-/*
- * The system call populated the range, but the CPU still can't reach a page of it: CPUs whose
- * TLB the kernel refills in software (MIPS, BookE PowerPC) only see a page table entry after a
- * TLB miss. Take that miss here, as the thread's own user-mode access at this boundary: the
- * page is in a mapping that allows the access (the call just succeeded), so the kernel's refill
- * or fault handler resolves it and returns to this instruction. (A thread of the same process
- * unmapping the range in between is the one way this could still signal.) Returns only if the
- * page became reachable meanwhile.
- */
-static void pagein_touch(CPUState *cs, uint64_t addr, bool write)
+static bool pagein_may_touch(PageinReq *r)
 {
-    if (debug) {
-        fprintf(stderr, "pagein: vcpu %d touch %#" PRIx64 " %s at %#" PRIx64 "\n", cs->cpu_index,
-                addr, write ? "write" : "read", (uint64_t)cs->cc->get_pc(cs));
-    }
-    if (!cs->cc->tcg_ops->user_mmu_index) {
-        return;
-    }
-    probe_access(cpu_env(cs), addr, 1, write ? MMU_DATA_STORE : MMU_DATA_LOAD,
-                 cs->cc->tcg_ops->user_mmu_index(cs), 0);
+    return r->touches < 2 * (r->len / qemu_target_page_size()) + 8;
 }
-#endif
 
-void panda_pagein_service(CPUState *cs)
+/* next(): copy if possible; else madvise; after it, copy what's reachable */
+static int pagein_next(void *opaque, CPUState *cs, PandaInjectStep *step, PandaInjectCall *call)
 {
-#ifndef PAGEIN_NO_INJECTOR
-    Done done[8];
-    int ndone = 0;
-    uint64_t sp = 0, asid;
-    int user;
-    int64_t now;
-    PageinReq *r, *rn;
-    PageinRegs *h;
-    uint64_t touch = (uint64_t)-1;
+    PageinReq *r = opaque;
+    int c;
 
-    pagein_init();
-    user = pagein_user(cs, &sp);
-    now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
-    qemu_mutex_lock(&lock);
+    if (step->calls > 0) {
+        int64_t ret = step->ret;
+        int shift = r->shift ? r->shift : TARGET_PAGE_BITS;
+        uint64_t start = r->addr & ~((1ull << shift) - 1);
 
-    /*
-     * A recording or replay started after these were queued: serving them now would put a system
-     * call in the recording that its replay never makes. Refuse them; a thread that is in the
-     * kernel on our behalf keeps the registers it has (they can't be put back unlogged).
-     */
-    if (!replay_analysis_write_allowed()) {
-        while ((h = QTAILQ_FIRST(&held))) {
-            QTAILQ_REMOVE(&held, h, next);
-            g_free(h);
-        }
-        QTAILQ_FOREACH_SAFE(r, &reqs, next, rn) {
-            if (ndone < ARRAY_SIZE(done)) {
-                pagein_finish(r, PANDA_PAGEIN_ERECORD, 0, &done[ndone++]);
+        if (ret == -EINVAL && !qatomic_read(&guest_page_shift) && shift < 16) {
+            r->first_errno = r->first_errno ? r->first_errno : EINVAL;
+            r->shift = shift + 2;       /* maybe a larger page: try again aligned to it */
+        } else if (ret < 0 && ret > -4096) {
+            r->status = PANDA_PAGEIN_EGUEST;
+            r->guest_errno = r->first_errno ? r->first_errno : (int)-ret;
+            return PANDA_INJECT_DONE;
+        } else {
+            if (!qatomic_read(&guest_page_shift) && (start & ((1ull << (shift + 2)) - 1))) {
+                qatomic_set(&guest_page_shift, shift);  /* worked; no larger alignment did */
             }
-        }
-        goto out;
-    }
-
-    /* Requests whose process never came back in time; their held registers stay */
-    QTAILQ_FOREACH_SAFE(r, &reqs, next, rn) {
-        if (ndone < ARRAY_SIZE(done) && now > r->deadline) {
-            pagein_finish(r, PANDA_PAGEIN_ETIMEDOUT, 0, &done[ndone++]);
-        }
-    }
-    if (user == 0) {
-        goto out;
-    }
-    asid = panda_current_asid(cs);
-
-    /*
-     * A thread back from our system call: its registers go back first. It is ours only if it
-     * still carries the call's token in the marker register, at the call's stack pointer and
-     * instruction (or the restart point). The stack pointer and instruction alone are not
-     * enough: if a signal was delivered on the way out of the call, the kernel built the
-     * handler's frame from the call's registers; a handler that longjmps leaves the held set
-     * behind, and the next time the thread runs the same instruction at the same depth (a loop,
-     * a function called again) it would match and get stale registers. A thread that carries
-     * the token somewhere else is running a signal handler over the call: leave it alone.
-     */
-    {
-        uint64_t pc = cs->cc->get_pc(cs), mark = pagein_marker_get(cs);
-        PageinRegs *hn;
-
-        QTAILQ_FOREACH(h, &held, next) {
-            /* PANDA_PAGEIN_NO_TOKEN: the old match (stack pointer only), to show the race */
-            if (h->asid == asid && (no_token ? h->sp == sp : mark == h->token)) {
-                break;
+            r->populated = true;
+            c = pagein_copy(r, true);
+            if (c == QEMU_PLUGIN_VADDR_OK || c == QEMU_PLUGIN_VADDR_IO) {
+                r->status = c == QEMU_PLUGIN_VADDR_OK ? PANDA_PAGEIN_OK : PANDA_PAGEIN_EIO;
+                return PANDA_INJECT_DONE;
             }
-        }
-        if (h && no_token && pc != h->pc && pc != h->pc - h->len) {
-            h = NULL;           /* the old rule: dropped below as abandoned */
-        } else if (h && no_token && mark != h->token) {
-            st_stale++;         /* the old rule restores here: the wrong registers */
-            if (debug) {
-                fprintf(stderr, "pagein: vcpu %d asid %#" PRIx64 " request %" PRIu64
-                        " STALE MATCH RESTORED (old rule) at %#" PRIx64 "\n", cs->cpu_index,
-                        asid, h->req ? h->req->id : 0, pc);
+            if (r->rounds >= PAGEIN_MAX_ROUNDS) {
+                r->status = PANDA_PAGEIN_ERECLAIMED;
+                return PANDA_INJECT_DONE;
             }
-        }
-        if (h && !no_token && (h->sp != sp || (pc != h->pc && pc != h->pc - h->len))) {
-            if (debug) {
-                fprintf(stderr, "pagein: vcpu %d asid %#" PRIx64 " request %" PRIu64
-                        " in flight; its thread runs at %#" PRIx64 " sp %#" PRIx64
-                        " (a signal frame over the call)\n", cs->cpu_index, asid,
-                        h->req ? h->req->id : 0, pc, sp);
+            if (pagein_may_touch(r)) {
+                step->touch = pagein_first_missing(r);
+                r->touches++;
             }
-            st_overframes++;
-            goto out;
+            return PANDA_INJECT_AGAIN;  /* the registers go back; the rest at a later boundary */
         }
-        if (!h) {
-            /* held sets this thread can no longer come back to: it left without the token */
-            QTAILQ_FOREACH_SAFE(h, &held, next, hn) {
-                if (h->asid != asid || h->sp != sp) {
-                    continue;
-                }
-                QTAILQ_REMOVE(&held, h, next);
-                if (h->req) {
-                    h->req->inflight = false;
-                }
-                if (debug) {
-                    fprintf(stderr, "pagein: vcpu %d asid %#" PRIx64 " request %" PRIu64
-                            " %s: at %#" PRIx64 " (call at %#" PRIx64 "), token gone\n",
-                            cs->cpu_index, asid, h->req ? h->req->id : 0,
-                            pc == h->pc ? "STALE MATCH REFUSED" : "abandoned", pc, h->pc);
-                }
-                if (pc == h->pc || pc == h->pc - h->len) {
-                    st_stale++;
-                }
-                g_free(h);
-                st_abandoned++;
-            }
-            h = NULL;
-            goto look_for_request;
-        }
-    }
-    if (h) {
-        int64_t ret = pagein_retval(cs);
-        QTAILQ_REMOVE(&held, h, next);
-        if (debug) {
-            fprintf(stderr, "pagein: vcpu %d asid %#" PRIx64 " request %" PRIu64 " back at %#"
-                    PRIx64 " (now %#" PRIx64 ") sp %#" PRIx64 " token %#" PRIx64 ": %" PRId64
-                    " (shift %d, round %d)\n", cs->cpu_index, asid, h->req ? h->req->id : 0,
-                    h->pc, (uint64_t)cs->cc->get_pc(cs), sp, h->token, ret,
-                    h->req ? h->req->shift : 0, h->req ? h->req->rounds : 0);
-        }
-        pagein_restore(cs, h);
-        r = h->req;
-        g_free(h);
-        if (r && ndone < ARRAY_SIZE(done)) {
-            r->inflight = false;
-            int shift = r->shift ? r->shift : TARGET_PAGE_BITS;
-            uint64_t start = r->addr & ~((1ull << shift) - 1);
-
-            if (ret == -EINVAL && !guest_page_shift && shift < 16) {
-                r->first_errno = r->first_errno ? r->first_errno : EINVAL;
-                r->shift = shift + 2;       /* maybe a larger page: try again aligned to it */
-            } else if (ret < 0 && ret > -4096) {
-                pagein_finish(r, PANDA_PAGEIN_EGUEST,
-                              r->first_errno ? r->first_errno : (int)-ret, &done[ndone++]);
-            } else {
-                if (!guest_page_shift && (start & ((1ull << (shift + 2)) - 1))) {
-                    guest_page_shift = shift;   /* worked, and no larger alignment did it */
-                }
-                r->populated = true;
-                int c = pagein_copy(r, true);
-                if (c == QEMU_PLUGIN_VADDR_OK) {
-                    pagein_finish(r, PANDA_PAGEIN_OK, 0, &done[ndone++]);
-                } else if (c == QEMU_PLUGIN_VADDR_IO) {
-                    pagein_finish(r, PANDA_PAGEIN_EIO, 0, &done[ndone++]);
-                } else if (r->rounds >= PAGEIN_MAX_ROUNDS) {
-                    pagein_finish(r, PANDA_PAGEIN_ERECLAIMED, 0, &done[ndone++]);
-                } else if (r->touches < 2 * (r->len / qemu_target_page_size()) + 8) {
-                    touch = pagein_first_missing(r);
-                    r->touches++;
-                }
-                /* else it waits for another round */
-            }
-        }
-        pagein_update_loop_bit();
-        qemu_mutex_unlock(&lock);
-        pagein_complete(done, ndone);
-        if (touch != (uint64_t)-1) {
-            pagein_touch(cs, touch, r->write);
-        }
-        cpu_loop_exit_noexc(cs);    /* the registers changed: look the block up again */
-    }
-
-look_for_request:
-    /* A request for this address space */
-    QTAILQ_FOREACH(r, &reqs, next) {
-        if (!r->inflight && r->asid == asid) {
-            break;
-        }
-    }
-    if (!r) {
-        goto out;
-    }
-    if (user < 0) {
-        if (ndone < ARRAY_SIZE(done)) {
-            pagein_finish(r, PANDA_PAGEIN_EARCH, 0, &done[ndone++]);
-        }
-        goto out;
-    }
-    {
+    } else {
         /* already there (or now): no system call */
-        int c = pagein_copy(r, r->populated);
+        c = pagein_copy(r, r->populated);
         if (c == QEMU_PLUGIN_VADDR_OK || c == QEMU_PLUGIN_VADDR_IO) {
-            if (ndone < ARRAY_SIZE(done)) {
-                pagein_finish(r, c == QEMU_PLUGIN_VADDR_OK ? PANDA_PAGEIN_OK : PANDA_PAGEIN_EIO,
-                              0, &done[ndone++]);
-            }
-            goto out;
+            r->status = c == QEMU_PLUGIN_VADDR_OK ? PANDA_PAGEIN_OK : PANDA_PAGEIN_EIO;
+            return PANDA_INJECT_DONE;
         }
-        if (r->populated && r->touches < 2 * (r->len / qemu_target_page_size()) + 8) {
+        if (r->populated && pagein_may_touch(r)) {
             /* populated, but the CPU's TLB doesn't have the next page yet: its miss, here */
-            uint64_t touch_addr = pagein_first_missing(r);
+            step->touch = pagein_first_missing(r);
             r->touches++;
-            pagein_update_loop_bit();
-            qemu_mutex_unlock(&lock);
-            pagein_complete(done, ndone);
-            if (touch_addr != (uint64_t)-1) {
-                pagein_touch(cs, touch_addr, r->write);
-            }
-            return;
+            return PANDA_INJECT_AGAIN;
         }
         r->populated = false;
     }
     if (r->rounds >= PAGEIN_MAX_ROUNDS) {
-        if (ndone < ARRAY_SIZE(done)) {
-            pagein_finish(r, PANDA_PAGEIN_ERECLAIMED, 0, &done[ndone++]);
-        }
-        goto out;
+        r->status = PANDA_PAGEIN_ERECLAIMED;
+        return PANDA_INJECT_DONE;
+    }
+    if (step->abi < 0 || step->abi >= PANDA_INJECT_ABI_COUNT || !nr_madvise[step->abi]) {
+        r->status = PANDA_PAGEIN_EARCH;
+        return PANDA_INJECT_DONE;
     }
     {
-        int shift = r->shift ? r->shift : guest_page_shift ? guest_page_shift : TARGET_PAGE_BITS;
+        int gs = qatomic_read(&guest_page_shift);
+        int shift = r->shift ? r->shift : gs ? gs : TARGET_PAGE_BITS;
         uint64_t page = qemu_target_page_size();
         uint64_t start = r->addr & ~((1ull << shift) - 1);
         uint64_t end = ROUND_UP(r->addr + r->len, page);
 
         r->shift = shift;
-
-        h = g_new0(PageinRegs, 1);
-        h->asid = asid;
-        h->sp = sp;
-        h->req = r;
-        pagein_save(cs, h);
-        h->token = 0x80000000u | (uint32_t)(++token_seq * 0x9e3779b1u ^ token_salt);
-        QTAILQ_INSERT_TAIL(&held, h, next);
-        r->inflight = true;
         r->rounds++;
+        qemu_mutex_lock(&lock);
         st_injected++;
-        if (debug) {
-            fprintf(stderr, "pagein: vcpu %d asid %#" PRIx64 " request %" PRIu64 " call at %#"
-                    PRIx64 " sp %#" PRIx64 ": [%#" PRIx64 ", %#" PRIx64 ") %s\n", cs->cpu_index,
-                    asid, r->id, h->pc, sp, start, end, r->write ? "write" : "read");
-        }
-        pagein_update_loop_bit();
         qemu_mutex_unlock(&lock);
-        pagein_complete(done, ndone);
-        pagein_marker_set(cs, h->token);
-        pagein_inject(cs, start, end - start,
-                      r->write ? MADV_POPULATE_WRITE : MADV_POPULATE_READ);
-        g_assert_not_reached();
+        call->nr = nr_madvise[step->abi];
+        call->args[0] = start;
+        call->args[1] = end - start;
+        call->args[2] = r->write ? MADV_POPULATE_WRITE : MADV_POPULATE_READ;
+        call->nargs = 3;
+        return PANDA_INJECT_CALL;
     }
-out:
-    pagein_update_loop_bit();
-    qemu_mutex_unlock(&lock);
-    pagein_complete(done, ndone);
-#endif
 }
 
-/* A snapshot load or reset: the state the held registers belong to is gone */
-void panda_pagein_cancel_all(void)
+static int pagein_status_of(int st)
 {
-    Done d = { 0 };
-    PageinReq *r;
-    PageinRegs *h;
-
-    if (!qatomic_read(&inited)) {
-        return;
+    switch (st) {
+    case PANDA_INJECT_ETIMEDOUT: return PANDA_PAGEIN_ETIMEDOUT;
+    case PANDA_INJECT_ECANCELED: return PANDA_PAGEIN_ECANCELED;
+    case PANDA_INJECT_ERECORD: return PANDA_PAGEIN_ERECORD;
+    case PANDA_INJECT_EACCEL: return PANDA_PAGEIN_EACCEL;
+    case PANDA_INJECT_EARCH: return PANDA_PAGEIN_EARCH;
+    case PANDA_INJECT_EBUSY: return PANDA_PAGEIN_EBUSY;
+    case PANDA_INJECT_EINVAL: return PANDA_PAGEIN_EINVAL;
     }
-    for (;;) {
+    return PANDA_PAGEIN_EINVAL;
+}
+
+static int pagein_start(PageinReq *r);
+
+static void pagein_done(void *opaque, uint64_t sid, int status)
+{
+    PageinReq *r = opaque;
+    int st;
+
+    if (status == PANDA_INJECT_EABANDONED) {
+        /*
+         * The thread came back from the call somewhere else (a signal handler longjmp'd, an rseq
+         * abort): it kept its own registers, and the request goes round again
+         */
         qemu_mutex_lock(&lock);
-        guest_page_shift = 0;               /* maybe another guest now */
-        while ((h = QTAILQ_FIRST(&held))) {
-            QTAILQ_REMOVE(&held, h, next);
-            g_free(h);
-        }
-        r = QTAILQ_FIRST(&reqs);
-        if (r) {
-            pagein_finish(r, PANDA_PAGEIN_ECANCELED, 0, &d);
-        }
-        pagein_update_loop_bit();
+        st_abandoned++;
         qemu_mutex_unlock(&lock);
-        if (!r) {
+        if (pagein_start(r) == PANDA_INJECT_QUEUED) {
             return;
         }
-        pagein_complete(&d, 1);
+        status = PANDA_INJECT_ERECORD;
     }
+    if (status == PANDA_INJECT_ECANCELED) {
+        qatomic_set(&guest_page_shift, 0);      /* a snapshot load: maybe another guest now */
+    }
+    st = status == PANDA_INJECT_OK ? r->status : pagein_status_of(status);
+    qemu_mutex_lock(&lock);
+    nreqs--;
+    st_completed++;
+    if (st <= 0 && st >= -10) {
+        st_status[-st]++;
+    }
+    qemu_mutex_unlock(&lock);
+    r->cb(r->id, st, st == PANDA_PAGEIN_EGUEST ? r->guest_errno : 0,
+          st == PANDA_PAGEIN_OK ? r->buf : NULL, st == PANDA_PAGEIN_OK ? r->len : 0, r->opaque);
+    g_free(r->buf);
+    g_free(r);
+}
+
+static int pagein_start(PageinReq *r)
+{
+    return panda_inject_submit(PANDA_INJECT_TARGET_ASID, r->asid, r->timeout_ns, pagein_next,
+                               pagein_done, r, NULL);
+}
+
+int panda_pagein_submit(uint64_t asid, uint64_t addr, size_t len, const uint8_t *wdata,
+                        uint64_t timeout_ns, panda_pagein_cb_t cb, void *opaque, uint64_t *id)
+{
+    PageinReq *r;
+    int ret;
+
+    pagein_init();
+    if (!replay_analysis_write_allowed()) {
+        return PANDA_PAGEIN_ERECORD;     /* the system call would not be in the recording */
+    }
+    if (!cb || len == 0 || len > PANDA_PAGEIN_MAX_LEN || addr + len < addr) {
+        return PANDA_PAGEIN_EINVAL;
+    }
+    qemu_mutex_lock(&lock);
+    if (nreqs >= PANDA_PAGEIN_MAX_OUTSTANDING) {
+        qemu_mutex_unlock(&lock);
+        return PANDA_PAGEIN_EBUSY;
+    }
+    nreqs++;
+    r = g_new0(PageinReq, 1);
+    r->id = next_id++;
+    qemu_mutex_unlock(&lock);
+    r->asid = asid;
+    r->addr = addr;
+    r->len = len;
+    r->write = wdata != NULL;
+    r->buf = wdata ? g_memdup2(wdata, len) : g_malloc0(len);
+    r->cb = cb;
+    r->opaque = opaque;
+    r->timeout_ns = timeout_ns;
+    r->status = PANDA_PAGEIN_EINVAL;
+    ret = pagein_start(r);
+    if (ret != PANDA_INJECT_QUEUED) {
+        qemu_mutex_lock(&lock);
+        nreqs--;
+        qemu_mutex_unlock(&lock);
+        g_free(r->buf);
+        g_free(r);
+        return pagein_status_of(ret);
+    }
+    qemu_mutex_lock(&lock);
+    st_submitted++;
+    qemu_mutex_unlock(&lock);
+    if (id) {
+        *id = r->id;
+    }
+    return PANDA_PAGEIN_QUEUED;
 }

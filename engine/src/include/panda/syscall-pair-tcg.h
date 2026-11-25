@@ -9,7 +9,9 @@
  * Both are false in a run without a declaration, so its translated code is unchanged.
  *
  * Run time, from C trap sites (forms whose trap is taken in C: X86_INT80, A32_SVC):
- *   panda_sc_enter_c(cpu, form, pc, len)   if panda_sc_enter_inline(form)
+ *   panda_sc_enter_c(cpu, form, pc, len)   if panda_sc_enter_inline(form); true if the entry
+ *                                          was held (panda_inject_hold): the site leaves the
+ *                                          trap undone, the task at the trap instruction
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -32,7 +34,7 @@ static inline bool panda_sc_return_inline(void)
     return __atomic_load_n(&panda_sc_armed, __ATOMIC_RELAXED);
 }
 
-void panda_sc_enter_c(CPUState *cpu, unsigned form, uint64_t pc, uint32_t len);
+bool panda_sc_enter_c(CPUState *cpu, unsigned form, uint64_t pc, uint32_t len);
 
 /* Reset, snapshot load and fast restore, with the vCPUs stopped (panda_analysis_reset): every
  * pending call and task-key cache is dropped. */

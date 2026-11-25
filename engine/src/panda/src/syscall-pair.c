@@ -397,7 +397,7 @@ static void sc_enter(ScState *P, ScAbi *A, CPUState *cpu, CPUArchState *env, uns
         qatomic_set(&v->dlv, r);
         qatomic_store_release(&P->sets[s].tag[cl & 0xff], tag);
         if (w & SC_W_ENTRY) {
-            sc_deliver(P->by_id[c->abi], cpu, c, 0, 0);
+            sc_deliver(P->by_id[c->abi], cpu, c, 0, panda_inject_entry_flags(cpu, pc));
         }
         return;
     }
@@ -405,7 +405,7 @@ not_kept:
     c = v->slot;
     sc_fill(false, A, v, ci, env, c, nr, pc, len);
     if (w & SC_W_ENTRY) {
-        sc_deliver(P->by_id[c->abi], cpu, c, 0, 0);
+        sc_deliver(P->by_id[c->abi], cpu, c, 0, panda_inject_entry_flags(cpu, pc));
     }
 }
 
@@ -416,28 +416,46 @@ void sc_enter_full(CPUArchState *env, uint32_t wl, int64_t nr, uint64_t pc)
     sc_enter(P, P->abi[wl >> 16], env_cpu(env), env, wl & 0xff, nr, pc, (wl >> 8) & 0xff);
 }
 
-void panda_sc_enter_c(CPUState *cpu, unsigned form, uint64_t pc, uint32_t len)
+bool panda_sc_enter_c(CPUState *cpu, unsigned form, uint64_t pc, uint32_t len)
 {
     ScState *P = qatomic_read(&sc);
     CPUArchState *env = cpu_env(cpu);
     ScAbi *A;
     unsigned w;
     int64_t nr;
+    bool held;
 
     if (!P || form >= PANDA_SYSCALL_FORM_COUNT || !(A = P->abi[form])) {
-        return;
+        return false;
     }
     nr = sc_nr(A, env);
     w = qatomic_read(&A->want[sc_index(&A->abi, nr)]);
-    if (w) {
-        /* the fast functions (the general layout), as from translated code */
-        w |= len << 8 | form << 16;
-        if (P->key_form != PANDA_TASK_KEY_CALL) {
-            sc_enter_c_task(env, w, nr, pc);
-        } else {
-            sc_enter_c_call(env, w, nr, pc);
-        }
+    if (!w) {
+        return false;
     }
+    /* the fast functions (the general layout), as from translated code */
+    w |= len << 8 | form << 16;
+    panda_sc_hold = 1;
+    if (P->key_form != PANDA_TASK_KEY_CALL) {
+        sc_enter_c_task(env, w, nr, pc);
+    } else {
+        sc_enter_c_call(env, w, nr, pc);
+    }
+    held = panda_sc_hold_end(cpu);
+    return held;
+}
+
+bool panda_sc_hold_end(CPUState *cpu)
+{
+    PandaSyscallCall *c = panda_sc_hold_call;
+    bool held = panda_sc_hold == 2;
+
+    panda_sc_hold = 0;
+    panda_sc_hold_call = NULL;
+    if (held && c) {
+        panda_syscall_keep(cpu, c, false);      /* the trap does not run now: no return */
+    }
+    return held;
 }
 
 /* --- Returns ------------------------------------------------------------------------------- */
@@ -1261,7 +1279,7 @@ uint32_t panda_task_key(CPUState *cpu, uint64_t *key) { return PANDA_TASK_KEY_NO
 void panda_syscall_stats(PandaSyscallStats *out) { memset(out, 0, sizeof(*out)); }
 void panda_syscall_route(int abi, int64_t nr, PandaSyscallFn enter, PandaSyscallFn ret,
                          void *ctx) {}
-void panda_sc_enter_c(CPUState *cpu, unsigned form, uint64_t pc, uint32_t len) {}
+bool panda_sc_enter_c(CPUState *cpu, unsigned form, uint64_t pc, uint32_t len) { return false; }
 void panda_syscall_pair_reset(void) {}
 
 #endif /* SC_TARGET */

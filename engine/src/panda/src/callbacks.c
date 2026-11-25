@@ -747,7 +747,7 @@ void panda_analysis_reset(void)
     panda_transient_depth++;
     syscall_trap_cancel_all();
     panda_syscall_pair_reset();
-    panda_pagein_cancel_all();
+    panda_inject_cancel_all();
     for (PandaTransientReset *entry = head; entry; entry = entry->next) {
         if (!qatomic_read(&entry->dead)) {
             entry->reset(entry->opaque);

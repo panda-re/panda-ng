@@ -37,6 +37,7 @@
 #include "panda/common.h"
 #include "panda/syscall-pair.h"
 #include "panda/syscall-pair-tcg.h"
+#include "inject-int.h"
 
 #if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_RISCV64) || \
     defined(TARGET_MIPS) || defined(TARGET_PPC)
