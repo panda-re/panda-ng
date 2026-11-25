@@ -284,6 +284,24 @@ void fill_osiprochandle(CPUState *cpu, OsiProcHandle *h, uint64_t ts) {
 constexpr uint64_t MAPLE_NODE_MASK = 255;
 enum { maple_dense, maple_leaf_64, maple_range_64, maple_arange_64 };
 
+// n pointer-sized words at addr, in one read (else one by one; 0 where unreadable).
+std::vector<uint64_t> read_words(CPUState *cpu, uint64_t addr, int64_t n) {
+    std::vector<uint64_t> out(n, 0);
+    size_t ps = prof.pointer_size;
+    std::vector<uint8_t> buf(n * ps);
+    if (n > 0 && read_mem(cpu, addr, buf.data(), buf.size())) {
+        for (int64_t i = 0; i < n; i++) {
+            uint64_t v = 0;
+            for (size_t b = 0; b < ps; b++)
+                v |= (uint64_t)buf[i * ps + b] << (8 * (prof.big_endian ? ps - 1 - b : b));
+            out[i] = v;
+        }
+    } else {
+        for (int64_t i = 0; i < n; i++) read_uint(cpu, addr + i * ps, ps, &out[i]);
+    }
+    return out;
+}
+
 bool mt_is_node(uint64_t entry) { return (entry & 3) == 2 && entry > 4096; }
 
 void maple_walk(CPUState *cpu, uint64_t entry, uint64_t min, uint64_t max, int depth,
@@ -300,17 +318,19 @@ void maple_walk(CPUState *cpu, uint64_t entry, uint64_t min, uint64_t max, int d
         return;  // dense nodes don't hold VMAs
     }
     if (pivot_off < 0 || slot_off < 0 || nslot <= 0) return;
+    // The node's pivots and slots, each array in one read.
+    std::vector<uint64_t> pivots = read_words(cpu, node + pivot_off, std::max<int64_t>(npivot, 0));
+    std::vector<uint64_t> slots = read_words(cpu, node + slot_off, nslot);
     uint64_t lo = min;
     for (int64_t i = 0; i < nslot; i++) {
         uint64_t hi = max;
         if (i < npivot) {
-            uint64_t pv = 0;
-            read_uint(cpu, node + pivot_off + i * prof.pointer_size, prof.pointer_size, &pv);
+            uint64_t pv = pivots[i];
             // A zero pivot past the first slot ends the node's data.
             if (pv == 0 && i > 0) break;
             hi = pv;
         }
-        uint64_t slot = ptr_at(cpu, node + slot_off + i * prof.pointer_size);
+        uint64_t slot = slots[i];
         if (slot) {
             if (type == maple_leaf_64) {
                 if ((slot & 3) != 2) out.push_back(slot);
@@ -343,16 +363,20 @@ std::vector<uint64_t> process_vmas(CPUState *cpu, uint64_t ts) {
              v = field_ptr(cpu, v, off.vma_next))
             raw.push_back(v);
     }
-    // A slot can be stale while the tree is being changed; keep only VMAs of this mm.
+    // A slot can be stale while the tree is being changed; keep only VMAs of this mm. Each start
+    // is read once for the sort; the walk gives them in order already, so the sort is a check.
+    std::vector<std::pair<uint64_t, uint64_t>> keyed;   // (vm_start, vma)
+    keyed.reserve(raw.size());
     for (uint64_t v : raw) {
         if (!is_kernel_ptr(v) || field_ptr(cpu, v, off.vma_mm) != mm) continue;
-        if (field_ptr(cpu, v, off.vma_start) >= field_ptr(cpu, v, off.vma_end)) continue;
-        out.push_back(v);
+        uint64_t start = field_ptr(cpu, v, off.vma_start);
+        if (start >= field_ptr(cpu, v, off.vma_end)) continue;
+        keyed.push_back({start, v});
     }
-    std::sort(out.begin(), out.end(), [cpu](uint64_t a, uint64_t b) {
-        return field_ptr(cpu, a, off.vma_start) < field_ptr(cpu, b, off.vma_start);
-    });
-    out.erase(std::unique(out.begin(), out.end()), out.end());
+    if (!std::is_sorted(keyed.begin(), keyed.end())) std::sort(keyed.begin(), keyed.end());
+    keyed.erase(std::unique(keyed.begin(), keyed.end()), keyed.end());
+    out.reserve(keyed.size());
+    for (auto &k : keyed) out.push_back(k.second);
     return out;
 }
 
