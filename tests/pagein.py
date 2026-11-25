@@ -91,6 +91,8 @@ ap.add_argument("--secs", type=int, default=0)
 ap.add_argument("--intel", action="store_true")
 ap.add_argument("--no-signals", action="store_true",
                 help="no timer signal whose handler longjmps (the program's sig mode)")
+ap.add_argument("--signals", choices=("sig", "real"), default="sig",
+                help="sig: every 10 ms of the program's CPU time; real: every 2 ms of wall time")
 ap.add_argument("--json")
 opt = ap.parse_args()
 
@@ -308,7 +310,7 @@ def drive():
     d = "/mnt" if out.strip().endswith(b"1") else "/tmp"
     progress(f"pagein: setup: {out.decode(errors='replace').strip()!r}")
     secs = opt.secs or (8 + opt.stress // 100)
-    agent.run(f"(/tmp/pt {d} {secs} spin {'nosig' if nosig else 'sig'} > /tmp/pt.out 2>&1; echo exit=$? >> /tmp/pt.out) &")
+    agent.run(f"(/tmp/pt {d} {secs} spin {'nosig' if nosig else opt.signals} > /tmp/pt.out 2>&1; echo exit=$? >> /tmp/pt.out) &")
     if not st["ready"].wait(120):
         C.check("program ready", False, "no READY hypercall")
         panda.end_analysis()

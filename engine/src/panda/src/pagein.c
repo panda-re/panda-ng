@@ -56,6 +56,8 @@
  * 64 KiB; the first alignment that works, from a start not aligned to the next one, is it.
  */
 static int guest_page_shift;
+static uint32_t token_seq, token_salt;
+static bool no_token;           /* PANDA_PAGEIN_NO_TOKEN (diagnosis only) */
 
 typedef struct PageinReq {
     QTAILQ_ENTRY(PageinReq) next;
@@ -76,6 +78,7 @@ typedef struct PageinReq {
 typedef struct PageinRegs {
     QTAILQ_ENTRY(PageinRegs) next;
     uint64_t asid, sp, pc;
+    uint64_t token;             /* in the marker register while the call is out */
     unsigned len;               /* the system call instruction's length, for a restart */
     PageinReq *req;             /* NULL once the request is gone (timeout, cancel) */
     /* the thread's registers: general purpose ones, and what the target keeps besides */
@@ -90,7 +93,8 @@ static QTAILQ_HEAD(, PageinReq) reqs = QTAILQ_HEAD_INITIALIZER(reqs);
 static QTAILQ_HEAD(, PageinRegs) held = QTAILQ_HEAD_INITIALIZER(held);
 static unsigned nreqs;
 static uint64_t next_id G_GNUC_UNUSED = 1;    /* unused without an injector */
-static uint64_t st_submitted, st_injected, st_completed, st_abandoned, st_status[11];
+static uint64_t st_submitted, st_injected, st_completed, st_abandoned, st_stale, st_overframes;
+static uint64_t st_status[11];
 
 /* Completions to run after the lock is dropped */
 typedef struct Done {
@@ -107,6 +111,8 @@ static void pagein_init(void)
             qemu_mutex_init(&init_lock);
             qemu_mutex_init(&lock);
             debug = getenv("PANDA_PAGEIN_DEBUG") != NULL;
+            token_salt = g_random_int();
+            no_token = getenv("PANDA_PAGEIN_NO_TOKEN") != NULL;
             qatomic_set(&inited, true);
             g_once_init_leave(&once, 1);
         }
@@ -180,11 +186,14 @@ const char *panda_pagein_strerror(int status)
 }
 
 void panda_pagein_stats(uint64_t *submitted, uint64_t *injected, uint64_t *completed,
-                        uint64_t *abandoned, uint64_t by_status[11])
+                        uint64_t *abandoned, uint64_t *stale, uint64_t *overframes,
+                        uint64_t by_status[11])
 {
     pagein_init();
     qemu_mutex_lock(&lock);
     *abandoned = st_abandoned;
+    *stale = st_stale;
+    *overframes = st_overframes;
     *submitted = st_submitted;
     *injected = st_injected;
     *completed = st_completed;
@@ -227,6 +236,9 @@ static int64_t pagein_retval(CPUState *cs)
 {
     return (int64_t)cpu_env(cs)->regs[R_EAX];
 }
+/* r12: preserved by system calls and saved in a signal frame; ours while the call is out */
+static uint64_t pagein_marker_get(CPUState *cs) { return cpu_env(cs)->regs[12]; }
+static void pagein_marker_set(CPUState *cs, uint64_t v) { cpu_env(cs)->regs[12] = v; }
 static void pagein_restore(CPUState *cs, PageinRegs *h)
 {
     CPUX86State *env = cpu_env(cs);
@@ -317,6 +329,21 @@ static int64_t pagein_retval(CPUState *cs)
     CPUARMState *env = cpu_env(cs);
     return is_a64(env) ? (int64_t)env->xregs[0] : (int64_t)(int32_t)env->regs[0];
 }
+/* x28 (AArch64) or r8 (AArch32): preserved by system calls and saved in a signal frame */
+static uint64_t pagein_marker_get(CPUState *cs)
+{
+    CPUARMState *env = cpu_env(cs);
+    return is_a64(env) ? env->xregs[28] : env->regs[8];
+}
+static void pagein_marker_set(CPUState *cs, uint64_t v)
+{
+    CPUARMState *env = cpu_env(cs);
+    if (is_a64(env)) {
+        env->xregs[28] = v;
+    } else {
+        env->regs[8] = (uint32_t)v;
+    }
+}
 static void pagein_restore(CPUState *cs, PageinRegs *h)
 {
     CPUARMState *env = cpu_env(cs);
@@ -384,6 +411,9 @@ static int64_t pagein_retval(CPUState *cs)
 {
     return (int64_t)cpu_env(cs)->gpr[10];
 }
+/* s11 */
+static uint64_t pagein_marker_get(CPUState *cs) { return cpu_env(cs)->gpr[27]; }
+static void pagein_marker_set(CPUState *cs, uint64_t v) { cpu_env(cs)->gpr[27] = v; }
 static void pagein_restore(CPUState *cs, PageinRegs *h)
 {
     CPURISCVState *env = cpu_env(cs);
@@ -449,6 +479,9 @@ static int64_t pagein_retval(CPUState *cs)
     int64_t v0 = (target_long)env->active_tc.gpr[2];
     return env->active_tc.gpr[7] ? -v0 : v0;
 }
+/* s7 */
+static uint64_t pagein_marker_get(CPUState *cs) { return cpu_env(cs)->active_tc.gpr[23]; }
+static void pagein_marker_set(CPUState *cs, uint64_t v) { cpu_env(cs)->active_tc.gpr[23] = v; }
 static void pagein_restore(CPUState *cs, PageinRegs *h)
 {
     CPUMIPSState *env = cpu_env(cs);
@@ -520,6 +553,9 @@ static int64_t pagein_retval(CPUState *cs)
     int64_t r3 = (target_long)env->gpr[3];
     return (env->crf[0] & 1) ? -r3 : r3;
 }
+/* r30: non-volatile across sc */
+static uint64_t pagein_marker_get(CPUState *cs) { return cpu_env(cs)->gpr[30]; }
+static void pagein_marker_set(CPUState *cs, uint64_t v) { cpu_env(cs)->gpr[30] = v; }
 static void pagein_restore(CPUState *cs, PageinRegs *h)
 {
     CPUPPCState *env = cpu_env(cs);
@@ -577,6 +613,9 @@ static int64_t pagein_retval(CPUState *cs)
 {
     return (int64_t)cpu_env(cs)->gpr[4];
 }
+/* s8 */
+static uint64_t pagein_marker_get(CPUState *cs) { return cpu_env(cs)->gpr[31]; }
+static void pagein_marker_set(CPUState *cs, uint64_t v) { cpu_env(cs)->gpr[31] = v; }
 static void pagein_restore(CPUState *cs, PageinRegs *h)
 {
     CPULoongArchState *env = cpu_env(cs);
@@ -802,31 +841,69 @@ void panda_pagein_service(CPUState *cs)
     }
     asid = panda_current_asid(cs);
 
-    /* A thread back from our system call: its registers go back first */
-    QTAILQ_FOREACH(h, &held, next) {
-        if (h->asid == asid && h->sp == sp) {
-            break;
-        }
-    }
-    if (h) {
-        uint64_t pc = cs->cc->get_pc(cs);
+    /*
+     * A thread back from our system call: its registers go back first. It is ours only if it
+     * still carries the call's token in the marker register, at the call's stack pointer and
+     * instruction (or the restart point). The stack pointer and instruction alone are not
+     * enough: if a signal was delivered on the way out of the call, the kernel built the
+     * handler's frame from the call's registers; a handler that longjmps leaves the held set
+     * behind, and the next time the thread runs the same instruction at the same depth (a loop,
+     * a function called again) it would match and get stale registers. A thread that carries
+     * the token somewhere else is running a signal handler over the call: leave it alone.
+     */
+    {
+        uint64_t pc = cs->cc->get_pc(cs), mark = pagein_marker_get(cs);
+        PageinRegs *hn;
 
-        if (pc != h->pc && pc != h->pc - h->len) {
-            /*
-             * Same thread, somewhere else: a signal handler that longjmp'd, an rseq abort. Its
-             * registers are its own now: leave them, and let the request go round again.
-             */
-            QTAILQ_REMOVE(&held, h, next);
-            if (h->req) {
-                h->req->inflight = false;
+        QTAILQ_FOREACH(h, &held, next) {
+            /* PANDA_PAGEIN_NO_TOKEN: the old match (stack pointer only), to show the race */
+            if (h->asid == asid && (no_token ? h->sp == sp : mark == h->token)) {
+                break;
             }
+        }
+        if (h && no_token && pc != h->pc && pc != h->pc - h->len) {
+            h = NULL;           /* the old rule: dropped below as abandoned */
+        } else if (h && no_token && mark != h->token) {
+            st_stale++;         /* the old rule restores here: the wrong registers */
             if (debug) {
                 fprintf(stderr, "pagein: vcpu %d asid %#" PRIx64 " request %" PRIu64
-                        " abandoned: back at %#" PRIx64 ", not %#" PRIx64 "\n", cs->cpu_index,
-                        asid, h->req ? h->req->id : 0, pc, h->pc);
+                        " STALE MATCH RESTORED (old rule) at %#" PRIx64 "\n", cs->cpu_index,
+                        asid, h->req ? h->req->id : 0, pc);
             }
-            g_free(h);
-            st_abandoned++;
+        }
+        if (h && !no_token && (h->sp != sp || (pc != h->pc && pc != h->pc - h->len))) {
+            if (debug) {
+                fprintf(stderr, "pagein: vcpu %d asid %#" PRIx64 " request %" PRIu64
+                        " in flight; its thread runs at %#" PRIx64 " sp %#" PRIx64
+                        " (a signal frame over the call)\n", cs->cpu_index, asid,
+                        h->req ? h->req->id : 0, pc, sp);
+            }
+            st_overframes++;
+            goto out;
+        }
+        if (!h) {
+            /* held sets this thread can no longer come back to: it left without the token */
+            QTAILQ_FOREACH_SAFE(h, &held, next, hn) {
+                if (h->asid != asid || h->sp != sp) {
+                    continue;
+                }
+                QTAILQ_REMOVE(&held, h, next);
+                if (h->req) {
+                    h->req->inflight = false;
+                }
+                if (debug) {
+                    fprintf(stderr, "pagein: vcpu %d asid %#" PRIx64 " request %" PRIu64
+                            " %s: at %#" PRIx64 " (call at %#" PRIx64 "), token gone\n",
+                            cs->cpu_index, asid, h->req ? h->req->id : 0,
+                            pc == h->pc ? "STALE MATCH REFUSED" : "abandoned", pc, h->pc);
+                }
+                if (pc == h->pc || pc == h->pc - h->len) {
+                    st_stale++;
+                }
+                g_free(h);
+                st_abandoned++;
+            }
+            h = NULL;
             goto look_for_request;
         }
     }
@@ -835,9 +912,10 @@ void panda_pagein_service(CPUState *cs)
         QTAILQ_REMOVE(&held, h, next);
         if (debug) {
             fprintf(stderr, "pagein: vcpu %d asid %#" PRIx64 " request %" PRIu64 " back at %#"
-                    PRIx64 ": %" PRId64 " (shift %d, round %d)\n", cs->cpu_index, asid,
-                    h->req ? h->req->id : 0, h->pc, ret, h->req ? h->req->shift : 0,
-                    h->req ? h->req->rounds : 0);
+                    PRIx64 " (now %#" PRIx64 ") sp %#" PRIx64 " token %#" PRIx64 ": %" PRId64
+                    " (shift %d, round %d)\n", cs->cpu_index, asid, h->req ? h->req->id : 0,
+                    h->pc, (uint64_t)cs->cc->get_pc(cs), sp, h->token, ret,
+                    h->req ? h->req->shift : 0, h->req ? h->req->rounds : 0);
         }
         pagein_restore(cs, h);
         r = h->req;
@@ -940,6 +1018,7 @@ look_for_request:
         h->sp = sp;
         h->req = r;
         pagein_save(cs, h);
+        h->token = 0x80000000u | (uint32_t)(++token_seq * 0x9e3779b1u ^ token_salt);
         QTAILQ_INSERT_TAIL(&held, h, next);
         r->inflight = true;
         r->rounds++;
@@ -952,6 +1031,7 @@ look_for_request:
         pagein_update_loop_bit();
         qemu_mutex_unlock(&lock);
         pagein_complete(done, ndone);
+        pagein_marker_set(cs, h->token);
         pagein_inject(cs, start, end - start,
                       r->write ? MADV_POPULATE_WRITE : MADV_POPULATE_READ);
         g_assert_not_reached();

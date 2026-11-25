@@ -35,6 +35,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <setjmp.h>
+#include <ucontext.h>
 #include <sys/time.h>
 
 #define PG 4096UL
@@ -131,10 +132,26 @@ static long hc(long op, long a, long b)
 static void hc_setup(void) {}
 #endif
 
-static void onsig(int s)
+/* On its own stack, so that it reports even a broken stack pointer: where, and from what */
+static void onsig(int s, siginfo_t *si, void *ucv)
 {
-    printf("PT SIGNAL %d\n", s);
-    fflush(stdout);
+    ucontext_t *uc = ucv;
+    unsigned long ip = 0, sp = 0;
+    char b[200];
+#if defined(__x86_64__)
+    ip = uc->uc_mcontext.gregs[REG_RIP];
+    sp = uc->uc_mcontext.gregs[REG_RSP];
+#elif defined(__aarch64__)
+    ip = uc->uc_mcontext.pc;
+    sp = uc->uc_mcontext.sp;
+#elif defined(__riscv)
+    ip = uc->uc_mcontext.__gregs[0];
+    sp = uc->uc_mcontext.__gregs[2];
+#endif
+    (void)uc;
+    int n = snprintf(b, sizeof b, "PT SIGNAL %d addr %#lx ip %#lx sp %#lx\n", s,
+                     (unsigned long)si->si_addr, ip, sp);
+    write(1, b, n);
     _exit(s == SIGBUS ? 98 : 99);
 }
 
@@ -143,6 +160,7 @@ static void onsig(int s)
  * threads come back from the page-in's system call somewhere else than where it was made */
 static sigjmp_buf jb;
 static volatile long jumps;
+static volatile uint64_t mk;        /* the memory copy of the spin loop's counter */
 static void onalrm(int s)
 {
     (void)s;
@@ -161,11 +179,16 @@ int main(int argc, char **argv)
     const char *dir = argc > 1 ? argv[1] : "/tmp";
     int secs = argc > 2 ? atoi(argv[2]) : 5;
     int spin = argc > 3 && !strcmp(argv[3], "spin");
-    int sig = argc > 4 && !strcmp(argv[4], "sig");
+    int real = argc > 4 && !strcmp(argv[4], "real");     /* wall-clock timer: more signals */
+    int sig = argc > 4 && (!strcmp(argv[4], "sig") || real);
     char path[256], tpath[256];
 
-    signal(SIGSEGV, onsig);
-    signal(SIGBUS, onsig);
+    static char altstack[65536];
+    stack_t ss = { .ss_sp = altstack, .ss_size = sizeof altstack };
+    struct sigaction sa = { .sa_sigaction = onsig, .sa_flags = SA_SIGINFO | SA_ONSTACK };
+    sigaltstack(&ss, NULL);
+    sigaction(SIGSEGV, &sa, NULL);
+    sigaction(SIGBUS, &sa, NULL);
     hc_setup();
     snprintf(path, sizeof path, "%s/pt.%d", dir, getpid());
     snprintf(tpath, sizeof tpath, "%s/ptt.%d", dir, getpid());
@@ -211,25 +234,35 @@ int main(int argc, char **argv)
 
     volatile long end = now_ms() + secs * 1000L, mism = 0, iters = 0;
     if (spin && sig) {
-        /* user CPU time, not wall time: a slow guest isn't buried in signals */
-        struct itimerval it = { { 0, 10000 }, { 0, 10000 } };
-        signal(SIGVTALRM, onalrm);
-        setitimer(ITIMER_VIRTUAL, &it, NULL);
+        /* user CPU time, not wall time: a slow guest isn't buried in signals; or ("real") every
+         * 2 ms of wall time, which lands signals while the thread is in the kernel too */
+        struct itimerval it = { { 0, real ? 2000 : 10000 }, { 0, real ? 2000 : 10000 } };
+        /* the jump buffer before the first signal can come */
         if (sigsetjmp(jb, 1)) {
             jumps++;
+        } else {
+            signal(real ? SIGALRM : SIGVTALRM, onalrm);
+            setitimer(real ? ITIMER_REAL : ITIMER_VIRTUAL, &it, NULL);
         }
     }
     if (spin) {
         while (now_ms() < end) {
-            /* two copies of one recurrence, kept in registers across the loop */
-            register uint64_t x = 0x1234567 + iters, y = 0x1234567 + iters;
+            /*
+             * Two copies of one recurrence kept in registers, and a counter kept both in a
+             * register and in memory: registers put back from the wrong moment (a stale copy)
+             * show up as a counter behind its memory copy.
+             */
+            register uint64_t x = 0x1234567 + iters, y = 0x1234567 + iters, k = mk;
             for (int i = 0; i < 100000; i++) {
                 x = x * 6364136223846793005ULL + 1442695040888963407ULL;
                 y = y * 6364136223846793005ULL + 1442695040888963407ULL;
-                __asm__ volatile("" : "+r"(x), "+r"(y));
-                if (x != y) {
+                k++;
+                mk = mk + 1;
+                __asm__ volatile("" : "+r"(x), "+r"(y), "+r"(k));
+                if (x != y || k != mk) {
                     mism++;
                     y = x;
+                    k = mk;
                 }
             }
             iters++;
@@ -243,7 +276,7 @@ int main(int argc, char **argv)
     }
     if (sig) {             /* before anything below can be jumped out of */
         struct itimerval off = { { 0, 0 }, { 0, 0 } };
-        setitimer(ITIMER_VIRTUAL, &off, NULL);
+        setitimer(real ? ITIMER_REAL : ITIMER_VIRTUAL, &off, NULL);
     }
     long bad = 0, wrote = tag[2];       /* the test sets tag[2] when it wrote WR */
     for (unsigned i = 0; i < NP * PG / 8; i++) {

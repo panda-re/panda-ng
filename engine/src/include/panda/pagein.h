@@ -15,9 +15,12 @@
  * file, a kernel address). The thread's registers are put back when it comes back to user mode
  * with the same stack pointer at the same instruction (or at the system call it would restart),
  * the range is read or written without faulting, and the completion runs, on that vCPU's
- * thread. A thread that comes back elsewhere (a signal handler longjmp'd, an rseq abort) keeps
- * its registers, except those a system call may change (and the arguments of ours), and the
- * request is served again later. The code that made the request never runs again because of it.
+ * thread. While the call is out, a marker register (x86_64 r12, AArch64 x28, AArch32 r8,
+ * riscv s11, mips s7, ppc r30, loongarch s8) holds a token for it, which a signal frame built over
+ * the call keeps; registers are put back only where the token, the stack pointer and the
+ * instruction all match. A thread that comes back elsewhere or without the token (a signal
+ * handler longjmp'd, an rseq abort) keeps its registers, except those a system call may change
+ * (and the arguments and marker of ours), and the request is served again later. The code that made the request never runs again because of it.
  *
  * Guest-visible effects: the system call itself (seccomp, ptrace, audit and syscall tracers see
  * a madvise the program did not make), and those of a page-in: resident memory, fault counters,
@@ -89,11 +92,14 @@ const char *panda_pagein_strerror(int status);
 /*
  * Counters since start: submitted, injected system calls, completed, abandoned (a thread came back
  * to user mode somewhere else than where the call was injected, e.g. a signal handler's longjmp or
- * an rseq abort: its registers were left as they were and the request went round again), and
- * completions by status (-10..0).
+ * an rseq abort: its registers were left as they were and the request went round again), of
+ * those, the ones that came back to the call's own instruction and stack pointer without the
+ * call's token (stale: restoring there would have been wrong), the boundaries at which a thread
+ * ran a signal handler over a call in flight (overframes), and completions by status (-10..0).
  */
 void panda_pagein_stats(uint64_t *submitted, uint64_t *injected, uint64_t *completed,
-                        uint64_t *abandoned, uint64_t by_status[11]);
+                        uint64_t *abandoned, uint64_t *stale, uint64_t *overframes,
+                        uint64_t by_status[11]);
 
 #ifdef __cplusplus
 }
