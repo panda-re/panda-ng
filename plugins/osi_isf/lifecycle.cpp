@@ -51,7 +51,7 @@ bool (*sc_current_args)(CPUState *, int64_t *, uint64_t *);
 target_long (*sc_retval)(CPUState *);
 bool started, exit_by_hook, exit_by_syscalls;
 uint64_t sym_do_exit;
-int64_t o_signal, o_live;
+int64_t o_signal, o_live, o_children, o_sibling;
 
 struct Task {
     int32_t pid = -1, tid = -1;
@@ -202,8 +202,25 @@ void ensure_known(CPUState *cpu, uint64_t ts) {
 }
 
 // An exiting process's children, to report when they get another parent.
-void collect_orphans(CPUState *cpu, int32_t pid) {
+void collect_orphans(CPUState *cpu, int32_t pid, uint64_t ts_exiting) {
     if (!cap.reparent) return;
+    if (o_children >= 0 && o_sibling >= 0 && cap.threads) {
+        // Each task of the process has its own children list (of process leaders).
+        uint64_t leader = group_leader(cpu, ts_exiting);
+        std::vector<uint64_t> th = threads_of(cpu, leader);
+        if (th.empty()) th.push_back(leader);
+        for (uint64_t t : th) {
+            uint64_t head = t + o_children;
+            int n = 0;
+            for (uint64_t e = ptr_at(cpu, head); e && e != head && is_kernel_ptr(e) && n < 1 << 16;
+                 e = ptr_at(cpu, e), n++) {
+                uint64_t c = e - o_sibling;
+                if (tgid_of(cpu, c) == pid) continue;
+                orphans.push_back({c, cap.start_time ? start_time(cpu, c) : 0, tgid_of(cpu, c), pid, 0});
+            }
+        }
+        return;
+    }
     for (uint64_t ts : all_tasks(cpu)) {
         if (tgid_of(cpu, ts) == pid) continue;
         if (tgid_of(cpu, field_ptr(cpu, ts, off.task_real_parent)) != pid) continue;
@@ -250,7 +267,7 @@ void exited(CPUState *cpu, uint64_t ts, int32_t status, int group) {
     }
     // Children move within the process while it has tasks left (no change of parent process
     // to report), so an exit not known to be the last notes them too.
-    if (group != 0) collect_orphans(cpu, t.pid);
+    if (group != 0) collect_orphans(cpu, t.pid, ts);
 }
 
 std::map<int32_t, std::set<int32_t>> exiting;   // process id -> its tasks that started exiting
@@ -473,6 +490,8 @@ void lifecycle_start(CPUState *cpu) {
     exit_by_syscalls = cap.exit_codes && ex == "exit system calls";
     o_signal = plan.off("task_struct", "signal");
     o_live = plan.off("signal_struct", "live.counter");
+    o_children = plan.off("task_struct", "children");
+    o_sibling = plan.off("task_struct", "sibling");
     sym_do_exit = slid(plan.sym("do_exit"));
     if (exit_by_hook) add_kernel_hook(sym_do_exit, exit_hook);
     // Every task alive now is known: only later ones are reported created.

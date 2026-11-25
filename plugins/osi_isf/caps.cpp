@@ -284,8 +284,12 @@ std::vector<Strategy> make_strategies() {
                  "a hook on do_exit, its first argument the wait status"});
     s.push_back({"exit_codes", "exit system calls", ANY, ANY, {}, {"lifecycle"}, {},
                  "exit and exit_group entries: voluntary exits only, not deaths by signal"});
+    // The children are found on the exiting process's children lists (every task of it has
+    // one), else by a walk over every process.
     s.push_back({"reparent", "children at the parent's exit", ANY, ANY, {},
-                 {"exit_codes", "tasks", "ppid", "task_change"}, {},
+                 {"exit_codes", "tasks", "ppid", "task_change"},
+                 {Fld("task_struct", "children", Shape::List, -1, "", true),
+                  Fld("task_struct", "sibling", Shape::List, -1, "", true)},
                  "an exiting process's children, checked at the following task changes"});
     s.push_back({"pid_reuse", "(pid, start_time)", ANY, ANY, {}, {"lifecycle", "start_time"}, {},
                  "a new task whose id an earlier task had, with another start time"});
