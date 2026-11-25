@@ -63,6 +63,8 @@ typedef struct PageinReq {
     size_t len;
     uint8_t *buf;               /* read: filled at completion; write: the bytes */
     bool write, inflight;
+    size_t done_len;            /* copied so far, page by page (after the call) */
+    bool populated;             /* the last call succeeded: what's missing is a TLB miss away */
     int rounds, touches;
     int shift, first_errno;     /* the start's alignment for the next call; its first answer */
     int64_t deadline;
@@ -78,11 +80,12 @@ typedef struct PageinRegs {
     PageinReq *req;             /* NULL once the request is gone (timeout, cancel) */
     /* the thread's registers: general purpose ones, and what the target keeps besides */
     uint64_t r[32];
-    uint64_t x[8];
+    uint64_t x[12];
 } PageinRegs;
 
 static QemuMutex lock;
 static bool inited;
+static bool debug;              /* PANDA_PAGEIN_DEBUG: log each call and its answer */
 static QTAILQ_HEAD(, PageinReq) reqs = QTAILQ_HEAD_INITIALIZER(reqs);
 static QTAILQ_HEAD(, PageinRegs) held = QTAILQ_HEAD_INITIALIZER(held);
 static unsigned nreqs;
@@ -103,6 +106,7 @@ static void pagein_init(void)
         if (g_once_init_enter(&once)) {
             qemu_mutex_init(&init_lock);
             qemu_mutex_init(&lock);
+            debug = getenv("PANDA_PAGEIN_DEBUG") != NULL;
             qatomic_set(&inited, true);
             g_once_init_leave(&once, 1);
         }
@@ -502,6 +506,10 @@ static void pagein_save(CPUState *cs, PageinRegs *h)
     for (int i = 0; i < 8; i++) {
         h->x[i] = env->crf[i];
     }
+    /* sc may change the volatile special registers too (Linux zeroes some on the way out) */
+    h->x[8] = env->lr;
+    h->x[9] = env->ctr;
+    h->x[10] = cpu_read_xer(env);
     h->pc = env->nip;
     h->len = 4;
 }
@@ -521,6 +529,9 @@ static void pagein_restore(CPUState *cs, PageinRegs *h)
     for (int i = 0; i < 8; i++) {
         env->crf[i] = h->x[i];
     }
+    env->lr = h->x[8];
+    env->ctr = h->x[9];
+    cpu_write_xer(env, h->x[10]);
     if (env->nip == h->pc || env->nip == h->pc - h->len) {
         env->nip = h->pc;
     }
@@ -646,23 +657,52 @@ int panda_pagein_submit(uint64_t asid, uint64_t addr, size_t len, const uint8_t 
 
 #ifndef PAGEIN_NO_INJECTOR
 /* At a user-mode boundary of r's address space: copy without faulting */
-static int pagein_copy(PageinReq *r)
+static int pagein_copy_range(PageinReq *r, uint64_t off, size_t len)
 {
     GByteArray *b = g_byte_array_new();
     int ret;
 
     if (r->write) {
-        g_byte_array_append(b, r->buf, r->len);
-        ret = qemu_plugin_write_memory_vaddr_fault(r->addr, b, QEMU_PLUGIN_VADDR_USER, false);
+        g_byte_array_append(b, r->buf + off, len);
+        ret = qemu_plugin_write_memory_vaddr_fault(r->addr + off, b, QEMU_PLUGIN_VADDR_USER,
+                                                   false);
     } else {
-        ret = qemu_plugin_read_memory_vaddr_fault(r->addr, b, r->len, QEMU_PLUGIN_VADDR_USER,
+        ret = qemu_plugin_read_memory_vaddr_fault(r->addr + off, b, len, QEMU_PLUGIN_VADDR_USER,
                                                   false);
         if (ret == QEMU_PLUGIN_VADDR_OK) {
-            memcpy(r->buf, b->data, r->len);
+            memcpy(r->buf + off, b->data, len);
         }
     }
     g_byte_array_unref(b);
     return ret;
+}
+
+/*
+ * At a user-mode boundary of r's address space: copy without faulting, all of it or nothing.
+ * After the system call, @partial: as much as the CPU can reach now, a page at a time, from where
+ * the last one stopped. A software-refilled TLB (MIPS, BookE PowerPC) may hold fewer pages than
+ * the range spans, so such a range is copied over several boundaries; a write may then land in
+ * part if the process goes away in between.
+ */
+static int pagein_copy(PageinReq *r, bool partial)
+{
+    uint64_t page = qemu_target_page_size();
+    int ret;
+
+    if (!partial && r->done_len == 0) {
+        return pagein_copy_range(r, 0, r->len);
+    }
+    while (r->done_len < r->len) {
+        uint64_t a = r->addr + r->done_len;
+        size_t chunk = MIN(r->len - r->done_len, page - (a & (page - 1)));
+
+        ret = pagein_copy_range(r, r->done_len, chunk);
+        if (ret != QEMU_PLUGIN_VADDR_OK) {
+            return ret;
+        }
+        r->done_len += chunk;
+    }
+    return QEMU_PLUGIN_VADDR_OK;
 }
 #endif
 
@@ -674,8 +714,8 @@ static uint64_t pagein_first_missing(PageinReq *r)
     GByteArray *b = g_byte_array_new();
     uint64_t a, bad = (uint64_t)-1;
 
-    for (a = r->addr & ~(page - 1); a < r->addr + r->len; a += page) {
-        uint64_t at = MAX(a, r->addr);
+    for (a = (r->addr + r->done_len) & ~(page - 1); a < r->addr + r->len; a += page) {
+        uint64_t at = MAX(a, r->addr + r->done_len);
         int ret = r->write ?
             (g_byte_array_set_size(b, 1), memcpy(b->data, r->buf + (at - r->addr), 1),
              qemu_plugin_write_memory_vaddr_fault(at, b, QEMU_PLUGIN_VADDR_USER, false)) :
@@ -700,6 +740,10 @@ static uint64_t pagein_first_missing(PageinReq *r)
  */
 static void pagein_touch(CPUState *cs, uint64_t addr, bool write)
 {
+    if (debug) {
+        fprintf(stderr, "pagein: vcpu %d touch %#" PRIx64 " %s at %#" PRIx64 "\n", cs->cpu_index,
+                addr, write ? "write" : "read", (uint64_t)cs->cc->get_pc(cs));
+    }
     if (!cs->cc->tcg_ops->user_mmu_index) {
         return;
     }
@@ -772,6 +816,11 @@ void panda_pagein_service(CPUState *cs)
             if (h->req) {
                 h->req->inflight = false;
             }
+            if (debug) {
+                fprintf(stderr, "pagein: vcpu %d asid %#" PRIx64 " request %" PRIu64
+                        " abandoned: back at %#" PRIx64 ", not %#" PRIx64 "\n", cs->cpu_index,
+                        asid, h->req ? h->req->id : 0, pc, h->pc);
+            }
             g_free(h);
             st_abandoned++;
             goto look_for_request;
@@ -780,6 +829,12 @@ void panda_pagein_service(CPUState *cs)
     if (h) {
         int64_t ret = pagein_retval(cs);
         QTAILQ_REMOVE(&held, h, next);
+        if (debug) {
+            fprintf(stderr, "pagein: vcpu %d asid %#" PRIx64 " request %" PRIu64 " back at %#"
+                    PRIx64 ": %" PRId64 " (shift %d, round %d)\n", cs->cpu_index, asid,
+                    h->req ? h->req->id : 0, h->pc, ret, h->req ? h->req->shift : 0,
+                    h->req ? h->req->rounds : 0);
+        }
         pagein_restore(cs, h);
         r = h->req;
         g_free(h);
@@ -798,14 +853,15 @@ void panda_pagein_service(CPUState *cs)
                 if (!guest_page_shift && (start & ((1ull << (shift + 2)) - 1))) {
                     guest_page_shift = shift;   /* worked, and no larger alignment did it */
                 }
-                int c = pagein_copy(r);
+                r->populated = true;
+                int c = pagein_copy(r, true);
                 if (c == QEMU_PLUGIN_VADDR_OK) {
                     pagein_finish(r, PANDA_PAGEIN_OK, 0, &done[ndone++]);
                 } else if (c == QEMU_PLUGIN_VADDR_IO) {
                     pagein_finish(r, PANDA_PAGEIN_EIO, 0, &done[ndone++]);
                 } else if (r->rounds >= PAGEIN_MAX_ROUNDS) {
                     pagein_finish(r, PANDA_PAGEIN_ERECLAIMED, 0, &done[ndone++]);
-                } else if (r->touches < PAGEIN_MAX_ROUNDS) {
+                } else if (r->touches < 2 * (r->len / qemu_target_page_size()) + 8) {
                     touch = pagein_first_missing(r);
                     r->touches++;
                 }
@@ -838,7 +894,8 @@ look_for_request:
         goto out;
     }
     {
-        int c = pagein_copy(r);         /* already there (or now): no system call */
+        /* already there (or now): no system call */
+        int c = pagein_copy(r, r->populated);
         if (c == QEMU_PLUGIN_VADDR_OK || c == QEMU_PLUGIN_VADDR_IO) {
             if (ndone < ARRAY_SIZE(done)) {
                 pagein_finish(r, c == QEMU_PLUGIN_VADDR_OK ? PANDA_PAGEIN_OK : PANDA_PAGEIN_EIO,
@@ -846,6 +903,19 @@ look_for_request:
             }
             goto out;
         }
+        if (r->populated && r->touches < 2 * (r->len / qemu_target_page_size()) + 8) {
+            /* populated, but the CPU's TLB doesn't have the next page yet: its miss, here */
+            uint64_t touch_addr = pagein_first_missing(r);
+            r->touches++;
+            pagein_update_loop_bit();
+            qemu_mutex_unlock(&lock);
+            pagein_complete(done, ndone);
+            if (touch_addr != (uint64_t)-1) {
+                pagein_touch(cs, touch_addr, r->write);
+            }
+            return;
+        }
+        r->populated = false;
     }
     if (r->rounds >= PAGEIN_MAX_ROUNDS) {
         if (ndone < ARRAY_SIZE(done)) {
@@ -870,6 +940,11 @@ look_for_request:
         r->inflight = true;
         r->rounds++;
         st_injected++;
+        if (debug) {
+            fprintf(stderr, "pagein: vcpu %d asid %#" PRIx64 " request %" PRIu64 " call at %#"
+                    PRIx64 " sp %#" PRIx64 ": [%#" PRIx64 ", %#" PRIx64 ") %s\n", cs->cpu_index,
+                    asid, r->id, h->pc, sp, start, end, r->write ? "write" : "read");
+        }
         pagein_update_loop_bit();
         qemu_mutex_unlock(&lock);
         pagein_complete(done, ndone);

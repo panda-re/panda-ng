@@ -18,7 +18,7 @@ the end checks its own memory. Checks:
   (asid_changed) and another Python thread;
 - an address space that never runs, and the program's after it exited: PageInTimeout;
 - --stress N requests from all of those contexts while the program spins, with a timer signal
-  every 3 ms whose handler longjmps to the top of its loop (so a thread may come back from the
+  every 10 ms of its CPU time whose handler longjmps to the top of its loop (so a thread may come back from the
   injected call elsewhere; --no-signals turns it off): every one completes,
   with data that matches, no register of the program changes (its two copies never differ), it
   exits 0, and the guest console shows no oops, BUG or signal;
@@ -99,6 +99,9 @@ panda = m.panda()
 arch = m.arch
 # the program build: ppc64 machines run big- or little-endian kernels
 prog = "ppc64le" if arch == "ppc64" and "64le" in str(m.image.get("extra_args")) else arch
+# The program's own signal mode (the handler's siglongjmp) crashes on the 32-bit MIPS builds with
+# no page-in at all (SIGSEGV/SIGBUS; scripts/control_sig.py in the study): not there.
+nosig = opt.no_signals or arch in ("mips", "mipsel")
 C = Checks(arch)
 agent = Agent(panda)
 from programs.pagein_programs import PROGRAMS  # noqa: E402
@@ -238,7 +241,10 @@ def kctx(cpu, old, new):
 @panda.cb_start_block_exec(name="kblock", enabled=False)
 def kblock(cpu, tb):
     # kernel mode, anywhere: interrupts, softirqs, spinlocks held, the scheduler
-    if st["kb_budget"] > 0 and panda.arch.get_pc(cpu) >> 63:     # a kernel address
+    if st["kb_budget"] <= 0:
+        panda.disable_callback("kblock")        # a Python call per block stalls the guest
+        return
+    if panda.in_kernel_mode(cpu):
         st["kb_budget"] -= 1
         rng = random.Random(st["kb_budget"] + 99)
         a, n = rand_target(rng)
@@ -302,7 +308,7 @@ def drive():
     d = "/mnt" if out.strip().endswith(b"1") else "/tmp"
     progress(f"pagein: setup: {out.decode(errors='replace').strip()!r}")
     secs = opt.secs or (8 + opt.stress // 100)
-    agent.run(f"(/tmp/pt {d} {secs} spin {'nosig' if opt.no_signals else 'sig'} > /tmp/pt.out 2>&1; echo exit=$? >> /tmp/pt.out) &")
+    agent.run(f"(/tmp/pt {d} {secs} spin {'nosig' if nosig else 'sig'} > /tmp/pt.out 2>&1; echo exit=$? >> /tmp/pt.out) &")
     if not st["ready"].wait(120):
         C.check("program ready", False, "no READY hypercall")
         panda.end_analysis()
@@ -316,82 +322,93 @@ def drive():
     C.check("callback: fault=True on a missing page raises PageInWouldBlock",
             st["cb_block"] == "PageInWouldBlock", st["cb_block"])
 
-    # reads and writes from this (queue_blocking) thread
-    t = time.monotonic()
-    data = panda.virtual_memory_read(None, FILEA + 3 * PG + 40, 200, fault=True, asid=asid)
-    C.check("thread: file page read through the guest's page cache",
-            bytes(data) == expect_file(FILEA + 3 * PG + 40, 200), bytes(data[:16]).hex())
-    C.check("thread: never-touched anonymous page reads zero",
-            bytes(panda.virtual_memory_read(None, ANON + 7 * PG, 4096, fault=True, asid=asid)) == bytes(4096))
-    span = panda.virtual_memory_read(None, FILEA + 9 * PG - 32, 64, fault=True, asid=asid)
-    C.check("thread: a read across two missing pages", bytes(span) == expect_file(FILEA + 9 * PG - 32, 64))
-    s = panda.read_str(None, FILEA + 20 * PG, max_length=24, fault=True, asid=asid)
-    C.check("thread: read_str(fault=True)", len(s) > 0)
-    progress(f"pagein: basic reads {time.monotonic() - t:.2f}s")
-    wdata = b"".join(Q(pat(WR + i)) for i in range(0, NP * PG, 8))
-    panda.virtual_memory_write(None, WR, wdata, fault=True, asid=asid)
-    panda.virtual_memory_write(None, TAG + 16, Q(1), fault=True, asid=asid)
-    C.check("thread: write paged in for writing, reads back",
-            bytes(panda.virtual_memory_read(None, WR + 5 * PG, 64, fault=True, asid=asid)) == wdata[5 * PG:5 * PG + 64])
+    def body():
+        # reads and writes from this (queue_blocking) thread
+        t = time.monotonic()
+        data = panda.virtual_memory_read(None, FILEA + 3 * PG + 40, 200, fault=True, asid=asid)
+        C.check("thread: file page read through the guest's page cache",
+                bytes(data) == expect_file(FILEA + 3 * PG + 40, 200), bytes(data[:16]).hex())
+        C.check("thread: never-touched anonymous page reads zero",
+                bytes(panda.virtual_memory_read(None, ANON + 7 * PG, 4096, fault=True, asid=asid)) == bytes(4096))
+        span = panda.virtual_memory_read(None, FILEA + 9 * PG - 32, 64, fault=True, asid=asid)
+        C.check("thread: a read across two missing pages", bytes(span) == expect_file(FILEA + 9 * PG - 32, 64))
+        s = panda.read_str(None, FILEA + 20 * PG, max_length=24, fault=True, asid=asid)
+        want = expect_file(FILEA + 20 * PG, 24).split(b"\0", 1)[0].decode("utf8", "ignore")
+        C.check("thread: read_str(fault=True)", s == want, f"{s!r} != {want!r}")
+        progress(f"pagein: basic reads {time.monotonic() - t:.2f}s")
+        wdata = b"".join(Q(pat(WR + i)) for i in range(0, NP * PG, 8))
+        panda.virtual_memory_write(None, WR, wdata, fault=True, asid=asid)
+        panda.virtual_memory_write(None, TAG + 16, Q(1), fault=True, asid=asid)
+        C.check("thread: write paged in for writing, reads back",
+                bytes(panda.virtual_memory_read(None, WR + 5 * PG, 64, fault=True, asid=asid)) == wdata[5 * PG:5 * PG + 64])
 
-    sw = panda.virtual_memory_read(None, SW + 11 * PG, 128, fault=True, asid=asid)
-    C.check("thread: swapped-out page swaps in", check_data(SW + 11 * PG, bytes(sw)))
-    guard = panda.virtual_memory_read(None, TAG + 24, 8, fault=True, asid=asid)
-    if guard != bytes(8):
-        bad_guard = {"guard region (MADV_GUARD_INSTALL)": GUARDR + 3 * PG}
-    else:
-        bad_guard = {}
-        progress("pagein: the guest kernel has no MADV_GUARD_INSTALL")
-    bad = {**bad_guard, "below a MAP_GROWSDOWN region": GROW - PG, "PROT_NONE after a write": NONE2, "no mapping": HOLE + 8, "truncated file": TRUNC + PG, "PROT_NONE": NONE,
-           "kernel address": KADDR[arch]}
-    for name, addr in bad.items():
+        sw = panda.virtual_memory_read(None, SW + 11 * PG, 128, fault=True, asid=asid)
+        C.check("thread: swapped-out page swaps in", check_data(SW + 11 * PG, bytes(sw)))
+        guard = panda.virtual_memory_read(None, TAG + 24, 8, fault=True, asid=asid)
+        if guard != bytes(8):
+            bad_guard = {"guard region (MADV_GUARD_INSTALL)": GUARDR + 3 * PG}
+        else:
+            bad_guard = {}
+            progress("pagein: the guest kernel has no MADV_GUARD_INSTALL")
+        bad = {**bad_guard, "below a MAP_GROWSDOWN region": GROW - PG, "PROT_NONE after a write": NONE2, "no mapping": HOLE + 8, "truncated file": TRUNC + PG, "PROT_NONE": NONE,
+               "kernel address": KADDR[arch]}
+        for name, addr in bad.items():
+            try:
+                panda.virtual_memory_read(None, addr, 8, fault=True, asid=asid)
+                C.check(f"bad address ({name}): refused", False, "read returned")
+            except PageInFailed as e:
+                C.check(f"bad address ({name}): refused with the guest's errno",
+                        e.guest_errno != 0, f"{e}")
+                progress(f"pagein: {name}: {e}")
+            except Exception as e:
+                C.check(f"bad address ({name}): refused", False, repr(e))
         try:
-            panda.virtual_memory_read(None, addr, 8, fault=True, asid=asid)
-            C.check(f"bad address ({name}): refused", False, "read returned")
+            panda.virtual_memory_write(None, RO, b"x" * 8, fault=True, asid=asid)
+            C.check("write to a read-only mapping: refused", False, "write returned")
         except PageInFailed as e:
-            C.check(f"bad address ({name}): refused with the guest's errno",
-                    e.guest_errno != 0, f"{e}")
-            progress(f"pagein: {name}: {e}")
-        except Exception as e:
-            C.check(f"bad address ({name}): refused", False, repr(e))
-    try:
-        panda.virtual_memory_write(None, RO, b"x" * 8, fault=True, asid=asid)
-        C.check("write to a read-only mapping: refused", False, "write returned")
-    except PageInFailed as e:
-        C.check("write to a read-only mapping: refused", True)
-        progress(f"pagein: read-only write: {e}")
-    try:
-        panda.pagein.wait("bogus", lambda done: pi.read(0x1230000, 0x400000, 8, done, timeout_ns=200_000_000), 60)
-        C.check("an address space that never runs: PageInTimeout", False, "completed")
-    except PageInTimeout:
-        C.check("an address space that never runs: PageInTimeout", True)
+            C.check("write to a read-only mapping: refused", True)
+            progress(f"pagein: read-only write: {e}")
+        try:
+            panda.pagein.wait("bogus", lambda done: pi.read(0x1230000, 0x400000, 8, done, timeout_ns=200_000_000), 60)
+            C.check("an address space that never runs: PageInTimeout", False, "completed")
+        except PageInTimeout:
+            C.check("an address space that never runs: PageInTimeout", True)
 
-    # the stress: requests from every context while the program spins
-    t = time.monotonic()
-    third = max(1, opt.stress // 4)
-    st["k_budget"] = third
-    st["kb_budget"] = third
-    panda.enable_callback("kctx")
-    panda.enable_callback("kblock")
-    th = threading.Thread(target=other_thread, args=(third, 1))
-    th.start()
-    rng = random.Random(7)
-    for _ in range(third):
-        a, n = rand_target(rng)
-        submit("blocking-thread", a, n)
-    th.join()
-    if not st["alldone"].wait(300):
-        C.check("stress: every request completed", False, f"{st['outstanding']} outstanding")
-    panda.disable_callback("kctx")
-    panda.disable_callback("kblock")
-    progress(f"pagein: stress {time.monotonic() - t:.1f}s {json.dumps(st['counts'])}")
-    wrong = sum(v.get("WRONG", 0) for v in st["counts"].values())
-    C.check("stress: every request completed", st["outstanding"] == 0, str(st["outstanding"]))
-    C.check("stress: no wrong data", wrong == 0, str(wrong))
-    C.check("stress: requests from kernel mode were made",
-            "kernel-callback" in st["counts"] or "kernel-block" in st["counts"], str(list(st["counts"])))
+        # the stress: requests from every context while the program spins
+        t = time.monotonic()
+        third = max(1, opt.stress // 4)
+        st["k_budget"] = third
+        st["kb_budget"] = third
+        panda.enable_callback("kctx")
+        panda.enable_callback("kblock")
+        th = threading.Thread(target=other_thread, args=(third, 1))
+        th.start()
+        rng = random.Random(7)
+        for _ in range(third):
+            a, n = rand_target(rng)
+            submit("blocking-thread", a, n)
+        th.join()
+        if not st["alldone"].wait(300):
+            C.check("stress: every request completed", False, f"{st['outstanding']} outstanding")
+        panda.disable_callback("kctx")
+        panda.disable_callback("kblock")
+        progress(f"pagein: stress {time.monotonic() - t:.1f}s {json.dumps(st['counts'])}")
+        wrong = sum(v.get("WRONG", 0) for v in st["counts"].values())
+        C.check("stress: every request completed", st["outstanding"] == 0, str(st["outstanding"]))
+        C.check("stress: no wrong data", wrong == 0, str(wrong))
+        C.check("stress: requests from kernel mode were made",
+                "kernel-callback" in st["counts"] or "kernel-block" in st["counts"], str(list(st["counts"])))
 
-    if not st["done"].wait(secs * 30 + 120):
+
+    try:
+        body()
+    except Exception as e:                  # still collect the program's and the guest's view
+        import traceback
+        C.check("the checks ran to the end", False, repr(e))
+        progress("pagein: " + traceback.format_exc().replace("\n", " | ")[-600:])
+        progress(f"pagein: engine stats {panda.pagein.stats()}")
+
+    if not st["done"].wait(secs * 6 + 60):
         C.check("program finished", False, "no DONE hypercall")
     else:
         mism, badb = st["done_args"]

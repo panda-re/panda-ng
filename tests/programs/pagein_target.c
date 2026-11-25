@@ -138,7 +138,8 @@ static void onsig(int s)
     _exit(s == SIGBUS ? 98 : 99);
 }
 
-/* sig mode: a timer signal whose handler longjmps back to the top of the spin loop, so that
+/* sig mode: a timer signal (every 10 ms of user CPU time) whose handler longjmps back to the top
+ * of the spin loop, so that
  * threads come back from the page-in's system call somewhere else than where it was made */
 static sigjmp_buf jb;
 static volatile long jumps;
@@ -210,9 +211,10 @@ int main(int argc, char **argv)
 
     volatile long end = now_ms() + secs * 1000L, mism = 0, iters = 0;
     if (spin && sig) {
-        struct itimerval it = { { 0, 3000 }, { 0, 3000 } };
-        signal(SIGALRM, onalrm);
-        setitimer(ITIMER_REAL, &it, NULL);
+        /* user CPU time, not wall time: a slow guest isn't buried in signals */
+        struct itimerval it = { { 0, 10000 }, { 0, 10000 } };
+        signal(SIGVTALRM, onalrm);
+        setitimer(ITIMER_VIRTUAL, &it, NULL);
         if (sigsetjmp(jb, 1)) {
             jumps++;
         }
@@ -241,7 +243,7 @@ int main(int argc, char **argv)
     }
     if (sig) {             /* before anything below can be jumped out of */
         struct itimerval off = { { 0, 0 }, { 0, 0 } };
-        setitimer(ITIMER_REAL, &off, NULL);
+        setitimer(ITIMER_VIRTUAL, &off, NULL);
     }
     long bad = 0, wrote = tag[2];       /* the test sets tag[2] when it wrote WR */
     for (unsigned i = 0; i < NP * PG / 8; i++) {
