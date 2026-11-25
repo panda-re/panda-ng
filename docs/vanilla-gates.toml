@@ -1430,7 +1430,7 @@ vanilla_verified = false
 [[patch]]
 id = "0102"
 file = "engine/patches/11.1.2/0102-target-system-call-pairing-sites.patch"
-sha256 = "275d1696b4ed4ba71229a0eaa9f673ca786aa8fabba471f39a340991c1db8492"
+sha256 = "4f67cb27df9cc01d11219cbdfeb9d295f0abbe84aff887edfc23cc9b925ec462"
 class = "runtime-gate"
 capability = "syscall-pairing"
 paths = ["meson.build", "target/arm/helper.c", "target/arm/tcg/translate-a64.c", "target/arm/tcg/translate.c", "target/i386/tcg/emit.c.inc", "target/i386/tcg/seg_helper.c", "target/i386/tcg/translate.c", "target/mips/tcg/translate.c", "target/ppc/translate.c", "target/riscv/tcg/insn_trans/trans_privileged.c.inc", "target/riscv/tcg/translate.c"]
@@ -1444,7 +1444,7 @@ vanilla_verified = false
 [[patch]]
 id = "0103"
 file = "engine/patches/11.1.2/0103-accel-tcg-target-arm-take-SVC-UNDEF-and-aborts-to-EL.patch"
-sha256 = "d75c22d1f8ed689594b9a931d1409338cb53c8bf8d242cd36e75d7cec6d1f095"
+sha256 = "a0331db0cc6f35327a00ed4b5f1bff4451bb7cd40bf7b6fb152abed726587825"
 class = "upstream-fix-needs-off-path"
 capability = "tcg-exception-locking"
 paths = ["accel/tcg/cpu-exec.c", "hw/intc/arm_gicv3_cpuif.c", "include/accel/tcg/cpu-ops.h", "target/arm/cpregs-pmu.c", "target/arm/cpu.c", "target/arm/cpu.h", "target/arm/helper.c", "target/arm/tcg/helper-a64.c", "target/arm/tcg/op_helper.c"]
@@ -1555,16 +1555,16 @@ vanilla_verified = false
 
 [[patch]]
 id = "0111"
-file = "engine/patches/11.1.2/0111-accel-tcg-target-arm-serve-page-in-requests-between-.patch"
-sha256 = "fe1ea214b21437728b6cf9bdbce15547b030e6426b269b2ab1c72efc6bd0030a"
+file = "engine/patches/11.1.2/0111-accel-tcg-target-arm-target-i386-serve-injection-ses.patch"
+sha256 = "116c86e6c96fd34b313c5a3e8f586b140a8a043aaa5ab42f0bf71b5636cc21cb"
 class = "runtime-gate"
 capability = "analysis-memory-access"
-paths = ["accel/tcg/cpu-exec.c", "target/arm/helper.c"]
-functions = ["cpu_exec_loop", "arm_cpu_do_interrupt"]
-hunk_contexts = ["static int __attribute__((noinline))", "void arm_cpu_do_interrupt(CPUState *cs)"]
+paths = ["accel/tcg/cpu-exec.c", "target/arm/helper.c", "target/i386/tcg/seg_helper.c"]
+functions = ["cpu_exec_loop", "arm_cpu_do_interrupt", "do_interrupt_all"]
+hunk_contexts = ["static int __attribute__((noinline))", "void arm_cpu_do_interrupt(CPUState *cs)", "void do_interrupt_all(X86CPU *cpu, int intno, int is_int,"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "The CPU loop calls panda_pagein_service() only while page-in requests or held registers are outstanding (PANDA_LOOP_PAGEIN in panda_loop_hooks); otherwise one load and test per block lookup. arm_cpu_do_interrupt skips the syscall trap and the engine syscall entry for the SVC the page-in service raised."
-required_action = "Explicit vanilla must compile the loop check out (or refuse page-in requests) and keep upstream SVC delivery."
+current_gate = "The CPU loop calls panda_inject_service() only while injection sessions (page-in requests among them) or held registers are outstanding (PANDA_LOOP_INJECT in panda_loop_hooks); otherwise one load and test per block lookup. arm_cpu_do_interrupt and do_interrupt_all skip the syscall trap and the engine syscall entry for the SVC or INT 0x80 the injector raised."
+required_action = "Explicit vanilla must compile the loop check out (or refuse injection sessions) and keep upstream SVC and INT 0x80 delivery."
 vanilla_verified = false
 
 [[overlay]]
@@ -1582,11 +1582,11 @@ vanilla_verified = false
 id = "pagein-requests"
 class = "runtime-gate"
 capability = "analysis-memory-access"
-paths = ["engine/src/include/panda/pagein.h", "engine/src/panda/src/pagein.c"]
-functions = ["panda_pagein_submit", "panda_pagein_service", "panda_pagein_cancel_all", "panda_pagein_can_wait", "panda_pagein_stats"]
+paths = ["engine/src/include/panda/pagein.h", "engine/src/panda/src/pagein.c", "engine/src/include/panda/inject.h", "engine/src/panda/src/inject.c", "engine/src/panda/src/inject-arch.h", "engine/src/panda/src/inject-int.h"]
+functions = ["panda_pagein_submit", "panda_pagein_cancel_all", "panda_pagein_can_wait", "panda_pagein_stats", "panda_inject_submit", "panda_inject_hold", "panda_inject_rewind", "panda_inject_service", "panda_inject_cancel_all", "panda_inject_record_safe"]
 gate_status = "explicit-vanilla-off-path-not-implemented"
-current_gate = "Nothing runs until a request is submitted; a request makes the target process's thread call madvise(MADV_POPULATE_*) at its next user-mode boundary and restores its registers. Refused under record/replay and KVM; queued requests are refused once record/replay starts and cancelled at snapshot load or reset."
-required_action = "Explicit vanilla must refuse page-in requests (no injected system calls)."
+current_gate = "Nothing runs until a session (a page-in request is one) is submitted; a session makes the target thread make system calls at its next user-mode boundary (or before a held entry, or after a skipped call) and restores its registers. Refused under record/replay and KVM; queued sessions are refused once record/replay starts and cancelled at snapshot load or reset; a recording does not start while a thread is inside an injected call. A held or rewound entry costs a load of one word per watched system-call entry while one is pending."
+required_action = "Explicit vanilla must refuse injection sessions and page-in requests (no injected system calls)."
 vanilla_verified = false
 
 [[overlay]]
