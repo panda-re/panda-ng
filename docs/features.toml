@@ -420,6 +420,30 @@ tests = ["engine/tests/guest/run.sh", "engine/tests/guest/kvm.sh", "tests/pagein
 patches = ["0013-0017", "0031", "0033", "0111"]
 
 [[feature]]
+id = "syscall-injection"
+name = "System calls injected into a task"
+status = "engine"
+accel = ["TCG"]
+tested_on = ["x86_64", "aarch64"]
+summary = """
+A task makes a sequence of system calls the host chooses, one at a time, at its next user-mode
+boundary or before a system call it is making (held at a syscalls2 entry), and then goes on with
+its own registers. Python generators choose the calls (panda.inject), HyDE style; page-in
+requests are one kind of session.
+"""
+limits = """
+TCG only; refused during record/replay, and a recording does not start while a task is inside an
+injected call. No fork-like calls (the child would return with the injected registers). Holds
+need syscalls2 and a target with system-call pairing (not loongarch64).
+"""
+api = ["c:panda_inject_submit", "c:panda_inject_hold", "c:panda_inject_rewind",
+       "c:panda_guest_write_virt_user", "py:Inject.__call__", "py:Inject.rewind"]
+docs = ["docs/guides/python.md#system-calls-injected-into-a-task"]
+tests = ["tests/inject.py", "tests/inject_rewind.py", "tests/static/inject_driver.py",
+         "tests/pagein.py"]
+patches = ["0102", "0111"]
+
+[[feature]]
 id = "engine-hooks"
 name = "Translation-time hooks and register pointers"
 status = "engine"

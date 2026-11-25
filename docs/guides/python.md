@@ -189,6 +189,61 @@ memory and fault counts, accessed and dirty bits, page-cache and swap I/O during
 run, and for writes copy-on-write and dirty pages. It needs Linux 5.14 or later; an older kernel
 answers `EINVAL`.
 
+### System calls injected into a task
+
+`panda.inject` has a task make system calls for you, and then go on as if nothing happened. A
+generator chooses the calls one at a time; each `yield syscall(...)` is one call, and evaluates to
+its value (a negative `errno` on failure):
+
+```python
+from pandare2.inject import syscall
+
+def hostname(ctx):
+    pid = yield syscall("getpid")
+    buf = yield from ctx.alloc(4096)                # anonymous memory, unmapped at the end
+    yield from ctx.write(buf, b"/etc/hostname\0")
+    fd = yield syscall("openat", -100, buf, 0, check=True)   # check: raise InjectFailed
+    n = yield syscall("read", fd, buf + 256, 200)
+    name = yield from ctx.read(buf + 256, n)
+    yield syscall("close", fd)
+    return pid, name
+
+s = panda.inject(hostname, asid=asid)       # from any callback, the main loop or a thread
+s.done(lambda result, error: print(result, error))
+```
+
+Where the calls run:
+
+- `asid=` (or `cpu=`, its current address space): the next time any thread of the process runs
+  in user mode. `task=` targets one thread by the engine's task key (syscalls2 declares it).
+- `cpu=cpu, before_syscall=True`, from a syscalls2 entry callback: before the call the task is
+  making. That call waits until the generator is done, then runs; its entry is delivered again,
+  and `panda.inject.resumed(cpu)` is true for it.
+- `panda.inject.rewind(asid, sp, ret_pc, nr, args, length, gen=...)`, for a hook inside the guest
+  kernel (a guest module's system-call entry hypercall) that had the kernel skip a call: the
+  generator runs when the task is back in user mode at `ret_pc`, then the task goes back to its
+  trap with `nr` and `args` and makes the call after all. `panda.inject.rewound(asid, sp, pc)`
+  tells the hook that a call it sees is that one coming back.
+
+Between calls the generator runs on the vCPU's thread with the task current. `ctx.read` and
+`ctx.write` use the task's memory with its own permissions (a write never reaches a read-only or
+shared copy-on-write page) and page it in with an injected `madvise` when needed. Call numbers
+come from the task's ABI (`ctx.abi`: `"x86_64"`, `"i386"`, `"aarch64"`, `"arm"`, `"riscv64"`,
+`"mips_o32"`, `"mips_n64"`, `"ppc"`, `"ppc64"`, `"loongarch64"`); give a number instead of a name
+for a call the table lacks. Names are the kernel's: on the 32-bit ABIs a call with a 64-bit time
+variant has it under the plain name, so `syscall("clock_nanosleep")` is the time64 call there
+(64-bit `struct timespec`), and the old one is `"clock_nanosleep_time32"`; `nanosleep`, which has
+no time64 variant, is under its plain name everywhere. `s.result(timeout)` waits for the generator's return value from a
+`queue_blocking` function or another thread of yours; inside a callback use `done`.
+
+Errors are `InjectError`s: `InjectRefused` (during record/replay, under KVM, a target or task
+without an injector, a `fork`, `vfork`, `clone` or `clone3`, whose child would come back with the
+injected registers), `InjectTimeout` (5 s of guest time by default), `InjectCancelled` (a
+snapshot was loaded first, or `s.cancel()`), `InjectAbandoned` (the thread left the call another
+way: a signal handler that `longjmp`s). The guest sees system calls its program didn't make
+(seccomp, `strace` and audit see them too). Starting a recording is refused while a task is
+inside an injected call.
+
 Registers are in `panda.arch`: `get_reg(cpu, name)` and `set_reg(cpu, name, value)`, `get_pc`
 and `set_pc`, and `get_arg(cpu, n, convention=...)`, which reads the n-th argument of a call
 (`"syscall"` for system calls and hypercalls). `cpu_env(cpu)` is the whole CPU state, for
