@@ -128,7 +128,7 @@ static void panda_delete_plugin(int i)
 static int dlclose(void *plugin) { closed++; return 0; }
 static void panda_events_owner_gone(void *owner) { (void)owner; }
 static void panda_syscall_pair_reset(void) {}
-static void panda_pagein_cancel_all(void) {}
+static void panda_inject_cancel_all(void) {}
 #define LOG_ERROR(...) ((void)0)
 '''
 # Exercise the actual central removal body, not merely its source ordering.

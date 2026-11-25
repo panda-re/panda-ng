@@ -38,17 +38,17 @@ SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
 Origin: new
 ---
  meson.build                                   | 11 ++++++
- target/arm/helper.c                           | 10 ++++++
+ target/arm/helper.c                           | 14 ++++++++
  target/arm/tcg/translate-a64.c                | 16 +++++++++
  target/arm/tcg/translate.c                    | 14 ++++++++
  target/i386/tcg/emit.c.inc                    | 32 +++++++++++++++++
- target/i386/tcg/seg_helper.c                  | 12 +++++++
+ target/i386/tcg/seg_helper.c                  | 16 +++++++++
  target/i386/tcg/translate.c                   |  3 ++
  target/mips/tcg/translate.c                   | 18 ++++++++++
  target/ppc/translate.c                        | 34 +++++++++++++++++++
  .../tcg/insn_trans/trans_privileged.c.inc     | 13 +++++++
  target/riscv/tcg/translate.c                  |  3 ++
- 11 files changed, 166 insertions(+)
+ 11 files changed, 174 insertions(+)
 
 diff --git a/meson.build b/meson.build
 index bab301523caff3a68cae126b2eee83816def2dd5..7f9c3125c3b7fa20b4da7158bbb01c7dce1083bb 100644
@@ -73,7 +73,7 @@ index bab301523caff3a68cae126b2eee83816def2dd5..7f9c3125c3b7fa20b4da7158bbb01c7d
  
    lib = static_library('qemu-' + target,
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index 79bd1c5f2af83f17434d2708039ca4881960b5a2..423aef56d70735cf7160ac00d3d9b4c76f84f5d2 100644
+index 79bd1c5f2af83f17434d2708039ca4881960b5a2..657269c33bcca81c81a08be782207069f8617e1f 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -37,6 +37,7 @@
@@ -84,7 +84,7 @@ index 79bd1c5f2af83f17434d2708039ca4881960b5a2..423aef56d70735cf7160ac00d3d9b4c7
  
  static void switch_mode(CPUARMState *env, int mode);
  #ifndef CONFIG_USER_ONLY
-@@ -9866,6 +9867,15 @@ void arm_cpu_do_interrupt(CPUState *cs)
+@@ -9866,6 +9867,19 @@ void arm_cpu_do_interrupt(CPUState *cs)
      }
  #endif
  
@@ -95,7 +95,11 @@ index 79bd1c5f2af83f17434d2708039ca4881960b5a2..423aef56d70735cf7160ac00d3d9b4c7
 +        /* a declared system-call ABI: the engine's entry (the PC is past the SVC) */
 +        unsigned len = env->thumb ? 2 : 4;
 +
-+        panda_sc_enter_c(cs, PANDA_SYSCALL_FORM_A32_SVC, env->regs[15] - len, len);
++        if (panda_sc_enter_c(cs, PANDA_SYSCALL_FORM_A32_SVC, env->regs[15] - len, len)) {
++            /* held (panda/inject.h): no exception now; the task stays at its SVC */
++            env->regs[15] -= len;
++            return;
++        }
 +    }
      if (cs->exception_index == EXCP_SWI && syscall_trap_enabled() &&
          arm_current_el(env) == 0 && arm_sc_enter(env)) {
@@ -258,7 +262,7 @@ index aa00d2c3f13a957e9006ca863e3f632dfaca4269..83f809756f1ba7a5ac7c920a85021eaf
          assume_cc_op(s, CC_OP_EFLAGS);
      }
 diff --git a/target/i386/tcg/seg_helper.c b/target/i386/tcg/seg_helper.c
-index 007a7122273df7296a87b1ed6b9d3b8f1e6b3a13..5bc32bea9855002b59d80ca286e4866f571391c0 100644
+index 007a7122273df7296a87b1ed6b9d3b8f1e6b3a13..8f30befa76f46d6f9dab3190887c1a92d6c93f3b 100644
 --- a/target/i386/tcg/seg_helper.c
 +++ b/target/i386/tcg/seg_helper.c
 @@ -31,6 +31,9 @@
@@ -271,7 +275,7 @@ index 007a7122273df7296a87b1ed6b9d3b8f1e6b3a13..5bc32bea9855002b59d80ca286e4866f
  
  #ifdef TARGET_X86_64
  #define SET_ESP(val, sp_mask)                                   \
-@@ -1350,6 +1353,15 @@ void do_interrupt_all(X86CPU *cpu, int intno, int is_int,
+@@ -1350,6 +1353,19 @@ void do_interrupt_all(X86CPU *cpu, int intno, int is_int,
              count++;
          }
      }
@@ -280,8 +284,12 @@ index 007a7122273df7296a87b1ed6b9d3b8f1e6b3a13..5bc32bea9855002b59d80ca286e4866f
 +        panda_sc_enter_inline(PANDA_SYSCALL_FORM_X86_INT80) &&
 +        (env->cr[0] & CR0_PE_MASK) && (env->hflags & HF_CPL_MASK) == 3) {
 +        /* a declared system-call ABI: the engine's entry (EIP is past the INT) */
-+        panda_sc_enter_c(env_cpu(env), PANDA_SYSCALL_FORM_X86_INT80,
-+                         env->segs[R_CS].base + next_eip - 2, 2);
++        if (panda_sc_enter_c(env_cpu(env), PANDA_SYSCALL_FORM_X86_INT80,
++                             env->segs[R_CS].base + next_eip - 2, 2)) {
++            /* held (panda/inject.h): no interrupt now; the task stays at its INT */
++            env->eip = next_eip - 2;
++            return;
++        }
 +    }
 +#endif
  #ifndef CONFIG_USER_ONLY

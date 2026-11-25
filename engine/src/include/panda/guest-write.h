@@ -48,6 +48,15 @@ typedef enum GuestWriteResult {
 GuestWriteResult panda_guest_write_virt(struct CPUState *cpu, uint64_t addr,
                                         const void *buf, size_t len);
 GuestWriteResult panda_guest_write_phys(uint64_t addr, const void *buf, size_t len);
+/*
+ * Guest memory as the task's own user-mode store would write it: only pages the guest lets user
+ * mode write now (not a read-only page, the shared zero page, a read-only file's page cache or a
+ * copy-on-write page another process shares), all of it or nothing, never a fault. From @cpu's
+ * own thread (its TLB), TCG only. EFAULT if any page is not writable without a fault (the guest
+ * may not have it present: panda/pagein.h, panda/inject.h); EPERM under record/replay.
+ */
+GuestWriteResult panda_guest_write_virt_user(struct CPUState *cpu, uint64_t addr,
+                                             const void *buf, size_t len);
 /* A register by gdbstub number (panda_guest_reg_lookup), through the target's
  * setter; len must be the register's size. */
 GuestWriteResult panda_guest_write_reg(struct CPUState *cpu, int regnum,

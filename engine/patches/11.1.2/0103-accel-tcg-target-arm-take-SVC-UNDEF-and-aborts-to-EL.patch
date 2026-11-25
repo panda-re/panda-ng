@@ -283,7 +283,7 @@ index 913dc2ad1e5cbb52b55ceb125274a2427478ef24..e75e5538c9d4f661bb83d987f49f5f28
   * arm_rebuild_hflags:
   * Rebuild the cached TBFLAGS for arbitrary changed processor state.
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index 423aef56d70735cf7160ac00d3d9b4c76f84f5d2..e59195f61b7e7bf27c735401cd9c2246e5562f09 100644
+index 657269c33bcca81c81a08be782207069f8617e1f..ec1b296e06d38420c468ceeb9e88565cd4fc46dc 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -9828,12 +9828,45 @@ void arm_sc_return_aa32(CPUARMState *env)
@@ -332,7 +332,7 @@ index 423aef56d70735cf7160ac00d3d9b4c76f84f5d2..e59195f61b7e7bf27c735401cd9c2246
  
      assert(!arm_feature(env, ARM_FEATURE_M));
  
-@@ -9882,13 +9915,24 @@ void arm_cpu_do_interrupt(CPUState *cs)
+@@ -9886,13 +9919,24 @@ void arm_cpu_do_interrupt(CPUState *cs)
      }
  
      /*
@@ -363,7 +363,7 @@ index 423aef56d70735cf7160ac00d3d9b4c76f84f5d2..e59195f61b7e7bf27c735401cd9c2246
  
      assert(!excp_is_internal(cs->exception_index));
      if (arm_el_is_aa64(env, new_el)) {
-@@ -9897,7 +9941,12 @@ void arm_cpu_do_interrupt(CPUState *cs)
+@@ -9901,7 +9945,12 @@ void arm_cpu_do_interrupt(CPUState *cs)
          arm_cpu_do_interrupt_aarch32(cs);
      }
  

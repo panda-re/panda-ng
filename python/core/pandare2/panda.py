@@ -39,6 +39,7 @@ from .qcows_internal import Qcows
 from .callbacks import unavailable, tcg_only, ABORTS, PASSTHROUGH
 from .guest import Guest, GuestWriteRefused
 from .pagein import PageIn, PageInWouldBlock
+from .inject import Inject
 from .taint import TaintMixin
 from .arch import ArmArch, Aarch64Arch, Loongarch64, MipsArch, Mips64Arch, X86Arch, X86_64Arch, PowerPCArch, PowerPC64Arch, Riscv32Arch, Riscv64Arch
 from dataclasses import dataclass
@@ -431,6 +432,7 @@ class Panda(TaintMixin):
 
         self.guest = Guest(self)  # guest writes: panda.guest.write_virt, .set_reg, .env(cpu), ...
         self.pagein = PageIn(self)  # page-in reads/writes: panda.pagein.read, .write, .read_sync
+        self.inject = Inject(self)  # injected system calls: panda.inject(generator, asid=...)
         self.arch = None # Keep this with the following docstring such that pydoc generats good docs for it; this is a useful variable!
         """
         A reference to an auto-instantiated `pandare.arch.PandaArch` subclass (e.g., `pandare.arch.X86Arch`)

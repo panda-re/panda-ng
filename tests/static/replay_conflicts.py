@@ -30,7 +30,8 @@ with tempfile.TemporaryDirectory(prefix="replay-conflicts-") as temp:
                             "extern int replay_mode;\n"),
         "system/panda-embed.h": "bool panda_hypercall_replay_safe(Error **errp);\n",
         "panda/hooks.h": ("bool panda_callbacks_replay_safe(Error **errp);\n"
-                          "bool panda_callbacks_record_safe(Error **errp);\n"),
+                          "bool panda_callbacks_record_safe(Error **errp);\n"
+                          "bool panda_inject_record_safe(Error **errp);\n"),
     }
     for name, text in headers.items():
         path = out / name
@@ -47,7 +48,7 @@ with tempfile.TemporaryDirectory(prefix="replay-conflicts-") as temp:
 #include "system/replay-conflicts.h"
 struct Error { char message[256]; };
 int replay_mode;
-static bool cbs_replay_safe = true, cbs_record_safe = true, hc_safe = true;
+static bool cbs_replay_safe = true, cbs_record_safe = true, hc_safe = true, inj_safe = true;
 static uint32_t caps;
 bool startup_caps_has(uint32_t c) { return (caps & c) == c; }
 static bool fail(Error **errp, bool ok, const char *why)
@@ -58,6 +59,7 @@ static bool fail(Error **errp, bool ok, const char *why)
 bool panda_callbacks_replay_safe(Error **errp) { return fail(errp, cbs_replay_safe, "mutating callback"); }
 bool panda_callbacks_record_safe(Error **errp) { return fail(errp, cbs_record_safe, "unlogged mutator"); }
 bool panda_hypercall_replay_safe(Error **errp) { return fail(errp, hc_safe, "KVM hypercall consumer"); }
+bool panda_inject_record_safe(Error **errp) { return fail(errp, inj_safe, "inside an injected call"); }
 void error_setg(Error **errp, const char *fmt, ...)
 {
     if (!errp) return;
@@ -132,6 +134,8 @@ int main(void)
     expect(replay_record_check(&error), &error, "unlogged mutator", NULL);
     cbs_record_safe = true; hc_safe = false;
     expect(replay_record_check(&error), &error, "KVM hypercall consumer", NULL);
+    hc_safe = true; inj_safe = false;
+    expect(replay_record_check(&error), &error, "inside an injected call", NULL);
     return 0;
 }
 '''
@@ -145,4 +149,4 @@ int main(void)
     subprocess.run([str(out / "test")], check=True)
     print("PASS: replay refuses record, unlogged mutation and fast restore with reasons and allows "
           "the rest; replay start refuses a recording and unreplayable mutators; recording needs "
-          "the record capability, no replay and logged mutators")
+          "the record capability, no replay, logged mutators and no thread inside an injected call")

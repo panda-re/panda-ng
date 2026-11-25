@@ -144,11 +144,13 @@ enum {
     PANDA_SYSCALL_MOVED   = 1u << 3,    /* returned on another vCPU than it entered */
     PANDA_SYSCALL_CHILD   = 1u << 4,    /* a shared_child call's child: the call stays pending */
     PANDA_SYSCALL_ENDED   = 1u << 5,    /* a ctx_replace call ended elsewhere: no return value */
+    PANDA_SYSCALL_RESUMED = 1u << 6,    /* an entry: the same call again, after the engine held it
+                                         * for injected calls (panda_inject_hold, panda/inject.h) */
 };
 
 /*
  * The consumer's callback, on the vCPU's thread (vCPUs call it concurrently). At an entry
- * (flags 0) the registers are those of the trapping code, before the trap; @ret is 0. At a
+ * (flags without RETURN: 0, or RESUMED) the registers are those of the trapping code, before the trap; @ret is 0. At a
  * return (flags RETURN | ...) the return has completed (user mode, at its destination) and
  * @ret is the return value. The callback may read guest memory and registers, and change
  * registers (at the entry, before the kernel reads them). Returns are delivered for the calls

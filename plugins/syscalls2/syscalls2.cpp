@@ -2062,6 +2062,11 @@ static bool engine_init(void *self, bool task_key)
     return true;
 }
 #else
+void *syscalls2_current_call_ptr(CPUState *cpu, uint32_t *flags)
+{
+    return nullptr;
+}
+
 bool syscalls2_current_call(CPUState *cpu, uint64_t *id, uint32_t *flags)
 {
     return false;

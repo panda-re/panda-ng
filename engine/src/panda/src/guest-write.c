@@ -10,6 +10,7 @@
 #include "panda/common.h"
 #include "panda/plugin.h"
 #include "panda/guest-write.h"
+#include "plugins/qemu-plugin.h"
 #include "exec/gdbstub.h"
 #include "exec/cputlb.h"
 #include "system/hw_accel.h"
@@ -98,6 +99,26 @@ GuestWriteResult panda_guest_write_virt(CPUState *cpu, uint64_t addr,
     }
     return panda_virtual_memory_rw(cpu, addr, (uint8_t *)buf, len, true) ?
            GUEST_WRITE_EFAULT : GUEST_WRITE_OK;
+}
+
+GuestWriteResult panda_guest_write_virt_user(CPUState *cpu, uint64_t addr,
+                                             const void *buf, size_t len)
+{
+    GByteArray *b;
+    int r;
+
+    if (!cpu || !buf || !len || len > INT_MAX || cpu != current_cpu) {
+        return GUEST_WRITE_EINVAL;
+    }
+    /* not a write the replay log can hold: no record/replay at all */
+    if (!panda_guest_mutation_allowed() || rr_on()) {
+        return GUEST_WRITE_EPERM;
+    }
+    b = g_byte_array_new();
+    g_byte_array_append(b, buf, len);
+    r = qemu_plugin_write_memory_vaddr_fault(addr, b, QEMU_PLUGIN_VADDR_USER, false);
+    g_byte_array_unref(b);
+    return r == QEMU_PLUGIN_VADDR_OK ? GUEST_WRITE_OK : GUEST_WRITE_EFAULT;
 }
 
 GuestWriteResult panda_guest_write_phys(uint64_t addr, const void *buf, size_t len)

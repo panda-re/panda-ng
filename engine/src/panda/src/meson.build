@@ -15,6 +15,7 @@ specific_ss.add(
         'panda_qemu_plugin_helpers.c',
         'rr_control.c',
         'guest-write.c',
+        'inject.c',
         'pagein.c',
         'syscall-pair.c',
         'wrap_ops.c',

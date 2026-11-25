@@ -29,9 +29,8 @@
  * kernel completes requests with PANDA_PAGEIN_EGUEST and EINVAL.
  *
  * Refused, at submission, with their own status: during record/replay, under KVM, on targets
- * without a system-call injector (x86_64, aarch64, arm, riscv64, mips, mipsel, mips64, mips64el,
- * ppc, ppc64 and loongarch64 have one; i386 doesn't), and for tasks of another ABI (a 32-bit task
- * on an x86_64 or ppc64 kernel, MIPS16).
+ * without a system-call injector (every target has one: panda/inject.h), and for tasks of an ABI
+ * it can't serve (a 32-bit task on a ppc64 kernel, MIPS16).
  */
 #include <stddef.h>
 #include <stdint.h>

@@ -14,7 +14,8 @@
 
 /* Bits of panda_loop_hooks: what the CPU loop calls into PANDA for. Nothing set, no call. */
 #define PANDA_LOOP_EXCEPTION 1      /* a before_handle_exception callback is registered */
-#define PANDA_LOOP_PAGEIN 2         /* page-in requests are waiting (include/panda/pagein.h) */
+#define PANDA_LOOP_INJECT 2         /* injection sessions wait, or a thread is inside an injected
+                                     * system call (include/panda/inject.h) */
 
 #ifdef CONFIG_PANDA
 
@@ -65,12 +66,24 @@ void panda_before_loadvm(void);
 /* Stopped-vCPU destructive restore/reset boundary: cancel transient analysis,
  * independently of whether the transition subsequently succeeds. */
 void panda_analysis_reset(void);
-/* The CPU loop, between blocks, while PANDA_LOOP_PAGEIN is set: serve page-in requests. May
- * leave the loop (cpu_loop_exit) after changing the CPU state. */
-void panda_pagein_service(CPUState *cpu);
-void panda_pagein_cancel_all(void);
-/* Set by the page-in injector for the exception it raises: the system call is not the program's */
-extern __thread bool panda_pagein_injecting;
+/* The CPU loop, between blocks, while PANDA_LOOP_INJECT is set: serve injection sessions (and
+ * through them page-in requests). May leave the loop (cpu_loop_exit) after changing the CPU
+ * state. */
+void panda_inject_service(CPUState *cpu);
+void panda_inject_cancel_all(void);
+/* Starting a recording: false while a thread is inside an injected system call; true stops new
+ * sessions from starting until the recording has */
+bool panda_inject_record_safe(Error **errp);
+/* Set by the injector for the exception it raises: the system call is not the program's, so the
+ * system-call entry sites do not report it. The exception's delivery takes it (and clears it). */
+extern __thread bool panda_inject_raising;
+static inline bool panda_inject_take_raising(void)
+{
+    bool r = panda_inject_raising;
+
+    panda_inject_raising = false;
+    return r;
+}
 
 #else
 
@@ -98,9 +111,10 @@ static inline void panda_callbacks_main_loop_wait(void) {}
 static inline void panda_callbacks_after_loadvm(CPUState *env) {}
 static inline void panda_before_loadvm(void) {}
 static inline void panda_analysis_reset(void) {}
-static inline void panda_pagein_service(CPUState *cpu) {}
-static inline void panda_pagein_cancel_all(void) {}
-#define panda_pagein_injecting false
+static inline void panda_inject_service(CPUState *cpu) {}
+static inline void panda_inject_cancel_all(void) {}
+static inline bool panda_inject_record_safe(Error **errp) { return true; }
+static inline bool panda_inject_take_raising(void) { return false; }
 static inline bool panda_callbacks_asid_changed(CPUState *cpu, uint64_t oldval, uint64_t newval)
 {
     return false;

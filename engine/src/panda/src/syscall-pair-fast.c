@@ -14,6 +14,8 @@
  */
 
 #include "syscall-pair-int.h"
+#include "accel/tcg/getpc.h"
+#include "accel/tcg/cpu-loop.h"
 
 #ifdef SC_TARGET
 
@@ -30,7 +32,7 @@ static inline QEMU_ALWAYS_INLINE void sc_enter_slot(const bool std, CPUArchState
     uint32_t len = (wl >> 8) & 0xff;
 
     sc_fill(std, A, v, ci, env, c, nr, pc, len);
-    sc_deliver(A, cpu, c, 0, 0);
+    sc_deliver(A, cpu, c, 0, panda_inject_entry_flags(cpu, pc));
 }
 
 /*
@@ -110,7 +112,7 @@ static inline QEMU_ALWAYS_INLINE void sc_keep_k(const bool task, const bool std,
     qatomic_set(&v->dlv, r);
     qatomic_store_release(&S->tag[0], tag);
     if (wl & SC_W_ENTRY) {
-        sc_deliver(A, cpu, c, 0, 0);
+        sc_deliver(A, cpu, c, 0, panda_inject_entry_flags(cpu, pc));
     }
     return;
 full:
@@ -134,11 +136,17 @@ static inline QEMU_ALWAYS_INLINE void sc_enter_k(const bool std,
         return;                         /* #UD or #GP: no system call */
     }
 #endif
+    panda_sc_hold = 1;
     if (likely(!(wl & SC_W_RET))) {
         sc_enter_slot(std, env, wl, nr, pc);
-        return;
+    } else {
+        keep(env, wl, nr, pc);
     }
-    keep(env, wl, nr, pc);
+    if (unlikely(panda_sc_hold == 2) && panda_sc_hold_end(env_cpu(env))) {
+        /* held (panda_inject_hold): the trap does not run now; the task stays at it */
+        cpu_loop_exit_restore(env_cpu(env), GETPC());
+    }
+    panda_sc_hold = 0;
 }
 
 #define SC_ENTER_FNS(name, task, std)                                                          \

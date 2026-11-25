@@ -107,7 +107,7 @@ QEMU 11.1.2 plus 111 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0099 | hw/pci-host/ppce500: rebuild the PCI windows on load | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
 | 0100 | hw/pci-host/ppce500: migrate the host bridge's config space | [record-replay](../features.md#record-replay), [snapshots](../features.md#snapshots) | new | GPL-2.0-or-later |
 | 0101 | monitor: info panda-events lists the PANDA event registry | [plugins](../features.md#plugins) | new | GPL-2.0-or-later |
-| 0102 | target: system-call pairing sites | [syscalls](../features.md#syscalls) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
+| 0102 | target: system-call pairing sites | [syscalls](../features.md#syscalls), [syscall-injection](../features.md#syscall-injection) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
 | 0103 | accel/tcg, target/arm: take SVC, UNDEF and aborts to EL1 without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
 | 0104 | accel/tcg: clear a lone CPU_INTERRUPT_EXITTB without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | LGPL-2.1-or-later |
 | 0105 | target/ppc: take system calls from problem state without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | LGPL-2.1-or-later AND MIT |
@@ -116,4 +116,4 @@ QEMU 11.1.2 plus 111 patches (`engine/patches/11.1.2/`). `engine/README.md` expl
 | 0108 | target/loongarch: take SYSCALL and page faults without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | GPL-2.0-or-later |
 | 0109 | target/i386: deliver INT 0x80 from user mode without the BQL | [qemu-fixes](../features.md#qemu-fixes) | new | LGPL-2.1-or-later |
 | 0110 | target: translate for debug as the guest kernel sees an address | [python](../features.md#python) | new | GPL-2.0-or-later AND LGPL-2.1-or-later |
-| 0111 | accel/tcg, target/arm: serve page-in requests between blocks | [faulting-access](../features.md#faulting-access) | new | GPL-2.0-or-later |
+| 0111 | accel/tcg, target/arm, target/i386: serve injection sessions between blocks | [faulting-access](../features.md#faulting-access), [syscall-injection](../features.md#syscall-injection) | new | GPL-2.0-or-later |
