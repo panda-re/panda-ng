@@ -25,4 +25,9 @@ bool syscalls2_current_args(CPUState *cpu, int64_t *nr, uint64_t args[6]);
 // returns the system call return value, hiding arch-specific details
 target_long get_syscall_retval(CPUState *cpu);
 
+// Inside an enter or return callback where syscalls2_current_call answers: the engine's call
+// record (struct PandaSyscallCall *, panda/syscall-pair.h), for panda_inject_hold() at an entry,
+// and its delivery flags in *flags (PANDA_SYSCALL_RESUMED: a held entry again). NULL elsewhere.
+void *syscalls2_current_call_ptr(CPUState *cpu, uint32_t *flags);
+
 // END_PYPANDA_NEEDS_THIS -- do not delete this comment!

@@ -746,6 +746,7 @@ static void SC2_HOT __attribute__((noinline)) sc2_e(void *slot, CPUState *cpu, P
 
     sv->call = c;
     sv->flags_changed = 0;
+    sv->flags = flags;                  /* PANDA_SYSCALL_RESUMED for a held entry again */
     if (unlikely(sc2_full[SC2_ENTER].load(std::memory_order_acquire))) {
         sc2_e_full(cpu, c, s);
     } else {
@@ -849,8 +850,8 @@ static void SC2_HOT engine_call(void *opaque, CPUState *cpu, PandaSyscallCall *c
 
     if (unlikely(s->flags & SC2_S_OVER)) {
         sc2_over(cpu, c, flags);
-    } else if (!flags) {
-        sc2_e((void *)s, cpu, c, ret, flags);  /* an entry */
+    } else if (!(flags & PANDA_SYSCALL_RETURN)) {
+        sc2_e((void *)s, cpu, c, ret, flags);  /* an entry (or a held one again: RESUMED) */
     } else {
         sc2_r((void *)s, cpu, c, ret, flags);  /* a return */
     }
@@ -865,6 +866,11 @@ static inline const PandaSyscallCall *sc2_current(CPUState *cpu, uint32_t *flags
         *flags = sv->flags;
     }
     return sv->call;
+}
+
+void *syscalls2_current_call_ptr(CPUState *cpu, uint32_t *flags)
+{
+    return (void *)sc2_current(cpu, flags);
 }
 
 bool syscalls2_current_call(CPUState *cpu, uint64_t *id, uint32_t *flags)
