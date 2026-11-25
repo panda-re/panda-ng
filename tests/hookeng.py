@@ -24,6 +24,10 @@ child process:
   so code on the other pages translates with CF_PCREL again where the target has it.
 - inside: a hook in the middle of an instruction (ins0 + 2) never fires, and the engine says so
   when it translates that instruction; a hook at ins0 fires every time.
+- asid: from its first hit at a0, a hook adds hooks with asid=panda.current_asid(cpu) at b0 and
+  with another asid at b1 (pandare2's panda.hook): the first fires every round, the second never.
+  On MIPS this compares the EntryHi ASID on both sides (the plugin once compared hw_proc_id's
+  task pointer there, so pandare2's asids never matched);
 - delay (MIPS): a hook on a branch delay slot (ds0) fires once per round.
 - thumb (arm): a hook at a Thumb instruction's address (th0) fires once per round; one at the
   address with the Thumb bit set (th1 | 1) is inside an instruction: it never fires, and the
@@ -49,11 +53,11 @@ PANDA_TEST = dict(area="hooks", tier="guest", fixture="testmachine",
                   variants=dict(smp=[1, 4]), needs=["cc"], timeout=1800)
 
 R = 100
-CASES = {"x86_64": ["late", "storm", "churn", "inside", "kvm"],
-         "aarch64": ["late", "storm", "churn", "inside"],
-         "mips": ["late", "storm", "churn", "inside", "delay"],
-         "ppc64": ["late", "storm", "churn", "inside"],
-         "arm": ["late", "storm", "churn", "inside", "thumb"]}
+CASES = {"x86_64": ["late", "storm", "churn", "inside", "asid", "kvm"],
+         "aarch64": ["late", "storm", "churn", "inside", "asid"],
+         "mips": ["late", "storm", "churn", "inside", "asid", "delay"],
+         "ppc64": ["late", "storm", "churn", "inside", "asid"],
+         "arm": ["late", "storm", "churn", "inside", "asid", "thumb"]}
 SMP_CASES = ["late", "storm"]
 # what the engine prints for a hook inside an instruction (accel/tcg/hooks.c)
 INSIDE_MSG = "is inside the instruction at"
@@ -266,6 +270,28 @@ def case_inside(L):
     C.check("the program runs", b"rc=0" in out, out[-200:])
     C.check("the hook at the instruction fires every time", good[0] == R, good[0])
     C.check("the hook inside the instruction never fires", bad[0] == 0, bad[0])
+
+
+def case_asid(L):
+    rec = {"b0": [], "b1": []}
+    st = {}
+
+    def recorder(name):
+        def fn(cpu, tb, hook):
+            rec[name].append(read_iter(cpu, L["iter"]))
+        return fn
+
+    def on_a0(cpu, tb, hook):
+        if "asid" not in st:
+            st["asid"] = a = panda.current_asid(cpu)
+            panda.hook(L["b0"], asid=a, kernel=False, observe_only=True)(recorder("b0"))
+            panda.hook(L["b1"], asid=a + 1, kernel=False, observe_only=True)(recorder("b1"))
+    panda.hook(L["a0"], kernel=False, observe_only=True)(on_a0)
+    rc, out = agent.run(f"/tmp/he late {R}; echo rc=$?")
+    C.check("the program runs", b"rc=0" in out, out[-200:])
+    C.check("a hook with the process's current_asid fires every round",
+            rec["b0"] == list(range(1, R + 1)), (st.get("asid"), rec["b0"][:5], len(rec["b0"])))
+    C.check("a hook with another asid never fires", rec["b1"] == [], rec["b1"][:5])
 
 
 def case_delay(L):

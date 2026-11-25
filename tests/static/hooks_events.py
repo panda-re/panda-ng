@@ -211,7 +211,7 @@ extern "C" void panda_enable_precise_pc(void) {}
 extern "C" bool panda_in_kernel_external(const CPUState *cpu) { return cpu->kernel; }
 static int get_ids;
 target_ulong get_id(CPUState *cpu) { get_ids++; return cpu->asid; }
-/* outside MIPS the plugin compares asids with panda_current_asid() itself */
+/* the plugin compares asids with panda_current_asid() */
 extern "C" target_ulong panda_current_asid(CPUState *cpu) { get_ids++; return cpu->asid; }
 bool init_hw_proc_id_api(void) { return true; }
 

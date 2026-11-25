@@ -20,12 +20,12 @@ None.
 Dependencies
 ------------
 
-On MIPS, `hw_proc_id`, which it loads itself when the first hook with an `asid` is added: a
-hook's `asid` is compared with its `get_id`, the running task's pointer. hw_proc_id keeps that
-with a callback on every block, which on its own doubles a translation-heavy run, so it is not
-loaded otherwise. Adding the first such hook from a vCPU thread (a callback) can't load it: load
-hw_proc_id first (`panda_require`, or `panda.load_plugin` before the run), or the hook is refused
-with a message. Elsewhere `get_id` is `panda_current_asid`, which the plugin calls itself.
+None. A hook's `asid` is compared with `panda_current_asid()` on every arch, the value
+pandare2's `panda.current_asid(cpu)` returns. On MIPS that is the EntryHi ASID, which the kernel
+recycles, so a hook with an asid can also run in a later process that gets the same ASID; filter
+further in the callback if that matters. (Classic PANDA compared with `hw_proc_id`'s `get_id`,
+the task pointer on MIPS: pandare2's asids never matched there, and loading hw_proc_id put a
+callback on every block.)
 
 APIs and Callbacks
 ------------------
@@ -111,7 +111,7 @@ struct hook
 | field | meaning |
 |---|---|
 | `addr` | the virtual address of the instruction to hook |
-| `asid` | run only when `hw_proc_id`'s `get_id` equals this (`panda_current_asid` outside MIPS); 0 for every address space |
+| `asid` | run only when `panda_current_asid()` equals this; 0 for every address space |
 | `cb` | the function (`hook_func_t`, above) |
 | `km` | `MODE_ANY`, `MODE_KERNEL_ONLY` or `MODE_USER_ONLY` |
 | `enabled` | false disables the hook, which is then removed |
