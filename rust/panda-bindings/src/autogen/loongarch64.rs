@@ -45400,6 +45400,8 @@ unsafe extern "C" {
         injected: *mut u64,
         completed: *mut u64,
         abandoned: *mut u64,
+        stale: *mut u64,
+        overframes: *mut u64,
         by_status: *mut u64,
     );
 }
