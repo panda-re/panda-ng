@@ -410,14 +410,14 @@ limits = """
 The faulting calls raise the fault at the instrumented instruction and run the callback again
 after it: only from instruction callbacks registered with QEMU_PLUGIN_CB_RW_REGS_PC, engine
 address hooks and KVM breakpoint callbacks; a bad address gets the process a signal, and from
-kernel mode an oops. Page-in requests need TCG, an x86_64, aarch64 or riscv64 target and a
-Linux 5.14 or later guest, and wait for the process to run in user mode.
+kernel mode an oops. Page-in requests need TCG, a target other than i386, and a Linux 5.14 or
+later guest, and wait for the process to run in user mode.
 """
 api = ["c:qemu_plugin_read_memory_vaddr_fault", "c:qemu_plugin_access_memory_vaddr_fault",
-       "c:panda_pagein_submit", "py:Panda.pagein", "py:Panda.virtual_memory_read"]
+       "c:panda_pagein_submit", "py:PageIn.read", "py:Panda.virtual_memory_read"]
 docs = ["docs/guides/python.md#memory-that-isnt-paged-in"]
 tests = ["engine/tests/guest/run.sh", "engine/tests/guest/kvm.sh", "tests/pagein.py"]
-patches = ["0013-0017", "0031", "0033"]
+patches = ["0013-0017", "0031", "0033", "0111"]
 
 [[feature]]
 id = "engine-hooks"

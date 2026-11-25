@@ -387,13 +387,23 @@ TCG), and so must the devices: build both engines with the same features or pass
 ## Memory access that pages in
 
 Plugin reads and writes of guest virtual memory that fault the page in through the guest kernel
-when it isn't mapped yet, singly or batched, on TCG and x86_64 KVM.
+when it isn't mapped yet, singly or batched, on TCG and x86_64 KVM. Page-in requests do the same
+from any callback or thread without a fault the guest would not take: the process's own thread
+asks its kernel (madvise MADV_POPULATE), and a bad address is an error, not a signal.
 
-**Use it:** `qemu_plugin_read_memory_vaddr_fault`, `qemu_plugin_access_memory_vaddr_fault`
+**Limits.** The faulting calls raise the fault at the instrumented instruction and run the callback again
+after it: only from instruction callbacks registered with QEMU_PLUGIN_CB_RW_REGS_PC, engine
+address hooks and KVM breakpoint callbacks; a bad address gets the process a signal, and from
+kernel mode an oops. Page-in requests need TCG, a target other than i386, and a Linux 5.14 or
+later guest, and wait for the process to run in user mode.
 
-**Tests:** `engine/tests/guest/run.sh`, `engine/tests/guest/kvm.sh`
+**Use it:** `qemu_plugin_read_memory_vaddr_fault`, `qemu_plugin_access_memory_vaddr_fault`, `panda_pagein_submit`, `PageIn.read`, `Panda.virtual_memory_read`
 
-**Engine patches:** 0013-0017, 0031, 0033 ([series](reference/patches.md))
+**Docs:** [docs/guides/python.md#memory-that-isnt-paged-in](guides/python.md#memory-that-isnt-paged-in)
+
+**Tests:** `engine/tests/guest/run.sh`, `engine/tests/guest/kvm.sh`, `tests/pagein.py`
+
+**Engine patches:** 0013-0017, 0031, 0033, 0111 ([series](reference/patches.md))
 
 <a id="engine-hooks"></a>
 ## Translation-time hooks and register pointers
