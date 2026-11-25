@@ -45852,6 +45852,56 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn panda_guest_write_strerror(result: GuestWriteResult) -> *const ::std::os::raw::c_char;
 }
+pub const PANDA_PAGEIN_OK: PandaPageinStatus = 0;
+pub const PANDA_PAGEIN_QUEUED: PandaPageinStatus = 1;
+pub const PANDA_PAGEIN_EGUEST: PandaPageinStatus = -1;
+pub const PANDA_PAGEIN_ETIMEDOUT: PandaPageinStatus = -2;
+pub const PANDA_PAGEIN_ECANCELED: PandaPageinStatus = -3;
+pub const PANDA_PAGEIN_ERECORD: PandaPageinStatus = -4;
+pub const PANDA_PAGEIN_EACCEL: PandaPageinStatus = -5;
+pub const PANDA_PAGEIN_EARCH: PandaPageinStatus = -6;
+pub const PANDA_PAGEIN_EINVAL: PandaPageinStatus = -7;
+pub const PANDA_PAGEIN_EBUSY: PandaPageinStatus = -8;
+pub const PANDA_PAGEIN_ERECLAIMED: PandaPageinStatus = -9;
+pub const PANDA_PAGEIN_EIO: PandaPageinStatus = -10;
+pub type PandaPageinStatus = ::std::os::raw::c_int;
+pub type panda_pagein_cb_t = ::std::option::Option<
+    unsafe extern "C" fn(
+        id: u64,
+        status: ::std::os::raw::c_int,
+        guest_errno: ::std::os::raw::c_int,
+        data: *const u8,
+        len: usize,
+        opaque: *mut ::std::os::raw::c_void,
+    ),
+>;
+unsafe extern "C" {
+    pub fn panda_pagein_submit(
+        asid: u64,
+        addr: u64,
+        len: usize,
+        wdata: *const u8,
+        timeout_ns: u64,
+        cb: panda_pagein_cb_t,
+        opaque: *mut ::std::os::raw::c_void,
+        id: *mut u64,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn panda_pagein_can_wait() -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_pagein_strerror(status: ::std::os::raw::c_int) -> *const ::std::os::raw::c_char;
+}
+unsafe extern "C" {
+    pub fn panda_pagein_stats(
+        submitted: *mut u64,
+        injected: *mut u64,
+        completed: *mut u64,
+        abandoned: *mut u64,
+        by_status: *mut u64,
+    );
+}
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct panda_plugin {
