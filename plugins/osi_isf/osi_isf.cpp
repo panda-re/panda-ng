@@ -630,6 +630,30 @@ void add_task_switch_hook() {
     added = true;
 }
 
+// A program started (exec): the lifecycle's EXEC, and a task change (the process changed without
+// a switch).
+void program_started(CPUState *cpu) {
+    if (cap.lifecycle) lifecycle_program_start(cpu);
+    if (cap.task_change) notify_task_change(cpu);
+}
+
+void exec_hooked(CPUState *cpu, TranslationBlock *tb, struct hook *h) { program_started(cpu); }
+
+// The kernel function program_start hooks, or "" for proc_start_linux.
+std::string exec_hook_symbol() {
+    if (!plan.ok("program_start")) return "";
+    const std::string &s = plan.strategy("program_start");
+    return s == "finalize_exec hook" ? "finalize_exec" : s == "set_binfmt hook" ? "set_binfmt" : "";
+}
+
+void add_exec_hook() {
+    static bool added = false;
+    std::string s = exec_hook_symbol();
+    if (added || s.empty()) return;
+    add_kernel_hook(slid(plan.sym(s)), exec_hooked);
+    added = true;
+}
+
 // Fills off, cap and the symbols from the plan (after pairing: with the slide).
 void choose() {
     auto o = [](const char *t, const char *p) { return plan.off(t, p); };
@@ -763,7 +787,10 @@ void choose() {
         }
     }
     facts_choose();
-    if (ok) add_task_switch_hook();
+    if (ok) {
+        add_task_switch_hook();
+        if (cap.task_change || cap.lifecycle) add_exec_hook();
+    }
 }
 
 // Paired and the capability chosen; logs once per capability the first time it is asked for
@@ -1093,15 +1120,23 @@ bool init_plugin(void *self) {
             panda_callback_supported_modes(PANDA_CB_ASID_CHANGED), true);
 
     // finish_task_switch runs first thing in the task switched to, so current is already the new
-    // task; the hook goes in once the ISF is paired (at the slid address).
-    if (plan.ok("task_change") || (lifecycle_requested && plan.ok("exit_codes"))) panda_require("hooks");
-    // An exec changes the process without a switch.
-    panda_require("proc_start_linux");
-    if (lifecycle_requested) lifecycle_init();
-    PPP_REG_CB("proc_start_linux", on_rec_auxv, [](CPUState *cpu, TranslationBlock *, struct auxv_values *) {
-        if (cap.lifecycle) lifecycle_program_start(cpu);
-        if (cap.task_change) notify_task_change(cpu);
-    });
+    // task; the hooks go in once the ISF is paired (at the slid addresses).
+    bool exec_hook = !exec_hook_symbol().empty();
+    if (plan.ok("task_change") || (lifecycle_requested && plan.ok("exit_codes")) || exec_hook)
+        panda_require("hooks");
+    // An exec changes the process without a switch: a hook in the kernel's loader (program_start),
+    // else proc_start_linux, which watches every block from execve's entry to the new program's
+    // first one.
+    if (!exec_hook) {
+        panda_require("proc_start_linux");
+        PPP_REG_CB("proc_start_linux", on_rec_auxv, [](CPUState *cpu, TranslationBlock *, struct auxv_values *) {
+            program_started(cpu);
+        });
+    }
+    if (lifecycle_requested) {
+        if (!panda_get_plugin_by_name("syscalls2")) panda_require("syscalls2");
+        lifecycle_init();
+    }
     return true;
 }
 

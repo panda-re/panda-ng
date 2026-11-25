@@ -15,7 +15,8 @@ PANDAENDCOMMENT */
  * first return. A child that is seen before its creator's call returns (at a task change, an
  * exec, an exit, its own calls) is reported then, from the pending call that made it, so that a
  * task's creation always comes before its other events. Exec: the old program at execve's entry,
- * the new one when it starts (proc_start_linux). Exit: a hook on do_exit, whose argument is the
+ * the new one where program_start sees it (a hook in the kernel's ELF loader, else
+ * proc_start_linux). Exit: a hook on do_exit, whose argument is the
  * wait status, or the exit system calls. Reparenting: an exiting process's children, checked at
  * the following task changes. Pid reuse: tasks are known by (id, start time).
  */
@@ -296,8 +297,8 @@ void exec_event(CPUState *cpu, uint64_t ts, std::map<int32_t, Exec>::iterator e)
     outq.push_back(v);
 }
 
-// An execve whose program has started though proc_start_linux didn't see it start (it reads the
-// auxiliary vector from user memory, which may not be readable): the task has another mm.
+// An execve whose program has started though program_start didn't see it start (proc_start_linux
+// reads the auxiliary vector from user memory, which may not be readable): the task has another mm.
 void exec_seen(CPUState *cpu, uint64_t ts) {
     if (execs.empty() || !ts) return;
     auto e = execs.find(tgid_of(cpu, ts));

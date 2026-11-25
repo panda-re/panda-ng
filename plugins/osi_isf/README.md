@@ -78,6 +78,7 @@ Capabilities and strategies
 | `heap_stack` | `[heap]` and `[stack]`, `get_proc_mem` |
 | `modules` | `get_modules` |
 | `task_change` | `on_task_change`, from a hook on `finish_task_switch` and at exec |
+| `program_start` | where an exec is seen (`on_task_change` at exec, `EXEC` events): a hook in the kernel's ELF loader, else proc_start_linux |
 | `threads` | a process's threads (`osi_isf_facts`: `threads`) and their address space (`mm`) |
 | `file_paths` | a file's path within its filesystem (for mappings, exe, cwd, root and fds) |
 | `lifecycle` | `FORK`, `THREAD` and `EXEC` events (`lifecycle=true`) |
@@ -131,6 +132,9 @@ The strategies (`osi_isf_check --strategies` prints this table):
 | modules | core_layout | 4.5.0-<6.4.0 | all | `modules`, `module.list` (struct list_head), `module.name` (char array), `module.core_layout.base` (pointer), `module.core_layout.size` (4-byte integer) |
 | modules | module_core | 2.6.0-<4.5.0 | all | `modules`, `module.list` (struct list_head), `module.name` (char array), `module.module_core` (pointer), `module.core_size` (4-byte integer) |
 | task_change | finish_task_switch | any | all | `finish_task_switch*`, capability current |
+| program_start | finalize_exec hook | any | all | `finalize_exec` |
+| program_start | set_binfmt hook | any | all | `set_binfmt` |
+| program_start | proc_start_linux | any | all | nothing |
 | lifecycle | system calls | any | all | `task_struct.real_parent` (pointer), capability tasks, capability pid, capability current, capability ppid, capability thread_group |
 | exit_codes | do_exit hook | any | all | `do_exit`, `task_struct.signal` (pointer), `signal_struct.live.counter` (4-byte integer) (optional), capability lifecycle |
 | exit_codes | exit system calls | any | all | capability lifecycle |
@@ -256,9 +260,9 @@ With `lifecycle=true`, osi_isf calls `on_osi_isf_event(CPUState *cpu, const OsiI
   events. Tasks a kernel thread starts are not reported created; tasks alive when the events
   start are known and not reported. `clone_flags` is clone's or clone3's argument (clone3's read
   from the caller's memory), `CLONE_VM | CLONE_VFORK` for vfork and 0 for fork.
-- **Exec**: the old program (`exe_path`, else the name) at execve's entry, the new one when the
-  program starts (proc_start_linux), or, when that can't read the new program's stack (MIPS),
-  when the task is next seen with another mm. A failed execve reports nothing.
+- **Exec**: the old program (`exe_path`, else the name) at execve's entry, the new one where
+  `program_start` sees it (below), or, failing that, when the task is next seen with another mm.
+  A failed execve reports nothing.
 - **Exit**: the strategy `do_exit hook` reads do_exit's argument, which is every task's end and
   its wait status (signals included). `group_exit` is 1 for the last of the process's tasks
   to enter do_exit (with the thread list; `signal->live` without it, which can race). Without the
@@ -267,6 +271,29 @@ With `lifecycle=true`, osi_isf calls `on_osi_isf_event(CPUState *cpu, const OsiI
   task change finds its parent changed.
 - **Pid reuse**: tasks are known by (tid, start time); a new task whose id was another's is
   reported with that one's start time.
+
+Exec
+----
+
+An exec changes the current process without a task switch: osi_isf calls `on_task_change` for it
+and, with `lifecycle=true`, reports `EXEC`. Where it sees the exec is the `program_start`
+capability:
+
+* `finalize_exec hook` (kernels that have `finalize_exec`): a hook on
+  `finalize_exec`, which the ELF loader calls last, just before it sets the new program's
+  registers. The task's mm, name and executable are the new program's, and its mappings
+  (program, interpreter, vDSO, stack with the auxiliary vector) are all in place; the CPU is
+  still in the kernel, so the pc and registers are the kernel's, not the program's entry.
+* `set_binfmt hook` (every other kernel): a hook on `set_binfmt`, which the ELF loader calls once
+  the program and its interpreter are mapped; the vDSO and the stack's auxiliary vector come
+  after it.
+* `proc_start_linux` (a kernel without either symbol): the new program's first block in user
+  mode. proc_start_linux keeps a block callback on from execve's entry until then (the whole exec
+  path in the kernel), which costs far more than a hook.
+
+Both hooks run once per successful exec, after the point of no return: an exec that fails before
+it reports nothing, one that fails after it (the program is killed before it runs) still
+reports. Neither hook needs the new program's stack to be readable.
 
 The report
 ----------
@@ -313,5 +340,6 @@ Limits
 Dependencies
 ------------
 
-`osi`, `hooks` (the `finish_task_switch` and `do_exit` hooks) and `proc_start_linux` (exec), which
-it loads; `lifecycle=true` uses `syscalls2`, which proc_start_linux loads.
+`osi` and `hooks` (the `finish_task_switch`, exec and `do_exit` hooks), which it loads;
+`proc_start_linux` only for a kernel without `finalize_exec` or `set_binfmt`; `lifecycle=true`
+loads `syscalls2`.

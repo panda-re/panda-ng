@@ -29,7 +29,7 @@ PANDA_TEST = dict(area="osi", tier="static", args=["{plugin_dir}"], timeout=900)
 
 CAPS = ["tasks", "pid", "name", "ppid", "thread_group", "asid", "start_time", "current", "threads",
         "file_paths", "mappings", "mapping_files", "mount_paths", "heap_stack", "modules", "task_change",
-        "lifecycle", "exit_codes", "reparent", "pid_reuse", "cmdline", "exe_path", "fs_paths", "creds",
+        "program_start", "lifecycle", "exit_codes", "reparent", "pid_reuse", "cmdline", "exe_path", "fs_paths", "creds",
         "cap_sets", "open_files", "sockets", "vma_details"]
 # The capabilities of the first round (the OSI interface), and those of process facts and lifecycle.
 OSI_CAPS = CAPS[:16]
@@ -199,8 +199,10 @@ def era_isf(ver, arch, banner=True):
     types["thread_union"] = {"kind": "union", "size": 8192 if p == 4 else 16384, "fields": {}}
 
     syms = {"init_task": 0xc0800000, "modules": 0xc0810000, "finish_task_switch.isra.0": 0xc0100000,
-            "do_exit": 0xc0110000,
+            "do_exit": 0xc0110000, "set_binfmt": 0xc0120000,
             "__per_cpu_offset": 0xc0820000, "_stext": 0xc0008000, "_etext": 0xc0600000}
+    if v >= (4, 17):
+        syms["finalize_exec"] = 0xc0130000
     if arch in ("x86_64", "i386"):
         if v >= (6, 2):
             syms["pcpu_hot"] = 0x2000
@@ -250,6 +252,7 @@ def expect(ver, arch):
     e["threads"] = "signal->thread_head" if v >= (3, 14) else "thread_group ring"
     e["file_paths"] = "f_path.dentry" if v >= (2, 6, 20) else "f_dentry"
     e["exit_codes"] = "do_exit hook"
+    e["program_start"] = "finalize_exec hook" if v >= (4, 17) else "set_binfmt hook"
     e["exe_path"] = "mm->exe_file" if v >= (2, 6, 26) else None
     e["fs_paths"] = "fs_struct paths" if v >= (2, 6, 25) else "fs_struct dentries"
     e["creds"] = "task->cred" if v >= (2, 6, 29) else "task_struct ids"
@@ -490,6 +493,11 @@ def check_damage(tool, C):
     rep = tool.report(tool.write(damaged(lambda i: i["symbols"].pop("do_exit"))), "x86_64")
     C.check("no do_exit symbol: exit statuses from the exit system calls",
             rep["capabilities"]["exit_codes"].get("strategy") == "exit system calls", cap_reason(rep, "exit_codes"))
+    rep = tool.report(tool.write(damaged(lambda i: [i["symbols"].pop(s) for s in ("finalize_exec", "set_binfmt")])),
+                      "x86_64")
+    C.check("no finalize_exec or set_binfmt symbol: execs from proc_start_linux",
+            rep["capabilities"]["program_start"].get("strategy") == "proc_start_linux"
+            and others_ok(rep, []), cap_reason(rep, "program_start"))
     rep = tool.report(tool.write(damaged(lambda i: i["user_types"]["file"]["fields"].pop("f_path"))), "x86_64")
     gone = [c for c in CAPS if rep["capabilities"][c]["status"] == "unavailable"]
     C.check("no file.f_path: file paths, and everything that names files, unavailable",
