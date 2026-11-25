@@ -558,6 +558,9 @@ std::string pair_method, pair_detail;
 std::string isf_banner;     // the ISF's banner, first line
 
 void choose();              // below
+void install_hooks_if_wanted();
+void *self_ptr;
+panda_cb asid_pcb;
 
 bool banner_ok(CPUState *cpu, uint64_t addr, std::string *got) {
     static const char lv[] = "Linux version ";
@@ -733,6 +736,31 @@ void add_exec_hook() {
     added = true;
 }
 
+// The task-switch and exec hooks cost something at every switch and exec: they go in only once
+// something listens (on_task_change has a subscriber, or lifecycle=true). Asked at pairing and at
+// every address-space change until then (osi_task_change_subscribers, by dlsym: an osi without
+// it is taken as listening).
+bool hooks_installed;
+
+int task_change_subscribers() {
+    static int (*fn)(void) = nullptr;
+    static bool looked;
+    if (!looked) {
+        void *osi = panda_get_plugin_by_name("osi");
+        fn = osi ? (int (*)(void))dlsym(osi, "osi_task_change_subscribers") : nullptr;
+        looked = true;
+    }
+    return fn ? fn() : 1;
+}
+
+void install_hooks_if_wanted() {
+    if (hooks_installed || pair_state != Pair::Ok) return;
+    if (!cap.lifecycle && task_change_subscribers() == 0) return;
+    add_task_switch_hook();
+    if (cap.task_change || cap.lifecycle) add_exec_hook();
+    hooks_installed = true;
+}
+
 // Fills off, cap and the symbols from the plan (after pairing: with the slide).
 void choose() {
     auto o = [](const char *t, const char *p) { return plan.off(t, p); };
@@ -866,10 +894,7 @@ void choose() {
         }
     }
     facts_choose();
-    if (ok) {
-        add_task_switch_hook();
-        if (cap.task_change || cap.lifecycle) add_exec_hook();
-    }
+    install_hooks_if_wanted();
 }
 
 // Paired and the capability chosen; logs once per capability the first time it is asked for
@@ -1197,11 +1222,19 @@ bool init_plugin(void *self) {
 
     // Pairing is tried at address-space switches (in the kernel, where the KASLR search works)
     // and at OSI calls, until it is decided.
-    panda_cb pcb = { .asid_changed = [](CPUState *cpu, uint64_t, uint64_t) -> bool {
-        paired(cpu);
+    // Then, once paired, whether something listens for task changes; once the hooks are in, the
+    // callback is turned off.
+    self_ptr = self;
+    asid_pcb.asid_changed = [](CPUState *cpu, uint64_t, uint64_t) -> bool {
+        if (paired(cpu)) {
+            install_hooks_if_wanted();
+            if (hooks_installed) panda_disable_callback(self_ptr, PANDA_CB_ASID_CHANGED, asid_pcb);
+        } else if (pair_state == Pair::Mismatch) {
+            panda_disable_callback(self_ptr, PANDA_CB_ASID_CHANGED, asid_pcb);
+        }
         return false;
-    } };
-    panda_register_callback_modes(self, PANDA_CB_ASID_CHANGED, pcb,
+    };
+    panda_register_callback_modes(self, PANDA_CB_ASID_CHANGED, asid_pcb,
             panda_callback_supported_modes(PANDA_CB_ASID_CHANGED), true);
 
     // finish_task_switch runs first thing in the task switched to, so current is already the new

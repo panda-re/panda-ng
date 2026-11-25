@@ -197,6 +197,16 @@ void notify_task_change(CPUState *cpu)
     PPP_RUN_CB(on_task_change, cpu);
 }
 
+/*
+ * The callbacks subscribed to on_task_change. A provider that pays for every task switch (a
+ * hook in the kernel) asks this, by dlsym, before it puts its hook in: with nothing subscribed it
+ * needn't. Subscriptions are only added in practice, so a provider asks until one comes.
+ */
+int osi_task_change_subscribers(void)
+{
+    return ppp_on_task_change_num_cb + ppp_on_task_change_num_cb_with_context;
+}
+
 bool in_shared_object(CPUState *cpu, OsiProc *p) {
     if (panda_in_kernel_external(cpu)) {
         return false;
