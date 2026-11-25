@@ -2061,7 +2061,32 @@ static bool engine_init(void *self, bool task_key)
     sc2_engine_start();
     return true;
 }
+
+bool syscalls2_add_exec_started(void (*fn)(CPUState *cpu))
+{
+    unsigned n = sc2_nexec.load();
+    if (!fn || n >= sizeof(sc2_exec_fns) / sizeof(sc2_exec_fns[0])) {
+        return false;
+    }
+    sc2_exec_fns[n] = fn;
+    sc2_nexec.store(n + 1);
+    return true;
+}
+
+bool syscalls2_exec_started_active(void)
+{
+    return engine_mode;
+}
 #else
+bool syscalls2_add_exec_started(void (*fn)(CPUState *cpu))
+{
+    return false;
+}
+
+bool syscalls2_exec_started_active(void)
+{
+    return false;
+}
 bool syscalls2_current_call(CPUState *cpu, uint64_t *id, uint32_t *flags)
 {
     return false;

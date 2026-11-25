@@ -17,6 +17,15 @@ bool syscalls2_current_call(CPUState *cpu, uint64_t *id, uint32_t *flags);
 // elsewhere.
 bool syscalls2_current_args(CPUState *cpu, int64_t *nr, uint64_t args[6]);
 
+// A successful execve or execveat, seen where the engine pairs the returns (Linux on x86_64,
+// aarch64, ...): fn is called on the task's vCPU at the new program's first instruction, in user
+// mode, its registers and stack as the kernel set them up. Only calls whose return syscalls2
+// keeps end this way: subscribe to on_sys_execve_return and on_sys_execveat_return too (a failed
+// call still returns there). False when fn can't be added. syscalls2_exec_started_active: the
+// engine pairing is in use now (else nothing is called).
+bool syscalls2_add_exec_started(void (*fn)(CPUState *cpu));
+bool syscalls2_exec_started_active(void);
+
 // BEGIN_PYPANDA_NEEDS_THIS -- do not delete this comment bc pypanda
 // api autogen needs it.  And don't put any compiler directives
 // between this and END_PYPANDA_NEEDS_THIS except includes of other
