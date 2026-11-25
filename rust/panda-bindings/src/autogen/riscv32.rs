@@ -46086,6 +46086,14 @@ unsafe extern "C" {
     ) -> GuestWriteResult;
 }
 unsafe extern "C" {
+    pub fn panda_guest_write_virt_user(
+        cpu: *mut CPUState,
+        addr: u64,
+        buf: *const ::std::os::raw::c_void,
+        len: usize,
+    ) -> GuestWriteResult;
+}
+unsafe extern "C" {
     pub fn panda_guest_write_reg(
         cpu: *mut CPUState,
         regnum: ::std::os::raw::c_int,
@@ -46178,6 +46186,215 @@ unsafe extern "C" {
         overframes: *mut u64,
         by_status: *mut u64,
     );
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PandaSyscallCall {
+    _unused: [u8; 0],
+}
+pub const PANDA_INJECT_OK: PandaInjectStatus = 0;
+pub const PANDA_INJECT_QUEUED: PandaInjectStatus = 1;
+pub const PANDA_INJECT_ETIMEDOUT: PandaInjectStatus = -2;
+pub const PANDA_INJECT_ECANCELED: PandaInjectStatus = -3;
+pub const PANDA_INJECT_ERECORD: PandaInjectStatus = -4;
+pub const PANDA_INJECT_EACCEL: PandaInjectStatus = -5;
+pub const PANDA_INJECT_EARCH: PandaInjectStatus = -6;
+pub const PANDA_INJECT_EINVAL: PandaInjectStatus = -7;
+pub const PANDA_INJECT_EBUSY: PandaInjectStatus = -8;
+pub const PANDA_INJECT_EABANDONED: PandaInjectStatus = -9;
+pub const PANDA_INJECT_ENOTHERE: PandaInjectStatus = -10;
+pub const PANDA_INJECT_EFAILED: PandaInjectStatus = -11;
+pub type PandaInjectStatus = ::std::os::raw::c_int;
+pub const PANDA_INJECT_ABI_X86_64: PandaInjectAbi = 0;
+pub const PANDA_INJECT_ABI_I386: PandaInjectAbi = 1;
+pub const PANDA_INJECT_ABI_AARCH64: PandaInjectAbi = 2;
+pub const PANDA_INJECT_ABI_ARM_EABI: PandaInjectAbi = 3;
+pub const PANDA_INJECT_ABI_RISCV64: PandaInjectAbi = 4;
+pub const PANDA_INJECT_ABI_MIPS_O32: PandaInjectAbi = 5;
+pub const PANDA_INJECT_ABI_MIPS_N64: PandaInjectAbi = 6;
+pub const PANDA_INJECT_ABI_PPC: PandaInjectAbi = 7;
+pub const PANDA_INJECT_ABI_PPC64: PandaInjectAbi = 8;
+pub const PANDA_INJECT_ABI_LOONGARCH64: PandaInjectAbi = 9;
+pub const PANDA_INJECT_ABI_COUNT: PandaInjectAbi = 10;
+pub type PandaInjectAbi = ::std::os::raw::c_uint;
+pub const PANDA_INJECT_TARGET_ASID: _bindgen_ty_150 = 0;
+pub const PANDA_INJECT_TARGET_TASK: _bindgen_ty_150 = 1;
+pub type _bindgen_ty_150 = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PandaInjectCall {
+    pub nr: i64,
+    pub args: [u64; 6usize],
+    pub nargs: i32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of PandaInjectCall"][::std::mem::size_of::<PandaInjectCall>() - 64usize];
+    ["Alignment of PandaInjectCall"][::std::mem::align_of::<PandaInjectCall>() - 8usize];
+    ["Offset of field: PandaInjectCall::nr"][::std::mem::offset_of!(PandaInjectCall, nr) - 0usize];
+    ["Offset of field: PandaInjectCall::args"]
+        [::std::mem::offset_of!(PandaInjectCall, args) - 8usize];
+    ["Offset of field: PandaInjectCall::nargs"]
+        [::std::mem::offset_of!(PandaInjectCall, nargs) - 56usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PandaInjectStep {
+    pub id: u64,
+    pub abi: i32,
+    pub calls: u32,
+    pub ret: i64,
+    pub touch: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of PandaInjectStep"][::std::mem::size_of::<PandaInjectStep>() - 32usize];
+    ["Alignment of PandaInjectStep"][::std::mem::align_of::<PandaInjectStep>() - 8usize];
+    ["Offset of field: PandaInjectStep::id"][::std::mem::offset_of!(PandaInjectStep, id) - 0usize];
+    ["Offset of field: PandaInjectStep::abi"]
+        [::std::mem::offset_of!(PandaInjectStep, abi) - 8usize];
+    ["Offset of field: PandaInjectStep::calls"]
+        [::std::mem::offset_of!(PandaInjectStep, calls) - 12usize];
+    ["Offset of field: PandaInjectStep::ret"]
+        [::std::mem::offset_of!(PandaInjectStep, ret) - 16usize];
+    ["Offset of field: PandaInjectStep::touch"]
+        [::std::mem::offset_of!(PandaInjectStep, touch) - 24usize];
+};
+pub const PANDA_INJECT_DONE: _bindgen_ty_151 = 0;
+pub const PANDA_INJECT_CALL: _bindgen_ty_151 = 1;
+pub const PANDA_INJECT_AGAIN: _bindgen_ty_151 = 2;
+pub const PANDA_INJECT_FAIL: _bindgen_ty_151 = 3;
+pub type _bindgen_ty_151 = ::std::os::raw::c_uint;
+pub type panda_inject_next_fn = ::std::option::Option<
+    unsafe extern "C" fn(
+        opaque: *mut ::std::os::raw::c_void,
+        cpu: *mut CPUState,
+        step: *mut PandaInjectStep,
+        call: *mut PandaInjectCall,
+    ) -> ::std::os::raw::c_int,
+>;
+pub type panda_inject_done_fn = ::std::option::Option<
+    unsafe extern "C" fn(
+        opaque: *mut ::std::os::raw::c_void,
+        id: u64,
+        status: ::std::os::raw::c_int,
+    ),
+>;
+unsafe extern "C" {
+    pub fn panda_inject_submit(
+        target_kind: ::std::os::raw::c_int,
+        target: u64,
+        timeout_ns: u64,
+        next: panda_inject_next_fn,
+        done: panda_inject_done_fn,
+        opaque: *mut ::std::os::raw::c_void,
+        id: *mut u64,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn panda_inject_hold(
+        cpu: *mut CPUState,
+        call: *mut PandaSyscallCall,
+        timeout_ns: u64,
+        next: panda_inject_next_fn,
+        done: panda_inject_done_fn,
+        opaque: *mut ::std::os::raw::c_void,
+        id: *mut u64,
+    ) -> ::std::os::raw::c_int;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PandaInjectRewind {
+    pub nr: i64,
+    pub args: [u64; 6usize],
+    pub nargs: i32,
+    pub len: u32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of PandaInjectRewind"][::std::mem::size_of::<PandaInjectRewind>() - 64usize];
+    ["Alignment of PandaInjectRewind"][::std::mem::align_of::<PandaInjectRewind>() - 8usize];
+    ["Offset of field: PandaInjectRewind::nr"]
+        [::std::mem::offset_of!(PandaInjectRewind, nr) - 0usize];
+    ["Offset of field: PandaInjectRewind::args"]
+        [::std::mem::offset_of!(PandaInjectRewind, args) - 8usize];
+    ["Offset of field: PandaInjectRewind::nargs"]
+        [::std::mem::offset_of!(PandaInjectRewind, nargs) - 56usize];
+    ["Offset of field: PandaInjectRewind::len"]
+        [::std::mem::offset_of!(PandaInjectRewind, len) - 60usize];
+};
+unsafe extern "C" {
+    pub fn panda_inject_rewind(
+        asid: u64,
+        sp: u64,
+        ret_pc: u64,
+        rw: *const PandaInjectRewind,
+        timeout_ns: u64,
+        next: panda_inject_next_fn,
+        done: panda_inject_done_fn,
+        opaque: *mut ::std::os::raw::c_void,
+        id: *mut u64,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn panda_inject_rewound(asid: u64, sp: u64, pc: u64) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_inject_cancel(id: u64) -> bool;
+}
+unsafe extern "C" {
+    pub fn panda_inject_abi(cpu: *mut CPUState) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn panda_inject_strerror(status: ::std::os::raw::c_int) -> *const ::std::os::raw::c_char;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PandaInjectStats {
+    pub submitted: u64,
+    pub calls: u64,
+    pub restarts: u64,
+    pub completed: u64,
+    pub abandoned: u64,
+    pub stale: u64,
+    pub overframes: u64,
+    pub holds: u64,
+    pub rewinds: u64,
+    pub resumed: u64,
+    pub held: u64,
+    pub queued: u64,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of PandaInjectStats"][::std::mem::size_of::<PandaInjectStats>() - 96usize];
+    ["Alignment of PandaInjectStats"][::std::mem::align_of::<PandaInjectStats>() - 8usize];
+    ["Offset of field: PandaInjectStats::submitted"]
+        [::std::mem::offset_of!(PandaInjectStats, submitted) - 0usize];
+    ["Offset of field: PandaInjectStats::calls"]
+        [::std::mem::offset_of!(PandaInjectStats, calls) - 8usize];
+    ["Offset of field: PandaInjectStats::restarts"]
+        [::std::mem::offset_of!(PandaInjectStats, restarts) - 16usize];
+    ["Offset of field: PandaInjectStats::completed"]
+        [::std::mem::offset_of!(PandaInjectStats, completed) - 24usize];
+    ["Offset of field: PandaInjectStats::abandoned"]
+        [::std::mem::offset_of!(PandaInjectStats, abandoned) - 32usize];
+    ["Offset of field: PandaInjectStats::stale"]
+        [::std::mem::offset_of!(PandaInjectStats, stale) - 40usize];
+    ["Offset of field: PandaInjectStats::overframes"]
+        [::std::mem::offset_of!(PandaInjectStats, overframes) - 48usize];
+    ["Offset of field: PandaInjectStats::holds"]
+        [::std::mem::offset_of!(PandaInjectStats, holds) - 56usize];
+    ["Offset of field: PandaInjectStats::rewinds"]
+        [::std::mem::offset_of!(PandaInjectStats, rewinds) - 64usize];
+    ["Offset of field: PandaInjectStats::resumed"]
+        [::std::mem::offset_of!(PandaInjectStats, resumed) - 72usize];
+    ["Offset of field: PandaInjectStats::held"]
+        [::std::mem::offset_of!(PandaInjectStats, held) - 80usize];
+    ["Offset of field: PandaInjectStats::queued"]
+        [::std::mem::offset_of!(PandaInjectStats, queued) - 88usize];
+};
+unsafe extern "C" {
+    pub fn panda_inject_stats(out: *mut PandaInjectStats);
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

@@ -33,6 +33,7 @@ ubuntu-24.04 images (see
 | [KVM](#kvm) | experimental | KVM | x86_64 (by hand), aarch64 (by hand) |
 | [Moving a running guest between KVM and TCG](#kvm-tcg) | experimental | KVM, TCG | x86_64 (by hand), aarch64 (by hand) |
 | [Memory access that pages in](#faulting-access) | engine API | TCG, KVM | x86_64, aarch64 |
+| [System calls injected into a task](#syscall-injection) | engine API | TCG | x86_64, aarch64 |
 | [Translation-time hooks and register pointers](#engine-hooks) | engine API | TCG | x86_64, aarch64 |
 | [Syscall trap and host-side introspection](#syscall-trap) | engine API | TCG | x86_64, aarch64 |
 | [The embedding API](#embedding) | engine API | TCG, KVM | **untested** |
@@ -394,8 +395,8 @@ asks its kernel (madvise MADV_POPULATE), and a bad address is an error, not a si
 **Limits.** The faulting calls raise the fault at the instrumented instruction and run the callback again
 after it: only from instruction callbacks registered with QEMU_PLUGIN_CB_RW_REGS_PC, engine
 address hooks and KVM breakpoint callbacks; a bad address gets the process a signal, and from
-kernel mode an oops. Page-in requests need TCG, a target other than i386, and a Linux 5.14 or
-later guest, and wait for the process to run in user mode.
+kernel mode an oops. Page-in requests need TCG and a Linux 5.14 or later
+guest (i386's injector is not tested on a guest for page-in), and wait for the process to run in user mode.
 
 **Use it:** `qemu_plugin_read_memory_vaddr_fault`, `qemu_plugin_access_memory_vaddr_fault`, `panda_pagein_submit`, `PageIn.read`, `Panda.virtual_memory_read`
 
@@ -404,6 +405,26 @@ later guest, and wait for the process to run in user mode.
 **Tests:** `engine/tests/guest/run.sh`, `engine/tests/guest/kvm.sh`, `tests/pagein.py`, `tests/pagein_race.py`
 
 **Engine patches:** 0013-0017, 0031, 0033, 0111 ([series](reference/patches.md))
+
+<a id="syscall-injection"></a>
+## System calls injected into a task
+
+A task makes a sequence of system calls the host chooses, one at a time, at its next user-mode
+boundary or before a system call it is making (held at a syscalls2 entry), and then goes on with
+its own registers. Python generators choose the calls (panda.inject), HyDE style; page-in
+requests are one kind of session.
+
+**Limits.** TCG only; refused during record/replay, and a recording does not start while a task is inside an
+injected call. No fork-like calls (the child would return with the injected registers). Holds
+need syscalls2 and a target with system-call pairing (not loongarch64).
+
+**Use it:** `panda_inject_submit`, `panda_inject_hold`, `panda_inject_rewind`, `panda_guest_write_virt_user`, `Inject.__call__`, `Inject.rewind`
+
+**Docs:** [docs/guides/python.md#system-calls-injected-into-a-task](guides/python.md#system-calls-injected-into-a-task)
+
+**Tests:** `tests/inject.py`, `tests/inject_rewind.py`, `tests/static/inject_driver.py`, `tests/pagein.py`
+
+**Engine patches:** 0102, 0111 ([series](reference/patches.md))
 
 <a id="engine-hooks"></a>
 ## Translation-time hooks and register pointers
