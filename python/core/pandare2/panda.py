@@ -1744,8 +1744,10 @@ class Panda(TaintMixin):
             ptr (int): Pointer to start of string
             max_length (int): Optional length to stop reading at
 
-            fault (bool), asid, timeout: as for virtual_memory_read; the string is read a page
-                at a time, so a string that ends early never pages in what follows it.
+            fault (bool): as for virtual_memory_read; the string is read a page at a time, so a
+                string that ends early never pages in what follows it.
+            asid: with fault=True, as for virtual_memory_read.
+            timeout (float): with fault=True, as for virtual_memory_read.
 
         Returns:
             string: Data read from memory
