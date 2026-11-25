@@ -104,6 +104,7 @@ void panda_disable_plugin(void *plugin);
 #include "panda/analysis-effect.h"
 /* Guest writes that record/replay logs (docs/design/rr-guest-mutation-api.md) */
 #include "panda/guest-write.h"
+#include "panda/pagein.h"
 
 // Structure to store metadata about a plugin
 typedef struct panda_plugin {

@@ -1553,6 +1553,20 @@ current_gate = "The kernel-view debug translation runs only when called (PANDA's
 required_action = "Explicit vanilla must keep upstream's MSR[PR]-based PowerPC radix/BookE checks and must not route debug reads through the kernel view."
 vanilla_verified = false
 
+[[patch]]
+id = "0111"
+file = "engine/patches/11.1.2/0111-accel-tcg-target-arm-serve-page-in-requests-between-.patch"
+sha256 = "fe1ea214b21437728b6cf9bdbce15547b030e6426b269b2ab1c72efc6bd0030a"
+class = "runtime-gate"
+capability = "analysis-memory-access"
+paths = ["accel/tcg/cpu-exec.c", "target/arm/helper.c"]
+functions = ["cpu_exec_loop", "arm_cpu_do_interrupt"]
+hunk_contexts = ["static int __attribute__((noinline))", "void arm_cpu_do_interrupt(CPUState *cs)"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "The CPU loop calls panda_pagein_service() only while page-in requests or held registers are outstanding (PANDA_LOOP_PAGEIN in panda_loop_hooks); otherwise one load and test per block lookup. arm_cpu_do_interrupt skips the syscall trap and the engine syscall entry for the SVC the page-in service raised."
+required_action = "Explicit vanilla must compile the loop check out (or refuse page-in requests) and keep upstream SVC delivery."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"
@@ -1562,6 +1576,17 @@ functions = ["panda_analysis_ram_write", "panda_analysis_reg_write", "replay_ana
 gate_status = "bounded-request-admission-implemented-not-guest-verified"
 current_gate = "64 KiB bounded deferred writes, full-range RAM preflight, versioned payload and result replay validation. Raw RAM copies are avoided; standard address_space_write performs dirty/TB invalidation."
 required_action = "Prove scheduler/request locking and producer-free replay in a guest, validate malformed logs and integrated replay capability rejection. No register/syscall/device effects supported."
+vanilla_verified = false
+
+[[overlay]]
+id = "pagein-requests"
+class = "runtime-gate"
+capability = "analysis-memory-access"
+paths = ["engine/src/include/panda/pagein.h", "engine/src/panda/src/pagein.c"]
+functions = ["panda_pagein_submit", "panda_pagein_service", "panda_pagein_cancel_all", "panda_pagein_can_wait", "panda_pagein_stats"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Nothing runs until a request is submitted; a request makes the target process's thread call madvise(MADV_POPULATE_*) at its next user-mode boundary and restores its registers. Refused under record/replay and KVM; queued requests are refused once record/replay starts and cancelled at snapshot load or reset."
+required_action = "Explicit vanilla must refuse page-in requests (no injected system calls)."
 vanilla_verified = false
 
 [[overlay]]

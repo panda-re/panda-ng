@@ -144,6 +144,51 @@ in (`marker`), and a kernel symbol's address (`banner_addr`):
   physical addresses; `virt_to_phys(cpu, addr)` translates one.
 - `read_str(cpu, addr)` reads a C string.
 
+### Memory that isn't paged in
+
+A read of a page the guest hasn't touched yet, has swapped out, or whose file contents aren't in
+the page cache fails, even though the program would read it fine: the page has no translation
+until the guest kernel makes one. `fault=True` asks the guest to page it in:
+
+```python
+data = panda.virtual_memory_read(cpu, addr, 4096, fault=True, asid=asid)  # also read_str,
+panda.virtual_memory_write(cpu, addr, data, fault=True, asid=asid)        # virtual_memory_write
+```
+
+The request is served the next time one of the process's threads runs in user mode: that thread
+makes `madvise(addr, len, MADV_POPULATE_READ)` (`MADV_POPULATE_WRITE` for a write), its registers
+are put back, and the range is read or written. The guest kernel decides, with its own locks and
+rules, so an address it won't map raises `PageInFailed` with the guest's `errno` (`ENOMEM` for no
+mapping, `EFAULT` past the end of a file or for `PROT_NONE`), and the process gets no signal.
+Your code is never run again because of it.
+
+Where you can wait for that:
+
+- From a `queue_blocking` function (or any other thread of yours) the call waits and returns the
+  bytes. Pass `asid=panda.current_asid(cpu)` taken where the process was running: off the vCPU
+  threads, `cpu`'s current process is whatever it last ran.
+- Inside a callback the guest can't run, so `fault=True` returns only what is already there and
+  raises `PageInWouldBlock` otherwise. Use the completion form, from any callback, in user or
+  kernel mode:
+
+```python
+def done(data, error):          # later, on a vCPU thread
+    if error is None:
+        print(data[:16].hex())
+
+panda.pagein.read(panda.current_asid(cpu), addr, 64, done)
+```
+
+Errors are all `PageInError`s: `PageInFailed` (the guest refused the range), `PageInTimeout`
+(no thread of the process ran in user mode within the timeout, 5 s of guest time by default: it
+exited, is blocked, or never ran), `PageInCancelled` (a snapshot was loaded first) and
+`PageInRefused` (not attempted: during record/replay, under KVM, on the i386 target, for a 32-bit
+task on an x86_64 or ppc64 kernel). The guest sees a `madvise` its program
+didn't make (seccomp, `strace` and audit see it too), and the effects of paging in: resident
+memory and fault counts, accessed and dirty bits, page-cache and swap I/O during which other tasks
+run, and for writes copy-on-write and dirty pages. It needs Linux 5.14 or later; an older kernel
+answers `EINVAL`.
+
 Registers are in `panda.arch`: `get_reg(cpu, name)` and `set_reg(cpu, name, value)`, `get_pc`
 and `set_pc`, and `get_arg(cpu, n, convention=...)`, which reads the n-th argument of a call
 (`"syscall"` for system calls and hypercalls). `cpu_env(cpu)` is the whole CPU state, for

@@ -38,6 +38,7 @@ from .asyncthread import AsyncThread
 from .qcows_internal import Qcows
 from .callbacks import unavailable, tcg_only, ABORTS, PASSTHROUGH
 from .guest import Guest, GuestWriteRefused
+from .pagein import PageIn, PageInWouldBlock
 from .taint import TaintMixin
 from .arch import ArmArch, Aarch64Arch, Loongarch64, MipsArch, Mips64Arch, X86Arch, X86_64Arch, PowerPCArch, PowerPC64Arch, Riscv32Arch, Riscv64Arch
 from dataclasses import dataclass
@@ -429,6 +430,7 @@ class Panda(TaintMixin):
         # panda.arch is a subclass with architecture-specific functions
 
         self.guest = Guest(self)  # guest writes: panda.guest.write_virt, .set_reg, .env(cpu), ...
+        self.pagein = PageIn(self)  # page-in reads/writes: panda.pagein.read, .write, .read_sync
         self.arch = None # Keep this with the following docstring such that pydoc generats good docs for it; this is a useful variable!
         """
         A reference to an auto-instantiated `pandare.arch.PandaArch` subclass (e.g., `pandare.arch.X86Arch`)
@@ -1504,7 +1506,8 @@ class Panda(TaintMixin):
         '''
         return self._memory_read(None, addr, length, physical=True, fmt=fmt)
 
-    def virtual_memory_read(self, cpu, addr, length, fmt='bytearray'):
+    def virtual_memory_read(self, cpu, addr, length, fmt='bytearray', fault=False, asid=None,
+                            timeout=30):
         '''
         Read guest virtual memory.
 
@@ -1513,15 +1516,39 @@ class Panda(TaintMixin):
             addr (int): Address
             length (int): length of data you would like returned
             fmt: format for returned array. See `physical_memory_read`.
+            fault (bool): page the range in if it isn't present (``panda.pagein``): the
+                process's own thread asks its kernel for it, so a bad address raises
+                PageInFailed instead of hurting the guest. Inside a callback this only returns
+                ranges that are already present (else PageInWouldBlock: use
+                ``panda.pagein.read`` there); from a ``queue_blocking`` function it waits.
+            asid: with fault=True, the process (``panda.current_asid``); default: cpu's current
+                one, which off the vCPU threads is whatever that vCPU last ran: pass it.
+            timeout (float): with fault=True, host seconds to wait.
 
         Returns:
             Union[bytearray, int, str, list[int]]: memory data
 
         Raises:
-            ValueError: if memory access fails or fmt is unsupported
+            ValueError: if memory access fails or fmt is unsupported (PageInFailed with fault=True)
+            PageInRefused, PageInTimeout, PageInWouldBlock: with fault=True
         '''
-
+        if fault:
+            data = self._pagein_read(cpu, addr, length, asid, timeout)
+            return self._format(data, data, length, fmt)
         return self._memory_read(cpu, addr, length, physical=False, fmt=fmt)
+
+    def _pagein_read(self, cpu, addr, length, asid, timeout):
+        '''A read through panda.pagein: at once if present and on a vCPU, else waited for.'''
+        if not self.pagein.can_wait():
+            try:
+                return bytes(self._memory_read(cpu, addr, length))
+            except ValueError:
+                raise PageInWouldBlock(f"virtual_memory_read({addr:#x}, fault=True)", -7,
+                                       "not present, and a callback can't wait for a page-in: "
+                                       "use panda.pagein.read() with a completion") from None
+        if asid is None:
+            asid = self.current_asid(cpu)
+        return self.pagein.read_sync(asid, addr, length, timeout)
 
     def _memory_read(self, env, addr, length, physical=False, fmt='bytearray'):
         '''
@@ -1555,12 +1582,16 @@ class Panda(TaintMixin):
             # TODO: We should support a custom error class instead of a generic ValueError
             raise ValueError(f"Failed to read guest memory at {addr:x} got err={err}")
 
-        r = self.ffi.unpack(buf, length)
+        return self._format(self.ffi.unpack(buf, length), buf, length, fmt)
+
+    def _format(self, r, buf, length, fmt):
         if fmt == 'bytearray':
             return r
         elif fmt=='int':
             return int.from_bytes(r, byteorder=self.endianness)  # XXX size better be small enough to pack into an int!
         elif fmt=='str':
+            if isinstance(buf, (bytes, bytearray)):
+                return bytes(buf).split(b"\0", 1)[0]
             return self.ffi.string(buf, length)
         elif fmt=='ptrlist':
             # This one is weird. Chunk the memory into byte-sequences of (self.bits/8) bytes and flip endianness as approperiate
@@ -1594,7 +1625,7 @@ class Panda(TaintMixin):
         '''
         self._memory_write(None, addr, buf, physical=True)
 
-    def virtual_memory_write(self, cpu, addr, buf):
+    def virtual_memory_write(self, cpu, addr, buf, fault=False, asid=None, timeout=30):
         '''
         Write guest virtual memory.
 
@@ -1608,8 +1639,24 @@ class Panda(TaintMixin):
 
         Raises:
             ValueError: if the call to panda.virtual_memory_write fails (e.g., if you pass a pointer to an unmapped page)
+
+        With fault=True (as for virtual_memory_read) a range that isn't present or writable yet
+        (never touched, swapped, copy-on-write) is paged in for writing by the process's own
+        thread first; only from a ``queue_blocking`` function, unless it is already writable.
         '''
-        self._memory_write(cpu, addr, buf, physical=False)
+        if fault and self.pagein.can_wait():
+            if asid is None:
+                asid = self.current_asid(cpu)
+            self.pagein.write_sync(asid, addr, bytes(buf), timeout)
+            return
+        try:
+            self._memory_write(cpu, addr, buf, physical=False)
+        except ValueError:
+            if not fault:
+                raise
+            raise PageInWouldBlock(f"virtual_memory_write({addr:#x}, fault=True)", -7,
+                                   "not writable yet, and a callback can't wait for a page-in: "
+                                   "use panda.pagein.write() with a completion") from None
 
     def _memory_write(self, cpu, addr, buf, physical=False):
         '''
@@ -1686,7 +1733,7 @@ class Panda(TaintMixin):
         if self.libpanda.map_memory(name_c, size, address) != 0:
             raise RuntimeError(f"map_memory {name} at {address:#x}: failed")
 
-    def read_str(self, cpu, ptr, max_length=None):
+    def read_str(self, cpu, ptr, max_length=None, fault=False, asid=None, timeout=30):
         '''
         Helper to read a null-terminated string from guest memory given a pointer and CPU state
         May return an exception if the call to panda.virtual_memory_read fails (e.g., if you pass a
@@ -1697,10 +1744,28 @@ class Panda(TaintMixin):
             ptr (int): Pointer to start of string
             max_length (int): Optional length to stop reading at
 
+            fault (bool): as for virtual_memory_read; the string is read a page at a time, so a
+                string that ends early never pages in what follows it.
+            asid: with fault=True, as for virtual_memory_read.
+            timeout (float): with fault=True, as for virtual_memory_read.
+
         Returns:
             string: Data read from memory
 
         '''
+        if fault:
+            if asid is None:
+                asid = self.current_asid(cpu)
+            r = b""
+            limit = max_length if max_length is not None else 1 << 16
+            while len(r) < limit:
+                n = min(limit - len(r), 4096 - ((ptr + len(r)) & 4095))
+                chunk = self._pagein_read(cpu, ptr + len(r), n, asid, timeout)
+                if b"\0" in chunk:
+                    r += chunk.split(b"\0", 1)[0]
+                    break
+                r += chunk
+            return r.decode("utf8", "ignore")
         r = b""
         idx = 0
         while (max_length is None or idx < max_length):
