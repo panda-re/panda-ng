@@ -21,6 +21,7 @@ PANDAENDCOMMENT */
  */
 #include <cinttypes>
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -268,6 +269,81 @@ void fill_osiproc(CPUState *cpu, OsiProc *p, uint64_t ts) {
     p->name = cap.name ? g_strdup(read_cstr(cpu, ts + off.task_comm, off.task_comm_size).c_str()) : NULL;
     p->pages = NULL;
     p->create_time = start_time(cpu, ts);
+}
+
+// The current task's fields that change only at an exec (its process, ids, start time) and its
+// address space, kept per CPU while the same task (by pointer and start time: a task_struct can be
+// reused) has the same mm (an exec, or a kernel thread adopting one, changes it). A restore or
+// reset, and the task-switch and exec hooks when they are in, drop it too (the CPU's generation).
+// The name and the parent can change at any time and are read every time. Without start times
+// (and without the hooks) nothing is kept.
+constexpr unsigned MAX_CPUS = 1024;
+std::atomic<uint64_t> switch_gen[MAX_CPUS];
+bool current_cache_on;
+
+struct CurrentInfo {
+    int cpu = -1;
+    uint64_t gen = 0, ts = 0, mm = 0, taskd = 0, pgd = 0, asid = 0, start = 0;
+    int32_t pid = -1, tid = -1;
+    uint64_t parent = 0;   // real_parent, and its tgid as read when it was the parent
+    int32_t ppid = -1;
+};
+thread_local CurrentInfo cur_info;
+
+void current_changed(CPUState *cpu) {
+    if ((unsigned)cpu->cpu_index < MAX_CPUS)
+        switch_gen[cpu->cpu_index].fetch_add(1, std::memory_order_relaxed);
+}
+
+CurrentInfo &current_info(CPUState *cpu, uint64_t ts) {
+    CurrentInfo &k = cur_info;
+    unsigned c = cpu->cpu_index;
+    uint64_t mm = field_ptr(cpu, ts, off.task_mm);
+    uint64_t start = cap.start_time ? start_time(cpu, ts) : 0;
+    bool keep = (cap.start_time || current_cache_on) && c < MAX_CPUS;
+    uint64_t g = keep ? switch_gen[c].load(std::memory_order_relaxed) : 0;
+    if (keep && k.cpu == (int)c && k.gen == g && k.ts == ts && k.mm == mm && k.start == start) return k;
+    k.cpu = keep ? (int)c : -1;
+    k.gen = g;
+    k.ts = ts;
+    k.mm = mm;
+    k.taskd = group_leader(cpu, ts);
+    k.pgd = cap.asid ? field_ptr(cpu, mm, off.mm_pgd) : 0;
+    k.asid = k.pgd ? panda_virt_to_phys(cpu, k.pgd) : 0;
+    k.pid = cap.pid ? field_int(cpu, ts, off.task_tgid) : -1;
+    k.tid = cap.pid ? field_int(cpu, ts, off.task_pid) : -1;
+    k.start = start;
+    k.parent = 0;
+    k.ppid = -1;
+    return k;
+}
+
+// The parent's process id. The parent can change at any time (its exit reparents), so its pointer
+// is read on every call; a task's tgid doesn't change while it is someone's parent, so it is
+// kept with the pointer.
+int32_t current_ppid(CPUState *cpu, CurrentInfo &k) {
+    uint64_t parent = field_ptr(cpu, k.ts, off.task_real_parent);
+    if (k.cpu < 0 || parent != k.parent || k.ppid < 0) {
+        k.parent = parent;
+        k.ppid = field_int(cpu, parent, off.task_tgid);
+    }
+    return k.ppid;
+}
+
+// fill_osiproc for the current task.
+void fill_current(CPUState *cpu, OsiProc *p, uint64_t ts) {
+    CurrentInfo &k = current_info(cpu, ts);
+    memset(p, 0, sizeof(*p));
+    p->taskd = k.taskd;
+    if (cap.asid) {
+        p->pgd = k.pgd;
+        p->asid = k.asid;
+    }
+    p->pid = k.pid;
+    p->ppid = cap.ppid ? current_ppid(cpu, k) : -1;
+    p->name = cap.name ? g_strdup(read_cstr(cpu, ts + off.task_comm, off.task_comm_size).c_str()) : NULL;
+    p->pages = NULL;
+    p->create_time = k.start;
 }
 
 void fill_osiprochandle(CPUState *cpu, OsiProcHandle *h, uint64_t ts) {
@@ -604,6 +680,7 @@ bool paired(CPUState *cpu) {
 uint64_t slid(uint64_t a) { return a && is_kernel_ptr(a) ? a + slide : a; }
 
 void task_switched(CPUState *cpu, TranslationBlock *tb, struct hook *h) {
+    current_changed(cpu);
     // Lifecycle first: a task seen for the first time is reported created before it is switched to.
     if (cap.lifecycle) lifecycle_task_change(cpu);
     notify_task_change(cpu);
@@ -628,11 +705,13 @@ void add_task_switch_hook() {
     if (added || !cap.task_change) return;
     add_kernel_hook(sym_fts, task_switched);
     added = true;
+    current_cache_on = true;
 }
 
 // A program started (exec): the lifecycle's EXEC, and a task change (the process changed without
 // a switch).
 void program_started(CPUState *cpu) {
+    current_changed(cpu);
     if (cap.lifecycle) lifecycle_program_start(cpu);
     if (cap.task_change) notify_task_change(cpu);
 }
@@ -856,7 +935,7 @@ void on_get_current_process(CPUState *cpu, OsiProc **out) {
     uint64_t ts = current_task(cpu);
     if (ts) {
         *out = (OsiProc *)g_malloc(sizeof(OsiProc));
-        fill_osiproc(cpu, *out, ts);
+        fill_current(cpu, *out, ts);
     }
 }
 
@@ -892,9 +971,10 @@ void on_get_current_thread(CPUState *cpu, OsiThread **out) {
     if (!want(cpu, cap.current, "current") || !want(cpu, cap.pid, "pid")) return;
     uint64_t ts = current_task(cpu);
     if (ts) {
+        const CurrentInfo &k = current_info(cpu, ts);
         *out = (OsiThread *)g_malloc(sizeof(OsiThread));
-        (*out)->tid = field_int(cpu, ts, off.task_pid);
-        (*out)->pid = field_int(cpu, ts, off.task_tgid);
+        (*out)->tid = k.tid;
+        (*out)->pid = k.pid;
     }
 }
 
@@ -1109,6 +1189,11 @@ bool init_plugin(void *self) {
     PPP_REG_CB("osi", on_get_current_thread, on_get_current_thread);
     PPP_REG_CB("osi", on_get_process_pid, on_get_process_pid);
     PPP_REG_CB("osi", on_get_process_ppid, on_get_process_ppid);
+
+    // A restore or reset puts other tasks on the CPUs: nothing kept about the current one stays.
+    panda_register_transient_reset(self, [](void *) {
+        for (auto &g : switch_gen) g.fetch_add(1, std::memory_order_relaxed);
+    }, nullptr);
 
     // Pairing is tried at address-space switches (in the kernel, where the KASLR search works)
     // and at OSI calls, until it is decided.
