@@ -182,8 +182,8 @@ panda.pagein.read(panda.current_asid(cpu), addr, 64, done)
 Errors are all `PageInError`s: `PageInFailed` (the guest refused the range), `PageInTimeout`
 (no thread of the process ran in user mode within the timeout, 5 s of guest time by default: it
 exited, is blocked, or never ran), `PageInCancelled` (a snapshot was loaded first) and
-`PageInRefused` (not attempted: during record/replay, under KVM, on the i386 target, for a 32-bit
-task on an x86_64 or ppc64 kernel). The guest sees a `madvise` its program
+`PageInRefused` (not attempted: during record/replay, under KVM, for a 32-bit task on a ppc64
+kernel, MIPS16). The guest sees a `madvise` its program
 didn't make (seccomp, `strace` and audit see it too), and the effects of paging in: resident
 memory and fault counts, accessed and dirty bits, page-cache and swap I/O during which other tasks
 run, and for writes copy-on-write and dirty pages. It needs Linux 5.14 or later; an older kernel
