@@ -144,7 +144,7 @@ def add_hooks(L):
     panda.hook(L["h"], kernel=False)(counter("h (block start)"))
     panda.hook(L["hook_mid"], kernel=False)(counter("hook_mid (inside f's block)"))
     panda.hook(L["g"], kernel=True)(counter("g, kernel-only"))
-    panda.hook(L["f_ret"], kernel=False, cb_type="before_block_exec")(counter("f_ret (before_block_exec type)"))
+    panda.hook(L["f_ret"], kernel=False)(counter("f_ret (a block start)"))
 
     def once(cpu, tb, h):
         S["hooks"]["r (disables itself)"] += 1
@@ -208,7 +208,7 @@ want_edges = Counter({
     ("r_base", "r_ret"): 1, ("r_ret", "r_ret"): D - 1, ("r_ret", "ret_r0"): 1, ("ret_r0", "fin"): 1})
 C.check("edge_coverage: the program's edges, each as often as it runs", S["edges"] == want_edges,
         f"extra {dict(S['edges'] - want_edges)} missing {dict(want_edges - S['edges'])}")
-want_hooks = {"h (block start)": N + odd, "hook_mid (inside f's block)": N, "f_ret (before_block_exec type)": N,
+want_hooks = {"h (block start)": N + odd, "hook_mid (inside f's block)": N, "f_ret (a block start)": N,
               "r (disables itself)": 1}
 for key, n in want_hooks.items():
     C.check(f"hooks: {key} fires once per execution ({n})", S["hooks"][key] == n, S["hooks"][key])

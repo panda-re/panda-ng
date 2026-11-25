@@ -3094,45 +3094,32 @@ class Panda(TaintMixin):
 
     ############# HOOKING MIXINS ###############
 
-    def hook(self, addr, enabled=True, kernel=None, asid=None, cb_type="start_block_exec", observe_only=False):
+    def hook(self, addr, enabled=True, kernel=None, asid=None, observe_only=False):
         '''
-        Decorate a function to setup a hook: when a guest goes to execute a basic block beginning with addr,
-        the function will be called with args (CPUState, TranslationBlock)
+        Decorate a function to run right before the guest executes the instruction at addr
+        (anywhere in a block): fun(cpu, tb, hook), tb the translated block that holds the
+        instruction, hook the hooks plugin's struct hook (set hook.enabled = False to remove it).
+        kernel=True or False runs it only in kernel or user mode; asid only where
+        current_asid(cpu) equals it.
         '''
 
-        self._needs_tcg(f"hook (a {cb_type} callback)")
+        self._needs_tcg("hook")
 
         def decorator(fun):
-            result = None
-            if cb_type in ("after_block_translate", "before_block_exec", "start_block_exec", "end_block_exec"):
-                hook_cb_type = self.ffi.callback("void(CPUState*, TranslationBlock* , struct hook *)")
-            elif cb_type == "after_block_exec":
-                hook_cb_type = self.ffi.callback("void(CPUState*, TranslationBlock* , uint8_t, struct hook *)")
-            elif cb_type == "before_block_translate":
-                hook_cb_type = self.ffi.callback("void(CPUState* env, target_ptr_t pc, struct hook*)")
-            elif cb_type == "before_block_exec_invalidate_opt":
-                hook_cb_type = self.ffi.callback("bool(CPUState* env, TranslationBlock*, struct hook*)")
-                result = self.ffi.typeof("bool")
-            elif unavailable(cb_type):
-                raise NotImplementedError(f"hook cb_type={cb_type}: {unavailable(cb_type)}")
-            else:
-                raise ValueError(f"hook: cb_type {cb_type!r} is not supported")
-            type_num = getattr(self.libpanda, "PANDA_CB_"+cb_type.upper())
-
             if debug:
                 print("Registering breakpoint at 0x{:x} -> {} == {}".format(addr, fun, 'cdata_cb'))
 
             # Inform the plugin that it has a new breakpoint at addr
-            hook_cb_passed = hook_cb_type(self._catching(fun, 4 if cb_type == "after_block_exec" else 3, result, observe_only=observe_only))
+            hook_cb_passed = self.ffi.callback("void(CPUState*, TranslationBlock*, struct hook*)")(
+                self._catching(fun, 3, None, observe_only=observe_only))
             new_hook = self.ffi.new("struct hook*")
-            new_hook.type = type_num
             new_hook.addr = addr
             if kernel or asid is None:
                 new_hook.asid = 0
             else:
                 new_hook.asid = asid
 
-            setattr(new_hook.cb,cb_type, hook_cb_passed)
+            new_hook.cb = hook_cb_passed
             if kernel:
                 new_hook.km = self.libpanda.MODE_KERNEL_ONLY
             elif kernel == False:

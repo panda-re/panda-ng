@@ -1366,8 +1366,7 @@ bool init_plugin(void *self) {
             struct hook h = {};
             h.addr = ki.task.switch_task_hook_addr;
             h.asid = 0;
-            h.type = PANDA_CB_START_BLOCK_EXEC;
-            h.cb.start_block_exec = [](CPUState *cpu, TranslationBlock *tb, hook *){    
+            h.cb = [](CPUState *cpu, TranslationBlock *tb, hook *){    
                 bool** out=0;
                 if (osi_guest_is_ready(cpu, (void**)out)){
                     notify_task_change(cpu); 

@@ -1306,8 +1306,7 @@ static void sc2_hook_enter(CPUState *cpu, ProfileType p, target_ulong pc, int st
     struct hook h = {};
     h.addr = ctx.retaddr;
     h.asid = ctx.asid;
-    h.cb.before_tcg_codegen = hook_syscall_return;
-    h.type = PANDA_CB_BEFORE_TCG_CODEGEN;
+    h.cb = hook_syscall_return;
     h.enabled = true;
     h.km = MODE_ANY; //you'd expect this to be user only
     hooks_add_hook(&h);

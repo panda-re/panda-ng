@@ -188,33 +188,11 @@ static void site_drop_disabled(hook_site *s)
     site_publish(s, l);
 }
 
-// Call @h's function through the cb member its type names (README.md, "Hook callbacks"). Every
-// hook runs before the instruction at @pc; none is called at a block's translation or exit.
+// Call @h's function: every hook runs right before the instruction at @pc.
 static inline void call_hook(CPUState *cpu, TranslationBlock *tb, uint64_t pc, struct hook *h)
 {
-    switch (h->type) {
-    case PANDA_CB_AFTER_BLOCK_EXEC:
-        if (h->cb.after_block_exec) {
-            h->cb.after_block_exec(cpu, tb, 0 /* TB_EXIT_IDX0 */, h);
-        }
-        break;
-    case PANDA_CB_BEFORE_BLOCK_TRANSLATE:
-        if (h->cb.before_block_translate) {
-            h->cb.before_block_translate(cpu, (target_ptr_t)pc, h);
-        }
-        break;
-    case PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT:
-        if (h->cb.before_block_exec_invalidate_opt) {
-            (void)h->cb.before_block_exec_invalidate_opt(cpu, tb, h);   // nothing to invalidate
-        }
-        break;
-    default:
-        // before_tcg_codegen, start/before/end_block_exec, after_block_translate: (cpu, tb, h);
-        // block_translate, which has no plugin block here, too, as before.
-        if (h->cb.before_tcg_codegen) {
-            h->cb.before_tcg_codegen(cpu, tb, h);
-        }
-        break;
+    if (h->cb) {
+        h->cb(cpu, tb, h);
     }
 }
 
@@ -289,8 +267,7 @@ void disable_hooking() {
 // function with another mode or context is another hook.
 static bool same_hook(const struct hook *a, const struct hook *b)
 {
-    return a->asid == b->asid && a->type == b->type && a->km == b->km &&
-           a->context == b->context && a->cb.before_tcg_codegen == b->cb.before_tcg_codegen;
+    return a->asid == b->asid && a->km == b->km && a->context == b->context && a->cb == b->cb;
 }
 
 void add_hook(struct hook* h) {

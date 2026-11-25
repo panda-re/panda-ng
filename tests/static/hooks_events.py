@@ -16,8 +16,7 @@ It checks:
 - a subscriber gets the struct (size, cpu, block, pc, hook) after the hook's function, once per
   hook that ran, and nothing when disabled; without subscribers nothing is emitted;
 - the filters (asid, kernel/user mode) and the order (hooks with an asid first);
-- each hook type is called through the cb member its type names (after_block_exec with an exit
-  code, before_block_translate with the address);
+- a hook is called as (cpu, the block holding the instruction, the hook);
 - the bookkeeping: one engine hook per address, removed when its last hook goes and inserted
   again by the next add; a duplicate add_hook is ignored and a disabled one is not added; a hook
   disabled in its function, or from outside, is removed; add_hook from inside a hook at the same
@@ -274,8 +273,7 @@ static struct hook mk(uint64_t addr, void (*fn)(CPUState *, TranslationBlock *, 
     memset(&h, 0xa5, sizeof(h));            /* as syscalls2 leaves context: unset */
     h.addr = addr;
     h.asid = asid;
-    h.type = PANDA_CB_START_BLOCK_EXEC;
-    h.cb.before_tcg_codegen = fn;
+    h.cb = fn;
     h.km = km;
     h.enabled = true;
     h.context = (void *)ctx;
@@ -505,27 +503,14 @@ int main(void)
     hit(&user, 0x400100);
     CHECK(joined() == "a@4194560 b@4194560", "enabled");
 
-    /* Each type is called through the cb member it names: after_block_exec with an exit code
-     * (0), before_block_translate with the hooked address, invalidate_opt's result ignored. */
-    struct hook ta = mk(0xb00000, NULL), tt = mk(0xb00000, NULL), ti = mk(0xb00000, NULL);
-    ta.type = PANDA_CB_AFTER_BLOCK_EXEC;
-    ta.cb.after_block_exec = [](CPUState *, TranslationBlock *tb, uint8_t code, struct hook *h) {
-        CHECK(code == 0 && tb == &tbs[2], "after_block_exec arguments");
-        note("abe", h->addr);
-    };
-    tt.type = PANDA_CB_BEFORE_BLOCK_TRANSLATE;
-    tt.cb.before_block_translate = [](CPUState *, target_ptr_t pc, struct hook *h) {
-        CHECK(pc == h->addr, "before_block_translate pc");
-        note("bbt", pc);
-    };
-    ti.type = PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT;
-    ti.cb.before_block_exec_invalidate_opt = [](CPUState *, TranslationBlock *, struct hook *h) {
-        note("inv", h->addr);
-        return true;
-    };
-    add_hook(&ta); add_hook(&tt); add_hook(&ti);
+    /* One signature: (cpu, the block holding the instruction, the plugin's copy of the hook). */
+    struct hook ta = mk(0xb00000, [](CPUState *cpu, TranslationBlock *tb, struct hook *h) {
+        CHECK(cpu == expect_cpu && tb == &tbs[2] && h->addr == 0xb00000, "hook arguments");
+        note("arg", h->addr);
+    });
+    add_hook(&ta);
     hit(&user, 0xb00000, 2);
-    CHECK(joined() == "abe@11534336 bbt@11534336 inv@11534336", "types");
+    CHECK(joined() == "arg@11534336", "arguments");
 
     /* Unload: no engine hook is left, the frees are the engine's, nothing leaks. */
     CHECK(panda_unsubscribe(sub), "unsubscribe");

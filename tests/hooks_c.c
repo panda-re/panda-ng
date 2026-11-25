@@ -3,7 +3,7 @@
  * the hooks plugin's add_hook (struct hook from plugins/hooks/hooks_int_fns.h). A hook's context
  * is the index of the counter it bumps.
  *
- *   hookc_count   counts each call; its type is BEFORE_TCG_CODEGEN
+ *   hookc_count   counts each call
  *   hookc_once    counts, then disables itself
  *   hookc_churn   counts, then adds a hookc_once hook (counter 2) at hookc_churn_addr: the hooks
  *                 at that address are replaced while other vCPUs run them
@@ -23,7 +23,6 @@ static uint64_t counts[NCOUNT];
 static uint64_t bad_args;
 static void (*add)(struct hook *);
 static uint64_t churn_addr;
-static int codegen_type;          /* PANDA_CB_BEFORE_TCG_CODEGEN, from the engine's headers */
 
 static void bump(CPUState *cpu, TranslationBlock *tb, struct hook *h)
 {
@@ -54,22 +53,20 @@ void hookc_churn(CPUState *cpu, TranslationBlock *tb, struct hook *h)
     bump(cpu, tb, h);
     n.addr = churn_addr;
     n.asid = 0;
-    n.type = codegen_type;
-    n.cb.before_tcg_codegen = hookc_once;
+    n.cb = hookc_once;
     n.km = MODE_USER_ONLY;
     n.enabled = true;
     n.context = (void *)2;
     add(&n);
 }
 
-void hookc_setup(void (*add_hook)(struct hook *), int type, uint64_t addr)
+void hookc_setup(void (*add_hook)(struct hook *), uint64_t addr)
 {
     add = add_hook;
-    codegen_type = type;
     churn_addr = addr;
 }
 
-/* Add a hook from C: type BEFORE_TCG_CODEGEN, user mode, any asid. fn: 0 count, 1 once,
+/* Add a hook from C: user mode, any asid. fn: 0 count, 1 once,
  * 2 churn. */
 void hookc_add(uint64_t addr, int fn, int counter)
 {
@@ -79,8 +76,7 @@ void hookc_add(uint64_t addr, int fn, int counter)
 
     h.addr = addr;
     h.asid = 0;
-    h.type = codegen_type;
-    h.cb.before_tcg_codegen = fns[fn];
+    h.cb = fns[fn];
     h.km = MODE_USER_ONLY;
     h.enabled = true;
     h.context = (void *)(uintptr_t)counter;
@@ -102,8 +98,7 @@ void hookc_add_f(uint64_t addr, int fn, int counter, uint64_t asid, int km)
 
     h.addr = addr;
     h.asid = asid;
-    h.type = codegen_type;
-    h.cb.before_tcg_codegen = fns[fn];
+    h.cb = fns[fn];
     h.km = (enum kernel_mode)km;
     h.enabled = true;
     h.context = (void *)(uintptr_t)counter;

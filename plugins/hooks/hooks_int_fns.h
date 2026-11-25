@@ -14,21 +14,9 @@ extern "C" {
 #define MAX_PATH_LEN 256
 struct hook;
 
-// Hook functions must be of this type
-typedef bool (*hook_func_t)(CPUState *, TranslationBlock *, struct hook* h);
-
-
-typedef union hooks_panda_cb {
-    void (*before_tcg_codegen)(CPUState *env, TranslationBlock *tb, struct hook*);
-    void (*before_block_translate)(CPUState *env, target_ptr_t pc, struct hook*);
-    void (*block_translate)(CPUState *env, struct qemu_plugin_tb *tb, struct hook*);
-    void (*after_block_translate)(CPUState *env, TranslationBlock *tb, struct hook*);
-    bool (*before_block_exec_invalidate_opt)(CPUState *env, TranslationBlock *tb, struct hook*);
-    void (*before_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
-    void (*after_block_exec)(CPUState *env, TranslationBlock *tb, uint8_t exitCode, struct hook*);
-    void (*start_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
-    void (*end_block_exec)(CPUState *env, TranslationBlock *tb, struct hook*);
-} hooks_panda_cb;
+// A hook's function: called right before the guest executes the instruction at the hook's
+// address, with the translated block that holds the instruction and the plugin's copy of the hook.
+typedef void (*hook_func_t)(CPUState *cpu, TranslationBlock *tb, struct hook *h);
 
 enum kernel_mode{
     MODE_ANY,
@@ -39,8 +27,7 @@ enum kernel_mode{
 typedef struct hook {
     uint64_t addr;
     uint64_t asid;
-    panda_cb_type type;
-    hooks_panda_cb cb;
+    hook_func_t cb;
     enum kernel_mode km;
     bool enabled;
     void* context;

@@ -39,7 +39,7 @@ after `add_hook` returns do nothing: to disable a hook, set `enabled = false` on
 its callback gets (the plugin's copy), from the callback or from a pointer kept from it.
 
 Adding the same hook at the same address again is ignored while the first is enabled: the same
-function, `asid`, `type`, `km` and `context`. The same function with another `context` or `km`
+function, `asid`, `km` and `context`. The same function with another `context` or `km`
 is another hook. A hook added disabled is ignored: nothing could enable the plugin's copy.
 
 ```
@@ -85,18 +85,17 @@ against a function that never existed.
 Hook callbacks
 --------------
 
-Every hook runs right before the instruction at its address, whatever its `type`. The type picks
-the `cb` member, and so the signature, it is called through:
+Every hook runs right before the instruction at its address and is called as
 
-| `type` | called as |
-|---|---|
-| `PANDA_CB_AFTER_BLOCK_EXEC` | `after_block_exec(cpu, tb, 0, h)`: the exit code is always 0 |
-| `PANDA_CB_BEFORE_BLOCK_TRANSLATE` | `before_block_translate(cpu, pc, h)`: `pc` is the hooked address |
-| `PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT` | `before_block_exec_invalidate_opt(cpu, tb, h)`: the result is ignored |
-| any other (`BEFORE_TCG_CODEGEN`, `START_BLOCK_EXEC`, `BEFORE_BLOCK_EXEC`, `END_BLOCK_EXEC`, `AFTER_BLOCK_TRANSLATE`, `BLOCK_TRANSLATE`) | `void (*)(CPUState *cpu, TranslationBlock *tb, struct hook *h)` |
+```C
+void fn(CPUState *cpu, TranslationBlock *tb, struct hook *h);  // hook_func_t
+```
 
-`tb` is the translated block that contains the hooked instruction. A `BLOCK_TRANSLATE` hook gets
-it too, not a `struct qemu_plugin_tb`.
+`tb` is the translated block that contains the hooked instruction, `h` the plugin's copy of the
+hook. There are no callback types: classic PANDA's `type` field and `cb` union are gone (every
+type ran before the instruction anyway, so `after_block_exec`, `before_block_translate` and the
+others did not do what their names said). A caller that set `h.type` or a `cb.<member>` fails to
+build until it sets `h.cb` instead.
 
 The asid and mode are compared when the instruction runs. At one address, hooks with an asid run
 before those with asid 0, each in the order they were added. General-purpose registers are
@@ -113,8 +112,7 @@ struct hook
 |---|---|
 | `addr` | the virtual address of the instruction to hook |
 | `asid` | run only when `hw_proc_id`'s `get_id` equals this (`panda_current_asid` outside MIPS); 0 for every address space |
-| `type` | a `panda_cb_type`: which `cb` member is called (above); not when the hook runs |
-| `cb` | the function, in the `hooks_panda_cb` union |
+| `cb` | the function (`hook_func_t`, above) |
 | `km` | `MODE_ANY`, `MODE_KERNEL_ONLY` or `MODE_USER_ONLY` |
 | `enabled` | false disables the hook, which is then removed |
 | `context` | free for the caller |
@@ -131,8 +129,9 @@ def h(cpu, tb, hook):
     hook.enabled = False    # once
 ```
 
-`panda.hook(addr, enabled=True, kernel=None, asid=None)`: `kernel=True` or `False` sets `km`,
-and `asid` filters as above. `python/examples/proc_start.py` hooks each program's entry point.
+`panda.hook(addr, enabled=True, kernel=None, asid=None, observe_only=False)`: `kernel=True` or
+`False` sets `km`, and `asid` filters as above. It no longer takes `cb_type`.
+`python/examples/proc_start.py` hooks each program's entry point.
 
 From C, as `osi_linux` does:
 
@@ -147,8 +146,7 @@ void (*add_hook)(struct hook *) = (void (*)(struct hook *))dlsym(hooks, "add_hoo
 struct hook h = {0};
 h.addr = addr;
 h.asid = 0;
-h.type = PANDA_CB_START_BLOCK_EXEC;
-h.cb.start_block_exec = my_hook;    // void my_hook(CPUState *, TranslationBlock *, struct hook *)
+h.cb = my_hook;                     // void my_hook(CPUState *, TranslationBlock *, struct hook *)
 h.km = MODE_ANY;
 h.enabled = true;
 add_hook(&h);
