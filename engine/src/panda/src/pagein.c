@@ -36,6 +36,12 @@
 #include "target/arm/internals.h"
 #include "target/arm/syndrome.h"
 #endif
+#if defined(TARGET_MIPS)
+#include "target/mips/internal.h"
+#endif
+#if defined(TARGET_PPC)
+#include "target/ppc/internal.h"
+#endif
 
 #define MADV_POPULATE_READ 22
 #define MADV_POPULATE_WRITE 23
@@ -60,14 +66,9 @@ typedef struct PageinRegs {
     uint64_t asid, sp, pc;
     unsigned len;               /* the system call instruction's length, for a restart */
     PageinReq *req;             /* NULL once the request is gone (timeout, cancel) */
-#if defined(TARGET_I386)
-    target_ulong regs[CPU_NB_REGS];
-    target_ulong eflags;
-#elif defined(TARGET_AARCH64)
-    uint64_t xregs[31];
-#elif defined(TARGET_RISCV)
-    target_ulong gpr[32];
-#endif
+    /* the thread's registers: general purpose ones, and what the target keeps besides */
+    uint64_t r[32];
+    uint64_t x[8];
 } PageinRegs;
 
 static QemuMutex lock;
@@ -180,6 +181,11 @@ void panda_pagein_stats(uint64_t *submitted, uint64_t *injected, uint64_t *compl
  * Target pieces: is this vCPU at a user-mode boundary of a task we can inject into, its stack
  * pointer, the system call's return register, and the injection.
  */
+/*
+ * pagein_user(): 1 if the vCPU is at a user-mode boundary we can inject at (*sp set), 0 if not
+ * (kernel mode, or a moment we can't use: a branch delay slot), -1 if it is a user task we can't
+ * serve (another ABI). pagein_retval(): the call's result, -errno on failure.
+ */
 #if defined(TARGET_X86_64)
 #define PAGEIN_NR_MADVISE 28
 static int pagein_user(CPUState *cs, uint64_t *sp)
@@ -195,8 +201,10 @@ static int pagein_user(CPUState *cs, uint64_t *sp)
 static void pagein_save(CPUState *cs, PageinRegs *h)
 {
     CPUX86State *env = cpu_env(cs);
-    memcpy(h->regs, env->regs, sizeof(h->regs));
-    h->eflags = cpu_compute_eflags(env);
+    for (int i = 0; i < CPU_NB_REGS; i++) {
+        h->r[i] = env->regs[i];
+    }
+    h->x[0] = cpu_compute_eflags(env);
     h->pc = env->eip;
     h->len = 2;
 }
@@ -207,8 +215,10 @@ static int64_t pagein_retval(CPUState *cs)
 static void pagein_restore(CPUState *cs, PageinRegs *h)
 {
     CPUX86State *env = cpu_env(cs);
-    memcpy(env->regs, h->regs, sizeof(h->regs));
-    cpu_load_eflags(env, h->eflags, TF_MASK | AC_MASK | ID_MASK | NT_MASK | RF_MASK);
+    for (int i = 0; i < CPU_NB_REGS; i++) {
+        env->regs[i] = h->r[i];
+    }
+    cpu_load_eflags(env, h->x[0], TF_MASK | AC_MASK | ID_MASK | NT_MASK | RF_MASK);
     if (env->eip == h->pc || env->eip == h->pc - h->len) {
         env->eip = h->pc;
     }
@@ -236,56 +246,86 @@ static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
     env->eip = env->lstar;
     cpu_loop_exit_noexc(cs);
 }
-#elif defined(TARGET_AARCH64)
-#define PAGEIN_NR_MADVISE 233
+#elif defined(TARGET_ARM)
+/*
+ * AArch64 tasks (aarch64 target): SVC with x8 = 233. AArch32 tasks (arm target, or a compat
+ * task under an AArch64 kernel): EABI SVC 0 with r7 = 220. Either way the exception's return
+ * address is the current PC (QEMU's SVC has already stepped past the instruction).
+ */
 static int pagein_user(CPUState *cs, uint64_t *sp)
 {
     CPUARMState *env = cpu_env(cs);
     if (arm_current_el(env) != 0) {
         return 0;
     }
-    if (!is_a64(env)) {
-        return -1;
-    }
-    *sp = env->xregs[31];
+    *sp = is_a64(env) ? env->xregs[31] : env->regs[13];
     return 1;
 }
 static void pagein_save(CPUState *cs, PageinRegs *h)
 {
     CPUARMState *env = cpu_env(cs);
-    memcpy(h->xregs, env->xregs, sizeof(h->xregs));
-    h->pc = env->pc;
-    h->len = 4;
+    h->x[0] = is_a64(env);
+    if (h->x[0]) {
+        for (int i = 0; i < 31; i++) {
+            h->r[i] = env->xregs[i];
+        }
+        h->pc = env->pc;
+        h->len = 4;
+    } else {
+        for (int i = 0; i < 15; i++) {
+            h->r[i] = env->regs[i];
+        }
+        h->pc = env->regs[15];
+        h->len = env->thumb ? 2 : 4;
+    }
 }
 static int64_t pagein_retval(CPUState *cs)
 {
-    return (int64_t)cpu_env(cs)->xregs[0];
+    CPUARMState *env = cpu_env(cs);
+    return is_a64(env) ? (int64_t)env->xregs[0] : (int64_t)(int32_t)env->regs[0];
 }
 static void pagein_restore(CPUState *cs, PageinRegs *h)
 {
     CPUARMState *env = cpu_env(cs);
-    memcpy(env->xregs, h->xregs, sizeof(h->xregs));
-    if (env->pc == h->pc || env->pc == h->pc - h->len) {
-        env->pc = h->pc;
+    if (h->x[0]) {
+        for (int i = 0; i < 31; i++) {
+            env->xregs[i] = h->r[i];
+        }
+        if (env->pc == h->pc || env->pc == h->pc - h->len) {
+            env->pc = h->pc;
+        }
+    } else {
+        for (int i = 0; i < 15; i++) {
+            env->regs[i] = h->r[i];
+        }
+        if (env->regs[15] == h->pc || env->regs[15] == h->pc - h->len) {
+            env->regs[15] = h->pc;
+        }
     }
 }
-/* An SVC whose return address (ELR) is the current PC */
 static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
 {
     CPUARMState *env = cpu_env(cs);
 
-    env->xregs[8] = PAGEIN_NR_MADVISE;
-    env->xregs[0] = a0;
-    env->xregs[1] = a1;
-    env->xregs[2] = a2;
-    env->exception.syndrome = syn_aa64_svc(0);
+    if (is_a64(env)) {
+        env->xregs[8] = 233;
+        env->xregs[0] = a0;
+        env->xregs[1] = a1;
+        env->xregs[2] = a2;
+        env->exception.syndrome = syn_aa64_svc(0);
+    } else {
+        env->regs[7] = 220;
+        env->regs[0] = a0;
+        env->regs[1] = a1;
+        env->regs[2] = a2;
+        env->exception.syndrome = syn_aa32_svc(0, env->thumb);
+    }
     env->exception.target_el = 1;
     panda_pagein_injecting = true;      /* not the syscall trap's: the program didn't make it */
     cs->exception_index = EXCP_SWI;
     cpu_loop_exit(cs);
 }
 #elif defined(TARGET_RISCV64)
-#define PAGEIN_NR_MADVISE 233
 static int pagein_user(CPUState *cs, uint64_t *sp)
 {
     CPURISCVState *env = cpu_env(cs);
@@ -301,7 +341,9 @@ static int pagein_user(CPUState *cs, uint64_t *sp)
 static void pagein_save(CPUState *cs, PageinRegs *h)
 {
     CPURISCVState *env = cpu_env(cs);
-    memcpy(h->gpr, env->gpr, sizeof(h->gpr));
+    for (int i = 0; i < 32; i++) {
+        h->r[i] = env->gpr[i];
+    }
     h->pc = env->pc;
     h->len = 4;
 }
@@ -312,7 +354,9 @@ static int64_t pagein_retval(CPUState *cs)
 static void pagein_restore(CPUState *cs, PageinRegs *h)
 {
     CPURISCVState *env = cpu_env(cs);
-    memcpy(env->gpr, h->gpr, sizeof(h->gpr));
+    for (int i = 1; i < 32; i++) {
+        env->gpr[i] = h->r[i];
+    }
     if (env->pc == h->pc || env->pc == h->pc - h->len) {
         env->pc = h->pc;
     }
@@ -322,12 +366,193 @@ static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
 {
     CPURISCVState *env = cpu_env(cs);
 
-    env->gpr[17] = PAGEIN_NR_MADVISE;
+    env->gpr[17] = 233;
     env->gpr[10] = a0;
     env->gpr[11] = a1;
     env->gpr[12] = a2;
     env->pc -= 4;
     cs->exception_index = RISCV_EXCP_U_ECALL;
+    cpu_loop_exit(cs);
+}
+#elif defined(TARGET_MIPS)
+/*
+ * A SYSCALL 4 bytes before the current PC (the kernel steps EPC past it): o32 madvise (4218) on
+ * 32-bit targets, n64 madvise (5027) on 64-bit ones, where the kernel takes the ABI from the
+ * number's range, so o32 and n32 tasks are served too. Not in a delay slot, not MIPS16 or
+ * microMIPS, and not at the start of a page (the CPU may read the instruction at EPC into
+ * BadInstr).
+ */
+static int pagein_user(CPUState *cs, uint64_t *sp)
+{
+    CPUMIPSState *env = cpu_env(cs);
+    if ((env->hflags & MIPS_HFLAG_MODE) != MIPS_HFLAG_UM) {
+        return 0;
+    }
+    if (env->hflags & MIPS_HFLAG_M16) {
+        return -1;
+    }
+    if ((env->hflags & MIPS_HFLAG_BMASK) ||
+        (env->active_tc.PC & (qemu_target_page_size() - 1)) < 4) {
+        return 0;
+    }
+    *sp = env->active_tc.gpr[29];
+    return 1;
+}
+static void pagein_save(CPUState *cs, PageinRegs *h)
+{
+    CPUMIPSState *env = cpu_env(cs);
+    for (int i = 0; i < 32; i++) {
+        h->r[i] = env->active_tc.gpr[i];
+    }
+    h->x[0] = env->active_tc.HI[0];
+    h->x[1] = env->active_tc.LO[0];
+    h->pc = env->active_tc.PC;
+    h->len = 4;
+}
+/* v0 is the errno when a3 is set */
+static int64_t pagein_retval(CPUState *cs)
+{
+    CPUMIPSState *env = cpu_env(cs);
+    int64_t v0 = (target_long)env->active_tc.gpr[2];
+    return env->active_tc.gpr[7] ? -v0 : v0;
+}
+static void pagein_restore(CPUState *cs, PageinRegs *h)
+{
+    CPUMIPSState *env = cpu_env(cs);
+    for (int i = 1; i < 32; i++) {
+        env->active_tc.gpr[i] = h->r[i];
+    }
+    env->active_tc.HI[0] = h->x[0];
+    env->active_tc.LO[0] = h->x[1];
+    if (env->active_tc.PC == h->pc || env->active_tc.PC == h->pc - h->len) {
+        env->active_tc.PC = h->pc;
+    }
+}
+static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
+{
+    CPUMIPSState *env = cpu_env(cs);
+
+#if defined(TARGET_MIPS64)
+    env->active_tc.gpr[2] = 5027;
+#else
+    env->active_tc.gpr[2] = 4218;
+#endif
+    env->active_tc.gpr[4] = a0;
+    env->active_tc.gpr[5] = a1;
+    env->active_tc.gpr[6] = a2;
+    env->active_tc.PC -= 4;
+    cs->exception_index = EXCP_SYSCALL;
+    env->error_code = 0;
+    cpu_loop_exit(cs);
+}
+#elif defined(TARGET_PPC)
+/*
+ * sc with r0 = 205, from 4 bytes before the current NIP (the exception entry steps SRR0 past
+ * it). On ppc64, 64-bit tasks only (MSR.SF).
+ */
+static int pagein_user(CPUState *cs, uint64_t *sp)
+{
+    CPUPPCState *env = cpu_env(cs);
+    if (!FIELD_EX64(env->msr, MSR, PR)) {
+        return 0;
+    }
+#if defined(TARGET_PPC64)
+    if (!FIELD_EX64(env->msr, MSR, SF)) {
+        return -1;
+    }
+#endif
+    *sp = env->gpr[1];
+    return 1;
+}
+static void pagein_save(CPUState *cs, PageinRegs *h)
+{
+    CPUPPCState *env = cpu_env(cs);
+    for (int i = 0; i < 32; i++) {
+        h->r[i] = env->gpr[i];
+    }
+    for (int i = 0; i < 8; i++) {
+        h->x[i] = env->crf[i];
+    }
+    h->pc = env->nip;
+    h->len = 4;
+}
+/* r3 is the errno when CR0.SO is set */
+static int64_t pagein_retval(CPUState *cs)
+{
+    CPUPPCState *env = cpu_env(cs);
+    int64_t r3 = (target_long)env->gpr[3];
+    return (env->crf[0] & 1) ? -r3 : r3;
+}
+static void pagein_restore(CPUState *cs, PageinRegs *h)
+{
+    CPUPPCState *env = cpu_env(cs);
+    for (int i = 0; i < 32; i++) {
+        env->gpr[i] = h->r[i];
+    }
+    for (int i = 0; i < 8; i++) {
+        env->crf[i] = h->x[i];
+    }
+    if (env->nip == h->pc || env->nip == h->pc - h->len) {
+        env->nip = h->pc;
+    }
+}
+static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
+{
+    CPUPPCState *env = cpu_env(cs);
+
+    env->gpr[0] = 205;
+    env->gpr[3] = a0;
+    env->gpr[4] = a1;
+    env->gpr[5] = a2;
+    env->nip -= 4;
+    cs->exception_index = POWERPC_EXCP_SYSCALL;
+    env->error_code = 0;
+    cpu_loop_exit(cs);
+}
+#elif defined(TARGET_LOONGARCH64)
+/* SYSCALL with a7 = 233, 4 bytes before the current PC (the kernel steps ERA past it) */
+static int pagein_user(CPUState *cs, uint64_t *sp)
+{
+    CPULoongArchState *env = cpu_env(cs);
+    if (FIELD_EX64(env->CSR_CRMD, CSR_CRMD, PLV) != 3) {
+        return 0;
+    }
+    *sp = env->gpr[3];
+    return 1;
+}
+static void pagein_save(CPUState *cs, PageinRegs *h)
+{
+    CPULoongArchState *env = cpu_env(cs);
+    for (int i = 0; i < 32; i++) {
+        h->r[i] = env->gpr[i];
+    }
+    h->pc = env->pc;
+    h->len = 4;
+}
+static int64_t pagein_retval(CPUState *cs)
+{
+    return (int64_t)cpu_env(cs)->gpr[4];
+}
+static void pagein_restore(CPUState *cs, PageinRegs *h)
+{
+    CPULoongArchState *env = cpu_env(cs);
+    for (int i = 1; i < 32; i++) {
+        env->gpr[i] = h->r[i];
+    }
+    if (env->pc == h->pc || env->pc == h->pc - h->len) {
+        env->pc = h->pc;
+    }
+}
+static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
+{
+    CPULoongArchState *env = cpu_env(cs);
+
+    env->gpr[11] = 233;
+    env->gpr[4] = a0;
+    env->gpr[5] = a1;
+    env->gpr[6] = a2;
+    env->pc -= 4;
+    cs->exception_index = EXCCODE_SYS;
     cpu_loop_exit(cs);
 }
 #else
