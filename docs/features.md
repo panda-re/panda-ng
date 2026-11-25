@@ -401,7 +401,7 @@ later guest, and wait for the process to run in user mode.
 
 **Docs:** [docs/guides/python.md#memory-that-isnt-paged-in](guides/python.md#memory-that-isnt-paged-in)
 
-**Tests:** `engine/tests/guest/run.sh`, `engine/tests/guest/kvm.sh`, `tests/pagein.py`
+**Tests:** `engine/tests/guest/run.sh`, `engine/tests/guest/kvm.sh`, `tests/pagein.py`, `tests/pagein_race.py`
 
 **Engine patches:** 0013-0017, 0031, 0033, 0111 ([series](reference/patches.md))
 
