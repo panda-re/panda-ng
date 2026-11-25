@@ -13,8 +13,11 @@
  * kernel runs like any other system call, under its own locks, and which fails with an error
  * instead of a signal where the range isn't mapped (no mapping, PROT_NONE, past the end of a
  * file, a kernel address). The thread's registers are put back when it comes back to user mode
- * with the same stack pointer, the range is read or written without faulting, and the completion
- * runs, on that vCPU's thread. The code that made the request never runs again because of it.
+ * with the same stack pointer at the same instruction (or at the system call it would restart),
+ * the range is read or written without faulting, and the completion runs, on that vCPU's
+ * thread. A thread that comes back elsewhere (a signal handler longjmp'd, an rseq abort) keeps
+ * its registers, except those a system call may change (and the arguments of ours), and the
+ * request is served again later. The code that made the request never runs again because of it.
  *
  * Guest-visible effects: the system call itself (seccomp, ptrace, audit and syscall tracers see
  * a madvise the program did not make), and those of a page-in: resident memory, fault counters,
@@ -83,9 +86,14 @@ bool panda_pagein_can_wait(void);
 /* Status names for messages */
 const char *panda_pagein_strerror(int status);
 
-/* Counters since start: submitted, injected system calls, completed by status (-10..0). */
+/*
+ * Counters since start: submitted, injected system calls, completed, abandoned (a thread came back
+ * to user mode somewhere else than where the call was injected, e.g. a signal handler's longjmp or
+ * an rseq abort: its registers were left as they were and the request went round again), and
+ * completions by status (-10..0).
+ */
 void panda_pagein_stats(uint64_t *submitted, uint64_t *injected, uint64_t *completed,
-                        uint64_t by_status[11]);
+                        uint64_t *abandoned, uint64_t by_status[11]);
 
 #ifdef __cplusplus
 }

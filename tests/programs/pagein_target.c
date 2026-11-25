@@ -34,6 +34,8 @@
 #include <sys/mman.h>
 #include <time.h>
 #include <unistd.h>
+#include <setjmp.h>
+#include <sys/time.h>
 
 #define PG 4096UL
 #define NP 64
@@ -136,6 +138,16 @@ static void onsig(int s)
     _exit(s == SIGBUS ? 98 : 99);
 }
 
+/* sig mode: a timer signal whose handler longjmps back to the top of the spin loop, so that
+ * threads come back from the page-in's system call somewhere else than where it was made */
+static sigjmp_buf jb;
+static volatile long jumps;
+static void onalrm(int s)
+{
+    (void)s;
+    siglongjmp(jb, 1);
+}
+
 static long now_ms(void)
 {
     struct timespec t;
@@ -148,6 +160,7 @@ int main(int argc, char **argv)
     const char *dir = argc > 1 ? argv[1] : "/tmp";
     int secs = argc > 2 ? atoi(argv[2]) : 5;
     int spin = argc > 3 && !strcmp(argv[3], "spin");
+    int sig = argc > 4 && !strcmp(argv[4], "sig");
     char path[256], tpath[256];
 
     signal(SIGSEGV, onsig);
@@ -195,7 +208,15 @@ int main(int argc, char **argv)
 
     hc(1, TAG, STEP);                   /* READY: the layout */
 
-    long end = now_ms() + secs * 1000L, mism = 0, iters = 0;
+    volatile long end = now_ms() + secs * 1000L, mism = 0, iters = 0;
+    if (spin && sig) {
+        struct itimerval it = { { 0, 3000 }, { 0, 3000 } };
+        signal(SIGALRM, onalrm);
+        setitimer(ITIMER_REAL, &it, NULL);
+        if (sigsetjmp(jb, 1)) {
+            jumps++;
+        }
+    }
     if (spin) {
         while (now_ms() < end) {
             /* two copies of one recurrence, kept in registers across the loop */
@@ -218,6 +239,10 @@ int main(int argc, char **argv)
             iters++;
         }
     }
+    if (sig) {             /* before anything below can be jumped out of */
+        struct itimerval off = { { 0, 0 }, { 0, 0 } };
+        setitimer(ITIMER_REAL, &off, NULL);
+    }
     long bad = 0, wrote = tag[2];       /* the test sets tag[2] when it wrote WR */
     for (unsigned i = 0; i < NP * PG / 8; i++) {
         if (file[i] != pat(FILEA + i * 8)) bad++;
@@ -227,7 +252,8 @@ int main(int argc, char **argv)
     }
     unsigned char vec;
     long grew = mincore((void *)(GROW - PG), PG, &vec) == 0;   /* did the stack VMA expand? */
-    printf("PT DONE iters %ld mismatches %ld bad %ld wrote %ld grew %ld\n", iters, mism, bad, wrote,
+    printf("PT DONE jumps %ld iters %ld mismatches %ld bad %ld wrote %ld grew %ld\n", jumps, iters,
+           mism, bad, wrote,
            grew);
     fflush(stdout);
     hc(2, mism, bad);                   /* DONE */

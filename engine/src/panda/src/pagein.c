@@ -23,6 +23,7 @@
 #include "accel/tcg/cpu-ops.h"
 #include "accel/tcg/cpu-mmu-index.h"
 #include "accel/tcg/cpu-loop.h"
+#include "accel/tcg/probe.h"
 #include "system/tcg.h"
 #include "system/replay-analysis.h"
 #include "panda/common.h"
@@ -46,7 +47,15 @@
 #define MADV_POPULATE_READ 22
 #define MADV_POPULATE_WRITE 23
 #define PAGEIN_TIMEOUT_NS (5 * NANOSECONDS_PER_SECOND)
-#define PAGEIN_MAX_ROUNDS 4         /* injections per request (reclaimed again in between) */
+#define PAGEIN_MAX_ROUNDS 6         /* injections per request (page size probes, reclaim) */
+
+/*
+ * The guest kernel's page size, as a shift, once known: madvise wants a start aligned to it,
+ * and it may be larger than the target's (16 or 64 KiB on arm64, ppc64, mips, loongarch). Until
+ * a call proves it, a request answered EINVAL is tried again with the start aligned to 16, then
+ * 64 KiB; the first alignment that works, from a start not aligned to the next one, is it.
+ */
+static int guest_page_shift;
 
 typedef struct PageinReq {
     QTAILQ_ENTRY(PageinReq) next;
@@ -54,7 +63,8 @@ typedef struct PageinReq {
     size_t len;
     uint8_t *buf;               /* read: filled at completion; write: the bytes */
     bool write, inflight;
-    int rounds;
+    int rounds, touches;
+    int shift, first_errno;     /* the start's alignment for the next call; its first answer */
     int64_t deadline;
     panda_pagein_cb_t cb;
     void *opaque;
@@ -77,7 +87,7 @@ static QTAILQ_HEAD(, PageinReq) reqs = QTAILQ_HEAD_INITIALIZER(reqs);
 static QTAILQ_HEAD(, PageinRegs) held = QTAILQ_HEAD_INITIALIZER(held);
 static unsigned nreqs;
 static uint64_t next_id G_GNUC_UNUSED = 1;    /* unused without an injector */
-static uint64_t st_submitted, st_injected, st_completed, st_status[11];
+static uint64_t st_submitted, st_injected, st_completed, st_abandoned, st_status[11];
 
 /* Completions to run after the lock is dropped */
 typedef struct Done {
@@ -166,10 +176,11 @@ const char *panda_pagein_strerror(int status)
 }
 
 void panda_pagein_stats(uint64_t *submitted, uint64_t *injected, uint64_t *completed,
-                        uint64_t by_status[11])
+                        uint64_t *abandoned, uint64_t by_status[11])
 {
     pagein_init();
     qemu_mutex_lock(&lock);
+    *abandoned = st_abandoned;
     *submitted = st_submitted;
     *injected = st_injected;
     *completed = st_completed;
@@ -250,13 +261,31 @@ static void pagein_inject(CPUState *cs, uint64_t a0, uint64_t a1, uint64_t a2)
 /*
  * AArch64 tasks (aarch64 target): SVC with x8 = 233. AArch32 tasks (arm target, or a compat
  * task under an AArch64 kernel): EABI SVC 0 with r7 = 220. Either way the exception's return
- * address is the current PC (QEMU's SVC has already stepped past the instruction).
+ * address is the current PC (QEMU's SVC has already stepped past the instruction). An AArch32
+ * task in ARM state on an AArch32 kernel is served only right after an SVC #0 (pagein_user).
  */
 static int pagein_user(CPUState *cs, uint64_t *sp)
 {
     CPUARMState *env = cpu_env(cs);
     if (arm_current_el(env) != 0) {
         return 0;
+    }
+    if (!is_a64(env) && !env->thumb && !arm_el_is_aa64(env, 1)) {
+        /*
+         * An AArch32 kernel with OABI compatibility reads the SVC instruction before the return
+         * address and takes a non-zero immediate as an old-ABI call number: inject only where
+         * that word is an SVC #0 (right after one of the thread's own system calls). Thumb
+         * entries and AArch64 kernels take the number from r7 alone.
+         */
+        GByteArray *b = g_byte_array_new();
+        bool svc0 = qemu_plugin_read_memory_vaddr_fault(env->regs[15] - 4, b, 4,
+                                                        QEMU_PLUGIN_VADDR_USER, false) ==
+                    QEMU_PLUGIN_VADDR_OK &&
+                    (ldl_le_p(b->data) & 0x0fffffff) == 0x0f000000;
+        g_byte_array_unref(b);
+        if (!svc0) {
+            return 0;
+        }
     }
     *sp = is_a64(env) ? env->xregs[31] : env->regs[13];
     return 1;
@@ -637,6 +666,48 @@ static int pagein_copy(PageinReq *r)
 }
 #endif
 
+#ifndef PAGEIN_NO_INJECTOR
+/* The first page of r the CPU can't reach without a fault, or -1 */
+static uint64_t pagein_first_missing(PageinReq *r)
+{
+    uint64_t page = qemu_target_page_size();
+    GByteArray *b = g_byte_array_new();
+    uint64_t a, bad = (uint64_t)-1;
+
+    for (a = r->addr & ~(page - 1); a < r->addr + r->len; a += page) {
+        uint64_t at = MAX(a, r->addr);
+        int ret = r->write ?
+            (g_byte_array_set_size(b, 1), memcpy(b->data, r->buf + (at - r->addr), 1),
+             qemu_plugin_write_memory_vaddr_fault(at, b, QEMU_PLUGIN_VADDR_USER, false)) :
+            qemu_plugin_read_memory_vaddr_fault(at, b, 1, QEMU_PLUGIN_VADDR_USER, false);
+        if (ret != QEMU_PLUGIN_VADDR_OK) {
+            bad = at;
+            break;
+        }
+    }
+    g_byte_array_unref(b);
+    return bad;
+}
+
+/*
+ * The system call populated the range, but the CPU still can't reach a page of it: CPUs whose
+ * TLB the kernel refills in software (MIPS, BookE PowerPC) only see a page table entry after a
+ * TLB miss. Take that miss here, as the thread's own user-mode access at this boundary: the
+ * page is in a mapping that allows the access (the call just succeeded), so the kernel's refill
+ * or fault handler resolves it and returns to this instruction. (A thread of the same process
+ * unmapping the range in between is the one way this could still signal.) Returns only if the
+ * page became reachable meanwhile.
+ */
+static void pagein_touch(CPUState *cs, uint64_t addr, bool write)
+{
+    if (!cs->cc->tcg_ops->user_mmu_index) {
+        return;
+    }
+    probe_access(cpu_env(cs), addr, 1, write ? MMU_DATA_STORE : MMU_DATA_LOAD,
+                 cs->cc->tcg_ops->user_mmu_index(cs), 0);
+}
+#endif
+
 void panda_pagein_service(CPUState *cs)
 {
 #ifndef PAGEIN_NO_INJECTOR
@@ -647,6 +718,7 @@ void panda_pagein_service(CPUState *cs)
     int64_t now;
     PageinReq *r, *rn;
     PageinRegs *h;
+    uint64_t touch = (uint64_t)-1;
 
     pagein_init();
     user = pagein_user(cs, &sp);
@@ -689,6 +761,23 @@ void panda_pagein_service(CPUState *cs)
         }
     }
     if (h) {
+        uint64_t pc = cs->cc->get_pc(cs);
+
+        if (pc != h->pc && pc != h->pc - h->len) {
+            /*
+             * Same thread, somewhere else: a signal handler that longjmp'd, an rseq abort. Its
+             * registers are its own now: leave them, and let the request go round again.
+             */
+            QTAILQ_REMOVE(&held, h, next);
+            if (h->req) {
+                h->req->inflight = false;
+            }
+            g_free(h);
+            st_abandoned++;
+            goto look_for_request;
+        }
+    }
+    if (h) {
         int64_t ret = pagein_retval(cs);
         QTAILQ_REMOVE(&held, h, next);
         pagein_restore(cs, h);
@@ -696,9 +785,19 @@ void panda_pagein_service(CPUState *cs)
         g_free(h);
         if (r && ndone < ARRAY_SIZE(done)) {
             r->inflight = false;
-            if (ret < 0 && ret > -4096) {
-                pagein_finish(r, PANDA_PAGEIN_EGUEST, (int)-ret, &done[ndone++]);
+            int shift = r->shift ? r->shift : TARGET_PAGE_BITS;
+            uint64_t start = r->addr & ~((1ull << shift) - 1);
+
+            if (ret == -EINVAL && !guest_page_shift && shift < 16) {
+                r->first_errno = r->first_errno ? r->first_errno : EINVAL;
+                r->shift = shift + 2;       /* maybe a larger page: try again aligned to it */
+            } else if (ret < 0 && ret > -4096) {
+                pagein_finish(r, PANDA_PAGEIN_EGUEST,
+                              r->first_errno ? r->first_errno : (int)-ret, &done[ndone++]);
             } else {
+                if (!guest_page_shift && (start & ((1ull << (shift + 2)) - 1))) {
+                    guest_page_shift = shift;   /* worked, and no larger alignment did it */
+                }
                 int c = pagein_copy(r);
                 if (c == QEMU_PLUGIN_VADDR_OK) {
                     pagein_finish(r, PANDA_PAGEIN_OK, 0, &done[ndone++]);
@@ -706,6 +805,9 @@ void panda_pagein_service(CPUState *cs)
                     pagein_finish(r, PANDA_PAGEIN_EIO, 0, &done[ndone++]);
                 } else if (r->rounds >= PAGEIN_MAX_ROUNDS) {
                     pagein_finish(r, PANDA_PAGEIN_ERECLAIMED, 0, &done[ndone++]);
+                } else if (r->touches < PAGEIN_MAX_ROUNDS) {
+                    touch = pagein_first_missing(r);
+                    r->touches++;
                 }
                 /* else it waits for another round */
             }
@@ -713,9 +815,13 @@ void panda_pagein_service(CPUState *cs)
         pagein_update_loop_bit();
         qemu_mutex_unlock(&lock);
         pagein_complete(done, ndone);
+        if (touch != (uint64_t)-1) {
+            pagein_touch(cs, touch, r->write);
+        }
         cpu_loop_exit_noexc(cs);    /* the registers changed: look the block up again */
     }
 
+look_for_request:
     /* A request for this address space */
     QTAILQ_FOREACH(r, &reqs, next) {
         if (!r->inflight && r->asid == asid) {
@@ -731,8 +837,8 @@ void panda_pagein_service(CPUState *cs)
         }
         goto out;
     }
-    if (r->rounds == 0) {
-        int c = pagein_copy(r);         /* already there: no system call */
+    {
+        int c = pagein_copy(r);         /* already there (or now): no system call */
         if (c == QEMU_PLUGIN_VADDR_OK || c == QEMU_PLUGIN_VADDR_IO) {
             if (ndone < ARRAY_SIZE(done)) {
                 pagein_finish(r, c == QEMU_PLUGIN_VADDR_OK ? PANDA_PAGEIN_OK : PANDA_PAGEIN_EIO,
@@ -741,10 +847,19 @@ void panda_pagein_service(CPUState *cs)
             goto out;
         }
     }
+    if (r->rounds >= PAGEIN_MAX_ROUNDS) {
+        if (ndone < ARRAY_SIZE(done)) {
+            pagein_finish(r, PANDA_PAGEIN_ERECLAIMED, 0, &done[ndone++]);
+        }
+        goto out;
+    }
     {
+        int shift = r->shift ? r->shift : guest_page_shift ? guest_page_shift : TARGET_PAGE_BITS;
         uint64_t page = qemu_target_page_size();
-        uint64_t start = r->addr & ~(page - 1);
+        uint64_t start = r->addr & ~((1ull << shift) - 1);
         uint64_t end = ROUND_UP(r->addr + r->len, page);
+
+        r->shift = shift;
 
         h = g_new0(PageinRegs, 1);
         h->asid = asid;
@@ -781,6 +896,7 @@ void panda_pagein_cancel_all(void)
     }
     for (;;) {
         qemu_mutex_lock(&lock);
+        guest_page_shift = 0;               /* maybe another guest now */
         while ((h = QTAILQ_FIRST(&held))) {
             QTAILQ_REMOVE(&held, h, next);
             g_free(h);

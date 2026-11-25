@@ -164,8 +164,8 @@ class PageIn:
 
     def stats(self):
         ffi, C = self._panda.ffi, self._panda.libpanda
-        s, i, c = ffi.new("uint64_t *"), ffi.new("uint64_t *"), ffi.new("uint64_t *")
+        s, i, c, a = (ffi.new("uint64_t *") for _ in range(4))
         by = ffi.new("uint64_t[11]")
-        C.panda_pagein_stats(s, i, c, by)
-        return dict(submitted=s[0], injected=i[0], completed=c[0],
+        C.panda_pagein_stats(s, i, c, a, by)
+        return dict(submitted=s[0], injected=i[0], completed=c[0], abandoned=a[0],
                     by_status={-k: by[k] for k in range(11) if by[k]})

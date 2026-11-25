@@ -17,7 +17,9 @@ the end checks its own memory. Checks:
   isn't; the completion form works from a user-mode callback (the hypercall), a kernel-mode one
   (asid_changed) and another Python thread;
 - an address space that never runs, and the program's after it exited: PageInTimeout;
-- --stress N requests from all of those contexts while the program spins: every one completes,
+- --stress N requests from all of those contexts while the program spins, with a timer signal
+  every 3 ms whose handler longjmps to the top of its loop (so a thread may come back from the
+  injected call elsewhere; --no-signals turns it off): every one completes,
   with data that matches, no register of the program changes (its two copies never differ), it
   exits 0, and the guest console shows no oops, BUG or signal;
 - the program's exit is clean (no SIGSEGV/SIGBUS: it would exit 99/98).
@@ -87,6 +89,8 @@ ap.add_argument("--smp", type=int, default=1)
 ap.add_argument("--stress", type=int, default=200)
 ap.add_argument("--secs", type=int, default=0)
 ap.add_argument("--intel", action="store_true")
+ap.add_argument("--no-signals", action="store_true",
+                help="no timer signal whose handler longjmps (the program's sig mode)")
 ap.add_argument("--json")
 opt = ap.parse_args()
 
@@ -298,7 +302,7 @@ def drive():
     d = "/mnt" if out.strip().endswith(b"1") else "/tmp"
     progress(f"pagein: setup: {out.decode(errors='replace').strip()!r}")
     secs = opt.secs or (8 + opt.stress // 100)
-    agent.run(f"(/tmp/pt {d} {secs} spin > /tmp/pt.out 2>&1; echo exit=$? >> /tmp/pt.out) &")
+    agent.run(f"(/tmp/pt {d} {secs} spin {'nosig' if opt.no_signals else 'sig'} > /tmp/pt.out 2>&1; echo exit=$? >> /tmp/pt.out) &")
     if not st["ready"].wait(120):
         C.check("program ready", False, "no READY hypercall")
         panda.end_analysis()
