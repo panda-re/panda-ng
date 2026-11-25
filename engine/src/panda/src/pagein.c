@@ -557,6 +557,10 @@ static int pagein_user(CPUState *cs, uint64_t *sp)
     if (FIELD_EX64(env_sys(env)->CSR_CRMD, CSR_CRMD, PLV) != 3) {
         return 0;
     }
+    /* the exception entry reads the instruction at ERA into BADI: not across a page start */
+    if ((env->pc & (qemu_target_page_size() - 1)) < 4) {
+        return 0;
+    }
     *sp = env->gpr[3];
     return 1;
 }
