@@ -7,6 +7,11 @@
 #include "system/replay-effect.h"
 #include "panda/guest-write.h"
 #include "translate-int.h"
+#ifdef CONFIG_TCG
+#include "system/tcg.h"
+#include "accel/tcg/cpu-mmu-index.h"
+#include "accel/tcg/probe.h"
+#endif
 
 /* (not kernel-doc)
  * panda_physical_memory_rw() - Copy data between host and guest.
@@ -130,6 +135,55 @@ int panda_physical_memory_write(hwaddr addr,
  * Return: A guest physical address.
  */
 
+/*
+ * A page in the vCPU's TLB, for an analysis read or translation on the vCPU's own thread: a hit
+ * on plain RAM in one of the indexes panda_view_mmu_mask names gives the page's host address and
+ * (with @phys) its physical address, as the walk would. The TLB is only looked up, never filled:
+ * no accessed bits, no faults. NULL on a miss, or where the TLB can't be used.
+ */
+static void *tlb_view_lookup(CPUState *cpu, vaddr addr, hwaddr *phys)
+{
+#ifdef CONFIG_TCG
+    if (!tcg_enabled() || cpu != current_cpu) {
+        return NULL;
+    }
+    /* the index that hit last first: an analysis reads mostly kernel data, or mostly user data */
+    static __thread int last_hit = -1;
+    uint32_t m = panda_view_mmu_mask(cpu);
+    int idx = last_hit;
+    void *host = NULL;
+
+    if (!m) {
+        return NULL;
+    }
+    if (idx < 0 || !(m & (1u << idx))) {
+        idx = cpu_mmu_index(cpu, false);
+    }
+    if (m & (1u << idx)) {
+        host = tlb_vaddr_to_host_lookup(cpu, addr, MMU_DATA_LOAD, idx);
+        m &= ~(1u << idx);
+    }
+    for (; !host && m; m &= m - 1) {
+        idx = ctz32(m);
+        host = tlb_vaddr_to_host_lookup(cpu, addr, MMU_DATA_LOAD, idx);
+    }
+    if (host) {
+        last_hit = idx;
+    }
+    if (host && phys) {
+        /* the hit's full entry: tlb_index() over cpu_tlb_fast()'s mask, as cputlb.c computes it */
+        uintptr_t index = (addr >> TARGET_PAGE_BITS) &
+                          (cpu_tlb_fast(cpu, idx)->mask >> CPU_TLB_ENTRY_BITS);
+
+        *phys = (cpu->neg.tlb.d[idx].fulltlb[index].phys_addr & TARGET_PAGE_MASK) |
+                (addr & ~TARGET_PAGE_MASK);
+    }
+    return host;
+#else
+    return NULL;
+#endif
+}
+
 /* cpu_get_phys_page_debug() before QEMU 11: the page's physical address, or -1 */
 static hwaddr phys_page_debug(CPUState *env, target_ulong page)
 {
@@ -142,7 +196,12 @@ static hwaddr phys_page_debug(CPUState *env, target_ulong page)
 }
 
 hwaddr panda_virt_to_phys(CPUState *env, target_ulong addr) {
-    hwaddr phys_addr = phys_page_debug(env, addr & TARGET_PAGE_MASK);
+    hwaddr phys_addr;
+
+    if (tlb_view_lookup(env, addr, &phys_addr)) {
+        return phys_addr;
+    }
+    phys_addr = phys_page_debug(env, addr & TARGET_PAGE_MASK);
 
     if (phys_addr == -1) {
         // no physical page mapped
@@ -169,7 +228,9 @@ hwaddr panda_virt_to_phys(CPUState *env, target_ulong addr) {
  * not mapped, then the read or write will fail.
  *
  * Each page is translated as the CPU sees it, else as the guest's kernel does
- * (panda_translate_page); the CPU's state is not changed.
+ * (panda_translate_page); the CPU's state is not changed. A read made on the
+ * vCPU's own thread first looks the page up in the vCPU's TLB
+ * (panda_view_mmu_mask), which gives the same answer without a page walk.
  * 
  * Return:
  * * 0      - Read/write succeeded
@@ -185,19 +246,34 @@ int panda_virtual_memory_rw(CPUState *env, target_ulong addr,
     int ret;
     hwaddr phys_addr;
     target_ulong page;
-
+    /*
+     * A read on the vCPU's own thread takes a page the vCPU has in its TLB straight from RAM
+     * (tlb_view_lookup): the walk's answer without the walk. Other pages, writes and other
+     * threads walk.
+     */
     while (len > 0) {
         page = addr & TARGET_PAGE_MASK;
+        l = (page + TARGET_PAGE_SIZE) - addr;
+        if (l > len) {
+            l = len;
+        }
+        if (!is_write) {
+            void *host = tlb_view_lookup(env, addr, NULL);
+
+            if (host) {
+                memcpy(buf, host, l);
+                len -= l;
+                buf += l;
+                addr += l;
+                continue;
+            }
+        }
         phys_addr = phys_page_debug(env, page);
         // No physical page mapped: abort
         if (phys_addr == -1)  {
             return -1;
         }
 
-        l = (page + TARGET_PAGE_SIZE) - addr;
-        if (l > len) {
-            l = len;
-        }
         phys_addr += (addr & ~TARGET_PAGE_MASK);
         ret = panda_physical_memory_rw(phys_addr, buf, l, is_write);
         if (ret != MEMTX_OK) {

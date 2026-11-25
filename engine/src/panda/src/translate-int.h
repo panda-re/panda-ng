@@ -10,5 +10,6 @@
 #include "hw/core/cpu.h"
 
 bool panda_translate_page(CPUState *cpu, vaddr page, TranslateForDebugResult *res, bool access);
+uint32_t panda_view_mmu_mask(CPUState *cpu);
 
 #endif
