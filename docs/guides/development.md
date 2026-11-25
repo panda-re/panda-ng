@@ -37,7 +37,8 @@ Options of `build`:
 
 `.dev/bin/python3` (also `.dev/bin/panda-python`) is the dev shell's Python with `python/core` on
 `PYTHONPATH`, `PANDA_LIB` set to `.dev/prefix/lib` and `PANDA_PLUGIN_DIR` to
-`.dev/plugins/plugins`. Use it wherever a test wants pandare2's Python:
+`.dev/plugins/plugins` unless the environment already sets them (another engine or plugin
+directory then wins). Use it wherever a test wants pandare2's Python:
 
 ```sh
 PANDA_PYTHON=$PWD/.dev/bin/python3 TESTS="syscalls api" tests/run.sh ~/panda-images/debian-13-x86_64.json

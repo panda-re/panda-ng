@@ -451,14 +451,17 @@ def env_vars():
 
 def write_python():
     """bin/python3: the dev shell's Python (kept from garbage collection by the dev shell's
-    profile), with pandare2 from python/core and the dev engine and plugins."""
+    profile), with pandare2 from python/core and the dev engine and plugins (unless PANDA_LIB or
+    PANDA_PLUGIN_DIR is set: the caller's engine or plugins win, as tests/run documents)."""
     py = shutil.which("python3")
     v = env_vars()
     script = f"""#!/bin/sh
 # Python with pandare2 from {ROOT}/python/core on the dev build in {DEV}
 # (tools/dev/dev.sh). Use it as PANDA_PYTHON.
-export PANDA_LIB={shlex.quote(v["PANDA_LIB"])}
-export PANDA_PLUGIN_DIR={shlex.quote(v["PANDA_PLUGIN_DIR"])}
+# PANDA_LIB and PANDA_PLUGIN_DIR given in the environment win (another engine or plugin dir).
+[ -n "${{PANDA_LIB:-}}" ] || PANDA_LIB={shlex.quote(v["PANDA_LIB"])}
+[ -n "${{PANDA_PLUGIN_DIR:-}}" ] || PANDA_PLUGIN_DIR={shlex.quote(v["PANDA_PLUGIN_DIR"])}
+export PANDA_LIB PANDA_PLUGIN_DIR
 export PYTHONPATH={shlex.quote(str(ROOT / "python/core"))}${{PYTHONPATH:+:$PYTHONPATH}}
 if [ -z "${{SSL_CERT_FILE:-}}" ] && [ -r /etc/ssl/certs/ca-certificates.crt ]; then
   export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
