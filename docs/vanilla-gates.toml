@@ -1553,6 +1553,20 @@ current_gate = "The kernel-view debug translation runs only when called (PANDA's
 required_action = "Explicit vanilla must keep upstream's MSR[PR]-based PowerPC radix/BookE checks and must not route debug reads through the kernel view."
 vanilla_verified = false
 
+[[patch]]
+id = "0111"
+file = "engine/patches/11.1.2/0111-plugins-report-helper-filled-memory-to-memory-callba.patch"
+sha256 = "7332addbac87646f0071fe69e92e1b1c1bdb0576c757a2edb91eec5f72d18d48"
+class = "upstream-fix-needs-off-path"
+capability = "plugin-memory-encoding"
+paths = ["include/qemu/plugin.h", "plugins/core.c", "target/arm/tcg/helper-a64.c", "target/ppc/mem_helper.c", "target/riscv/tcg/op_helper.c"]
+functions = ["qemu_plugin_mem_fill", "HELPER(dc_zva)", "set_step", "set_step_tags", "dcbz_common", "helper_cbo_zero"]
+hunk_contexts = ["void qemu_plugin_vcpu_mem_cb(CPUState *cpu, uint64_t vaddr,", "static inline void qemu_plugin_vcpu_mem_cb(CPUState *cpu, uint64_t vaddr,", "void HELPER(dc_zva)(CPUARMState *env, uint64_t vaddr_in)", "static uint64_t set_step(CPUARMState *env, uint64_t toaddr,", "static uint64_t set_step_tags(CPUARMState *env, uint64_t toaddr,", "static void dcbz_common(CPUPPCState *env, target_ulong addr,", "void helper_cbo_zero(CPURISCVState *env, target_ulong address)"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Without memory callbacks for the current instruction the fill is upstream's memset. With them, the helper-filled range (AArch64 DC ZVA and MOPS SET*, PowerPC dcbz, RISC-V cbo.zero) is written in aligned pieces of up to 8 bytes, each reported as a store; no guest-visible state differs."
+required_action = "Explicit vanilla must keep upstream's single memset, which plugin memory callbacks do not see."
+vanilla_verified = false
+
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"

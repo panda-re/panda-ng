@@ -39001,6 +39001,16 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    pub fn qemu_plugin_mem_fill(
+        cpu: *mut CPUState,
+        vaddr: u64,
+        host: *mut ::std::os::raw::c_void,
+        len: usize,
+        byte: u8,
+        oi: MemOpIdx,
+    );
+}
+unsafe extern "C" {
     pub fn qemu_plugin_flush_cb();
 }
 unsafe extern "C" {

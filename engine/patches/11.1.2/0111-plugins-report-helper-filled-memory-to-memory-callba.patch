@@ -1,0 +1,207 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 26 Nov 2026 16:10:58 -0500
+Subject: [PATCH] plugins: report helper-filled memory to memory callbacks
+
+AArch64 DC ZVA, the FEAT_MOPS SET* instructions, PowerPC dcbz and
+RISC-V cbo.zero fill guest memory from a helper through a host pointer
+(memset), not through the softmmu store helpers, so a plugin's memory
+callbacks never saw those stores: on aarch64 Linux the large zero fills
+of memset (DC ZVA) were invisible to a store trace.
+
+qemu_plugin_mem_fill() takes the helpers' memset. With no memory
+callbacks for the current instruction it is that memset. With them it
+writes the range in naturally aligned pieces of up to 8 bytes and
+reports each piece as a store of the fill value, before callbacks
+before the piece is written and after callbacks after it, as for an
+ordinary store. The slow paths (I/O, watchpoints) already use the
+store helpers and were reported.
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: new
+---
+ include/qemu/plugin.h        | 28 ++++++++++++++++++++++++++++
+ plugins/core.c               | 35 +++++++++++++++++++++++++++++++++++
+ target/arm/tcg/helper-a64.c  | 10 +++++++---
+ target/ppc/mem_helper.c      |  4 +++-
+ target/riscv/tcg/op_helper.c |  4 +++-
+ 5 files changed, 76 insertions(+), 5 deletions(-)
+
+diff --git a/include/qemu/plugin.h b/include/qemu/plugin.h
+index 99421677b35452224ca06e43520edf4e25cd9a0a..8588a4af51f22b2421cc9d5ea5c99e67fb942eb3 100644
+--- a/include/qemu/plugin.h
++++ b/include/qemu/plugin.h
+@@ -208,6 +208,27 @@ void qemu_plugin_vcpu_mem_cb(CPUState *cpu, uint64_t vaddr,
+                              uint64_t value_high,
+                              MemOpIdx oi, enum qemu_plugin_mem_rw rw);
+ 
++/**
++ * qemu_plugin_mem_fill() - fill guest memory on behalf of an instruction
++ * @cpu: the vCPU executing the instruction
++ * @vaddr: guest virtual address of the first byte
++ * @host: host address of the first byte (the caller has probed the range)
++ * @len: number of bytes
++ * @byte: the fill value
++ * @oi: MemOpIdx of the access; its size is ignored (only the endianness
++ *      and the mmu index are used)
++ *
++ * For helpers that fill memory through a host pointer (AArch64 DC ZVA and
++ * the FEAT_MOPS SET* instructions) rather than through the softmmu store
++ * helpers. Without memory callbacks for the current instruction this is a
++ * memset. With them, the range is written in naturally aligned pieces of up
++ * to 8 bytes and each piece is reported as a store, with its before
++ * callbacks before the piece is written and its after callbacks after, as
++ * for an ordinary store.
++ */
++void qemu_plugin_mem_fill(CPUState *cpu, uint64_t vaddr, void *host,
++                          size_t len, uint8_t byte, MemOpIdx oi);
++
+ void qemu_plugin_flush_cb(void);
+ 
+ void qemu_plugin_atexit_cb(void);
+@@ -329,6 +350,13 @@ static inline void qemu_plugin_vcpu_mem_cb(CPUState *cpu, uint64_t vaddr,
+                                            enum qemu_plugin_mem_rw rw)
+ { }
+ 
++static inline void qemu_plugin_mem_fill(CPUState *cpu, uint64_t vaddr,
++                                        void *host, size_t len, uint8_t byte,
++                                        MemOpIdx oi)
++{
++    memset(host, byte, len);
++}
++
+ static inline void qemu_plugin_flush_cb(void)
+ { }
+ 
+diff --git a/plugins/core.c b/plugins/core.c
+index 356f3e97ad600ac0094837c96a1e6700b346ebd6..0b373d1378b9e64553ab636cfee6084f69610fcd 100644
+--- a/plugins/core.c
++++ b/plugins/core.c
+@@ -836,6 +836,41 @@ void qemu_plugin_vcpu_mem_cb(CPUState *cpu, uint64_t vaddr,
+     }
+ }
+ 
++void qemu_plugin_mem_fill(CPUState *cpu, uint64_t vaddr, void *host,
++                          size_t len, uint8_t byte, MemOpIdx oi)
++{
++    MemOp endian = get_memop(oi) & MO_BSWAP;
++    unsigned mmu_idx = get_mmuidx(oi);
++    uint64_t fill = byte * 0x0101010101010101ull;
++    size_t done = 0;
++
++    if (cpu->neg.plugin_mem_cbs == NULL) {
++        memset(host, byte, len);
++        return;
++    }
++    while (done < len) {
++        uint64_t addr = vaddr + done;
++        size_t rest = len - done;
++        MemOp size = MO_64;
++        MemOpIdx pi;
++        uint64_t value;
++
++        /* The largest naturally aligned piece that fits, up to 8 bytes */
++        while (size > MO_8 && ((addr & (memop_size(size) - 1)) ||
++                               memop_size(size) > rest)) {
++            size--;
++        }
++        pi = make_memop_idx(size | endian, mmu_idx);
++        value = fill & MAKE_64BIT_MASK(0, 8 << size);
++        qemu_plugin_vcpu_mem_cb(cpu, addr, value, 0, pi,
++                                QEMU_PLUGIN_MEM_W | QEMU_PLUGIN_MEM_BEFORE);
++        memset(host + done, byte, memop_size(size));
++        qemu_plugin_vcpu_mem_cb(cpu, addr, value, 0, pi,
++                                QEMU_PLUGIN_MEM_W | QEMU_PLUGIN_MEM_AFTER);
++        done += memop_size(size);
++    }
++}
++
+ void qemu_plugin_atexit_cb(void)
+ {
+     plugin_cb__udata(QEMU_PLUGIN_EV_ATEXIT);
+diff --git a/target/arm/tcg/helper-a64.c b/target/arm/tcg/helper-a64.c
+index 2892e23c3b4e8ea6bc7ce1f153a781bc2f4e5e78..e7565ef2065f0fd51c834db6f9bae95c0eae20b5 100644
+--- a/target/arm/tcg/helper-a64.c
++++ b/target/arm/tcg/helper-a64.c
+@@ -39,6 +39,7 @@
+ #include "exec/tlb-flags.h"
+ #include "exec/taint.h"
+ #include "qemu/int128.h"
++#include "qemu/plugin.h"
+ #include "qemu/atomic128.h"
+ #include "fpu/softfloat.h"
+ #include <zlib.h> /* for crc32 */
+@@ -896,7 +897,8 @@ void HELPER(dc_zva)(CPUARMState *env, uint64_t vaddr_in)
+ #endif
+ 
+     set_helper_retaddr(ra);
+-    memset(mem, 0, blocklen);
++    qemu_plugin_mem_fill(env_cpu(env), vaddr, mem, blocklen, 0,
++                         make_memop_idx(mo_endian(env), mmu_idx));
+     clear_helper_retaddr();
+     if (unlikely(taint_active)) {
+         taint_helper_fill(env_cpu(env), vaddr, mmu_idx, blocklen, -1);
+@@ -1050,7 +1052,8 @@ static uint64_t set_step(CPUARMState *env, uint64_t toaddr,
+ #endif
+     /* Easy case: just memset the host memory */
+     set_helper_retaddr(ra);
+-    memset(mem, data, setsize);
++    qemu_plugin_mem_fill(env_cpu(env), toaddr, mem, setsize, data,
++                         make_memop_idx(mo_endian(env), memidx));
+     clear_helper_retaddr();
+     return setsize;
+ }
+@@ -1095,7 +1098,8 @@ static uint64_t set_step_tags(CPUARMState *env, uint64_t toaddr,
+ #endif
+     /* Easy case: just memset the host memory */
+     set_helper_retaddr(ra);
+-    memset(mem, data, setsize);
++    qemu_plugin_mem_fill(env_cpu(env), toaddr, mem, setsize, data,
++                         make_memop_idx(mo_endian(env), memidx));
+     clear_helper_retaddr();
+     mte_mops_set_tags(env, toaddr, setsize, *mtedesc);
+     return setsize;
+diff --git a/target/ppc/mem_helper.c b/target/ppc/mem_helper.c
+index 787ba2cdec59b2b130c21350584cc0a0326303a3..f50f14d1500be06c31607e6b2fab8350d50ee780 100644
+--- a/target/ppc/mem_helper.c
++++ b/target/ppc/mem_helper.c
+@@ -22,6 +22,7 @@
+ #include "exec/target_page.h"
+ #include "qemu/host-utils.h"
+ #include "exec/helper-proto.h"
++#include "qemu/plugin.h"
+ #include "helper_regs.h"
+ #include "accel/tcg/cpu-ldst.h"
+ #include "accel/tcg/helper-retaddr.h"
+@@ -315,7 +316,8 @@ static void dcbz_common(CPUPPCState *env, target_ulong addr,
+ #endif
+ 
+     set_helper_retaddr(retaddr);
+-    memset(haddr, 0, dcbz_size);
++    qemu_plugin_mem_fill(env_cpu(env), addr, haddr, dcbz_size, 0,
++                         make_memop_idx(ppc_data_endian_env(env), mmu_idx));
+     clear_helper_retaddr();
+ }
+ 
+diff --git a/target/riscv/tcg/op_helper.c b/target/riscv/tcg/op_helper.c
+index fec281b0061d1200056e9855fb33233449089a22..da7f4c4d0ab308957c1125cffeb4ed7e7561d0c2 100644
+--- a/target/riscv/tcg/op_helper.c
++++ b/target/riscv/tcg/op_helper.c
+@@ -30,6 +30,7 @@
+ #include "accel/tcg/cpu-loop.h"
+ #include "accel/tcg/probe.h"
+ #include "exec/helper-proto.h"
++#include "qemu/plugin.h"
+ #include "exec/tlb-flags.h"
+ #include "exec/taint.h"
+ #include "trace.h"
+@@ -219,7 +220,8 @@ void helper_cbo_zero(CPURISCVState *env, target_ulong address)
+     mem = probe_write(env, address, cbozlen, mmu_idx, ra);
+ 
+     if (likely(mem)) {
+-        memset(mem, 0, cbozlen);
++        qemu_plugin_mem_fill(env_cpu(env), address, mem, cbozlen, 0,
++                             make_memop_idx(mo_endian_env(env), mmu_idx));
+         if (unlikely(taint_active)) {
+             taint_helper_fill(env_cpu(env), address, mmu_idx, cbozlen, -1);
+         }

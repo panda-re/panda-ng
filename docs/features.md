@@ -94,9 +94,9 @@ QEMU's own readers perform a device access except when RR policy refuses it.
 
 **Docs:** [docs/guides/python.md#callbacks](guides/python.md#callbacks), [docs/reference/callbacks.md](reference/callbacks.md)
 
-**Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/block_activation.py`, `tests/block_toggle.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbtrans.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/mmio.py`, `tests/physmem.py`
+**Tests:** `tests/callbacks.py`, `tests/blocks.py`, `tests/block_activation.py`, `tests/block_toggle.py`, `tests/blocks_bare.py`, `tests/late.py`, `tests/tbtrans.py`, `tests/tbpc.py`, `tests/mem.py`, `tests/mmio.py`, `tests/physmem.py`, `tests/zeroing.py`
 
-**Engine patches:** 0030, 0034, 0041-0043, 0045-0048, 0052-0053, 0057-0058, 0064, 0081-0082 ([series](reference/patches.md))
+**Engine patches:** 0030, 0034, 0041-0043, 0045-0048, 0052-0053, 0057-0058, 0064, 0081-0082, 0111 ([series](reference/patches.md))
 
 <a id="plugins"></a>
 ## C and C++ plugins
