@@ -33378,7 +33378,6 @@ pub struct CPUState {
     pub plugin_tb_gates: u8,
     pub uaccess_pend: CPUState__bindgen_ty_5,
     pub syscall_kmmu: u32,
-    pub syscall_inject_abis: u32,
     pub plugin_tb_vaddr: u64,
     pub vcpu_dirty: bool,
     pub accel: *mut AccelCPUState,
@@ -33577,8 +33576,6 @@ const _: () = {
         [::std::mem::offset_of!(CPUState, uaccess_pend) - 736usize];
     ["Offset of field: CPUState::syscall_kmmu"]
         [::std::mem::offset_of!(CPUState, syscall_kmmu) - 760usize];
-    ["Offset of field: CPUState::syscall_inject_abis"]
-        [::std::mem::offset_of!(CPUState, syscall_inject_abis) - 764usize];
     ["Offset of field: CPUState::plugin_tb_vaddr"]
         [::std::mem::offset_of!(CPUState, plugin_tb_vaddr) - 768usize];
     ["Offset of field: CPUState::vcpu_dirty"]
