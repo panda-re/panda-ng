@@ -269,6 +269,17 @@ std::vector<Strategy> make_strategies() {
     s.push_back({"task_change", "finish_task_switch", ANY, ANY, {}, {"current"},
                  {SymPrefix("finish_task_switch")},
                  "a hook on finish_task_switch, which runs first in the task switched to"});
+    // Where an exec is seen: a hook in the kernel's ELF loader, once the new program's mm, name,
+    // executable and mappings are in place (finalize_exec where the kernel has it, just before
+    // the program's registers are set; else set_binfmt, before the vDSO and the auxiliary
+    // vector), else the new program's first instruction in user mode (proc_start_linux, which
+    // watches every block from execve's entry until then).
+    s.push_back({"program_start", "finalize_exec hook", ANY, ANY, {}, {}, {Sym("finalize_exec")},
+                 "the new program is set up, just before it starts"});
+    s.push_back({"program_start", "set_binfmt hook", ANY, ANY, {}, {}, {Sym("set_binfmt")},
+                 "the new program and its interpreter are mapped; the vDSO and the stack's auxiliary vector are not yet"});
+    s.push_back({"program_start", "proc_start_linux", ANY, ANY, {}, {}, {},
+                 "the new program's first user-mode block (a block callback from execve's entry until then)"});
 
     // Lifecycle events from system calls (syscalls2 on the engine's pairing; lifecycle=true): the
     // creator and its clone flags at fork/vfork/clone/clone3's entry, the child at its return (or
@@ -392,7 +403,7 @@ const std::vector<std::string> &capability_names() {
     static const std::vector<std::string> c = {
         "tasks", "pid", "name", "ppid", "thread_group", "asid", "start_time", "current", "threads",
         "file_paths", "mappings", "mapping_files", "mount_paths", "heap_stack", "modules", "task_change",
-        "lifecycle", "exit_codes", "reparent", "pid_reuse", "cmdline", "exe_path", "fs_paths", "creds",
+        "program_start", "lifecycle", "exit_codes", "reparent", "pid_reuse", "cmdline", "exe_path", "fs_paths", "creds",
         "cap_sets", "open_files", "sockets", "vma_details"};
     return c;
 }
