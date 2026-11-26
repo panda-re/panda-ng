@@ -40,6 +40,7 @@ struct Offsets {
     int64_t ti_task, thread_size;
 };
 extern Offsets off;
+extern uint64_t sym_init_task;   // with the KASLR slide
 
 // Capabilities, as decided by the plan (all false until the ISF is paired with the kernel; the
 // lifecycle ones also until lifecycle=true turns them on).

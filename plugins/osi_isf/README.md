@@ -134,7 +134,7 @@ The strategies (`osi_isf_check --strategies` prints this table):
 | lifecycle | system calls | any | all | `task_struct.real_parent` (pointer), capability tasks, capability pid, capability current, capability ppid, capability thread_group |
 | exit_codes | do_exit hook | any | all | `do_exit`, `task_struct.signal` (pointer), `signal_struct.live.counter` (4-byte integer) (optional), capability lifecycle |
 | exit_codes | exit system calls | any | all | capability lifecycle |
-| reparent | children at the parent's exit | any | all | capability exit_codes, capability tasks, capability ppid, capability task_change |
+| reparent | children at the parent's exit | any | all | `task_struct.children` (struct list_head) (optional), `task_struct.sibling` (struct list_head) (optional), capability exit_codes, capability tasks, capability ppid, capability task_change |
 | pid_reuse | (pid, start_time) | any | all | capability lifecycle, capability start_time |
 | cmdline | mm arg/env ranges | any | all | `task_struct.mm` (pointer), `mm_struct.arg_start` (pointer-sized integer), `mm_struct.arg_end` (pointer-sized integer), `mm_struct.env_start` (pointer-sized integer), `mm_struct.env_end` (pointer-sized integer), capability pid, capability current |
 | exe_path | mm->exe_file | 2.6.26+ | all | `task_struct.mm` (pointer), `mm_struct.exe_file` (pointer), capability file_paths |
@@ -263,8 +263,9 @@ With `lifecycle=true`, osi_isf calls `on_osi_isf_event(CPUState *cpu, const OsiI
   its wait status (signals included). `group_exit` is 1 for the last of the process's tasks
   to enter do_exit (with the thread list; `signal->live` without it, which can race). Without the
   symbol, the exit and exit_group calls give voluntary exits only.
-- **Reparent**: at a process's end its children are noted, and each is reported when a later
-  task change finds its parent changed.
+- **Reparent**: at a process's end its children are noted (from its tasks' `children` lists,
+  else from every process's parent), and each is reported when a later task change finds its
+  parent changed.
 - **Pid reuse**: tasks are known by (tid, start time); a new task whose id was another's is
   reported with that one's start time.
 

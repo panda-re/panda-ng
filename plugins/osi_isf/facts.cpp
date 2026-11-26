@@ -179,6 +179,22 @@ std::vector<uint64_t> threads_of(CPUState *cpu, uint64_t leader) {
 // The task with this id (a thread's own id; a process's id is its leader's).
 uint64_t find_task(CPUState *cpu, int32_t tid) {
     if (!cap.tasks || !cap.pid) return 0;
+    // A task just made is usually the newest: a new process goes at the end of init_task's
+    // tasks list, a new thread at the end of its process's thread list (the current task's,
+    // for a clone that has just returned). Those first, then every task.
+    uint64_t newest = ptr_at(cpu, sym_init_task + off.task_tasks + prof.pointer_size);
+    if (newest && is_kernel_ptr(newest)) {
+        newest -= off.task_tasks;
+        if (newest != sym_init_task && field_int(cpu, newest, off.task_pid) == tid) return newest;
+    }
+    if (cap.threads && fo.thread_head) {
+        uint64_t cur = current_task(cpu);
+        uint64_t head = cur ? field_ptr(cpu, group_leader(cpu, cur), fo.task_signal) : 0;
+        uint64_t last = head ? ptr_at(cpu, head + fo.sig_thread_head + prof.pointer_size) : 0;
+        if (last && is_kernel_ptr(last) && last != head + fo.sig_thread_head &&
+            field_int(cpu, last - fo.task_thread_node, off.task_pid) == tid)
+            return last - fo.task_thread_node;
+    }
     for (uint64_t ts : all_tasks(cpu)) {
         if (field_int(cpu, ts, off.task_pid) == tid) return ts;
         if (!cap.threads) continue;
