@@ -69,6 +69,14 @@ class KernelInfo(gdb.Command):
             current_task_addr = init_task_addr
 
         print(f"task.current_task_addr = {current_task_addr}",file=file_out)
+        # arm64 (4.10+) keeps each CPU's current task in the per-cpu __entry_task while it runs
+        # in user mode; osi_linux reads it there instead of tracking sp_el0 on every block.
+        if "aarch64" in uts_machine:
+            try:
+                entry_task_addr = gdb.execute('printf "%llu", &__entry_task',to_string=True)
+                print(f"task.entry_task_addr = {entry_task_addr}",file=file_out)
+            except gdb.error:
+                pass
         print(f"task.init_addr = {init_task_addr}",file=file_out)
         print(f"#task.per_cpu_offsets_addr = {hex(int(per_cpu_offset_addr))[2:]}",file=file_out)
         print(f"#task.per_cpu_offset_0_addr = {hex(int(per_cpu_offset_0_addr))}",file=file_out)

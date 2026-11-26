@@ -353,17 +353,80 @@ bool r28_set = false;
 inline void check_cache_r28(CPUState *cpu);
 #elif TARGET_AARCH64
 
-target_ulong spel0 = 0;
-bool aarch64_initialized = false;
+/*
+ * arm64 Linux (4.6+) keeps `current` in sp_el0 while it runs in the kernel (4.6-4.9: its
+ * thread_info). In user mode sp_el0 is the user's stack pointer, and at an exception from user
+ * mode it is that until the kernel's entry code sets it. The task is then the one in the
+ * per-cpu `__entry_task` (4.10+), which the kernel sets at each task switch, if the kernelinfo
+ * has its address (task.entry_task_addr). Without it, the value sp_el0 held at the start of
+ * this vCPU's last kernel block is kept by a start_block_exec callback.
+ */
+#define A64_MAX_CPUS 256
+static target_ulong a64_last_spel0[A64_MAX_CPUS];
+static bool a64_use_entry_task = false;
+
+// The exception level: PSTATE.EL in AArch64 state; an AArch32 (compat) task runs at EL0.
+static inline int a64_el(CPUARMState *env) {
+    return env->aarch64 ? (int)((env->pstate >> 2) & 3) : 0;
+}
+
+static inline target_ulong a64_sp_el0(CPUARMState *env) {
+    // In EL1/EL2 with SPSel=1 (as Linux runs) SP_EL0 is banked in sp_el[0]; with SPSel=0
+    // it is the live stack pointer.
+    if (a64_el(env) > 0 && !(env->pstate & 1 /* PSTATE.SP */)) {
+        return env->xregs[31];
+    }
+    return env->sp_el[0];
+}
+
+static inline target_ulong a64_percpu_offset(CPUARMState *env) {
+    // A kernel running at EL2 (VHE) keeps its per-cpu offset in TPIDR_EL2.
+    const uint64_t e2h_tge = (1ULL << 34) | (1ULL << 27);   // HCR_EL2.E2H, HCR_EL2.TGE
+    int el = a64_el(env);
+    if (el == 2 || (el == 0 && (env->cp15.hcr_el2 & e2h_tge) == e2h_tge)) {
+        return env->cp15.tpidr_el[2];
+    }
+    return env->cp15.tpidr_el[1];
+}
+
+/**
+ * @brief The value of `current` (4.10+: the task_struct, 4.6-4.9: its thread_info) on this vCPU.
+ * Returns false if it can't be found (yet).
+ */
+bool aarch64_current(CPUState *cpu, target_ptr_t *out) {
+    CPUARMState *env = (CPUARMState *)panda_cpu_env(cpu);
+    if (a64_el(env) > 0) {
+        target_ulong v = a64_sp_el0(env);
+        if (address_in_kernel_code_linux(v)) {
+            *out = v;
+            return true;
+        }
+    }
+    if (a64_use_entry_task) {
+        target_ptr_t ts = 0;
+        if (struct_get(cpu, &ts, ki.task.entry_task_addr + a64_percpu_offset(env), 0) !=
+            struct_get_ret_t::SUCCESS) {
+            return false;
+        }
+        fixupendian2(ts);
+        if (!address_in_kernel_code_linux(ts)) return false;
+        *out = ts;
+        return true;
+    }
+    if (cpu->cpu_index < 0 || cpu->cpu_index >= A64_MAX_CPUS) return false;
+    target_ulong v = a64_last_spel0[cpu->cpu_index];
+    if (v == 0) return false;
+    *out = v;
+    return true;
+}
 
 void aarch64_sbe(CPUState *cpu, TranslationBlock *tb);
 void aarch64_sbe(CPUState *cpu, TranslationBlock *tb) {
-    target_ulong pos = ((CPUARMState *)panda_cpu_env(cpu))->sp_el[0];
-    if (unlikely(panda_in_kernel_code_linux(cpu)) 
-        && address_in_kernel_code_linux(pos))
-    {
-        aarch64_initialized = true;
-        spel0 = pos;
+    CPUARMState *env = (CPUARMState *)panda_cpu_env(cpu);
+    if (a64_el(env) == 0 || cpu->cpu_index >= A64_MAX_CPUS) return;
+    target_ulong v = a64_sp_el0(env);
+    if (address_in_kernel_code_linux(v)) {
+        a64_last_spel0[cpu->cpu_index] = v;
     }
 }
 
@@ -402,8 +465,9 @@ bool osi_guest_is_ready(CPUState *cpu, void** ret) {
         }
         #elif defined(TARGET_AARCH64)
         if (PROFILE_KVER_GE(ki, 4, 6, 0)){
-            if (!aarch64_initialized){
-                *ret = NULL;
+            target_ptr_t cur;
+            if (!aarch64_current(cpu, &cur)){
+                if (ret) *ret = NULL;
                 return false;
             }
         }
@@ -1388,7 +1452,11 @@ bool init_plugin(void *self) {
                 } });
 
 #ifdef TARGET_AARCH64
-    if (PROFILE_KVER_GE(ki, 4, 6, 0)){
+    if (PROFILE_KVER_GE(ki, 4, 10, 0) && 0x0 != ki.task.entry_task_addr) {
+        a64_use_entry_task = true;
+    } else if (PROFILE_KVER_GE(ki, 4, 6, 0)){
+        // No __entry_task: keep sp_el0 from every kernel block, as user-mode queries need it.
+        LOG_INFO(PLUGIN_NAME " no task.entry_task_addr in the kernelinfo: tracking sp_el0 on every block");
         panda_cb pcb = { .start_block_exec = aarch64_sbe };
         panda_register_callback_modes(self, PANDA_CB_START_BLOCK_EXEC, pcb,
             panda_callback_supported_modes(PANDA_CB_START_BLOCK_EXEC), true);
