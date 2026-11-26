@@ -227,6 +227,58 @@ bool panda_translate_page(CPUState *cpu, vaddr page, TranslateForDebugResult *re
     return false;
 }
 
+/*
+ * The TLB indexes of @cpu whose entries map a virtual address where panda_translate_page's
+ * kernel view does (for an analysis read): those of the current translation regime, whose user
+ * and supervisor sides use the same tables, on the targets where privilege only decides whether
+ * an address translates. A TLB holds what the CPU's walks found and is flushed when the guest
+ * changes its tables or their roots, so a hit in one of these is the walk's answer without the
+ * walk. 0 where that isn't known to hold: the other targets (RISC-V M-mode and PowerPC real
+ * mode translate nothing, MIPS user mode has no kernel segments), x86 in SMM or in a nested
+ * guest, M-profile and EL2 Arm.
+ */
+uint32_t panda_view_mmu_mask(CPUState *cpu)
+{
+#if defined(TARGET_I386)
+    CPUX86State *env = cpu_env(cpu);
+
+    if (env->hflags & (HF_SMM_MASK | HF_GUEST_MASK)) {
+        return 0;
+    }
+    /*
+     * In long mode the kernel runs 64-bit code and user code either (USER32: a compatibility-
+     * mode process); otherwise every index is a 32-bit one (x86_mmu_index_pl). The others can
+     * only miss.
+     */
+    if (env->hflags & HF_LMA_MASK) {
+        return (1u << MMU_KSMAP64_IDX) | (1u << MMU_KNOSMAP64_IDX) | (1u << MMU_USER64_IDX) |
+               (1u << MMU_USER32_IDX);
+    }
+    return (1u << MMU_KSMAP32_IDX) | (1u << MMU_USER32_IDX) | (1u << MMU_KNOSMAP32_IDX);
+#elif defined(TARGET_ARM)
+    CPUARMState *env = cpu_env(cpu);
+    static const ARMMMUIdx regimes[][3] = {
+        { ARMMMUIdx_E10_0, ARMMMUIdx_E10_1, ARMMMUIdx_E10_1_PAN },
+        { ARMMMUIdx_E20_0, ARMMMUIdx_E20_2, ARMMMUIdx_E20_2_PAN },
+        { ARMMMUIdx_E30_0, ARMMMUIdx_E3, ARMMMUIdx_E30_3_PAN },
+    };
+    ARMMMUIdx cur = arm_mmu_idx(env);
+
+    for (int r = 0; r < ARRAY_SIZE(regimes); r++) {
+        for (int i = 0; i < 3; i++) {
+            if (regimes[r][i] == cur) {
+                return (1u << arm_to_core_mmu_idx(regimes[r][0])) |
+                       (1u << arm_to_core_mmu_idx(regimes[r][1])) |
+                       (1u << arm_to_core_mmu_idx(regimes[r][2]));
+            }
+        }
+    }
+    return 0;
+#else
+    return 0;
+#endif
+}
+
 #if defined(TARGET_ARM)
 /* The EL whose TTBRs map EL0 and the kernel: 2 in an EL2 host regime (VHE: E2H and TGE). */
 static inline int arm_os_el(CPUARMState *env)
