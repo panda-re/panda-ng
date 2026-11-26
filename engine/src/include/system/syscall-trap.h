@@ -51,33 +51,6 @@ typedef struct SyscallTrap {
     bool want_return;       /* enter: report the call's return */
     bool restart;           /* return: the kernel is restarting the call */
     bool keep;              /* return: not the caller's; keep it pending */
-    /*
-     * Set by the core: the consumer asked for a fault at this trap, and
-     * this is the same call coming back after the guest handled it.
-     */
-    bool resumed;
-    /*
-     * Set by the consumer: make the guest take the fault a user access to
-     * fault_addr would take, then deliver this event again (resumed) once
-     * the task comes back to the same trap.  The call is held meanwhile,
-     * with task and data.
-     */
-    bool fault;
-    bool fault_write;
-    uint64_t fault_addr;
-    /*
-     * Set by the consumer at the entry: run this call in the task first
-     * (inject_num, of the event's ABI), then deliver this event again
-     * (resumed, injected set, inject_ret its return value) once the task is
-     * back at the trap with its registers as they were.  The call is held
-     * meanwhile, with task and data.  The injected call reaches no consumer:
-     * not its entry, not its return, not a restart of it.
-     */
-    bool inject;
-    int64_t inject_num;
-    uint64_t inject_args[6];
-    bool injected;
-    int64_t inject_ret;
     uint64_t task;          /* the consumer's, kept with a pending call */
     void *data;             /* the consumer's, released through drop() */
 } SyscallTrap;
@@ -92,16 +65,14 @@ typedef struct SyscallTrapOps {
 
 /* one consumer at a time; false if another one is set */
 bool syscall_trap_set_consumer(const SyscallTrapOps *ops, void *opaque);
-/* Main thread/BQL, vCPUs stopped: owner-checked drain before detaching.
- * Refuses without changes while injected calls still need register restoration. */
+/* Main thread/BQL, vCPUs stopped: owner-checked drain before detaching. */
 bool syscall_trap_clear_consumer(const SyscallTrapOps *ops, void *opaque);
 void syscall_trap_watch(int abi, int64_t num, unsigned flags); /* num -1: all */
 void syscall_trap_unwatch_all(void);
 void syscall_trap_stats(uint64_t *pending, uint64_t *full, uint64_t *stale);
-uint64_t syscall_trap_faults(void);    /* faults raised for consumers */
 
-/* Stopped-vCPU restore/reset boundary: abandon pending/held analysis, without
- * restoring old registers. Drops run outside sc_lock. Watches and the consumer
+/* Stopped-vCPU restore/reset boundary: abandon pending calls. Drops run
+ * outside sc_lock. Watches and the consumer
  * remain installed; a return whose entry predates the snapshot is not rebuilt. */
 unsigned syscall_trap_cancel_all(void);
 
@@ -124,40 +95,6 @@ bool syscall_trap_access(CPUState *cpu, vaddr addr, void *buf, size_t len,
 #define SYSCALL_TRAP_ARGS 1     /* the consumer changed the arguments */
 #define SYSCALL_TRAP_SKIP 2     /* do not enter the kernel; return *ret */
 #define SYSCALL_TRAP_RET 4      /* the consumer changed the return value */
-/*
- * The consumer wants a fault taken first: the target puts the task back
- * where a fault would leave it (enter: at the trap instruction, as if it
- * had not run; return: at the user address the call returns to, as after
- * the return) and calls syscall_trap_fault().  Nothing else changed.
- */
-#define SYSCALL_TRAP_FAULT 8
-/*
- * Enter: run another call instead: its number is *ret, its arguments
- * args[]; the target puts them in the registers and lets the trap go on.
- */
-#define SYSCALL_TRAP_INJECT 16
-/*
- * Return: that call is back; *ret was its value.  The target puts the
- * registers of the call it replaced back (SyscallTrapRewind) and the task
- * back at the trap instruction, len bytes before the return address, so
- * that the call traps again.
- */
-#define SYSCALL_TRAP_REWIND 32
-/*
- * Return: a call injected at this call's return is back.  The target puts
- * this call's own registers back as they are at its return: its arguments
- * (SyscallTrapRewind args), its number where the ABI keeps it in a register
- * of its own (AArch64 x8, EABI r7), and *ret (SYSCALL_TRAP_RET, set too);
- * the PC stays.
- */
-#define SYSCALL_TRAP_RESTORE 64
-
-typedef struct SyscallTrapRewind {
-    int abi;                /* the call's: one the target injects into */
-    int64_t num;
-    uint64_t args[6];
-    unsigned len;
-} SyscallTrapRewind;
 
 extern bool syscall_trap_on;
 extern uint32_t syscall_trap_pending;
@@ -182,16 +119,6 @@ int syscall_trap_enter(CPUState *cpu, int abi, int64_t num, uint64_t args[6],
                        uint64_t pc, unsigned len, uint64_t k1, uint64_t k2,
                        uint64_t percpu, uint32_t kmmu, uint64_t *ret);
 int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
-                        uint64_t percpu, uint32_t kmmu, uint64_t *ret,
-                        SyscallTrapRewind *rw);
-
-/*
- * Raise the fault the consumer asked for, as a user-mode load or store at
- * the current PC would.  @ra: the helper's return address when the state
- * has to be restored from it (0 if the CPU state is exact).  Does not
- * return, unless the page became accessible meanwhile: then the target
- * runs the trap again (the held call is resumed at once).
- */
-void syscall_trap_fault(CPUState *cpu, uintptr_t ra);
+                        uint64_t percpu, uint32_t kmmu, uint64_t *ret);
 
 #endif /* SYSTEM_SYSCALL_TRAP_H */

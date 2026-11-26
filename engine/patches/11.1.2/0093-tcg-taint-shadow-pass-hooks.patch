@@ -241,7 +241,7 @@ index 42c627f4ce64c28e7389397fab49c790cf403338..9da843de64efa15c3e899aeb83feac29
  #define CF_CLUSTER_SHIFT 24
  
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index 5f4382cef39206e81f7c54edcbad373c11cb5460..8c60551a391dd330162a9e284bde1a7ca0b18710 100644
+index c327c91ba24c80706369e7e780ca57d5b94bd8ad..a0b1fed9b41d5373454a59291de655934802eacf 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
 @@ -565,6 +565,8 @@ struct CPUState {
@@ -293,7 +293,7 @@ index 6d941b96e3164abf901d98c4ef357b0462a7f29f..c782bc1ab4a171ac5e5abba0f6e73296
  
  static void qemu_validate_options(const QDict *machine_opts)
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index 73285ca2fbe943bd6441541b3e96f32b2691822b..79bd1c5f2af83f17434d2708039ca4881960b5a2 100644
+index d3b63226377a9b4f5abdf4757a71b537ae7d89e8..12ae337510d90cfe8cff6c1f9c053253a78f5c84 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -8474,23 +8474,25 @@ static void switch_mode(CPUARMState *env, int mode)
@@ -394,7 +394,7 @@ index 1803d2f4d4982cb0034fd52b8a231ba1541cfe53..e8c2ebdc819063821838994a1364bb0f
  }
  
 diff --git a/target/arm/tcg/helper-a64.c b/target/arm/tcg/helper-a64.c
-index 6cc9ddfb31915a5777cecc877a4713cb57c463b7..e235c9d1aa8e30cf87dab47e5d3e949d6110118e 100644
+index 2685039c099b6d8395a600b719a92c524414db79..4ce908d4b340c4fe3ad39477401a984a6da0405b 100644
 --- a/target/arm/tcg/helper-a64.c
 +++ b/target/arm/tcg/helper-a64.c
 @@ -37,6 +37,7 @@
@@ -405,7 +405,7 @@ index 6cc9ddfb31915a5777cecc877a4713cb57c463b7..e235c9d1aa8e30cf87dab47e5d3e949d
  #include "qemu/int128.h"
  #include "qemu/atomic128.h"
  #include "fpu/softfloat.h"
-@@ -890,6 +891,9 @@ void HELPER(dc_zva)(CPUARMState *env, uint64_t vaddr_in)
+@@ -850,6 +851,9 @@ void HELPER(dc_zva)(CPUARMState *env, uint64_t vaddr_in)
      set_helper_retaddr(ra);
      memset(mem, 0, blocklen);
      clear_helper_retaddr();
@@ -415,7 +415,7 @@ index 6cc9ddfb31915a5777cecc877a4713cb57c463b7..e235c9d1aa8e30cf87dab47e5d3e949d
  }
  
  void HELPER(arm_unaligned_access)(CPUARMState *env, uint64_t addr,
-@@ -1196,6 +1200,10 @@ static void do_setp(CPUARMState *env, uint32_t syndrome, uint32_t mtedesc,
+@@ -1156,6 +1160,10 @@ static void do_setp(CPUARMState *env, uint32_t syndrome, uint32_t mtedesc,
          env->xregs[rd] = toaddr;
          env->xregs[rn] = setsize;
          step = stepfn(env, toaddr, stagesetsize, data, memidx, &mtedesc, ra);
@@ -426,7 +426,7 @@ index 6cc9ddfb31915a5777cecc877a4713cb57c463b7..e235c9d1aa8e30cf87dab47e5d3e949d
          toaddr += step;
          setsize -= step;
          stagesetsize -= step;
-@@ -1265,6 +1273,10 @@ static void do_setm(CPUARMState *env, uint32_t syndrome, uint32_t mtedesc,
+@@ -1225,6 +1233,10 @@ static void do_setm(CPUARMState *env, uint32_t syndrome, uint32_t mtedesc,
      stagesetsize = setsize & TARGET_PAGE_MASK;
      while (stagesetsize > 0) {
          step = stepfn(env, toaddr, stagesetsize, data, memidx, &mtedesc, ra);
@@ -437,7 +437,7 @@ index 6cc9ddfb31915a5777cecc877a4713cb57c463b7..e235c9d1aa8e30cf87dab47e5d3e949d
          toaddr += step;
          setsize -= step;
          stagesetsize -= step;
-@@ -1329,6 +1341,10 @@ static void do_sete(CPUARMState *env, uint32_t syndrome, uint32_t mtedesc,
+@@ -1289,6 +1301,10 @@ static void do_sete(CPUARMState *env, uint32_t syndrome, uint32_t mtedesc,
      /* Do the actual memset */
      while (setsize > 0) {
          step = stepfn(env, toaddr, setsize, data, memidx, &mtedesc, ra);
@@ -448,7 +448,7 @@ index 6cc9ddfb31915a5777cecc877a4713cb57c463b7..e235c9d1aa8e30cf87dab47e5d3e949d
          toaddr += step;
          setsize -= step;
          env->xregs[rn] = -setsize;
-@@ -1415,6 +1431,9 @@ static uint64_t copy_step(CPUARMState *env, uint64_t toaddr, uint64_t fromaddr,
+@@ -1375,6 +1391,9 @@ static uint64_t copy_step(CPUARMState *env, uint64_t toaddr, uint64_t fromaddr,
          } else {
              cpu_stb_mmuidx_ra(env, toaddr, byte, wmemidx, ra);
          }
@@ -458,7 +458,7 @@ index 6cc9ddfb31915a5777cecc877a4713cb57c463b7..e235c9d1aa8e30cf87dab47e5d3e949d
          return 1;
      }
  #endif
-@@ -1422,6 +1441,9 @@ static uint64_t copy_step(CPUARMState *env, uint64_t toaddr, uint64_t fromaddr,
+@@ -1382,6 +1401,9 @@ static uint64_t copy_step(CPUARMState *env, uint64_t toaddr, uint64_t fromaddr,
      set_helper_retaddr(ra);
      memmove(wmem, rmem, copysize);
      clear_helper_retaddr();
@@ -468,7 +468,7 @@ index 6cc9ddfb31915a5777cecc877a4713cb57c463b7..e235c9d1aa8e30cf87dab47e5d3e949d
      return copysize;
  }
  
-@@ -1489,6 +1511,9 @@ static uint64_t copy_step_rev(CPUARMState *env, uint64_t toaddr,
+@@ -1449,6 +1471,9 @@ static uint64_t copy_step_rev(CPUARMState *env, uint64_t toaddr,
          } else {
              cpu_stb_mmuidx_ra(env, toaddr, byte, wmemidx, ra);
          }
@@ -478,7 +478,7 @@ index 6cc9ddfb31915a5777cecc877a4713cb57c463b7..e235c9d1aa8e30cf87dab47e5d3e949d
          return 1;
      }
  #endif
-@@ -1499,6 +1524,10 @@ static uint64_t copy_step_rev(CPUARMState *env, uint64_t toaddr,
+@@ -1459,6 +1484,10 @@ static uint64_t copy_step_rev(CPUARMState *env, uint64_t toaddr,
      set_helper_retaddr(ra);
      memmove(wmem - (copysize - 1), rmem - (copysize - 1), copysize);
      clear_helper_retaddr();

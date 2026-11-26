@@ -196,7 +196,7 @@ index c8533f8c2687033e3b25030171780ba40e5f3e9e..42c627f4ce64c28e7389397fab49c790
  static inline tb_page_addr_t tb_page_addr0(const TranslationBlock *tb)
  {
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index 9af888378205d2ae6c13ebc5a3aff7f5a0a66ff3..4f2e0d867c7c54e72b5d418eabd5a3bf760dc113 100644
+index 7737ffe9418012aba4afe27f105006bb7fd961b2..f85493b44062f8d091ada8d3a1893e453539bb63 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
 @@ -565,6 +565,8 @@ struct CPUState {

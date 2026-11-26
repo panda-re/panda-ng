@@ -166,10 +166,10 @@ index 00adeee4097b63985d288a59cd09e7786424a5c0..503b3a216892b61193fe93b76b7f6680
  
      sregs.idt.limit = env->idt.limit;
 diff --git a/target/i386/tcg/system/seg_helper.c b/target/i386/tcg/system/seg_helper.c
-index 3d705e294fa77ee5382c4bbcd0b3e057ac62dea2..8ed8460b236289ad8817ecd05e841d58c0abdd3b 100644
+index ec8ae295f7db870e8ba8da2d76a5f3bc74307d74..106490d23a7b84d54babbc575d9cc7ffa8d9ffad 100644
 --- a/target/i386/tcg/system/seg_helper.c
 +++ b/target/i386/tcg/system/seg_helper.c
-@@ -281,9 +281,12 @@ void helper_check_io(CPUX86State *env, uint32_t addr, uint32_t size)
+@@ -270,9 +270,12 @@ void helper_check_io(CPUX86State *env, uint32_t addr, uint32_t size)
      uintptr_t retaddr = GETPC();
      uint32_t io_offset, val, mask;
  

@@ -18,7 +18,7 @@ Origin: panda-re/qemu
  3 files changed, 25 insertions(+), 2 deletions(-)
 
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index 051e1936bca34d302c75b275b859ed9d48527221..9d2ec96f6ffe1fdcfc7db66f5c580bbe6195149b 100644
+index 338bf3298c71dd8c97430166c7e90318f37c9c1a..63fb6765f4624c7c46da1f8cdecfed621dd42df4 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -35,6 +35,7 @@

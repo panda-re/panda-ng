@@ -298,7 +298,7 @@ index b2eacb554288d5dffb29803a980f3f1f0fcf2870..4d4a327c9fc90291f7a51bf83572c095
       * @restore_state_to_opc: Synchronize state from INDEX_op_start_insn
       *
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index 4f2e0d867c7c54e72b5d418eabd5a3bf760dc113..5f4382cef39206e81f7c54edcbad373c11cb5460 100644
+index f85493b44062f8d091ada8d3a1893e453539bb63..c327c91ba24c80706369e7e780ca57d5b94bd8ad 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
 @@ -565,8 +565,12 @@ struct CPUState {
@@ -316,10 +316,10 @@ index 4f2e0d867c7c54e72b5d418eabd5a3bf760dc113..5f4382cef39206e81f7c54edcbad373c
      /*
       * A user-access window a plugin memory access opened and left open
       * across the guest fault it raised (plugins/api-system.c): the access
-@@ -589,7 +593,11 @@ struct CPUState {
-      * whose registers the target can put back after an injected call.
+@@ -584,7 +588,11 @@ struct CPUState {
+      * current one.  Never a physical or stage-2 index.
       */
-     uint32_t syscall_inject_abis;
+     uint32_t syscall_kmmu;
 -    uint64_t syscall_current;   /* unused; kept for CPUState's layout */
 +    /*
 +     * The virtual address of the block in flight, stored at its start when

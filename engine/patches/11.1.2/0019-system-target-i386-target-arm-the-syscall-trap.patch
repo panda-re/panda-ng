@@ -4,11 +4,11 @@ Date: Wed, 14 Oct 2026 20:40:00 -0400
 Subject: [PATCH] system, target/i386, target/arm: the syscall trap
 
 system/syscall-trap.c: one consumer of syscall entries and returns to user
-mode, keyed by (task, user sp, pc); calls held across a fault (fault and
-retry at the same trap) and across an injected call (INJECT, then REWIND to
-the trap with the task's registers).  The targets report syscall entry
-(syscall/sysenter/int 0x80, svc) and every return to user mode while
-anything is waiting.  TLB-only lookups for the consumer's reads.
+mode (the plugin syscall API), keyed by (task, user sp, pc).  At the entry
+the consumer may change the arguments or skip the call with a return
+value; at the return it may change the return value.  The targets report
+syscall entry (syscall/sysenter/int 0x80, svc) and every return to user
+mode while anything is waiting.  TLB-only lookups for the consumer's reads.
 
 Vendored sources: src/system/syscall-trap.c,
 src/include/system/syscall-trap.h.
@@ -16,19 +16,19 @@ src/include/system/syscall-trap.h.
 SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
 Origin: penguin
 ---
- accel/tcg/cputlb.c                  |  13 ++
- include/accel/tcg/probe.h           |  14 +++
- include/hw/core/cpu.h               |  12 ++
+ accel/tcg/cputlb.c                  |  13 +++
+ include/accel/tcg/probe.h           |  14 ++++
+ include/hw/core/cpu.h               |   7 ++
  system/meson.build                  |   1 +
- target/arm/helper.c                 | 178 ++++++++++++++++++++++++++++
+ target/arm/helper.c                 | 120 ++++++++++++++++++++++++++++
  target/arm/internals.h              |   8 ++
- target/arm/tcg/helper-a64.c         |  56 +++++++++
- target/arm/tcg/op_helper.c          |  10 ++
+ target/arm/tcg/helper-a64.c         |  16 ++++
+ target/arm/tcg/op_helper.c          |  10 +++
  target/i386/tcg/emit.c.inc          |   1 +
- target/i386/tcg/seg_helper.c        | 132 +++++++++++++++++++++
- target/i386/tcg/seg_helper.h        |  21 ++++
- target/i386/tcg/system/seg_helper.c |  51 ++++++++
- 12 files changed, 497 insertions(+)
+ target/i386/tcg/seg_helper.c        |  95 ++++++++++++++++++++++
+ target/i386/tcg/seg_helper.h        |  21 +++++
+ target/i386/tcg/system/seg_helper.c |  40 ++++++++++
+ 12 files changed, 346 insertions(+)
 
 diff --git a/accel/tcg/cputlb.c b/accel/tcg/cputlb.c
 index dc83f3bad8cc48c0f0d0091339ede916a01af46c..dce11cbef2f7034903bebe35becdd0478226b378 100644
@@ -78,10 +78,10 @@ index 0b788901ba0ee8ecb461686755ab3170a9e4b1d2..ecac77f5d55dabfb99ec4a58ee4e0bb7
 +
  #endif
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index cac4af61a465f576ebf47d1227c6a01b6a69de65..51ade9fb301d18f223e2a1b9f5a269a653fa9889 100644
+index cac4af61a465f576ebf47d1227c6a01b6a69de65..1283c6533adfb5b27b1ec1be0f62ed7b82b0eeb5 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
-@@ -563,6 +563,18 @@ struct CPUState {
+@@ -563,6 +563,13 @@ struct CPUState {
      int32_t exception_index;
      /* host return address into the block while a TCG hook runs, or 0 */
      uintptr_t tcg_hook_ra;
@@ -91,11 +91,6 @@ index cac4af61a465f576ebf47d1227c6a01b6a69de65..51ade9fb301d18f223e2a1b9f5a269a6
 +     * current one.  Never a physical or stage-2 index.
 +     */
 +    uint32_t syscall_kmmu;
-+    /*
-+     * While a syscall-event callback runs: the ABIs (1 << SYSCALL_ABI_*)
-+     * whose registers the target can put back after an injected call.
-+     */
-+    uint32_t syscall_inject_abis;
 +    uint64_t syscall_current;   /* unused; kept for CPUState's layout */
  
      bool vcpu_dirty;
@@ -113,7 +108,7 @@ index 588d29bf374f5ddb27e0e554b07b2a3c68fce8f5..1623762cc9463db4f76c56dea5f5ed67
    'runstate-action.c',
    'runstate-hmp-cmds.c',
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index af45234ad2a7e86bbc02f6faa6c5534436133e1b..1bb9b087c888ffac388ba5be4637e7d21a5f256b 100644
+index af45234ad2a7e86bbc02f6faa6c5534436133e1b..eaaca5b86e29a698c1e76fd3b22dc91819ab40b6 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -35,6 +35,7 @@
@@ -124,7 +119,7 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..1bb9b087c888ffac388ba5be4637e7d2
  
  static void switch_mode(CPUARMState *env, int mode);
  #ifndef CONFIG_USER_ONLY
-@@ -9618,6 +9619,178 @@ static void tcg_handle_semihosting(CPUState *cs)
+@@ -9618,6 +9619,120 @@ static void tcg_handle_semihosting(CPUState *cs)
   *       and KVM to re-inject guest debug exceptions, and to
   *       inject a Synchronous-External-Abort.
   */
@@ -202,48 +197,16 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..1bb9b087c888ffac388ba5be4637e7d2
 +            aarch64_sync_32_to_64(env);
 +        }
 +    }
-+    /*
-+     * An injected call's registers go back on the way out to EL0: AArch64's,
-+     * and an AArch32 task's when the kernel is AArch64 (helper-a64.c).
-+     */
-+    env_cpu(env)->syscall_inject_abis = arm_el_is_aa64(env, 1) ?
-+        (1u << SYSCALL_ABI_AARCH64) | (1u << SYSCALL_ABI_ARM) :
-+        1u << SYSCALL_ABI_ARM;          /* an AArch32 kernel: EABI, not OABI */
-+    while ((r = syscall_trap_enter(env_cpu(env), abi, num, args, pc, len,
-+                                   arm_sc_key(env), arm_sc_usp(env),
-+                                   arm_sc_percpu(env), arm_sc_kmmu(env),
-+                                   &ret)) & SYSCALL_TRAP_FAULT) {
-+        /*
-+         * Take a data abort at the svc instead: back to it, still at EL0,
-+         * so the abort returns there and the svc runs again.
-+         */
-+        if (is_a64(env)) {
-+            env->pc -= len;
-+        } else {
-+            env->regs[15] -= len;
-+        }
-+        syscall_trap_fault(env_cpu(env), 0);
-+        if (is_a64(env)) {
-+            env->pc += len;
-+        } else {
-+            env->regs[15] += len;
-+        }
-+    }
-+    if (r & (SYSCALL_TRAP_ARGS | SYSCALL_TRAP_INJECT)) {
++    r = syscall_trap_enter(env_cpu(env), abi, num, args, pc, len,
++                           arm_sc_key(env), arm_sc_usp(env),
++                           arm_sc_percpu(env), arm_sc_kmmu(env), &ret);
++    if (r & SYSCALL_TRAP_ARGS) {
 +        for (int i = 0; i < 6; i++) {
 +            if (is_a64(env)) {
 +                env->xregs[i] = args[i];
 +            } else {
 +                env->regs[i] = args[i];
 +            }
-+        }
-+    }
-+    if (r & SYSCALL_TRAP_INJECT) {
-+        /* the call the kernel runs: x8, or an EABI task's r7 */
-+        if (is_a64(env)) {
-+            env->xregs[8] = ret;
-+        } else {
-+            env->regs[7] = ret;
 +        }
 +    }
 +    if (r & SYSCALL_TRAP_SKIP) {
@@ -260,50 +223,24 @@ index af45234ad2a7e86bbc02f6faa6c5534436133e1b..1bb9b087c888ffac388ba5be4637e7d2
 +
 +/*
 + * An AArch32 kernel's exception return to user mode (cpsr_write_eret: the
-+ * PC and the user registers are in place): report it, and put back what an
-+ * injection changed, as helper_exception_return does for AArch64 kernels.
++ * PC and the user registers are in place): report it, as
++ * helper_exception_return does for AArch64 kernels.
 + */
 +void arm_sc_return_aa32(CPUARMState *env)
 +{
-+    while (syscall_trap_waiting()) {
-+        uint64_t ret = (uint32_t)env->regs[0];
-+        SyscallTrapRewind rw;
-+        int r = syscall_trap_return(env_cpu(env), env->regs[15],
-+                                    arm_sc_key(env), arm_sc_usp(env),
-+                                    arm_sc_percpu(env), arm_sc_kmmu(env), &ret,
-+                                    &rw);
++    uint64_t ret = (uint32_t)env->regs[0];
 +
-+        if ((r & SYSCALL_TRAP_REWIND) && rw.abi == SYSCALL_ABI_ARM) {
-+            /* an injected call is back: r7, r0-r5, back on the svc */
-+            env->regs[7] = rw.num;
-+            for (int i = 0; i < 6; i++) {
-+                env->regs[i] = (uint32_t)rw.args[i];
-+            }
-+            env->regs[15] -= rw.len;
-+            break;
-+        }
-+        if ((r & SYSCALL_TRAP_RESTORE) && rw.abi == SYSCALL_ABI_ARM) {
-+            /* back from a call injected at the return: this call's registers */
-+            env->regs[7] = rw.num;
-+            for (int i = 1; i < 6; i++) {
-+                env->regs[i] = (uint32_t)rw.args[i];
-+            }
-+        }
-+        if (r & SYSCALL_TRAP_RET) {
-+            env->regs[0] = (uint32_t)ret;
-+        }
-+        if (!(r & SYSCALL_TRAP_FAULT)) {
-+            break;
-+        }
-+        /* the state is exact: the task is back in user mode */
-+        syscall_trap_fault(env_cpu(env), 0);
++    if (syscall_trap_return(env_cpu(env), env->regs[15], arm_sc_key(env),
++                            arm_sc_usp(env), arm_sc_percpu(env),
++                            arm_sc_kmmu(env), &ret) & SYSCALL_TRAP_RET) {
++        env->regs[0] = (uint32_t)ret;
 +    }
 +}
 +
  void arm_cpu_do_interrupt(CPUState *cs)
  {
      ARMCPU *cpu = ARM_CPU(cs);
-@@ -9657,6 +9830,11 @@ void arm_cpu_do_interrupt(CPUState *cs)
+@@ -9657,6 +9772,11 @@ void arm_cpu_do_interrupt(CPUState *cs)
      }
  #endif
  
@@ -335,7 +272,7 @@ index 4026f67579e768232b51cddc792e156adfb1d680..8a7432e64fc866a1c7fb027c0776d8ec
  {
      switch (mode) {
 diff --git a/target/arm/tcg/helper-a64.c b/target/arm/tcg/helper-a64.c
-index 05ab9ab6d31b638606c4dd79bedbfbb0b69748ff..6cc9ddfb31915a5777cecc877a4713cb57c463b7 100644
+index 05ab9ab6d31b638606c4dd79bedbfbb0b69748ff..2685039c099b6d8395a600b719a92c524414db79 100644
 --- a/target/arm/tcg/helper-a64.c
 +++ b/target/arm/tcg/helper-a64.c
 @@ -28,6 +28,7 @@
@@ -346,52 +283,17 @@ index 05ab9ab6d31b638606c4dd79bedbfbb0b69748ff..6cc9ddfb31915a5777cecc877a4713cb
  #include "qemu/crc32c.h"
  #include "exec/cpu-common.h"
  #include "accel/tcg/cpu-ldst.h"
-@@ -762,6 +763,61 @@ void HELPER(exception_return)(CPUARMState *env, uint64_t new_pc)
+@@ -762,6 +763,21 @@ void HELPER(exception_return)(CPUARMState *env, uint64_t new_pc)
      arm_call_el_change_hook(cpu);
      bql_unlock();
  
-+    while (new_el == 0 && syscall_trap_waiting()) {
++    if (new_el == 0 && syscall_trap_waiting()) {
 +        uint64_t ret = return_to_aa64 ? env->xregs[0] : env->regs[0];
-+        SyscallTrapRewind rw;
 +        int r = syscall_trap_return(env_cpu(env),
 +                                    return_to_aa64 ? env->pc : env->regs[15],
 +                                    arm_sc_key(env), arm_sc_usp(env),
-+                                    arm_sc_percpu(env), arm_sc_kmmu(env), &ret,
-+                                    &rw);
++                                    arm_sc_percpu(env), arm_sc_kmmu(env), &ret);
 +
-+        if ((r & SYSCALL_TRAP_REWIND) && return_to_aa64 &&
-+            rw.abi == SYSCALL_ABI_AARCH64) {
-+            /* an injected call is back: the task's own call, again */
-+            env->xregs[8] = rw.num;
-+            memcpy(env->xregs, rw.args, sizeof(rw.args));
-+            env->pc -= rw.len;
-+            break;
-+        }
-+        if ((r & SYSCALL_TRAP_REWIND) && !return_to_aa64 &&
-+            rw.abi == SYSCALL_ABI_ARM) {
-+            /* the same for an AArch32 task: r7, r0-r5, back on the svc */
-+            env->regs[7] = rw.num;
-+            for (int i = 0; i < 6; i++) {
-+                env->regs[i] = (uint32_t)rw.args[i];
-+            }
-+            env->regs[15] -= rw.len;
-+            break;
-+        }
-+
-+        if (r & SYSCALL_TRAP_RESTORE) {
-+            /* back from a call injected at the return: this call's registers */
-+            if (return_to_aa64 && rw.abi == SYSCALL_ABI_AARCH64) {
-+                env->xregs[8] = rw.num;
-+                for (int i = 1; i < 6; i++) {
-+                    env->xregs[i] = rw.args[i];
-+                }
-+            } else if (!return_to_aa64 && rw.abi == SYSCALL_ABI_ARM) {
-+                env->regs[7] = rw.num;
-+                for (int i = 1; i < 6; i++) {
-+                    env->regs[i] = (uint32_t)rw.args[i];
-+                }
-+            }
-+        }
 +        if (r & SYSCALL_TRAP_RET) {
 +            if (return_to_aa64) {
 +                env->xregs[0] = ret;
@@ -399,11 +301,6 @@ index 05ab9ab6d31b638606c4dd79bedbfbb0b69748ff..6cc9ddfb31915a5777cecc877a4713cb
 +                env->regs[0] = ret;
 +            }
 +        }
-+        if (!(r & SYSCALL_TRAP_FAULT)) {
-+            break;
-+        }
-+        /* the state is exact: the task is back at EL0 */
-+        syscall_trap_fault(env_cpu(env), 0);
 +    }
      return;
  
@@ -449,7 +346,7 @@ index 473f415766f93cefbed48d0f556526efb5714370..aa00d2c3f13a957e9006ca863e3f632d
      s->base.is_jmp = DISAS_EOB_ONLY;
  }
 diff --git a/target/i386/tcg/seg_helper.c b/target/i386/tcg/seg_helper.c
-index 6d424349a58a388483b2dcbf9d2a9691999d580e..007a7122273df7296a87b1ed6b9d3b8f1e6b3a13 100644
+index 6d424349a58a388483b2dcbf9d2a9691999d580e..bdc4942c572207a1c78703df3830c03960d1817d 100644
 --- a/target/i386/tcg/seg_helper.c
 +++ b/target/i386/tcg/seg_helper.c
 @@ -30,6 +30,7 @@
@@ -470,53 +367,24 @@ index 6d424349a58a388483b2dcbf9d2a9691999d580e..007a7122273df7296a87b1ed6b9d3b8f
  }
  
  /* real mode interrupt */
-@@ -1193,6 +1197,114 @@ static void do_interrupt_real(CPUX86State *env, int intno, int is_int,
+@@ -1193,6 +1197,77 @@ static void do_interrupt_real(CPUX86State *env, int intno, int is_int,
      env->eflags &= ~(IF_MASK | TF_MASK | AC_MASK | RF_MASK);
  }
  
 +#ifndef CONFIG_USER_ONLY
 +void x86_sc_return(CPUX86State *env)
 +{
-+    SyscallTrapRewind rw;
 +    uint64_t ret;
 +
 +    if (!syscall_trap_waiting() || (env->hflags & HF_CPL_MASK) != 3) {
 +        return;
 +    }
-+    for (;;) {
-+        int r;
-+
-+        ret = env->regs[R_EAX];
-+        r = syscall_trap_return(env_cpu(env), env->segs[R_CS].base + env->eip,
-+                                x86_sc_key(env), env->regs[R_ESP],
-+                                x86_sc_percpu(env), X86_SC_KMMU, &ret, &rw);
-+        if (r & SYSCALL_TRAP_RET) {
-+            env->regs[R_EAX] = ret;
-+        }
-+        if ((r & SYSCALL_TRAP_RESTORE) && rw.abi == SYSCALL_ABI_X86_64) {
-+            /* back from a call injected at the return: this call's arguments */
-+            static const int a[6] = { R_EDI, R_ESI, R_EDX, 10, 8, 9 };
-+
-+            for (int i = 0; i < 6; i++) {
-+                env->regs[a[i]] = rw.args[i];
-+            }
-+        }
-+        if ((r & SYSCALL_TRAP_REWIND) && rw.abi == SYSCALL_ABI_X86_64) {
-+            /* an injected call is back: the task's own call, again */
-+            static const int a[6] = { R_EDI, R_ESI, R_EDX, 10, 8, 9 };
-+
-+            env->regs[R_EAX] = rw.num;
-+            for (int i = 0; i < 6; i++) {
-+                env->regs[a[i]] = rw.args[i];
-+            }
-+            env->eip -= rw.len;
-+            return;
-+        }
-+        if (!(r & SYSCALL_TRAP_FAULT)) {
-+            return;
-+        }
-+        /* the state is exact: the task is back in user mode */
-+        syscall_trap_fault(env_cpu(env), 0);
++    ret = env->regs[R_EAX];
++    if (syscall_trap_return(env_cpu(env), env->segs[R_CS].base + env->eip,
++                            x86_sc_key(env), env->regs[R_ESP],
++                            x86_sc_percpu(env), X86_SC_KMMU, &ret) &
++        SYSCALL_TRAP_RET) {
++        env->regs[R_EAX] = ret;
 +    }
 +}
 +
@@ -551,17 +419,9 @@ index 6d424349a58a388483b2dcbf9d2a9691999d580e..007a7122273df7296a87b1ed6b9d3b8f
 +            pc += 2;
 +        }
 +    }
-+    /*
-+     * A fault: the state is exact (an exception being delivered, or the
-+     * sysenter helper) and EIP is at the trap instruction.
-+     */
-+    cs->syscall_inject_abis = 1u << SYSCALL_ABI_X86_64;   /* not an i386 task's */
-+    while ((r = syscall_trap_enter(cs, SYSCALL_ABI_I386,
-+                                   (uint32_t)env->regs[R_EAX], args, pc, len,
-+                                   x86_sc_key(env), sp, x86_sc_percpu(env),
-+                                   X86_SC_KMMU, &ret)) & SYSCALL_TRAP_FAULT) {
-+        syscall_trap_fault(cs, 0);
-+    }
++    r = syscall_trap_enter(cs, SYSCALL_ABI_I386, (uint32_t)env->regs[R_EAX],
++                           args, pc, len, x86_sc_key(env), sp,
++                           x86_sc_percpu(env), X86_SC_KMMU, &ret);
 +    if (r & SYSCALL_TRAP_ARGS) {
 +        for (int i = 0; i < 5; i++) {
 +            env->regs[a[i]] = (uint32_t)args[i];
@@ -585,7 +445,7 @@ index 6d424349a58a388483b2dcbf9d2a9691999d580e..007a7122273df7296a87b1ed6b9d3b8f
  /*
   * Begin execution of an interruption. is_int is TRUE if coming from
   * the int instruction. next_eip is the env->eip value AFTER the interrupt
-@@ -1238,6 +1350,13 @@ void do_interrupt_all(X86CPU *cpu, int intno, int is_int,
+@@ -1238,6 +1313,13 @@ void do_interrupt_all(X86CPU *cpu, int intno, int is_int,
              count++;
          }
      }
@@ -599,7 +459,7 @@ index 6d424349a58a388483b2dcbf9d2a9691999d580e..007a7122273df7296a87b1ed6b9d3b8f
      if (env->cr[0] & CR0_PE_MASK) {
  #if !defined(CONFIG_USER_ONLY)
          if (env->hflags & HF_GUEST_MASK) {
-@@ -2286,6 +2405,9 @@ void helper_iret_protected(CPUX86State *env, int shift, int next_eip)
+@@ -2286,6 +2368,9 @@ void helper_iret_protected(CPUX86State *env, int shift, int next_eip)
          helper_ret_protected(env, shift, 1, 0, GETPC());
      }
      env->hflags2 &= ~HF2_NMI_MASK;
@@ -609,7 +469,7 @@ index 6d424349a58a388483b2dcbf9d2a9691999d580e..007a7122273df7296a87b1ed6b9d3b8f
  }
  
  void helper_lret_protected(CPUX86State *env, int shift, int addend)
-@@ -2298,6 +2420,13 @@ void helper_sysenter(CPUX86State *env)
+@@ -2298,6 +2383,13 @@ void helper_sysenter(CPUX86State *env)
      if (env->sysenter_cs == 0) {
          raise_exception_err_ra(env, EXCP0D_GPF, 0, GETPC());
      }
@@ -623,7 +483,7 @@ index 6d424349a58a388483b2dcbf9d2a9691999d580e..007a7122273df7296a87b1ed6b9d3b8f
      env->eflags &= ~(VM_MASK | IF_MASK | RF_MASK);
  
  #ifdef TARGET_X86_64
-@@ -2363,6 +2492,9 @@ void helper_sysexit(CPUX86State *env, int dflag)
+@@ -2363,6 +2455,9 @@ void helper_sysexit(CPUX86State *env, int dflag)
      }
      env->regs[R_ESP] = env->regs[R_ECX];
      env->eip = env->regs[R_EDX];
@@ -664,7 +524,7 @@ index 20ce47d62d94bc05edd3ab74fe252ce2dd8bdfad..f1d220c920dbbb2cba6d3c170cb658de
 +
  #endif /* SEG_HELPER_H */
 diff --git a/target/i386/tcg/system/seg_helper.c b/target/i386/tcg/system/seg_helper.c
-index 8c7856be81e24ef5f15ed45ee269969e5713149c..3d705e294fa77ee5382c4bbcd0b3e057ac62dea2 100644
+index 8c7856be81e24ef5f15ed45ee269969e5713149c..ec8ae295f7db870e8ba8da2d76a5f3bc74307d74 100644
 --- a/target/i386/tcg/system/seg_helper.c
 +++ b/target/i386/tcg/system/seg_helper.c
 @@ -26,6 +26,7 @@
@@ -675,7 +535,7 @@ index 8c7856be81e24ef5f15ed45ee269969e5713149c..3d705e294fa77ee5382c4bbcd0b3e057
  
  void helper_syscall(CPUX86State *env, int next_eip_addend)
  {
-@@ -34,6 +35,56 @@ void helper_syscall(CPUX86State *env, int next_eip_addend)
+@@ -34,6 +35,45 @@ void helper_syscall(CPUX86State *env, int next_eip_addend)
      if (!(env->efer & MSR_EFER_SCE)) {
          raise_exception_err_ra(env, EXCP06_ILLOP, 0, GETPC());
      }
@@ -686,29 +546,18 @@ index 8c7856be81e24ef5f15ed45ee269969e5713149c..3d705e294fa77ee5382c4bbcd0b3e057
 +        uint64_t args[6], ret;
 +        int r;
 +
-+        env_cpu(env)->syscall_inject_abis = 1u << SYSCALL_ABI_X86_64;
-+        for (;;) {
-+            for (int i = 0; i < 6; i++) {
-+                args[i] = env->regs[a[i]];
-+            }
-+            r = syscall_trap_enter(env_cpu(env), SYSCALL_ABI_X86_64,
-+                                   env->regs[R_EAX], args,
-+                                   env->eip + next_eip_addend, next_eip_addend,
-+                                   x86_sc_key(env), env->regs[R_ESP],
-+                                   x86_sc_percpu(env), X86_SC_KMMU, &ret);
-+            if (!(r & SYSCALL_TRAP_FAULT)) {
-+                break;
-+            }
-+            /* restores the state at the syscall instruction */
-+            syscall_trap_fault(env_cpu(env), GETPC());
++        for (int i = 0; i < 6; i++) {
++            args[i] = env->regs[a[i]];
 +        }
-+        if (r & (SYSCALL_TRAP_ARGS | SYSCALL_TRAP_INJECT)) {
++        r = syscall_trap_enter(env_cpu(env), SYSCALL_ABI_X86_64,
++                               env->regs[R_EAX], args,
++                               env->eip + next_eip_addend, next_eip_addend,
++                               x86_sc_key(env), env->regs[R_ESP],
++                               x86_sc_percpu(env), X86_SC_KMMU, &ret);
++        if (r & SYSCALL_TRAP_ARGS) {
 +            for (int i = 0; i < 6; i++) {
 +                env->regs[a[i]] = args[i];
 +            }
-+        }
-+        if (r & SYSCALL_TRAP_INJECT) {
-+            env->regs[R_EAX] = ret;     /* the call the kernel runs */
 +        }
 +        if (r & SYSCALL_TRAP_SKIP) {
 +            /* the translator expects the flags in CC_OP_EFLAGS form */
