@@ -82,9 +82,10 @@ memory (`Agent.put`, `run`, `get`): no boot and no serial console. The agent mou
 
 Machines exist for x86_64, i386, aarch64, arm (busybox-armel), riscv64, the four MIPS images and the
 three PowerPC ones. The MIPS malta and PowerPC e500 machines boot one CPU (their kernels hang
-with more). On MIPS and 32-bit PowerPC the host reaches user memory only through the guest's
-software-filled TLB, so the agent there uses a 64 KiB buffer and touches it before each hypercall;
-on big-endian guests the host packs its requests in the guest's byte order. An arch needs:
+with more), so the `smp` variant skips those arches. On MIPS and 32-bit PowerPC the host
+reaches user memory only through the guest's software-filled TLB, so the agent there uses a
+64 KiB buffer and touches it before each hypercall; on big-endian guests the host packs its
+requests in the guest's byte order. An arch needs:
 
 1. **An image**: `mkbusybox.py <arch>` (all 12 of its arches have one).
 2. **The system layer** in `programs/sys.h`, under the compiler's arch macro: `NR_<name>` for the
