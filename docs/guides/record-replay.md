@@ -200,6 +200,12 @@ recording, on x86_64 and aarch64.
 - Replay with `run_replay`. QEMU's own `-icount rr=replay,rrfile=...` startup path can't replay
   a recording begun while the guest was running, and stops with an error that says to use
   `x-rr-begin-replay`, which is what `run_replay` does.
+- A recording made from machine start with QEMU's own `-icount rr=record,rrfile=...` on the arm
+  `virt` board needs `-M virt,dtb-randomness=off`, for the recording and the replay. Otherwise
+  the `kaslr-seed` and `rng-seed` the board writes into the device tree at startup differ
+  between the two runs, and the replay diverges from the first instructions of the guest
+  kernel. A recording begun from a snapshot (`record_cmd`, `record`) is not affected: the
+  device tree is already in the snapshot's RAM.
 - On aarch64 and riscv64, reading the instruction count from a callback during a recording isn't
   reliable yet: the test suite skips that check there (`RRCB_NO_ICOUNT=1`).
 
