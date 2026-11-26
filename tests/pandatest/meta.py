@@ -35,8 +35,15 @@ FIELDS = {"area", "tier", "arches", "fixture", "plugins", "variants", "xfail", "
 # value `--variants default` runs, and, with "arches", the only arches the dimension applies to.
 # A test's metadata may give a dimension as dict(values=[...], default=..., arches=[...]).
 VARIANTS = {
+    # Not on MIPS or 32-bit PowerPC, whose machines boot one CPU (tests/README.md, "Test
+    # machines"). QEMU's malta starts every CPU of a model without MT or CPS at the reset vector,
+    # so with -smp N they all run the kernel's entry and the boot hangs before its first line
+    # (with a 34Kf, which holds the others, these kernels have no SMP ops and bring up one CPU).
+    # On ppce500 the kernel hangs bringing up the secondary CPUs.
     "smp": dict(args=lambda v: [] if v == 1 else ["--smp", str(v)],
-                fixture=lambda v: "" if v == 1 else f"-smp{v}", default=1),
+                fixture=lambda v: "" if v == 1 else f"-smp{v}", default=1,
+                arches=["x86_64", "i386", "arm", "aarch64", "ppc64", "ppc64le", "loongarch64",
+                        "riscv32", "riscv64"]),
     "intel": dict(args=lambda v: ["--intel"] if v else [], fixture=lambda v: "-intel" if v else "",
                   arches=["x86_64"], default=False),
     # The syscalls plugin's callback form in tests/plugins/scobserve.

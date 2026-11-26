@@ -128,6 +128,9 @@ class Machine:
         if self.arch not in AGENT_ARCH:
             raise NotImplementedError(f"testmachine: no agent for {self.arch} (tests/README.md, "
                                       "\"Test machines\")")
+        if smp > 1 and (self.arch.startswith("mips") or self.arch == "ppc"):
+            raise NotImplementedError(f"testmachine: {self.arch} boots one CPU (tests/README.md, "
+                                      "\"Test machines\")")
         args = list(self.image["extra_args"])
         self.initrd_src = arg_after(args, "-initrd")
         if not self.initrd_src or not arg_after(args, "-kernel"):
