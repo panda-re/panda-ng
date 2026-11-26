@@ -108,6 +108,7 @@ path = [
   "engine/patches/11.1.2/0102-target-system-call-pairing-sites.patch",
   "engine/patches/11.1.2/0103-accel-tcg-target-arm-take-SVC-UNDEF-and-aborts-to-EL.patch",
   "engine/patches/11.1.2/0110-target-translate-for-debug-as-the-guest-kernel-sees-.patch",
+  "engine/patches/11.1.2/0111-plugins-report-helper-filled-memory-to-memory-callba.patch",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = ["The PANDA authors", "The penguin authors", "The QEMU contributors"]
