@@ -1278,7 +1278,33 @@ bool parse_args(void){
 /**
  * @brief Initializes plugin.
  */
+// The task-switch hook (switch_task_hook_addr), put in by add_switch_hook_if_wanted.
+static void (*dlsym_add_hook)(struct hook *);
+static int (*task_change_subscribers)(void);
+static void *self_ptr;
+static panda_cb switch_pcb;
+
+static bool add_switch_hook_if_wanted(void) {
+    if (task_change_subscribers && task_change_subscribers() == 0) return false;
+    struct hook h;
+    memset(&h, 0, sizeof(h));
+    h.addr = ki.task.switch_task_hook_addr;
+    h.asid = 0;
+    h.type = PANDA_CB_START_BLOCK_EXEC;
+    h.cb.start_block_exec = [](CPUState *cpu, TranslationBlock *tb, hook *){
+        bool** out=0;
+        if (osi_guest_is_ready(cpu, (void**)out)){
+            notify_task_change(cpu);
+        }
+    };
+    h.km = MODE_ANY;
+    h.enabled = true;
+    dlsym_add_hook(&h);
+    return true;
+}
+
 bool init_plugin(void *self) {
+    self_ptr = self;
     if (!parse_args()){
         goto error;
     }
@@ -1351,6 +1377,9 @@ bool init_plugin(void *self) {
     panda_require("syscalls2");
 
     
+    // The task-switch hook costs something at every switch: it goes in once on_task_change has a
+    // subscriber (osi's osi_task_change_subscribers; an osi without it counts as one), asked now
+    // and at every address-space change until then.
     if (0x0 != ki.task.switch_task_hook_addr) {
         void* hooks = panda_get_plugin_by_name("hooks");
         if (hooks == NULL){
@@ -1358,24 +1387,22 @@ bool init_plugin(void *self) {
             hooks = panda_get_plugin_by_name("hooks");
         }
         if (hooks != NULL){
-            void (*dlsym_add_hook)(struct hook*) = (void(*)(struct hook*)) dlsym(hooks, "add_hook");
+            dlsym_add_hook = (void(*)(struct hook*)) dlsym(hooks, "add_hook");
             if ((void*)dlsym_add_hook == NULL) {
                 printf("couldn't load add_hook from hooks\n");
                 return false;
             }
-            struct hook h;
-            h.addr = ki.task.switch_task_hook_addr;
-            h.asid = 0;
-            h.type = PANDA_CB_START_BLOCK_EXEC;
-            h.cb.start_block_exec = [](CPUState *cpu, TranslationBlock *tb, hook *){    
-                bool** out=0;
-                if (osi_guest_is_ready(cpu, (void**)out)){
-                    notify_task_change(cpu); 
-                }
-            };
-            h.km = MODE_ANY;
-            h.enabled = true;
-            dlsym_add_hook(&h);
+            void *osi = panda_get_plugin_by_name("osi");
+            task_change_subscribers = osi ? (int (*)(void))dlsym(osi, "osi_task_change_subscribers") : NULL;
+            if (!add_switch_hook_if_wanted()) {
+                switch_pcb.asid_changed = [](CPUState *cpu, uint64_t, uint64_t) -> bool {
+                    if (add_switch_hook_if_wanted())
+                        panda_disable_callback(self_ptr, PANDA_CB_ASID_CHANGED, switch_pcb);
+                    return false;
+                };
+                panda_register_callback_modes(self, PANDA_CB_ASID_CHANGED, switch_pcb,
+                    panda_callback_supported_modes(PANDA_CB_ASID_CHANGED), true);
+            }
         }
     }
 

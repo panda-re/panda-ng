@@ -77,7 +77,7 @@ Capabilities and strategies
 | `mount_paths` | file paths from the root of the mount tree (else from the file's own filesystem) |
 | `heap_stack` | `[heap]` and `[stack]`, `get_proc_mem` |
 | `modules` | `get_modules` |
-| `task_change` | `on_task_change`, from a hook on `finish_task_switch` and at exec |
+| `task_change` | `on_task_change`, from a hook on `finish_task_switch` and at exec, put in once something subscribes to `on_task_change` (or `lifecycle=true`) |
 | `program_start` | where an exec is seen (`on_task_change` at exec, `EXEC` events): a hook in the kernel's ELF loader, else proc_start_linux |
 | `threads` | a process's threads (`osi_isf_facts`: `threads`) and their address space (`mm`) |
 | `file_paths` | a file's path within its filesystem (for mappings, exe, cwd, root and fds) |
@@ -271,6 +271,16 @@ With `lifecycle=true`, osi_isf calls `on_osi_isf_event(CPUState *cpu, const OsiI
   task change finds its parent changed.
 - **Pid reuse**: tasks are known by (tid, start time); a new task whose id was another's is
   reported with that one's start time.
+
+Task changes are pay for use
+----------------------------
+
+The `finish_task_switch` and exec hooks cost something at every switch and every exec, so they go
+in only once something listens: a subscriber to osi's `on_task_change` (osi's
+`osi_task_change_subscribers`), or `lifecycle=true`. osi_isf asks when it pairs with the kernel and
+at every address-space change until then. With no subscriber, osi_isf costs nothing while the
+guest runs beyond that check; its queries still work (`get_current_process` keeps the current
+task's fixed fields while the same task, by pointer and start time, has the same mm).
 
 Exec
 ----
