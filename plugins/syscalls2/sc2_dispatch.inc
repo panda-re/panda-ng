@@ -382,6 +382,10 @@ static SC2_HOT const syscall_info_t *sc2_info(int profile, int no)
 
 
 #if SYSCALLS2_ENGINE
+/* syscalls2_add_exec_started's subscribers: called where a successful execve ends */
+static void (*sc2_exec_fns[8])(CPUState *);
+static std::atomic<unsigned> sc2_nexec;
+
 /*
  * The engine's numbers, per ABI: each one's table entry (sc2_none: unknown), callback name and
  * profile, filled at init from the profile tables. Index SC2_NB is every number from SC2_NB on
@@ -793,7 +797,8 @@ static void SC2_HOT __attribute__((noinline)) sc2_r_full(CPUState *cpu, PandaSys
     }
 }
 
-/* A return: @slot as sc2_e's. Not a restarted call (a new entry follows) or execve's end. */
+/* A return: @slot as sc2_e's. Not a restarted call (a new entry follows); execve's end goes to
+ * syscalls2_add_exec_started's subscribers only. */
 static void SC2_HOT __attribute__((noinline)) sc2_r(void *slot, CPUState *cpu, PandaSyscallCall *c,
                                                     int64_t ret, uint32_t flags)
 {
@@ -801,6 +806,13 @@ static void SC2_HOT __attribute__((noinline)) sc2_r(void *slot, CPUState *cpu, P
     const sc2_list *L;
 
     if (unlikely(flags & (PANDA_SYSCALL_RESTART | PANDA_SYSCALL_ENDED))) {
+        if ((flags & PANDA_SYSCALL_ENDED) && !(flags & PANDA_SYSCALL_RESTART)) {
+            /* a successful execve: the new program's first instruction (syscalls2_add_exec_started) */
+            unsigned n = sc2_nexec.load(std::memory_order_acquire);
+            for (unsigned i = 0; i < n; i++) {
+                sc2_exec_fns[i](cpu);
+            }
+        }
         return;
     }
     syscalls2_vcpu_t *sv = SYSCALLS2_VCPU(cpu);

@@ -34,6 +34,7 @@ PANDAENDCOMMENT */
 #include "panda.h"
 #include "elf.h"
 #include <string>
+#include <dlfcn.h>
 #if defined(__APPLE__)
 // Mac OS X / Darwin features
 #include <libkern/OSByteOrder.h>
@@ -354,19 +355,57 @@ void sbe(CPUState *cpu, TranslationBlock *tb){
     }
 }
 
+// The block callback is registered only when it is first needed: a registered block callback,
+// even a disabled one, puts every vCPU on the plugin translation path.
+static bool sbe_registered;
+
 static void start_waiting(void) {
     waiting = false;
+    if (!sbe_registered) {
+        sbe_registered = true;
+        panda_register_callback_modes(self_ptr, PANDA_CB_START_BLOCK_EXEC, pcb_sbe_execve,
+            panda_callback_supported_modes(PANDA_CB_START_BLOCK_EXEC), true);
+        return;
+    }
     panda_enable_callback(self_ptr, PANDA_CB_START_BLOCK_EXEC, pcb_sbe_execve);
+}
+
+/*
+ * Where the engine pairs system calls (syscalls2_exec_started_active), a successful execve ends
+ * at the new program's first instruction in user mode, and syscalls2 says so
+ * (syscalls2_add_exec_started): the stack is read there, once. Elsewhere, and when that read
+ * fails, a block callback from execve's entry looks for the first user-mode block, as before.
+ */
+static bool (*exec_started_active)(void);
+
+static void exec_started(CPUState *cpu) {
+    log("exec started\n");
+    if (!try_run_auxv(cpu, NULL, panda_current_sp(cpu))) {
+        log("Failed to read at the program's start; watching blocks\n");
+        start_waiting();
+    }
+}
+
+// Subscribed so that syscalls2 keeps execve until its end; a failed call returns here.
+static void execve_return(CPUState *cpu, target_ptr_t pc, target_ptr_t filename, target_ptr_t argv,
+                          target_ptr_t envp) {}
+static void execveat_return(CPUState *cpu, target_ptr_t pc, int dfd, target_ptr_t filename,
+                            target_ptr_t argv, target_ptr_t envp, int flags) {}
+
+static void exec_entered(void) {
+    if (!exec_started_active || !exec_started_active()) {
+        start_waiting();
+    }
 }
 
 void execve_cb(CPUState *cpu, target_ptr_t pc, target_ptr_t filename, target_ptr_t argv, target_ptr_t envp) {
     log("execve\n");
-    start_waiting();
+    exec_entered();
 }
 
 void execveat_cb (CPUState* cpu, target_ptr_t pc, int dfd, target_ptr_t filename, target_ptr_t argv, target_ptr_t envp, int flags) {
     log("execveat\n");
-    start_waiting();
+    exec_entered();
 }
 
 bool init_plugin(void *self) {
@@ -376,8 +415,6 @@ bool init_plugin(void *self) {
         return false;
     #else
         pcb_sbe_execve.start_block_exec = sbe;
-        panda_register_callback_disabled(self, PANDA_CB_START_BLOCK_EXEC, pcb_sbe_execve,
-            panda_callback_supported_modes(PANDA_CB_START_BLOCK_EXEC), true);
 
         // why? so we don't get 1000 messages telling us syscalls2 is already loaded
         void* syscalls2 = panda_get_plugin_by_name("syscalls2");
@@ -387,6 +424,13 @@ bool init_plugin(void *self) {
         assert(init_syscalls2_api());
         PPP_REG_CB("syscalls2", on_sys_execve_enter, execve_cb);
         PPP_REG_CB("syscalls2", on_sys_execveat_enter, execveat_cb);
+        syscalls2 = panda_get_plugin_by_name("syscalls2");
+        auto add_exec_started = (bool (*)(void (*)(CPUState *)))dlsym(syscalls2, "syscalls2_add_exec_started");
+        if (add_exec_started && add_exec_started(exec_started)) {
+            exec_started_active = (bool (*)(void))dlsym(syscalls2, "syscalls2_exec_started_active");
+            PPP_REG_CB("syscalls2", on_sys_execve_return, execve_return);
+            PPP_REG_CB("syscalls2", on_sys_execveat_return, execveat_return);
+        }
     #endif
     return true;
 }
@@ -399,6 +443,8 @@ void uninit_plugin(void *self) {
     if (syscalls != NULL){
         PPP_REMOVE_CB("syscalls2", on_sys_execve_enter, execve_cb);
         PPP_REMOVE_CB("syscalls2", on_sys_execveat_enter, execveat_cb);
+        PPP_REMOVE_CB("syscalls2", on_sys_execve_return, execve_return);
+        PPP_REMOVE_CB("syscalls2", on_sys_execveat_return, execveat_return);
     }
 #endif
 }

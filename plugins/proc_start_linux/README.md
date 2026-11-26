@@ -6,7 +6,14 @@ Summary
 
 This plugin uses `syscalls2` to provide the auxiliary vector in Linux systems as a PPP callback.
 It watches `execve` and `execveat`, and reads the new program's arguments, environment and
-auxiliary vector from its stack when it first runs. It doesn't load on ppc, ppc64, riscv32 or
+auxiliary vector from its stack when it first runs. It needs no kernel symbols or offsets.
+
+Where the engine pairs system calls (Linux on x86_64, i386, aarch64, arm, riscv64, mips, ppc), a
+successful execve ends at the new program's first instruction in user mode, and syscalls2 reports
+that (`syscalls2_add_exec_started`): the stack is read there, once, with no cost in the kernel's
+exec path. `tb` is then NULL (the program's first block hasn't run). Elsewhere, or when that read
+fails, a block callback runs from execve's entry until the first user-mode block that has the
+auxiliary vector, as it always did. It doesn't load on ppc, ppc64, riscv32 or
 loongarch64.
 
 Arguments
