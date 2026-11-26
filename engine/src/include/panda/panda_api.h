@@ -388,6 +388,24 @@ uint64_t rr_get_guest_instr_count_external(void);
 int panda_virtual_memory_read_external(CPUState *cpu, target_ulong addr, char *buf, int len);
 
 /**
+ * panda_virtual_memory_read_str() - Copy a NUL-terminated string from guest (virtual) memory.
+ * @cpu: Cpu state.
+ * @addr: Guest virtual address of the string.
+ * @buf: Host buffer of @max bytes.
+ * @max: The most bytes to copy.
+ *
+ * Copies whole target pages (the first from @addr to its page's end) until one holds a NUL or
+ * @max bytes are copied, so @buf may hold bytes after the NUL.
+ *
+ * Return:
+ * * n >= 0 and < @max - the string's length: @buf[n] is its NUL
+ * * @max             - no NUL in the first @max bytes
+ * * -1 - k (< 0)     - the page at @addr + k, before any NUL, could not be read (where a
+ *                      byte-by-byte read would fail)
+ */
+int panda_virtual_memory_read_str(CPUState *cpu, target_ulong addr, char *buf, int max);
+
+/**
  * panda_virtual_memory_write_external() - Copy data from host buffer into guest (virtual) memory.
  * @cpu: Cpu state.
  * @addr: Guest virtual address of start of desired write.

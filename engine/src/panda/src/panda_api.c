@@ -296,6 +296,28 @@ int panda_virtual_memory_read_external(CPUState *env, target_ulong addr, char *b
 	return panda_virtual_memory_read(env, addr, (uint8_t*) buf, len);
 }
 
+int panda_virtual_memory_read_str(CPUState *cpu, target_ulong addr, char *buf, int max){
+	/* A page at a time (each read stays in one target page), stopping at the page holding the
+	 * NUL: one call where a caller reading a byte at a time made one per byte. */
+	int n = 0;
+	while (n < max) {
+		int l = TARGET_PAGE_SIZE - (addr & ~TARGET_PAGE_MASK);
+		if (l > max - n) {
+			l = max - n;
+		}
+		if (panda_virtual_memory_read(cpu, addr, (uint8_t *) buf + n, l) != 0) {
+			return -1 - n;
+		}
+		char *nul = memchr(buf + n, 0, l);
+		if (nul) {
+			return nul - buf;
+		}
+		n += l;
+		addr += l;
+	}
+	return max;
+}
+
 int panda_virtual_memory_write_external(CPUState *env, target_ulong addr, char *buf, int len){
 	return panda_virtual_memory_write(env, addr, (uint8_t*) buf, len);
 }

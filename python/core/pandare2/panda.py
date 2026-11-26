@@ -31,6 +31,8 @@ from shlex import quote as shlex_quote, split as shlex_split
 from time import sleep
 from cffi import FFI
 from functools import lru_cache
+from sys import _getframe
+from struct import unpack as struct_unpack
 
 from .utils import progress, warn, make_iso, debug, blocking, GArrayIterator, plugin_list
 from .panda_expect import Expect
@@ -48,26 +50,36 @@ logger = logging.getLogger("pandare2")
 
 
 _WRAPPER_MAKERS = {}
+# The code objects of the observe-only callback wrappers. A guest-writing helper refuses to run
+# while one of them is on its thread's stack (Panda._check_guest_mutation): the stack is the
+# thread's own, so this needs no per-call bookkeeping in the wrappers. It holds their ids: code
+# objects compare equal by content (not by filename), and an observe-only wrapper's source is the
+# same as a hypercall handler's. The code objects stay alive in _WRAPPER_MAKERS.
+_OBSERVER_CODES = set()
 
 
-def _wrapper_maker(nargs, kind):
+def _wrapper_maker(nargs, kind, observe_only=False, rr_check=False):
     '''
-    make(fun, stopped, raised) -> a function of exactly nargs arguments that calls fun, for
-    Panda._catching. kind: "void", "bool", "int", or "passthrough" (returns its second argument
-    when fun can't give a result). Generated once per (nargs, kind): a fixed argument list is
-    cheaper per call than *args.
+    make(fun, stopped, raised, rr, refuse) -> a function of exactly nargs arguments that calls
+    fun, for Panda._catching. kind: "void", "bool", "int", or "passthrough" (returns its second
+    argument when fun can't give a result). rr_check: before fun, `if rr[0]: refuse()` (rr is the
+    engine's replay_mode). observe_only: the wrapper's code object goes in _OBSERVER_CODES.
+    Generated once per key, so each callback is one Python frame around fun: a fixed argument
+    list is cheaper per call than *args.
     '''
-    key = (nargs, kind)
+    key = (nargs, kind, observe_only, rr_check)
     if key not in _WRAPPER_MAKERS:
         a = ", ".join(f"a{i}" for i in range(nargs))
         neutral = {"void": "None", "bool": "False", "int": "0", "passthrough": "a1"}[kind]
         ret = {"void": "return None", "bool": "return bool(r)"}.get(
             kind, f"return {neutral} if r is None else r")
-        src = (f"def make(fun, stopped, raised):\n"
+        check = "            if rr[0]:\n                refuse()\n" if rr_check else ""
+        src = (f"def make(fun, stopped, raised, rr, refuse):\n"
                f"    def call({a}):\n"
                f"        if stopped:\n"
                f"            return {neutral}\n"
                f"        try:\n"
+               f"{check}"
                f"            r = fun({a})\n"
                f"        except Exception as e:\n"
                f"            raised(e)\n"
@@ -75,7 +87,9 @@ def _wrapper_maker(nargs, kind):
                f"        {ret}\n"
                f"    return call\n")
         ns = {}
-        exec(src, ns)
+        exec(compile(src, f"<pandare2 callback wrapper {key}>", "exec"), ns)
+        if observe_only:
+            _OBSERVER_CODES.add(id(ns["make"](None, None, None, None, None).__code__))
         _WRAPPER_MAKERS[key] = ns["make"]
     return _WRAPPER_MAKERS[key]
 
@@ -429,6 +443,7 @@ class Panda(TaintMixin):
         # panda.arch is a subclass with architecture-specific functions
 
         self.guest = Guest(self)  # guest writes: panda.guest.write_virt, .set_reg, .env(cpu), ...
+        self._cpu_envs = {}     # CPUState * -> CPUArchState * (cpu_env); the arch's accessors use it
         self.arch = None # Keep this with the following docstring such that pydoc generats good docs for it; this is a useful variable!
         """
         A reference to an auto-instantiated `pandare.arch.PandaArch` subclass (e.g., `pandare.arch.X86Arch`)
@@ -514,6 +529,12 @@ class Panda(TaintMixin):
         self.libpanda = self.ffi.dlopen(self.libpanda_path, self.ffi.RTLD_NOW |
                                         (self.ffi.RTLD_GLOBAL if self._engine_global else self.ffi.RTLD_LOCAL))
         self.C = self.ffi.dlopen(None)
+        self._vmr_c = self.libpanda.panda_virtual_memory_read_external
+        self._addr_mask = (1 << self.bits) - 1
+        try:        # an engine before panda_virtual_memory_read_str: read_str reads page by page
+            self._read_str_c = self.libpanda.panda_virtual_memory_read_str
+        except AttributeError:
+            self._read_str_c = None
         requested = sum(1 << CAPABILITIES.index(name) for name in self.capabilities)
         if not self.libpanda.panda_configure_capabilities(requested):
             raise ValueError("the engine refused the startup capabilities (the reason is on stderr): "
@@ -642,7 +663,6 @@ class Panda(TaintMixin):
         self.register_cb_decorators()
         self.plugin_register_count = 0
         self.registered_callbacks = {} # name -> {procname: "bash", enabled: False, callback: None}
-        self._callback_access = threading.local()
 
         # Register asid_changed CB if and only if a callback requires procname
         self._registered_asid_changed_internal_cb = False
@@ -1521,7 +1541,20 @@ class Panda(TaintMixin):
             ValueError: if memory access fails or fmt is unsupported
         '''
 
+        if fmt == 'bytearray' and self._engine_started and type(addr) is int and not self._osi_linux_loaded:
+            # the common case in one frame (_memory_read below does the same, and the rest)
+            buf = self.ffi.new("char[]", length)
+            err = self._vmr_c(cpu, addr & self._addr_mask, buf, length)
+            if err != 0:
+                raise ValueError(f"Failed to read guest memory at {addr:x} got err={err}")
+            return self.ffi.unpack(buf, length)
         return self._memory_read(cpu, addr, length, physical=False, fmt=fmt)
+
+    def _vmr_fn(self):
+        '''The virtual-memory read the helpers use: osi_linux's when it is loaded, else the engine's.'''
+        if self._osi_linux_loaded:
+            return self.plugins["osi_linux"].osi_linux_virtual_memory_read
+        return self.libpanda.panda_virtual_memory_read_external
 
     def _memory_read(self, env, addr, length, physical=False, fmt='bytearray'):
         '''
@@ -1534,22 +1567,13 @@ class Panda(TaintMixin):
             raise ValueError(f"Unsupported read from address {repr(addr)}")
 
         buf = self.ffi.new("char[]", length)
-
-        # Force CFFI to parse addr as an unsigned value. Otherwise we get OverflowErrors
-        # when it decides that it's negative
-        ptr_typ = f'uint{self.bits}_t'
-        addr_u = int(self.ffi.cast(ptr_typ, addr))
-
-        buf_a = self.ffi.cast("char*", buf)
-        length_a = self.ffi.cast("int", length)
+        # cffi takes Python ints for the address and length; masking keeps a negative address
+        # from overflowing the unsigned argument (as the cast to uint<bits>_t did)
+        addr_u = addr & ((1 << self.bits) - 1)
         if physical:
-            err = self.libpanda.panda_physical_memory_read_external(addr_u, buf_a, length_a)
+            err = self.libpanda.panda_physical_memory_read_external(addr_u, buf, length)
         else:
-            # [OPTIMIZED] Use cached flag instead of re-allocating C strings to check loading status
-            if self._osi_linux_loaded:
-                err = self.plugins["osi_linux"].osi_linux_virtual_memory_read(env, addr_u, buf_a, length_a)
-            else:
-                err = self.libpanda.panda_virtual_memory_read_external(env, addr_u, buf_a, length_a)
+            err = self._vmr_fn()(env, addr_u, buf, length)
 
         if err != 0:
             # TODO: We should support a custom error class instead of a generic ValueError
@@ -1568,12 +1592,8 @@ class Panda(TaintMixin):
             bytelen = int(self.bits/8)
             if (length % bytelen != 0):
                 raise ValueError(f"Memory of size {length} does not evenly divide into {bytelen} byte chunks")
-            chunks = []
-            for start in range(0, length, bytelen):
-                data = r[start:start+bytelen]
-                int_data = int.from_bytes(data, byteorder=self.endianness)
-                chunks.append(int_data)
-            return chunks
+            order = "<" if self.endianness == "little" else ">"
+            return list(struct_unpack(f"{order}{length // bytelen}{'I' if bytelen == 4 else 'Q'}", r))
 
         else:
             raise ValueError("fmt={} unsupported".format(fmt))
@@ -1700,17 +1720,81 @@ class Panda(TaintMixin):
         Returns:
             string: Data read from memory
 
+        A string that runs into memory that can't be read raises ValueError, as the byte-at-a-
+        time read did; with max_length, only the first max_length bytes need to be readable.
         '''
-        r = b""
-        idx = 0
-        while (max_length is None or idx < max_length):
-            next_char = self.virtual_memory_read(cpu, ptr, 1) # If this raises an exn, don't mask it
-            if next_char == b"\x00":
+        rs = self._read_str_c
+        if rs is not None and max_length is None and type(ptr) is int and self._engine_started \
+                and not self._osi_linux_loaded:
+            # the common case, a string shorter than 4 KiB, in one frame and one engine call
+            buf = self.ffi.new("char[4096]")
+            got = rs(cpu, ptr & self._addr_mask, buf, 4096)
+            if 0 <= got < 4096:
+                return self.ffi.buffer(buf, got)[:].decode("utf8", "ignore")
+        self._needs_engine("reading guest memory")
+        if not isinstance(ptr, int):
+            raise ValueError(f"Unsupported read from address {repr(ptr)}")
+        return self._read_cstr(cpu, ptr, max_length).decode("utf8", "ignore")
+
+    def _read_cstr(self, cpu, ptr, max_length=None):
+        '''
+        The bytes of the NUL-terminated string at guest virtual address ptr, without the NUL, at
+        most max_length of them. Raises ValueError where a byte-by-byte read would fail (at an
+        unreadable byte before the NUL and within max_length).
+
+        With the engine's read (no osi_linux) it is one panda_virtual_memory_read_str call per
+        4 KiB; otherwise (osi_linux's read) one read per page: the rest of
+        ptr's page, then whole pages, the NUL found with bytes.find. Either reads past the NUL
+        within the page holding it. The place for other readers (e.g. one that pages memory in).
+        '''
+        if max_length is not None and max_length <= 0:
+            return b""
+        ffi = self.ffi
+        mask = (1 << self.bits) - 1
+        ptr &= mask
+        out = []
+        left = -1 if max_length is None else max_length
+        if not self._osi_linux_loaded and self._read_str_c is not None:
+            rs, size = self._read_str_c, 4096
+            while left:
+                n = size if left < 0 else min(size, left)
+                buf = ffi.new("char[]", n)
+                got = rs(cpu, ptr, buf, n)
+                if got < 0:
+                    raise ValueError(f"Failed to read guest memory at {(ptr - 1 - got) & mask:x} got err=-1")
+                out.append(ffi.buffer(buf, got)[:])
+                if got < n:
+                    break
+                left -= n
+                ptr = (ptr + n) & mask
+            return b"".join(out)
+        read = self._vmr_fn()
+        while left:
+            n = 4096 - (ptr & 4095)
+            if 0 < left < n:
+                n = left
+            buf = ffi.new("char[]", n)
+            if read(cpu, ptr, buf, n) != 0:
+                # 4 KiB need not be the guest's page size: go on a byte at a time to the NUL or
+                # the first unreadable byte
+                for k in range(n):
+                    if read(cpu, (ptr + k) & mask, buf, 1) != 0:
+                        raise ValueError(f"Failed to read guest memory at {(ptr + k) & mask:x} got err=-1")
+                    if buf[0] == b"\0":
+                        return b"".join(out)
+                    out.append(buf[0])
+                left -= n
+                ptr = (ptr + n) & mask
+                continue
+            chunk = ffi.buffer(buf, n)[:]
+            nul = chunk.find(b"\0")
+            if nul >= 0:
+                out.append(chunk[:nul])
                 break
-            r += next_char
-            ptr += 1
-            idx += 1
-        return r.decode("utf8", "ignore")
+            out.append(chunk)
+            left -= n
+            ptr = (ptr + n) & mask
+        return b"".join(out)
 
     def to_unsigned_guest(self, x):
         '''
@@ -2066,7 +2150,13 @@ class Panda(TaintMixin):
         '''
         cpu_env with caching to reduce overhead of repeated calls.
         '''
-        return self.libpanda.panda_cpu_env(cpu)
+        # A CPU's CPUArchState is part of its CPU object (a fixed offset from the CPUState), so the
+        # pointer is the same for the CPU's lifetime: look it up once per CPU. cffi pointers hash
+        # and compare by address.
+        env = self._cpu_envs.get(cpu)
+        if env is None:
+            env = self._cpu_envs[cpu] = self.libpanda.panda_cpu_env(cpu)
+        return env
 
     ##################### OSI FUNCTIONS ###########
     #Convenience functions to interact with the Operating System Instrospection (OSI) class of plugins.
@@ -2709,8 +2799,11 @@ class Panda(TaintMixin):
         Refuse a guest write from an observe-only Python callback, even live. Whether record/
         replay can log a write is the engine's answer (panda.guest raises GuestWriteRefused).
         '''
-        if getattr(self._callback_access, 'observers', 0):
-            raise GuestWriteRefused(operation, 1, "guest mutation is forbidden in an observe-only callback")
+        f = _getframe(1)
+        while f is not None:
+            if id(f.f_code) in _OBSERVER_CODES:
+                raise GuestWriteRefused(operation, 1, "guest mutation is forbidden in an observe-only callback")
+            f = f.f_back
 
     def _check_unlogged_mutation(self, operation):
         '''Refuse a change to the guest that record/replay cannot log (reset, map_memory, set_pc).'''
@@ -2747,17 +2840,35 @@ class Panda(TaintMixin):
         mutator = not observe_only and not hypercall
         if mutator and not self.libpanda.panda_guest_mutation_allowed():
             raise ValueError(f"callback {fun.__name__!r}: record/replay requires observe_only=True")
-        original = fun
-        def checked(*args):
-            if mutator and not self.libpanda.panda_guest_mutation_allowed():
-                raise PermissionError(f"callback {original.__name__!r}: record/replay requires observe_only=True")
-            observers = getattr(self._callback_access, 'observers', 0)
-            self._callback_access.observers = observers + bool(observe_only)
+        name = fun.__name__
+
+        def refuse():
+            raise PermissionError(f"callback {name!r}: record/replay requires observe_only=True")
+        make = _wrapper_maker(nargs, kind, observe_only=bool(observe_only), rr_check=mutator)
+        return make(fun, self._exit, self._callback_raised, self._replay_mode_cell() if mutator else None, refuse)
+
+    def _replay_mode_cell(self):
+        '''
+        The engine's replay_mode as an int* (nonzero while recording or replaying: what
+        panda_guest_mutation_allowed() answers), read by the mutating callbacks' wrappers on each
+        call without a call into the engine. Falls back to an object that asks the engine.
+        '''
+        cell = getattr(self, "_rr_cell", None)
+        if cell is None:
             try:
-                return original(*args)
-            finally:
-                self._callback_access.observers = observers
-        return _wrapper_maker(nargs, kind)(checked, self._exit, self._callback_raised)
+                rf = FFI()
+                rf.cdef("extern int replay_mode;")
+                self._rr_lib = rf.dlopen(self.libpanda_path, rf.RTLD_NOW | rf.RTLD_NOLOAD)
+                cell = rf.addressof(self._rr_lib, "replay_mode")
+            except (OSError, AttributeError, KeyError, TypeError):
+                allowed = self.libpanda.panda_guest_mutation_allowed
+
+                class _Ask:
+                    def __getitem__(self, i):
+                        return not allowed()
+                cell = _Ask()
+            self._rr_cell = cell
+        return cell
 
     def _callback_raised(self, e):
         '''A Python callback raised e (called in its except block).'''
