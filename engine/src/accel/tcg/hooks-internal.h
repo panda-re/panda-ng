@@ -52,10 +52,53 @@ static inline uint32_t tcg_hooks_cflags(vaddr pc, uint32_t cflags)
 /* Mark the pages of sites inserted before the page size was decided. */
 void tcg_hooks_vcpu_init(CPUState *cpu);
 
-/* Emit the hook call, if @db->pc_next has a site.  After insn_start. */
-void tcg_hooks_gen(DisasContextBase *db);
+/*
+ * Sites are kept per 1 KiB chunk of guest virtual addresses, in arrays
+ * sorted by pc (hooks.c).  The translator finds a block's sites once per
+ * chunk, not per instruction: tcg_hooks_xl caches the current chunk's
+ * array (NULL: no site there) for the block being translated.  It is
+ * read and written only by the translating thread, inside the RCU
+ * read-side critical section that translation runs in, and refreshed at
+ * each block's first instruction.
+ */
+#define TCG_HOOKS_CHUNK_BITS 10
 
-/* Index a newly linked block (hooks in use), forget all on a flush. */
+typedef struct TCGHookSiteArray TCGHookSiteArray;
+typedef struct TCGHooksXlate {
+    vaddr chunk;
+    const TCGHookSiteArray *sites;
+    vaddr prev;                 /* the block's previous instruction in this chunk, or -1 */
+} TCGHooksXlate;
+extern __thread TCGHooksXlate tcg_hooks_xl;
+
+void tcg_hooks_gen_chunk(DisasContextBase *db);
+void tcg_hooks_gen_insn(DisasContextBase *db);
+
+/*
+ * Emit the hook calls for @db->pc_next, if it has a site.  After
+ * insn_start, while hooks are in use.  A CF_PCREL block has none: it is
+ * not on a hooked page (tcg_hooks_cflags()).  Elsewhere (every block on
+ * targets without CF_PCREL) the cost is a compare per instruction and a
+ * bitmap test per chunk, plus a lookup per chunk on a hooked page.
+ */
+static inline void tcg_hooks_gen(DisasContextBase *db)
+{
+    if (tb_cflags(db->tb) & CF_PCREL) {
+        return;
+    }
+    if (db->num_insns == 1 ||
+        (db->pc_next >> TCG_HOOKS_CHUNK_BITS) != tcg_hooks_xl.chunk) {
+        tcg_hooks_gen_chunk(db);
+    }
+    if (tcg_hooks_xl.sites) {
+        tcg_hooks_gen_insn(db);
+    }
+}
+
+/*
+ * Index a newly linked block that touches a hooked page (hooks in use),
+ * forget all on a flush.
+ */
 void tcg_hooks_tb_linked(TranslationBlock *tb);
 void tcg_hooks_tb_flush(void);
 

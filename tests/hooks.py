@@ -10,11 +10,11 @@ file page (p0 + ALT_DELTA: the same code at another virtual address); a block th
 page into the next (x0 on the first page, xs straddling the boundary on x86_64, the last
 instruction of the page on aarch64, x1 on the second page); getpid. So a hook fires R times per
 phase, or not at all. Each case runs in a child process:
-- type-<t>: a Python hook of each cb_type pandare2 offers, at h0: R per phase, with the arguments
-  of that type's signature (cpu; the block holding h0; the hook, at h0, of that type; pc for
-  before_block_translate, an exit code for after_block_exec);
-- c: C hooks (tests/hooks_c.c) of type before_tcg_codegen: one counting at h0, one that disables
-  itself at h1 (fires once);
+- args: a Python hook at h0: R per phase, called as (cpu, the block holding h0, the hook at h0);
+  pandare2's hook() takes no callback type any more (passing cb_type raises TypeError);
+- c: C hooks (tests/hooks_c.c): one counting at h0, one that disables
+  itself at h1 (fires once); at h2 the same function with two contexts (two hooks, R per phase
+  each), the second added twice (still one);
 - filters: asid (the program's, and another: never), kernel/user mode (kernel=True on user code:
   never), and hooks in kernel code: getpid's kernel function (from /proc/kallsyms) with
   kernel=True fires R per phase in the program's process, with kernel=False never;
@@ -36,6 +36,10 @@ phase, or not at all. Each case runs in a child process:
   pauses the vCPUs, runs uninit_plugin, which removes the engine hooks, and closes the library);
   the test waits for the plugin to be gone, then runs the program again: no hook fires, and the
   program finishes;
+- unload-hot: a C hook at h0, and the unload of the hooks plugin asked for from the handler of
+  hypercall 3, on the vCPU: the unload happens later, in the main loop, but the vCPU that asked
+  stops at the end of its block until then, so the program runs no more of its code before the
+  hooks are gone: R hits, all in phase 1;
 - smp (--smp > 1): the program on every vCPU at once, with a C hook counting at h0 and one at h1
   that adds a self-disabling hook at h0 on every hit (the hooks at h0 replaced while every vCPU
   runs them): h0's counter is exactly vCPUs * 3R, h1's too.
@@ -63,10 +67,8 @@ PANDA_TEST = dict(area="hooks", tier="guest", fixture="testmachine", arches=["x8
 R = 100
 ALT_DELTA = 0x200000
 LABELS = ["h0", "h1", "h2", "p0", "x0", "xs", "x1"]
-TYPES = ["start_block_exec", "before_block_exec", "end_block_exec", "after_block_translate",
-         "before_block_exec_invalidate_opt", "after_block_exec", "before_block_translate"]
-CASES = [f"type-{t}" for t in TYPES] + ["c", "filters", "multi", "late", "remove", "alias",
-                                         "alias-late", "cross", "path", "unload"]
+CASES = ["args", "c", "filters", "multi", "late", "remove", "alias",
+                                         "alias-late", "cross", "path", "unload", "unload-hot"]
 SMP_CASES = ["smp", "path"]
 KSYM = {"x86_64": "__x64_sys_getpid", "aarch64": "__arm64_sys_getpid"}
 
@@ -140,16 +142,12 @@ def check_tb(name, cpu, tb, addr):
         bad(name, f"tb {tb.pc:#x}+{tb.size} does not hold {addr:#x}")
 
 
-def make_hook(name, addr, cb_type="start_block_exec", **kw):
-    """A counting Python hook of @cb_type at @addr, with argument checks."""
-    type_num = getattr(panda.libpanda, "PANDA_CB_" + cb_type.upper())
-
-    def check_hook(hook):
-        if hook == panda.ffi.NULL or hook.addr != addr or hook.type != type_num:
-            bad(name, "hook pointer" if hook == panda.ffi.NULL else
-                f"hook addr {hook.addr:#x} type {hook.type}, want {addr:#x} {type_num}")
-
-    def note(cpu):
+def make_hook(name, addr, **kw):
+    """A counting Python hook at @addr, with argument checks."""
+    def fn(cpu, tb, hook):
+        if hook == panda.ffi.NULL or hook.addr != addr:
+            bad(name, "hook pointer" if hook == panda.ffi.NULL else f"hook addr {hook.addr:#x}")
+        check_tb(name, cpu, tb, addr)
         if cpu == panda.ffi.NULL or not 0 <= cpu.cpu_index < opt.smp:
             bad(name, "cpu")
         if not ours(cpu):
@@ -157,32 +155,12 @@ def make_hook(name, addr, cb_type="start_block_exec", **kw):
             return
         hits[name][st["phase"]] += 1
         st["seq"].append((name, 0))
-
-    if cb_type == "after_block_exec":
-        def fn(cpu, tb, code, hook):
-            check_hook(hook)
-            check_tb(name, cpu, tb, addr)
-            if code != 0:
-                bad(name, f"exit code {code}")
-            note(cpu)
-    elif cb_type == "before_block_translate":
-        def fn(cpu, pc, hook):
-            check_hook(hook)
-            if pc != addr:
-                bad(name, f"pc {pc:#x}")
-            note(cpu)
-    elif cb_type == "before_block_exec_invalidate_opt":
-        def fn(cpu, tb, hook):
-            check_hook(hook)
-            check_tb(name, cpu, tb, addr)
-            note(cpu)
-            return False
-    else:
-        def fn(cpu, tb, hook):
-            check_hook(hook)
-            check_tb(name, cpu, tb, addr)
-            note(cpu)
-    panda.hook(addr, cb_type=cb_type, observe_only=True, **kw)(fn)
+    panda.hook(addr, observe_only=True, **kw)(fn)
+    try:
+        panda.hook(addr, cb_type="after_block_exec")
+        st["cb_type"] = "accepted"
+    except TypeError:
+        st["cb_type"] = "TypeError"
 
 
 def counter_hook(name, addr, then=None, **kw):
@@ -211,13 +189,13 @@ def load_hookc(churn_addr=0):
     subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-o", so, os.path.join(HERE, "hooks_c.c")],
                    check=True)
     ffi = cffi.FFI()
-    ffi.cdef("void hookc_setup(void *add_hook, int type, uint64_t addr);"
+    ffi.cdef("void hookc_setup(void *add_hook, uint64_t addr);"
              "void hookc_add(uint64_t addr, int fn, int counter); uint64_t hookc_get(int i);")
     hookc = ffi.dlopen(so)
     shutil.rmtree(tmp)          # mapped: the file is no longer needed
     path = next(line.split()[-1] for line in open("/proc/self/maps") if "libpanda-hooks_" in line)
     add = ctypes.cast(ctypes.CDLL(path, mode=os.RTLD_NOLOAD | os.RTLD_NOW).add_hook, ctypes.c_void_p)
-    hookc.hookc_setup(ffi.cast("void *", add.value), panda.libpanda.PANDA_CB_BEFORE_TCG_CODEGEN,
+    hookc.hookc_setup(ffi.cast("void *", add.value),
                       churn_addr)
 
 
@@ -230,11 +208,16 @@ def kernel_getpid():
 # --- what each case does at each hypercall --------------------------------------------------
 def at_hc1(cpu):
     L = st["labels"]
-    if case.startswith("type-"):
-        make_hook("h0", L["h0"], cb_type=case[5:], kernel=False)
+    if case == "args":
+        make_hook("h0", L["h0"], kernel=False)
     elif case == "c":
         hookc.hookc_add(L["h0"], 0, 0)
         hookc.hookc_add(L["h1"], 1, 1)
+        # the same function at h2 with two contexts (counters 4 and 5): two hooks; the second
+        # added again: still one
+        hookc.hookc_add(L["h2"], 0, 4)
+        hookc.hookc_add(L["h2"], 0, 5)
+        hookc.hookc_add(L["h2"], 0, 5)
     elif case == "filters":
         counter_hook("asid", L["h0"], asid=st["asid"], kernel=False)
         counter_hook("other-asid", L["h1"], asid=st["asid"] + 0x1000, kernel=False)
@@ -268,6 +251,8 @@ def at_hc1(cpu):
     elif case == "cross":
         for k in ("x0", "xs", "x1"):
             counter_hook(k, L[k])
+    elif case == "unload-hot":
+        hookc.hookc_add(L["h0"], 0, 0)
     elif case == "unload" and not st.get("added"):     # the first run only
         st["added"] = True
         hookc.hookc_add(L["h0"], 0, 0)
@@ -287,6 +272,8 @@ def at_hc3(cpu):
     elif case == "path":
         st["bits"]["before-hook"] = tb_trans_on()
         counter_hook("h0", L["h0"])
+    elif case == "unload-hot":
+        panda.unload_plugin("hooks")            # from this vCPU: the main loop unloads it
 
 
 def at_hc4(cpu):
@@ -338,9 +325,9 @@ def put_program():
 def drive():
     try:
         st["bits"]["start"] = tb_trans_on()
-        if case in ("path", "c", "unload", "smp"):
+        if case in ("path", "c", "unload", "unload-hot", "smp"):
             panda.load_plugin("hooks")
-        if case in ("c", "unload"):
+        if case in ("c", "unload", "unload-hot"):
             load_hookc()
         m.revert(panda, agent)
         put_program()
@@ -359,6 +346,12 @@ def drive():
         else:
             out["run"] = agent.run("/tmp/hooks; echo rc=$?", timeout=300)
             agent.run("true")
+        if case == "unload-hot":
+            t = time.monotonic()
+            while panda.libpanda.panda_get_plugin_by_name(b"hooks") != panda.ffi.NULL \
+                    and time.monotonic() - t < 60:
+                time.sleep(0.05)
+            st["gone"] = panda.libpanda.panda_get_plugin_by_name(b"hooks") == panda.ffi.NULL
         if case == "unload":
             st["before"] = (hookc.hookc_get(0), dict(hits["py"]))
             panda.unload_plugin("hooks")        # done later, by the main loop
@@ -389,13 +382,17 @@ def expect(name, want):
 
 if case != "smp":
     C.check("hypercalls 1, 3, 4, 2", st["hc"][-4:] == [1, 3, 4, 2], st["hc"])
-if case.startswith("type-"):
+if case == "args":
     expect("h0", RRR)
-    C.check("the arguments are the type's", not st["bad"], st["bad"])
+    C.check("called as (cpu, tb, hook)", not st["bad"], st["bad"])
+    C.check("hook() refuses cb_type", st.get("cb_type") == "TypeError", st.get("cb_type"))
 elif case == "c":
     C.check("C counting hook at h0: R per phase, 3R in all", hookc.hookc_get(0) == 3 * R,
             hookc.hookc_get(0))
     C.check("C hook that disables itself at h1: once", hookc.hookc_get(1) == 1, hookc.hookc_get(1))
+    C.check("the same function with another context is another hook; the same hook twice is one",
+            (hookc.hookc_get(4), hookc.hookc_get(5)) == (3 * R, 3 * R),
+            (hookc.hookc_get(4), hookc.hookc_get(5)))
     C.check("C hooks got a cpu and a block", hookc.hookc_get(-1) == 0, hookc.hookc_get(-1))
 elif case == "filters":
     expect("asid", RRR)
@@ -443,6 +440,10 @@ elif case == "unload":
             out.get("run2") and out["run2"][0] == 0 and b"rc=0" in out["run2"][1], out.get("run2"))
     C.check("no hook fires after the unload", hookc.hookc_get(0) == c_before and
             dict(hits["py"]) == py_before, (hookc.hookc_get(0), dict(hits["py"])))
+elif case == "unload-hot":
+    C.check("no hook runs after the phase the unload was asked for in: R hits, all in phase 1",
+            hookc.hookc_get(0) == R, hookc.hookc_get(0))
+    C.check("the plugin is gone (the main loop unloaded it)", st.get("gone") is True, st.get("gone"))
 elif case == "smp":
     n = opt.smp
     C.check(f"every copy of the program ran ({n})", out.get("run") and

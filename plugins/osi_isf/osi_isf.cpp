@@ -616,8 +616,7 @@ void add_kernel_hook(uint64_t addr, void (*fn)(CPUState *, TranslationBlock *, s
     struct hook h = {};
     h.addr = addr;
     h.asid = 0;
-    h.type = PANDA_CB_START_BLOCK_EXEC;
-    h.cb.start_block_exec = fn;
+    h.cb = fn;
     h.km = MODE_KERNEL_ONLY;
     h.enabled = true;
     add_hook(&h);

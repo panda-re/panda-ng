@@ -4,11 +4,13 @@ Run: panda-python tests/hooks_rr.py <debian-13-x86_64|ubuntu-24.04-aarch64 image
 
 tests/hooks.py's program (tests/programs/hooks_<arch>.S) runs once to find its labels, then is
 recorded with observe-only hooks (panda.hook) at h0, h1 (adjacent instructions in one block) and x1
-(on the second page of a block that crosses a page), and replayed twice with the same hooks. Each
+(on the second page of a block that crosses a page), plus one inserted mid-run at h2 from the
+handler of the program's hypercall 3 (between its first and second phase), and replayed twice with
+the same hooks, h2's again inserted at hypercall 3. Each
 hit notes the hook and the program's accumulator register, which every instruction of the
 hooked blocks updates; each of the program's hypercalls notes the instruction count. Every replay
 must see exactly what the recording saw: 3R hits per hook, in the same order, with the same
-register values, and the hypercalls at the same instruction counts.
+register values (2R for h2), and the hypercalls at the same instruction counts.
 """
 import json
 import os
@@ -25,6 +27,7 @@ R = 100
 LABELS = ["h0", "h1", "h2", "p0", "x0", "xs", "x1"]
 ACC = {"x86_64": "R14", "aarch64": "X22"}
 HOOKED = ["h0", "h1", "x1"]
+LATE = "h2"                 # inserted at hypercall 3
 
 
 def child(mode, image, name, output, labels):
@@ -32,7 +35,7 @@ def child(mode, image, name, output, labels):
     panda = Panda(generic=image, capabilities=['record'] if mode == 'record' else None)
     arch = panda.arch_name
     labels = json.loads(labels)
-    st = {"asid": None, "seq": [], "labels": labels}
+    st = {"asid": None, "seq": [], "labels": labels, "late": []}
 
     def on_hypercall(cpu):
         op = panda.arch.get_arg(cpu, 2, convention="syscall")
@@ -45,6 +48,9 @@ def child(mode, image, name, output, labels):
             st["asid"] = panda.current_asid(cpu)
         if panda.libpanda.rr_on():
             st["seq"].append(["hc", int(op), panda.rr_get_guest_instr_count()])
+        if op == 3 and panda.libpanda.rr_on() and st["labels"] and LATE not in st["late"]:
+            st["late"].append(LATE)
+            hook(LATE)
 
     def hook(k):
         @panda.hook(labels[k], kernel=False, observe_only=True)
@@ -115,8 +121,9 @@ def main():
         if rc:
             sys.exit(checks.report('HOOKS_RR'))
     rec = runs['record']['seq']
-    hits = {k: sum(1 for x in rec if x[0] == k) for k in HOOKED}
-    checks.check('record: 3R hits per hook', hits == {k: 3 * R for k in HOOKED}, hits)
+    hits = {k: sum(1 for x in rec if x[0] == k) for k in HOOKED + [LATE]}
+    checks.check('record: 3R hits per hook, 2R for the one inserted at hypercall 3',
+                 hits == dict({k: 3 * R for k in HOOKED}, **{LATE: 2 * R}), hits)
     checks.check('record: hypercalls 1 3 4 2', [x[1] for x in rec if x[0] == 'hc'] == [1, 3, 4, 2],
                  [x for x in rec if x[0] == 'hc'])
     checks.check('record: the program completed', 'rc=0' in runs['record'].get('output', ''))

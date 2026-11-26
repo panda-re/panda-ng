@@ -14,7 +14,7 @@ PANDAENDCOMMENT */
  * add_hook() on the engine's address hooks (panda/address-hook.h).
  *
  * Each hooked address is a site: one engine hook whose callback (on_hit) walks the hooks added
- * there and filters them in C, by asid (hw_proc_id's get_id) and kernel/user mode, before calling
+ * there and filters them in C, by asid (panda_current_asid) and kernel/user mode, before calling
  * each one's function and emitting hooks.hit (hooks_events.h). The hooks at an address are an
  * array that writers replace and vCPUs read without a lock: the vCPUs run hooks inside an RCU
  * read-side critical section, so a replaced array and a removed hook are freed by the engine after
@@ -44,7 +44,6 @@ extern "C" {
 bool init_plugin(void *);
 void uninit_plugin(void *);
 #include "hooks_int_fns.h"
-#include "hw_proc_id/hw_proc_id_ext.h"
 #include "panda/address-hook.h"
 }
 #include "hooks_events.h"
@@ -54,6 +53,7 @@ struct hook_list {
     uint32_t n;
     bool any_asid;          // a hook filters by asid: on_hit needs get_id()
     bool any_mode;          // a hook filters by kernel/user mode
+    bool direct;            // one hook, no filter: on_hit's short path
     struct hook *h[];       // the plugin's copies: hooks with an asid first, then asid 0 ones
 };
 
@@ -72,6 +72,17 @@ static panda_event_id hit_event;
 void* self = NULL;
 
 static void on_hit(CPUState *cpu, uint64_t pc, void *opaque);
+
+/*
+ * The identifier a hook's asid is compared with: panda_current_asid(), on every arch, which is
+ * also what pandare2's current_asid() returns, so panda.hook(asid=panda.current_asid(cpu))
+ * matches. (On MIPS it is the EntryHi ASID, which the kernel recycles: such a hook can also match
+ * a later process with the same ASID.)
+ */
+static inline target_ulong proc_id(CPUState *cpu)
+{
+    return panda_current_asid(cpu);
+}
 
 // A hook's enabled flag: written by its function (on any vCPU) or by whoever kept a pointer to it.
 static inline bool hook_enabled(const struct hook *h)
@@ -93,6 +104,7 @@ static void list_finish(hook_list *l)
         l->any_asid |= l->h[i]->asid != 0;
         l->any_mode |= l->h[i]->km != MODE_ANY;
     }
+    l->direct = l->n == 1 && !l->any_asid && !l->any_mode;
 }
 
 // Publish @l (NULL if empty) as @s's hooks, with writers held. The old array is freed after the
@@ -150,33 +162,11 @@ static void site_drop_disabled(hook_site *s)
     site_publish(s, l);
 }
 
-// Call @h's function through the cb member its type names (README.md, "Hook callbacks"). Every
-// hook runs before the instruction at @pc; none is called at a block's translation or exit.
+// Call @h's function: every hook runs right before the instruction at @pc.
 static inline void call_hook(CPUState *cpu, TranslationBlock *tb, uint64_t pc, struct hook *h)
 {
-    switch (h->type) {
-    case PANDA_CB_AFTER_BLOCK_EXEC:
-        if (h->cb.after_block_exec) {
-            h->cb.after_block_exec(cpu, tb, 0 /* TB_EXIT_IDX0 */, h);
-        }
-        break;
-    case PANDA_CB_BEFORE_BLOCK_TRANSLATE:
-        if (h->cb.before_block_translate) {
-            h->cb.before_block_translate(cpu, (target_ptr_t)pc, h);
-        }
-        break;
-    case PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT:
-        if (h->cb.before_block_exec_invalidate_opt) {
-            (void)h->cb.before_block_exec_invalidate_opt(cpu, tb, h);   // nothing to invalidate
-        }
-        break;
-    default:
-        // before_tcg_codegen, start/before/end_block_exec, after_block_translate: (cpu, tb, h);
-        // block_translate, which has no plugin block here, too, as before.
-        if (h->cb.before_tcg_codegen) {
-            h->cb.before_tcg_codegen(cpu, tb, h);
-        }
-        break;
+    if (h->cb) {
+        h->cb(cpu, tb, h);
     }
 }
 
@@ -191,7 +181,24 @@ static void on_hit(CPUState *cpu, uint64_t pc, void *opaque)
     if (!l || !__atomic_load_n(&hooking, __ATOMIC_RELAXED)) {
         return;
     }
-    target_ulong asid = l->any_asid ? get_id(cpu) : 0;
+    if (l->direct) {
+        // One hook without a filter, the common case: no loop, no filter, no flags.
+        struct hook *h = l->h[0];
+        if (hook_enabled(h)) {
+            tb = (TranslationBlock *)panda_address_hook_tb(cpu);
+            call_hook(cpu, tb, pc, h);
+            if (panda_event_wanted(hit_event)) {
+                struct panda_hooks_hit_args a = {sizeof(a), cpu, tb, pc, h};
+                panda_event_emit(hit_event, &a);
+            }
+            if (hook_enabled(h)) {
+                return;
+            }
+        }
+        site_drop_disabled(s);
+        return;
+    }
+    target_ulong asid = l->any_asid ? proc_id(cpu) : 0;
     bool in_kernel = l->any_mode ? panda_in_kernel_external(cpu) : false;
     for (uint32_t i = 0; i < l->n; i++) {
         struct hook *h = l->h[i];
@@ -230,10 +237,11 @@ void disable_hooking() {
     __atomic_store_n(&hooking, false, __ATOMIC_RELAXED);
 }
 
+// The same hook: every field the caller sets but addr and enabled. km and context count: the same
+// function with another mode or context is another hook.
 static bool same_hook(const struct hook *a, const struct hook *b)
 {
-    return a->asid == b->asid && a->type == b->type &&
-           a->cb.before_tcg_codegen == b->cb.before_tcg_codegen;
+    return a->asid == b->asid && a->km == b->km && a->context == b->context && a->cb == b->cb;
 }
 
 void add_hook(struct hook* h) {
@@ -252,8 +260,8 @@ void add_hook(struct hook* h) {
     hook_list *cur = s->list;
     uint32_t n = cur ? cur->n : 0, at = n;
 
-    // The same function at the same address, asid and type is added once (syscalls2 adds its
-    // return hook on every system call).
+    // The same hook at the same address is added once (syscalls2 adds its return hook on every
+    // system call).
     for (uint32_t i = 0; i < n; i++) {
         if (hook_enabled(cur->h[i]) && same_hook(cur->h[i], h)) {
             return;
@@ -277,9 +285,6 @@ void add_hook(struct hook* h) {
 
 bool init_plugin(void *_self) {
     self = _self;
-    panda_enable_precise_pc();
-    panda_require("hw_proc_id");
-    assert(init_hw_proc_id_api());
 
     panda_event_desc desc;
     memset(&desc, 0, sizeof(desc));

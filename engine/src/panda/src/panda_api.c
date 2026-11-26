@@ -30,6 +30,9 @@
 #include "panda/events-internal.h"
 #include "panda/address-hook.h"
 #include "qemu/rcu.h"
+#include "qemu/accel.h"
+#include "hw/core/boards.h"
+#include "system/tcg.h"
 
 QEMU_BUILD_BUG_ON(PANDA_CAP_RECORD != STARTUP_CAP_RECORD);
 QEMU_BUILD_BUG_ON(PANDA_CAP_TAINT != STARTUP_CAP_TAINT);
@@ -53,6 +56,12 @@ void panda_mark_hook_address(target_ulong pc)
 PandaAddressHook *panda_address_hook_insert(uint64_t pc, panda_address_hook_fn fn, void *opaque)
 {
     if (!fn) {
+        return NULL;
+    }
+    /* before the machine exists (pandare2 adds hooks before the run) the accelerator is unknown */
+    if (current_machine && current_accel() && !tcg_enabled()) {
+        /* translated code is where hooks run: under KVM one would never be called */
+        warn_report_once("address hooks need TCG: hook at 0x%" PRIx64 " refused", pc);
         return NULL;
     }
     return (PandaAddressHook *)tcg_hook_insert(pc, (TCGHookFn)fn, opaque);

@@ -104,12 +104,26 @@ bool tcg_register_location(CPUState *cpu, int regno, ptrdiff_t *offset,
  * Remove a hook.  The callback is not called again once this returns
  * (from a callback, other hooks at the same address in the same pass may
  * still run).  The address keeps a cheap inactive check in translated
- * code until the next TB flush.
+ * code until the next TB flush, which forgets it (a flush is requested
+ * once many addresses are in that state).
  */
 void tcg_hook_remove(TCGHook *hook);
 
 /* Number of hooks at @pc (0 if none). */
 int tcg_hook_count(vaddr pc);
+
+/*
+ * Bookkeeping, for tests and monitoring: sites (hooked addresses, live or
+ * dead), dead sites (no hooks left, reclaimed at the next TB flush),
+ * removed guarded hooks waiting for a flush, and reclaims done.
+ */
+typedef struct TCGHooksStats {
+    uint64_t sites;
+    uint64_t dead_sites;
+    uint64_t graveyard;
+    uint64_t reclaims;
+} TCGHooksStats;
+void tcg_hooks_stats(TCGHooksStats *st);
 
 /* From a callback: host return address into the hooked block. */
 static inline uintptr_t tcg_hook_retaddr(CPUState *cpu)

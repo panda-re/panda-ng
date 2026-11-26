@@ -21,7 +21,7 @@ ubuntu-24.04 images (see
 | [Rust plugins](#rust) | experimental | TCG | **untested** |
 | [Operating system introspection](#osi) | supported | TCG | x86_64, aarch64, riscv64, arm, mips64 |
 | [System calls](#syscalls) | supported | TCG | x86_64, aarch64, riscv64, arm, i386, mips, mipsel, mips64, mips64el, ppc, ppc64 |
-| [Address hooks](#hooks) | supported | TCG | x86_64, aarch64, riscv64 |
+| [Address hooks](#hooks) | supported | TCG | x86_64, aarch64, arm, riscv64, mips, ppc64 |
 | [Guest hypercalls](#hypercalls) | supported | TCG, KVM | x86_64, aarch64, riscv64 |
 | [Record and replay](#record-replay) | supported | TCG | x86_64, aarch64, riscv64 |
 | [Recorded analysis RAM and register effects](#recorded-ram-effects) | experimental | TCG | **untested** |
@@ -195,7 +195,7 @@ Run a callback when the guest reaches an address, optionally only in one address
 
 **Docs:** [docs/guides/python.md#callbacks](guides/python.md#callbacks), [plugins/hooks/README.md](https://github.com/panda-re/panda-ng/blob/main/plugins/hooks/README.md)
 
-**Tests:** `tests/calls.py`, `tests/hookalias.py`, `tests/hooks.py`, `tests/hooks_rr.py`, `tests/static/hooks_events.py`
+**Tests:** `tests/calls.py`, `tests/hookalias.py`, `tests/hooks.py`, `tests/hookeng.py`, `tests/hooks_rr.py`, `tests/static/hooks_events.py`
 
 
 <a id="hypercalls"></a>
