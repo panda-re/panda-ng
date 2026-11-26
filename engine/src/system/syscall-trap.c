@@ -32,10 +32,6 @@ bool syscall_trap_on;
 uint32_t syscall_trap_pending;
 
 static const SyscallTrapOps *sc_ops;
-static uint32_t sc_held;        /* calls held for a fault */
-static uint64_t sc_faults;
-static __thread uint64_t sc_fault_addr;
-static __thread bool sc_fault_write;
 static void *sc_opaque;
 static bool sc_detaching;
 
@@ -50,20 +46,11 @@ static const bool sc_is32[SYSCALL_ABI_COUNT] = {
     [SYSCALL_ABI_RISCV32] = true,
 };
 
-/*
- * SC_INJECT: held while the task runs a call in its place (inject);
- * SC_INJECT_RET: the same at its return, the task's return held
- */
-enum { SC_PENDING, SC_HELD_ENTER, SC_HELD_RETURN, SC_INJECT, SC_INJECT_RET };
-
 typedef struct {
     uint64_t k1, k2, pc;        /* pc 0: empty */
     uint8_t len;
-    uint8_t state;              /* waiting for its return, or held */
     uint64_t seq;               /* when it was added */
     SyscallTrap sc;
-    int64_t num;                /* SC_INJECT*: the registers it replaced */
-    uint64_t args[6];
 } SCSlot;
 
 static SCSlot sc_slots[SC_SLOTS];
@@ -105,14 +92,6 @@ static void sc_unlock(void)
                                        sc_dropped->len - 1);
         g_array_set_size(sc_dropped, sc_dropped->len - 1);
         sc_drop(&sc);
-    }
-}
-
-/* sc_lock held: forget slot @s */
-static void sc_forget(SCSlot *s)
-{
-    if (s->state != SC_PENDING) {
-        qatomic_dec(&sc_held);
     }
 }
 
@@ -168,13 +147,9 @@ static void sc_evict(void)
 
     for (unsigned i = 0; i < SC_SLOTS; i++) {
         if (sc_slots[i].pc) {
-            /* a task running an injected call needs its registers back */
-            if (sc_slots[i].seq + SC_SLOTS / 2 >= sc_seq ||
-                sc_slots[i].state == SC_INJECT ||
-                sc_slots[i].state == SC_INJECT_RET) {
+            if (sc_slots[i].seq + SC_SLOTS / 2 >= sc_seq) {
                 keep[n++] = sc_slots[i];
             } else {
-                sc_forget(&sc_slots[i]);
                 sc_drop_later(&sc_slots[i].sc);
                 sc_stale++;
             }
@@ -187,9 +162,9 @@ static void sc_evict(void)
     qatomic_set(&syscall_trap_pending, n);
 }
 
-/* sc_lock held; NULL if the call could not be kept (dropped) */
-static SCSlot *sc_put(uint64_t k1, uint64_t k2, uint64_t pc, unsigned len,
-                      SyscallTrap *sc, int state)
+/* sc_lock held; the call is dropped if it cannot be kept */
+static void sc_put(uint64_t k1, uint64_t k2, uint64_t pc, unsigned len,
+                   SyscallTrap *sc)
 {
     if (qatomic_read(&syscall_trap_pending) >= SC_SLOTS * 3 / 4) {
         sc_evict();
@@ -201,7 +176,6 @@ static SCSlot *sc_put(uint64_t k1, uint64_t k2, uint64_t pc, unsigned len,
     } else {
         if (s->pc) {
             sc_stale++;         /* its return was lost */
-            sc_forget(s);
             sc_drop_later(&s->sc);
         } else {
             qatomic_inc(&syscall_trap_pending);
@@ -210,96 +184,17 @@ static SCSlot *sc_put(uint64_t k1, uint64_t k2, uint64_t pc, unsigned len,
         s->k2 = k2;
         s->pc = pc;
         s->len = len;
-        s->state = state;
         s->seq = ++sc_seq;
         s->sc = *sc;
-        if (state != SC_PENDING) {
-            qatomic_inc(&sc_held);
-        }
     }
-    return s;
 }
 
 static void sc_add(uint64_t k1, uint64_t k2, uint64_t pc, unsigned len,
-                   SyscallTrap *sc, int state)
+                   SyscallTrap *sc)
 {
     qemu_mutex_lock(&sc_lock);
-    sc_put(k1, k2, pc, len, sc, state);
+    sc_put(k1, k2, pc, len, sc);
     sc_unlock();
-}
-
-/* hold the call until the guest has handled the fault it asked for */
-static int sc_hold(uint64_t k1, uint64_t k2, uint64_t pc, unsigned len,
-                   SyscallTrap *sc, int state)
-{
-    sc_fault_addr = sc->fault_addr;
-    sc_fault_write = sc->fault_write;
-    sc->fault = false;
-    sc_add(k1, k2, pc, len, sc, state);
-    return SYSCALL_TRAP_FAULT;
-}
-
-/*
- * Run the call the consumer asked for in place of this one: keep the
- * registers it replaces with the held call; @args and *@ret become the
- * injected call's.  False if the table cannot keep it (the call is
- * dropped, and runs as it is).
- */
-static bool sc_inject(CPUState *cpu, uint64_t k1, uint64_t k2, uint64_t pc,
-                      unsigned len, SyscallTrap *sc, int64_t num,
-                      uint64_t args[6], uint64_t *ret)
-{
-    int64_t inum = sc->inject_num;
-    uint64_t iargs[6];
-    SCSlot *s;
-
-    memcpy(iargs, sc->inject_args, sizeof(iargs));
-    sc->inject = false;
-    sc->injected = false;
-    /* the target puts the registers back for these ABIs only */
-    if (!(cpu->syscall_inject_abis & (1u << sc->abi))) {
-        sc_drop(sc);
-        return false;
-    }
-    qemu_mutex_lock(&sc_lock);
-    s = sc_put(k1, k2, pc, len, sc, SC_INJECT);
-    if (s) {
-        s->num = num;
-        memcpy(s->args, args, sizeof(s->args));
-    }
-    sc_unlock();
-    if (!s) {
-        return false;
-    }
-    *ret = inum;
-    memcpy(args, iargs, sizeof(iargs));
-    return true;
-}
-
-/*
- * The call held at the trap, if this is the task coming back to it:
- * SC_HELD_ENTER, taken; SC_INJECT, a restart of the injected call (left
- * alone); or -1.
- */
-static int sc_take_held(uint64_t k1, uint64_t k2, uint64_t pc,
-                        SyscallTrap *sc)
-{
-    int found = -1;
-
-    qemu_mutex_lock(&sc_lock);
-    SCSlot *s = sc_find(k1, k2, pc);
-    if (s && s->pc && s->state == SC_HELD_ENTER) {
-        *sc = s->sc;
-        sc_forget(s);
-        sc_delete(s);
-        qatomic_dec(&syscall_trap_pending);
-        found = SC_HELD_ENTER;
-    } else if (s && s->pc && (s->state == SC_INJECT ||
-                              s->state == SC_INJECT_RET)) {
-        found = SC_INJECT;
-    }
-    sc_unlock();
-    return found;
 }
 
 int syscall_trap_enter(CPUState *cpu, int abi, int64_t num, uint64_t args[6],
@@ -314,22 +209,6 @@ int syscall_trap_enter(CPUState *cpu, int abi, int64_t num, uint64_t args[6],
     if (!ops) {
         return 0;
     }
-    int held = qatomic_read(&sc_held) ? sc_take_held(k1, k2, pc, &sc) : -1;
-
-    if (held == SC_INJECT) {
-        return 0;               /* the kernel restarts the injected call */
-    }
-    if (held == SC_HELD_ENTER) {
-        if (sc.abi == abi && sc.num == num) {
-            /* back after the fault: the registers are as they were */
-            sc.resumed = true;
-            sc.percpu = percpu;
-            memcpy(sc.args, args, sizeof(sc.args));
-            w = SYSCALL_TRAP_ENTER;
-            goto deliver;
-        }
-        sc_drop(&sc);           /* another call at the same address */
-    }
     if (num >= 0 && num < SYSCALL_TRAP_NUMS) {
         w |= sc_watch[abi][num];
     }
@@ -342,22 +221,14 @@ int syscall_trap_enter(CPUState *cpu, int abi, int64_t num, uint64_t args[6],
         .want_return = (w & SYSCALL_TRAP_RETURN) && ops->ret,
     };
     memcpy(sc.args, args, sizeof(sc.args));
-deliver:
     if ((w & SYSCALL_TRAP_ENTER) && ops->enter) {
         cpu->syscall_kmmu = kmmu;
         ops->enter(cpu, &sc, sc_opaque);
         cpu->syscall_kmmu = 0;
         if (!replay_analysis_write_allowed()) {
-            /* Deliver observations, but never skip/inject/rewrite the real call. */
-            sc.fault = sc.inject = sc.skip = false;
+            /* Deliver observations, but never skip or rewrite the real call. */
+            sc.skip = false;
             memcpy(sc.args, args, sizeof(sc.args));
-        }
-        if (sc.fault) {
-            return sc_hold(k1, k2, pc, len, &sc, SC_HELD_ENTER);
-        }
-        if (sc.inject) {
-            return sc_inject(cpu, k1, k2, pc, len, &sc, num, args, ret)
-                   ? SYSCALL_TRAP_INJECT : 0;
         }
         if (memcmp(sc.args, args, sizeof(sc.args))) {
             memcpy(args, sc.args, sizeof(sc.args));
@@ -370,149 +241,32 @@ deliver:
         }
     }
     if (sc.want_return && ops->ret) {
-        sc_add(k1, k2, pc, len, &sc, SC_PENDING);
+        sc_add(k1, k2, pc, len, &sc);
     } else {
         sc_drop(&sc);
     }
     return r;
 }
 
-/*
- * A return run that asked for an injected call (sc->inject), or one that is
- * back from one (@restore: the task has the injected call's registers).
- * Inject: hold the return as SC_INJECT_RET with the call's own number and
- * arguments (@onum, @oargs) and send the task back to the trap instruction
- * with the injected call's (REWIND).  Otherwise, with @restore, the task
- * gets its own call's registers back and the run's return value (RESTORE,
- * RET), and is held for a fault or done.
- */
-static int sc_ret_after(CPUState *cpu, uint64_t k1, uint64_t k2,
-                        uint64_t key, unsigned len, SyscallTrap *sc,
-                        int64_t onum, const uint64_t oargs[6], bool restore,
-                        uint64_t *ret, SyscallTrapRewind *rw)
-{
-    int r = 0;
-
-    if (sc->inject) {
-        SCSlot *s = NULL;
-
-        sc->inject = false;
-        sc->injected = false;
-        if (!sc->restart && (cpu->syscall_inject_abis & (1u << sc->abi))) {
-            qemu_mutex_lock(&sc_lock);
-            s = sc_put(k1, k2, key, len, sc, SC_INJECT_RET);
-            if (s) {
-                s->num = onum;
-                memcpy(s->args, oargs, sizeof(s->args));
-            }
-            sc_unlock();
-        }
-        if (s) {
-            rw->abi = sc->abi;
-            rw->num = sc->inject_num;
-            memcpy(rw->args, sc->inject_args, sizeof(rw->args));
-            rw->len = len;
-            return SYSCALL_TRAP_REWIND;
-        }
-        sc_drop(sc);            /* the run is aborted */
-    } else if (sc->fault) {
-        r = sc_hold(k1, k2, key, len, sc, SC_HELD_RETURN);
-    } else {
-        sc_drop(sc);
-    }
-    if (restore) {
-        rw->abi = sc->abi;
-        rw->num = onum;
-        memcpy(rw->args, oargs, sizeof(rw->args));
-        rw->len = 0;
-        *ret = sc_is32[sc->abi] ? (uint32_t)sc->ret : (uint64_t)sc->ret;
-        r |= SYSCALL_TRAP_RESTORE | SYSCALL_TRAP_RET;
-    }
-    return r;
-}
-
 int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
-                        uint64_t percpu, uint32_t kmmu, uint64_t *ret,
-                        SyscallTrapRewind *rw)
+                        uint64_t percpu, uint32_t kmmu, uint64_t *ret)
 {
     const SyscallTrapOps *ops = qatomic_read(&sc_ops);
     SyscallTrap sc;
     SCSlot *s;
     uint64_t key;
     unsigned len = 0;
-    bool restart = false, resumed;
+    bool restart = false;
 
     qemu_mutex_lock(&sc_lock);
     s = sc_find(k1, k2, pc);
-    if (!replay_analysis_write_allowed() && s && s->pc &&
-        (s->state == SC_INJECT || s->state == SC_INJECT_RET)) {
-        /* Host-side state from before a snapshot/replay transition must not
-         * rewind a task in the replay. */
-        sc_drop_later(&s->sc);
-        sc_forget(s);
-        sc_delete(s);
-        qatomic_dec(&syscall_trap_pending);
-        sc_unlock();
-        return 0;
-    }
-    if (s && s->pc && s->state == SC_INJECT) {
-        /*
-         * The injected call is back (after any signal handler it ran into:
-         * sigreturn brings the task back here).  The task goes back to the
-         * trap, its own call held there with the answer.
-         */
-        s->sc.injected = true;
-        s->sc.inject_ret = sc_is32[s->sc.abi] ? (int32_t)*ret : (int64_t)*ret;
-        s->state = SC_HELD_ENTER;
-        rw->abi = s->sc.abi;
-        rw->num = s->num;
-        memcpy(rw->args, s->args, sizeof(rw->args));
-        rw->len = s->len;
-        sc_unlock();
-        return SYSCALL_TRAP_REWIND;
-    }
-    if (s && s->pc && s->state == SC_INJECT_RET) {
-        /*
-         * A call injected at a return is back: the held return run gets its
-         * answer, and the task its own call's registers and return value.
-         */
-        int64_t onum = s->num;
-        uint64_t oargs[6];
-
-        sc = s->sc;
-        memcpy(oargs, s->args, sizeof(oargs));
-        len = s->len;
-        key = s->pc;
-        sc_forget(s);
-        sc_delete(s);
-        qatomic_dec(&syscall_trap_pending);
-        sc_unlock();
-        if (!ops || !ops->ret) {
-            sc_drop(&sc);
-            return 0;
-        }
-        sc.injected = true;
-        sc.inject_ret = sc_is32[sc.abi] ? (int32_t)*ret : (int64_t)*ret;
-        sc.resumed = true;
-        sc.percpu = percpu;
-        cpu->syscall_kmmu = kmmu;
-        ops->ret(cpu, &sc, sc_opaque);
-        cpu->syscall_kmmu = 0;
-        return sc_ret_after(cpu, k1, k2, key, len, &sc, onum, oargs, true,
-                            ret, rw);
-    }
-    if (!s || !s->pc || s->state == SC_HELD_ENTER) {
-        /*
-         * The kernel rewound the task to the trap: a restart, or the
-         * return from a fault raised at the trap (that call is held).
-         */
+    if (!s || !s->pc) {
+        /* the kernel rewound the task to the trap: a restart */
         static const unsigned lens[] = { 2, 4 };
         s = NULL;
         for (int i = 0; i < ARRAY_SIZE(lens) && !s; i++) {
             SCSlot *t = sc_find(k1, k2, pc + lens[i]);
-            if (t && t->pc && t->len == lens[i] &&
-                t->state != SC_HELD_ENTER && t->state != SC_INJECT &&
-                t->state != SC_INJECT_RET) {
+            if (t && t->pc && t->len == lens[i]) {
                 s = t;
             }
         }
@@ -522,11 +276,9 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
         }
         restart = true;
     }
-    resumed = s->state == SC_HELD_RETURN;
     sc = s->sc;
     len = s->len;
     key = s->pc;
-    sc_forget(s);
     sc_delete(s);
     qatomic_dec(&syscall_trap_pending);
     sc_unlock();
@@ -538,29 +290,17 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
     int64_t v = sc_is32[sc.abi] ? (int32_t)*ret : (int64_t)*ret;
     sc.ret = v;
     sc.percpu = percpu;
-    if (!resumed) {
-        sc.restart = restart;
-    }
-    restart = sc.restart;
-    sc.resumed = resumed;
+    sc.restart = restart;
     sc.keep = false;
     cpu->syscall_kmmu = kmmu;
     ops->ret(cpu, &sc, sc_opaque);
     cpu->syscall_kmmu = 0;
     if (!replay_analysis_write_allowed()) {
-        sc.fault = sc.inject = false;
         sc.ret = v;
-    }
-    if (sc.inject) {
-        return sc_ret_after(cpu, k1, k2, key, len, &sc, sc.num, sc.args,
-                            false, ret, rw);
-    }
-    if (sc.fault) {
-        return sc_hold(k1, k2, key, len, &sc, SC_HELD_RETURN);
     }
     if (sc.keep && !restart) {
         sc.ret = 0;
-        sc_add(k1, k2, key, len, &sc, SC_PENDING);
+        sc_add(k1, k2, key, len, &sc);
         return 0;
     }
     sc_drop(&sc);
@@ -571,33 +311,13 @@ int syscall_trap_return(CPUState *cpu, uint64_t pc, uint64_t k1, uint64_t k2,
     return 0;
 }
 
-void syscall_trap_fault(CPUState *cpu, uintptr_t ra)
-{
-    if (!replay_analysis_write_allowed()) {
-        return;
-    }
-#ifdef CONFIG_TCG
-    if (tcg_enabled()) {
-        qatomic_inc(&sc_faults);
-        probe_access(cpu_env(cpu), sc_fault_addr, 0,
-                     sc_fault_write ? MMU_DATA_STORE : MMU_DATA_LOAD,
-                     cpu_mmu_index(cpu, false), ra);
-    }
-#endif
-}
-
-uint64_t syscall_trap_faults(void)
-{
-    return qatomic_read(&sc_faults);
-}
-
 unsigned syscall_trap_cancel_all(void)
 {
     CPUState *cpu;
     unsigned n = 0;
 
-    /* Callers have stopped the vCPUs before replacing guest execution. Do not
-     * unwind injected registers into the new execution or remove watch policy. */
+    /* Callers have stopped the vCPUs before replacing guest execution. Watch
+     * policy stays. */
     qemu_mutex_lock(&sc_lock);
     for (unsigned i = 0; i < SC_SLOTS; i++) {
         if (sc_slots[i].pc) {
@@ -607,16 +327,9 @@ unsigned syscall_trap_cancel_all(void)
     }
     memset(sc_slots, 0, sizeof(sc_slots));
     qatomic_set(&syscall_trap_pending, 0);
-    qatomic_set(&sc_held, 0);
     CPU_FOREACH(cpu) {
         cpu->syscall_kmmu = 0;
-        cpu->syscall_inject_abis = 0;
     }
-    /* Fault scratch is vCPU TLS, consumed immediately by syscall_trap_fault
-     * before the vCPU can become stopped. These assignments clear only the
-     * caller's scratch, not other threads; no held continuation retains it. */
-    sc_fault_addr = 0;
-    sc_fault_write = false;
     sc_unlock();  /* A consumer's drop chain runs outside the lock. */
     return n;
 }
@@ -633,22 +346,11 @@ bool syscall_trap_set_consumer(const SyscallTrapOps *ops, void *opaque)
 
 bool syscall_trap_clear_consumer(const SyscallTrapOps *ops, void *opaque)
 {
-    /* Caller owns main-thread/BQL quiescence; never detach another consumer.
-     * Unlike rewind cancellation, live detach cannot abandon injected register
-     * restoration: the task must finish its injected call under the old owner. */
+    /* Caller owns main-thread/BQL quiescence; never detach another consumer. */
     if (sc_detaching || !ops || sc_ops != ops || sc_opaque != opaque) {
         return false;
     }
-    qemu_mutex_lock(&sc_lock);
-    for (unsigned i = 0; i < SC_SLOTS; i++) {
-        if (sc_slots[i].pc && (sc_slots[i].state == SC_INJECT ||
-                              sc_slots[i].state == SC_INJECT_RET)) {
-            qemu_mutex_unlock(&sc_lock);
-            return false; /* no watch, owner, counter or slot changes */
-        }
-    }
     sc_detaching = true;
-    qemu_mutex_unlock(&sc_lock);
     syscall_trap_unwatch_all();
     qatomic_set(&syscall_trap_on, false);
     syscall_trap_cancel_all(); /* old drop callback remains mapped until drained */

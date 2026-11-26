@@ -98,10 +98,10 @@ index 936b73985ab855e301ea3fbdc554e0037d9e7724..c629e346461e308493385b0a728de4ef
  {
      int ret = 0;
 diff --git a/include/hw/core/cpu.h b/include/hw/core/cpu.h
-index 8c60551a391dd330162a9e284bde1a7ca0b18710..feb491fb1273ffa2b0adce58c16ae0ce2bf225f4 100644
+index a0b1fed9b41d5373454a59291de655934802eacf..092f1389fb9fb63ba6cac3fafe3bcedf640a111b 100644
 --- a/include/hw/core/cpu.h
 +++ b/include/hw/core/cpu.h
-@@ -810,6 +810,30 @@ typedef struct TranslateForDebugResult {
+@@ -805,6 +805,30 @@ typedef struct TranslateForDebugResult {
  bool cpu_translate_for_debug(CPUState *cpu, vaddr addr,
                               TranslateForDebugResult *result);
  

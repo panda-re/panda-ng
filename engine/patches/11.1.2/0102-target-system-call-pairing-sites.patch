@@ -73,7 +73,7 @@ index bab301523caff3a68cae126b2eee83816def2dd5..7f9c3125c3b7fa20b4da7158bbb01c7d
  
    lib = static_library('qemu-' + target,
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index 79bd1c5f2af83f17434d2708039ca4881960b5a2..423aef56d70735cf7160ac00d3d9b4c76f84f5d2 100644
+index 12ae337510d90cfe8cff6c1f9c053253a78f5c84..245586a836066efea94df1412490ee2d99eeac16 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
 @@ -37,6 +37,7 @@
@@ -84,7 +84,7 @@ index 79bd1c5f2af83f17434d2708039ca4881960b5a2..423aef56d70735cf7160ac00d3d9b4c7
  
  static void switch_mode(CPUARMState *env, int mode);
  #ifndef CONFIG_USER_ONLY
-@@ -9866,6 +9867,15 @@ void arm_cpu_do_interrupt(CPUState *cs)
+@@ -9808,6 +9809,15 @@ void arm_cpu_do_interrupt(CPUState *cs)
      }
  #endif
  
@@ -258,7 +258,7 @@ index aa00d2c3f13a957e9006ca863e3f632dfaca4269..83f809756f1ba7a5ac7c920a85021eaf
          assume_cc_op(s, CC_OP_EFLAGS);
      }
 diff --git a/target/i386/tcg/seg_helper.c b/target/i386/tcg/seg_helper.c
-index 007a7122273df7296a87b1ed6b9d3b8f1e6b3a13..5bc32bea9855002b59d80ca286e4866f571391c0 100644
+index bdc4942c572207a1c78703df3830c03960d1817d..918b6ebacd4931cb2d5e4699c94683064e611e94 100644
 --- a/target/i386/tcg/seg_helper.c
 +++ b/target/i386/tcg/seg_helper.c
 @@ -31,6 +31,9 @@
@@ -271,7 +271,7 @@ index 007a7122273df7296a87b1ed6b9d3b8f1e6b3a13..5bc32bea9855002b59d80ca286e4866f
  
  #ifdef TARGET_X86_64
  #define SET_ESP(val, sp_mask)                                   \
-@@ -1350,6 +1353,15 @@ void do_interrupt_all(X86CPU *cpu, int intno, int is_int,
+@@ -1313,6 +1316,15 @@ void do_interrupt_all(X86CPU *cpu, int intno, int is_int,
              count++;
          }
      }

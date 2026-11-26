@@ -283,10 +283,10 @@ index 913dc2ad1e5cbb52b55ceb125274a2427478ef24..e75e5538c9d4f661bb83d987f49f5f28
   * arm_rebuild_hflags:
   * Rebuild the cached TBFLAGS for arbitrary changed processor state.
 diff --git a/target/arm/helper.c b/target/arm/helper.c
-index 423aef56d70735cf7160ac00d3d9b4c76f84f5d2..e59195f61b7e7bf27c735401cd9c2246e5562f09 100644
+index 245586a836066efea94df1412490ee2d99eeac16..47b6c8c6763aaf3b6155aaa7c3da539586284d09 100644
 --- a/target/arm/helper.c
 +++ b/target/arm/helper.c
-@@ -9828,12 +9828,45 @@ void arm_sc_return_aa32(CPUARMState *env)
+@@ -9770,12 +9770,45 @@ void arm_sc_return_aa32(CPUARMState *env)
      }
  }
  
@@ -332,7 +332,7 @@ index 423aef56d70735cf7160ac00d3d9b4c76f84f5d2..e59195f61b7e7bf27c735401cd9c2246
  
      assert(!arm_feature(env, ARM_FEATURE_M));
  
-@@ -9882,13 +9915,24 @@ void arm_cpu_do_interrupt(CPUState *cs)
+@@ -9824,13 +9857,24 @@ void arm_cpu_do_interrupt(CPUState *cs)
      }
  
      /*
@@ -363,7 +363,7 @@ index 423aef56d70735cf7160ac00d3d9b4c76f84f5d2..e59195f61b7e7bf27c735401cd9c2246
  
      assert(!excp_is_internal(cs->exception_index));
      if (arm_el_is_aa64(env, new_el)) {
-@@ -9897,7 +9941,12 @@ void arm_cpu_do_interrupt(CPUState *cs)
+@@ -9839,7 +9883,12 @@ void arm_cpu_do_interrupt(CPUState *cs)
          arm_cpu_do_interrupt_aarch32(cs);
      }
  
@@ -378,7 +378,7 @@ index 423aef56d70735cf7160ac00d3d9b4c76f84f5d2..e59195f61b7e7bf27c735401cd9c2246
      if (tcg_enabled()) {
          cpu_set_interrupt(cs, CPU_INTERRUPT_EXITTB);
 diff --git a/target/arm/tcg/helper-a64.c b/target/arm/tcg/helper-a64.c
-index e235c9d1aa8e30cf87dab47e5d3e949d6110118e..2892e23c3b4e8ea6bc7ce1f153a781bc2f4e5e78 100644
+index 4ce908d4b340c4fe3ad39477401a984a6da0405b..6aa72e7ae9d3d9cd2510ffd4c7de8bca66175bf0 100644
 --- a/target/arm/tcg/helper-a64.c
 +++ b/target/arm/tcg/helper-a64.c
 @@ -630,6 +630,7 @@ void HELPER(exception_return)(CPUARMState *env, uint64_t new_pc)
@@ -419,7 +419,7 @@ index e235c9d1aa8e30cf87dab47e5d3e949d6110118e..2892e23c3b4e8ea6bc7ce1f153a781bc
 +        bql_unlock();
 +    }
  
-     while (new_el == 0 && syscall_trap_waiting()) {
+     if (new_el == 0 && syscall_trap_waiting()) {
          uint64_t ret = return_to_aa64 ? env->xregs[0] : env->regs[0];
 diff --git a/target/arm/tcg/op_helper.c b/target/arm/tcg/op_helper.c
 index dd363b2fcd2bdae1c67cf2d11907a810222e271d..383eac1d86281c59d67cbc729133e88b55944b45 100644
