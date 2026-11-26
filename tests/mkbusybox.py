@@ -45,7 +45,7 @@ ARCHES = {
                     ["-M", "virt", "-cpu", "la464", "-bios", "{biospath}/edk2-loongarch64-code.fd"], 64),
 }
 
-# The rr disk device, where pandare2's default for the arch doesn't fit the kernel: linux_builder's
+# The disk device, where pandare2's default for the arch doesn't fit the kernel: linux_builder's
 # x86_64 kernel has no ATA driver.
 DISK = {"x86_64": "virtio-blk-pci", "powerpc": "virtio-blk-pci"}
 
