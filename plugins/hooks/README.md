@@ -53,9 +53,9 @@ several vCPUs, a hook whose callback was already running on another vCPU when
 
 Unloading the plugin removes its engine hooks while the vCPUs are paused, before the library is
 closed: no hook runs once the unload has happened. An unload asked for from a vCPU's callback
-(a hook, a hypercall) happens a little later, in the main loop, so hooks can still run until then
-(in practice the main loop pauses the vCPUs within the same phase of a guest program:
-`tests/hooks.py unload-hot`).
+(a hook, a hypercall) happens a little later, in the main loop; the vCPU that asked stops at the
+end of its current block and runs no more guest code until then (`tests/hooks.py unload-hot`).
+With several vCPUs, the others can still run hooks until the main loop pauses them.
 
 Events
 ------

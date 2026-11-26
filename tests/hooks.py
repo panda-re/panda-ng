@@ -37,8 +37,9 @@ phase, or not at all. Each case runs in a child process:
   the test waits for the plugin to be gone, then runs the program again: no hook fires, and the
   program finishes;
 - unload-hot: a C hook at h0, and the unload of the hooks plugin asked for from the handler of
-  hypercall 3, on the vCPU: the unload happens in the main loop, which pauses the vCPUs before
-  the program gets through its next phase: R hits, all in phase 1;
+  hypercall 3, on the vCPU: the unload happens later, in the main loop, but the vCPU that asked
+  stops at the end of its block until then, so the program runs no more of its code before the
+  hooks are gone: R hits, all in phase 1;
 - smp (--smp > 1): the program on every vCPU at once, with a C hook counting at h0 and one at h1
   that adds a self-disabling hook at h0 on every hit (the hooks at h0 replaced while every vCPU
   runs them): h0's counter is exactly vCPUs * 3R, h1's too.

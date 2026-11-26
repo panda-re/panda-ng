@@ -645,7 +645,11 @@ void panda_require(const char *plugin_name) {
  * the main thread, with the BQL, while the vCPUs are paused: if the VM is running, its vCPUs are
  * paused around the unload (pause_all_vcpus, which waits with the BQL dropped, as vm_stop does) and
  * resumed after, without a runstate change. A request from anywhere else (a vCPU, a thread without
- * the BQL) marks the plugins and leaves the unload to a main-loop bottom half.
+ * the BQL) marks the plugins and leaves the unload to a main-loop bottom half. A vCPU that asks
+ * stops at the end of its current block and stays stopped until the bottom half has run (its
+ * pause/resume of all vCPUs takes it back), so it runs no more guest code, and none of the plugin's
+ * hooks or callbacks, while the main loop gets to the unload: on an MTTCG target the other vCPUs
+ * keep running and the main loop can take long enough for the guest to get far.
  */
 /* Depth of main-thread callback walks in progress (cb-support.c): inside one, unloads are deferred. */
 int panda_main_walk_depth;
@@ -834,6 +838,10 @@ static void panda_unload_later(void)
     panda_plugin_to_unload = true;
     if (!qatomic_xchg(&panda_unload_bh_queued, true)) {
         aio_bh_schedule_oneshot(qemu_get_aio_context(), panda_unload_bh, NULL);
+    }
+    if (current_cpu) {
+        /* As vm_stop from a vCPU: resume_all_vcpus in the bottom half (or a later vm_start) clears it. */
+        cpu_stop_current();
     }
 }
 
