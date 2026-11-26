@@ -532,7 +532,8 @@ class Panda(TaintMixin):
             self.plugin_interface = self.ffi.dlopen(plugin_interface, self.ffi.RTLD_GLOBAL)
             self.panda_args.extend(["-plugin", plugin_interface])
 
-        # The disk device each arch gets for a bare qcow, when rr needs to name it.
+        # The disk device each arch gets for a bare qcow, when rr needs to name it. An image's
+        # disk_device replaces it, and names the disk's device on any machine.
         rr_disk = {'x86_64': 'ide-hd,bus=ide.0,unit=0', 'i386': 'ide-hd,bus=ide.0,unit=0',
                    'aarch64': 'virtio-blk-pci', 'riscv64': 'virtio-blk-pci', 'arm': 'virtio-blk-device',
                    'ppc64': 'scsi-hd,bus=rr-vscsi.0,scsi-id=0,lun=0',
@@ -551,6 +552,10 @@ class Panda(TaintMixin):
                 args += ["-blockdev", f"driver=file,filename={self.qcow},node-name=panda-disk-file",
                          "-blockdev", "driver=qcow2,file=panda-disk-file,node-name=panda-disk-qcow2",
                          "-blockdev", "driver=blkreplay,image=panda-disk-qcow2,node-name=panda-disk"]
+            elif self.qcow and disk_device:
+                # The image's own disk device, attached below like the recordable machine's: its
+                # snapshots (taken on either machine) name that device in that slot.
+                args += ["-drive", f"file={self.qcow},if=none,id=panda-disk"]
             elif self.qcow:
                 if self.arch_name in ['mips64', 'mips64el', 'riscv64']:
                     # XXX: mips64 (and riscv64's virt, which has no IDE) need virtio for the qcow
@@ -566,7 +571,7 @@ class Panda(TaintMixin):
             # "{biospath}" in an argument is the firmware directory (-L), for firmware QEMU doesn't look
             # up there itself (pflash: riscv64's EDK2).
             args += [a.replace("{biospath}", biospath) for a in extra_args]
-            if self.qcow and rr and self.arch_name in rr_disk:
+            if self.qcow and ((rr and self.arch_name in rr_disk) or disk_device):
                 # After extra_args' -devices, where a -drive's own device goes: the same PCI slot, so
                 # the image's snapshots still load.
                 if self.arch_name == 'ppc64':
