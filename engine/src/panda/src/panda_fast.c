@@ -60,6 +60,7 @@
 #include "qemu/error-report.h"
 #include "migration/savevm.h"
 #include "migration/misc.h"
+#include "migration/global_state.h"
 #include "hw/virtio/vhost.h"
 #include "system/replay.h"
 #include "system/replay-conflicts.h"
@@ -474,6 +475,12 @@ int panda_fast_snap(void) {
     if (!fast_discard_off("panda_fast_snap")) {
         return -1;
     }
+    /*
+     * As savevm does: record the run state the "globalstate" section saves before stopping. It is
+     * empty until something stores it (savevm, loadvm, a migration), and its post_load rejects an
+     * empty one, so a snapshot of a machine that was booted cold would never load.
+     */
+    global_state_store();
     if (runstate_is_running()) {
         vm_stop(RUN_STATE_SAVE_VM);
     }
