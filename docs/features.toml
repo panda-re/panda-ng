@@ -227,9 +227,9 @@ api = ["py:Panda.record", "py:Panda.record_cmd", "py:Panda.end_record", "py:Pand
        "qemu:-capabilities record", "qemu:-accel tcg,rr-ready=on"]
 docs = ["docs/guides/record-replay.md"]
 tests = ["tests/rr.py", "tests/rrcb.py", "tests/rrstop.py", "tests/rrload.py", "tests/rr_blocks.py",
-         "tests/replay_guard.py", "tests/static/replay_policy.py", "tests/static/replay_native.py",
+         "tests/replay_guard.py", "tests/replay_exception_missing.py", "tests/static/replay_policy.py", "tests/static/replay_native.py",
          "tests/static/replay_bh.py", "tests/static/replay_conflicts.py"]
-patches = ["0024-0027", "0029", "0036-0039", "0049-0051", "0065-0067", "0071", "0072", "0083", "0084", "0087-0089", "0094", "0095", "0096", "0098", "0099", "0100"]
+patches = ["0024-0027", "0029", "0036-0039", "0049-0051", "0065-0067", "0071", "0072", "0083", "0084", "0087-0089", "0094", "0095", "0096", "0098", "0099", "0100", "0111"]
 
 [[feature]]
 id = "recorded-ram-effects"
