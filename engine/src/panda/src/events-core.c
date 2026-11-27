@@ -59,6 +59,7 @@ const PandaCoreEventDef panda_core_events[] = {
     CORE(BEFORE_HANDLE_INTERRUPT, before_handle_interrupt, "cpu:ptr,interrupt_request:i32"),
     CORE(START_BLOCK_EXEC, start_block_exec, "cpu:ptr,tb:ptr"),
     CORE(END_BLOCK_EXEC, end_block_exec, "cpu:ptr,tb:ptr"),
+    CORE(AFTER_GUEST_HYPERCALL, after_guest_hypercall, "cpu:ptr,hc:ptr"),
 };
 
 const size_t panda_core_events_count = ARRAY_SIZE(panda_core_events);

@@ -58,6 +58,17 @@ bool replay_guest_write_begin(CPUState *cpu, ReplayGuestSite site);
 void replay_guest_write_end(CPUState *cpu, bool handled, uint64_t ret);
 /* Replaying only: apply the recorded writes; returns handled, sets *ret. */
 bool replay_guest_write_replay(CPUState *cpu, ReplayGuestSite site, uint64_t *ret);
+/*
+ * For observers of a site's answer (after_guest_hypercall), on the vCPU thread. keep(true) drops
+ * what was kept and keeps the writes of the next scopes this thread ends or replays (the last
+ * one wins) until keep(false), which frees them. last_op() reads write @i of the kept scope:
+ * kind is the panda_hypercall_write_kind (the log's op), address the virtual or physical address
+ * or env offset. Nothing is kept without record/replay.
+ */
+void replay_guest_write_keep(bool keep);
+unsigned replay_guest_write_last_count(void);
+bool replay_guest_write_last_op(unsigned i, uint8_t *kind, uint8_t *result, int32_t *reg,
+                                uint64_t *address, uint32_t *length, const uint8_t **data);
 
 /* For guest-write APIs during record/replay: 0 (GUEST_WRITE_OK) if a write of
  * @length may go ahead now, else the refusal. While recording inside a scope on

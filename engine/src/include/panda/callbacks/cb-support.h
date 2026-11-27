@@ -159,5 +159,7 @@ void panda_callbacks_cpu_restore_state(CPUState *env, TranslationBlock *tb);
 void panda_callbacks_before_tcg_codegen(CPUState *env, TranslationBlock *tb);
 void panda_callbacks_start_block_exec(CPUState *env, TranslationBlock *tb);
 void panda_callbacks_end_block_exec(CPUState *env, TranslationBlock *tb);
+struct panda_hypercall_info;
+void panda_callbacks_after_guest_hypercall(CPUState *env, struct panda_hypercall_info *hc);
 
 void panda_install_block_callbacks(CPUState* cpu, TranslationBlock* tb);

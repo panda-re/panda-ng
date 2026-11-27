@@ -2,7 +2,7 @@
 
 # Callbacks
 
-52 callback types (`engine/src/include/panda/callbacks/cb-defs.h`). 26 fire; 16 are declared but have no call site in this engine yet, and 10 abort at registration. Register them from Python with the `@panda.cb_<name>` decorators, or from C with `panda_register_callback`. The decorator of a callback that doesn't fire raises NotImplementedError, saying why.
+53 callback types (`engine/src/include/panda/callbacks/cb-defs.h`). 27 fire; 16 are declared but have no call site in this engine yet, and 10 abort at registration. Register them from Python with the `@panda.cb_<name>` decorators, or from C with `panda_register_callback`. The decorator of a callback that doesn't fire raises NotImplementedError, saying why.
 
 The status comes from `pandare2.callbacks` (`python/core/pandare2/callbacks.py`); `tests/callbacks.py` registers every callback on each test image and fails if one listed as missing starts firing, so this table stays true.
 
@@ -62,6 +62,7 @@ Under KVM (`Panda(accel="kvm")`) only `after_loadvm`, `after_machine_init`, `mai
 | `before_handle_interrupt` | no call site (the cpu_exec_interrupt wrapper is commented out in wrap_ops.c) |  | Called just before we are about to handle an interrupt. |
 | `start_block_exec` | fires | raises | Runs at the block's entry, after the entry interrupt/icount check and before its first guest instruction. |
 | `end_block_exec` | fires | raises | Runs after normal completion of the block's guest operations and outgoing PC update, before a direct link, indirect link or dispatcher return. |
+| `after_guest_hypercall` | fires | raises | Runs once for every guest hypercall after it has been answered, in live runs, while recording and in replay, whoever answered it: the embedding API's consumer, a guest_hypercall callback, or nobody. |
 
 ## Signatures
 
@@ -117,3 +118,4 @@ Under KVM (`Panda(accel="kvm")`) only `after_loadvm`, `after_machine_init`, `mai
 - `before_handle_interrupt`: `int32_t (*before_handle_interrupt)(CPUState *cpu, int32_t interrupt_request);`
 - `start_block_exec`: `void (*start_block_exec)(CPUState *cpu, TranslationBlock* tb);`
 - `end_block_exec`: `void (*end_block_exec)(CPUState *cpu, TranslationBlock* tb);`
+- `after_guest_hypercall`: `void (*after_guest_hypercall)(CPUState *env, panda_hypercall_info *hc);`

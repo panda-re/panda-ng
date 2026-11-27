@@ -6,6 +6,7 @@
 #include "system/replay-effect.h"
 #include "panda/guest-write.h"
 #include "system/panda-embed.h"
+#include "panda/hooks.h"
 #include "system/address-spaces.h"
 #include "system/memory.h"
 #include "system/hw_accel.h"
@@ -135,6 +136,8 @@ static bool panda_answer_guest_hypercall(CPUState *cs, uint64_t nr,
 /*
  * Every call is one hypercall event while recording, answered or not, so
  * replay reads the answer without knowing which consumers the recording had.
+ * Observers (observe-only guest_hypercall, after_guest_hypercall) see every
+ * call, in all modes: in replay the answer they get is the logged one.
  */
 bool panda_handle_guest_hypercall(CPUState *cs, uint64_t nr,
                                   uint64_t a0, uint64_t a1,
@@ -142,19 +145,22 @@ bool panda_handle_guest_hypercall(CPUState *cs, uint64_t nr,
                                   uint64_t a4, uint64_t a5,
                                   uint64_t *ret)
 {
+    const uint64_t args[6] = { a0, a1, a2, a3, a4, a5 };
     bool handled;
 
+    panda_guest_hypercall_begin(cs, nr, args);
     if (replay_mode == REPLAY_MODE_PLAY) {
-        return replay_guest_write_replay(cs, REPLAY_GUEST_SITE_HYPERCALL, ret);
+        handled = replay_guest_write_replay(cs, REPLAY_GUEST_SITE_HYPERCALL, ret);
+    } else if (!replay_guest_write_begin(cs, REPLAY_GUEST_SITE_HYPERCALL)) {
+        handled = panda_answer_guest_hypercall(cs, nr, a0, a1, a2, a3, a4, a5,
+                                               ret);
+    } else {
+        *ret = 0;
+        handled = panda_answer_guest_hypercall(cs, nr, a0, a1, a2, a3, a4, a5,
+                                               ret);
+        replay_guest_write_end(cs, handled, handled ? *ret : 0);
     }
-    if (!replay_guest_write_begin(cs, REPLAY_GUEST_SITE_HYPERCALL)) {
-        return panda_answer_guest_hypercall(cs, nr, a0, a1, a2, a3, a4, a5,
-                                            ret);
-    }
-    *ret = 0;
-    handled = panda_answer_guest_hypercall(cs, nr, a0, a1, a2, a3, a4, a5,
-                                           ret);
-    replay_guest_write_end(cs, handled, handled ? *ret : 0);
+    panda_guest_hypercall_embedder_done(cs, handled, handled ? *ret : 0);
     return handled;
 }
 

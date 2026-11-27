@@ -100,9 +100,46 @@ typedef enum panda_cb_type {
     PANDA_CB_BEFORE_HANDLE_INTERRUPT, // ditto, for interrupts
     PANDA_CB_START_BLOCK_EXEC,
     PANDA_CB_END_BLOCK_EXEC,
+    PANDA_CB_AFTER_GUEST_HYPERCALL, // every guest hypercall, with its answer
 
     PANDA_CB_LAST
 } panda_cb_type;
+
+/* after_guest_hypercall: who answered a guest hypercall */
+typedef enum panda_hypercall_answerer {
+    PANDA_HYPERCALL_UNANSWERED = 0, /* nobody took it: the guest's registers are unchanged */
+    PANDA_HYPERCALL_EMBEDDER = 1,   /* the embedding API's consumer (panda_set_guest_hypercall_callback) */
+    PANDA_HYPERCALL_PLUGIN = 2,     /* a guest_hypercall callback */
+} panda_hypercall_answerer;
+
+/* after_guest_hypercall: one guest write the answer made (panda/guest-write.h), in order */
+typedef enum panda_hypercall_write_kind {
+    PANDA_HYPERCALL_WRITE_VIRT = 1, /* guest memory through the page tables: addr is virtual */
+    PANDA_HYPERCALL_WRITE_PHYS = 2, /* guest RAM: addr is physical */
+    PANDA_HYPERCALL_WRITE_REG = 3,  /* register reg (gdbstub number) */
+    PANDA_HYPERCALL_WRITE_ENV = 4,  /* bytes of the vCPU's env: addr is the offset */
+    PANDA_HYPERCALL_WRITE_SYNC = 5, /* env-derived state rebuilt (no data) */
+} panda_hypercall_write_kind;
+
+typedef struct panda_hypercall_write {
+    uint8_t kind;           /* panda_hypercall_write_kind */
+    uint8_t result;         /* GuestWriteResult: 0 if the write was made */
+    int32_t reg;
+    uint64_t addr;
+    uint32_t len;
+    const uint8_t *data;    /* len bytes, valid until the callback returns */
+} panda_hypercall_write;
+
+typedef struct panda_hypercall_info {
+    uint64_t nr;            /* the hypercall number, as the guest issued it */
+    uint64_t args[6];       /* its arguments, as the guest issued them (unused ones 0) */
+    uint8_t answerer;       /* panda_hypercall_answerer */
+    bool handled;           /* answerer != PANDA_HYPERCALL_UNANSWERED */
+    uint64_t ret;           /* the value the guest's return register gets (0 if unanswered) */
+    bool writes_known;      /* true while recording or replaying: writes below are the log's */
+    uint32_t nwrites;
+    const panda_hypercall_write *writes;
+} panda_hypercall_info;
 
 // Union of all possible callback function types
 typedef union panda_cb {
@@ -1212,6 +1249,38 @@ typedef union panda_cb {
         none
     */
     void (*end_block_exec)(CPUState *cpu, TranslationBlock* tb);
+
+    /* Callback ID: PANDA_CB_AFTER_GUEST_HYPERCALL
+
+       after_guest_hypercall:
+        Runs once for every guest hypercall after it has been answered, in
+        live runs, while recording and in replay, whoever answered it: the
+        embedding API's consumer, a guest_hypercall callback, or nobody.
+        Replay delivers it at the same instruction with the same values as
+        the recording, from the log, without running the consumers.
+        Observe-only: it must not change the guest. Costs nothing unless
+        one is registered.
+
+       Arguments:
+        CPUState *env:            the current CPU state
+        panda_hypercall_info *hc: the number and arguments as the guest
+                                  issued them, who answered, the return
+                                  value, and (record/replay) the guest
+                                  writes the answer made. Valid until the
+                                  callback returns.
+
+       Helper call location: the target's guest hypercall instruction
+
+       Return value:
+        none
+
+       Notes:
+        The answer's guest writes have been applied; the return register
+        gets hc->ret when the instruction completes, after this callback.
+        Observe-only guest_hypercall callbacks see every hypercall too,
+        before the answer.
+    */
+    void (*after_guest_hypercall)(CPUState *env, panda_hypercall_info *hc);
 
     /* cbaddr is a dummy union member.
 
@@ -2330,6 +2399,38 @@ typedef union panda_cb_with_context {
         none
     */
     void (*end_block_exec)(void* context, CPUState *cpu, TranslationBlock* tb);
+
+    /* Callback ID: PANDA_CB_AFTER_GUEST_HYPERCALL
+
+       after_guest_hypercall:
+        Runs once for every guest hypercall after it has been answered, in
+        live runs, while recording and in replay, whoever answered it: the
+        embedding API's consumer, a guest_hypercall callback, or nobody.
+        Replay delivers it at the same instruction with the same values as
+        the recording, from the log, without running the consumers.
+        Observe-only: it must not change the guest. Costs nothing unless
+        one is registered.
+
+       Arguments:
+        CPUState *env:            the current CPU state
+        panda_hypercall_info *hc: the number and arguments as the guest
+                                  issued them, who answered, the return
+                                  value, and (record/replay) the guest
+                                  writes the answer made. Valid until the
+                                  callback returns.
+
+       Helper call location: the target's guest hypercall instruction
+
+       Return value:
+        none
+
+       Notes:
+        The answer's guest writes have been applied; the return register
+        gets hc->ret when the instruction completes, after this callback.
+        Observe-only guest_hypercall callbacks see every hypercall too,
+        before the answer.
+    */
+    void (*after_guest_hypercall)(void* context, CPUState *env, panda_hypercall_info *hc);
 
     /* cbaddr is a dummy union member.
 

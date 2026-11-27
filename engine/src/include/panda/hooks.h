@@ -46,6 +46,13 @@ bool panda_callbacks_asid_changed(CPUState *cpu, uint64_t oldval, uint64_t newva
 bool panda_asid_reg_write(CPUState *cpu, void *reg, unsigned size, uint64_t val);
 /* true: a plugin handled the hypercall and set the guest's registers itself */
 bool panda_callbacks_guest_hypercall(CPUState *cpu);
+/* Every guest hypercall starts here, before anyone answers it (panda_handle_guest_hypercall):
+ * observe-only guest_hypercall callbacks run, and an after_guest_hypercall observer gets @nr and
+ * @args as the guest issued them. */
+void panda_guest_hypercall_begin(CPUState *cpu, uint64_t nr, const uint64_t args[6]);
+/* The embedding API answered it (@handled, @ret), or declined it. A declined one on TCG goes on
+ * to panda_callbacks_guest_hypercall, which finishes it; otherwise after_guest_hypercall runs. */
+void panda_guest_hypercall_embedder_done(CPUState *cpu, bool handled, uint64_t ret);
 /* false after panda_disable_tb_chaining(): every TB returns to cpu_exec (CF_NO_GOTO_TB and
  * CF_NO_GOTO_PTR in each vCPU's tcg_cflags). The block-exec callbacks don't need it (they run from
  * the block's own code); kept for plugins that want it. */
@@ -102,6 +109,14 @@ static inline bool panda_asid_reg_write(CPUState *cpu, void *reg, unsigned size,
 static inline bool panda_callbacks_guest_hypercall(CPUState *cpu)
 {
     return false;
+}
+static inline void panda_guest_hypercall_begin(CPUState *cpu, uint64_t nr,
+                                               const uint64_t args[6])
+{
+}
+static inline void panda_guest_hypercall_embedder_done(CPUState *cpu, bool handled,
+                                                       uint64_t ret)
+{
 }
 
 #endif
