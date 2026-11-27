@@ -48592,6 +48592,9 @@ unsafe extern "C" {
     pub fn panda_bridge_tb_trans_on(cpu_index: ::std::os::raw::c_int) -> bool;
 }
 unsafe extern "C" {
+    pub fn panda_block_gate_for(tb: *mut TranslationBlock, end: bool) -> ::std::os::raw::c_uint;
+}
+unsafe extern "C" {
     pub fn panda_block_gates_update();
 }
 unsafe extern "C" {
