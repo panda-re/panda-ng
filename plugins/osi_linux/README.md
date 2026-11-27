@@ -116,6 +116,12 @@ Once you've obtained the address, you can add the task.switch_task_hook_addr fie
     [...]
     task.switch_task_hook_addr = <Address extracted from System.map>
 
+On arm64 (Linux 4.10 and later), give the address of the per-cpu variable `__entry_task` as `task.entry_task_addr` (the gdb extractor writes it):
+
+    task.entry_task_addr = <Address of __entry_task from System.map>
+
+The kernel keeps `current` in `sp_el0` while it runs, but in user mode `sp_el0` is the user's stack pointer; there `osi_linux` reads the CPU's `__entry_task` instead. Without the address it has to track `sp_el0` with a callback on every block, which about doubles the guest's run time.
+
 
 When taking a recording to be used with `osi_linux`, ASLR must be disabled in the guest, if it is available.
 

@@ -13,14 +13,17 @@ target_ptr_t default_get_current_task_struct(CPUState *cpu)
     target_ptr_t ts;
 
 #ifdef TARGET_AARCH64
-    extern target_ptr_t spel0;
+    extern bool aarch64_current(CPUState *cpu, target_ptr_t *out);
+    target_ptr_t spel0 = 0;
     //aarch64
     if (PROFILE_KVER_GE(ki, 4, 10, 0)){
         // https://elixir.bootlin.com/linux/v4.10/source/arch/arm64/include/asm/current.h#L25
+        aarch64_current(cpu, &spel0);
         return spel0;
     } else if (PROFILE_KVER_GE(ki, 4, 6, 0)) {
         // untested
         // https://elixir.bootlin.com/linux/v4.6/source/arch/arm64/include/asm/thread_info.h#L79
+        aarch64_current(cpu, &spel0);
         target_ptr_t task_thread_info = spel0;
         current_task_addr = task_thread_info+0x10;
         err = struct_get(cpu, &ts, current_task_addr, 0);
