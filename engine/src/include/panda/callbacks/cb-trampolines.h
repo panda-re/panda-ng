@@ -83,3 +83,5 @@ void panda_cb_trampoline_cpu_restore_state(void* context, CPUState *env, Transla
 void panda_cb_trampoline_before_tcg_codegen(void* context, CPUState *env, TranslationBlock *tb);
 void panda_cb_trampoline_start_block_exec(void* context, CPUState *env, TranslationBlock *tb);
 void panda_cb_trampoline_end_block_exec(void* context, CPUState *env, TranslationBlock *tb);
+struct panda_hypercall_info;
+void panda_cb_trampoline_after_guest_hypercall(void* context, CPUState *env, struct panda_hypercall_info *hc);

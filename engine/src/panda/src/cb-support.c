@@ -18,6 +18,7 @@
 #include "panda/panda_api.h"
 #include "system/replay.h"
 #include "system/replay-effect.h"
+#include "system/tcg.h"
 
 #define PCB(name) panda_callbacks_ ## name
 
@@ -322,36 +323,116 @@ static bool guest_hypercall_run(CPUState *env, bool observers)
     return any_true;
 }
 
+MAKE_CALLBACK(void, AFTER_GUEST_HYPERCALL, after_guest_hypercall,
+                    CPUState*, env, panda_hypercall_info*, hc)
+
 /*
- * Record/replay: observers run first and see the hypercall as the guest made
- * it. Recording then logs the mutators' answer as one hypercall event, and
- * replay applies that answer without running them (replay-effect.h).
+ * The hypercall in progress on this vCPU thread, from panda_guest_hypercall_begin() to its
+ * answer. observed: the observe-only guest_hypercall callbacks have run for it. active: an
+ * after_guest_hypercall callback wants its answer.
+ */
+static __thread struct {
+    bool observed;
+    bool active;
+    uint64_t nr;
+    uint64_t args[6];
+} guest_hypercall_now;
+
+void panda_guest_hypercall_begin(CPUState *cpu, uint64_t nr, const uint64_t args[6])
+{
+    guest_hypercall_now.observed = false;
+    guest_hypercall_now.active = false;
+    if (!tcg_enabled()) {
+        return;     /* neither callback is admitted under KVM */
+    }
+    if (panda_cbs[PANDA_CB_GUEST_HYPERCALL] != NULL) {
+        /* every hypercall, the embedder's too, as the guest made it */
+        guest_hypercall_run(cpu, true);
+        guest_hypercall_now.observed = true;
+    }
+    if (panda_cbs[PANDA_CB_AFTER_GUEST_HYPERCALL] != NULL) {
+        guest_hypercall_now.active = true;
+        guest_hypercall_now.nr = nr;
+        memcpy(guest_hypercall_now.args, args, sizeof(guest_hypercall_now.args));
+        if (replay_mode != REPLAY_MODE_NONE) {
+            replay_guest_write_keep(true);  /* the answer's logged writes, for the observer */
+        }
+    }
+}
+
+static void guest_hypercall_finish(CPUState *cpu, panda_hypercall_answerer answerer,
+                                   uint64_t ret)
+{
+    if (!guest_hypercall_now.active) {
+        return;
+    }
+    guest_hypercall_now.active = false;
+
+    panda_hypercall_info hc = {
+        .nr = guest_hypercall_now.nr,
+        .answerer = answerer,
+        .handled = answerer != PANDA_HYPERCALL_UNANSWERED,
+        .ret = ret,
+        .writes_known = replay_mode != REPLAY_MODE_NONE,
+    };
+    memcpy(hc.args, guest_hypercall_now.args, sizeof(hc.args));
+    unsigned n = hc.writes_known ? replay_guest_write_last_count() : 0;
+    g_autofree panda_hypercall_write *writes = n ? g_new0(panda_hypercall_write, n) : NULL;
+    for (unsigned i = 0; i < n; i++) {
+        panda_hypercall_write *w = &writes[i];
+        replay_guest_write_last_op(i, &w->kind, &w->result, &w->reg, &w->addr, &w->len,
+                                   &w->data);
+    }
+    hc.nwrites = n;
+    hc.writes = writes;
+    panda_callbacks_after_guest_hypercall(cpu, &hc);
+    if (hc.writes_known) {
+        replay_guest_write_keep(false);
+    }
+}
+
+void panda_guest_hypercall_embedder_done(CPUState *cpu, bool handled, uint64_t ret)
+{
+    if (handled) {
+        guest_hypercall_finish(cpu, PANDA_HYPERCALL_EMBEDDER, ret);
+    } else if (!tcg_enabled()) {
+        guest_hypercall_finish(cpu, PANDA_HYPERCALL_UNANSWERED, 0);
+    }
+    /* else panda_callbacks_guest_hypercall() follows and finishes it */
+}
+
+static void guest_hypercall_done(CPUState *env, bool handled)
+{
+    guest_hypercall_finish(env, handled ? PANDA_HYPERCALL_PLUGIN : PANDA_HYPERCALL_UNANSWERED,
+                           handled ? (uint64_t)panda_get_retval(env) : 0);
+}
+
+/*
+ * Reached when the embedding API declined the hypercall. Observers ran first, at
+ * panda_guest_hypercall_begin(), and saw it as the guest made it. Record/replay: recording
+ * then logs the mutators' answer as one hypercall event, and replay applies that answer
+ * without running them (replay-effect.h).
  */
 bool panda_callbacks_guest_hypercall(CPUState *env)
 {
     uint64_t ret;
     bool handled;
 
+    if (!guest_hypercall_now.observed) {
+        guest_hypercall_run(env, true);
+    }
+    guest_hypercall_now.observed = false;
     if (replay_mode == REPLAY_MODE_NONE) {
-        bool any_true = false;
-        for (panda_cb_list *plist = panda_cbs[PANDA_CB_GUEST_HYPERCALL];
-             plist != NULL; plist = panda_cb_list_next(plist)) {
-            if (plist->enabled) {
-                bool result = plist->entry.guest_hypercall(plist->context, env);
-                any_true |= !panda_callback_observe_only(plist) && result;
-            }
-        }
-        return any_true;
+        handled = guest_hypercall_run(env, false);
+    } else if (replay_mode == REPLAY_MODE_PLAY) {
+        handled = replay_guest_write_replay(env, REPLAY_GUEST_SITE_HYPERCALL, &ret);
+    } else if (!replay_guest_write_begin(env, REPLAY_GUEST_SITE_HYPERCALL)) {
+        handled = guest_hypercall_run(env, false);
+    } else {
+        handled = guest_hypercall_run(env, false);
+        replay_guest_write_end(env, handled, 0);
     }
-    guest_hypercall_run(env, true);
-    if (replay_mode == REPLAY_MODE_PLAY) {
-        return replay_guest_write_replay(env, REPLAY_GUEST_SITE_HYPERCALL, &ret);
-    }
-    if (!replay_guest_write_begin(env, REPLAY_GUEST_SITE_HYPERCALL)) {
-        return guest_hypercall_run(env, false);
-    }
-    handled = guest_hypercall_run(env, false);
-    replay_guest_write_end(env, handled, 0);
+    guest_hypercall_done(env, handled);
     return handled;
 }
 

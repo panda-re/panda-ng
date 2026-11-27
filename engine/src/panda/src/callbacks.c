@@ -110,6 +110,7 @@ uint32_t panda_callback_supported_modes(panda_cb_type type)
     case PANDA_CB_BEFORE_HANDLE_EXCEPTION:
     case PANDA_CB_START_BLOCK_EXEC:
     case PANDA_CB_END_BLOCK_EXEC:
+    case PANDA_CB_AFTER_GUEST_HYPERCALL:
     /* Retained ABI, currently no call site (see pandare2.callbacks). */
     case PANDA_CB_BEFORE_TCG_CODEGEN:
     case PANDA_CB_AFTER_INSN_TRANSLATE:
@@ -957,6 +958,7 @@ panda_cb_with_context panda_get_cb_trampoline(panda_cb_type type) {
         CASE_CB_TRAMPOLINE(BEFORE_HANDLE_INTERRUPT,before_handle_interrupt)
         CASE_CB_TRAMPOLINE(START_BLOCK_EXEC,start_block_exec)
         CASE_CB_TRAMPOLINE(END_BLOCK_EXEC,end_block_exec)
+        CASE_CB_TRAMPOLINE(AFTER_GUEST_HYPERCALL,after_guest_hypercall)
 
         default: assert(false);
     }

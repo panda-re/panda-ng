@@ -171,6 +171,32 @@ too, and returns the recorded answer. A write whose result differs from the reco
 the replay with a divergence error. Observe-only hypercall callbacks run in both, before the
 writes.
 
+Observers see every hypercall, whoever answers it. Observe-only `guest_hypercall` callbacks run
+first, with the guest's registers as it issued the call, also for the calls the embedding API's
+consumer takes (as Penguin takes all of its own). `after_guest_hypercall` runs once the call is
+answered and gets a `panda_hypercall_info`: the number and the six arguments as issued, who
+answered (`answerer`: 0 nobody, 1 the embedding API's consumer, 2 a `guest_hypercall`
+callback), `handled`, the return value (`ret`), and, while recording or replaying, the guest
+writes the answer made (`writes_known`, `nwrites`, `writes`: kind, result, register, address,
+length and bytes, as logged; a virtual-memory write is logged per page by guest physical
+address). Replay delivers both at the recording's instruction counts with the recording's
+values, taken from the log, without the consumers. So a replay with only observers can rebuild
+what the consumers saw and answered, e.g. a syscall trace from a tool that reports syscalls
+through hypercalls:
+
+```python
+@panda.cb_after_guest_hypercall(observe_only=True)
+def seen(cpu, hc):
+    print(panda.rr_get_guest_instr_count(), hex(hc.nr), [hc.args[i] for i in range(6)],
+          hc.answerer, hex(hc.ret), [(w.kind, hex(w.addr), w.len) for w in hc.writes[0:hc.nwrites]])
+```
+
+The return register gets `ret` when the hypercall instruction completes, after the callback;
+the writes have been made. Without record/replay the writes are not collected (`writes_known`
+is false). Both callbacks cost nothing unless one is registered. `tests/hypercall_observe.py`
+answers hypercalls through the embedding API and a `@panda.hypercall` handler while recording,
+then replays with only the observers and checks that they see the recording's sequence.
+
 Changing guest state any other way is unsupported. That includes storing into CPU state
 through `panda_cpu_env`, cffi's `env_ptr` or `cpu_env()` in C, and target helpers that
 rewrite env. Nothing logs such a write, so a replay of that recording diverges, usually

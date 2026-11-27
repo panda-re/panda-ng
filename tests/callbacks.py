@@ -42,7 +42,7 @@ COVERED_ELSEWHERE = {"before_block_exec", "after_block_exec", "start_block_exec"
                      "virt_mem_before_read", "virt_mem_before_write", "phys_mem_before_read",
                      "phys_mem_before_write", "virt_mem_after_read", "virt_mem_after_write",
                      "phys_mem_after_read", "phys_mem_after_write", "mmio_after_read", "mmio_before_write",
-                     "guest_hypercall"}
+                     "guest_hypercall", "after_guest_hypercall"}
 EXERCISED_ONLY_ON = {"unassigned_io_read": {"x86_64"}, "unassigned_io_write": {"x86_64"}}
 C = Checks(arch, {f"{n} fires": why for n, why in NO_CALL_SITE.items()})
 

@@ -286,6 +286,8 @@ typedef struct GuestScope {
 } GuestScope;
 
 static __thread GuestScope *guest_scope;
+static __thread bool guest_keep;
+static __thread GuestScope *guest_last;  /* kept for observers (replay_guest_write_keep) */
 static const GuestLayout *guest_layout;
 
 void replay_guest_layout_register(const GuestLayout *layout)
@@ -309,6 +311,49 @@ static void guest_scope_free(GuestScope *scope)
     }
     g_free(scope->ops);
     g_free(scope);
+}
+
+/* A closed scope: keep it for observers, or free it */
+static void guest_scope_done(GuestScope *scope)
+{
+    if (!guest_keep) {
+        guest_scope_free(scope);
+        return;
+    }
+    if (guest_last) {
+        guest_scope_free(guest_last);
+    }
+    guest_last = scope;
+}
+
+void replay_guest_write_keep(bool keep)
+{
+    if (guest_last) {
+        guest_scope_free(guest_last);
+        guest_last = NULL;
+    }
+    guest_keep = keep;
+}
+
+unsigned replay_guest_write_last_count(void)
+{
+    return guest_last ? guest_last->nops : 0;
+}
+
+bool replay_guest_write_last_op(unsigned i, uint8_t *kind, uint8_t *result, int32_t *reg,
+                                uint64_t *address, uint32_t *length, const uint8_t **data)
+{
+    if (!guest_last || i >= guest_last->nops) {
+        return false;
+    }
+    const GuestOp *o = &guest_last->ops[i];
+    *kind = o->op;
+    *result = o->result;
+    *reg = o->reg;
+    *address = o->address;
+    *length = o->length;
+    *data = o->data;
+    return true;
 }
 
 static void guest_log(GuestOp op, const void *data)
@@ -567,7 +612,7 @@ void replay_guest_write_end(CPUState *cpu, bool handled, uint64_t ret)
         replay_put_dword(o->length);
         for (uint32_t b = 0; b < o->length; b++) replay_put_byte(o->data[b]);
     }
-    guest_scope_free(scope);
+    guest_scope_done(scope);
 }
 
 static G_NORETURN void guest_invalid(GuestScope *scope, const char *error)
@@ -642,6 +687,6 @@ bool replay_guest_write_replay(CPUState *cpu, ReplayGuestSite site, uint64_t *re
     if (guest_env_written(scope)) {
         tlb_flush(cpu);
     }
-    guest_scope_free(scope);
+    guest_scope_done(scope);
     return handled;
 }
