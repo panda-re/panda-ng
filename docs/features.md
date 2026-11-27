@@ -320,7 +320,7 @@ loops: `panda_fast_snap` and `panda_fast_restore`. Every clock rewinds, the x86 
 restore copies back the dirty pages (pflash storage included) and loads the device state, without
 a machine reset. tests/fuzz.py runs a fuzzing loop with it.
 
-**Limits.** TCG only; refused while recording and in replay (the replay table), and on a machine with a device that discards guest RAM without marking it dirty (virtio-mem, hv-balloon; with a snapshot held, other discards such as virtio-balloon's are switched off). Shared RAM (vhost-user, ivshmem) is compared page by page.
+**Limits.** TCG only; refused while recording and in replay (the replay table), and on a machine with a device that discards guest RAM without marking it dirty (virtio-mem, hv-balloon; with a snapshot held, other discards such as virtio-balloon's are switched off). With a vhost device that can't log (a vhost-user backend without a shared log), every page is compared; other shared RAM (ivshmem) always is.
 
 **Use it:** `panda_fast_snap`, `panda_fast_restore`, `panda_fast_delete`
 
