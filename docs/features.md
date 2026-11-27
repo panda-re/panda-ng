@@ -256,15 +256,18 @@ requester. Registers are named by the CPU's gdbstub register number, so no PANDA
 Change the guest during a recording through the guest-write API: memory, registers, the return
 register and CPUArchState fields (through pointers too, by path). Each write is logged at the
 callback's instruction and replay repeats it without the callback. Guest hypercalls are the
-first site; writes made behind the API's back are a fatal error.
+first site; writes made behind the API's back are a fatal error. Observers see every
+hypercall in live runs, recordings and replays, including those the embedding API's consumer
+answers: `after_guest_hypercall` gives the number, the arguments, who answered, the answer and
+its logged writes, and replay delivers it from the log at the recording's instruction counts.
 
 **Limits.** TCG; KVM's hypercall consumer cannot be recorded. Writes are logged only inside hypercall handlers (the embedding API's consumer, mutating guest_hypercall callbacks, @panda.hypercall with mutates=True); elsewhere during record/replay they are refused. Env paths follow only pointers the generated layout map lists. At most 16 MiB of writes per hypercall. Hypercall instructions end their translation block under icount. riscv64 and the other targets without a PANDA hypercall fallback answer only through the embedding API's consumer.
 
-**Use it:** `panda_set_guest_hypercall_callback`, `panda_guest_write_env_path`, `panda_guest_write_reg`, `Panda.hypercall`, `Guest.env`
+**Use it:** `panda_set_guest_hypercall_callback`, `panda_guest_write_env_path`, `panda_guest_write_reg`, `Panda.hypercall`, `Guest.env`, `panda_hypercall_info`
 
 **Docs:** [docs/guides/record-replay.md](guides/record-replay.md), [docs/design/rr-guest-mutation-api.md](design/rr-guest-mutation-api.md)
 
-**Tests:** `tests/static/replay_effect.py`, `tests/static/guest_layout.py`, `tests/static/guest_view.py`, `tests/hypercall_rr.py`
+**Tests:** `tests/static/replay_effect.py`, `tests/static/guest_layout.py`, `tests/static/guest_view.py`, `tests/hypercall_rr.py`, `tests/hypercall_observe.py`
 
 **Engine patches:** 0092 ([series](reference/patches.md))
 

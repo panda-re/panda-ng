@@ -42486,8 +42486,80 @@ pub const PANDA_CB_BEFORE_HANDLE_EXCEPTION: panda_cb_type = 48;
 pub const PANDA_CB_BEFORE_HANDLE_INTERRUPT: panda_cb_type = 49;
 pub const PANDA_CB_START_BLOCK_EXEC: panda_cb_type = 50;
 pub const PANDA_CB_END_BLOCK_EXEC: panda_cb_type = 51;
-pub const PANDA_CB_LAST: panda_cb_type = 52;
+pub const PANDA_CB_AFTER_GUEST_HYPERCALL: panda_cb_type = 52;
+pub const PANDA_CB_LAST: panda_cb_type = 53;
 pub type panda_cb_type = ::std::os::raw::c_uint;
+pub const PANDA_HYPERCALL_UNANSWERED: panda_hypercall_answerer = 0;
+pub const PANDA_HYPERCALL_EMBEDDER: panda_hypercall_answerer = 1;
+pub const PANDA_HYPERCALL_PLUGIN: panda_hypercall_answerer = 2;
+pub type panda_hypercall_answerer = ::std::os::raw::c_uint;
+pub const PANDA_HYPERCALL_WRITE_VIRT: panda_hypercall_write_kind = 1;
+pub const PANDA_HYPERCALL_WRITE_PHYS: panda_hypercall_write_kind = 2;
+pub const PANDA_HYPERCALL_WRITE_REG: panda_hypercall_write_kind = 3;
+pub const PANDA_HYPERCALL_WRITE_ENV: panda_hypercall_write_kind = 4;
+pub const PANDA_HYPERCALL_WRITE_SYNC: panda_hypercall_write_kind = 5;
+pub type panda_hypercall_write_kind = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct panda_hypercall_write {
+    pub kind: u8,
+    pub result: u8,
+    pub reg: i32,
+    pub addr: u64,
+    pub len: u32,
+    pub data: *const u8,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of panda_hypercall_write"][::std::mem::size_of::<panda_hypercall_write>() - 32usize];
+    ["Alignment of panda_hypercall_write"]
+        [::std::mem::align_of::<panda_hypercall_write>() - 8usize];
+    ["Offset of field: panda_hypercall_write::kind"]
+        [::std::mem::offset_of!(panda_hypercall_write, kind) - 0usize];
+    ["Offset of field: panda_hypercall_write::result"]
+        [::std::mem::offset_of!(panda_hypercall_write, result) - 1usize];
+    ["Offset of field: panda_hypercall_write::reg"]
+        [::std::mem::offset_of!(panda_hypercall_write, reg) - 4usize];
+    ["Offset of field: panda_hypercall_write::addr"]
+        [::std::mem::offset_of!(panda_hypercall_write, addr) - 8usize];
+    ["Offset of field: panda_hypercall_write::len"]
+        [::std::mem::offset_of!(panda_hypercall_write, len) - 16usize];
+    ["Offset of field: panda_hypercall_write::data"]
+        [::std::mem::offset_of!(panda_hypercall_write, data) - 24usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct panda_hypercall_info {
+    pub nr: u64,
+    pub args: [u64; 6usize],
+    pub answerer: u8,
+    pub handled: bool,
+    pub ret: u64,
+    pub writes_known: bool,
+    pub nwrites: u32,
+    pub writes: *const panda_hypercall_write,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of panda_hypercall_info"][::std::mem::size_of::<panda_hypercall_info>() - 88usize];
+    ["Alignment of panda_hypercall_info"][::std::mem::align_of::<panda_hypercall_info>() - 8usize];
+    ["Offset of field: panda_hypercall_info::nr"]
+        [::std::mem::offset_of!(panda_hypercall_info, nr) - 0usize];
+    ["Offset of field: panda_hypercall_info::args"]
+        [::std::mem::offset_of!(panda_hypercall_info, args) - 8usize];
+    ["Offset of field: panda_hypercall_info::answerer"]
+        [::std::mem::offset_of!(panda_hypercall_info, answerer) - 56usize];
+    ["Offset of field: panda_hypercall_info::handled"]
+        [::std::mem::offset_of!(panda_hypercall_info, handled) - 57usize];
+    ["Offset of field: panda_hypercall_info::ret"]
+        [::std::mem::offset_of!(panda_hypercall_info, ret) - 64usize];
+    ["Offset of field: panda_hypercall_info::writes_known"]
+        [::std::mem::offset_of!(panda_hypercall_info, writes_known) - 72usize];
+    ["Offset of field: panda_hypercall_info::nwrites"]
+        [::std::mem::offset_of!(panda_hypercall_info, nwrites) - 76usize];
+    ["Offset of field: panda_hypercall_info::writes"]
+        [::std::mem::offset_of!(panda_hypercall_info, writes) - 80usize];
+};
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union panda_cb {
@@ -42674,6 +42746,9 @@ pub union panda_cb {
         ::std::option::Option<unsafe extern "C" fn(cpu: *mut CPUState, tb: *mut TranslationBlock)>,
     pub end_block_exec:
         ::std::option::Option<unsafe extern "C" fn(cpu: *mut CPUState, tb: *mut TranslationBlock)>,
+    pub after_guest_hypercall: ::std::option::Option<
+        unsafe extern "C" fn(env: *mut CPUState, hc: *mut panda_hypercall_info),
+    >,
     pub cbaddr: ::std::option::Option<unsafe extern "C" fn()>,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -42778,6 +42853,8 @@ const _: () = {
         [::std::mem::offset_of!(panda_cb, start_block_exec) - 0usize];
     ["Offset of field: panda_cb::end_block_exec"]
         [::std::mem::offset_of!(panda_cb, end_block_exec) - 0usize];
+    ["Offset of field: panda_cb::after_guest_hypercall"]
+        [::std::mem::offset_of!(panda_cb, after_guest_hypercall) - 0usize];
     ["Offset of field: panda_cb::cbaddr"][::std::mem::offset_of!(panda_cb, cbaddr) - 0usize];
 };
 #[repr(C)]
@@ -43155,6 +43232,13 @@ pub union panda_cb_with_context {
             tb: *mut TranslationBlock,
         ),
     >,
+    pub after_guest_hypercall: ::std::option::Option<
+        unsafe extern "C" fn(
+            context: *mut ::std::os::raw::c_void,
+            env: *mut CPUState,
+            hc: *mut panda_hypercall_info,
+        ),
+    >,
     pub cbaddr: ::std::option::Option<unsafe extern "C" fn()>,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -43266,6 +43350,8 @@ const _: () = {
         [::std::mem::offset_of!(panda_cb_with_context, start_block_exec) - 0usize];
     ["Offset of field: panda_cb_with_context::end_block_exec"]
         [::std::mem::offset_of!(panda_cb_with_context, end_block_exec) - 0usize];
+    ["Offset of field: panda_cb_with_context::after_guest_hypercall"]
+        [::std::mem::offset_of!(panda_cb_with_context, after_guest_hypercall) - 0usize];
     ["Offset of field: panda_cb_with_context::cbaddr"]
         [::std::mem::offset_of!(panda_cb_with_context, cbaddr) - 0usize];
 };
@@ -45972,7 +46058,7 @@ unsafe extern "C" {
     pub static mut panda_use_memcb: bool;
 }
 unsafe extern "C" {
-    pub static mut panda_cbs: [*mut panda_cb_list; 52usize];
+    pub static mut panda_cbs: [*mut panda_cb_list; 53usize];
 }
 unsafe extern "C" {
     pub static mut panda_tb_chaining: bool;
