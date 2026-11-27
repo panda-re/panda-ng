@@ -1,0 +1,95 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Fri, 27 Nov 2026 00:34:32 -0500
+Subject: [PATCH] replay: stop when a refused exception can never be replayed
+
+When replay refuses the exception the guest raised because the log's next
+event is not it, the exception stays pending and the vCPU cannot run another
+instruction.  If the log still wants instructions before its next event, the
+replay can never reach it, and the vCPU thread used to spin on the refusal
+forever.  After 100 consecutive refusals at the same instruction count and pc
+in that state, report the divergence (instruction count, exception, pc and the
+instructions the log still wants) and stop through replay_sync_error().
+---
+ accel/tcg/cpu-exec.c       |  2 ++
+ include/exec/replay-core.h |  6 ++++++
+ replay/replay.c            | 36 ++++++++++++++++++++++++++++++++++++
+ 3 files changed, 44 insertions(+)
+
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 0bb254b908d89d8e95835e6f2d1f04bd65ff7ae3..056d9e692ca7b5152021f65ad00ff22dcedbd95e 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -828,6 +828,8 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
+             return true;
+         }
+     } else if (!replay_has_interrupt()) {
++        replay_exception_refused(cpu->cc->get_pc ? cpu->cc->get_pc(cpu) : 0,
++                                 cpu->exception_index);
+         /* give a chance to iothread in replay mode */
+         *ret = EXCP_INTERRUPT;
+         return true;
+diff --git a/include/exec/replay-core.h b/include/exec/replay-core.h
+index 244c77acce5ca8c1a98fa7ce4323fab4bf061113..83ad714479b01a767b6faa88d5a2a41501563644 100644
+--- a/include/exec/replay-core.h
++++ b/include/exec/replay-core.h
+@@ -59,6 +59,12 @@ bool replay_exception(void);
+  * Does not proceed to the next event in the log.
+  */
+ bool replay_has_exception(void);
++/*
++ * Called when replay refuses the pending exception (the log's next event is not it).
++ * Stops the replay with a divergence error when the refusal repeats at the same
++ * instruction count and pc while the log still has instructions to run first.
++ */
++void replay_exception_refused(uint64_t pc, int exception);
+ /*
+  * Called by interrupt handlers to write or read interrupt processing events.
+  * Returns true if interrupt should be processed.
+diff --git a/replay/replay.c b/replay/replay.c
+index 8a265c1c36c178f399b8bb06bc02e746b0837a69..0db57123d3973d274c63adc34d3cbdf751a59f3d 100644
+--- a/replay/replay.c
++++ b/replay/replay.c
+@@ -246,6 +246,42 @@ bool replay_has_exception(void)
+     return res;
+ }
+ 
++/*
++ * A refused exception stays pending, so the vCPU cannot run another instruction: when the log
++ * still wants instructions before its next event, the replay can never get there.  Give the
++ * main loop a few rounds, then stop instead of spinning.
++ */
++#define REPLAY_REFUSED_EXCEPTION_LIMIT 100
++
++void replay_exception_refused(uint64_t pc, int exception)
++{
++    static uint64_t last_icount = UINT64_MAX;
++    static uint64_t last_pc;
++    static unsigned repeats;
++
++    if (replay_mode != REPLAY_MODE_PLAY) {
++        return;
++    }
++    g_assert(replay_mutex_locked());
++    if (replay_state.data_kind != EVENT_INSTRUCTION || replay_state.instruction_count == 0) {
++        repeats = 0;
++        return;
++    }
++    if (replay_state.current_icount != last_icount || pc != last_pc) {
++        last_icount = replay_state.current_icount;
++        last_pc = pc;
++        repeats = 0;
++    }
++    if (++repeats < REPLAY_REFUSED_EXCEPTION_LIMIT) {
++        return;
++    }
++    error_report("replay: diverged at instruction %" PRIu64 ": the guest raised exception %d "
++                 "at pc 0x%" PRIx64 ", but the recording has %u more instructions before "
++                 "its next event", replay_state.current_icount, exception, pc,
++                 replay_state.instruction_count);
++    replay_sync_error("replay: exception raised before the recorded one");
++}
++
+ bool replay_interrupt(void)
+ {
+     if (replay_mode == REPLAY_MODE_RECORD) {
