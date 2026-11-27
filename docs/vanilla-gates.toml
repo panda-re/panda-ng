@@ -1846,3 +1846,17 @@ gate_status = "consumer-gate-implemented-not-vanilla-verified"
 current_gate = "Nothing runs and no site changes until a consumer declares an ABI; reset, snapshot load and fast restore empty the pending set."
 required_action = "Refuse declarations in vanilla, or prove the declared path's snapshot and replay neutrality."
 vanilla_verified = false
+
+[[patch]]
+id = "0111"
+file = "engine/patches/11.1.2/0111-replay-stop-when-a-refused-exception-can-never-be-re.patch"
+sha256 = "f2051a43c3c575fc74a460eb21581988de969469b2ad5aac1822f2a2142964ec"
+class = "upstream-fix-needs-off-path"
+capability = "rr-log"
+paths = ["accel/tcg/cpu-exec.c", "include/exec/replay-core.h", "replay/replay.c"]
+functions = ["cpu_handle_exception", "replay_exception_refused"]
+hunk_contexts = ["static inline bool cpu_handle_exception(CPUState *cpu, int *ret)", "bool replay_exception(void);", "bool replay_has_exception(void)"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Replay only: when replay refuses the pending exception while the log still wants instructions before its next event, 100 refusals at the same instruction count and pc stop the replay with a divergence error. Outside replay the call returns at once, and it is reached only on the refused-exception path."
+required_action = "Explicit vanilla must keep upstream's behavior of refusing the exception and retrying (no divergence check on the refused path)."
+vanilla_verified = false

@@ -229,9 +229,9 @@ requested.
 
 **Docs:** [docs/guides/record-replay.md](guides/record-replay.md)
 
-**Tests:** `tests/rr.py`, `tests/rrcb.py`, `tests/rrstop.py`, `tests/rrload.py`, `tests/rr_blocks.py`, `tests/replay_guard.py`, `tests/static/replay_policy.py`, `tests/static/replay_native.py`, `tests/static/replay_bh.py`, `tests/static/replay_conflicts.py`
+**Tests:** `tests/rr.py`, `tests/rrcb.py`, `tests/rrstop.py`, `tests/rrload.py`, `tests/rr_blocks.py`, `tests/replay_guard.py`, `tests/replay_refused_exception.py`, `tests/static/replay_policy.py`, `tests/static/replay_native.py`, `tests/static/replay_bh.py`, `tests/static/replay_conflicts.py`
 
-**Engine patches:** 0024-0027, 0029, 0036-0039, 0049-0051, 0065-0067, 0071-0072, 0083-0084, 0087-0089, 0094-0096, 0098-0100 ([series](reference/patches.md))
+**Engine patches:** 0024-0027, 0029, 0036-0039, 0049-0051, 0065-0067, 0071-0072, 0083-0084, 0087-0089, 0094-0096, 0098-0100, 0111 ([series](reference/patches.md))
 
 <a id="recorded-ram-effects"></a>
 ## Recorded analysis RAM and register effects

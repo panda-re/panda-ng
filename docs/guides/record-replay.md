@@ -73,6 +73,15 @@ before it, checks `panda.libpanda.rr_on()`:
 
 `panda.rr_get_guest_instr_count()` is the instruction count, the replay's clock.
 
+A replay that leaves the recording's path stops with an error rather than spinning. When the
+guest raises an exception while the log still wants instructions before its next event, replay
+refuses it, and since a refused exception stays pending no instruction can run; after repeated
+refusals at the same point the replay stops with `replay: diverged at instruction N: the guest
+raised exception E at pc 0x..., but the recording has K more instructions before its next
+event`. The guest's path already differs from the recording's there, usually because something
+changed guest state outside the log earlier (for example a disk that is not behind blkreplay)
+(`tests/replay_refused_exception.py`).
+
 ## Analysis access policy
 
 Declare Python callbacks, PPP subscriptions and address hooks with `observe_only=True` for
