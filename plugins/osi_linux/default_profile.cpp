@@ -3,6 +3,49 @@
 #include "default_profile.h"
 
 
+#if defined(TARGET_I386)
+#ifndef HF_LMA_MASK
+#define HF_LMA_MASK (1 << 14)                   // target/i386/cpu.h: long mode active
+#endif
+
+/**
+ * @brief The per-cpu offset (__per_cpu_offset[cpu]) of the CPU this vCPU is, read from the
+ * register the kernel keeps it in; 0 if it can't be found.
+ *
+ * x86_64 addresses per-cpu data through GS. In the kernel GS_BASE holds the offset, except at a
+ * syscall's entry before its swapgs; in user mode the swapgs has put it in KERNEL_GS_BASE. i386
+ * (2.6.22 and later) uses FS, which in user mode is the user's: the per-cpu segment is GDT entry
+ * 27 (__KERNEL_PERCPU), and every CPU has a GDT of its own.
+ */
+static target_ptr_t x86_per_cpu_offset(CPUState *cpu)
+{
+    CPUArchState *env = (CPUArchState *)panda_cpu_env(cpu);
+#if defined(TARGET_X86_64)
+    if (env->hflags & HF_LMA_MASK) {
+        if (panda_in_kernel(cpu) && (int64_t)env->segs[R_GS].base < 0) {
+            return env->segs[R_GS].base;
+        }
+        return (int64_t)env->kernelgsbase < 0 ? env->kernelgsbase : 0;
+    }
+#endif
+    const uint32_t percpu_sel = 27 << 3;
+    if (panda_in_kernel(cpu) && (env->segs[R_FS].selector & ~3u) == percpu_sel) {
+        return (uint32_t)env->segs[R_FS].base;
+    }
+    if (env->gdt.limit < percpu_sel + 7) {
+        return 0;
+    }
+    uint32_t d[2];
+    if (panda_virtual_memory_read(cpu, env->gdt.base + percpu_sel, (uint8_t *)d, sizeof(d)) != 0) {
+        return 0;
+    }
+    if (!(d[1] & (1u << 15)) || !(d[1] & (1u << 12))) {
+        return 0;                               // not present, or not a code/data segment
+    }
+    return (d[0] >> 16) | ((d[1] & 0xff) << 16) | (d[1] & 0xff000000u);
+}
+#endif
+
 /**
  * @brief Retrieves the task_struct address using per cpu information.
  */
@@ -90,11 +133,22 @@ target_ptr_t default_get_current_task_struct(CPUState *cpu)
 #else // x86/64
     current_task_addr = ki.task.current_task_addr;
 #endif
-    err = struct_get(cpu, &ts, current_task_addr, ki.task.per_cpu_offset_0_addr);
+    target_ptr_t per_cpu_offset = ki.task.per_cpu_offset_0_addr;
+#if defined(TARGET_I386)
+    // current_task is per cpu: read this vCPU's copy, not CPU 0's. A kernel without SMP has no
+    // per-cpu offset (0) and its current_task is a plain variable.
+    if (per_cpu_offset != 0) {
+        target_ptr_t off = x86_per_cpu_offset(cpu);
+        if (off != 0) {
+            per_cpu_offset = off;
+        }
+    }
+#endif
+    err = struct_get(cpu, &ts, current_task_addr, per_cpu_offset);
     //assert(err == struct_get_ret_t::SUCCESS && "failed to get current task struct");
     if (err != struct_get_ret_t::SUCCESS) {
       // Callers need to check if we return NULL!
-      OG_printf("Failed to read current task struct from task_addr with offset " TARGET_FMT_lx "\n", (target_ulong) ki.task.per_cpu_offset_0_addr);
+      OG_printf("Failed to read current task struct from task_addr with offset " TARGET_FMT_lx "\n", (target_ulong) per_cpu_offset);
       return 0;
     }
     fixupendian2(ts);
