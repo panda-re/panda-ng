@@ -23,6 +23,11 @@ bool panda_bridge_tb_trans_on(int cpu_index);
  * (PANDA_BLOCK_GATE_ENTRY) or block-end (PANDA_BLOCK_GATE_END) callback is enabled. */
 #define PANDA_BLOCK_GATE_ENTRY 1
 #define PANDA_BLOCK_GATE_END   2
+/* The gate bits a TB's entry (@end false) or end callback tests. Usually its kind's own bit. A
+ * replay splits a block at a logged mid-block exception into a TB cut to the icount budget and a
+ * one-instruction exception TB, and hides the split (panda_block_replay_split): the cut TB's end and
+ * the exception TB's entry, both rare, are called while either gate is open. */
+unsigned panda_block_gate_for(TranslationBlock *tb, bool end);
 /* Recompute the gates from the enabled block callbacks and write them to every vCPU
  * (callbacks.c, under its lock; panda_block_gates_sync takes it, for a new vCPU). */
 void panda_block_gates_update(void);

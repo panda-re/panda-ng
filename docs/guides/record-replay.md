@@ -64,6 +64,19 @@ execution the recording saw: `tests/rrcb.py` checks that block, instruction and 
 `asid_changed` and the hypercalls fire at the same instruction counts in the recording and the
 replay, and that a replay with no analysis callbacks reaches them at the same counts too.
 
+Block callbacks report the recording's blocks in the replay. A recording that takes an exception
+in the middle of a block (a page fault at its fifth instruction, say) starts that block and leaves
+it without completing it. The replay can't run that block as one TB: it runs a TB cut to the
+instruction count of the exception, then a one-instruction TB that raises it. The engine hides the
+split: `start_block_exec`/`before_block_exec` fire once, for the cut TB, and `end_block_exec`/
+`after_block_exec` don't fire, as in the recording. The `tb` the start callbacks get is the cut TB,
+so `tb->size` and `tb->icount` can be smaller than the recording's; the pc and the instructions are
+the same. QEMU plugins' own TB callbacks see QEMU's TBs, both of them. A device access from an
+instruction that isn't its block's last is the same case from the other side: the recording
+rewinds the block (no end callbacks) and runs the instructions up to the access again without
+block callbacks, while the replay may run the block cut right after the access; the end callbacks
+don't fire there either.
+
 A callback that should only count what happens during the recording or replay, not the setup
 before it, checks `panda.libpanda.rr_on()`:
 

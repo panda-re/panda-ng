@@ -19,6 +19,7 @@
 #include "exec/memopidx.h"
 #include "qemu/rcu.h"
 #include "system/memory.h"
+#include "system/replay.h"
 #include "translate-int.h"
 
 
@@ -267,6 +268,8 @@ static struct {
  * writes contend), and a thread-local costs a __tls_get_addr call per access in this library. */
 static struct {
     TranslationBlock *tb;
+    /* panda_block_replay_split: the block ending now continues in the replay's next TB. */
+    bool split;
 } QEMU_ALIGNED(64) ending[PANDA_BLOCK_SLOTS];
 
 /* A block shared between virtual addresses (CF_PCREL, not bound to one) has no address of its own:
@@ -310,11 +313,85 @@ static bool panda_any_enabled(panda_cb_type type){
     return false;
 }
 
+/*
+ * Logical blocks in a replay. When the recording took an exception in the middle of a block (a
+ * page fault at its k-th instruction, say), the block started (before_block_exec) and was left
+ * without completing (no after_block_exec). The replay cannot run that block as it was: it runs
+ * to the exception's instruction count, so cpu_loop_exec_tb truncates the TB to the k-1
+ * instructions the budget has left (cflags | count), and that TB completes normally; then
+ * cpu_handle_exception runs a one-instruction TB at the faulting pc, without icount and with
+ * CF_NOIRQ, to raise the exception the log holds. Without care the replay reports one more block,
+ * started and completed, for each such exception. Hide the split: the truncated TB doesn't
+ * complete (no end callbacks) and the exception TB doesn't start (no start callbacks), so the
+ * replay reports the recording's block, started at its pc and left by the exception.
+ *
+ * A device access does the same from the other side. In the recording, an access from an
+ * instruction that isn't its TB's last is rewound (cpu_io_recompile): the block started, is left
+ * without completing, and the instructions up to the access run again in a TB that has no block
+ * callbacks (CF_MEMI_ONLY). When the log has an event right after that access, the replay's TB is
+ * cut there, the access is its last instruction and nothing is rewound: hide that TB's end too.
+ * io_prepare stores the access's host pc in cpu->mem_io_pc, which the cut TB's start clears.
+ * (A recording whose own TB was cut at a timer deadline right after a device access completed
+ * that block; its replay can't tell it from the rewound case. That needs a deadline to fall on
+ * the very instruction after a device access.)
+ *
+ * At the truncated TB's end the replay's next step is fixed: its budget is spent, and
+ * cpu_handle_exception runs the exception TB iff the log's next event is an exception, which is
+ * what replay_has_exception tells us here. The vCPU thread holds the replay mutex while it runs
+ * TBs (icount_prepare_for_run), and the icount read is allowed: a TB's last instruction (and its
+ * end, after it) can do I/O.
+ *
+ * Only TBs with an instruction count in their cflags take this path, i.e. TBs cut to an icount
+ * budget: a load and a test per block end, nothing more, and nothing outside record/replay.
+ */
+#define PANDA_CUT_HIDE_END   1   /* the recording didn't complete this block */
+#define PANDA_CUT_HIDE_START 2   /* and the next TB, the exception TB, is the rest of it */
+static int __attribute__((noinline)) panda_block_replay_split(CPUState *cpu, TranslationBlock *tb){
+    int hide = 0;
+    if (replay_mode == REPLAY_MODE_PLAY && (tb_cflags(tb) & CF_USE_ICOUNT)
+        && cpu->neg.icount_decr.u16.low + cpu->icount_extra == 0) {
+        if (cpu->mem_io_pc) {
+            hide |= PANDA_CUT_HIDE_END;
+        }
+        if (replay_mutex_locked() && replay_has_exception()) {
+            hide |= PANDA_CUT_HIDE_END | PANDA_CUT_HIDE_START;
+        }
+    }
+    return hide;
+}
+
+/* The one-instruction TB cpu_handle_exception runs to raise a logged exception. */
+static inline bool panda_block_is_replay_exception(TranslationBlock *tb){
+    uint32_t cflags = tb_cflags(tb);
+    return (cflags & (CF_COUNT_MASK | CF_USE_ICOUNT | CF_NOIRQ)) == (CF_NOIRQ | 1);
+}
+
+/* The split's two halves see both gates: the decision is taken at the cut TB's end (from what its
+ * entry cleared) and consumed at the exception TB's entry, whichever block callbacks are enabled (only before_block_exec, say). A
+ * TB cut to the budget ends once per budget expiry, and an exception TB runs once per logged
+ * exception: the extra calls are that rare, and their dispatchers skip the disabled callbacks. */
+unsigned panda_block_gate_for(TranslationBlock *tb, bool end){
+    uint32_t cflags = tb_cflags(tb);
+    if (((cflags & CF_COUNT_MASK) && (cflags & CF_USE_ICOUNT))
+        || (!end && panda_block_is_replay_exception(tb))) {
+        return PANDA_BLOCK_GATE_ENTRY | PANDA_BLOCK_GATE_END;
+    }
+    return end ? PANDA_BLOCK_GATE_END : PANDA_BLOCK_GATE_ENTRY;
+}
+
 /* Called by TCG at the outgoing edge, after guest operations and PC updates. */
 void panda_block_end(CPUState *cpu, TranslationBlock *tb)
 {
     unsigned index = cpu->cpu_index;
 
+    if (unlikely(tb_cflags(tb) & CF_COUNT_MASK) && index < PANDA_BLOCK_SLOTS) {
+        int hide = panda_block_replay_split(cpu, tb);
+        if (hide) {
+            /* Not completed in the recording (see panda_block_replay_split). */
+            ending[index].split = hide & PANDA_CUT_HIDE_START;
+            return;
+        }
+    }
     if (index < PANDA_BLOCK_SLOTS) {
         ending[index].tb = tb;
     }
@@ -381,9 +458,20 @@ static inline void panda_block_sync_pc(CPUState *cpu, TranslationBlock *tb){
 
 void panda_block_start(CPUState *cpu, TranslationBlock *tb)
 {
+    unsigned index = cpu->cpu_index;
+
     panda_block_sync_pc(cpu, tb);
+    if (unlikely(index < PANDA_BLOCK_SLOTS && ending[index].split)) {
+        ending[index].split = false;
+        if (panda_block_is_replay_exception(tb)) {
+            /* The rest of a block that already started (see panda_block_replay_split). */
+            return;
+        }
+    }
+    if (unlikely(tb_cflags(tb) & CF_COUNT_MASK)) {
+        cpu->mem_io_pc = 0;     /* for panda_block_replay_split at this TB's end */
+    }
     if (unlikely(panda_cbs[PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT])) {
-        unsigned index = cpu->cpu_index;
         if (index < PANDA_BLOCK_SLOTS && invalidated[index].skip
             && invalidated[index].pc == panda_current_pc(cpu)) {
             invalidated[index].skip = false;

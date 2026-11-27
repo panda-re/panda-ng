@@ -71,7 +71,14 @@ engine.
 **Limits.** Callbacks need TCG. Some declared callbacks have no call site yet or abort at registration; the
 reference says which. Block execution uses `start_block_exec` at entry and
 `end_block_exec` at normal completion, before outgoing transfers; chaining stays enabled.
-Faults and early exits have no end event. `before_block_exec` and `after_block_exec` are
+Faults and early exits have no end event. A replay reports the recording's blocks: where the
+recording took an exception in the middle of a block, the replay runs that block as two TBs (one cut
+to the logged instruction count, then a one-instruction TB that raises the exception) and the block
+callbacks see one block, started and left by the exception, as in the recording (the `tb` they get
+is the cut TB, so its size can be smaller; QEMU's own plugin TB events still see both TBs). Likewise
+for a device access that the recording rewound (it came from an instruction that wasn't its TB's
+last) and the replay ran as the last instruction of a cut TB: no end event, as in the recording.
+`before_block_exec` and `after_block_exec` are
 compatibility spellings at those boundaries. The first registration of any block callback
 instruments every block for entry and end for the rest of the run (one flush; unregistering
 removes nothing); enabling, disabling, and later registering and unregistering only set a gate

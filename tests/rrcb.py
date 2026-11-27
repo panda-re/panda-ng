@@ -11,6 +11,12 @@ instruction count at each hypercall, the number and order of blocks in the windo
 the program's instructions, its memory accesses with their values, and the asid_changed sequence.
 A second replay with only the hypercall callback must reach the hypercalls at the same instruction
 counts (callbacks don't perturb a replay).
+
+A second recording runs before/after_block_exec on every block of the whole recording, and its
+replay must report the same blocks: the same pcs in the same order, each completed or not as in the
+recording. The guest takes page faults in the middle of blocks there, which the replay runs as two
+TBs (one cut to the instruction count of the fault and a one-instruction TB that raises it); the
+callbacks must still see the recording's one block, started and left by the exception.
 """
 import hashlib
 import json
@@ -26,6 +32,7 @@ def child(mode, image, name, out, with_cbs):
     from pandare2 import Panda
     panda = Panda(generic=image, capabilities=["record"] if mode == "record" else None)
     guard = with_cbs == "guard"
+    whole = with_cbs == "all"  # block callbacks on for the whole recording, nothing else
     legacy_pc = with_cbs == "legacy-pc"
     with_cbs = with_cbs != "0"
     seen = {"hc": [], "blocks": 0, "abe": 0, "insns": 0, "mem": [], "asids": []}
@@ -44,11 +51,15 @@ def child(mode, image, name, out, with_cbs):
     if with_cbs:
         @panda.cb_before_block_exec(name="bbe", enabled=False, observe_only=True)
         def bbe(cpu, tb):
+            if whole and not panda.libpanda.rr_on():
+                return
             seen["blocks"] += 1
             blk.update(panda.arch.get_pc(cpu).to_bytes(8, "little"))
 
         @panda.cb_after_block_exec(name="abe", enabled=False, observe_only=True)
         def abe(cpu, tb, exit_code):
+            if whole and not panda.libpanda.rr_on():
+                return
             seen["abe"] += 1
             blk.update(bytes([exit_code]))
 
@@ -73,7 +84,7 @@ def child(mode, image, name, out, with_cbs):
             if in_program(pc):
                 seen["mem"].append(("w", pc, addr, size, bytes(panda.ffi.buffer(buf, size)).hex()))
 
-    window = ["bbe", "abe", "it", "ie", "vmar", "vmaw"] if with_cbs else []
+    window = ["bbe", "abe", "it", "ie", "vmar", "vmaw"] if with_cbs and not whole else []
 
     @panda.hypercall(MAGIC, observe_only=True)
     def hypercall(cpu):
@@ -99,6 +110,9 @@ def child(mode, image, name, out, with_cbs):
             upload(panda, "calls", panda.arch_name)
             progress("[record] recording /tmp/calls")
             seen["output"] = panda.run_serial_cmd("true")  # settle the prompt before recording
+            if whole:  # counted from the recording's first block (rr_on)
+                panda.enable_callback("bbe")
+                panda.enable_callback("abe")
             panda.record(name)
             panda.wait_rr("record")
             seen["output"] = panda.run_serial_cmd("/tmp/calls; echo rc=$?", timeout=600)
@@ -108,6 +122,9 @@ def child(mode, image, name, out, with_cbs):
         panda.run()
     else:
         progress(f"[{mode}] replaying")
+        if whole:
+            panda.enable_callback("bbe")
+            panda.enable_callback("abe")
         panda.run_replay(name)
         seen["serial"] = b"rc=0" in panda.replay_serial
     seen["blk_hash"] = blk.hexdigest()
@@ -123,9 +140,10 @@ def main():
     C = Checks(arch)
     work = sys.argv[2] if len(sys.argv) > 2 else tempfile.mkdtemp(prefix="rrcb-", dir="/tmp/apitest"
                                                                    if os.path.isdir("/tmp/apitest") else None)
-    name = os.path.join(work, "calls")
     runs = {}
-    for mode, cbs in [("record", "1"), ("replay", "1"), ("replay-hc-only", "0")]:
+    for mode, cbs in [("record", "1"), ("replay", "1"), ("replay-hc-only", "0"),
+                      ("record-all", "all"), ("replay-all", "all")]:
+        name = os.path.join(work, "calls-all" if cbs == "all" else "calls")
         out = os.path.join(work, mode + ".json")
         progress(f"{mode}: starting")
         try:
@@ -157,6 +175,15 @@ def main():
     C.check("replay without the analysis callbacks: same hypercall instruction counts",
             rep0 is not None and rec is not None and rep0["hc"] == rec["hc"],
             rep0 and rec and (rec["hc"], rep0["hc"]))
+    rec, rep = runs["record-all"], runs["replay-all"]
+    ok = rec is not None and rep is not None
+    C.check("whole recording: replay reaches both hypercalls at the recording's instruction counts",
+            ok and [h[0] for h in rec["hc"]] == [1, 2] and rep["hc"] == rec["hc"], ok and (rec["hc"], rep["hc"]))
+    C.check("whole recording: the replay reports the recording's blocks (pcs, order, completions, exit codes)",
+            ok and rec["blocks"] > 0
+            and (rep["blocks"], rep["abe"], rep["blk_hash"]) == (rec["blocks"], rec["abe"], rec["blk_hash"]),
+            ok and {"record": (rec["blocks"], rec["abe"]), "replay": (rep["blocks"], rep["abe"]),
+                    "not completed": rec["blocks"] - rec["abe"]})
     sys.exit(C.report(f"RRCB arch={arch} work={work}"))
 
 
