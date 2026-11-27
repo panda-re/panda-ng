@@ -181,11 +181,11 @@ static void vcpu_tb_trans(struct qemu_plugin_tb *tb, void *userdata)
     TranslationBlock *real_tb = panda_get_tb(tb);
     if (wants & PANDA_BRIDGE_BLOCK) {
         qemu_plugin_register_vcpu_tb_exec_gated_cb(tb, block_start_cb, QEMU_PLUGIN_CB_RW_REGS,
-                                                   PANDA_BLOCK_GATE_ENTRY, real_tb);
+                                                   panda_block_gate_for(real_tb, false), real_tb);
     }
     if (wants & PANDA_BRIDGE_END) {
         qemu_plugin_register_vcpu_tb_end_gated_cb(tb, block_end_cb, QEMU_PLUGIN_CB_RW_REGS,
-                                                  PANDA_BLOCK_GATE_END, real_tb);
+                                                  panda_block_gate_for(real_tb, true), real_tb);
     }
 
     panda_callbacks_block_translate(cpu, tb);
