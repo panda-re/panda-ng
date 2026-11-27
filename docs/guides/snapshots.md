@@ -127,8 +127,11 @@ same time. `tests/fastcov.py` checks the maps are exact from lap to lap.
 - After anything that rewrites RAM without dirty tracking (a `loadvm`) or reads the dirty bitmap
   (a `savevm` or a migration), the next restore copies all RAM, still correctly.
 - With a vhost device that can't log dirty pages (a vhost-user backend without a shared log), each
-  restore compares every page instead: still exact, but it reads all RAM. Shared RAM
-  (`share=on` backends, which another process can write) is always compared that way.
+  restore compares every page instead: still exact, but it reads all RAM. A vhost-user backend
+  that logs (`VHOST_F_LOG_ALL` and `VHOST_USER_PROTOCOL_F_LOG_SHMFD`) keeps the dirty-page path,
+  including on the machine's shared (`share=on`) RAM backend it maps. Other shared RAM (ivshmem,
+  a `share=on` backend that isn't the machine's RAM) is always compared, and a process that maps
+  the machine's RAM file on its own, outside vhost-user, writes it untracked.
 - Discarding guest RAM zeroes pages without marking them dirty. While a snapshot exists, discards
   are switched off (virtio-balloon keeps the pages the guest gives it, as under VFIO); on a
   machine with a device that needs them or ignores the switch (virtio-mem, hv-balloon),

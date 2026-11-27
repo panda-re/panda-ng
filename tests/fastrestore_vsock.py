@@ -1,7 +1,15 @@
 """panda_fast_restore stays exact with a vhost-user vsock device (IGLOO's guest channel).
 
-Run: panda-python tests/fastrestore_vsock.py <dir>/debian-13-x86_64.json [rounds] [--kernel]
+Run: panda-python tests/fastrestore_vsock.py <dir>/debian-13-x86_64.json [rounds] [--kernel|--logged]
 Needs vhost-device-vsock (rust-vmm) on PATH, or VHOST_DEVICE_VSOCK=<binary>.
+
+--logged says the vhost-user backend logs its writes (it offers VHOST_F_LOG_ALL and
+VHOST_USER_PROTOCOL_F_LOG_SHMFD, e.g. a vhost-device-vsock whose guest memory carries
+vhost-user-backend's BitmapMmapRegion). Released vhost-device-vsock (0.2.0) doesn't, so --logged
+needs a patched binary in VHOST_DEVICE_VSOCK and skips without one. QEMU hands it a shared log, the restores must take the
+dirty-page path, and the backend's writes (RX buffers, used rings) must reach the bitmap through
+that log for the restores to verify. Without --kernel or --logged, the engine's verdict on the
+backend decides which path is expected (compare for one that can't log).
 
 --kernel uses the kernel's vhost-vsock (/dev/vhost-vsock; the host connects with AF_VSOCK) instead.
 That backend logs (VHOST_F_LOG_ALL): the restores must take the dirty-page path (the dirty log is
@@ -84,12 +92,15 @@ def host_connects_kernel(cid, n):
 
 def main():
     kernel = "--kernel" in sys.argv
-    args = [a for a in sys.argv[1:] if a != "--kernel"]
+    logged = "--logged" in sys.argv
+    args = [a for a in sys.argv[1:] if a not in ("--kernel", "--logged")]
     image = args[0]
     rounds = int(args[1]) if len(args) > 1 else 3
     tmp = tempfile.mkdtemp(prefix="frvsock", dir=os.environ.get("TMPDIR", "/tmp"))
     q = Qcows.get_qcow_info(image)
     arch, mem = q.arch, q.default_mem
+    mem_pages = int(mem[:-1]) << {"K": 10, "M": 20, "G": 30}[mem[-1].upper()] >> 12 \
+        if mem[-1].isalpha() else int(mem) << 20 >> 12
     backend = None
     if kernel:
         try:
@@ -101,6 +112,12 @@ def main():
         connects = lambda n: host_connects_kernel(cid, n)  # noqa: E731
         extra = ["-device", f"vhost-vsock-pci,guest-cid={cid},addr=0x10"]
     else:
+        if logged and not os.environ.get("VHOST_DEVICE_VSOCK"):
+            # released vhost-device-vsock (0.2.0 and earlier) can't log: --logged needs a patched build
+            print("SKIP: --logged needs a vhost-device-vsock patched to support the dirty log "
+                  "(VHOST_F_LOG_ALL + VHOST_USER_PROTOCOL_F_LOG_SHMFD; released versions don't): "
+                  "set VHOST_DEVICE_VSOCK=<that binary>")
+            sys.exit(2)
         vdv = os.environ.get("VHOST_DEVICE_VSOCK") or shutil.which("vhost-device-vsock")
         if not vdv:
             print("SKIP: no vhost-device-vsock")
@@ -155,6 +172,7 @@ def main():
         i = info()
         r["full"], r["copied"] = i.get("last_full"), int(i.get("last_pages", -1))
         r["mode"], r["unlogged"] = i.get("last_mode"), i.get("unlogged")
+        r["blocks"] = i.get("blocks", "")
         r["differ_after"] = lib.panda_fast_verify()
         st["results"].append(r)
         print(f"FAST round {r}", flush=True)
@@ -211,6 +229,19 @@ def main():
         check("the kernel's vhost-vsock logs (unlogged=0)", res and all(r["unlogged"] == "0" for r in res))
         check("the restores took the dirty-page path (last_mode=dirty)",
               res and all(r["mode"] == "dirty" for r in res))
+    elif logged or (res and res[0]["unlogged"] == "0"):
+        check("the engine sees the vhost-user backend's shared log (unlogged=0)",
+              res and all(r["unlogged"] == "0" for r in res))
+        if logged and res and res[0]["unlogged"] != "0":
+            print("    the backend offered no dirty log: is VHOST_DEVICE_VSOCK a build patched to log?")
+        check("the restores took the dirty-page path (last_mode=dirty)",
+              res and all(r["mode"] == "dirty" for r in res))
+        check(f"the shared machine RAM ({RAM_ID.get(arch)}) is restored from the bitmap, not compared",
+              res and all(f"{RAM_ID.get(arch)}:" in r["blocks"] and
+                          any(b.startswith(f"{RAM_ID.get(arch)}:") and b.endswith(":dirty")
+                              for b in r["blocks"].split(",")) for r in res))
+        check("a restore copies back far fewer pages than RAM holds",
+              res and max(r["copied"] for r in res) < mem_pages // 4)
     else:
         check("the engine knows the vsock device can't log (unlogged=1)",
               res and all(r["unlogged"] == "1" for r in res))

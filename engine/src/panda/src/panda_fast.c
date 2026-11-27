@@ -39,8 +39,13 @@
  *
  * Blocks the bitmap can't vouch for are compared page by page instead: ROM devices other than
  * pflash (pflash logs its storage writes; other models may write theirs directly, unlogged),
- * blocks that aren't migratable (the DMA path doesn't log them), and shared RAM (another process
- * may write it).
+ * blocks that aren't migratable (the DMA path doesn't log them), and shared RAM other than the
+ * machine's own (another process may write it). The machine's RAM may be shared (share=on) so
+ * that vhost-user backends can map it; those backends are the writers outside QEMU the engine
+ * knows of, and each restore asks vhost whether they all log (else it compares every page), so
+ * shared machine RAM is tracked like private RAM. A process that maps the backing file or memfd
+ * on its own (not as a vhost-user backend) writes it untracked, like a write through a host
+ * pointer.
  *
  * Discarding guest RAM (balloons, virtio-mem) zeroes pages without marking them dirty. While a
  * fast snapshot exists, discards are disabled, as VFIO does: virtio-balloon then keeps the pages
@@ -80,6 +85,9 @@
 #include "hw/core/cpu.h"
 #include "hw/core/panda-modules.h"
 #include "hw/block/flash.h"
+#include "hw/core/boards.h"
+#include "system/hostmem.h"
+#include "system/numa.h"
 #ifdef TARGET_ARM
 #include "target/arm/internals.h"
 #endif
@@ -118,12 +126,37 @@ static struct {
 static size_t page_size(void) { return qemu_target_page_size(); }
 
 /*
- * A pflash logs its storage writes (they go through the model, which marks them dirty). Shared
- * RAM (share=on backends: vhost-user, ivshmem) can be written by another process, which marks
- * nothing.
+ * The machine's RAM backends: -machine memory-backend, or -numa node,memdev. A shared one is
+ * written outside QEMU by vhost-user backends, whose writes reach the bitmap when they log
+ * (a restore checks vhost_has_unlogged_dev() and compares all RAM if one can't).
+ */
+static bool block_is_machine_memdev(RAMBlock *rb) {
+    Object *m = qdev_get_machine();
+    MachineState *ms = m ? (MachineState *)object_dynamic_cast(m, TYPE_MACHINE) : NULL;
+
+    if (!ms || !object_dynamic_cast(rb->mr->owner, TYPE_MEMORY_BACKEND)) {
+        return false;
+    }
+    if (ms->memdev && host_memory_backend_get_memory(ms->memdev) == rb->mr) {
+        return true;
+    }
+    for (int i = 0; ms->numa_state && i < ms->numa_state->num_nodes; i++) {
+        HostMemoryBackend *b = ms->numa_state->nodes[i].node_memdev;
+        if (b && host_memory_backend_get_memory(b) == rb->mr) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*
+ * A pflash logs its storage writes (they go through the model, which marks them dirty). Other
+ * shared RAM (ivshmem, a share=on backend that isn't the machine's RAM) can be written by
+ * another process, which marks nothing.
  */
 static bool block_trackable(RAMBlock *rb) {
-    return qemu_ram_is_migratable(rb) && !qemu_ram_is_shared(rb) &&
+    return qemu_ram_is_migratable(rb) &&
+           (!qemu_ram_is_shared(rb) || block_is_machine_memdev(rb)) &&
            (!rb->mr->rom_device ||
             object_dynamic_cast(rb->mr->owner, TYPE_PFLASH_CFI01) ||
             object_dynamic_cast(rb->mr->owner, TYPE_PFLASH_CFI02));
