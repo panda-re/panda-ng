@@ -73,6 +73,12 @@ before it, checks `panda.libpanda.rr_on()`:
 
 `panda.rr_get_guest_instr_count()` is the instruction count, the replay's clock.
 
+A replay that leaves the recording's path stops with an error rather than running on. One such
+error names the instruction count and pc where the log has an exception that the guest's
+instruction did not raise (`replay: diverged at instruction N: the recording has an exception
+here, but the instruction at pc 0x... completed without one`): the guest's state there already
+differs from the recording's (`tests/replay_exception_missing.py`).
+
 ## Analysis access policy
 
 Declare Python callbacks, PPP subscriptions and address hooks with `observe_only=True` for

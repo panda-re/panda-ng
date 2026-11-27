@@ -1553,6 +1553,19 @@ current_gate = "The kernel-view debug translation runs only when called (PANDA's
 required_action = "Explicit vanilla must keep upstream's MSR[PR]-based PowerPC radix/BookE checks and must not route debug reads through the kernel view."
 vanilla_verified = false
 
+[[patch]]
+id = "0111"
+file = "engine/patches/11.1.2/0111-replay-stop-when-the-instruction-run-to-raise-a-reco.patch"
+sha256 = "16fc16b72d526751476b17a21cd16c51e3fdac241c3f1e56303ffcfef7193df2"
+class = "upstream-fix-needs-off-path"
+capability = "rr-log"
+paths = ["accel/tcg/cpu-exec.c", "include/exec/replay-core.h", "replay/replay.c"]
+functions = ["cpu_loop_exec_tb", "replay_exception_missing"]
+hunk_contexts = ["static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,", "bool replay_has_exception(void);", "bool replay_interrupt(void)"]
+gate_status = "explicit-vanilla-off-path-not-implemented"
+current_gate = "Replay only: after the one-instruction TB without CF_USE_ICOUNT that replay runs to raise the logged exception (CF_NOIRQ|1), a normal return stops the replay with a divergence error. Outside replay the check is one cflags test per TB exit."
+required_action = "Explicit vanilla must keep upstream's behavior of running the instruction uncounted (no check in cpu_loop_exec_tb)."
+vanilla_verified = false
 [[overlay]]
 id = "ordered-ram-effects"
 class = "runtime-gate"

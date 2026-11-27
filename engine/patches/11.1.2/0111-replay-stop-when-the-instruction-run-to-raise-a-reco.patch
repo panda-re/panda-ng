@@ -1,0 +1,92 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Luke Craig <lacraig3@gmail.com>
+Date: Thu, 26 Nov 2026 23:44:17 -0500
+Subject: [PATCH] replay: stop when the instruction run to raise a recorded
+ exception completes
+
+When the replay log has an exception next and the instruction budget is
+used up, cpu_handle_exception() runs one instruction in a TB without
+CF_USE_ICOUNT so that it raises the exception. If that instruction
+completes instead, it ran uncounted: the replay is one instruction past
+the log, and the next exception the guest raises comes one instruction
+early, where the log refuses it, so the vCPU spins forever.
+
+cpu_loop_exec_tb() now checks for that TB (CF_NOIRQ, one instruction, no
+CF_USE_ICOUNT, which only this replay path asks for) returning normally,
+and replay_exception_missing() reports "replay: diverged at instruction N:
+the recording has an exception here, but the instruction at pc 0x...
+completed without one" and stops through replay_sync_error().
+
+SPDX-License-Identifier: GPL-2.0-or-later AND LGPL-2.1-or-later
+Origin: new
+---
+ accel/tcg/cpu-exec.c       | 17 +++++++++++++++++
+ include/exec/replay-core.h |  5 +++++
+ replay/replay.c            |  8 ++++++++
+ 3 files changed, 30 insertions(+)
+
+diff --git a/accel/tcg/cpu-exec.c b/accel/tcg/cpu-exec.c
+index 0bb254b908d89d8e95835e6f2d1f04bd65ff7ae3..a0118e93c90267bd50d3a208ee5ecb85175d047f 100644
+--- a/accel/tcg/cpu-exec.c
++++ b/accel/tcg/cpu-exec.c
+@@ -986,8 +986,25 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
+                                     vaddr pc, TranslationBlock **last_tb,
+                                     int *tb_exit)
+ {
++    TranslationBlock *itb = tb;
++
+     trace_exec_tb(tb, pc);
+     tb = cpu_tb_exec(cpu, tb, tb_exit);
++#ifndef CONFIG_USER_ONLY
++    /*
++     * The one-instruction TB that cpu_handle_exception() asks for to raise
++     * the exception the replay log has next is the only TB without
++     * CF_USE_ICOUNT that replay runs.  Its instruction must fault; if it
++     * completes, it ran uncounted and the replay is one instruction past
++     * the log.  A TB that exits with TB_EXIT_REQUESTED did not start.
++     */
++    if (unlikely((tb_cflags(itb) & (CF_NOIRQ | CF_USE_ICOUNT | CF_COUNT_MASK))
++                 == (CF_NOIRQ | 1))
++        && replay_mode == REPLAY_MODE_PLAY && cpu->exception_index < 0
++        && (tb != itb || *tb_exit != TB_EXIT_REQUESTED)) {
++        replay_exception_missing(pc);
++    }
++#endif
+     if (*tb_exit != TB_EXIT_REQUESTED) {
+         *last_tb = tb;
+         return;
+diff --git a/include/exec/replay-core.h b/include/exec/replay-core.h
+index 244c77acce5ca8c1a98fa7ce4323fab4bf061113..80bcb14ea5383d3689ee32e1fc5224368952eea6 100644
+--- a/include/exec/replay-core.h
++++ b/include/exec/replay-core.h
+@@ -59,6 +59,11 @@ bool replay_exception(void);
+  * Does not proceed to the next event in the log.
+  */
+ bool replay_has_exception(void);
++/*
++ * Called when the instruction run to raise the exception the log has next
++ * (at @pc) completed without one: reports the divergence and stops.
++ */
++G_NORETURN void replay_exception_missing(uint64_t pc);
+ /*
+  * Called by interrupt handlers to write or read interrupt processing events.
+  * Returns true if interrupt should be processed.
+diff --git a/replay/replay.c b/replay/replay.c
+index 8a265c1c36c178f399b8bb06bc02e746b0837a69..03bfaa446d23fe36ffac612f24b0e3326c1fe940 100644
+--- a/replay/replay.c
++++ b/replay/replay.c
+@@ -246,6 +246,14 @@ bool replay_has_exception(void)
+     return res;
+ }
+ 
++void replay_exception_missing(uint64_t pc)
++{
++    error_report("replay: diverged at instruction %" PRIu64 ": the recording "
++                 "has an exception here, but the instruction at pc 0x%" PRIx64
++                 " completed without one", replay_state.current_icount, pc);
++    replay_sync_error("replay: recorded exception did not happen");
++}
++
+ bool replay_interrupt(void)
+ {
+     if (replay_mode == REPLAY_MODE_RECORD) {
