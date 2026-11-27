@@ -529,14 +529,20 @@ void on_get_process_handles(CPUState *env, GArray **out) {
 void on_get_current_process(CPUState *env, OsiProc **out) {
     if (!osi_guest_is_ready(env, (void**)out)) return;
 
-    static target_ptr_t last_ts = 0x0;
-    static target_ptr_t cached_taskd = 0x0;
-    static target_ptr_t cached_asid = 0x0;
-    static char *cached_name = (char *)g_malloc0(ki.task.comm_size);
-    static target_ptr_t cached_pid = -1;
-    static target_ptr_t cached_ppid = -1;
-    static void *cached_comm_ptr = NULL;
-    static uint64_t cached_start_time = 0;
+    // The last task's answer, per thread: with several vCPU threads (MTTCG) a shared cache
+    // would mix one task's fields with another's (e.g. a sibling's pid under the same name).
+    // It holds while the task_struct, its name and its tgid are the same: a task_struct is
+    // reused by a new task, often with the same name (a shell's child).
+    static thread_local target_ptr_t last_ts = 0x0;
+    static thread_local target_ptr_t cached_taskd = 0x0;
+    static thread_local target_ptr_t cached_asid = 0x0;
+    static thread_local char *cached_name = (char *)g_malloc0(ki.task.comm_size);
+    static thread_local target_ptr_t cached_pid = -1;
+    static thread_local target_ptr_t cached_ppid = -1;
+    static thread_local void *cached_comm_ptr = NULL;
+    static thread_local int32_t *cached_tgid_ptr = NULL;
+    static thread_local int32_t cached_tgid_raw = 0;
+    static thread_local uint64_t cached_start_time = 0;
     // OsiPage - TODO
 
     OsiProc *p = NULL;
@@ -545,7 +551,8 @@ void on_get_current_process(CPUState *env, OsiProc **out) {
         p = (OsiProc *)g_malloc(sizeof(*p));
         if ((ts != last_ts) || (NULL == cached_comm_ptr) ||
             (0 != strncmp((char *)cached_comm_ptr, cached_name,
-                          ki.task.comm_size))) {
+                          ki.task.comm_size)) ||
+            (NULL == cached_tgid_ptr) || (*cached_tgid_ptr != cached_tgid_raw)) {
             last_ts = ts;
             fill_osiproc(env, p, ts);
 
@@ -559,6 +566,9 @@ void on_get_current_process(CPUState *env, OsiProc **out) {
 	    cached_start_time = p->create_time;
             cached_comm_ptr = panda_map_virt_to_host(
                 env, ts + ki.task.comm_offset, ki.task.comm_size);
+            cached_tgid_ptr = (int32_t *)panda_map_virt_to_host(
+                env, ts + ki.task.tgid_offset, sizeof(int32_t));
+            if (cached_tgid_ptr) cached_tgid_raw = *cached_tgid_ptr;
         } else {
             p->taskd = cached_taskd;
             p->asid = cached_asid;
