@@ -47,7 +47,7 @@ def embedder(panda, result):
     lib = ffi.dlopen(panda.libpanda_path)
 
     @ffi.callback("panda_guest_hypercall_cb_t")
-    def on_hypercall(cpu, nr, op, addr, i, a3, a4, a5, ret, opaque):
+    def on_hypercall(cpu, nr, magic, op, addr, i, a4, a5, ret, opaque):
         if nr != MAGIC or op != 1:
             return 1
         quad, value = answer(int(i))
@@ -80,8 +80,8 @@ def child(mode, image, name, output):
         icount = panda.rr_get_guest_instr_count() if mode != 'live' else None
         result['seen'].append([icount, int(hc.nr), args, int(hc.answerer), bool(hc.handled),
                                int(hc.ret), bool(hc.writes_known), writes])
-        if args[0] == 2:
-            result['checksum'] = args[1]
+        if args[1] == 2:      # (MAGIC, op, a, b, pc): a0 is MAGIC
+            result['checksum'] = args[2]
 
     @panda.cb_guest_hypercall(observe_only=True)
     def before(cpu):
@@ -157,14 +157,14 @@ def main():
         ok = len(seen) == N + 1
         for i, (_, nr, args, answerer, handled, ret, known, writes) in enumerate(seen[:N]):
             quad, value = answer(i)
-            ok &= (args[0], args[2], answerer, handled, ret) == (1, i, 1, True, value)
+            ok &= (args[1], args[3], answerer, handled, ret) == (1, i, 1, True, value)
             ok &= known == (mode != 'live')
             # a virtual write is logged per page, by guest physical address (kind PHYS)
             ok &= (not known) or (len(writes) == 1 and writes[0][0] == 2 and writes[0][1] == 0
                                   and writes[0][4] == quad.to_bytes(8, 'little').hex())
         if seen:
             _, nr, args, answerer, handled, ret, known, writes = seen[-1]
-            ok &= (args[0], answerer, handled, ret) == (2, 2, True, PLUGIN_RET)
+            ok &= (args[1], answerer, handled, ret) == (2, 2, True, PLUGIN_RET)
         checks.check(mode + ': numbers, arguments, answerers, answers and writes as expected', ok,
                      seen[:2])
     checks.check('replay: the recording\'s sequence, at the same instruction counts and values',
